@@ -25,7 +25,7 @@ model Subject {
 
 model Semester {
   id        String          @id @default(uuid())
-  name      String
+  name      String          @unique
   startDate DateTime
   endDate   DateTime
   isActive  Boolean         @default(true)
@@ -39,16 +39,22 @@ model ClassSchedule {
   batchId    String
   subjectId  String
   semesterId String
+  teacherId  String?
+  daysOfWeek DayOfWeek[]
+  startTime  String // e.g., "09:00"
+  endTime    String // e.g., "10:30"
   isActive   Boolean        @default(true)
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
   batch      Batch          @relation(fields: [batchId], references: [id])
   semester   Semester       @relation(fields: [semesterId], references: [id])
   subject    Subject        @relation(fields: [subjectId], references: [id])
+  teacher    Teacher?       @relation(fields: [teacherId], references: [id])
   sessions   ClassSession[]
 
-  @@index([batchId, subjectId])
+  @@unique([batchId, subjectId])
   @@index([semesterId])
+  @@index([teacherId])
 }
 
 model ClassSession {
@@ -67,6 +73,7 @@ model ClassSession {
 
   @@index([classScheduleId])
   @@index([date])
+  @@index([createdAt, status])
 }
 
 model Attendance {
@@ -166,6 +173,16 @@ model StudentPayment {
   @@index([studentId, year, month])
 }
 
+model Teacher {
+  id             String          @id @default(uuid())
+  name           String
+  email          String          @unique
+  phone          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  classSchedules ClassSchedule[]
+}
+
 enum EducationLevel {
   HIGH_SCHOOL
   COLLEGE
@@ -181,7 +198,7 @@ enum GradeLevel {
 
 enum AttendanceStatus {
   PRESENT
-  ABSENT
+  UNEXCUSED
   LATE
   EXCUSED
 }
@@ -195,4 +212,14 @@ enum SubscriptionStatus {
   canceled
   unpaid
   paused
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
 }

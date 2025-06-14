@@ -14,7 +14,7 @@ Table Subject {
 
 Table Semester {
   id String [pk]
-  name String [not null]
+  name String [unique, not null]
   startDate DateTime [not null]
   endDate DateTime [not null]
   isActive Boolean [not null, default: true]
@@ -28,13 +28,22 @@ Table ClassSchedule {
   batchId String [not null]
   subjectId String [not null]
   semesterId String [not null]
+  teacherId String
+  daysOfWeek DayOfWeek[] [not null]
+  startTime String [not null]
+  endTime String [not null]
   isActive Boolean [not null, default: true]
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
   batch Batch [not null]
   semester Semester [not null]
   subject Subject [not null]
+  teacher Teacher
   sessions ClassSession [not null]
+
+  indexes {
+    (batchId, subjectId) [unique]
+  }
 }
 
 Table ClassSession {
@@ -135,6 +144,16 @@ Table StudentPayment {
   }
 }
 
+Table Teacher {
+  id String [pk]
+  name String [not null]
+  email String [unique, not null]
+  phone String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  classSchedules ClassSchedule [not null]
+}
+
 Enum EducationLevel {
   HIGH_SCHOOL
   COLLEGE
@@ -150,7 +169,7 @@ Enum GradeLevel {
 
 Enum AttendanceStatus {
   PRESENT
-  ABSENT
+  UNEXCUSED
   LATE
   EXCUSED
 }
@@ -166,11 +185,23 @@ Enum SubscriptionStatus {
   paused
 }
 
+Enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
 Ref: ClassSchedule.batchId > Batch.id
 
 Ref: ClassSchedule.semesterId > Semester.id
 
 Ref: ClassSchedule.subjectId > Subject.id
+
+Ref: ClassSchedule.teacherId > Teacher.id
 
 Ref: ClassSession.classScheduleId > ClassSchedule.id
 

@@ -1,8 +1,9 @@
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, DayOfWeek } from '@prisma/client'
 import csvParser from 'csv-parser'
 import * as fs from 'fs'
 
 import { prisma } from '@/lib/db'
+import { generateClassSessionsForSchedule } from '@/lib/scheduling'
 
 // Formatting functions
 function capitalizeWords(str: string): string {
@@ -49,18 +50,20 @@ function formatSchoolName(name: string | null): string | null {
 }
 
 async function dropTables() {
-  console.log('❌ Dropping all table data...')
+  console.log('❌ Dropping attendance-related table data...')
 
   // Drop tables in order based on foreign key relationships
   await prisma.$transaction([
-    // prisma.$executeRaw`DELETE FROM "_ClassGroupToStudent"`, // many-to-many
-    prisma.studentPayment.deleteMany(),
-    prisma.student.deleteMany(),
-    prisma.sibling.deleteMany(),
-    prisma.batch.deleteMany(),
+    prisma.attendance.deleteMany(),
+    prisma.classSession.deleteMany(),
+    prisma.classSchedule.deleteMany(),
+    // Keeping Student, Batch, Sibling, and StudentPayment data
+    prisma.subject.deleteMany(),
+    prisma.semester.deleteMany(),
+    prisma.teacher.deleteMany(),
   ])
 
-  console.log('✅ All table data has been cleared.')
+  console.log('✅ Attendance-related table data has been cleared.')
 }
 
 /**
@@ -126,6 +129,117 @@ function parseCSV(filePath: string): Promise<any[]> {
   })
 }
 
+async function seedTeachers() {
+  console.log('🌱 Seeding teachers...')
+  const teachers = [
+    { name: 'Mr. Smith', email: 'mr.smith@example.com', phone: '111-222-3333' },
+    { name: 'Ms. Jones', email: 'ms.jones@example.com', phone: '444-555-6666' },
+  ]
+  for (const teacher of teachers) {
+    await prisma.teacher.upsert({
+      where: { email: teacher.email },
+      update: teacher,
+      create: teacher,
+    })
+  }
+  console.log('✅ Teachers seeded.')
+}
+
+async function seedSubjects() {
+  console.log('🌱 Seeding subjects...')
+  const subjects = [
+    { name: 'Algebra II', description: 'Advanced algebra topics.' },
+    { name: 'History 101', description: 'Introduction to world history.' },
+    { name: 'Biology', description: 'The study of living organisms.' },
+  ]
+  for (const subject of subjects) {
+    await prisma.subject.upsert({
+      where: { name: subject.name },
+      update: { description: subject.description },
+      create: subject,
+    })
+  }
+  console.log('✅ Subjects seeded.')
+}
+
+async function seedBatches() {
+  console.log('🌱 Seeding batches...')
+  const batches = [{ name: 'Grade 10 Batch' }, { name: 'Grade 11 Batch' }]
+  for (const batch of batches) {
+    await prisma.batch.upsert({
+      where: { name: batch.name },
+      update: {},
+      create: { name: batch.name },
+    })
+  }
+  console.log('✅ Batches seeded.')
+}
+
+async function seedSemesters() {
+  console.log('🌱 Seeding semesters...')
+  const startDate = new Date('2025-04-01')
+  const endDate = new Date('2025-12-20')
+  const semesterData = {
+    name: 'Fall 2025',
+    startDate,
+    endDate,
+  }
+
+  await prisma.semester.upsert({
+    where: { name: semesterData.name },
+    update: semesterData,
+    create: semesterData,
+  })
+  console.log('✅ Semesters seeded.')
+}
+
+async function seedClassSchedules() {
+  console.log('🌱 Seeding class schedules...')
+  const teacher = await prisma.teacher.findFirst({
+    where: { email: 'mr.smith@example.com' },
+  })
+  const subject = await prisma.subject.findFirst({
+    where: { name: 'Algebra II' },
+  })
+  const batch = await prisma.batch.findFirst({
+    where: { name: 'Grade 10 Batch' },
+  })
+  const semester = await prisma.semester.findUnique({
+    where: { name: 'Fall 2025' },
+  })
+
+  if (teacher && subject && batch && semester) {
+    const scheduleData = {
+      teacherId: teacher.id,
+      subjectId: subject.id,
+      batchId: batch.id,
+      semesterId: semester.id,
+      daysOfWeek: [DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY],
+      startTime: '10:00',
+      endTime: '11:30',
+    }
+    const newSchedule = await prisma.classSchedule.upsert({
+      where: {
+        batchId_subjectId: {
+          batchId: batch.id,
+          subjectId: subject.id,
+        },
+      },
+      update: scheduleData,
+      create: scheduleData,
+    })
+    console.log('✅ Class schedules seeded.')
+    return newSchedule
+  } else {
+    console.log(
+      'Could not seed class schedules due to missing data (teacher, subject, batch, or semester).'
+    )
+    return null
+  }
+}
+
+// The 'seedData' function is intentionally unused for now to avoid dependency on a missing CSV file.
+/* eslint-disable-next-line @typescript-eslint/no-unused-vars */
 async function seedData() {
   let totalRecords = 0
   let createdCount = 0
@@ -195,24 +309,32 @@ async function seedData() {
       }
 
       try {
-        // Create the student record in the database.
-        await prisma.student.create({
-          data: {
-            name: fullName,
-            email: email,
-            phone: phone,
-            dateOfBirth: dateOfBirth,
-            educationLevel: educationLevel,
-            gradeLevel: gradeLevel,
-            schoolName: schoolName,
-            highSchoolGraduated: highSchoolGraduated,
-            collegeGraduated: collegeGraduated,
-            postGradCompleted: postGradCompleted,
-          },
-        })
+        // Create or update the student record in the database.
+        const studentData = {
+          name: fullName,
+          phone: phone,
+          dateOfBirth: dateOfBirth,
+          educationLevel: educationLevel,
+          gradeLevel: gradeLevel,
+          schoolName: schoolName,
+          highSchoolGraduated: highSchoolGraduated,
+          collegeGraduated: collegeGraduated,
+          postGradCompleted: postGradCompleted,
+        }
+
+        if (email) {
+          await prisma.student.upsert({
+            where: { email: email },
+            update: studentData,
+            create: { ...studentData, email: email },
+          })
+        } else {
+          // If no email, create a new record. Be aware of potential duplicates.
+          await prisma.student.create({ data: studentData })
+        }
 
         createdCount++
-        console.log(`Created student record for ${fullName}`)
+        console.log(`Upserted student record for ${fullName}`)
       } catch (createError: any) {
         console.error(
           `Error creating record for ${fullName}:`,
@@ -248,16 +370,26 @@ async function seedData() {
 
 async function main() {
   await dropTables()
-  await seedData()
+  await seedTeachers()
+  await seedSubjects()
+  await seedBatches()
+  await seedSemesters()
+  const schedule = await seedClassSchedules()
+  // await seedData() // This is the original student seeding function - disabled for now
+
+  if (schedule) {
+    console.log(`\n🔥 Generating sessions for schedule: ${schedule.id}`)
+    await generateClassSessionsForSchedule(schedule.id)
+  }
 }
 
 // Run the seeding script as CLI
 main()
+  .then(async () => {
+    // Only disconnect here because we're done with the CLI run
+    await prisma.$disconnect()
+  })
   .catch((e) => {
     console.error('❌ Error:', e)
     process.exit(1)
-  })
-  .finally(async () => {
-    // Only disconnect here because we're done with the CLI run
-    await prisma.$disconnect()
   })
