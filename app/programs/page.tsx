@@ -22,7 +22,6 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { GeometricPattern } from '@/components/ui/geometric-pattern'
 import { Logo } from '@/components/ui/logo'
 
 const semesters = [
@@ -211,7 +210,7 @@ const studentExpectations = [
 
 export default function ProgramsPage() {
   return (
-    <div className="relative min-h-screen bg-background">
+    <div className="relative min-h-screen bg-white">
       {/* Background decoration */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -inset-[10px] animate-gradient-slow opacity-20">
@@ -226,7 +225,7 @@ export default function ProgramsPage() {
             <Button
               asChild
               variant="ghost"
-              className="h-12 gap-2 rounded-xl text-base hover:bg-transparent hover:text-primary md:h-10"
+              className="h-12 gap-2 rounded-xl text-base text-[#007078] hover:bg-[#007078]/10 md:h-10"
             >
               <Link href="/">
                 <ArrowLeft className="h-5 w-5 md:h-4 md:w-4" />
@@ -239,37 +238,19 @@ export default function ProgramsPage() {
 
           {/* Header */}
           <div className="relative mb-12 text-center md:mb-16">
-            <GeometricPattern className="absolute left-0 top-0 -z-10 h-64 w-64 rotate-90 opacity-10" />
-            <motion.div
-              initial={{ opacity: 0, y: 50, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{
-                duration: 1,
-                ease: [0.21, 1.11, 0.81, 0.99],
-              }}
-              className="mb-4 text-4xl font-bold text-primary md:mb-6 md:text-5xl lg:text-7xl"
-            >
-              Roots of Knowledge
-            </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.8,
-                delay: 0.3,
-              }}
-              className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-6xl"
+              transition={{ duration: 0.8 }}
+              className="text-3xl font-bold tracking-tight text-[#007078] sm:text-4xl lg:text-6xl"
             >
-              Ma'had Program
+              Irshād Māhad Program
             </motion.div>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.8,
-                delay: 0.6,
-              }}
-              className="mx-auto mt-4 max-w-2xl px-4 text-base leading-relaxed text-muted-foreground md:mt-6 md:text-lg"
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="mx-auto mt-4 max-w-2xl px-4 text-base leading-relaxed text-gray-600 md:mt-6 md:text-lg"
             >
               Discover a comprehensive Islamic education program that combines
               traditional knowledge with modern learning approaches.
@@ -280,17 +261,19 @@ export default function ProgramsPage() {
           <div className="space-y-8 md:space-y-12">
             {/* Overview Section */}
             <section>
-              <Card className="overflow-hidden p-4 md:p-6 lg:p-8">
+              <Card className="overflow-hidden rounded-2xl border-0 bg-white p-4 shadow-sm ring-1 ring-gray-200 md:p-6 lg:p-8">
                 <div className="grid gap-6 md:grid-cols-3 md:gap-8">
                   <div className="md:col-span-2">
                     <div className="mb-4 flex items-center gap-3 md:mb-6">
-                      <GraduationCap className="h-6 w-6 text-primary" />
+                      <div className="rounded-full bg-[#007078]/10 p-2">
+                        <GraduationCap className="h-5 w-5 text-[#007078]" />
+                      </div>
                       <h2 className="text-xl font-semibold md:text-2xl">
                         Program Overview
                       </h2>
                     </div>
                     <div className="prose prose-gray dark:prose-invert max-w-none">
-                      <p className="text-sm leading-relaxed md:text-base">
+                      <p className="text-sm leading-relaxed text-gray-600 md:text-base">
                         Our flagship program offers a structured curriculum in
                         Islamic Studies, Arabic language, and Quranic Sciences.
                         Learn more about our accrediting institution at{' '}
@@ -298,7 +281,7 @@ export default function ProgramsPage() {
                           href="https://site.ium.edu.so/en"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-primary hover:underline"
+                          className="text-[#007078] transition-colors hover:text-[#deb43e]"
                         >
                           site.ium.edu.so
                         </Link>
@@ -309,71 +292,71 @@ export default function ProgramsPage() {
                             What's included
                           </h3>
                           <ul className="space-y-3">
-                            <li className="flex items-start gap-2">
-                              <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                              <span className="text-sm md:text-base">
-                                Comprehensive Islamic Studies
-                              </span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                              <span className="text-sm md:text-base">
-                                Arabic Language
-                              </span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                              <span className="text-sm md:text-base">
-                                Quranic Sciences
-                              </span>
-                            </li>
+                            {[
+                              'Comprehensive Islamic Studies',
+                              'Arabic Language',
+                              'Quranic Sciences',
+                            ].map((item, index) => (
+                              <li
+                                key={index}
+                                className="flex items-start gap-2"
+                              >
+                                <div className="mt-1 rounded-full bg-[#deb43e]/10 p-1">
+                                  <CheckCircle className="h-4 w-4 text-[#deb43e]" />
+                                </div>
+                                <span className="text-sm text-gray-600 md:text-base">
+                                  {item}
+                                </span>
+                              </li>
+                            ))}
                           </ul>
                         </div>
                         <div>
                           <ul className="space-y-3">
-                            <li className="flex items-start gap-2">
-                              <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                              <span className="text-sm md:text-base">
-                                Islamic History
-                              </span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                              <span className="text-sm md:text-base">
-                                Islamic Jurisprudence
-                              </span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                              <span className="text-sm md:text-base">
-                                Character Development
-                              </span>
-                            </li>
+                            {[
+                              'Islamic History',
+                              'Islamic Jurisprudence',
+                              'Character Development',
+                            ].map((item, index) => (
+                              <li
+                                key={index}
+                                className="flex items-start gap-2"
+                              >
+                                <div className="mt-1 rounded-full bg-[#deb43e]/10 p-1">
+                                  <CheckCircle className="h-4 w-4 text-[#deb43e]" />
+                                </div>
+                                <span className="text-sm text-gray-600 md:text-base">
+                                  {item}
+                                </span>
+                              </li>
+                            ))}
                           </ul>
                         </div>
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-lg bg-slate-900 p-4 text-white dark:bg-slate-800 md:p-6">
-                    <h3 className="mb-4 text-base font-medium text-slate-200 md:mb-6 md:text-lg">
+                  <div className="rounded-2xl bg-[#007078] p-6 text-white">
+                    <h3 className="mb-4 text-base font-medium text-white/90 md:mb-6 md:text-lg">
                       Full Program Details
                     </h3>
                     <div className="mb-4 text-center md:mb-6">
                       <div className="text-4xl font-bold md:text-6xl">60</div>
-                      <div className="text-sm text-slate-300">credit hours</div>
+                      <div className="text-sm text-white/80">credit hours</div>
                     </div>
                     <Button
-                      variant="secondary"
                       size="lg"
-                      className="w-full gap-2 bg-white text-slate-900 hover:bg-slate-100"
+                      className="w-full gap-2 rounded-full bg-[#deb43e] text-[#007078] transition-colors hover:bg-[#deb43e]/90"
                       asChild
                     >
-                      <Link href="#curriculum">
+                      <Link
+                        href="#curriculum"
+                        className="flex items-center gap-2"
+                      >
                         View Full Curriculum
                         <ArrowRight className="h-4 w-4" />
                       </Link>
                     </Button>
-                    <p className="mt-3 text-center text-xs text-slate-400 md:text-sm">
+                    <p className="mt-3 text-center text-xs text-white/70 md:text-sm">
                       Classes held at our Eden Prairie location
                     </p>
                   </div>
@@ -383,71 +366,67 @@ export default function ProgramsPage() {
 
             {/* Instructors & Materials */}
             <section className="grid gap-4 md:grid-cols-2 md:gap-6">
-              <Card className="p-4 md:p-6">
-                <div className="mb-3 flex items-center gap-2 md:mb-4 md:gap-3">
-                  <Users className="h-5 w-5 text-primary" />
-                  <h3 className="text-base font-semibold md:text-lg">
-                    Instructors
-                  </h3>
+              <Card className="rounded-2xl border-0 p-6 shadow-sm ring-1 ring-gray-200">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-full bg-[#007078]/10 p-2">
+                    <Users className="h-5 w-5 text-[#007078]" />
+                  </div>
+                  <h3 className="text-lg font-semibold">Instructors</h3>
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <div className="text-sm font-medium md:text-base">
-                      Sheikh Nuur Hassan
+                  {[
+                    'Sheikh Nuur Hassan',
+                    'Sheikh Abdulrahman Ali',
+                    'Sheikh Mustafa Muse',
+                  ].map((name, index) => (
+                    <div key={index}>
+                      <div className="text-sm font-medium text-gray-600 md:text-base">
+                        {name}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium md:text-base">
-                      Sheikh Abdiaziz Omar
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium md:text-base">
-                      Sheikh Ibrahim Ali
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium md:text-base">
-                      Sheikh Mustafa Muse
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </Card>
 
-              <Card className="p-4 md:p-6">
-                <div className="mb-3 flex items-center gap-2 md:mb-4 md:gap-3">
-                  <Book className="h-5 w-5 text-primary" />
-                  <h3 className="text-base font-semibold md:text-lg">
-                    Required Materials
-                  </h3>
+              <Card className="rounded-2xl border-0 p-6 shadow-sm ring-1 ring-gray-200">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-full bg-[#007078]/10 p-2">
+                    <Book className="h-5 w-5 text-[#007078]" />
+                  </div>
+                  <h3 className="text-lg font-semibold">Required Materials</h3>
                 </div>
-                <ul className="space-y-2 text-xs text-muted-foreground md:text-sm">
+                <ul className="space-y-2 text-sm text-gray-600 md:text-base">
                   <li>
                     Islamic Studies: Islamic University Minnesota curriculum
                   </li>
-                  <li>Arabic: Imam University's Arabic Ma'had Books</li>
+                  <li>Arabic: Nahw, Ta'beer and Specialized Books</li>
                 </ul>
               </Card>
             </section>
 
             {/* Academic Calendar */}
             <section>
-              <Card className="p-6 md:p-8">
+              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
                 <div className="mb-6 flex items-center gap-3">
-                  <Clock className="h-6 w-6 text-primary" />
+                  <div className="rounded-full bg-[#007078]/10 p-2">
+                    <Clock className="h-5 w-5 text-[#007078]" />
+                  </div>
                   <h2 className="text-2xl font-semibold">
                     Academic Calendar 2024-2025
                   </h2>
                 </div>
                 <div className="grid gap-6 md:grid-cols-3">
                   {semesters.map((semester, i) => (
-                    <div key={i} className="rounded-lg border p-4">
-                      <h4 className="mb-2 font-medium">{semester.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {semester.dates}
-                      </p>
+                    <div
+                      key={i}
+                      className="rounded-xl bg-[#007078]/5 p-4 transition-colors hover:bg-[#007078]/10"
+                    >
+                      <h4 className="mb-2 font-medium text-[#007078]">
+                        {semester.name}
+                      </h4>
+                      <p className="text-sm text-gray-600">{semester.dates}</p>
                       {semester.notes && (
-                        <p className="mt-2 text-sm text-muted-foreground">
+                        <p className="mt-2 text-sm text-gray-600">
                           {semester.notes}
                         </p>
                       )}
@@ -459,22 +438,20 @@ export default function ProgramsPage() {
 
             {/* Curriculum */}
             <section id="curriculum">
-              <Card className="p-4 md:p-6 lg:p-8">
+              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
                 <div className="mb-6 flex items-center gap-3">
-                  <Book className="h-6 w-6 text-primary" />
-                  <h2 className="text-xl font-semibold md:text-2xl">
-                    Curriculum
-                  </h2>
+                  <div className="rounded-full bg-[#007078]/10 p-2">
+                    <Book className="h-5 w-5 text-[#007078]" />
+                  </div>
+                  <h2 className="text-2xl font-semibold">Curriculum</h2>
                 </div>
 
                 {/* First Year */}
-                <div className="space-y-6 md:space-y-8">
+                <div className="space-y-8">
                   <div>
                     <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-lg font-medium md:text-xl">
-                        First Year
-                      </h3>
-                      <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+                      <h3 className="text-xl font-medium">First Year</h3>
+                      <span className="rounded-full bg-[#007078]/10 px-3 py-1 text-sm font-medium text-[#007078]">
                         30 credits
                       </span>
                     </div>
@@ -482,14 +459,16 @@ export default function ProgramsPage() {
                       {firstYearCourses.map((course, i) => (
                         <div
                           key={i}
-                          className="overflow-hidden rounded-xl border bg-card/50"
+                          className="overflow-hidden rounded-xl border bg-white shadow-sm"
                         >
                           <div className="border-b p-4">
-                            <div className="mb-2 flex items-center gap-2">
-                              <course.icon className="h-5 w-5 text-primary" />
+                            <div className="mb-2 flex items-center gap-3">
+                              <div className="rounded-full bg-[#007078]/10 p-1.5">
+                                <course.icon className="h-4 w-4 text-[#007078]" />
+                              </div>
                               <h4 className="font-medium">{course.name}</h4>
                             </div>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-gray-600">
                               {course.description}
                             </p>
                           </div>
@@ -497,18 +476,18 @@ export default function ProgramsPage() {
                             {course.detailedCourses.map((detailed, j) => (
                               <div
                                 key={j}
-                                className="flex items-center justify-between p-3 hover:bg-muted/50"
+                                className="flex items-center justify-between p-3 transition-colors hover:bg-[#007078]/5"
                               >
                                 <div className="flex-1 space-y-1">
                                   <div className="flex items-center gap-2">
-                                    <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-xs text-primary">
+                                    <code className="rounded bg-[#deb43e]/10 px-1.5 py-0.5 font-mono text-xs text-[#deb43e]">
                                       {detailed.code}
                                     </code>
-                                    <span className="text-xs font-medium md:text-sm">
+                                    <span className="text-xs font-medium text-gray-600 md:text-sm">
                                       {detailed.credits} cr
                                     </span>
                                   </div>
-                                  <div className="text-sm md:text-base">
+                                  <div className="text-sm text-gray-600 md:text-base">
                                     {detailed.title}
                                   </div>
                                 </div>
@@ -523,10 +502,8 @@ export default function ProgramsPage() {
                   {/* Second Year */}
                   <div>
                     <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-lg font-medium md:text-xl">
-                        Second Year
-                      </h3>
-                      <span className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+                      <h3 className="text-xl font-medium">Second Year</h3>
+                      <span className="rounded-full bg-[#007078]/10 px-3 py-1 text-sm font-medium text-[#007078]">
                         30 credits
                       </span>
                     </div>
@@ -534,14 +511,16 @@ export default function ProgramsPage() {
                       {secondYearCourses.map((course, i) => (
                         <div
                           key={i}
-                          className="overflow-hidden rounded-xl border bg-card/50"
+                          className="overflow-hidden rounded-xl border bg-white shadow-sm"
                         >
                           <div className="border-b p-4">
-                            <div className="mb-2 flex items-center gap-2">
-                              <course.icon className="h-5 w-5 text-primary" />
+                            <div className="mb-2 flex items-center gap-3">
+                              <div className="rounded-full bg-[#007078]/10 p-1.5">
+                                <course.icon className="h-4 w-4 text-[#007078]" />
+                              </div>
                               <h4 className="font-medium">{course.name}</h4>
                             </div>
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-sm text-gray-600">
                               {course.description}
                             </p>
                           </div>
@@ -549,18 +528,18 @@ export default function ProgramsPage() {
                             {course.detailedCourses.map((detailed, j) => (
                               <div
                                 key={j}
-                                className="flex items-center justify-between p-3 hover:bg-muted/50"
+                                className="flex items-center justify-between p-3 transition-colors hover:bg-[#007078]/5"
                               >
                                 <div className="flex-1 space-y-1">
                                   <div className="flex items-center gap-2">
-                                    <code className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-xs text-primary">
+                                    <code className="rounded bg-[#deb43e]/10 px-1.5 py-0.5 font-mono text-xs text-[#deb43e]">
                                       {detailed.code}
                                     </code>
-                                    <span className="text-xs font-medium md:text-sm">
+                                    <span className="text-xs font-medium text-gray-600 md:text-sm">
                                       {detailed.credits} cr
                                     </span>
                                   </div>
-                                  <div className="text-sm md:text-base">
+                                  <div className="text-sm text-gray-600 md:text-base">
                                     {detailed.title}
                                   </div>
                                 </div>
@@ -577,9 +556,11 @@ export default function ProgramsPage() {
 
             {/* Grading & Assessment */}
             <section>
-              <Card className="p-6 md:p-8">
+              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
                 <div className="mb-6 flex items-center gap-3">
-                  <CheckCircle className="h-6 w-6 text-primary" />
+                  <div className="rounded-full bg-[#007078]/10 p-2">
+                    <CheckCircle className="h-5 w-5 text-[#007078]" />
+                  </div>
                   <h2 className="text-2xl font-semibold">
                     Grading & Assessment
                   </h2>
@@ -591,12 +572,12 @@ export default function ProgramsPage() {
                       {gradeScale.map((grade, i) => (
                         <div
                           key={i}
-                          className="flex items-center justify-between"
+                          className="flex items-center justify-between rounded-lg bg-[#007078]/5 p-3"
                         >
-                          <span className="font-medium">{grade.letter}</span>
-                          <span className="text-muted-foreground">
-                            {grade.range}
+                          <span className="font-medium text-[#007078]">
+                            {grade.letter}
                           </span>
+                          <span className="text-gray-600">{grade.range}</span>
                         </div>
                       ))}
                     </div>
@@ -609,10 +590,12 @@ export default function ProgramsPage() {
                       {gradeComponents.map((component, i) => (
                         <div
                           key={i}
-                          className="flex items-center justify-between"
+                          className="flex items-center justify-between rounded-lg bg-[#007078]/5 p-3"
                         >
-                          <span>{component.name}</span>
-                          <span className="text-muted-foreground">
+                          <span className="text-gray-600">
+                            {component.name}
+                          </span>
+                          <span className="font-medium text-[#007078]">
                             {component.weight}%
                           </span>
                         </div>
@@ -625,31 +608,33 @@ export default function ProgramsPage() {
 
             {/* Student Expectations */}
             <section>
-              <Card className="p-6 md:p-8">
+              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
                 <div className="mb-6 flex items-center gap-3">
-                  <Users className="h-6 w-6 text-primary" />
+                  <div className="rounded-full bg-[#007078]/10 p-2">
+                    <Users className="h-5 w-5 text-[#007078]" />
+                  </div>
                   <h2 className="text-2xl font-semibold">
                     Student Expectations
                   </h2>
                 </div>
                 <div className="space-y-6">
-                  <p className="text-muted-foreground">
+                  <p className="text-gray-600">
                     Students in the two-year Ma'had Program are expected to
                     maintain high academic and behavioral standards:
                   </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {studentExpectations.map((category, i) => (
-                      <div key={i} className="rounded-lg border bg-card p-4">
-                        <h3 className="mb-3 text-lg font-medium">
+                      <div key={i} className="rounded-xl bg-[#007078]/5 p-6">
+                        <h3 className="mb-4 text-lg font-medium text-[#007078]">
                           {category.title}
                         </h3>
-                        <ul className="space-y-2">
+                        <ul className="space-y-3">
                           {category.items.map((item, j) => (
-                            <li key={j} className="flex items-start gap-2">
-                              <CheckCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-primary" />
-                              <span className="text-muted-foreground">
-                                {item}
-                              </span>
+                            <li key={j} className="flex items-start gap-3">
+                              <div className="mt-1 rounded-full bg-[#deb43e]/10 p-1">
+                                <CheckCircle className="h-4 w-4 text-[#deb43e]" />
+                              </div>
+                              <span className="text-gray-600">{item}</span>
                             </li>
                           ))}
                         </ul>
@@ -662,8 +647,12 @@ export default function ProgramsPage() {
 
             {/* CTA */}
             <section className="mt-12 text-center">
-              <Button size="lg" className="gap-2" asChild>
-                <Link href="/register">
+              <Button
+                size="lg"
+                className="rounded-full bg-[#007078] px-8 text-white transition-colors hover:bg-[#007078]/90"
+                asChild
+              >
+                <Link href="/register" className="flex items-center gap-2">
                   Begin Your Journey
                   <ArrowRight className="h-4 w-4" />
                 </Link>

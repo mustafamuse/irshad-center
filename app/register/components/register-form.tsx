@@ -318,7 +318,7 @@ export function RegisterForm() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background px-4 pb-20 pt-4 md:px-6 md:py-8">
+    <div className="min-h-screen bg-white px-4 pb-20 pt-4 md:px-6 md:py-8">
       <div className="mx-auto max-w-3xl space-y-4 md:space-y-8">
         {/* Navigation Context */}
         <div className="flex items-center justify-between">
@@ -342,13 +342,16 @@ export function RegisterForm() {
             onSubmit={form.handleSubmit(handleSubmit)}
             className="space-y-4"
           >
-            <Card className="overflow-hidden border-0 shadow-sm md:rounded-lg md:border">
-              <CardHeader className="border-b px-4 pb-4 pt-5 md:p-6">
-                <CardTitle className="text-xl font-semibold">
+            <Card className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-gray-200 md:p-8">
+              <CardHeader className="mb-6 space-y-1 px-0 pb-6">
+                <CardTitle className="text-xl font-semibold text-[#007078]">
                   Personal Information
                 </CardTitle>
+                <CardDescription className="text-gray-600">
+                  Fill in your details to begin the registration process
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6 p-4 md:p-6">
+              <CardContent className="space-y-6 px-0">
                 {/* Name Fields - Adjust spacing and sizing */}
                 <div className="grid gap-5 md:grid-cols-2 md:gap-6">
                   <FormField
@@ -636,7 +639,7 @@ export function RegisterForm() {
                 {/* Buttons - Optimize for touch */}
                 <Button
                   type="submit"
-                  className="mt-2 h-14 w-full gap-2 rounded-lg text-base font-medium md:h-12"
+                  className="mt-6 h-14 w-full gap-2 rounded-full bg-[#007078] text-base font-medium text-white transition-colors hover:bg-[#007078]/90 md:h-12"
                   disabled={form.formState.isSubmitting}
                 >
                   {form.formState.isSubmitting ? (
@@ -653,22 +656,22 @@ export function RegisterForm() {
           </form>
         </Form>
 
-        {/* Dialog improvements for mobile */}
+        {/* Sibling Dialog */}
         <Dialog open={showSiblingPrompt} onOpenChange={setShowSiblingPrompt}>
-          <DialogContent className="mx-4 max-w-[400px] rounded-2xl p-4 md:p-6">
+          <DialogContent className="mx-4 max-w-[400px] rounded-2xl border-0 p-6 shadow-sm md:p-8">
             <DialogHeader className="space-y-3">
-              <DialogTitle className="text-center text-xl font-semibold">
-                Do you have any siblings at the Mahad?
+              <DialogTitle className="text-center text-xl font-semibold text-[#007078]">
+                Do you have any siblings at Irshād Māhad?
               </DialogTitle>
-              <DialogDescription className="text-center text-base">
-                Let us know if you have any siblings currently enrolled at the
-                Mahad. This helps us keep family records together.
+              <DialogDescription className="text-center text-base text-gray-600">
+                Let us know if you have any siblings currently enrolled. This
+                helps us keep family records together.
               </DialogDescription>
             </DialogHeader>
 
             <DialogFooter className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Button
-                className="h-14 w-full rounded-lg text-base font-medium md:h-12 md:w-auto"
+                className="h-14 w-full rounded-full bg-[#007078] text-base font-medium text-white transition-colors hover:bg-[#007078]/90 md:h-12"
                 onClick={handleNoSiblingsRegistration}
                 disabled={isSubmitting}
               >
@@ -683,7 +686,7 @@ export function RegisterForm() {
               </Button>
               <Button
                 variant="outline"
-                className="h-14 w-full rounded-lg text-base font-medium md:h-12 md:w-auto"
+                className="h-14 w-full rounded-full border-[#deb43e] text-base font-medium text-[#deb43e] transition-colors hover:bg-[#deb43e]/10 md:h-12"
                 onClick={() => {
                   setShowSiblingPrompt(false)
                   setShowSiblingSection(true)
@@ -698,18 +701,22 @@ export function RegisterForm() {
 
         {/* Sibling Management Section */}
         {showSiblingSection && (
-          <Card>
-            <CardHeader className="space-y-1">
-              <CardTitle className="text-2xl">Sibling Registration</CardTitle>
-              <CardDescription className="text-base">
-                Add your siblings
+          <Card className="rounded-2xl border-0 bg-white shadow-sm ring-1 ring-gray-200">
+            <CardHeader className="space-y-2 border-b p-6">
+              <CardTitle className="text-2xl font-semibold text-[#007078]">
+                Sibling Registration
+              </CardTitle>
+              <CardDescription className="text-base text-gray-600">
+                Add your siblings to complete the registration
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-6 p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
-                  <h4 className="text-lg font-medium">Siblings to Add</h4>
-                  <p className="text-sm text-muted-foreground">
+                  <h4 className="text-lg font-medium text-[#007078]">
+                    Siblings to Add
+                  </h4>
+                  <p className="text-sm text-gray-600">
                     {siblings.length
                       ? `${siblings.length} sibling${siblings.length > 1 ? 's' : ''} added`
                       : 'No siblings added yet'}
@@ -718,7 +725,7 @@ export function RegisterForm() {
                 <Button
                   variant="outline"
                   size="lg"
-                  className="flex w-full items-center gap-2 sm:w-auto"
+                  className="flex w-full items-center gap-2 rounded-full border-[#007078] text-[#007078] transition-colors hover:bg-[#007078]/10 sm:w-auto"
                   onClick={() => setShowSiblingSearch(true)}
                 >
                   <UserPlus className="h-5 w-5" />
@@ -727,18 +734,19 @@ export function RegisterForm() {
               </div>
 
               {siblings.length > 0 && (
-                <div className="rounded-xl border bg-card">
+                <div className="rounded-xl bg-[#007078]/5">
                   {siblings.map((sibling, index) => (
                     <div
                       key={sibling.id}
                       className={cn(
                         'flex items-center justify-between p-4',
-                        index !== siblings.length - 1 && 'border-b'
+                        index !== siblings.length - 1 &&
+                          'border-b border-[#007078]/10'
                       )}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                          <span className="text-sm font-medium text-primary">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#deb43e]/10">
+                          <span className="text-sm font-medium text-[#deb43e]">
                             {sibling.name
                               .split(' ')
                               .map((n) => n[0])
@@ -746,8 +754,10 @@ export function RegisterForm() {
                           </span>
                         </div>
                         <div className="space-y-1">
-                          <p className="font-medium">{sibling.name}</p>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="font-medium text-[#007078]">
+                            {sibling.name}
+                          </p>
+                          <p className="text-sm text-gray-600">
                             Sibling #{index + 1}
                           </p>
                         </div>
@@ -755,7 +765,7 @@ export function RegisterForm() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive"
+                        className="h-8 w-8 rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                         onClick={() => {
                           setSiblings((prev) =>
                             prev.filter((s) => s.id !== sibling.id)
@@ -773,9 +783,7 @@ export function RegisterForm() {
               <div className="space-y-4 pt-4">
                 <Button
                   onClick={handleSiblingRegistration}
-                  className="w-full"
-                  size="lg"
-                  variant="default"
+                  className="h-14 w-full rounded-full bg-[#007078] text-base font-medium text-white transition-colors hover:bg-[#007078]/90 md:h-12"
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? (
@@ -784,7 +792,7 @@ export function RegisterForm() {
                       Processing...
                     </>
                   ) : (
-                    'Continue'
+                    'Continue to Payment'
                   )}
                 </Button>
               </div>
@@ -794,45 +802,46 @@ export function RegisterForm() {
 
         {/* Sibling Search Dialog */}
         <Dialog open={showSiblingSearch} onOpenChange={setShowSiblingSearch}>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Add a Sibling</DialogTitle>
-              <DialogDescription>
+          <DialogContent className="mx-4 max-w-[425px] rounded-2xl border-0 p-6 shadow-sm md:p-8">
+            <DialogHeader className="space-y-3">
+              <DialogTitle className="text-xl font-semibold text-[#007078]">
+                Add a Sibling
+              </DialogTitle>
+              <DialogDescription className="text-gray-600">
                 Search for siblings with last name &quot;{formData?.lastName}
                 &quot;
               </DialogDescription>
-              <div className="mt-2 rounded-md border-l-4 border-orange-200 bg-orange-50/30 p-4 dark:border-orange-400/20 dark:bg-orange-400/5">
-                <div className="flex items-center justify-center gap-2 text-orange-700 dark:text-orange-300">
+              <div className="mt-2 rounded-xl border-l-4 border-[#deb43e] bg-[#deb43e]/5 p-4">
+                <div className="flex items-center justify-center gap-2 text-[#deb43e]">
                   <AlertTriangle className="h-4 w-4" />
                   <span className="text-sm font-semibold">Important</span>
                 </div>
-                <div className="mt-2 text-center text-sm text-orange-600 dark:text-orange-300/90">
+                <div className="mt-2 text-center text-sm text-[#deb43e]">
                   <span>Please note:</span>
                   <ul className="mt-1 list-none space-y-1">
                     <li>• Only siblings with the same last name will appear</li>
-                    <li>• Your sibling must be registered at the Mahad</li>
+                    <li>• Your sibling must be registered at Irshād Māhad</li>
                   </ul>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="mt-4 space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Search by name..."
-                  value={searchTerm}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setSearchTerm(value)
-                    debouncedSearch(value)
-                  }}
-                />
-              </div>
+            <div className="mt-6 space-y-4">
+              <Input
+                placeholder="Search by name..."
+                value={searchTerm}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setSearchTerm(value)
+                  debouncedSearch(value)
+                }}
+                className="h-12 rounded-lg border-gray-200 text-base placeholder:text-gray-400"
+              />
 
-              <div className="max-h-[200px] overflow-y-auto rounded-lg border">
+              <div className="max-h-[200px] overflow-y-auto rounded-xl border border-gray-200">
                 {searchResults.length === 0 ? (
                   <div className="p-4 text-center">
-                    <p className="text-sm font-medium">
+                    <p className="text-sm font-medium text-gray-600">
                       {!formData?.lastName
                         ? 'Please complete personal details first'
                         : searchTerm.length < 2
@@ -840,27 +849,32 @@ export function RegisterForm() {
                           : 'No siblings found with the same last name'}
                     </p>
                     {searchTerm.length >= 2 && (
-                      <p className="mt-1 text-xs text-muted-foreground">
+                      <p className="mt-1 text-xs text-gray-500">
                         Make sure your sibling is registered with the same last
                         name
                       </p>
                     )}
                   </div>
                 ) : (
-                  <div className="divide-y">
+                  <div className="divide-y divide-gray-100">
                     {searchResults.map((student) => (
                       <div
                         key={student.id}
-                        className={`flex cursor-pointer items-center justify-between p-3 hover:bg-muted/50 ${
-                          selectedStudent?.id === student.id ? 'bg-muted' : ''
-                        }`}
+                        className={cn(
+                          'flex cursor-pointer items-center justify-between p-4 transition-colors',
+                          selectedStudent?.id === student.id
+                            ? 'bg-[#007078]/5'
+                            : 'hover:bg-[#007078]/5'
+                        )}
                         onClick={() => setSelectedStudent(student)}
                       >
                         <div>
-                          <p className="font-medium">{student.name}</p>
+                          <p className="font-medium text-[#007078]">
+                            {student.name}
+                          </p>
                         </div>
                         {selectedStudent?.id === student.id && (
-                          <Check className="h-4 w-4 text-primary" />
+                          <Check className="h-4 w-4 text-[#007078]" />
                         )}
                       </div>
                     ))}
@@ -868,10 +882,10 @@ export function RegisterForm() {
                 )}
               </div>
 
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-3">
                 <Button
                   variant="outline"
-                  className="flex-1"
+                  className="flex-1 rounded-full border-[#deb43e] text-[#deb43e] transition-colors hover:bg-[#deb43e]/10"
                   onClick={() => {
                     setShowSiblingSearch(false)
                     setSearchTerm('')
@@ -882,7 +896,7 @@ export function RegisterForm() {
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1"
+                  className="flex-1 rounded-full bg-[#007078] text-white transition-colors hover:bg-[#007078]/90"
                   onClick={handleAddSelectedSibling}
                   disabled={!selectedStudent}
                 >

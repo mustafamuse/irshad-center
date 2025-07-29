@@ -4,71 +4,46 @@ import Link from 'next/link'
 
 import { motion } from 'framer-motion'
 import {
-  ArrowRight,
-  MapPin,
-  Mail,
-  Phone,
-  MessageCircle,
-  CheckCircle,
   Users2,
   GraduationCap,
+  CheckCircle,
+  ArrowRight,
+  MessageCircle,
+  Phone,
+  Mail,
+  MapPin,
 } from 'lucide-react'
 
-import { GlobalHeader } from '@/components/layout/global-header'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
 import { Logo } from '@/components/ui/logo'
+
+import { Pricing } from './components/pricing'
 
 export default function HomePage() {
   return (
     <div className="relative flex min-h-screen flex-col">
-      <GlobalHeader variant="public" />
-
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative overflow-hidden bg-gradient-to-br from-background via-background/95 to-background/90 px-6 py-12 lg:px-8 lg:py-20">
-          {/* Gradient background effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 via-primary/5 to-amber-500/10 blur-3xl" />
-
-          <div className="relative mx-auto max-w-7xl">
-            <div className="grid gap-0 lg:grid-cols-2 lg:gap-16">
-              {/* Mobile Logo Section - Moved to top */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.2 }}
-                className="flex justify-center lg:hidden"
-              >
-                <Logo
-                  className="w-full max-w-md transform transition-transform duration-300 hover:scale-105"
-                  size="xl"
-                  showText={false}
-                />
-              </motion.div>
-
-              {/* Main Content */}
-              <div className="flex flex-col justify-center text-center lg:text-left">
+        <section className="relative overflow-hidden bg-white px-6 py-24 sm:py-32 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid items-center gap-12 lg:grid-cols-2">
+              {/* Content */}
+              <div className="text-left">
                 <motion.h1
-                  className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl"
+                  className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl xl:text-7xl"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8 }}
                 >
-                  Discover the Beauty of{' '}
-                  <motion.span
-                    className="relative inline-block bg-gradient-to-r from-emerald-600 via-primary to-amber-600 bg-clip-text text-transparent dark:from-emerald-400 dark:via-primary-foreground dark:to-amber-400"
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 1, delay: 0.3, type: 'spring' }}
-                  >
-                    Islamic Knowledge
-                    {/* Enhanced gradient background */}
-                    <div className="absolute inset-0 -z-10 bg-gradient-to-r from-emerald-500/20 via-primary/20 to-amber-500/20 blur-xl" />
-                  </motion.span>
+                  <span>Discover the</span> <br className="hidden sm:block" />
+                  <span>Beauty of </span>
+                  <span className="text-[#007078]">Islamic</span>
+                  <br className="hidden sm:block" />
+                  <span className="text-[#007078]">Knowledge</span>
                 </motion.h1>
 
                 <motion.p
-                  className="mt-6 text-lg leading-8 text-muted-foreground sm:text-xl"
+                  className="mt-8 text-lg leading-8 text-gray-600"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, delay: 0.2 }}
@@ -79,20 +54,24 @@ export default function HomePage() {
 
                 {/* Stats */}
                 <motion.div
-                  className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-8"
+                  className="mt-10 flex flex-col gap-6 sm:flex-row sm:gap-12"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, delay: 0.4 }}
                 >
-                  <div className="flex items-center justify-center gap-2 sm:justify-start">
-                    <Users2 className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium text-muted-foreground">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-[#007078]/10 p-2">
+                      <Users2 className="h-5 w-5 text-[#007078]" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-600">
                       100+ Students Enrolled
                     </span>
                   </div>
-                  <div className="flex items-center justify-center gap-2 sm:justify-start">
-                    <GraduationCap className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium text-muted-foreground">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-[#007078]/10 p-2">
+                      <GraduationCap className="h-5 w-5 text-[#007078]" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-600">
                       Islamic University Instructors
                     </span>
                   </div>
@@ -100,291 +79,299 @@ export default function HomePage() {
 
                 {/* CTA Buttons */}
                 <motion.div
-                  className="mt-10 flex flex-col gap-4 sm:flex-row"
+                  className="mt-12 flex flex-col gap-4 sm:flex-row"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.8, delay: 0.6 }}
                 >
-                  <Button size="lg" className="group w-full sm:w-auto" asChild>
-                    <Link href="/register">
-                      Begin Registration{' '}
-                      <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                    </Link>
+                  <Button
+                    asChild
+                    size="lg"
+                    className="bg-[#007078] text-white transition-colors hover:bg-[#007078]/90"
+                  >
+                    <Link href="/register">Begin Registration</Link>
                   </Button>
                   <Button
                     variant="outline"
                     size="lg"
-                    className="w-full sm:w-auto"
                     asChild
+                    className="border-[#deb43e] text-[#deb43e] transition-colors hover:bg-[#deb43e]/10"
                   >
-                    <Link href="#programs">Explore Programs</Link>
+                    <Link href="/programs">Explore Programs</Link>
                   </Button>
                 </motion.div>
               </div>
 
-              {/* Desktop Logo Section */}
+              {/* Logo */}
               <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
+                className="relative flex justify-center lg:justify-end"
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 1.2, delay: 0.4, type: 'spring' }}
-                className="relative hidden flex-1 items-center justify-center lg:flex"
+                transition={{ duration: 1, delay: 0.4 }}
               >
-                {/* Subtle decorative background - much more understated */}
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 blur-2xl" />
-
-                {/* Logo completely free - no container */}
-                <Logo
-                  className="w-full max-w-2xl transform transition-transform duration-300 hover:scale-105"
-                  size="xl"
-                  showText={false}
-                />
+                <Logo size="xl" className="w-[500px]" />
               </motion.div>
             </div>
           </div>
         </section>
 
-        {/* Programs Section - Mobile optimized */}
-        <section className="py-12 sm:py-24">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-3xl text-center">
-              <h2 className="text-3xl font-bold tracking-tight sm:text-4xl md:text-5xl">
-                Our Programs
-              </h2>
-              <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg sm:leading-8">
-                Discover our comprehensive Islamic education programs designed
-                to nurture knowledge and understanding at every level.
-              </p>
-            </div>
-
-            <div className="mx-auto mt-12 max-w-3xl rounded-2xl ring-1 ring-gray-200 dark:ring-gray-800 lg:mx-0 lg:flex lg:max-w-none">
-              <div className="p-6 sm:p-8 lg:flex-auto">
-                <div className="text-center lg:text-left">
-                  <h3 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                    2-Year Roots of Knowledge Ma'had Program
-                  </h3>
-                  <div className="mt-3 flex items-center justify-center gap-2 lg:justify-start">
-                    <GraduationCap className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium text-primary">
-                      Accredited Program
-                    </span>
-                  </div>
-                  <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground">
-                    Our flagship program offers a structured curriculum in
-                    Islamic Studies, Arabic language, and Quranic Sciences.
-                    Accredited under the Islamic University of Minnesota!
-                  </p>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Learn more about our accrediting institution at{' '}
-                    <Link
-                      href="https://site.ium.edu.so/en"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      site.ium.edu.so
-                    </Link>
-                  </p>
+        {/* Announcements Section */}
+        <section className="bg-white px-6 py-16 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <motion.div
+              className="overflow-hidden rounded-3xl bg-[#007078] p-8 sm:p-12"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-white/10 p-2">
+                  <MessageCircle className="h-5 w-5 text-[#deb43e]" />
                 </div>
-
-                <div className="mt-8 flex items-center gap-x-4">
-                  <h4 className="flex-none text-base font-semibold">
-                    What's included
-                  </h4>
-                  <div className="h-px flex-auto bg-gray-100 dark:bg-gray-800" />
-                </div>
-
-                <ul className="mt-6 grid grid-cols-1 gap-4 text-sm leading-6 sm:grid-cols-2">
-                  {[
-                    {
-                      title: 'Comprehensive Islamic Studies',
-                      description:
-                        'Foundation in Islamic principles and practices',
-                    },
-                    {
-                      title: 'Arabic Language',
-                      description: 'Classical and modern Arabic instruction',
-                    },
-                    {
-                      title: 'Quranic Sciences',
-                      description: 'Tajweed and Quranic interpretation',
-                    },
-                    {
-                      title: 'Islamic History',
-                      description: 'Study of Islamic civilization and heritage',
-                    },
-                    {
-                      title: 'Islamic Jurisprudence',
-                      description: 'Understanding of Islamic law and rulings',
-                    },
-                    {
-                      title: 'Character Development',
-                      description: 'Focus on Islamic ethics and manners',
-                    },
-                  ].map((feature) => (
-                    <li key={feature.title} className="relative">
-                      <div className="flex flex-col gap-1 rounded-lg border p-3 transition-colors hover:bg-muted/50">
-                        <div className="flex items-center gap-x-3">
-                          <CheckCircle
-                            className="h-5 w-5 flex-none text-primary"
-                            aria-hidden="true"
-                          />
-                          <span className="font-medium">{feature.title}</span>
-                        </div>
-                        <p className="ml-8 text-xs text-muted-foreground">
-                          {feature.description}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <span className="text-sm font-medium uppercase tracking-wide text-[#deb43e]">
+                  Important Announcement
+                </span>
               </div>
 
-              <div className="p-6 lg:mt-0 lg:w-full lg:max-w-md lg:flex-shrink-0">
-                <div className="rounded-2xl bg-gray-50 py-8 text-center ring-1 ring-inset ring-gray-900/5 dark:bg-gray-900 dark:ring-gray-800 lg:flex lg:flex-col lg:justify-center lg:py-16">
-                  <div className="mx-auto max-w-xs px-8">
-                    <p className="text-base font-semibold">
-                      Full Program Details
+              {/* Main Content */}
+              <div className="mt-6 flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-start">
+                <div className="flex-1">
+                  <h3 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    Enrollment Opening Soon!
+                  </h3>
+                  <p className="mt-3 text-xl text-white/90">
+                    Join our 2024-2025 academic year. Limited spots available
+                    for our Islamic Studies program.
+                  </p>
+
+                  <div className="mt-8 flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-3 rounded-full bg-[#006068] px-5 py-2.5">
+                      <Users2 className="h-5 w-5 text-[#deb43e]" />
+                      <span className="text-sm font-medium text-white">
+                        Applications open: April 1st, 2024
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-full bg-[#006068] px-5 py-2.5">
+                      <Users2 className="h-5 w-5 text-[#deb43e]" />
+                      <span className="text-sm font-medium text-white">
+                        Limited to 30 students
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <Button
+                    asChild
+                    size="lg"
+                    className="rounded-full bg-[#deb43e] px-8 text-[#007078] transition-colors hover:bg-[#deb43e]/90"
+                  >
+                    <Link
+                      href="/register-interest"
+                      className="flex items-center gap-2"
+                    >
+                      Join Waitlist
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    size="lg"
+                    className="rounded-full bg-white px-8 text-[#007078] transition-colors hover:bg-white/90"
+                  >
+                    <Link href="/programs">Learn More</Link>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="mt-16 grid gap-6 sm:grid-cols-3">
+                {[
+                  {
+                    step: 1,
+                    title: 'Application Period',
+                    date: 'April 1 - May 15',
+                    description:
+                      'Submit your application and required documents',
+                  },
+                  {
+                    step: 2,
+                    title: 'Interview Process',
+                    date: 'May 20 - June 10',
+                    description:
+                      'Selected candidates will be invited for interviews',
+                  },
+                  {
+                    step: 3,
+                    title: 'Classes Begin',
+                    date: 'September 2024',
+                    description: 'Start your journey in Islamic education',
+                  },
+                ].map((phase) => (
+                  <div
+                    key={phase.step}
+                    className="flex flex-col gap-3 rounded-2xl bg-[#006068] p-6"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#deb43e] text-lg font-bold text-[#007078]">
+                        {phase.step}
+                      </div>
+                      <h4 className="text-lg font-semibold text-white">
+                        {phase.title}
+                      </h4>
+                    </div>
+                    <time className="text-[#deb43e]">{phase.date}</time>
+                    <p className="text-white/70">{phase.description}</p>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* Programs Section */}
+        <section className="bg-white px-6 py-24 sm:py-32 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mx-auto max-w-2xl text-center">
+              <motion.h2
+                className="text-3xl font-bold tracking-tight sm:text-4xl"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+              >
+                Our Programs
+              </motion.h2>
+              <motion.p
+                className="mt-4 text-lg leading-8 text-gray-600"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, delay: 0.2 }}
+              >
+                Discover our comprehensive Islamic education programs designed
+                to nurture knowledge and understanding at every level.
+              </motion.p>
+            </div>
+
+            <motion.div
+              className="mx-auto mt-16 max-w-4xl"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+            >
+              <div className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-gray-200">
+                <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="text-2xl font-semibold">
+                        2-Year Irshād Māhad Program
+                      </h3>
+                      <span className="inline-flex items-center rounded-full bg-[#007078]/10 px-3 py-1 text-sm font-medium text-[#007078]">
+                        Accredited Program
+                      </span>
+                    </div>
+
+                    <p className="mt-4 text-gray-600">
+                      Our flagship program offers a structured curriculum in
+                      Islamic Studies, Arabic language, and Quranic Sciences.
+                      Accredited under the Islamic University of Minnesota!
                     </p>
-                    <p className="mt-6 flex items-baseline justify-center gap-x-2">
-                      <span className="text-5xl font-bold tracking-tight">
+
+                    <div className="mt-2">
+                      <a
+                        href="site.ium.edu.so"
+                        className="text-sm text-[#007078] transition-colors hover:text-[#deb43e]"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Learn more about our accrediting institution at
+                        site.ium.edu.so
+                      </a>
+                    </div>
+
+                    <div className="mt-8">
+                      <h4 className="font-medium">What's included</h4>
+                      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                        {[
+                          {
+                            title: 'Comprehensive Islamic Studies',
+                            description:
+                              'Foundation in Islamic principles and practices',
+                          },
+                          {
+                            title: 'Arabic Language',
+                            description:
+                              'Classical and modern Arabic instruction',
+                          },
+                          {
+                            title: 'Quranic Sciences',
+                            description: 'Tajweed and Quranic interpretation',
+                          },
+                          {
+                            title: 'Islamic History',
+                            description:
+                              'Study of Islamic civilization and heritage',
+                          },
+                          {
+                            title: 'Islamic Jurisprudence',
+                            description:
+                              'Understanding of Islamic law and rulings',
+                          },
+                          {
+                            title: 'Character Development',
+                            description: 'Focus on Islamic ethics and manners',
+                          },
+                        ].map((item, index) => (
+                          <div key={index} className="flex items-start gap-3">
+                            <div className="mt-1 rounded-full bg-[#deb43e]/10 p-1">
+                              <CheckCircle className="h-4 w-4 text-[#deb43e]" />
+                            </div>
+                            <div>
+                              <h5 className="font-medium">{item.title}</h5>
+                              <p className="mt-1 text-sm text-gray-600">
+                                {item.description}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col items-center gap-4 lg:items-end">
+                    <div className="text-center lg:text-right">
+                      <div className="text-5xl font-bold text-[#007078]">
                         60
-                      </span>
-                      <span className="text-sm font-semibold leading-6">
-                        credit hours
-                      </span>
-                    </p>
+                      </div>
+                      <div className="text-sm text-gray-600">credit hours</div>
+                    </div>
+
                     <Button
                       asChild
-                      className="mt-8 h-14 w-full rounded-xl text-base md:h-12"
+                      variant="outline"
+                      className="group w-full border-[#007078] text-[#007078] transition-colors hover:bg-[#007078]/10 lg:w-auto"
                     >
-                      <Link href="/programs">
+                      <Link
+                        href="/curriculum"
+                        className="flex items-center justify-center gap-2"
+                      >
                         View Full Curriculum
-                        <ArrowRight className="ml-2 h-5 w-5" />
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                       </Link>
                     </Button>
-                    <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
+
+                    <p className="text-center text-sm text-gray-600 lg:text-right">
                       Classes held at our Eden Prairie location
                     </p>
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
         </section>
 
-        {/* Pricing Section - Modern Design */}
-        <section
-          id="pricing"
-          className="container space-y-8 px-4 py-12 md:space-y-12 md:py-24"
-        >
-          <div className="mx-auto flex max-w-[58rem] flex-col items-center space-y-4 text-center">
-            <h2 className="text-2xl font-bold leading-[1.1] sm:text-3xl md:text-5xl">
-              Tuition & Family Discounts
-            </h2>
-            <p className="max-w-[85%] text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Quality education with special rates for families
-            </p>
-          </div>
-
-          <div className="mx-auto max-w-3xl">
-            <Card className="relative overflow-hidden rounded-xl border bg-card">
-              {/* Decorative Elements */}
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5" />
-
-              <div className="relative space-y-6 p-6 md:p-8">
-                {/* Base Price */}
-                <div className="flex flex-col items-center space-y-2 pb-6 text-center md:pb-8">
-                  <div className="text-sm font-medium text-muted-foreground">
-                    Starting at
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold md:text-5xl">$150</span>
-                    <span className="text-muted-foreground">
-                      /month per student
-                    </span>
-                  </div>
-                </div>
-
-                {/* Family Discount Tiers */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Users2 className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">Family Discount Program</h3>
-                  </div>
-                  <div className="grid gap-3">
-                    {[
-                      { students: 2, price: 140, savings: 10 },
-                      { students: 3, price: 135, savings: 15 },
-                      { students: '4+', price: 130, savings: 20 },
-                    ].map((tier) => (
-                      <div
-                        key={tier.students}
-                        className="flex items-center justify-between rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                            {tier.students}
-                          </div>
-                          <div>
-                            <div className="font-medium">
-                              {tier.students} Students
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              Save ${tier.savings} each
-                            </div>
-                          </div>
-                        </div>
-                        <div className="text-right font-medium">
-                          ${tier.price}
-                          <span className="text-sm text-muted-foreground">
-                            /mo
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Features */}
-                <div className="space-y-4 pt-6 md:pt-8">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-primary" />
-                    <h3 className="font-semibold">What's Included</h3>
-                  </div>
-                  <ul className="grid gap-3 text-sm md:grid-cols-2">
-                    {[
-                      'Comprehensive Islamic education',
-                      'Expert instructors',
-                      'University accredited program',
-                      'Learning materials included',
-                    ].map((feature) => (
-                      <li key={feature} className="flex items-start gap-2">
-                        <div className="mt-1 h-1.5 w-1.5 rounded-full bg-primary" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {/* CTA */}
-                <div className="space-y-4 pt-6 md:pt-8">
-                  <Button
-                    asChild
-                    className="h-12 w-full gap-2 rounded-xl bg-primary text-base hover:bg-primary/90"
-                  >
-                    <Link href="/register">
-                      Begin Registration
-                      <ArrowRight className="h-5 w-5" />
-                    </Link>
-                  </Button>
-                  <p className="text-center text-sm text-muted-foreground">
-                    Registration required before setting up monthly payments
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </section>
+        {/* Pricing Section */}
+        <Pricing />
 
         {/* Contact Section - Mobile optimized */}
         <section
@@ -433,7 +420,7 @@ export default function HomePage() {
       <footer className="border-t py-8 md:py-0">
         <div className="container flex flex-col items-center justify-between gap-4 px-4 md:h-24 md:flex-row">
           <p className="text-center text-sm leading-relaxed text-muted-foreground md:text-left">
-            © 2024 Roots of Knowledge. All rights reserved.
+            © 2024 Irshād Mâhad. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
             <Link
