@@ -3,49 +3,45 @@ import { cn } from '@/lib/utils'
 
 interface LogoProps {
   className?: string
-  size?: 'xs' | 'sm' | 'lg' | 'xl'
-  showText?: boolean
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
+  variant?: 'light' | 'dark'
 }
 
 const sizes = {
-  xs: { width: 80, height: 24 },
-  sm: { width: 100, height: 28 },
-  lg: { width: 200, height: 56 },
-  xl: { width: 600, height: 168 },
+  xs: { width: 120, height: 120 },
+  sm: { width: 160, height: 160 },
+  md: { width: 200, height: 200 },
+  lg: { width: 300, height: 300 },
+  xl: { width: 400, height: 400 },
 }
 
-export function Logo({ className, size = 'sm', showText = true }: LogoProps) {
+export function Logo({ className, size = 'sm', variant = 'dark' }: LogoProps) {
   const dimensions = sizes[size]
 
   return (
-    <div className={cn('relative flex items-center gap-3', className)}>
-      <div className="relative flex items-center">
-        <Image
-          src="/official-logo.svg"
-          alt="Roots of Knowledge Official Logo"
-          width={dimensions.width}
-          height={dimensions.height}
-          className="object-contain"
-          priority={size === 'sm'} // Prioritize loading for main logo
-          style={{
-            maxWidth: '100%',
-            height: 'auto',
-          }}
-        />
-      </div>
-      {showText && (
-        <span
-          className={cn(
-            'font-medium text-foreground',
-            size === 'xs' && 'text-xs',
-            size === 'sm' && 'text-sm',
-            size === 'lg' && 'text-base',
-            size === 'xl' && 'text-lg'
-          )}
-        >
-          Roots of Knowledge
-        </span>
+    <div
+      className={cn(
+        'relative flex w-full items-center justify-center',
+        className
       )}
+    >
+      <Image
+        src="/images/Latest Irshad Mahad.png"
+        alt="Irshād Mâhad"
+        width={600}
+        height={400}
+        className={cn(
+          'object-contain transition-transform duration-300 hover:scale-105',
+          variant === 'light' && 'brightness-0 invert'
+        )}
+        priority
+        style={{
+          color: 'transparent',
+          width: '100%',
+          height: 'auto',
+          background: 'transparent',
+        }}
+      />
     </div>
   )
 }

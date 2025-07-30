@@ -37,7 +37,7 @@ function createVCardString(contact: VCardContact): string {
   const vCardLines = [
     'BEGIN:VCARD',
     'VERSION:3.0',
-    'PRODID:-//Roots of Knowledge//Student Contacts//EN',
+    'PRODID:-//Irshād Mâhad//Student Contacts//EN',
     `N:${contact.fullName};;;`, // Last;First;Middle;Prefix;Suffix
     `FN:${contact.fullName}`, // Full name as displayed
   ]

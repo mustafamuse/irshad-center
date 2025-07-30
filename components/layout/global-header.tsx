@@ -36,8 +36,8 @@ export function GlobalHeader({
         {/* Logo */}
         <div className="flex items-center">
           {/* Show full logo on desktop, logo-only on mobile */}
-          <Logo size="sm" showText={true} className="hidden sm:flex" />
-          <Logo size="xs" showText={false} className="flex sm:hidden" />
+          <Logo size="sm" className="hidden sm:flex" />
+          <Logo size="xs" className="flex sm:hidden" />
         </div>
 
         {/* Desktop Navigation - Public Only */}

@@ -9,44 +9,44 @@ import { Providers } from './providers'
 import './globals.css'
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://rootsofknowledge.net'),
-  title: 'Roots of Knowledge - Islamic Education',
+  title: 'Irshād Mâhad - Islamic Education',
   description:
-    'Comprehensive Islamic education and payment management system at Roots of Knowledge, Eden Prairie.',
+    'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',
   icons: {
     icon: [
       {
-        url: '/official-logo.svg',
-        type: 'image/svg+xml',
+        url: '/images/Latest Irshad Mahad.png',
+        type: 'image/png',
+        sizes: '32x32',
       },
     ],
     apple: [
       {
-        url: '/official-logo.svg',
-        type: 'image/svg+xml',
+        url: '/images/Latest Irshad Mahad.png',
+        type: 'image/png',
+        sizes: '180x180',
       },
     ],
   },
   openGraph: {
-    title: 'Roots of Knowledge - Islamic Education',
+    title: 'Irshād Mâhad - Islamic Education',
     description:
-      'Comprehensive Islamic education and payment management system at Roots of Knowledge, Eden Prairie.',
-    type: 'website',
+      'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',
     images: [
       {
-        url: '/official-logo.svg',
-        width: 200,
-        height: 52,
-        alt: 'Roots of Knowledge Official Logo',
+        url: '/images/Latest Irshad Mahad.png',
+        width: 1200,
+        height: 630,
+        alt: 'Irshād Mâhad',
       },
     ],
   },
   twitter: {
-    card: 'summary',
-    title: 'Roots of Knowledge - Islamic Education',
+    card: 'summary_large_image',
+    title: 'Irshād Mâhad - Islamic Education',
     description:
-      'Comprehensive Islamic education and payment management system at Roots of Knowledge, Eden Prairie.',
-    images: ['/official-logo.svg'],
+      'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',
+    images: ['/images/Latest Irshad Mahad.png'],
   },
 }
 

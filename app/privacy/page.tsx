@@ -87,8 +87,8 @@ export default function PrivacyPolicyPage() {
                     Introduction
                   </h2>
                   <p className="mt-4 text-muted-foreground">
-                    At Roots of Knowledge ("we," "our," or "us"), we respect
-                    your privacy and are committed to protecting your personal
+                    At Irshād Mâhad ("we," "our," or "us"), we respect your
+                    privacy and are committed to protecting your personal
                     information. This Privacy Policy explains how we collect,
                     use, and safeguard your information when you use our
                     services or visit our website.
