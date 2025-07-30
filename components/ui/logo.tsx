@@ -19,20 +19,27 @@ export function Logo({ className, size = 'sm', variant = 'dark' }: LogoProps) {
   const dimensions = sizes[size]
 
   return (
-    <div className={cn('relative flex items-center', className)}>
+    <div
+      className={cn(
+        'relative flex w-full items-center justify-center',
+        className
+      )}
+    >
       <Image
         src="/images/Latest Irshad Mahad.png"
         alt="Irshād Mâhad"
-        width={dimensions.width}
-        height={dimensions.height}
+        width={600}
+        height={400}
         className={cn(
           'object-contain transition-transform duration-300 hover:scale-105',
           variant === 'light' && 'brightness-0 invert'
         )}
         priority
         style={{
-          maxWidth: '100%',
+          color: 'transparent',
+          width: '100%',
           height: 'auto',
+          background: 'transparent',
         }}
       />
     </div>

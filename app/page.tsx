@@ -12,6 +12,7 @@ import { Logo } from '@/components/ui/logo'
 
 import { AnnouncementSection } from './components/announcement-section'
 import { ContactSection } from './components/contact-section'
+import { ImageCarousel } from './components/image-carousel'
 import { MobileNav } from './components/mobile-nav'
 import { Pricing } from './components/pricing'
 import { Testimonials } from './components/testimonials'
@@ -117,6 +118,18 @@ const HomePage: React.FC = () => {
                 </div>
               </motion.div>
             </div>
+          </div>
+
+          {/* Image Carousel */}
+          <div className="relative mt-16 w-full">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.6 }}
+              className="w-full"
+            >
+              <ImageCarousel />
+            </motion.div>
           </div>
 
           {/* Background decorative elements */}
@@ -285,5 +298,4 @@ const HomePage: React.FC = () => {
     </div>
   )
 }
-
 export default HomePage
