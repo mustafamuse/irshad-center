@@ -20,14 +20,16 @@ export function RegisterPage() {
             <Button
               asChild
               variant="ghost"
-              className="h-12 gap-2 rounded-xl text-base text-[#007078] hover:bg-[#007078]/10 md:h-10"
+              className="h-10 gap-2 rounded-xl text-sm text-[#007078] hover:bg-[#007078]/10"
             >
               <Link href="/">
-                <ArrowLeft className="h-5 w-5" />
+                <ArrowLeft className="h-4 w-4" />
                 <span>Back to Home</span>
               </Link>
             </Button>
-            <Logo size="sm" />
+            <div className="w-32">
+              <Logo size="sm" className="w-full" />
+            </div>
           </div>
 
           <div className="mx-auto max-w-2xl">
