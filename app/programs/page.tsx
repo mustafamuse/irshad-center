@@ -225,32 +225,34 @@ export default function ProgramsPage() {
             <Button
               asChild
               variant="ghost"
-              className="h-12 gap-2 rounded-xl text-base text-[#007078] hover:bg-[#007078]/10 md:h-10"
+              className="h-10 gap-2 rounded-xl text-sm text-[#007078] hover:bg-[#007078]/10"
             >
               <Link href="/">
-                <ArrowLeft className="h-5 w-5 md:h-4 md:w-4" />
-                <span className="hidden md:inline">Back to Home</span>
-                <span className="md:hidden">Back</span>
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden sm:inline">Back to Home</span>
+                <span className="sm:hidden">Back</span>
               </Link>
             </Button>
-            <Logo size="sm" />
+            <div className="w-24 sm:w-32">
+              <Logo size="sm" />
+            </div>
           </div>
 
           {/* Header */}
-          <div className="relative mb-12 text-center md:mb-16">
-            <motion.div
+          <div className="relative mb-8 text-center sm:mb-12">
+            <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
-              className="text-3xl font-bold tracking-tight text-[#007078] sm:text-4xl lg:text-6xl"
+              className="text-2xl font-bold tracking-tight text-[#007078] sm:text-4xl lg:text-5xl"
             >
               Irshād Māhad Program
-            </motion.div>
+            </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.2 }}
-              className="mx-auto mt-4 max-w-2xl px-4 text-base leading-relaxed text-gray-600 md:mt-6 md:text-lg"
+              className="mx-auto mt-3 max-w-2xl px-4 text-sm leading-relaxed text-gray-600 sm:mt-4 sm:text-base md:text-lg"
             >
               Discover a comprehensive Islamic education program that combines
               traditional knowledge with modern learning approaches.
@@ -258,22 +260,22 @@ export default function ProgramsPage() {
           </div>
 
           {/* Content */}
-          <div className="space-y-8 md:space-y-12">
+          <div className="space-y-6 sm:space-y-8 md:space-y-12">
             {/* Overview Section */}
             <section>
-              <Card className="overflow-hidden rounded-2xl border-0 bg-white p-4 shadow-sm ring-1 ring-gray-200 md:p-6 lg:p-8">
+              <Card className="overflow-hidden rounded-2xl border-0 bg-white p-4 shadow-sm ring-1 ring-gray-200 sm:p-6 lg:p-8">
                 <div className="grid gap-6 md:grid-cols-3 md:gap-8">
                   <div className="md:col-span-2">
-                    <div className="mb-4 flex items-center gap-3 md:mb-6">
+                    <div className="mb-4 flex items-center gap-3">
                       <div className="rounded-full bg-[#007078]/10 p-2">
                         <GraduationCap className="h-5 w-5 text-[#007078]" />
                       </div>
-                      <h2 className="text-xl font-semibold md:text-2xl">
+                      <h2 className="text-lg font-semibold sm:text-xl md:text-2xl">
                         Program Overview
                       </h2>
                     </div>
                     <div className="prose prose-gray dark:prose-invert max-w-none">
-                      <p className="text-sm leading-relaxed text-gray-600 md:text-base">
+                      <p className="text-sm leading-relaxed text-gray-600 sm:text-base">
                         Our flagship program offers a structured curriculum in
                         Islamic Studies, Arabic language, and Quranic Sciences.
                         Learn more about our accrediting institution at{' '}
@@ -304,7 +306,7 @@ export default function ProgramsPage() {
                                 <div className="mt-1 rounded-full bg-[#deb43e]/10 p-1">
                                   <CheckCircle className="h-4 w-4 text-[#deb43e]" />
                                 </div>
-                                <span className="text-sm text-gray-600 md:text-base">
+                                <span className="text-sm text-gray-600 sm:text-base">
                                   {item}
                                 </span>
                               </li>
@@ -325,7 +327,7 @@ export default function ProgramsPage() {
                                 <div className="mt-1 rounded-full bg-[#deb43e]/10 p-1">
                                   <CheckCircle className="h-4 w-4 text-[#deb43e]" />
                                 </div>
-                                <span className="text-sm text-gray-600 md:text-base">
+                                <span className="text-sm text-gray-600 sm:text-base">
                                   {item}
                                 </span>
                               </li>
@@ -335,12 +337,14 @@ export default function ProgramsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-2xl bg-[#007078] p-6 text-white">
-                    <h3 className="mb-4 text-base font-medium text-white/90 md:mb-6 md:text-lg">
+                  <div className="rounded-2xl bg-[#007078] p-4 text-white sm:p-6">
+                    <h3 className="mb-4 text-base font-medium text-white/90 sm:mb-6 sm:text-lg">
                       Full Program Details
                     </h3>
-                    <div className="mb-4 text-center md:mb-6">
-                      <div className="text-4xl font-bold md:text-6xl">60</div>
+                    <div className="mb-4 text-center sm:mb-6">
+                      <div className="text-3xl font-bold sm:text-4xl md:text-5xl">
+                        60
+                      </div>
                       <div className="text-sm text-white/80">credit hours</div>
                     </div>
                     <Button
@@ -350,13 +354,13 @@ export default function ProgramsPage() {
                     >
                       <Link
                         href="#curriculum"
-                        className="flex items-center gap-2"
+                        className="flex items-center justify-center gap-2"
                       >
                         View Full Curriculum
                         <ArrowRight className="h-4 w-4" />
                       </Link>
                     </Button>
-                    <p className="mt-3 text-center text-xs text-white/70 md:text-sm">
+                    <p className="mt-3 text-center text-xs text-white/70 sm:text-sm">
                       Classes held at our Eden Prairie location
                     </p>
                   </div>
@@ -365,22 +369,24 @@ export default function ProgramsPage() {
             </section>
 
             {/* Instructors & Materials */}
-            <section className="grid gap-4 md:grid-cols-2 md:gap-6">
-              <Card className="rounded-2xl border-0 p-6 shadow-sm ring-1 ring-gray-200">
+            <section className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+              <Card className="rounded-2xl border-0 p-4 shadow-sm ring-1 ring-gray-200 sm:p-6">
                 <div className="mb-4 flex items-center gap-3">
                   <div className="rounded-full bg-[#007078]/10 p-2">
                     <Users className="h-5 w-5 text-[#007078]" />
                   </div>
-                  <h3 className="text-lg font-semibold">Instructors</h3>
+                  <h3 className="text-base font-semibold sm:text-lg">
+                    Instructors
+                  </h3>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3">
                   {[
                     'Sheikh Nuur Hassan',
                     'Sheikh Abdulrahman Ali',
                     'Sheikh Mustafa Muse',
                   ].map((name, index) => (
                     <div key={index}>
-                      <div className="text-sm font-medium text-gray-600 md:text-base">
+                      <div className="text-sm font-medium text-gray-600 sm:text-base">
                         {name}
                       </div>
                     </div>
@@ -388,14 +394,16 @@ export default function ProgramsPage() {
                 </div>
               </Card>
 
-              <Card className="rounded-2xl border-0 p-6 shadow-sm ring-1 ring-gray-200">
+              <Card className="rounded-2xl border-0 p-4 shadow-sm ring-1 ring-gray-200 sm:p-6">
                 <div className="mb-4 flex items-center gap-3">
                   <div className="rounded-full bg-[#007078]/10 p-2">
                     <Book className="h-5 w-5 text-[#007078]" />
                   </div>
-                  <h3 className="text-lg font-semibold">Required Materials</h3>
+                  <h3 className="text-base font-semibold sm:text-lg">
+                    Required Materials
+                  </h3>
                 </div>
-                <ul className="space-y-2 text-sm text-gray-600 md:text-base">
+                <ul className="space-y-2 text-sm text-gray-600 sm:text-base">
                   <li>
                     Islamic Studies: Islamic University Minnesota curriculum
                   </li>
@@ -406,27 +414,29 @@ export default function ProgramsPage() {
 
             {/* Academic Calendar */}
             <section>
-              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
-                <div className="mb-6 flex items-center gap-3">
+              <Card className="rounded-2xl border-0 p-4 shadow-sm ring-1 ring-gray-200 sm:p-6 md:p-8">
+                <div className="mb-4 flex items-center gap-3 sm:mb-6">
                   <div className="rounded-full bg-[#007078]/10 p-2">
                     <Clock className="h-5 w-5 text-[#007078]" />
                   </div>
-                  <h2 className="text-2xl font-semibold">
+                  <h2 className="text-lg font-semibold sm:text-xl md:text-2xl">
                     Academic Calendar 2024-2025
                   </h2>
                 </div>
-                <div className="grid gap-6 md:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 md:gap-6">
                   {semesters.map((semester, i) => (
                     <div
                       key={i}
                       className="rounded-xl bg-[#007078]/5 p-4 transition-colors hover:bg-[#007078]/10"
                     >
-                      <h4 className="mb-2 font-medium text-[#007078]">
+                      <h4 className="mb-2 text-sm font-medium text-[#007078] sm:text-base">
                         {semester.name}
                       </h4>
-                      <p className="text-sm text-gray-600">{semester.dates}</p>
+                      <p className="text-xs text-gray-600 sm:text-sm">
+                        {semester.dates}
+                      </p>
                       {semester.notes && (
-                        <p className="mt-2 text-sm text-gray-600">
+                        <p className="mt-2 text-xs text-gray-600 sm:text-sm">
                           {semester.notes}
                         </p>
                       )}
@@ -438,20 +448,24 @@ export default function ProgramsPage() {
 
             {/* Curriculum */}
             <section id="curriculum">
-              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
-                <div className="mb-6 flex items-center gap-3">
+              <Card className="rounded-2xl border-0 p-4 shadow-sm ring-1 ring-gray-200 sm:p-6 md:p-8">
+                <div className="mb-4 flex items-center gap-3 sm:mb-6">
                   <div className="rounded-full bg-[#007078]/10 p-2">
                     <Book className="h-5 w-5 text-[#007078]" />
                   </div>
-                  <h2 className="text-2xl font-semibold">Curriculum</h2>
+                  <h2 className="text-lg font-semibold sm:text-xl md:text-2xl">
+                    Curriculum
+                  </h2>
                 </div>
 
                 {/* First Year */}
-                <div className="space-y-8">
+                <div className="space-y-6 sm:space-y-8">
                   <div>
                     <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-xl font-medium">First Year</h3>
-                      <span className="rounded-full bg-[#007078]/10 px-3 py-1 text-sm font-medium text-[#007078]">
+                      <h3 className="text-base font-medium sm:text-lg md:text-xl">
+                        First Year
+                      </h3>
+                      <span className="rounded-full bg-[#007078]/10 px-3 py-1 text-xs font-medium text-[#007078] sm:text-sm">
                         30 credits
                       </span>
                     </div>
@@ -466,9 +480,11 @@ export default function ProgramsPage() {
                               <div className="rounded-full bg-[#007078]/10 p-1.5">
                                 <course.icon className="h-4 w-4 text-[#007078]" />
                               </div>
-                              <h4 className="font-medium">{course.name}</h4>
+                              <h4 className="text-sm font-medium sm:text-base">
+                                {course.name}
+                              </h4>
                             </div>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-xs text-gray-600 sm:text-sm">
                               {course.description}
                             </p>
                           </div>
@@ -483,11 +499,11 @@ export default function ProgramsPage() {
                                     <code className="rounded bg-[#deb43e]/10 px-1.5 py-0.5 font-mono text-xs text-[#deb43e]">
                                       {detailed.code}
                                     </code>
-                                    <span className="text-xs font-medium text-gray-600 md:text-sm">
+                                    <span className="text-xs font-medium text-gray-600">
                                       {detailed.credits} cr
                                     </span>
                                   </div>
-                                  <div className="text-sm text-gray-600 md:text-base">
+                                  <div className="text-xs text-gray-600 sm:text-sm">
                                     {detailed.title}
                                   </div>
                                 </div>
@@ -502,8 +518,10 @@ export default function ProgramsPage() {
                   {/* Second Year */}
                   <div>
                     <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-xl font-medium">Second Year</h3>
-                      <span className="rounded-full bg-[#007078]/10 px-3 py-1 text-sm font-medium text-[#007078]">
+                      <h3 className="text-base font-medium sm:text-lg md:text-xl">
+                        Second Year
+                      </h3>
+                      <span className="rounded-full bg-[#007078]/10 px-3 py-1 text-xs font-medium text-[#007078] sm:text-sm">
                         30 credits
                       </span>
                     </div>
@@ -518,9 +536,11 @@ export default function ProgramsPage() {
                               <div className="rounded-full bg-[#007078]/10 p-1.5">
                                 <course.icon className="h-4 w-4 text-[#007078]" />
                               </div>
-                              <h4 className="font-medium">{course.name}</h4>
+                              <h4 className="text-sm font-medium sm:text-base">
+                                {course.name}
+                              </h4>
                             </div>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-xs text-gray-600 sm:text-sm">
                               {course.description}
                             </p>
                           </div>
@@ -535,11 +555,11 @@ export default function ProgramsPage() {
                                     <code className="rounded bg-[#deb43e]/10 px-1.5 py-0.5 font-mono text-xs text-[#deb43e]">
                                       {detailed.code}
                                     </code>
-                                    <span className="text-xs font-medium text-gray-600 md:text-sm">
+                                    <span className="text-xs font-medium text-gray-600">
                                       {detailed.credits} cr
                                     </span>
                                   </div>
-                                  <div className="text-sm text-gray-600 md:text-base">
+                                  <div className="text-xs text-gray-600 sm:text-sm">
                                     {detailed.title}
                                   </div>
                                 </div>
@@ -556,34 +576,38 @@ export default function ProgramsPage() {
 
             {/* Grading & Assessment */}
             <section>
-              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
-                <div className="mb-6 flex items-center gap-3">
+              <Card className="rounded-2xl border-0 p-4 shadow-sm ring-1 ring-gray-200 sm:p-6 md:p-8">
+                <div className="mb-4 flex items-center gap-3 sm:mb-6">
                   <div className="rounded-full bg-[#007078]/10 p-2">
                     <CheckCircle className="h-5 w-5 text-[#007078]" />
                   </div>
-                  <h2 className="text-2xl font-semibold">
+                  <h2 className="text-lg font-semibold sm:text-xl md:text-2xl">
                     Grading & Assessment
                   </h2>
                 </div>
-                <div className="grid gap-8 md:grid-cols-2">
+                <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
                   <div>
-                    <h3 className="mb-4 text-lg font-medium">Grade Scale</h3>
+                    <h3 className="mb-4 text-base font-medium sm:text-lg">
+                      Grade Scale
+                    </h3>
                     <div className="space-y-2">
                       {gradeScale.map((grade, i) => (
                         <div
                           key={i}
                           className="flex items-center justify-between rounded-lg bg-[#007078]/5 p-3"
                         >
-                          <span className="font-medium text-[#007078]">
+                          <span className="text-sm font-medium text-[#007078] sm:text-base">
                             {grade.letter}
                           </span>
-                          <span className="text-gray-600">{grade.range}</span>
+                          <span className="text-xs text-gray-600 sm:text-sm">
+                            {grade.range}
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
                   <div>
-                    <h3 className="mb-4 text-lg font-medium">
+                    <h3 className="mb-4 text-base font-medium sm:text-lg">
                       Grade Components
                     </h3>
                     <div className="space-y-2">
@@ -592,10 +616,10 @@ export default function ProgramsPage() {
                           key={i}
                           className="flex items-center justify-between rounded-lg bg-[#007078]/5 p-3"
                         >
-                          <span className="text-gray-600">
+                          <span className="text-xs text-gray-600 sm:text-sm">
                             {component.name}
                           </span>
-                          <span className="font-medium text-[#007078]">
+                          <span className="text-sm font-medium text-[#007078] sm:text-base">
                             {component.weight}%
                           </span>
                         </div>
@@ -608,24 +632,27 @@ export default function ProgramsPage() {
 
             {/* Student Expectations */}
             <section>
-              <Card className="rounded-2xl border-0 p-8 shadow-sm ring-1 ring-gray-200">
-                <div className="mb-6 flex items-center gap-3">
+              <Card className="rounded-2xl border-0 p-4 shadow-sm ring-1 ring-gray-200 sm:p-6 md:p-8">
+                <div className="mb-4 flex items-center gap-3 sm:mb-6">
                   <div className="rounded-full bg-[#007078]/10 p-2">
                     <Users className="h-5 w-5 text-[#007078]" />
                   </div>
-                  <h2 className="text-2xl font-semibold">
+                  <h2 className="text-lg font-semibold sm:text-xl md:text-2xl">
                     Student Expectations
                   </h2>
                 </div>
-                <div className="space-y-6">
-                  <p className="text-gray-600">
+                <div className="space-y-4 sm:space-y-6">
+                  <p className="text-xs text-gray-600 sm:text-sm">
                     Students in the two-year Ma'had Program are expected to
                     maintain high academic and behavioral standards:
                   </p>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {studentExpectations.map((category, i) => (
-                      <div key={i} className="rounded-xl bg-[#007078]/5 p-6">
-                        <h3 className="mb-4 text-lg font-medium text-[#007078]">
+                      <div
+                        key={i}
+                        className="rounded-xl bg-[#007078]/5 p-4 sm:p-6"
+                      >
+                        <h3 className="mb-4 text-base font-medium text-[#007078] sm:text-lg">
                           {category.title}
                         </h3>
                         <ul className="space-y-3">
@@ -634,7 +661,9 @@ export default function ProgramsPage() {
                               <div className="mt-1 rounded-full bg-[#deb43e]/10 p-1">
                                 <CheckCircle className="h-4 w-4 text-[#deb43e]" />
                               </div>
-                              <span className="text-gray-600">{item}</span>
+                              <span className="text-xs text-gray-600 sm:text-sm">
+                                {item}
+                              </span>
                             </li>
                           ))}
                         </ul>
@@ -646,13 +675,16 @@ export default function ProgramsPage() {
             </section>
 
             {/* CTA */}
-            <section className="mt-12 text-center">
+            <section className="mt-8 text-center sm:mt-12">
               <Button
                 size="lg"
-                className="rounded-full bg-[#007078] px-8 text-white transition-colors hover:bg-[#007078]/90"
+                className="h-12 w-full rounded-full bg-[#007078] px-8 text-white transition-colors hover:bg-[#007078]/90 sm:h-14 sm:w-auto"
                 asChild
               >
-                <Link href="/register" className="flex items-center gap-2">
+                <Link
+                  href="/register"
+                  className="flex items-center justify-center gap-2"
+                >
                   Begin Your Journey
                   <ArrowRight className="h-4 w-4" />
                 </Link>

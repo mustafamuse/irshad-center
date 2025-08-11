@@ -50,6 +50,7 @@ import {
 } from '@/lib/actions/register'
 import { cn } from '@/lib/utils'
 
+import { PaymentSuccessDialog } from './payment-success-dialog'
 import { studentFormSchema, type StudentFormValues } from '../schema'
 
 // Phone number formatting function
@@ -98,6 +99,8 @@ export function RegisterForm() {
   )
   const [isCheckingEmail, setIsCheckingEmail] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
+  const [registeredStudentCount, setRegisteredStudentCount] = useState(1)
 
   // Debounced search function
   const debouncedSearch = debounce(async (query: string) => {
@@ -251,10 +254,9 @@ export function RegisterForm() {
         form.reset()
         setFormData(null)
         setShowSiblingPrompt(false)
-        // Short delay to allow the success toast to be seen
-        setTimeout(() => {
-          window.location.href = 'https://buy.stripe.com/fZeg0O7va1gt4da3cc'
-        }, 1500)
+        // Show payment dialog for single student
+        setRegisteredStudentCount(1)
+        setShowPaymentDialog(true)
       }
     } catch (error) {
       console.error('Registration error:', error)
@@ -297,10 +299,9 @@ export function RegisterForm() {
         setFormData(null)
         setSiblings([])
         setShowSiblingSection(false)
-        // Short delay to allow the success toast to be seen
-        setTimeout(() => {
-          window.location.href = 'https://buy.stripe.com/fZeg0O7va1gt4da3cc'
-        }, 1500)
+        // Show payment dialog with sibling count
+        setRegisteredStudentCount(siblings.length + 1)
+        setShowPaymentDialog(true)
       }
     } catch (error) {
       console.error('Registration error:', error)
@@ -906,6 +907,13 @@ export function RegisterForm() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Payment Success Dialog */}
+        <PaymentSuccessDialog
+          isOpen={showPaymentDialog}
+          onOpenChange={setShowPaymentDialog}
+          studentCount={registeredStudentCount}
+        />
       </div>
     </div>
   )

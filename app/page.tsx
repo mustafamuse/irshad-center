@@ -14,7 +14,7 @@ import { AnnouncementSection } from './components/announcement-section'
 import { ContactSection } from './components/contact-section'
 import { ImageCarousel } from './components/image-carousel'
 import { MobileNav } from './components/mobile-nav'
-import { StripePricingTable } from './components/stripe-pricing-table'
+import { PaymentBanner } from './components/payment-banner'
 import { Testimonials } from './components/testimonials'
 
 const features = [
@@ -51,6 +51,7 @@ const features = [
 const HomePage: React.FC = () => {
   return (
     <div className="relative flex min-h-screen flex-col">
+      <PaymentBanner />
       <MobileNav />
 
       <main className="flex-1">
@@ -153,7 +154,6 @@ const HomePage: React.FC = () => {
 
         {/* Rest of the sections */}
         <AnnouncementSection />
-        <StripePricingTable />
         <Testimonials />
         <ContactSection />
       </main>
