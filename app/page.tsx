@@ -14,7 +14,7 @@ import { AnnouncementSection } from './components/announcement-section'
 import { ContactSection } from './components/contact-section'
 import { ImageCarousel } from './components/image-carousel'
 import { MobileNav } from './components/mobile-nav'
-import { Pricing } from './components/pricing'
+import { StripePricingTable } from './components/stripe-pricing-table'
 import { Testimonials } from './components/testimonials'
 
 const features = [
@@ -153,7 +153,7 @@ const HomePage: React.FC = () => {
 
         {/* Rest of the sections */}
         <AnnouncementSection />
-        <Pricing />
+        <StripePricingTable />
         <Testimonials />
         <ContactSection />
       </main>
