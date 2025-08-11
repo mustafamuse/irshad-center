@@ -1,9 +1,12 @@
 'use client'
 
 import * as React from 'react'
+
+import Link from 'next/link'
+
 import { X, AlertCircle, ArrowRight } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
   DialogContent,
@@ -11,8 +14,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+
 import { StripePricingTable } from './stripe-pricing-table'
-import Link from 'next/link'
 
 export function PaymentBanner() {
   const [isOpen, setIsOpen] = React.useState(false)
