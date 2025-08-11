@@ -9,6 +9,9 @@ import { prisma } from '@/lib/db'
 
 import { ProfitShareCalculator } from './components/profit-share-calculator'
 
+// Force dynamic rendering to avoid static build issues
+export const dynamic = 'force-dynamic'
+
 export default async function ProfitSharePage() {
   const batches = await prisma.batch.findMany({
     orderBy: {
