@@ -48,11 +48,12 @@ export function PaymentBanner() {
                 </div>
               </div>
               <p className="text-center text-sm font-medium text-white sm:ml-4 sm:text-base">
-                <span className="font-semibold">Enrolled student?</span>{' '}
+                <span className="font-semibold">
+                  Enrolled & want to pay tuition?
+                </span>{' '}
                 <span className="hidden sm:inline">
                   Setup your automatic payments here
                 </span>
-                <span className="sm:hidden">Setup payments</span>
               </p>
             </div>
 

@@ -58,19 +58,19 @@ const timelinePhases: TimelinePhase[] = [
   {
     step: 1,
     title: 'Application Period',
-    date: 'April 1 - May 15',
+    date: 'Aug 17 - Sep 3',
     description: 'Submit your application',
   },
   {
     step: 2,
     title: 'Interview Process',
-    date: 'May 20 - June 10',
+    date: '1st weekend of Sep (Sep 6-8th)',
     description: 'Students invited for assessment',
   },
   {
     step: 3,
     title: 'Classes Begin',
-    date: 'September 2024',
+    date: '2nd weekend of Sep (Sep 12-14)',
     description: 'Start your Māhad journey',
   },
 ]
@@ -122,7 +122,7 @@ export const AnnouncementSection: React.FC = () => {
               <div className="flex items-center gap-3 rounded-full bg-[#006068] px-5 py-3">
                 <Users2 className="h-5 w-5 text-[#deb43e]" />
                 <span className="text-sm font-medium">
-                  Applications open: April 1st, 2024
+                  Applications open: Aug 20th, 2025
                 </span>
               </div>
               <motion.div
