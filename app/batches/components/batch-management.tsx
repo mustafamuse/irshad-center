@@ -59,23 +59,24 @@ export function BatchManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header with Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
-          <h2 className="text-2xl font-semibold tracking-tight">
+          <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
             Batch Management
           </h2>
           <p className="text-sm text-muted-foreground">
             Create and manage student batches
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
           <Sheet open={showCreateSheet} onOpenChange={setShowCreateSheet}>
             <SheetTrigger asChild>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
-                Create Batch
+                <span className="hidden sm:inline">Create Batch</span>
+                <span className="sm:hidden">Create</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="right">
@@ -115,9 +116,10 @@ export function BatchManagement() {
           </Sheet>
 
           <AssignStudentsDialog>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="w-full sm:w-auto">
               <UserPlus className="mr-2 h-4 w-4" />
-              Assign Students
+              <span className="hidden sm:inline">Assign Students</span>
+              <span className="sm:hidden">Assign</span>
             </Button>
           </AssignStudentsDialog>
 
@@ -149,23 +151,25 @@ export function BatchManagement() {
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
           {batches.map((batch) => (
             <Card
               key={batch.id}
-              className="flex flex-col justify-between p-4 transition-all hover:shadow-md"
+              className="flex flex-col justify-between p-3 transition-all hover:shadow-md sm:p-4"
             >
-              <div className="space-y-1">
+              <div className="space-y-2 sm:space-y-1">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <h3 className="line-clamp-2 font-medium">{batch.name}</h3>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <h3 className="line-clamp-2 text-sm font-medium sm:text-base">
+                      {batch.name}
+                    </h3>
                     {batch.startDate && (
                       <p className="text-xs text-muted-foreground">
                         Starts: {new Date(batch.startDate).toLocaleDateString()}
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
                     <div className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium">
                       {batch.studentCount} student
                       {batch.studentCount !== 1 ? 's' : ''}

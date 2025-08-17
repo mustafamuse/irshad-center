@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function BatchesPage() {
   return (
     <Providers>
-      <main className="container mx-auto space-y-8 p-8">
+      <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
         <BatchErrorBoundary>
           <Suspense fallback={<Loading />}>
             <DuplicateStudentsClient />
@@ -35,7 +35,7 @@ export default function BatchesPage() {
           </Suspense>
         </BatchErrorBoundary>
 
-        <Separator className="my-8" />
+        <Separator className="my-4 sm:my-6 lg:my-8" />
 
         <BatchErrorBoundary>
           <Suspense fallback={<Loading />}>

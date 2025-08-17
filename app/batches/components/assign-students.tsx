@@ -3,7 +3,13 @@
 import { useState } from 'react'
 
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, UserPlus, ArrowRightLeft, Loader2 } from 'lucide-react'
+import {
+  ArrowRight,
+  UserPlus,
+  ArrowRightLeft,
+  Loader2,
+  RefreshCw,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -59,8 +65,34 @@ export function AssignStudentsDialog({ children }: AssignStudentsDialogProps) {
   const [transferStatus, setTransferStatus] = useState('')
 
   const queryClient = useQueryClient()
-  const { data: batches = [] } = useBatches()
+  const {
+    data: batches = [],
+    isLoading: batchesLoading,
+    error: _batchesError,
+    invalidateBatches,
+  } = useBatches()
   const { data: students = [] } = useBatchData()
+
+  const handleRefreshBatches = async () => {
+    try {
+      await invalidateBatches()
+      toast.success('Batches refreshed')
+    } catch {
+      toast.error('Failed to refresh batches')
+    }
+  }
+
+  // Debug logging for batch data
+  console.log('🔍 AssignStudents Debug:', {
+    batchesLoading,
+    batchesError: _batchesError,
+    batchCount: batches.length,
+    batches: batches.map((b) => ({
+      id: b.id,
+      name: b.name,
+      studentCount: b.studentCount,
+    })),
+  })
 
   // Update the student filtering logic
   const sourceStudents =
@@ -178,13 +210,29 @@ export function AssignStudentsDialog({ children }: AssignStudentsDialogProps) {
         className="w-full overflow-y-auto sm:max-w-[900px]"
       >
         <SheetHeader className="px-1">
-          <SheetTitle>Manage Batch Students</SheetTitle>
-          <SheetDescription>
-            Assign new students or transfer existing students between batches
-          </SheetDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <SheetTitle>Manage Batch Students</SheetTitle>
+              <SheetDescription>
+                Assign new students or transfer existing students between
+                batches
+              </SheetDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefreshBatches}
+              disabled={batchesLoading}
+              title="Refresh batch list"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${batchesLoading ? 'animate-spin' : ''}`}
+              />
+            </Button>
+          </div>
         </SheetHeader>
 
-        <div className="mt-6 flex flex-col gap-6 pb-8">
+        <div className="mt-4 flex flex-col gap-4 pb-8 sm:mt-6 sm:gap-6">
           <Tabs
             defaultValue="assign"
             onValueChange={(value) =>
@@ -192,32 +240,56 @@ export function AssignStudentsDialog({ children }: AssignStudentsDialogProps) {
             }
           >
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="assign">Assign New Students</TabsTrigger>
-              <TabsTrigger value="transfer">Transfer Students</TabsTrigger>
+              <TabsTrigger value="assign" className="text-sm">
+                <span className="hidden sm:inline">Assign New Students</span>
+                <span className="sm:hidden">Assign</span>
+              </TabsTrigger>
+              <TabsTrigger value="transfer" className="text-sm">
+                <span className="hidden sm:inline">Transfer Students</span>
+                <span className="sm:hidden">Transfer</span>
+              </TabsTrigger>
             </TabsList>
 
             <div className="mt-4">
               <Select
                 value={selectedBatch ?? ''}
                 onValueChange={setSelectedBatch}
+                disabled={batchesLoading}
               >
                 <SelectTrigger>
                   <SelectValue
                     placeholder={
-                      mode === 'assign'
-                        ? 'Choose destination batch'
-                        : 'Choose source batch'
+                      batchesLoading
+                        ? 'Loading batches...'
+                        : mode === 'assign'
+                          ? 'Choose destination batch'
+                          : 'Choose source batch'
                     }
                   />
                 </SelectTrigger>
-                <SelectContent>
-                  <ScrollArea className="max-h-[200px]">
-                    {batches.map((batch) => (
-                      <SelectItem key={batch.id} value={batch.id}>
-                        {batch.name} ({batch.studentCount})
-                      </SelectItem>
-                    ))}
-                  </ScrollArea>
+                <SelectContent className="max-h-[300px]">
+                  {batchesLoading ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      Loading batches...
+                    </div>
+                  ) : _batchesError ? (
+                    <div className="py-6 text-center text-sm text-destructive">
+                      Error loading batches
+                    </div>
+                  ) : batches.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      No batches available
+                    </div>
+                  ) : (
+                    batches
+                      .slice()
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((batch) => (
+                        <SelectItem key={batch.id} value={batch.id}>
+                          {batch.name} ({batch.studentCount})
+                        </SelectItem>
+                      ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -231,39 +303,48 @@ export function AssignStudentsDialog({ children }: AssignStudentsDialogProps) {
                   <SelectTrigger>
                     <SelectValue placeholder="Choose destination batch" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="max-h-[200px]">
-                      {batches
+                  <SelectContent className="max-h-[300px]">
+                    {batches.filter((b) => b.id !== selectedBatch).length ===
+                    0 ? (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        No destination batches available
+                      </div>
+                    ) : (
+                      batches
                         .filter((b) => b.id !== selectedBatch)
+                        .slice()
+                        .sort((a, b) => a.name.localeCompare(b.name))
                         .map((batch) => (
                           <SelectItem key={batch.id} value={batch.id}>
                             {batch.name} ({batch.studentCount})
                           </SelectItem>
-                        ))}
-                    </ScrollArea>
+                        ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <div className="mt-4 grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-2">
               {/* Source Students */}
               <div className="flex h-[300px] flex-col sm:h-[400px]">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="font-medium">
+                <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-sm font-medium sm:text-base">
                     {mode === 'assign' ? (
                       'Available Students'
                     ) : (
                       <>
                         Students in{' '}
-                        {batches.find((b) => b.id === selectedBatch)?.name ??
-                          'Source Batch'}
+                        <span className="block sm:inline">
+                          {batches.find((b) => b.id === selectedBatch)?.name ??
+                            'Source Batch'}
+                        </span>
                       </>
                     )}
                   </h3>
                   <Input
                     placeholder="Search..."
-                    className="w-[200px]"
+                    className="w-full sm:w-[200px]"
                     value={sourceSearch}
                     onChange={(e) => setSourceSearch(e.target.value)}
                   />
@@ -298,25 +379,29 @@ export function AssignStudentsDialog({ children }: AssignStudentsDialogProps) {
 
               {/* Destination Students */}
               <div className="flex h-[300px] flex-col sm:h-[400px]">
-                <div className="mb-4 flex items-center justify-between">
-                  <h3 className="font-medium">
+                <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+                  <h3 className="text-sm font-medium sm:text-base">
                     {mode === 'assign' ? (
                       <>
                         Students in{' '}
-                        {batches.find((b) => b.id === selectedBatch)?.name ??
-                          'Batch'}
+                        <span className="block sm:inline">
+                          {batches.find((b) => b.id === selectedBatch)?.name ??
+                            'Batch'}
+                        </span>
                       </>
                     ) : (
                       <>
                         Students in{' '}
-                        {batches.find((b) => b.id === destinationBatchId)
-                          ?.name ?? 'Destination Batch'}
+                        <span className="block sm:inline">
+                          {batches.find((b) => b.id === destinationBatchId)
+                            ?.name ?? 'Destination Batch'}
+                        </span>
                       </>
                     )}
                   </h3>
                   <Input
                     placeholder="Search..."
-                    className="w-[200px]"
+                    className="w-full sm:w-[200px]"
                     value={destinationSearch}
                     onChange={(e) => setDestinationSearch(e.target.value)}
                   />
@@ -359,7 +444,7 @@ export function AssignStudentsDialog({ children }: AssignStudentsDialogProps) {
                 isLoading ||
                 (mode === 'transfer' && !destinationBatchId)
               }
-              className="mt-6"
+              className="mt-4 w-full sm:mt-6"
             >
               {isLoading ? (
                 <>

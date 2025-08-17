@@ -1,21 +1,35 @@
 'use client'
 
 import { ColumnDef } from '@tanstack/react-table'
-import { format } from 'date-fns'
 
 import { Badge } from '@/components/ui/badge'
 import { BatchStudentData } from '@/lib/actions/get-batch-data'
 import { getBatchStyle } from '@/lib/config/batch-styles'
-import { getStudentCompleteness } from '@/lib/utils/student-validation'
 
 export const columns: ColumnDef<BatchStudentData>[] = [
   {
     accessorKey: 'name',
     header: 'Name',
+    cell: ({ row }) => (
+      <div
+        className="max-w-[200px] truncate font-medium"
+        title={row.original.name}
+      >
+        {row.original.name}
+      </div>
+    ),
   },
   {
     accessorKey: 'email',
     header: 'Email',
+    cell: ({ row }) => (
+      <div
+        className="max-w-[200px] truncate"
+        title={row.original.email || undefined}
+      >
+        {row.original.email}
+      </div>
+    ),
   },
   {
     accessorKey: 'phone',
@@ -25,7 +39,7 @@ export const columns: ColumnDef<BatchStudentData>[] = [
       if (!phone) return <span className="text-muted-foreground">-</span>
 
       const formatted = phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')
-      return <span className="font-mono">{formatted}</span>
+      return <span className="whitespace-nowrap font-mono">{formatted}</span>
     },
   },
   {
@@ -39,18 +53,13 @@ export const columns: ColumnDef<BatchStudentData>[] = [
       const style = getBatchStyle(batch.name)
 
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 whitespace-nowrap">
           <Badge
             variant={style.variant}
-            className={`whitespace-nowrap px-2 py-0.5 text-xs font-medium ${style.className}`}
+            className={`px-2 py-0.5 text-xs font-medium ${style.className}`}
           >
             {batch.name}
           </Badge>
-          {batch.startDate && (
-            <span className="text-xs text-muted-foreground">
-              {format(new Date(batch.startDate), 'MMM d, yyyy')}
-            </span>
-          )}
         </div>
       )
     },
@@ -64,12 +73,10 @@ export const columns: ColumnDef<BatchStudentData>[] = [
       )
 
       return siblings?.length ? (
-        <div className="flex flex-wrap gap-1">
-          {siblings.map((sibling) => (
-            <Badge key={sibling.id} variant="outline" className="text-xs">
-              {sibling.name.split(' ')[0]}
-            </Badge>
-          ))}
+        <div className="flex items-center gap-1 whitespace-nowrap">
+          <Badge variant="outline" className="text-xs">
+            {siblings.length} {siblings.length === 1 ? 'sibling' : 'siblings'}
+          </Badge>
         </div>
       ) : (
         <span className="text-muted-foreground">None</span>
@@ -88,42 +95,10 @@ export const columns: ColumnDef<BatchStudentData>[] = [
               ? 'secondary'
               : 'outline'
         }
+        className="whitespace-nowrap"
       >
         {row.original.status}
       </Badge>
     ),
-  },
-  {
-    id: 'completeness',
-    header: 'Info Status',
-    cell: ({ row }) => {
-      const student = row.original
-      const { isComplete, missingFields } = getStudentCompleteness(student)
-
-      return (
-        <div className="flex items-center gap-2">
-          <Badge
-            variant={isComplete ? 'secondary' : 'destructive'}
-            className="whitespace-nowrap"
-          >
-            {isComplete ? '✅ Complete' : '❌ Incomplete'}
-          </Badge>
-          {!isComplete && (
-            <span className="text-xs text-muted-foreground">
-              {missingFields.includes('needs review')
-                ? 'Needs review'
-                : `Missing: ${missingFields.join(', ')}`}
-            </span>
-          )}
-        </div>
-      )
-    },
-    filterFn: (row, _, filterValue) => {
-      if (filterValue === 'incomplete') {
-        const { isComplete } = getStudentCompleteness(row.original)
-        return !isComplete
-      }
-      return true
-    },
   },
 ]
