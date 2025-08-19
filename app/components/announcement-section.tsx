@@ -58,7 +58,7 @@ const timelinePhases: TimelinePhase[] = [
   {
     step: 1,
     title: 'Application Period',
-    date: 'Aug 17 - Sep 3',
+    date: 'Aug 20 - Sep 3',
     description: 'Submit your application',
   },
   {
