@@ -64,13 +64,13 @@ const timelinePhases: TimelinePhase[] = [
   {
     step: 2,
     title: 'Interview Process',
-    date: '1st weekend of Sep (Sep 6-8th)',
+    date: '2nd weekend of Sep (Sep 13-15)',
     description: 'Students invited for assessment',
   },
   {
     step: 3,
     title: 'Classes Begin',
-    date: '2nd weekend of Sep (Sep 12-14)',
+    date: '3rd weekend of Sep (Sep 19-21)',
     description: 'Start your Māhad journey',
   },
 ]
@@ -172,10 +172,12 @@ export const AnnouncementSection: React.FC = () => {
                 className="rounded-full bg-[#deb43e] px-8 text-[#007078] transition-all hover:bg-[#deb43e]/90 hover:shadow-lg"
               >
                 <Link
-                  href="/register-interest"
+                  href="https://forms.gle/t38Jurtqes2pbBsVA"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex items-center gap-2"
                 >
-                  Learn About Enrollment
+                  Register for September '25
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
