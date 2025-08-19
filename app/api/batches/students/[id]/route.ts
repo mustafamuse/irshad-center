@@ -9,10 +9,11 @@ const studentService = new StudentService(studentRepository)
 // GET single student
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await studentService.getStudentById(params.id)
+    const { id } = await params
+    const result = await studentService.getStudentById(id)
 
     if (result.success) {
       return NextResponse.json({
@@ -43,11 +44,12 @@ export async function GET(
 // PUT update student
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const input = await request.json()
-    const result = await studentService.updateStudent(params.id, input)
+    const result = await studentService.updateStudent(id, input)
 
     if (result.success) {
       return NextResponse.json({
@@ -78,10 +80,11 @@ export async function PUT(
 // DELETE student
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const result = await studentService.deleteStudent(params.id)
+    const { id } = await params
+    const result = await studentService.deleteStudent(id)
 
     if (result.success) {
       return NextResponse.json({
