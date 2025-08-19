@@ -105,7 +105,13 @@ const HomePage: React.FC = () => {
                   size="lg"
                   className="rounded-full bg-[#007078] px-8 text-white shadow-lg transition-all hover:bg-[#007078]/90 hover:shadow-xl"
                 >
-                  <Link href="/register">Take the First Step</Link>
+                  <Link
+                    href="https://forms.gle/t38Jurtqes2pbBsVA"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Begin Registration
+                  </Link>
                 </Button>
                 <Button
                   asChild

@@ -111,7 +111,9 @@ export function PaymentBanner() {
                   registered and on our attendance list.
                 </p>
                 <Link
-                  href="/register"
+                  href="https://forms.gle/t38Jurtqes2pbBsVA"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 text-[#007078] hover:underline"
                   onClick={() => setIsOpen(false)}
                 >

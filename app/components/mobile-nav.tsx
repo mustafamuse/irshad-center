@@ -166,7 +166,9 @@ export function MobileNav() {
                     className="relative w-full overflow-hidden rounded-full bg-[#007078] text-white shadow-lg transition-all hover:shadow-xl"
                   >
                     <Link
-                      href="/register"
+                      href="https://forms.gle/t38Jurtqes2pbBsVA"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="flex items-center justify-center gap-2"
                     >
                       <UserPlus className="h-4 w-4" />

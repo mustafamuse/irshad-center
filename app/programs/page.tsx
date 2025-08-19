@@ -682,7 +682,9 @@ export default function ProgramsPage() {
                 asChild
               >
                 <Link
-                  href="/register"
+                  href="https://forms.gle/t38Jurtqes2pbBsVA"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2"
                 >
                   Begin Your Journey

@@ -123,7 +123,13 @@ export function Pricing() {
                 size="lg"
                 className="w-full rounded-full bg-[#007078] text-base font-medium text-white transition-all hover:bg-[#007078]/90 hover:shadow-lg sm:text-lg"
               >
-                <Link href="/register">Begin Registration</Link>
+                <Link
+                  href="https://forms.gle/t38Jurtqes2pbBsVA"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Begin Registration
+                </Link>
               </Button>
               <p className="mt-3 text-center text-xs text-gray-600 sm:text-sm">
                 Registration required before setting up monthly payments
