@@ -12,6 +12,9 @@ interface CountdownTime {
   seconds: number
 }
 
+// Semester end date: September 7, 2025 (end of day)
+const SEMESTER_END_DATE = new Date('2025-09-07T23:59:59')
+
 const SemesterCountdown: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<CountdownTime>({
     days: 0,
@@ -21,15 +24,12 @@ const SemesterCountdown: React.FC = () => {
   })
   const [isClient, setIsClient] = useState(false)
 
-  // Semester end date: September 7, 2025 (end of day)
-  const semesterEndDate = new Date('2025-09-07T23:59:59')
-
   useEffect(() => {
     setIsClient(true)
 
     const calculateTimeLeft = () => {
       const now = new Date()
-      const difference = semesterEndDate.getTime() - now.getTime()
+      const difference = SEMESTER_END_DATE.getTime() - now.getTime()
 
       if (difference > 0) {
         const days = Math.floor(difference / (1000 * 60 * 60 * 24))
@@ -47,7 +47,7 @@ const SemesterCountdown: React.FC = () => {
     const timer = setInterval(calculateTimeLeft, 1000)
 
     return () => clearInterval(timer)
-  }, [semesterEndDate])
+  }, [])
 
   // Don't render anything on server to avoid hydration mismatch
   if (!isClient) {
@@ -65,14 +65,30 @@ const SemesterCountdown: React.FC = () => {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8"
+        className="mx-auto max-w-7xl px-2 py-2 sm:px-4 sm:py-3 lg:px-8"
       >
-        <div className="flex items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 p-4 text-center">
+        {/* Mobile Layout */}
+        <div className="block sm:hidden">
+          <div className="rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 p-3 text-center">
+            <div className="mb-2 flex items-center justify-center gap-2">
+              <Calendar className="h-4 w-4 text-green-600" />
+              <span className="text-sm font-medium text-green-800">
+                Finals Complete!
+              </span>
+            </div>
+            <div className="text-xs text-green-600">Break: Sep 12-14</div>
+          </div>
+        </div>
+
+        {/* Desktop Layout */}
+        <div className="hidden items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 p-4 text-center sm:flex">
           <Calendar className="h-5 w-5 text-green-600" />
           <div className="text-sm">
-            <span className="font-medium text-green-800">Semester Break</span>
+            <span className="font-medium text-green-800">
+              Finals Week Complete!
+            </span>
             <span className="ml-2 text-green-600">
-              Classes resume after the break period
+              Semester break: Sep 12-14 • Classes resume after break
             </span>
           </div>
         </div>
@@ -84,13 +100,56 @@ const SemesterCountdown: React.FC = () => {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8"
+      className="mx-auto max-w-7xl px-2 py-2 sm:px-4 sm:py-3 lg:px-8"
     >
-      <div className="flex items-center justify-center gap-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 p-4">
+      {/* Mobile Layout */}
+      <div className="block sm:hidden">
+        <div className="rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 p-3">
+          {/* Header */}
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <Clock className="h-4 w-4 text-indigo-600" />
+            <span className="text-sm font-medium text-indigo-800">
+              Finals week in:
+            </span>
+          </div>
+
+          {/* Countdown Numbers - Mobile */}
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <div className="text-center">
+              <div className="text-xl font-bold text-indigo-900">
+                {timeLeft.days.toString().padStart(2, '0')}
+              </div>
+              <div className="text-xs text-indigo-600">days</div>
+            </div>
+            <div className="text-lg text-indigo-400">:</div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-indigo-900">
+                {timeLeft.hours.toString().padStart(2, '0')}
+              </div>
+              <div className="text-xs text-indigo-600">hrs</div>
+            </div>
+            <div className="text-lg text-indigo-400">:</div>
+            <div className="text-center">
+              <div className="text-xl font-bold text-indigo-900">
+                {timeLeft.minutes.toString().padStart(2, '0')}
+              </div>
+              <div className="text-xs text-indigo-600">mins</div>
+            </div>
+          </div>
+
+          {/* Mobile Date Info */}
+          <div className="text-center text-xs text-indigo-600">
+            Finals: Sep 5-7
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Layout */}
+      <div className="hidden items-center justify-center gap-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 p-4 sm:flex">
         <div className="flex items-center gap-2">
           <Clock className="h-5 w-5 text-indigo-600" />
           <span className="text-sm font-medium text-indigo-800">
-            Semester ends in:
+            Finals week in:
           </span>
         </div>
 
@@ -131,12 +190,9 @@ const SemesterCountdown: React.FC = () => {
             </div>
           </div>
 
-          {/* Show seconds only on larger screens */}
-          <div className="hidden sm:block">
-            <div className="text-indigo-400">:</div>
-          </div>
-
-          <div className="hidden text-center sm:block">
+          {/* Seconds - Desktop only */}
+          <div className="text-indigo-400">:</div>
+          <div className="text-center">
             <div className="text-lg font-bold text-indigo-900">
               {timeLeft.seconds.toString().padStart(2, '0')}
             </div>
@@ -147,10 +203,7 @@ const SemesterCountdown: React.FC = () => {
         </div>
 
         <div className="text-sm text-indigo-600">
-          <span className="hidden sm:inline">
-            Sep 5-7 • Break following weekend
-          </span>
-          <span className="sm:hidden">Sep 5-7</span>
+          Finals: Sep 5-7 • Break: Sep 12-14
         </div>
       </div>
     </motion.div>
