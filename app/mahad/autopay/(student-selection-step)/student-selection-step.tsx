@@ -5,11 +5,6 @@ import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 
-import { EnrollmentStepsProgress } from '@/app/autopay/(enrollment)/enrollment-steps-progress'
-import { EnrollmentSummary } from '@/app/autopay/(enrollment)/enrollment-summary'
-import { EmptySelection } from '@/app/autopay/(student-selection-step)/empty-selection'
-import { StudentCard } from '@/app/autopay/(student-selection-step)/student-card'
-import { StudentSearchCombobox } from '@/app/autopay/(student-selection-step)/student-search-combobox'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -22,6 +17,11 @@ import {
 import { useEnrollment } from '@/contexts/enrollment-context'
 import { useStudentSelection } from '@/hooks/use-student-selection'
 
+import { EmptySelection } from './empty-selection'
+import { StudentCard } from './student-card'
+import { StudentSearchCombobox } from './student-search-combobox'
+import { EnrollmentStepsProgress } from '../(enrollment)/enrollment-steps-progress'
+import { EnrollmentSummary } from '../(enrollment)/enrollment-summary'
 import { useEligibleStudents } from '../hooks/use-eligible-students'
 
 export function StudentSelectionStep() {

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { MobileNav } from '@/app/components/mobile-nav'
+import { MobileNav } from '@/app/mahad/_components/mobile-nav'
 import { Logo } from '@/components/ui/logo'
 import { cn } from '@/lib/utils'
 

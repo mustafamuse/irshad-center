@@ -4,7 +4,6 @@ import * as React from 'react'
 
 import { CheckCircle2, AlertCircle } from 'lucide-react'
 
-import { StripePricingTable } from '@/app/components/stripe-pricing-table'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -13,6 +12,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+
+import { StripePricingTable } from '../../_components/stripe-pricing-table'
 
 interface PaymentSuccessDialogProps {
   isOpen: boolean

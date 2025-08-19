@@ -6,8 +6,6 @@ import { Elements } from '@stripe/react-stripe-js'
 import { loadStripe } from '@stripe/stripe-js'
 import { LockIcon, ShieldCheck } from 'lucide-react'
 
-import { EnrollmentSummary } from '@/app/autopay/(enrollment)/enrollment-summary'
-import { StripePaymentForm } from '@/app/autopay/(payment-step)/stripe-payment-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Card,
@@ -19,6 +17,9 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { StudentDTO } from '@/lib/actions/get-students'
 import { PayorDetails } from '@/lib/types'
+
+import { StripePaymentForm } from './stripe-payment-form'
+import { EnrollmentSummary } from '../(enrollment)/enrollment-summary'
 
 // Get the publishable key from env
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY

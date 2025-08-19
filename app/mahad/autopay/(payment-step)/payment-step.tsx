@@ -2,11 +2,11 @@
 
 import { Loader2 } from 'lucide-react'
 
-import { EnrollmentStepsProgress } from '@/app/autopay/(enrollment)/enrollment-steps-progress'
 import { useEnrollment } from '@/contexts/enrollment-context'
 
 import { ClientPaymentForm } from './client-payment-form'
 import { FAQSection } from './faq-section'
+import { EnrollmentStepsProgress } from '../(enrollment)/enrollment-steps-progress'
 
 export function PaymentStep() {
   const {

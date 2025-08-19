@@ -1,6 +1,8 @@
 'use client'
 
 import * as React from 'react'
+
+import { StripePricingTable } from '@/app/mahad/_components/stripe-pricing-table'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -10,7 +12,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { StripePricingTable } from './stripe-pricing-table'
 
 export function PricingDialog() {
   return (

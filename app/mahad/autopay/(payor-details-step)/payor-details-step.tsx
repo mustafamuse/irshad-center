@@ -4,9 +4,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
-import { EnrollmentStepsProgress } from '@/app/autopay/(enrollment)/enrollment-steps-progress'
-import { PayorDetailsFields } from '@/app/autopay/(payor-details-step)/payor-details-fields'
-import { TermsModal } from '@/app/autopay/(payor-details-step)/terms-modal'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -25,6 +22,10 @@ import {
   isApiError,
 } from '@/lib/schemas/enrollment'
 import { type Relationship } from '@/lib/types'
+
+import { PayorDetailsFields } from './payor-details-fields'
+import { TermsModal } from './terms-modal'
+import { EnrollmentStepsProgress } from '../(enrollment)/enrollment-steps-progress'
 
 // Utility function to format phone numbers
 function formatPhoneNumber(value: string): string {
