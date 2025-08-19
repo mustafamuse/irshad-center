@@ -227,7 +227,7 @@ export default function ProgramsPage() {
               variant="ghost"
               className="h-10 gap-2 rounded-xl text-sm text-[#007078] hover:bg-[#007078]/10"
             >
-              <Link href="/">
+              <Link href="/mahad">
                 <ArrowLeft className="h-4 w-4" />
                 <span className="hidden sm:inline">Back to Home</span>
                 <span className="sm:hidden">Back</span>

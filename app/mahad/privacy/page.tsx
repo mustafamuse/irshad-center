@@ -36,7 +36,7 @@ export default function PrivacyPolicyPage() {
               variant="ghost"
               className="flex items-center gap-2 hover:bg-transparent hover:text-primary"
             >
-              <Link href="/">
+              <Link href="/mahad">
                 <ArrowLeft className="h-4 w-4" />
                 Back to Home
               </Link>

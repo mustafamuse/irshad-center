@@ -21,10 +21,10 @@ import { Logo } from '@/components/ui/logo'
 import { cn } from '@/lib/utils'
 
 const menuItems = [
-  { href: '/', label: 'Home', icon: Home },
-  { href: '/programs', label: 'Programs', icon: GraduationCap },
-  { href: '/about', label: 'About Us', icon: Info },
-  { href: '/schedule', label: 'Class Schedule', icon: Calendar },
+  { href: '/mahad', label: 'Home', icon: Home },
+  { href: '/mahad/programs', label: 'Programs', icon: GraduationCap },
+  { href: '/mahad/about', label: 'About Us', icon: Info },
+  { href: '/mahad/schedule', label: 'Class Schedule', icon: Calendar },
 ]
 
 export function MobileNav() {

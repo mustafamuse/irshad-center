@@ -75,7 +75,7 @@ export default function TermsPage() {
               variant="ghost"
               className="flex items-center gap-2 text-[#007078] transition-colors hover:bg-[#007078]/5"
             >
-              <Link href="/">
+              <Link href="/mahad">
                 <ArrowLeft className="h-4 w-4" />
                 Back to Home
               </Link>
