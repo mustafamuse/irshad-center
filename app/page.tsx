@@ -15,6 +15,7 @@ import { ContactSection } from './components/contact-section'
 import { ImageCarousel } from './components/image-carousel'
 import { MobileNav } from './components/mobile-nav'
 import { PaymentBanner } from './components/payment-banner'
+import SemesterCountdown from './components/semester-countdown'
 import { Testimonials } from './components/testimonials'
 
 const features = [
@@ -53,6 +54,7 @@ const HomePage: React.FC = () => {
     <div className="relative flex min-h-screen flex-col">
       <PaymentBanner />
       <MobileNav />
+      <SemesterCountdown />
 
       <main className="flex-1">
         {/* Hero Section */}
