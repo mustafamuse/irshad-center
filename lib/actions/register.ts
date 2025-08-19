@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import {
   studentFormSchema,
   type StudentFormValues,
-} from '@/app/register/schema'
+} from '@/app/mahad/register/schema'
 import { prisma } from '@/lib/db'
 
 // Helper function for consistent capitalization
@@ -207,7 +207,7 @@ export async function addSibling(studentId: string, siblingId: string) {
     }
 
     // Revalidate the entire registration route
-    revalidatePath('/register', 'layout')
+    revalidatePath('/mahad/register', 'layout')
 
     return { success: true, student: updatedStudent }
   })
@@ -303,7 +303,7 @@ export async function removeSibling(studentId: string, siblingId: string) {
     })
 
     // Revalidate the entire registration route
-    revalidatePath('/register', 'layout')
+    revalidatePath('/mahad/register', 'layout')
 
     return { success: true, student: updatedStudent }
   })

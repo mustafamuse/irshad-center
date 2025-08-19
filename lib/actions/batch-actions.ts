@@ -36,8 +36,8 @@ export async function getAllBatches(): Promise<BatchWithCount[]> {
       startDate: batch.startDate?.toISOString() ?? null,
       studentCount: batch._count.students,
     }))
-  } catch (error) {
-    console.error('Failed to fetch batches:', error)
+  } catch {
+    // Failed to fetch batches
     throw new Error('Failed to fetch batches')
   }
 }
@@ -48,8 +48,8 @@ export async function createBatch(name: string) {
       data: { name },
     })
     return { success: true, batch }
-  } catch (error) {
-    console.error('Failed to create batch:', error)
+  } catch {
+    // Failed to create batch
     throw new Error('Failed to create batch')
   }
 }
@@ -59,12 +59,6 @@ export async function assignStudentsToBatch(
   studentIds: string[]
 ) {
   try {
-    console.log('📝 Assigning students:', {
-      batchId,
-      studentCount: studentIds.length,
-      studentIds,
-    })
-
     await prisma.student.updateMany({
       where: {
         id: {
@@ -76,32 +70,10 @@ export async function assignStudentsToBatch(
       },
     })
 
-    // Verify the update
-    const updatedStudents = await prisma.student.findMany({
-      where: {
-        id: {
-          in: studentIds,
-        },
-      },
-      select: {
-        id: true,
-        name: true,
-        batchId: true,
-      },
-    })
-
-    console.log('✅ Assignment result:', {
-      expected: studentIds.length,
-      updated: updatedStudents.filter((s) => s.batchId === batchId).length,
-      students: updatedStudents,
-    })
-
     return { success: true }
-  } catch (error) {
-    console.error('❌ Failed to assign students:', error)
-    throw new Error(
-      error instanceof Error ? error.message : 'Failed to assign students'
-    )
+  } catch {
+    // Failed to assign students
+    throw new Error('Failed to assign students')
   }
 }
 
@@ -120,8 +92,8 @@ export async function transferStudentsToBatch(
     )
 
     return { success: true, count: updates.length }
-  } catch (error) {
-    console.error('Failed to transfer students:', error)
+  } catch {
+    // Failed to transfer students
     throw new Error('Failed to transfer students')
   }
 }
@@ -227,8 +199,8 @@ export async function exportIncompleteStudents() {
     })
 
     return b64
-  } catch (error) {
-    console.error('Failed to export incomplete students:', error)
+  } catch {
+    // Failed to export incomplete students
     throw new Error('Failed to export incomplete students')
   }
 }

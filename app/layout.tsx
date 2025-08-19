@@ -9,6 +9,7 @@ import { Providers } from './providers'
 import './globals.css'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://irshadcenter.com'),
   title: 'Irshād Mâhad - Islamic Education',
   description:
     'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',

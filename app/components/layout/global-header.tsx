@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-import { MobileNav } from '@/app/components/mobile-nav'
+import { MobileNav } from '@/app/mahad/_components/mobile-nav'
 import { Logo } from '@/components/ui/logo'
 import { cn } from '@/lib/utils'
 
@@ -44,7 +44,9 @@ export function GlobalHeader() {
           })}
 
           <Link
-            href="/register"
+            href="https://forms.gle/t38Jurtqes2pbBsVA"
+            target="_blank"
+            rel="noopener noreferrer"
             className="ml-4 inline-flex items-center justify-center rounded-full bg-[#007078] px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#007078]/90 hover:shadow-md"
           >
             Begin Registration

@@ -8,6 +8,9 @@ import {
 import { StatsCards } from './components/stats-cards'
 import { StudentsTableShell } from './components/students-table-shell'
 
+// Force dynamic rendering for admin pages
+export const dynamic = 'force-dynamic'
+
 export const metadata = {
   title: 'Payments | Dashboard',
   description: 'View and manage student billing and payments.',
