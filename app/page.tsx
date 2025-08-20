@@ -11,11 +11,10 @@ import { Button } from '@/components/ui/button'
 
 function ComingSoonContent() {
   return (
-    <div className="relative min-h-screen bg-gradient-to-br from-[#007078]/5 via-white to-[#deb43e]/5">
+    <div className="relative min-h-screen bg-white">
       {/* Background Pattern */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-[linear-gradient(30deg,#007078_0%,transparent_70%)] opacity-[0.03]" />
-        <div className="absolute right-0 top-0 h-[800px] w-[800px] translate-x-1/2 rounded-full bg-gradient-to-l from-[#deb43e]/10 to-transparent" />
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
