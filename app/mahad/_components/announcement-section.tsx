@@ -77,7 +77,10 @@ const timelinePhases: TimelinePhase[] = [
 
 export const AnnouncementSection: React.FC = () => {
   return (
-    <section className="relative overflow-hidden bg-[#007078] px-4 py-12 text-white sm:px-6 lg:px-8">
+    <section
+      id="announcements"
+      className="relative overflow-hidden bg-[#007078] px-4 py-12 text-white sm:px-6 lg:px-8"
+    >
       {/* Background Pattern */}
       <div className="pointer-events-none absolute inset-0">
         <Pattern />
