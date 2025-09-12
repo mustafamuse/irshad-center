@@ -11,7 +11,7 @@ import {
   handleInvoicePaymentFailed,
 } from './student-event-handlers'
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+const stripe = new Stripe(process.env.STRIPE_LIVE_SECRET_KEY!)
 
 // Map event types to our new handler functions
 const eventHandlers = {
