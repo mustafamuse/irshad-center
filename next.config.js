@@ -9,17 +9,22 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "img-src 'self' blob: data:",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com",
+              "img-src 'self' blob: data: https://*.stripe.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://*.js.stripe.com https://maps.googleapis.com",
               "style-src 'self' 'unsafe-inline'",
               process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' ws: wss: blob: data: https://api.stripe.com"
-                : "connect-src 'self' blob: data: https://api.stripe.com",
+                ? "connect-src 'self' ws: wss: blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com"
+                : "connect-src 'self' blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com",
               "worker-src 'self' blob:",
-              "child-src 'self' blob:",
-              "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com",
+              "child-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
+              "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com",
               "media-src 'self' blob: data:",
             ].join('; '),
+          },
+          {
+            key: 'Permissions-Policy',
+            value:
+              'payment=(self "https://js.stripe.com" "https://checkout.stripe.com" "https://merchant-ui-api.stripe.com"), camera=(), microphone=()',
           },
         ],
       },
@@ -43,9 +48,6 @@ const nextConfig = {
     })
     return config
   },
-  // compiler: {
-  //   removeConsole: true,
-  // },
 }
 
 module.exports = nextConfig

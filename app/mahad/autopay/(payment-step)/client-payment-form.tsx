@@ -26,6 +26,7 @@ const publishableKey =
   process.env.NODE_ENV === 'production'
     ? process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_PROD
     : process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_DEV
+
 if (!publishableKey) {
   throw new Error('Stripe publishable key is not set in environment variables')
 }

@@ -4,7 +4,7 @@ import * as React from 'react'
 
 import Link from 'next/link'
 
-import { X, AlertCircle, ArrowRight } from 'lucide-react'
+import { X, AlertCircle, ArrowRight, CreditCard } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -14,12 +14,19 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 import { StripePricingTable } from './stripe-pricing-table'
 
 export function PaymentBanner() {
   const [isOpen, setIsOpen] = React.useState(false)
   const [isDismissed, setIsDismissed] = React.useState(false)
+  const [isHoveringDismiss, setIsHoveringDismiss] = React.useState(false)
 
   if (isDismissed) return null
 
@@ -27,54 +34,60 @@ export function PaymentBanner() {
     <>
       <div className="sticky top-0 z-50 bg-gradient-to-r from-[#007078] to-[#008891] shadow-lg">
         <div className="mx-auto max-w-7xl">
-          <div className="relative flex items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <div className="relative flex items-center justify-between gap-2 px-3 py-3 sm:gap-4 sm:px-6 sm:py-4 lg:px-8">
             {/* Left side with icon and text */}
-            <div className="flex flex-1 items-center justify-center sm:justify-start">
-              <div className="hidden sm:flex sm:items-center sm:gap-2">
+            <div className="flex flex-1 items-center justify-start">
+              <div className="flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20">
-                  <svg
-                    className="h-4 w-4 text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
+                  <CreditCard className="h-4 w-4 text-white" />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-1">
+                  <p className="text-sm font-semibold leading-snug text-white sm:text-base">
+                    Enrolled & want to pay tuition?
+                  </p>
+                  <p className="text-xs leading-snug text-white/90 sm:text-sm">
+                    Setup auto-pay here
+                  </p>
                 </div>
               </div>
-              <p className="text-center text-sm font-medium text-white sm:ml-4 sm:text-base">
-                <span className="font-semibold">
-                  Enrolled & want to pay tuition?
-                </span>{' '}
-                <span className="hidden sm:inline">
-                  Setup your automatic payments here
-                </span>
-              </p>
             </div>
 
             {/* Right side with buttons */}
-            <div className="flex shrink-0 items-center gap-3 sm:gap-4">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-4">
               <Button
                 variant="secondary"
                 size="sm"
-                className="rounded-full bg-white px-4 py-2 text-sm font-medium text-[#007078] shadow-sm transition-all duration-200 hover:bg-white/90"
+                className="whitespace-nowrap rounded-full bg-white px-3 py-1.5 text-xs font-medium text-[#007078] shadow-sm transition-all duration-200 hover:bg-white/90 sm:px-4 sm:py-2 sm:text-sm"
                 onClick={() => setIsOpen(true)}
               >
                 Setup Auto-Pay
               </Button>
-              <button
-                type="button"
-                className="rounded-full p-1.5 text-white transition-colors duration-200 hover:bg-white/10"
-                onClick={() => setIsDismissed(true)}
-              >
-                <span className="sr-only">Dismiss</span>
-                <X className="h-5 w-5" aria-hidden="true" />
-              </button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className={`relative rounded-full p-1.5 transition-all duration-300 ${
+                        isHoveringDismiss
+                          ? 'bg-white/20 ring-2 ring-white/30 ring-offset-2 ring-offset-[#007078]'
+                          : 'hover:bg-white/10'
+                      }`}
+                      onClick={() => setIsDismissed(true)}
+                      onMouseEnter={() => setIsHoveringDismiss(true)}
+                      onMouseLeave={() => setIsHoveringDismiss(false)}
+                      aria-label="Dismiss payment banner"
+                    >
+                      <X
+                        className={`h-4 w-4 transition-all duration-300 sm:h-5 sm:w-5 ${isHoveringDismiss ? 'scale-110 text-white' : 'text-white/80'}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Dismiss banner</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Decorative elements */}
@@ -87,26 +100,26 @@ export function PaymentBanner() {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader className="space-y-4 pb-6">
-            <DialogTitle className="text-3xl font-bold tracking-tight text-gray-900">
+            <DialogTitle className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
               Setup Monthly Auto-Pay
             </DialogTitle>
-            <DialogDescription className="text-lg text-gray-600">
+            <DialogDescription className="text-base text-gray-600 sm:text-lg">
               For registered students only - Select your payment schedule below
             </DialogDescription>
           </DialogHeader>
 
-          <div className="rounded-xl border border-[#007078]/10 bg-[#007078]/5 p-6">
-            <div className="flex items-start gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#007078]/10">
-                <AlertCircle className="h-5 w-5 text-[#007078]" />
+          <div className="rounded-xl border border-[#007078]/10 bg-[#007078]/5 p-4 sm:p-6">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#007078]/10 sm:h-10 sm:w-10">
+                <AlertCircle className="h-4 w-4 text-[#007078] sm:h-5 sm:w-5" />
               </div>
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-gray-900">
+              <div className="space-y-2 sm:space-y-3">
+                <h3 className="text-base font-semibold text-gray-900 sm:text-lg">
                   Not Registered Yet?
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-sm text-gray-600 sm:text-base">
                   This payment setup is only for students who are already
                   registered and on our attendance list.
                 </p>
@@ -117,7 +130,7 @@ export function PaymentBanner() {
                   className="inline-flex items-center gap-2 text-[#007078] hover:underline"
                   onClick={() => setIsOpen(false)}
                 >
-                  <span className="font-medium">
+                  <span className="text-sm font-medium sm:text-base">
                     Register as a new student first
                   </span>
                   <ArrowRight className="h-4 w-4" />
@@ -126,11 +139,13 @@ export function PaymentBanner() {
             </div>
           </div>
 
-          <div className="mt-8">
-            <h3 className="mb-6 text-lg font-semibold text-gray-900">
+          <div className="mt-6 overflow-y-auto sm:mt-8">
+            <h3 className="mb-4 text-base font-semibold text-gray-900 sm:mb-6 sm:text-lg">
               Select Your Payment Plan
             </h3>
-            <StripePricingTable />
+            <div className="overflow-y-auto">
+              <StripePricingTable />
+            </div>
           </div>
         </DialogContent>
       </Dialog>
