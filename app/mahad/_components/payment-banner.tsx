@@ -87,7 +87,7 @@ export function PaymentBanner() {
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
           <DialogHeader className="space-y-4 pb-6">
             <DialogTitle className="text-3xl font-bold tracking-tight text-gray-900">
               Setup Monthly Auto-Pay
@@ -126,11 +126,13 @@ export function PaymentBanner() {
             </div>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-8 overflow-y-auto">
             <h3 className="mb-6 text-lg font-semibold text-gray-900">
               Select Your Payment Plan
             </h3>
-            <StripePricingTable />
+            <div className="overflow-y-auto">
+              <StripePricingTable />
+            </div>
           </div>
         </DialogContent>
       </Dialog>
