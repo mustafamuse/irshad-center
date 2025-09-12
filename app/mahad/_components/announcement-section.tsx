@@ -58,20 +58,20 @@ const timelinePhases: TimelinePhase[] = [
   {
     step: 1,
     title: 'Application Period',
-    date: 'Aug 20 - Sep 3',
+    date: 'Ongoing',
     description: 'Submit your application',
   },
   {
     step: 2,
     title: 'Interview Process',
-    date: '2nd weekend of Sep (Sep 13-15)',
-    description: 'Students invited for assessment',
+    date: 'Within one week of application',
+    description: 'Stop by to Schedule',
   },
   {
     step: 3,
     title: 'Classes Begin',
-    date: '3rd weekend of Sep (Sep 19-21)',
-    description: 'Start your Māhad journey',
+    date: 'Late September - Early October',
+    description: 'Join our growing Māhad community',
   },
 ]
 
@@ -112,7 +112,7 @@ export const AnnouncementSection: React.FC = () => {
           <div className="mt-6 space-y-8">
             <div>
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-                Enrollment Opening Soon!
+                Enrollment Still Open!
               </h2>
               <p className="mt-3 text-xl text-white/90">
                 Join our 2024-2025 academic year. Limited spots available for
@@ -125,7 +125,7 @@ export const AnnouncementSection: React.FC = () => {
               <div className="flex items-center gap-3 rounded-full bg-[#006068] px-5 py-3">
                 <Users2 className="h-5 w-5 text-[#deb43e]" />
                 <span className="text-sm font-medium">
-                  Applications open: Aug 20th, 2025
+                  Rolling admissions now open
                 </span>
               </div>
               <motion.div
@@ -180,7 +180,7 @@ export const AnnouncementSection: React.FC = () => {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2"
                 >
-                  Register for September '25
+                  Apply Now
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
