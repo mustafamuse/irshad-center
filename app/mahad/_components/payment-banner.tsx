@@ -14,12 +14,19 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 import { StripePricingTable } from './stripe-pricing-table'
 
 export function PaymentBanner() {
   const [isOpen, setIsOpen] = React.useState(false)
   const [isDismissed, setIsDismissed] = React.useState(false)
+  const [isHoveringDismiss, setIsHoveringDismiss] = React.useState(false)
 
   if (isDismissed) return null
 
@@ -55,14 +62,32 @@ export function PaymentBanner() {
               >
                 Setup Auto-Pay
               </Button>
-              <button
-                type="button"
-                className="rounded-full p-1.5 text-white transition-colors duration-200 hover:bg-white/10"
-                onClick={() => setIsDismissed(true)}
-                aria-label="Dismiss banner"
-              >
-                <X className="h-4 w-4 sm:h-5 sm:w-5" aria-hidden="true" />
-              </button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className={`relative rounded-full p-1.5 transition-all duration-300 ${
+                        isHoveringDismiss
+                          ? 'bg-white/20 ring-2 ring-white/30 ring-offset-2 ring-offset-[#007078]'
+                          : 'hover:bg-white/10'
+                      }`}
+                      onClick={() => setIsDismissed(true)}
+                      onMouseEnter={() => setIsHoveringDismiss(true)}
+                      onMouseLeave={() => setIsHoveringDismiss(false)}
+                      aria-label="Dismiss payment banner"
+                    >
+                      <X
+                        className={`h-4 w-4 transition-all duration-300 sm:h-5 sm:w-5 ${isHoveringDismiss ? 'scale-110 text-white' : 'text-white/80'}`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Dismiss banner</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* Decorative elements */}
