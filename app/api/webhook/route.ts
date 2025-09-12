@@ -1,7 +1,7 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-import Stripe from 'stripe'
+import { stripeServerClient } from '@/lib/stripe'
 
 import {
   handleCheckoutSessionCompleted,
@@ -10,8 +10,6 @@ import {
   handleSubscriptionUpdated,
   handleInvoicePaymentFailed,
 } from './student-event-handlers'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 // Map event types to our new handler functions
 const eventHandlers = {
@@ -28,8 +26,14 @@ export async function POST(req: Request) {
     const headersList = await headers()
     const signature = headersList.get('stripe-signature')
 
-    // Early return if no signature
-    if (!signature || !process.env.STRIPE_WEBHOOK_SECRET) {
+    // Get environment-specific webhook secret
+    const webhookSecret =
+      process.env.NODE_ENV === 'production'
+        ? process.env.STRIPE_WEBHOOK_SECRET_PROD
+        : process.env.STRIPE_WEBHOOK_SECRET_DEV
+
+    // Early return if no signature or webhook secret
+    if (!signature || !webhookSecret) {
       console.error('❌ Missing webhook signature or secret')
       return NextResponse.json(
         { message: 'Missing signature or webhook secret' },
@@ -37,10 +41,10 @@ export async function POST(req: Request) {
       )
     }
 
-    const event = stripe.webhooks.constructEvent(
+    const event = stripeServerClient.webhooks.constructEvent(
       body,
       signature,
-      process.env.STRIPE_WEBHOOK_SECRET
+      webhookSecret // Use the environment-specific secret here
     )
 
     console.log(`✅ Webhook verified: ${event.id}`)
