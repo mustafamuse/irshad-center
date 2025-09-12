@@ -5,7 +5,6 @@ import { useEffect } from 'react'
 
 import Link from 'next/link'
 
-
 import { motion } from 'framer-motion'
 import { Users2, GraduationCap, BookOpen, Building2 } from 'lucide-react'
 
@@ -55,7 +54,8 @@ const features = [
 const HomePage: React.FC = () => {
   useEffect(() => {
     // Handle scroll to announcement section if URL has #announcements
-    handleHashScroll(80) // 80px offset to account for fixed header
+    const cleanup = handleHashScroll(80) // 80px offset to account for fixed header
+    return cleanup
   }, [])
   return (
     <div className="relative flex min-h-screen flex-col">
