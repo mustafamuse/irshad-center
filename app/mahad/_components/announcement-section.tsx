@@ -59,13 +59,13 @@ const timelinePhases: TimelinePhase[] = [
     step: 1,
     title: 'Application Period',
     date: 'Ongoing',
-    description: 'Submit your application - Rolling admissions open',
+    description: 'Submit your application',
   },
   {
     step: 2,
     title: 'Interview Process',
     date: 'Within one week of application',
-    description: 'Flexible scheduling for student assessment',
+    description: 'Stop by to Schedule',
   },
   {
     step: 3,
