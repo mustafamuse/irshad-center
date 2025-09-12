@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { useEffect } from 'react'
 
 import Link from 'next/link'
 
@@ -9,6 +10,7 @@ import { Users2, GraduationCap, BookOpen, Building2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
+import { handleHashScroll } from '@/lib/utils/scroll'
 
 import { AnnouncementSection } from './_components/announcement-section'
 import { ContactSection } from './_components/contact-section'
@@ -50,6 +52,11 @@ const features = [
 ]
 
 const HomePage: React.FC = () => {
+  useEffect(() => {
+    // Handle scroll to announcement section if URL has #announcements
+    const cleanup = handleHashScroll(80) // 80px offset to account for fixed header
+    return cleanup
+  }, [])
   return (
     <div className="relative flex min-h-screen flex-col">
       <PaymentBanner />
