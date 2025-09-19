@@ -10,9 +10,9 @@ import './globals.css'
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://irshadcenter.com'),
-  title: 'Irshād Mâhad - Islamic Education',
+  title: 'Irshād Mâhad - Islamic Studies & Arabic Institute',
   description:
-    'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',
+    "Accredited two-year Islamic education program in English at Eden Prairie. Study Qur'an, Fiqh, Hadith, and Arabic from distinguished Sheikhs and Islamic university graduates",
   icons: {
     icon: [
       {
@@ -30,9 +30,9 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: 'Irshād Mâhad - Islamic Education',
+    title: 'Irshād Mâhad - Islamic Studies & Arabic Institute',
     description:
-      'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',
+      "Accredited two-year Islamic education program in English at Eden Prairie. Study Qur'an, Fiqh, Hadith, and Arabic from distinguished Sheikhs and Islamic university graduates",
     images: [
       {
         url: '/images/Latest Irshad Mahad.png',
@@ -44,9 +44,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Irshād Mâhad - Islamic Education',
+    title: 'Irshād Mâhad - Islamic Studies & Arabic Institute',
     description:
-      'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',
+      "Accredited two-year Islamic education program in English at Eden Prairie. Study Qur'an, Fiqh, Hadith, and Arabic from distinguished Sheikhs and Islamic university graduates",
     images: ['/images/Latest Irshad Mahad.png'],
   },
 }
