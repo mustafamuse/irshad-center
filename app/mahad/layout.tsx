@@ -1,9 +1,9 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Irshād Mâhad - Islamic Education',
+  title: 'Irshād Mâhad - Islamic Studies & Arabic Institute',
   description:
-    'Comprehensive Islamic education and payment management system at Irshād Mâhad, Eden Prairie.',
+    "Accredited two-year Islamic education program in English at Eden Prairie. Study Qur'an, Fiqh, Hadith, and Arabic from distinguished Sheikhs and Islamic university graduates",
 }
 
 export default function MahadLayout({
