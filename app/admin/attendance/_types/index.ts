@@ -1,4 +1,6 @@
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED'
+// Re-export Prisma types for consistency
+export { AttendanceStatus } from '@prisma/client'
+import type { AttendanceStatus } from '@prisma/client'
 
 export interface BaseRecord {
   id: string

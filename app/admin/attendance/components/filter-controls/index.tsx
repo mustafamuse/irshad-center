@@ -1,5 +1,7 @@
 'use client'
 
+import { useRouter, useSearchParams } from 'next/navigation'
+
 import { format } from 'date-fns'
 import { Calendar as CalendarIcon } from 'lucide-react'
 
@@ -20,68 +22,151 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-import { BatchSelector } from './batch-selector'
-import { DateSelector } from './date-selector'
-import { useStudents } from '../../_hooks/use-attendance-queries'
-import { FilterControlsSkeleton } from '../skeletons'
-
-interface FilterControlsProps {
-  selectedDate: Date | undefined
-  selectedBatchId: string | undefined
-  onDateSelect: (date: Date | undefined) => void
-  onBatchSelect: (batchId: string) => void
-  onProceed: () => void
-  className?: string
+interface Batch {
+  id: string
+  name: string
 }
 
-export function FilterControls({
-  selectedDate,
-  selectedBatchId,
-  onDateSelect,
-  onBatchSelect,
-  onProceed,
-  className,
-}: FilterControlsProps) {
-  const { data: batches, isLoading, error } = useStudents(selectedBatchId)
-  const canProceed = selectedDate && selectedBatchId
+interface FilterControlsProps {
+  batches: Batch[]
+}
 
-  if (isLoading) {
-    return <FilterControlsSkeleton />
+export function FilterControls({ batches }: FilterControlsProps) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const batchId = searchParams.get('batchId') || ''
+  const fromDate = searchParams.get('fromDate') || ''
+  const toDate = searchParams.get('toDate') || ''
+
+  const updateSearchParams = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (value && value !== 'all') {
+      params.set(key, value)
+    } else {
+      params.delete(key)
+    }
+    // Reset to first page when filters change
+    params.delete('page')
+    router.push(`/admin/attendance?${params.toString()}`)
+  }
+
+  const clearFilters = () => {
+    router.push('/admin/attendance')
   }
 
   return (
-    <div className={cn('grid gap-6 md:grid-cols-2', className)}>
-      <Card>
-        <CardHeader>
-          <CardTitle>Select Date</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DateSelector
-            selected={selectedDate}
-            onSelect={onDateSelect}
-            className="rounded-md border"
-          />
-        </CardContent>
-      </Card>
+    <Card>
+      <CardHeader>
+        <CardTitle>Filter Sessions</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* Batch Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="batch-select">
+              Batch
+            </label>
+            <Select
+              value={batchId || 'all'}
+              onValueChange={(value) => updateSearchParams('batchId', value)}
+            >
+              <SelectTrigger id="batch-select">
+                <SelectValue placeholder="All batches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All batches</SelectItem>
+                {batches.map((batch) => (
+                  <SelectItem key={batch.id} value={batch.id}>
+                    {batch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Select Batch</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <BatchSelector
-            value={selectedBatchId}
-            onValueChange={onBatchSelect}
-            batches={batches ?? []}
-            isLoading={isLoading}
-            error={error}
-          />
+          {/* From Date Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="from-date">
+              From Date
+            </label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  className={cn(
+                    'h-10 min-h-[44px] w-full justify-start text-left font-normal',
+                    !fromDate && 'text-muted-foreground'
+                  )}
+                  id="from-date"
+                  variant="outline"
+                >
+                  <CalendarIcon className="mr-2 size-4" />
+                  {fromDate ? format(new Date(fromDate), 'PPP') : 'Pick a date'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  initialFocus
+                  mode="single"
+                  selected={fromDate ? new Date(fromDate) : undefined}
+                  onSelect={(date) =>
+                    updateSearchParams(
+                      'fromDate',
+                      date ? format(date, 'yyyy-MM-dd') : ''
+                    )
+                  }
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
 
-          <Button className="w-full" onClick={onProceed} disabled={!canProceed}>
-            Proceed to Mark Attendance
+          {/* To Date Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="to-date">
+              To Date
+            </label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  className={cn(
+                    'h-10 min-h-[44px] w-full justify-start text-left font-normal',
+                    !toDate && 'text-muted-foreground'
+                  )}
+                  id="to-date"
+                  variant="outline"
+                >
+                  <CalendarIcon className="mr-2 size-4" />
+                  {toDate ? format(new Date(toDate), 'PPP') : 'Pick a date'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  initialFocus
+                  mode="single"
+                  selected={toDate ? new Date(toDate) : undefined}
+                  onSelect={(date) =>
+                    updateSearchParams(
+                      'toDate',
+                      date ? format(date, 'yyyy-MM-dd') : ''
+                    )
+                  }
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        {/* Clear Filters */}
+        {(batchId || fromDate || toDate) && (
+          <Button
+            className="min-h-[44px] w-full"
+            variant="outline"
+            onClick={clearFilters}
+          >
+            Clear Filters
           </Button>
-        </CardContent>
-      </Card>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }

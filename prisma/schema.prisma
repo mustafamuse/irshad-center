@@ -230,7 +230,7 @@ enum GradeLevel {
 enum AttendanceStatus {
   PRESENT
   ABSENT
-  UNEXCUSED_ABSENT
+  UNEXCUSED
   LATE
   EXCUSED
 }
@@ -254,4 +254,66 @@ enum DayOfWeek {
   FRIDAY
   SATURDAY
   SUNDAY
+}
+
+// Archive tables for tracking removed batches and students
+model ArchivedBatch {
+  id                String   @id @default(uuid())
+  originalBatchId   String   @unique
+  name              String
+  description       String?
+  isActive          Boolean
+  createdAt         DateTime
+  updatedAt         DateTime
+  archivedAt        DateTime @default(now())
+  archiveReason     String   @default("Batch cleanup")
+  
+  // Related archived students
+  archivedStudents  ArchivedStudent[]
+  
+  @@index([archivedAt])
+  @@index([originalBatchId])
+}
+
+model ArchivedStudent {
+  id                     String             @id @default(uuid())
+  originalStudentId      String             @unique
+  name                   String
+  email                  String?
+  monthlyRate            Int
+  customRate             Boolean
+  status                 String
+  lastPaymentDate        DateTime?
+  nextPaymentDue         DateTime?
+  dateOfBirth            DateTime?
+  educationLevel         EducationLevel?
+  gradeLevel             GradeLevel?
+  highSchoolGradYear     Int?
+  highSchoolGraduated    Boolean
+  phone                  String?
+  postGradCompleted      Boolean
+  postGradYear           Int?
+  schoolName             String?
+  collegeGradYear        Int?
+  collegeGraduated       Boolean
+  originalBatchId        String
+  siblingGroupId         String?
+  stripeCustomerId       String?
+  stripeSubscriptionId   String?
+  subscriptionStatus     SubscriptionStatus?
+  paidUntil              DateTime?
+  createdAt              DateTime
+  updatedAt              DateTime
+  archivedAt             DateTime           @default(now())
+  archiveReason          String             @default("Batch cleanup")
+  
+  // Reference to archived batch
+  archivedBatch          ArchivedBatch      @relation(fields: [archivedBatchId], references: [id])
+  archivedBatchId        String
+  
+  @@index([archivedAt])
+  @@index([originalStudentId])
+  @@index([originalBatchId])
+  @@index([email])
+  @@index([name])
 }

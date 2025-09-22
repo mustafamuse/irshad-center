@@ -30,7 +30,7 @@ export interface AttendanceRecord {
 export enum AttendanceStatus {
   PRESENT = 'PRESENT',
   ABSENT = 'ABSENT',
-  UNEXCUSED_ABSENT = 'UNEXCUSED_ABSENT',
+  UNEXCUSED = 'UNEXCUSED',
   LATE = 'LATE',
   EXCUSED = 'EXCUSED',
 }

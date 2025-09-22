@@ -1,10 +1,14 @@
-import { BatchProvider } from '@/app/batches/_providers/batch-provider'
-import { QueryProvider } from './_providers/query-provider'
+import type { Metadata } from 'next'
 
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return (
-    <QueryProvider>
-      <BatchProvider>{children}</BatchProvider>
-    </QueryProvider>
-  )
+export const metadata: Metadata = {
+  title: 'Weekend Attendance | Admin Dashboard',
+  description: 'Manage weekend study session attendance',
+}
+
+export default function AttendanceLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return children
 }

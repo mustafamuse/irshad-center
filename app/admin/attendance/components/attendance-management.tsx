@@ -1,148 +1,244 @@
-'use client'
-
-import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { AttendanceSession } from '@/lib/types/attendance'
-import { AttendanceDialog } from './attendance-dialog'
-import { Calendar, Clock, Users, CheckCircle2, AlertCircle } from 'lucide-react'
 
-export function AttendanceManagement() {
-  const [sessions, setSessions] = useState<AttendanceSession[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedSession, setSelectedSession] = useState<AttendanceSession | null>(null)
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { prisma } from '@/lib/db'
 
-  useEffect(() => {
-    fetchSessions()
-  }, [])
+import { CreateSessionDialog } from './create-session-dialog'
+import { FilterControls } from './filter-controls'
+import { MarkAttendanceDialog } from './mark-attendance-dialog'
 
-  async function fetchSessions() {
-    try {
-      const response = await fetch('/api/admin/attendance?weekendsOnly=true')
-      if (response.ok) {
-        const data = await response.json()
-        setSessions(data)
-      }
-    } catch (error) {
-      console.error('Error fetching sessions:', error)
-    } finally {
-      setLoading(false)
+interface Props {
+  searchParams: {
+    page?: string
+    fromDate?: string
+    toDate?: string
+    batchId?: string
+    search?: string
+  }
+}
+
+export async function AttendanceManagement({ searchParams }: Props) {
+  const page = Number(searchParams.page) || 1
+  const pageSize = 10
+
+  // Get all batches for the attendance system (weekend program)
+  const batches = await prisma.batch.findMany({
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: {
+      name: 'asc',
+    },
+  })
+
+  // Build where clause for filtering (no weekend restriction - this is a weekend program)
+  const where: Record<string, unknown> = {}
+
+  // Add batch filter if specified
+  if (searchParams.batchId) {
+    where.batchId = searchParams.batchId
+  }
+
+  // Add date filters if specified
+  if (searchParams.fromDate || searchParams.toDate) {
+    where.date = {}
+    if (searchParams.fromDate) {
+      where.date.gte = new Date(searchParams.fromDate)
+    }
+    if (searchParams.toDate) {
+      where.date.lte = new Date(searchParams.toDate)
     }
   }
 
-  function getStatusBadge(session: any) {
-    if (session.isComplete) {
-      return <Badge variant="default" className="bg-green-100 text-green-800">Complete</Badge>
-    }
-    if (session.attendanceMarked > 0) {
-      return <Badge variant="secondary">Partial</Badge>
-    }
-    return <Badge variant="outline">Pending</Badge>
-  }
+  const [sessionsData, total] = await Promise.all([
+    prisma.attendanceSession.findMany({
+      where,
+      take: pageSize,
+      skip: (page - 1) * pageSize,
+      orderBy: { date: 'desc' },
+      include: {
+        batch: {
+          select: {
+            name: true,
+            students: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+        records: {
+          include: {
+            student: {
+              select: { id: true, name: true },
+            },
+          },
+        },
+      },
+    }),
+    prisma.attendanceSession.count({ where }),
+  ])
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(3)].map((_, i) => (
-          <Card key={i} className="animate-pulse">
-            <CardHeader>
-              <div className="h-6 bg-muted rounded w-48"></div>
-              <div className="h-4 bg-muted rounded w-32"></div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="h-4 bg-muted rounded w-full"></div>
-                <div className="h-4 bg-muted rounded w-3/4"></div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    )
-  }
+  const sessions = sessionsData.map((session) => ({
+    ...session,
+    studentsCount: session.batch.students.length,
+    attendanceMarked: session.records.length,
+    isComplete: session.records.length === session.batch.students.length,
+  }))
+
+  const totalPages = Math.ceil(total / pageSize)
 
   return (
-    <>
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Recent Weekend Sessions</h2>
-        
-        {sessions.length === 0 ? (
-          <Card>
-            <CardContent className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No weekend sessions found</h3>
-                <p className="text-muted-foreground">
-                  Create a new session to start taking attendance
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          sessions.map((session) => (
-            <Card key={session.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">
-                    {session.schedule.subject.name} - {session.schedule.batch.name}
-                  </CardTitle>
-                  {getStatusBadge(session)}
-                </div>
-                <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                  <div className="flex items-center">
-                    <Calendar className="h-4 w-4 mr-1" />
-                    {format(new Date(session.date), 'PPP')}
-                  </div>
-                  <div className="flex items-center">
-                    <Clock className="h-4 w-4 mr-1" />
-                    {format(new Date(session.startTime), 'p')} - {format(new Date(session.endTime), 'p')}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center">
-                      <Users className="h-4 w-4 mr-1 text-muted-foreground" />
-                      <span className="text-sm">
-                        {session.studentsCount} students
-                      </span>
-                    </div>
-                    <div className="flex items-center">
-                      {session.isComplete ? (
-                        <CheckCircle2 className="h-4 w-4 mr-1 text-green-600" />
-                      ) : (
-                        <AlertCircle className="h-4 w-4 mr-1 text-orange-600" />
-                      )}
-                      <span className="text-sm">
-                        {session.attendanceMarked}/{session.studentsCount} marked
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedSession(session)}
-                  >
-                    {session.isComplete ? 'View Attendance' : 'Mark Attendance'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        )}
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Weekend Sessions</h2>
+          <p className="text-sm text-muted-foreground">
+            Manage attendance for weekend study sessions
+          </p>
+        </div>
+        <CreateSessionDialog batches={batches} />
       </div>
 
-      {selectedSession && (
-        <AttendanceDialog
-          session={selectedSession}
-          open={!!selectedSession}
-          onOpenChange={(open) => !open && setSelectedSession(null)}
-          onAttendanceMarked={fetchSessions}
-        />
+      <FilterControls batches={batches} />
+
+      {sessions.length === 0 ? (
+        <div className="py-10 text-center text-muted-foreground">
+          <p>No weekend sessions found.</p>
+          <p className="text-sm">
+            {Object.keys(searchParams).length > 0
+              ? 'Try adjusting your filters'
+              : 'Create a new session to get started'}
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Desktop Table View */}
+          <div className="hidden rounded-md border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Batch</TableHead>
+                  <TableHead>Attendance</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sessions.map((session) => (
+                  <TableRow key={session.id}>
+                    <TableCell>{format(session.date, 'MMM d, yyyy')}</TableCell>
+                    <TableCell>{session.batch.name}</TableCell>
+                    <TableCell>
+                      {session.attendanceMarked}/{session.studentsCount}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <MarkAttendanceDialog
+                        attendance={session.records}
+                        sessionId={session.id}
+                        students={session.batch.students}
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="space-y-4 md:hidden">
+            {sessions.map((session) => (
+              <div
+                key={session.id}
+                className="space-y-3 rounded-lg border bg-card p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-lg font-medium">
+                    {format(session.date, 'MMM d, yyyy')}
+                  </div>
+                  <div
+                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      session.isComplete
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}
+                  >
+                    {session.isComplete ? 'Complete' : 'Incomplete'}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Batch:</span>
+                    <span className="font-medium">{session.batch.name}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Attendance:</span>
+                    <span className="font-medium">
+                      {session.attendanceMarked}/{session.studentsCount}{' '}
+                      students
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <MarkAttendanceDialog
+                    attendance={session.records}
+                    sessionId={session.id}
+                    students={session.batch.students}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href={`/admin/attendance?${new URLSearchParams({
+                    ...searchParams,
+                    page: String(page > 1 ? page - 1 : 1),
+                  }).toString()}`}
+                />
+              </PaginationItem>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <PaginationItem key={p}>
+                  <PaginationLink
+                    href={`/admin/attendance?${new URLSearchParams({
+                      ...searchParams,
+                      page: String(p),
+                    }).toString()}`}
+                    isActive={p === page}
+                  >
+                    {p}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href={`/admin/attendance?${new URLSearchParams({
+                    ...searchParams,
+                    page: String(page < totalPages ? page + 1 : totalPages),
+                  }).toString()}`}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </>
       )}
-    </>
+    </div>
   )
 }
