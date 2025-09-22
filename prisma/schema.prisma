@@ -175,12 +175,12 @@ model StudentPayment {
 }
 
 model Teacher {
-  id            String          @id
+  id            String          @id @default(uuid())
   name          String
   email         String          @unique
   phone         String?
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime        @updatedAt
   ClassSchedule ClassSchedule[]
 }
 
