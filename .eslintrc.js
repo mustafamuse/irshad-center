@@ -14,7 +14,6 @@ module.exports = {
     'react-hooks',
     'tailwindcss',
     'simple-import-sort',
-    'unused-imports',
   ],
   rules: {
     // TypeScript
@@ -53,7 +52,6 @@ module.exports = {
         ],
       },
     ],
-    'unused-imports/no-unused-imports': 'error',
 
     // Accessibility
     'jsx-a11y/aria-props': 'error',
