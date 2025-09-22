@@ -57,12 +57,14 @@ export async function AttendanceManagement({ searchParams }: Props) {
 
   // Add date filters if specified
   if (searchParams.fromDate || searchParams.toDate) {
-    where.date = {}
+    where.date = {} as Record<string, Date>
     if (searchParams.fromDate) {
-      where.date.gte = new Date(searchParams.fromDate)
+      ;(where.date as Record<string, Date>).gte = new Date(
+        searchParams.fromDate
+      )
     }
     if (searchParams.toDate) {
-      where.date.lte = new Date(searchParams.toDate)
+      ;(where.date as Record<string, Date>).lte = new Date(searchParams.toDate)
     }
   }
 
