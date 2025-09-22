@@ -211,19 +211,31 @@ export async function AttendanceManagement({ searchParams }: Props) {
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
-                  href={`/admin/attendance?${new URLSearchParams({
-                    ...searchParams,
-                    page: String(page > 1 ? page - 1 : 1),
-                  }).toString()}`}
+                  href={`/admin/attendance?${new URLSearchParams(
+                    Object.fromEntries(
+                      Object.entries({
+                        ...searchParams,
+                        page: String(page > 1 ? page - 1 : 1),
+                      }).filter(
+                        ([, value]) => value !== undefined && value !== ''
+                      )
+                    )
+                  ).toString()}`}
                 />
               </PaginationItem>
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <PaginationItem key={p}>
                   <PaginationLink
-                    href={`/admin/attendance?${new URLSearchParams({
-                      ...searchParams,
-                      page: String(p),
-                    }).toString()}`}
+                    href={`/admin/attendance?${new URLSearchParams(
+                      Object.fromEntries(
+                        Object.entries({
+                          ...searchParams,
+                          page: String(p),
+                        }).filter(
+                          ([, value]) => value !== undefined && value !== ''
+                        )
+                      )
+                    ).toString()}`}
                     isActive={p === page}
                   >
                     {p}
@@ -232,10 +244,16 @@ export async function AttendanceManagement({ searchParams }: Props) {
               ))}
               <PaginationItem>
                 <PaginationNext
-                  href={`/admin/attendance?${new URLSearchParams({
-                    ...searchParams,
-                    page: String(page < totalPages ? page + 1 : totalPages),
-                  }).toString()}`}
+                  href={`/admin/attendance?${new URLSearchParams(
+                    Object.fromEntries(
+                      Object.entries({
+                        ...searchParams,
+                        page: String(page < totalPages ? page + 1 : totalPages),
+                      }).filter(
+                        ([, value]) => value !== undefined && value !== ''
+                      )
+                    )
+                  ).toString()}`}
                 />
               </PaginationItem>
             </PaginationContent>

@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
+import { cn, isValidDate } from '@/lib/utils'
 
 interface Batch {
   id: string
@@ -101,14 +101,20 @@ export function FilterControls({ batches }: FilterControlsProps) {
                   variant="outline"
                 >
                   <CalendarIcon className="mr-2 size-4" />
-                  {fromDate ? format(new Date(fromDate), 'PPP') : 'Pick a date'}
+                  {fromDate && isValidDate(fromDate)
+                    ? format(new Date(fromDate), 'PPP')
+                    : 'Pick a date'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <Calendar
                   initialFocus
                   mode="single"
-                  selected={fromDate ? new Date(fromDate) : undefined}
+                  selected={
+                    fromDate && isValidDate(fromDate)
+                      ? new Date(fromDate)
+                      : undefined
+                  }
                   onSelect={(date) =>
                     updateSearchParams(
                       'fromDate',
@@ -136,14 +142,18 @@ export function FilterControls({ batches }: FilterControlsProps) {
                   variant="outline"
                 >
                   <CalendarIcon className="mr-2 size-4" />
-                  {toDate ? format(new Date(toDate), 'PPP') : 'Pick a date'}
+                  {toDate && isValidDate(toDate)
+                    ? format(new Date(toDate), 'PPP')
+                    : 'Pick a date'}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0">
                 <Calendar
                   initialFocus
                   mode="single"
-                  selected={toDate ? new Date(toDate) : undefined}
+                  selected={
+                    toDate && isValidDate(toDate) ? new Date(toDate) : undefined
+                  }
                   onSelect={(date) =>
                     updateSearchParams(
                       'toDate',
