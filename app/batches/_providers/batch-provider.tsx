@@ -4,7 +4,6 @@ import { ReactNode, useEffect, useRef } from 'react'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary } from 'react-error-boundary'
-import { Toaster } from 'sonner'
 
 import { useBatchStore } from '../_store/batch.store'
 
@@ -153,17 +152,6 @@ export function BatchProvider({ children }: BatchProviderProps) {
         }}
       >
         {children}
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            duration: 4000,
-            style: {
-              background: 'hsl(var(--background))',
-              color: 'hsl(var(--foreground))',
-              border: '1px solid hsl(var(--border))',
-            },
-          }}
-        />
       </ErrorBoundary>
     </QueryClientProvider>
   )

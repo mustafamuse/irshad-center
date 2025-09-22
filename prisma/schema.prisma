@@ -121,6 +121,7 @@ model Student {
   subscriptionStatus   SubscriptionStatus?
   paidUntil            DateTime?
   attendance           Attendance[]
+  attendanceRecords    AttendanceRecord[]
   batch                Batch?              @relation(fields: [batchId], references: [id])
   siblingGroup         Sibling?            @relation(fields: [siblingGroupId], references: [id])
   StudentPayment       StudentPayment[]
@@ -144,14 +145,15 @@ model Sibling {
 }
 
 model Batch {
-  id             String          @id @default(uuid())
-  name           String          @unique
-  startDate      DateTime?
-  endDate        DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  classSchedules ClassSchedule[]
-  students       Student[]
+  id                String              @id @default(uuid())
+  name              String              @unique
+  startDate         DateTime?
+  endDate           DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  classSchedules    ClassSchedule[]
+  students          Student[]
+  attendanceSessions AttendanceSession[]
 
   @@index([startDate])
   @@index([endDate])
@@ -180,6 +182,36 @@ model Teacher {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime
   ClassSchedule ClassSchedule[]
+}
+
+model AttendanceSession {
+  id        String           @id @default(uuid())
+  date      DateTime
+  batchId   String
+  notes     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  batch     Batch           @relation(fields: [batchId], references: [id])
+  records   AttendanceRecord[]
+
+  @@index([batchId])
+  @@index([date])
+}
+
+model AttendanceRecord {
+  id        String           @id @default(uuid())
+  sessionId String
+  studentId String
+  status    AttendanceStatus
+  notes     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  session   AttendanceSession @relation(fields: [sessionId], references: [id])
+  student   Student          @relation(fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
 }
 
 enum EducationLevel {

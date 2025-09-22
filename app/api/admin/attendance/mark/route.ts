@@ -1,22 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { markAttendance, bulkMarkAttendance } from '@/lib/queries/attendance'
-import { AttendanceStatus } from '@/lib/types/attendance'
+
 import { z } from 'zod'
 
-const MarkAttendanceSchema = z.object({
-  studentId: z.string().uuid(),
-  sessionId: z.string().uuid(),
-  status: z.nativeEnum(AttendanceStatus),
-  notes: z.string().optional(),
-})
+import { prisma } from '@/lib/db'
 
-const BulkMarkAttendanceSchema = z.object({
-  sessionId: z.string().uuid(),
-  attendanceRecords: z.array(
+// Map frontend status to Prisma enum
+const statusMap = {
+  present: 'PRESENT',
+  absent: 'ABSENT',
+  late: 'LATE',
+  excused: 'EXCUSED',
+} as const
+
+const attendanceSchema = z.object({
+  date: z.string().datetime(),
+  batchId: z.string(),
+  attendance: z.array(
     z.object({
-      studentId: z.string().uuid(),
-      status: z.nativeEnum(AttendanceStatus),
-      notes: z.string().optional(),
+      studentId: z.string(),
+      status: z.enum(['present', 'absent', 'late', 'excused']),
     })
   ),
 })
@@ -24,38 +26,65 @@ const BulkMarkAttendanceSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    
-    // Check if it's a bulk request
-    if (body.attendanceRecords) {
-      const validatedData = BulkMarkAttendanceSchema.parse(body)
-      const results = await bulkMarkAttendance(
-        validatedData.sessionId,
-        validatedData.attendanceRecords
-      )
-      return NextResponse.json(results)
-    }
+    const validatedData = attendanceSchema.parse(body)
 
-    // Single attendance marking
-    const validatedData = MarkAttendanceSchema.parse(body)
-    const result = await markAttendance(
-      validatedData.studentId,
-      validatedData.sessionId,
-      validatedData.status,
-      validatedData.notes
-    )
+    // Create attendance session
+    await prisma.$transaction(async (tx) => {
+      // First, check if a session already exists for this batch and date
+      const existingSession = await tx.attendanceSession.findFirst({
+        where: {
+          batchId: validatedData.batchId,
+          date: {
+            gte: new Date(new Date(validatedData.date).setHours(0, 0, 0, 0)),
+            lt: new Date(
+              new Date(validatedData.date).setHours(23, 59, 59, 999)
+            ),
+          },
+        },
+      })
 
-    return NextResponse.json(result)
+      // If session exists, update records, otherwise create new
+      const session =
+        existingSession ||
+        (await tx.attendanceSession.create({
+          data: {
+            date: new Date(validatedData.date),
+            batchId: validatedData.batchId,
+          },
+        }))
+
+      // If session existed, delete old records
+      if (existingSession) {
+        await tx.attendanceRecord.deleteMany({
+          where: {
+            sessionId: session.id,
+          },
+        })
+      }
+
+      // Create new attendance records
+      await tx.attendanceRecord.createMany({
+        data: validatedData.attendance.map((record) => ({
+          sessionId: session.id,
+          studentId: record.studentId,
+          status: statusMap[record.status],
+        })),
+      })
+
+      return session
+    })
+
+    // Session and records are created in the transaction above
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      )
-    }
-
     console.error('Error marking attendance:', error)
     return NextResponse.json(
-      { error: 'Failed to mark attendance' },
+      {
+        success: false,
+        error:
+          error instanceof Error ? error.message : 'Failed to mark attendance',
+      },
       { status: 500 }
     )
   }

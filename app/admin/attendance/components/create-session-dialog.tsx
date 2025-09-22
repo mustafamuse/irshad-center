@@ -1,7 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+
 import { format } from 'date-fns'
+import { CalendarIcon } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import {
   Dialog,
   DialogContent,
@@ -9,10 +15,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -20,14 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Calendar } from '@/components/ui/calendar'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import { CalendarIcon } from 'lucide-react'
-import { toast } from 'sonner'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
 interface ClassSchedule {
@@ -48,7 +50,7 @@ export function CreateSessionDialog({ children }: CreateSessionDialogProps) {
   const [schedules, setSchedules] = useState<ClassSchedule[]>([])
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     classScheduleId: '',
     date: undefined as Date | undefined,
@@ -92,8 +94,13 @@ export function CreateSessionDialog({ children }: CreateSessionDialogProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    
-    if (!formData.classScheduleId || !formData.date || !formData.startTime || !formData.endTime) {
+
+    if (
+      !formData.classScheduleId ||
+      !formData.date ||
+      !formData.startTime ||
+      !formData.endTime
+    ) {
       toast.error('Please fill in all required fields')
       return
     }
@@ -104,10 +111,10 @@ export function CreateSessionDialog({ children }: CreateSessionDialogProps) {
       const sessionDate = new Date(formData.date)
       const [startHour, startMinute] = formData.startTime.split(':')
       const [endHour, endMinute] = formData.endTime.split(':')
-      
+
       const startTime = new Date(sessionDate)
       startTime.setHours(parseInt(startHour), parseInt(startMinute), 0, 0)
-      
+
       const endTime = new Date(sessionDate)
       endTime.setHours(parseInt(endHour), parseInt(endMinute), 0, 0)
 
@@ -137,7 +144,9 @@ export function CreateSessionDialog({ children }: CreateSessionDialogProps) {
       }
     } catch (error) {
       console.error('Error creating session:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to create session')
+      toast.error(
+        error instanceof Error ? error.message : 'Failed to create session'
+      )
     } finally {
       setCreating(false)
     }
@@ -166,11 +175,11 @@ export function CreateSessionDialog({ children }: CreateSessionDialogProps) {
               </SelectTrigger>
               <SelectContent>
                 {loading ? (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="loading" disabled>
                     Loading schedules...
                   </SelectItem>
                 ) : schedules.length === 0 ? (
-                  <SelectItem value="" disabled>
+                  <SelectItem value="no-schedules" disabled>
                     No weekend schedules found
                   </SelectItem>
                 ) : (
@@ -223,7 +232,10 @@ export function CreateSessionDialog({ children }: CreateSessionDialogProps) {
                 type="time"
                 value={formData.startTime}
                 onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, startTime: e.target.value }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    startTime: e.target.value,
+                  }))
                 }
                 required
               />

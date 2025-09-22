@@ -1,3 +1,5 @@
+'use client'
+
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
@@ -8,39 +10,26 @@ interface LogoProps {
 }
 
 const sizes = {
-  xs: { width: 120, height: 120 },
-  sm: { width: 160, height: 160 },
-  md: { width: 200, height: 200 },
-  lg: { width: 300, height: 300 },
-  xl: { width: 400, height: 400 },
+  xs: { width: 120, height: 40 },
+  sm: { width: 180, height: 60 },
+  md: { width: 240, height: 80 },
+  lg: { width: 360, height: 120 },
+  xl: { width: 480, height: 160 },
 }
 
 export function Logo({ className, size = 'sm', variant = 'dark' }: LogoProps) {
-  const dimensions = sizes[size]
-
   return (
-    <div
-      className={cn(
-        'relative flex w-full items-center justify-center',
-        className
-      )}
-    >
+    <div className={cn('relative flex items-center justify-center', className)}>
       <Image
-        src="/images/Latest Irshad Mahad.png"
+        src="/images/latest-irshad-mahad.png"
         alt="Irshād Mâhad"
-        width={600}
-        height={400}
+        width={500}
+        height={500}
         className={cn(
-          'object-contain transition-transform duration-300 hover:scale-105',
+          'h-full w-auto object-contain transition-transform duration-300',
           variant === 'light' && 'brightness-0 invert'
         )}
         priority
-        style={{
-          color: 'transparent',
-          width: '100%',
-          height: 'auto',
-          background: 'transparent',
-        }}
       />
     </div>
   )
