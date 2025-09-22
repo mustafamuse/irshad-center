@@ -98,3 +98,17 @@ export function getStatusColor(status: SubscriptionStatus) {
       return 'bg-gray-50 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400'
   }
 }
+
+/**
+ * Validates if a string can be parsed into a valid date
+ * @param dateString - The date string to validate
+ * @returns true if the date string is valid, false otherwise
+ */
+export function isValidDate(dateString: string | undefined | null): boolean {
+  if (!dateString || typeof dateString !== 'string') {
+    return false
+  }
+
+  const date = new Date(dateString)
+  return !isNaN(date.getTime()) && dateString.trim() !== ''
+}

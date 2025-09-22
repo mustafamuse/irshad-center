@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { prisma } from '@/lib/db'
+import { isValidDate } from '@/lib/utils'
 
 import { CreateSessionDialog } from './create-session-dialog'
 import { FilterControls } from './filter-controls'
@@ -55,15 +56,15 @@ export async function AttendanceManagement({ searchParams }: Props) {
     where.batchId = searchParams.batchId
   }
 
-  // Add date filters if specified
+  // Add date filters if specified (with validation)
   if (searchParams.fromDate || searchParams.toDate) {
     where.date = {} as Record<string, Date>
-    if (searchParams.fromDate) {
+    if (searchParams.fromDate && isValidDate(searchParams.fromDate)) {
       ;(where.date as Record<string, Date>).gte = new Date(
         searchParams.fromDate
       )
     }
-    if (searchParams.toDate) {
+    if (searchParams.toDate && isValidDate(searchParams.toDate)) {
       ;(where.date as Record<string, Date>).lte = new Date(searchParams.toDate)
     }
   }
