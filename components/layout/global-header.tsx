@@ -64,13 +64,28 @@ export function GlobalHeader({
           </nav>
         )}
 
-        {/* Admin Title - Admin Only */}
+        {/* Admin Navigation - Admin Only */}
         {isAdmin && (
-          <div className="hidden md:block">
-            <h1 className="text-lg font-semibold text-foreground">
-              Admin Dashboard
-            </h1>
-          </div>
+          <nav className="hidden gap-6 md:flex">
+            <Link
+              href="/admin/payments"
+              className="text-sm font-medium transition-colors hover:text-primary"
+            >
+              Payments
+            </Link>
+            <Link
+              href="/admin/attendance"
+              className="text-sm font-medium transition-colors hover:text-primary"
+            >
+              Attendance
+            </Link>
+            <Link
+              href="/admin/profit-share"
+              className="text-sm font-medium transition-colors hover:text-primary"
+            >
+              Profit Share
+            </Link>
+          </nav>
         )}
 
         {/* Right Side Actions */}
@@ -108,6 +123,23 @@ export function GlobalHeader({
               </Button>
             </>
           )}
+
+          {/* Admin Actions */}
+          {isAdmin && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 md:hidden"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+              <span className="sr-only">Toggle menu</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -143,6 +175,35 @@ export function GlobalHeader({
                 </Link>
               </Button>
             </div>
+          </nav>
+        </div>
+      )}
+
+      {/* Mobile Navigation - Admin Only */}
+      {isAdmin && isMobileMenuOpen && (
+        <div className="border-t bg-background/95 backdrop-blur md:hidden">
+          <nav className="container flex flex-col space-y-3 px-4 py-4">
+            <Link
+              href="/admin/payments"
+              className="text-sm font-medium transition-colors hover:text-primary"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Payments
+            </Link>
+            <Link
+              href="/admin/attendance"
+              className="text-sm font-medium transition-colors hover:text-primary"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Attendance
+            </Link>
+            <Link
+              href="/admin/profit-share"
+              className="text-sm font-medium transition-colors hover:text-primary"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Profit Share
+            </Link>
           </nav>
         </div>
       )}
