@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "lint:fix": "next lint --fix && prettier --write .",
+    "lint:strict": "eslint --max-warnings=0 src",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "typecheck": "tsc --noEmit --incremental false",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
@@ -19,7 +24,11 @@
     "dev:webhook": "concurrently \"npm run dev\" \"npm run webhook\"",
     "seed": "tsx prisma/seed.ts",
     "export-data": "curl -o seed-data.json http://localhost:3000/api/admin/export",
-    "seed-from-export": "tsx scripts/seed-from-export.ts"
+    "seed-from-export": "tsx scripts/seed-from-export.ts",
+    "test": "vitest",
+    "test:watch": "vitest watch",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -108,6 +117,9 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/dotenv": "^6.1.1",
     "@types/node": "^20",
     "@types/prompts": "^2.4.9",
@@ -115,6 +127,7 @@
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^8.16.0",
     "@typescript-eslint/parser": "^8.16.0",
+    "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.0.1",
     "axios": "^1.7.9",
     "concurrently": "^8.2.2",
@@ -123,8 +136,15 @@
     "eslint": "^8",
     "eslint-config-next": "14.1.0",
     "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-jsx-a11y": "^6.8.0",
     "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-simple-import-sort": "^12.0.0",
+    "eslint-plugin-tailwindcss": "^3.14.3",
+    "eslint-plugin-unused-imports": "^3.1.0",
+    "happy-dom": "^18.0.1",
     "husky": "^8.0.0",
+    "jsdom": "^27.0.0",
     "lint-staged": "^15.2.10",
     "localtunnel": "^1.8.3",
     "postcss": "^8",
@@ -138,7 +158,8 @@
     "ts-node": "^10.9.2",
     "tsc-files": "^1.1.4",
     "tsx": "^4.19.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
