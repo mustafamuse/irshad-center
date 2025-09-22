@@ -13,14 +13,13 @@ A modern Next.js application for managing student attendance, payments, and admi
 
 ## Tech Stack
 
-- **Framework**: [Next.js 14](https://nextjs.org/) with App Router
+- **Framework**: [Next.js 15](https://nextjs.org/) with App Router
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
 - **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 - **UI Components**: [Shadcn/UI](https://ui.shadcn.com/)
 - **State Management**: [Zustand](https://zustand-demo.pmnd.rs/)
-- **Data Fetching**: [TanStack Query](https://tanstack.com/query)
+- **Data Fetching**: Server Components + [Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations)
 - **Database**: [Prisma](https://www.prisma.io/) with PostgreSQL
-- **Testing**: [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/)
 - **Payments**: [Stripe](https://stripe.com/)
 
 ## Getting Started
@@ -71,11 +70,11 @@ A modern Next.js application for managing student attendance, payments, and admi
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm run start` - Start production server
+- `npm run lint` - Run ESLint
 - `npm run lint:fix` - Fix linting issues
-- `npm run format:write` - Format code
-- `npm run test` - Run tests
-- `npm run test:watch` - Run tests in watch mode
-- `npm run test:coverage` - Generate coverage report
+- `npm run format:write` - Format code with Prettier
+- `npm run typecheck` - Run TypeScript type checking
+- `npm run cleanup` - Run format, lint, and type check
 
 ## Project Structure
 
@@ -96,62 +95,67 @@ irshad-center/
 └── public/               # Static assets
 ```
 
-## Code Style
+## Architecture
 
-We follow strict coding conventions enforced by ESLint and Prettier:
+This application follows Next.js 15 best practices:
 
-- TypeScript for type safety
-- Functional components with hooks
-- Server Components by default
-- Tailwind CSS for styling
-- Component documentation with JSDoc
-- Comprehensive testing
+- **Server Components** by default for optimal performance
+- **Server Actions** for data mutations and form handling
+- **TypeScript** for type safety
+- **Functional components** with React hooks
+- **Tailwind CSS** for styling
+- **Mobile-first responsive design**
 
 ### Component Structure
 
 ```typescript
-/**
- * Component description
- */
+// Server Component (default)
 interface ComponentProps {
   required: string
   optional?: number
 }
 
-export function Component({ required, optional }: ComponentProps) {
-  // 1. Hooks
-  const data = useQuery(...)
+export default function ServerComponent({ required, optional }: ComponentProps) {
+  // Direct database access
+  const data = await prisma.model.findMany()
 
-  // 2. Derived state
-  const computed = useMemo(...)
+  return (
+    <div>
+      {/* Server-side rendered content */}
+    </div>
+  )
+}
 
-  // 3. Handlers
+// Client Component (when needed)
+'use client'
+
+export function ClientComponent({ data }: { data: any[] }) {
+  // 1. Client-side hooks
+  const [state, setState] = useState()
+
+  // 2. Event handlers
   const handleClick = useCallback(...)
 
-  // 4. Render
+  // 3. Render
   return (...)
 }
 ```
 
-## Testing
+## Key Features
 
-We use Vitest and React Testing Library for testing:
+### Weekend Attendance System
 
-- Unit tests for utilities and hooks
-- Integration tests for components
-- E2E tests for critical flows
-- High test coverage requirement
+- Mobile-responsive attendance marking
+- Server Actions for data mutations
+- Real-time attendance tracking
+- Batch and session management
 
-### Example Test
+### Payment Management
 
-```typescript
-describe('Component', () => {
-  it('renders correctly', () => {
-    render(<Component required="test" />)
-    expect(screen.getByText('test')).toBeInTheDocument()
-  })
-})
-```
+- Stripe integration for subscriptions
+- Manual payment recording
+- Payment history tracking
+- Student billing management
 
 ## Contributing
 
@@ -161,16 +165,17 @@ describe('Component', () => {
    git checkout -b feature/your-feature-name
    ```
 
-2. Make your changes following our code style
+2. Make your changes following our architecture patterns
 
-3. Write tests for your changes
+3. Ensure your code is properly typed and formatted
 
 4. Run checks:
 
    ```bash
    npm run lint:fix
    npm run format:write
-   npm run test
+   npm run typecheck
+   npm run build
    ```
 
 5. Create a pull request
