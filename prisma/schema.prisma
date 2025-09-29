@@ -185,29 +185,33 @@ model Teacher {
 }
 
 model AttendanceSession {
-  id        String           @id @default(uuid())
-  date      DateTime
-  batchId   String
-  notes     String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  batch     Batch           @relation(fields: [batchId], references: [id])
-  records   AttendanceRecord[]
+  id               String           @id @default(uuid())
+  date             DateTime
+  batchId          String
+  notes            String?
+  allowSelfCheckIn Boolean          @default(false)
+  qrTokens         Json?            // Store active QR tokens with expiry
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  batch            Batch           @relation(fields: [batchId], references: [id])
+  records          AttendanceRecord[]
 
   @@index([batchId])
   @@index([date])
 }
 
 model AttendanceRecord {
-  id        String           @id @default(uuid())
-  sessionId String
-  studentId String
-  status    AttendanceStatus
-  notes     String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  session   AttendanceSession @relation(fields: [sessionId], references: [id])
-  student   Student          @relation(fields: [studentId], references: [id])
+  id           String           @id @default(uuid())
+  sessionId    String
+  studentId    String
+  status       AttendanceStatus
+  notes        String?
+  checkInMethod CheckInMethod   @default(MANUAL)
+  checkedInAt  DateTime?        // When they actually checked in (for QR)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  session      AttendanceSession @relation(fields: [sessionId], references: [id])
+  student      Student          @relation(fields: [studentId], references: [id])
 
   @@unique([sessionId, studentId])
   @@index([sessionId])
@@ -233,6 +237,11 @@ enum AttendanceStatus {
   UNEXCUSED
   LATE
   EXCUSED
+}
+
+enum CheckInMethod {
+  MANUAL
+  QR_CODE
 }
 
 enum SubscriptionStatus {
