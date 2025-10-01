@@ -5,11 +5,11 @@ import { Metadata } from 'next'
 import { Separator } from '@/components/ui/separator'
 
 import { Providers } from '../providers'
-import { BatchManagement } from './_components/features/batch-management'
-import { DuplicateDetector } from './_components/features/duplicate-detection'
-import { BatchErrorBoundary } from './_components/features/error-boundary'
-import { StudentsTable } from './_components/features/students-table'
-import { BatchProvider } from './_providers/batch-provider'
+import { BatchManagement } from './components/batch-management'
+import { DuplicateDetector } from './components/duplicate-detection'
+import { BatchErrorBoundary } from './components/error-boundary'
+import { StudentsTable } from './components/students-table'
+import { BatchProvider } from './providers/batch-provider'
 
 function Loading() {
   return <div className="p-4 text-muted-foreground">Loading...</div>
