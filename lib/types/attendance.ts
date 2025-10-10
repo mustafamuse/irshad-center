@@ -4,6 +4,8 @@ export interface AttendanceRecord {
   sessionId: string
   status: AttendanceStatus
   notes?: string
+  checkInMethod: CheckInMethod
+  checkedInAt?: Date
   createdAt: Date
   updatedAt: Date
   student: {
@@ -35,6 +37,11 @@ export enum AttendanceStatus {
   EXCUSED = 'EXCUSED',
 }
 
+export enum CheckInMethod {
+  MANUAL = 'MANUAL',
+  QR_CODE = 'QR_CODE',
+}
+
 export interface AttendanceSession {
   id: string
   classScheduleId: string
@@ -43,6 +50,8 @@ export interface AttendanceSession {
   endTime: Date
   status: string
   notes?: string
+  allowSelfCheckIn: boolean
+  qrTokens?: Record<string, unknown> | null // JSON field for active QR tokens
   isActive: boolean
   createdAt: Date
   updatedAt: Date

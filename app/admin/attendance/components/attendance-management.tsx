@@ -1,5 +1,3 @@
-import { format } from 'date-fns'
-
 import {
   Pagination,
   PaginationContent,
@@ -11,7 +9,6 @@ import {
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
   TableRow,
@@ -21,7 +18,8 @@ import { isValidDate } from '@/lib/utils'
 
 import { CreateSessionDialog } from './create-session-dialog'
 import { FilterControls } from './filter-controls'
-import { MarkAttendanceDialog } from './mark-attendance-dialog'
+import { SessionCard } from './session-card'
+import { SessionRow } from './session-row'
 
 interface Props {
   searchParams: {
@@ -85,7 +83,14 @@ export async function AttendanceManagement({ searchParams }: Props) {
           },
         },
         records: {
-          include: {
+          select: {
+            id: true,
+            status: true,
+            notes: true,
+            checkInMethod: true,
+            checkedInAt: true,
+            createdAt: true,
+            updatedAt: true,
             student: {
               select: { id: true, name: true },
             },
@@ -143,20 +148,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
               </TableHeader>
               <TableBody>
                 {sessions.map((session) => (
-                  <TableRow key={session.id}>
-                    <TableCell>{format(session.date, 'MMM d, yyyy')}</TableCell>
-                    <TableCell>{session.batch.name}</TableCell>
-                    <TableCell>
-                      {session.attendanceMarked}/{session.studentsCount}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <MarkAttendanceDialog
-                        attendance={session.records}
-                        sessionId={session.id}
-                        students={session.batch.students}
-                      />
-                    </TableCell>
-                  </TableRow>
+                  <SessionRow key={session.id} session={session} />
                 ))}
               </TableBody>
             </Table>
@@ -165,45 +157,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
           {/* Mobile Card View */}
           <div className="space-y-4 md:hidden">
             {sessions.map((session) => (
-              <div
-                key={session.id}
-                className="space-y-3 rounded-lg border bg-card p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-lg font-medium">
-                    {format(session.date, 'MMM d, yyyy')}
-                  </div>
-                  <div
-                    className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                      session.isComplete
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-yellow-100 text-yellow-800'
-                    }`}
-                  >
-                    {session.isComplete ? 'Complete' : 'Incomplete'}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Batch:</span>
-                    <span className="font-medium">{session.batch.name}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Attendance:</span>
-                    <span className="font-medium">
-                      {session.attendanceMarked}/{session.studentsCount}{' '}
-                      students
-                    </span>
-                  </div>
-                </div>
-                <div className="pt-2">
-                  <MarkAttendanceDialog
-                    attendance={session.records}
-                    sessionId={session.id}
-                    students={session.batch.students}
-                  />
-                </div>
-              </div>
+              <SessionCard key={session.id} session={session} />
             ))}
           </div>
 
