@@ -44,3 +44,6 @@ next-env.d.ts
 prisma-backup.json
 transformed-data-for-seed.json
 seed-data.json
+
+# IDE-specific settings
+.claude/
