@@ -1,31 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
-
-import { Loader2 } from 'lucide-react'
+import { DuplicateGroup } from '@/lib/types/batch'
 
 import { DuplicateGroupCard } from './duplicate-group-card'
-import { useStudents } from '../../hooks/use-students'
 
-export function DuplicatesList() {
-  const { getDuplicates, duplicates, isGettingDuplicates } = useStudents()
+interface DuplicatesListProps {
+  duplicates: DuplicateGroup[]
+}
 
-  useEffect(() => {
-    // Load duplicates when component mounts
-    getDuplicates()
-  }, [getDuplicates])
-
-  if (isGettingDuplicates) {
-    return (
-      <div className="flex h-32 items-center justify-center">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Scanning for duplicates...</span>
-        </div>
-      </div>
-    )
-  }
-
+export function DuplicatesList({ duplicates }: DuplicatesListProps) {
   if (!duplicates || duplicates.length === 0) {
     return (
       <div className="text-center text-muted-foreground">
@@ -45,7 +28,7 @@ export function DuplicatesList() {
       </div>
 
       <div className="space-y-3">
-        {duplicates.map((group: any) => (
+        {duplicates.map((group: DuplicateGroup) => (
           <DuplicateGroupCard key={group.email} group={group} />
         ))}
       </div>

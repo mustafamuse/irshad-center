@@ -9,14 +9,12 @@ import { EducationLevel, GradeLevel } from '@prisma/client'
 import { z } from 'zod'
 
 // Note: StudentStatus is a string in the database, not an enum
-// Using string literals instead of importing from types to avoid circular dependencies
+// Using string literals matching the actual database values
 const StudentStatusEnum = z.enum([
-  'ACTIVE',
-  'INACTIVE',
-  'GRADUATED',
-  'SUSPENDED',
-  'TRANSFERRED',
-  'registered', // Default from Prisma schema
+  'registered', // Default - Initial state, not yet in classes
+  'enrolled', // Actively attending classes
+  'on_leave', // Temporary approved break
+  'withdrawn', // No longer attending
 ])
 
 // ============================================================================

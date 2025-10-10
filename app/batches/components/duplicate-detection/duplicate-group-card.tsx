@@ -12,10 +12,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { DuplicateGroup } from '@/lib/types/batch'
 
 import { ResolutionDialog } from './resolution-dialog'
-import { useStudents } from '../../hooks/use-students'
-import { DuplicateGroup } from '@/lib/types/batch'
 
 interface DuplicateGroupCardProps {
   group: DuplicateGroup
@@ -24,7 +23,6 @@ interface DuplicateGroupCardProps {
 export function DuplicateGroupCard({ group }: DuplicateGroupCardProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [showResolutionDialog, setShowResolutionDialog] = useState(false)
-  const { isResolvingDuplicates } = useStudents()
 
   const totalRecords = 1 + group.duplicateRecords.length
 
@@ -59,7 +57,6 @@ export function DuplicateGroupCard({ group }: DuplicateGroupCardProps) {
                 variant="destructive"
                 size="sm"
                 onClick={() => setShowResolutionDialog(true)}
-                disabled={isResolvingDuplicates}
                 className="shrink-0"
               >
                 <Trash2 className="h-4 w-4" />
@@ -77,7 +74,7 @@ export function DuplicateGroupCard({ group }: DuplicateGroupCardProps) {
             <div className="space-y-3">
               <div>
                 <h4 className="mb-2 text-sm font-medium text-green-600">
-                  Record to Keep
+                  Record to Keep (First Created)
                 </h4>
                 <div className="rounded-md bg-green-50 p-3">
                   <div className="flex items-center justify-between">
@@ -87,7 +84,18 @@ export function DuplicateGroupCard({ group }: DuplicateGroupCardProps) {
                         Created:{' '}
                         {new Date(
                           group.keepRecord.createdAt
-                        ).toLocaleDateString()}
+                        ).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        })}{' '}
+                        at{' '}
+                        {new Date(
+                          group.keepRecord.createdAt
+                        ).toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Status: {group.keepRecord.status}
@@ -110,7 +118,22 @@ export function DuplicateGroupCard({ group }: DuplicateGroupCardProps) {
                           <p className="font-medium">{record.name}</p>
                           <p className="text-sm text-muted-foreground">
                             Created:{' '}
-                            {new Date(record.createdAt).toLocaleDateString()}
+                            {new Date(record.createdAt).toLocaleDateString(
+                              'en-US',
+                              {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                              }
+                            )}{' '}
+                            at{' '}
+                            {new Date(record.createdAt).toLocaleTimeString(
+                              'en-US',
+                              {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              }
+                            )}
                           </p>
                           <p className="text-sm text-muted-foreground">
                             Status: {record.status}

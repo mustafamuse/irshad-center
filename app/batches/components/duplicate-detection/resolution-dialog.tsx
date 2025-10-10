@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 
 import { AlertTriangle } from 'lucide-react'
+import { toast } from 'sonner'
 
 import {
   AlertDialog,
@@ -15,9 +16,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
-
-import { useStudents } from '../../hooks/use-students'
 import { DuplicateGroup } from '@/lib/types/batch'
+
+import { resolveDuplicatesAction } from '../../actions'
 
 interface ResolutionDialogProps {
   group: DuplicateGroup
@@ -31,16 +32,23 @@ export function ResolutionDialog({
   onOpenChange,
 }: ResolutionDialogProps) {
   const [mergeData, setMergeData] = useState(false)
-  const { resolveDuplicates, isResolvingDuplicates } = useStudents()
+  const [isPending, startTransition] = useTransition()
 
   const handleResolve = async () => {
-    try {
+    startTransition(async () => {
       const deleteIds = group.duplicateRecords.map((record) => record.id)
-      await resolveDuplicates(group.keepRecord.id, deleteIds, mergeData)
-      onOpenChange(false)
-    } catch {
-      // Error handling is done in the hook
-    }
+      const result = await resolveDuplicatesAction(
+        group.keepRecord.id,
+        deleteIds,
+        mergeData
+      )
+      if (result.success) {
+        toast.success('Duplicate students resolved successfully')
+        onOpenChange(false)
+      } else {
+        toast.error(result.error || 'Failed to resolve duplicates')
+      }
+    })
   }
 
   return (
@@ -51,20 +59,22 @@ export function ResolutionDialog({
             <AlertTriangle className="h-5 w-5 text-orange-500" />
             Resolve Duplicate Records
           </AlertDialogTitle>
-          <AlertDialogDescription className="space-y-2">
-            <p>
-              You are about to delete {group.duplicateRecords.length} duplicate
-              records for <strong>{group.email}</strong>.
-            </p>
-            <p>
-              The record for <strong>{group.keepRecord.name}</strong> will be
-              kept.
-            </p>
-            {group.hasSiblingGroup && (
-              <p className="rounded-md bg-amber-50 p-2 text-sm text-amber-800">
-                ⚠️ This student has sibling relationships that may be affected.
+          <AlertDialogDescription asChild>
+            <div className="space-y-2">
+              <p>
+                You are about to delete {group.duplicateRecords.length} duplicate
+                records for <strong>{group.email}</strong>.
               </p>
-            )}
+              <p>
+                The record for <strong>{group.keepRecord.name}</strong> will be
+                kept.
+              </p>
+              {group.hasSiblingGroup && (
+                <p className="rounded-md bg-amber-50 p-2 text-sm text-amber-800">
+                  ⚠️ This student has sibling relationships that may be affected.
+                </p>
+              )}
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -89,15 +99,13 @@ export function ResolutionDialog({
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isResolvingDuplicates}>
-            Cancel
-          </AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleResolve}
-            disabled={isResolvingDuplicates}
+            disabled={isPending}
             className="bg-red-600 hover:bg-red-700"
           >
-            {isResolvingDuplicates ? 'Resolving...' : 'Delete Duplicates'}
+            {isPending ? 'Resolving...' : 'Delete Duplicates'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

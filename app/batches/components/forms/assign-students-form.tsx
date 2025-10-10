@@ -13,29 +13,34 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { BatchWithCount, BatchStudentData } from '@/lib/types/batch'
 
 import { AssignmentActions } from './assignment-actions'
 import { BatchSelector } from './batch-selector'
 import { StudentSelector } from './student-selector'
 import { TransferProgress } from './transfer-progress'
-import { useBatches } from '../../hooks/use-batches'
-import { useStudents } from '../../hooks/use-students'
-import { useUIStore } from '../../store/ui-store'
+import { useLegacyActions, useSelectedStudents, useAssignStudentsDialogState } from '../../store/ui-store'
 
 interface AssignStudentsFormProps {
   children?: React.ReactNode
+  batches: BatchWithCount[]
+  students: BatchStudentData[]
 }
 
-export function AssignStudentsForm({ children }: AssignStudentsFormProps) {
+export function AssignStudentsForm({
+  children,
+  batches,
+  students,
+}: AssignStudentsFormProps) {
   const [mode, setMode] = useState<'assign' | 'transfer'>('assign')
   const [selectedBatch, setSelectedBatch] = useState<string | null>(null)
   const [destinationBatchId, setDestinationBatchId] = useState<string | null>(
     null
   )
 
-  const { isAssignDialogOpen, setAssignDialogOpen } = useUIStore()
-  const { batches, isLoading: batchesLoading } = useBatches()
-  const { selectedStudentIds, clearSelection } = useStudents()
+  const selectedStudentIds = useSelectedStudents()
+  const isAssignStudentsDialogOpen = useAssignStudentsDialogState()
+  const { setAssignStudentsDialogOpen, clearSelection } = useLegacyActions()
 
   const handleModeChange = (newMode: 'assign' | 'transfer') => {
     setMode(newMode)
@@ -45,7 +50,7 @@ export function AssignStudentsForm({ children }: AssignStudentsFormProps) {
   }
 
   const handleClose = () => {
-    setAssignDialogOpen(false)
+    setAssignStudentsDialogOpen(false)
     clearSelection()
     setSelectedBatch(null)
     setDestinationBatchId(null)
@@ -58,7 +63,10 @@ export function AssignStudentsForm({ children }: AssignStudentsFormProps) {
   )
 
   return (
-    <Sheet open={isAssignDialogOpen} onOpenChange={setAssignDialogOpen}>
+    <Sheet
+      open={isAssignStudentsDialogOpen}
+      onOpenChange={setAssignStudentsDialogOpen}
+    >
       <SheetTrigger asChild>{children}</SheetTrigger>
       <SheetContent side="right" className="w-full max-w-4xl overflow-y-auto">
         <SheetHeader>
@@ -107,7 +115,7 @@ export function AssignStudentsForm({ children }: AssignStudentsFormProps) {
             onSelectedBatchChange={setSelectedBatch}
             onDestinationBatchChange={setDestinationBatchId}
             batches={batches}
-            isLoading={batchesLoading}
+            isLoading={false}
           />
 
           {/* Student Selection */}
@@ -116,11 +124,12 @@ export function AssignStudentsForm({ children }: AssignStudentsFormProps) {
               mode={mode}
               selectedBatch={selectedBatch}
               destinationBatchId={destinationBatchId}
+              students={students}
             />
           )}
 
           {/* Transfer Progress */}
-          <TransferProgress />
+          <TransferProgress batches={batches} />
 
           {/* Action Buttons */}
           <AssignmentActions
@@ -129,6 +138,7 @@ export function AssignStudentsForm({ children }: AssignStudentsFormProps) {
             destinationBatchId={destinationBatchId}
             canProceed={canProceed}
             onClose={handleClose}
+            batches={batches}
           />
         </div>
       </SheetContent>

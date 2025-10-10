@@ -1,6 +1,9 @@
 'use client'
 
+import { useTransition } from 'react'
+
 import { MoreHorizontal } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -11,20 +14,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-
-import { useBatches } from '../../hooks/use-batches'
 import { BatchWithCount } from '@/lib/types/batch'
+
+import { deleteBatchAction } from '../../actions'
 
 interface BatchCardProps {
   batch: BatchWithCount
 }
 
 export function BatchCard({ batch }: BatchCardProps) {
-  const { deleteBatch } = useBatches()
+  const [isPending, startTransition] = useTransition()
 
   const handleDelete = () => {
     if (window.confirm(`Are you sure you want to delete "${batch.name}"?`)) {
-      deleteBatch(batch.id)
+      startTransition(async () => {
+        const result = await deleteBatchAction(batch.id)
+        if (result.success) {
+          toast.success('Batch deleted successfully')
+        } else {
+          toast.error(result.error || 'Failed to delete batch')
+        }
+      })
     }
   }
 
@@ -48,19 +58,29 @@ export function BatchCard({ batch }: BatchCardProps) {
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  disabled={isPending}
+                >
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>View Details</DropdownMenuItem>
-                <DropdownMenuItem>Edit Batch</DropdownMenuItem>
+                <DropdownMenuItem disabled={isPending}>
+                  View Details
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled={isPending}>
+                  Edit Batch
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-red-600"
                   onClick={handleDelete}
+                  disabled={isPending}
                 >
-                  Delete Batch
+                  {isPending ? 'Deleting...' : 'Delete Batch'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 
 import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,8 +17,8 @@ import {
   SheetFooter,
 } from '@/components/ui/sheet'
 
-import { useBatches } from '../../hooks/use-batches'
-import { useUIStore } from '../../store/ui-store'
+import { createBatchAction } from '../../actions'
+import { useLegacyActions, useCreateBatchDialogState } from '../../store/ui-store'
 
 interface CreateBatchDialogProps {
   children?: React.ReactNode
@@ -25,20 +26,27 @@ interface CreateBatchDialogProps {
 
 export function CreateBatchDialog({ children }: CreateBatchDialogProps) {
   const [name, setName] = useState('')
-  const { isCreateBatchDialogOpen, setCreateBatchDialogOpen } = useUIStore()
-  const { createBatch, isCreating } = useBatches()
+  const [isPending, startTransition] = useTransition()
+  const isCreateBatchDialogOpen = useCreateBatchDialogState()
+  const { setCreateBatchDialogOpen } = useLegacyActions()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
 
-    try {
-      await createBatch({ name: name.trim() })
-      setName('')
-      setCreateBatchDialogOpen(false)
-    } catch {
-      // Error handling is done in the hook
-    }
+    startTransition(async () => {
+      const formData = new FormData()
+      formData.append('name', name.trim())
+
+      const result = await createBatchAction(formData)
+      if (result.success) {
+        toast.success('Batch created successfully')
+        setName('')
+        setCreateBatchDialogOpen(false)
+      } else {
+        toast.error(result.error || 'Failed to create batch')
+      }
+    })
   }
 
   const handleClose = () => {
@@ -76,7 +84,7 @@ export function CreateBatchDialog({ children }: CreateBatchDialogProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter batch name..."
-              disabled={isCreating}
+              disabled={isPending}
               autoFocus
             />
           </div>
@@ -86,12 +94,12 @@ export function CreateBatchDialog({ children }: CreateBatchDialogProps) {
               type="button"
               variant="outline"
               onClick={handleClose}
-              disabled={isCreating}
+              disabled={isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={!name.trim() || isCreating}>
-              {isCreating ? 'Creating...' : 'Create Batch'}
+            <Button type="submit" disabled={!name.trim() || isPending}>
+              {isPending ? 'Creating...' : 'Create Batch'}
             </Button>
           </SheetFooter>
         </form>

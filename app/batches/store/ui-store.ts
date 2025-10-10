@@ -1,24 +1,19 @@
 /**
  * UI-Only State Store for Batches
  *
- * This store manages ONLY UI state (filters, selections, dialog states).
+ * Simplified store managing only UI state (filters, selections, dialog states).
  * Server data (batches, students) should be fetched in Server Components
  * and passed down as props to Client Components.
- *
- * Migration from old store (_store/batch.store.ts):
- * - Removed: batches, students, loading/error states for server data
- * - Kept: UI state (filters, selections, dialog states)
- * - Simplified: No computed state that depends on server data
  */
 
+import { EducationLevel, GradeLevel } from '@prisma/client'
 import { enableMapSet } from 'immer'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
-
-import { StudentStatus } from '@/lib/types/batch'
+import { BatchStudentData } from '@/lib/types/batch'
+import { StudentStatus } from '@/lib/types/student'
 
 // Enable Immer MapSet plugin for using Set in the store
 enableMapSet()
@@ -54,74 +49,38 @@ export interface StudentFilters {
 
 interface UIStore {
   // ============================================================================
-  // SELECTION STATE
+  // STATE
   // ============================================================================
   selectedStudentIds: Set<string>
   selectedBatchId: string | null
-
-  // ============================================================================
-  // FILTER STATE
-  // ============================================================================
   filters: StudentFilters
-
-  // ============================================================================
-  // DIALOG/MODAL STATE
-  // ============================================================================
   isCreateBatchDialogOpen: boolean
   isAssignStudentsDialogOpen: boolean
   duplicatesExpanded: boolean
 
   // ============================================================================
-  // SELECTION ACTIONS
+  // CORE ACTIONS (Simplified from 30+ to 10)
   // ============================================================================
-  selectStudent: (id: string) => void
-  deselectStudent: (id: string) => void
-  toggleStudent: (id: string) => void
-  selectAllStudents: (studentIds: string[]) => void
-  clearSelection: () => void
-  isStudentSelected: (id: string) => boolean
 
+  // Selection actions
+  toggleStudentSelection: (id: string) => void
+  setStudentSelection: (ids: string[]) => void
+  clearStudentSelection: () => void
   selectBatch: (id: string | null) => void
 
-  // ============================================================================
-  // FILTER ACTIONS
-  // ============================================================================
-  setSearchQuery: (query: string) => void
-  setSearchFields: (fields: ('name' | 'email' | 'phone')[]) => void
-
-  setBatchFilter: (batchIds: string[]) => void
-  toggleBatchFilter: (batchId: string) => void
-  setIncludeUnassigned: (include: boolean) => void
-
-  setStatusFilter: (statuses: StudentStatus[]) => void
-  toggleStatusFilter: (status: StudentStatus) => void
-
-  setEducationLevelFilter: (levels: EducationLevel[]) => void
-  toggleEducationLevelFilter: (level: EducationLevel) => void
-
-  setGradeLevelFilter: (levels: GradeLevel[]) => void
-  toggleGradeLevelFilter: (level: GradeLevel) => void
-
-  setDateRangeFilter: (
-    from: Date | null,
-    to: Date | null,
-    field?: 'createdAt' | 'updatedAt' | 'dateOfBirth'
+  // Filter actions (unified)
+  updateFilters: (updates: Partial<StudentFilters>) => void
+  toggleFilter: (
+    filterType: 'batch' | 'status' | 'educationLevel' | 'gradeLevel',
+    value: string
   ) => void
-  clearDateRangeFilter: () => void
-
+  setSearchQuery: (query: string) => void
   resetFilters: () => void
-  hasActiveFilters: () => boolean
 
-  // ============================================================================
-  // DIALOG/MODAL ACTIONS
-  // ============================================================================
-  setCreateBatchDialogOpen: (open: boolean) => void
-  setAssignStudentsDialogOpen: (open: boolean) => void
-  setDuplicatesExpanded: (expanded: boolean) => void
+  // Dialog actions
+  setDialogOpen: (dialog: 'createBatch' | 'assignStudents' | 'duplicates', open: boolean) => void
 
-  // ============================================================================
-  // UTILITY ACTIONS
-  // ============================================================================
+  // Utility actions
   reset: () => void
 }
 
@@ -160,7 +119,7 @@ const defaultFilters: StudentFilters = {
 
 export const useUIStore = create<UIStore>()(
   devtools(
-    immer((set, get) => ({
+    immer((set) => ({
       // Initial state
       selectedStudentIds: new Set(),
       selectedBatchId: null,
@@ -173,17 +132,7 @@ export const useUIStore = create<UIStore>()(
       // SELECTION ACTIONS
       // ========================================================================
 
-      selectStudent: (id) =>
-        set((state) => {
-          state.selectedStudentIds.add(id)
-        }),
-
-      deselectStudent: (id) =>
-        set((state) => {
-          state.selectedStudentIds.delete(id)
-        }),
-
-      toggleStudent: (id) =>
+      toggleStudentSelection: (id) =>
         set((state) => {
           if (state.selectedStudentIds.has(id)) {
             state.selectedStudentIds.delete(id)
@@ -192,19 +141,15 @@ export const useUIStore = create<UIStore>()(
           }
         }),
 
-      selectAllStudents: (studentIds) =>
+      setStudentSelection: (ids) =>
         set((state) => {
-          state.selectedStudentIds = new Set(studentIds)
+          state.selectedStudentIds = new Set(ids)
         }),
 
-      clearSelection: () =>
+      clearStudentSelection: () =>
         set((state) => {
           state.selectedStudentIds = new Set()
         }),
-
-      isStudentSelected: (id) => {
-        return get().selectedStudentIds.has(id)
-      },
 
       selectBatch: (id) =>
         set((state) => {
@@ -212,8 +157,26 @@ export const useUIStore = create<UIStore>()(
         }),
 
       // ========================================================================
-      // FILTER ACTIONS - Search
+      // FILTER ACTIONS (Unified & Simplified)
       // ========================================================================
+
+      updateFilters: (updates) =>
+        set((state) => {
+          state.filters = { ...state.filters, ...updates }
+        }),
+
+      toggleFilter: (filterType, value) =>
+        set((state) => {
+          const filter = state.filters[filterType]
+          if (!filter || !('selected' in filter)) return
+
+          const index = filter.selected.indexOf(value as never)
+          if (index > -1) {
+            filter.selected.splice(index, 1)
+          } else {
+            filter.selected.push(value as never)
+          }
+        }),
 
       setSearchQuery: (query) =>
         set((state) => {
@@ -226,183 +189,25 @@ export const useUIStore = create<UIStore>()(
           state.filters.search.query = query
         }),
 
-      setSearchFields: (fields) =>
-        set((state) => {
-          if (!state.filters.search) {
-            state.filters.search = {
-              query: '',
-              fields: ['name', 'email', 'phone'],
-            }
-          }
-          state.filters.search.fields = fields
-        }),
-
-      // ========================================================================
-      // FILTER ACTIONS - Batch
-      // ========================================================================
-
-      setBatchFilter: (batchIds) =>
-        set((state) => {
-          if (!state.filters.batch) {
-            state.filters.batch = {
-              selected: [],
-              includeUnassigned: true,
-            }
-          }
-          state.filters.batch.selected = batchIds
-        }),
-
-      toggleBatchFilter: (batchId) =>
-        set((state) => {
-          if (!state.filters.batch) {
-            state.filters.batch = {
-              selected: [],
-              includeUnassigned: true,
-            }
-          }
-          const index = state.filters.batch.selected.indexOf(batchId)
-          if (index > -1) {
-            state.filters.batch.selected.splice(index, 1)
-          } else {
-            state.filters.batch.selected.push(batchId)
-          }
-        }),
-
-      setIncludeUnassigned: (include) =>
-        set((state) => {
-          if (!state.filters.batch) {
-            state.filters.batch = {
-              selected: [],
-              includeUnassigned: true,
-            }
-          }
-          state.filters.batch.includeUnassigned = include
-        }),
-
-      // ========================================================================
-      // FILTER ACTIONS - Status
-      // ========================================================================
-
-      setStatusFilter: (statuses) =>
-        set((state) => {
-          state.filters.status = { selected: statuses }
-        }),
-
-      toggleStatusFilter: (status) =>
-        set((state) => {
-          if (!state.filters.status) {
-            state.filters.status = { selected: [] }
-          }
-          const index = state.filters.status.selected.indexOf(status)
-          if (index > -1) {
-            state.filters.status.selected.splice(index, 1)
-          } else {
-            state.filters.status.selected.push(status)
-          }
-        }),
-
-      // ========================================================================
-      // FILTER ACTIONS - Education Level
-      // ========================================================================
-
-      setEducationLevelFilter: (levels) =>
-        set((state) => {
-          state.filters.educationLevel = { selected: levels }
-        }),
-
-      toggleEducationLevelFilter: (level) =>
-        set((state) => {
-          if (!state.filters.educationLevel) {
-            state.filters.educationLevel = { selected: [] }
-          }
-          const index = state.filters.educationLevel.selected.indexOf(level)
-          if (index > -1) {
-            state.filters.educationLevel.selected.splice(index, 1)
-          } else {
-            state.filters.educationLevel.selected.push(level)
-          }
-        }),
-
-      // ========================================================================
-      // FILTER ACTIONS - Grade Level
-      // ========================================================================
-
-      setGradeLevelFilter: (levels) =>
-        set((state) => {
-          state.filters.gradeLevel = { selected: levels }
-        }),
-
-      toggleGradeLevelFilter: (level) =>
-        set((state) => {
-          if (!state.filters.gradeLevel) {
-            state.filters.gradeLevel = { selected: [] }
-          }
-          const index = state.filters.gradeLevel.selected.indexOf(level)
-          if (index > -1) {
-            state.filters.gradeLevel.selected.splice(index, 1)
-          } else {
-            state.filters.gradeLevel.selected.push(level)
-          }
-        }),
-
-      // ========================================================================
-      // FILTER ACTIONS - Date Range
-      // ========================================================================
-
-      setDateRangeFilter: (from, to, field = 'createdAt') =>
-        set((state) => {
-          state.filters.dateRange = { from, to, field }
-        }),
-
-      clearDateRangeFilter: () =>
-        set((state) => {
-          state.filters.dateRange = {
-            from: null,
-            to: null,
-            field: 'createdAt',
-          }
-        }),
-
-      // ========================================================================
-      // FILTER ACTIONS - Combined
-      // ========================================================================
-
       resetFilters: () =>
         set((state) => {
           state.filters = { ...defaultFilters }
           state.selectedStudentIds = new Set()
         }),
 
-      hasActiveFilters: () => {
-        const { filters } = get()
-        return (
-          (filters.search?.query?.length ?? 0) > 0 ||
-          (filters.batch?.selected?.length ?? 0) > 0 ||
-          (filters.status?.selected?.length ?? 0) > 0 ||
-          (filters.educationLevel?.selected?.length ?? 0) > 0 ||
-          (filters.gradeLevel?.selected?.length ?? 0) > 0 ||
-          filters.dateRange?.from !== null ||
-          filters.dateRange?.to !== null
-        )
-      },
-
       // ========================================================================
-      // DIALOG/MODAL ACTIONS
+      // DIALOG ACTIONS (Unified)
       // ========================================================================
 
-      setCreateBatchDialogOpen: (open) =>
+      setDialogOpen: (dialog, open) =>
         set((state) => {
-          state.isCreateBatchDialogOpen = open
-        }),
-
-      setAssignStudentsDialogOpen: (open) =>
-        set((state) => {
-          state.isAssignStudentsDialogOpen = open
-        }),
-
-      setDuplicatesExpanded: (expanded) =>
-        set((state) => {
-          state.duplicatesExpanded = expanded
+          if (dialog === 'createBatch') {
+            state.isCreateBatchDialogOpen = open
+          } else if (dialog === 'assignStudents') {
+            state.isAssignStudentsDialogOpen = open
+          } else if (dialog === 'duplicates') {
+            state.duplicatesExpanded = open
+          }
         }),
 
       // ========================================================================
@@ -442,3 +247,158 @@ export const useAssignStudentsDialogState = () =>
   useUIStore((state) => state.isAssignStudentsDialogOpen)
 export const useDuplicatesExpandedState = () =>
   useUIStore((state) => state.duplicatesExpanded)
+
+// ============================================================================
+// FILTER UTILITIES (Moved from filter-utils.ts)
+// ============================================================================
+
+/**
+ * Filter students based on current filter state
+ */
+export function filterStudents(
+  students: BatchStudentData[],
+  filters: StudentFilters
+): BatchStudentData[] {
+  return students.filter((student) => {
+    // Search filter
+    if (filters.search?.query) {
+      const searchQuery = filters.search.query.toLowerCase()
+      const matchesSearch =
+        filters.search.fields?.some((field) => {
+          const value = student[field]
+          return value && value.toLowerCase().includes(searchQuery)
+        }) ?? false
+      if (!matchesSearch) return false
+    }
+
+    // Batch filter
+    if ((filters.batch?.selected?.length ?? 0) > 0) {
+      const studentBatchId = student.batch?.id
+      const isInSelectedBatch =
+        studentBatchId && filters.batch?.selected?.includes(studentBatchId)
+      const isUnassignedAndIncluded =
+        !studentBatchId && filters.batch?.includeUnassigned
+
+      if (!isInSelectedBatch && !isUnassignedAndIncluded) return false
+    }
+
+    // Status filter
+    if ((filters.status?.selected?.length ?? 0) > 0) {
+      const studentStatus = student.status as StudentStatus
+      if (!filters.status?.selected?.includes(studentStatus)) return false
+    }
+
+    // Education level filter
+    if ((filters.educationLevel?.selected?.length ?? 0) > 0) {
+      if (
+        !student.educationLevel ||
+        !filters.educationLevel?.selected?.includes(student.educationLevel)
+      ) {
+        return false
+      }
+    }
+
+    // Grade level filter
+    if ((filters.gradeLevel?.selected?.length ?? 0) > 0) {
+      if (
+        !student.gradeLevel ||
+        !filters.gradeLevel?.selected?.includes(student.gradeLevel)
+      ) {
+        return false
+      }
+    }
+
+    // Date range filter
+    if (filters.dateRange?.from || filters.dateRange?.to) {
+      const field = filters.dateRange?.field ?? 'createdAt'
+      const fieldValue = student[field]
+      const studentDate = new Date(
+        fieldValue instanceof Date
+          ? fieldValue
+          : (fieldValue as string | number | null) || new Date()
+      )
+
+      if (filters.dateRange?.from && studentDate < filters.dateRange.from)
+        return false
+      if (filters.dateRange?.to && studentDate > filters.dateRange.to)
+        return false
+    }
+
+    return true
+  })
+}
+
+/**
+ * Count active filters
+ */
+export function countActiveFilters(filters: StudentFilters): number {
+  let count = 0
+
+  if ((filters.search?.query?.length ?? 0) > 0) count++
+  if ((filters.batch?.selected?.length ?? 0) > 0) count++
+  if ((filters.status?.selected?.length ?? 0) > 0) count++
+  if ((filters.educationLevel?.selected?.length ?? 0) > 0) count++
+  if ((filters.gradeLevel?.selected?.length ?? 0) > 0) count++
+  if (filters.dateRange?.from || filters.dateRange?.to) count++
+
+  return count
+}
+
+/**
+ * Get selected students data
+ */
+export function getSelectedStudentsData(
+  students: BatchStudentData[],
+  selectedIds: Set<string>
+): BatchStudentData[] {
+  return students.filter((s) => selectedIds.has(s.id))
+}
+
+// ============================================================================
+// LEGACY ACTION COMPATIBILITY (For gradual migration)
+// ============================================================================
+
+/**
+ * These provide backward compatibility with old action names.
+ * Components can be migrated gradually to use the new simplified actions.
+ */
+export const useLegacyActions = () => {
+  const store = useUIStore()
+  return {
+    // Old names -> New unified actions
+    selectStudent: (id: string) => store.toggleStudentSelection(id),
+    deselectStudent: (id: string) => store.toggleStudentSelection(id),
+    toggleStudent: (id: string) => store.toggleStudentSelection(id),
+    selectAllStudents: (ids: string[]) => store.setStudentSelection(ids),
+    clearSelection: () => store.clearStudentSelection(),
+
+    setSearchQuery: (query: string) => store.setSearchQuery(query),
+    resetFilters: () => store.resetFilters(),
+
+    setBatchFilter: (batchIds: string[]) =>
+      store.updateFilters({ batch: { selected: batchIds, includeUnassigned: true } }),
+    toggleBatchFilter: (id: string) => store.toggleFilter('batch', id),
+    setIncludeUnassigned: (include: boolean) =>
+      store.updateFilters({
+        batch: { ...store.filters.batch, includeUnassigned: include } as never,
+      }),
+
+    setStatusFilter: (statuses: StudentStatus[]) =>
+      store.updateFilters({ status: { selected: statuses } }),
+    toggleStatusFilter: (status: StudentStatus) => store.toggleFilter('status', status),
+
+    setEducationLevelFilter: (levels: EducationLevel[]) =>
+      store.updateFilters({ educationLevel: { selected: levels } }),
+    toggleEducationLevelFilter: (level: EducationLevel) =>
+      store.toggleFilter('educationLevel', level),
+
+    setGradeLevelFilter: (levels: GradeLevel[]) =>
+      store.updateFilters({ gradeLevel: { selected: levels } }),
+    toggleGradeLevelFilter: (level: GradeLevel) => store.toggleFilter('gradeLevel', level),
+
+    setCreateBatchDialogOpen: (open: boolean) => store.setDialogOpen('createBatch', open),
+    setAssignStudentsDialogOpen: (open: boolean) =>
+      store.setDialogOpen('assignStudents', open),
+    setDuplicatesExpanded: (open: boolean) => store.setDialogOpen('duplicates', open),
+  }
+}

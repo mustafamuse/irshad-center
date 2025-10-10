@@ -1,7 +1,8 @@
 'use client'
 
-import { useStudents } from '../../hooks/use-students'
 import { BatchStudentData } from '@/lib/types/batch'
+
+import { useLegacyActions, useSelectedStudents } from '../../store/ui-store'
 import { StudentCard } from '../ui/student-card'
 
 interface MobileStudentsListProps {
@@ -9,7 +10,9 @@ interface MobileStudentsListProps {
 }
 
 export function MobileStudentsList({ students }: MobileStudentsListProps) {
-  const { selectStudent, deselectStudent, isStudentSelected } = useStudents()
+  const { selectStudent, deselectStudent } = useLegacyActions()
+  const selectedStudentIds = useSelectedStudents()
+  const isStudentSelected = (id: string) => selectedStudentIds.has(id)
 
   const handleToggleStudent = (studentId: string) => {
     if (isStudentSelected(studentId)) {

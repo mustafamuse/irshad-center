@@ -3,11 +3,11 @@
 import { Plus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { BatchWithCount } from '@/lib/types/batch'
 
 import { BatchCard } from './batch-card'
 import { CreateBatchDialog } from './create-batch-dialog'
-import { useUIStore } from '../../store/ui-store'
-import { BatchWithCount } from '@/lib/types/batch'
+import { useLegacyActions } from '../../store/ui-store'
 
 interface BatchGridProps {
   batches: BatchWithCount[]
@@ -15,7 +15,7 @@ interface BatchGridProps {
 }
 
 export function BatchGrid({ batches, isLoading = false }: BatchGridProps) {
-  const { setCreateBatchDialogOpen } = useUIStore()
+  const { setCreateBatchDialogOpen } = useLegacyActions()
 
   if (isLoading) {
     return (

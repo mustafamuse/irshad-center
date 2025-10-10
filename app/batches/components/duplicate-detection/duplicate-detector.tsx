@@ -5,12 +5,18 @@ import React from 'react'
 import { ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { DuplicateGroup } from '@/lib/types/batch'
 
 import { DuplicatesList } from './duplicates-list'
-import { useUIStore } from '../../store/ui-store'
+import { useLegacyActions, useDuplicatesExpandedState } from '../../store/ui-store'
 
-export function DuplicateDetector() {
-  const { duplicatesExpanded, setDuplicatesExpanded } = useUIStore()
+interface DuplicateDetectorProps {
+  duplicates: DuplicateGroup[]
+}
+
+export function DuplicateDetector({ duplicates }: DuplicateDetectorProps) {
+  const duplicatesExpanded = useDuplicatesExpandedState()
+  const { setDuplicatesExpanded } = useLegacyActions()
 
   return (
     <div className="rounded-lg border bg-card p-3 shadow-sm sm:p-4 lg:p-6">
@@ -48,7 +54,7 @@ export function DuplicateDetector() {
 
       {duplicatesExpanded && (
         <div className="mt-3 rounded-md border bg-amber-50/50 p-3 sm:mt-4 sm:p-4">
-          <DuplicatesList />
+          <DuplicatesList duplicates={duplicates} />
         </div>
       )}
     </div>

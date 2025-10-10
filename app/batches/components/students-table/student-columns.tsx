@@ -13,8 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { BatchStudentData } from '@/lib/types/batch'
+import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 
-import { BatchStudentData, StudentStatus } from '@/lib/types/batch'
 import { CopyableText } from '../ui/copyable-text'
 import { PhoneContact } from '../ui/phone-contact'
 export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
@@ -100,9 +101,13 @@ export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
         const status = row.getValue('status') as StudentStatus
         return (
           <Badge
-            variant={status === StudentStatus.ACTIVE ? 'default' : 'secondary'}
+            variant={
+              status === StudentStatus.ENROLLED || status === StudentStatus.REGISTERED
+                ? 'default'
+                : 'secondary'
+            }
           >
-            {status}
+            {getStudentStatusDisplay(status)}
           </Badge>
         )
       },

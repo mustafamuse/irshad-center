@@ -43,20 +43,7 @@ export async function getStudents() {
  */
 export async function getStudentsWithBatch() {
   const students = await prisma.student.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      createdAt: true,
-      updatedAt: true,
+    include: {
       batch: {
         select: {
           id: true,
@@ -66,8 +53,7 @@ export async function getStudentsWithBatch() {
         },
       },
       siblingGroup: {
-        select: {
-          id: true,
+        include: {
           students: {
             select: {
               id: true,
@@ -87,7 +73,7 @@ export async function getStudentsWithBatch() {
     ...student,
     siblingGroup: student.siblingGroup
       ? {
-          id: student.siblingGroup.id,
+          ...student.siblingGroup,
           students: student.siblingGroup.students.filter(
             (s) => s.id !== student.id
           ),
@@ -128,6 +114,8 @@ export async function getStudentById(id: string) {
       siblingGroup: {
         select: {
           id: true,
+          createdAt: true,
+          updatedAt: true,
           students: {
             select: {
               id: true,
@@ -146,7 +134,7 @@ export async function getStudentById(id: string) {
     ...student,
     siblingGroup: student.siblingGroup
       ? {
-          id: student.siblingGroup.id,
+          ...student.siblingGroup,
           students: student.siblingGroup.students.filter(
             (s) => s.id !== student.id
           ),
@@ -218,6 +206,8 @@ export async function getStudentsByBatch(batchId: string) {
       siblingGroup: {
         select: {
           id: true,
+          createdAt: true,
+          updatedAt: true,
           students: {
             select: {
               id: true,
@@ -237,7 +227,7 @@ export async function getStudentsByBatch(batchId: string) {
     ...student,
     siblingGroup: student.siblingGroup
       ? {
-          id: student.siblingGroup.id,
+          ...student.siblingGroup,
           students: student.siblingGroup.students.filter(
             (s) => s.id !== student.id
           ),
@@ -271,6 +261,8 @@ export async function getUnassignedStudents() {
       siblingGroup: {
         select: {
           id: true,
+          createdAt: true,
+          updatedAt: true,
           students: {
             select: {
               id: true,
@@ -518,54 +510,59 @@ export async function searchStudents(
 }
 
 /**
- * Find duplicate students (by email)
+ * Find duplicate students by phone number
+ * Uses exact phone matching only - the most reliable indicator of duplicates
  */
 export async function findDuplicateStudents() {
-  // Find students with duplicate emails
-  const duplicateEmails = await prisma.student.groupBy({
-    by: ['email'],
-    having: {
-      email: {
-        _count: {
-          gt: 1,
-        },
+  // Get all students (sorted by oldest first so we keep the first created)
+  const allStudents = await prisma.student.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      siblingGroup: {
+        select: { id: true },
       },
     },
-    where: {
-      email: {
-        not: null,
-      },
+    orderBy: {
+      createdAt: 'asc',
     },
   })
 
-  const duplicateGroups = await Promise.all(
-    duplicateEmails.map(async ({ email }) => {
-      if (!email) return null
+  // Group by exact phone number (only if not empty)
+  const phoneGroups = new Map<string, typeof allStudents>()
+  allStudents.forEach((student) => {
+    if (student.phone && student.phone.trim().length > 0) {
+      // Normalize phone: remove spaces, dashes, parentheses, and any other non-digit characters
+      const normalizedPhone = student.phone.replace(/\D/g, '')
+      if (normalizedPhone.length >= 7) { // Valid phone number length (at least 7 digits)
+        const existing = phoneGroups.get(normalizedPhone) || []
+        phoneGroups.set(normalizedPhone, [...existing, student])
+      }
+    }
+  })
 
-      const students = await prisma.student.findMany({
-        where: { email },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-          siblingGroup: {
-            select: { id: true },
-          },
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      })
+  const allDuplicateGroups: Array<{
+    email: string
+    count: number
+    keepRecord: typeof allStudents[0]
+    duplicateRecords: typeof allStudents
+    hasSiblingGroup: boolean
+    hasRecentActivity: boolean
+    lastUpdated: number
+  }> = []
 
-      if (students.length < 2) return null
-
+  // Add phone-based duplicates
+  Array.from(phoneGroups.entries()).forEach(([phone, students]) => {
+    if (students.length > 1) {
       const [keepRecord, ...duplicateRecords] = students
 
-      return {
-        email,
+      allDuplicateGroups.push({
+        email: `Phone: ${phone}`,
         count: students.length,
         keepRecord,
         duplicateRecords,
@@ -576,13 +573,11 @@ export async function findDuplicateStudents() {
             Date.now() - 30 * 24 * 60 * 60 * 1000 // 30 days
         ),
         lastUpdated: Math.max(...students.map((s) => s.updatedAt.getTime())),
-      }
-    })
-  )
+      })
+    }
+  })
 
-  return duplicateGroups.filter(
-    (group): group is NonNullable<typeof group> => group !== null
-  )
+  return allDuplicateGroups
 }
 
 /**

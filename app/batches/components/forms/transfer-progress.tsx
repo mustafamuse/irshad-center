@@ -4,24 +4,25 @@ import { Loader2 } from 'lucide-react'
 
 import { Card } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
+import { BatchWithCount } from '@/lib/types/batch'
 
-import { useBatches } from '../../hooks/use-batches'
-import { useStudents } from '../../hooks/use-students'
+interface TransferProgressProps {
+  batches?: BatchWithCount[]
+}
 
-export function TransferProgress() {
-  const { isAssigning, isTransferring } = useBatches()
-  const { isBulkUpdating } = useStudents()
-
-  const isActive = isAssigning || isTransferring || isBulkUpdating
+export function TransferProgress({ batches: _batches }: TransferProgressProps) {
+  // This component was used to show progress during mutations
+  // Since we're now using useTransition for pending states,
+  // and the progress is shown inline in the action buttons,
+  // this component can be simplified or removed.
+  // Keeping it for now but making it inactive.
+  const isActive = false
 
   if (!isActive) {
     return null
   }
 
   const getStatusText = () => {
-    if (isAssigning) return 'Assigning students to batch...'
-    if (isTransferring) return 'Transferring students between batches...'
-    if (isBulkUpdating) return 'Updating student records...'
     return 'Processing...'
   }
 

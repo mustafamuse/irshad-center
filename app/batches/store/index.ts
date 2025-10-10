@@ -1,8 +1,8 @@
 /**
  * Batches Store - Exports
  *
- * Export all store-related functionality
+ * Consolidated exports from simplified UI store.
+ * filter-utils.ts has been merged into ui-store.ts
  */
 
 export * from './ui-store'
-export * from './filter-utils'

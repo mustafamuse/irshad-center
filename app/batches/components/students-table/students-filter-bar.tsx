@@ -1,5 +1,7 @@
 'use client'
 
+import { useMemo } from 'react'
+
 import { Search, X, Filter } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -12,31 +14,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { BatchWithCount } from '@/lib/types/batch'
+import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 
-import { useStudentFilters } from '../../hooks/use-filters'
-import { BatchWithCount, StudentStatus } from '@/lib/types/batch'
+import { countActiveFilters, useLegacyActions, useFilters } from '../../store/ui-store'
 
 interface StudentsFilterBarProps {
   batches: BatchWithCount[]
 }
 
 export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
+  const filters = useFilters()
   const {
-    filters,
     setSearchQuery,
     toggleBatchFilter,
     toggleStatusFilter,
     resetFilters,
-    hasActiveFilters,
-    activeFilterCount,
-  } = useStudentFilters()
+  } = useLegacyActions()
+
+  // Compute active filter count
+  const activeFilterCount = useMemo(
+    () => countActiveFilters(filters),
+    [filters]
+  )
+  const hasActiveFilters = activeFilterCount > 0
 
   const statusOptions: StudentStatus[] = [
-    StudentStatus.ACTIVE,
-    StudentStatus.INACTIVE,
-    StudentStatus.GRADUATED,
-    StudentStatus.SUSPENDED,
-    StudentStatus.TRANSFERRED,
+    StudentStatus.REGISTERED,
+    StudentStatus.ENROLLED,
+    StudentStatus.ON_LEAVE,
+    StudentStatus.WITHDRAWN,
   ]
 
   return (
@@ -95,7 +102,7 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
           <SelectContent>
             {statusOptions.map((status) => (
               <SelectItem key={status} value={status}>
-                {status}
+                {getStudentStatusDisplay(status)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -124,7 +131,7 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             className="cursor-pointer"
             onClick={() => toggleStatusFilter(status)}
           >
-            {status}
+            {getStudentStatusDisplay(status)}
             <X className="ml-1 h-3 w-3" />
           </Badge>
         ))}

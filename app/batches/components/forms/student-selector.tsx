@@ -4,31 +4,30 @@ import { useState } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { BatchStudentData } from '@/lib/types/batch'
 
-import { useStudents } from '../../hooks/use-students'
+import { useLegacyActions, useSelectedStudents } from '../../store/ui-store'
 import { StudentCard } from '../ui/student-card'
 
 interface StudentSelectorProps {
   mode: 'assign' | 'transfer'
   selectedBatch: string
   destinationBatchId?: string | null
+  students: BatchStudentData[]
 }
 
 export function StudentSelector({
   mode,
   selectedBatch,
   destinationBatchId,
+  students,
 }: StudentSelectorProps) {
   const [sourceSearch, setSourceSearch] = useState('')
   const [destinationSearch, setDestinationSearch] = useState('')
 
-  const {
-    students,
-    selectedStudentIds,
-    selectStudent,
-    deselectStudent,
-    isStudentSelected,
-  } = useStudents()
+  const selectedStudentIds = useSelectedStudents()
+  const { selectStudent, deselectStudent } = useLegacyActions()
+  const isStudentSelected = (id: string) => selectedStudentIds.has(id)
 
   // Filter students based on mode and batch selection
   const sourceStudents =

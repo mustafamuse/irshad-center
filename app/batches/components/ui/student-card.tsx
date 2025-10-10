@@ -3,11 +3,11 @@
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import { BatchStudentData } from '@/lib/types/batch'
 import { cn } from '@/lib/utils'
 
 import { CopyableText } from './copyable-text'
 import { PhoneContact } from './phone-contact'
-import { BatchStudentData } from '@/lib/types/batch'
 
 interface StudentCardProps {
   student: BatchStudentData

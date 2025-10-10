@@ -1,18 +1,15 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useMemo } from 'react'
 
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/ui/data-table'
+import { BatchWithCount, BatchStudentData } from '@/lib/types/batch'
 
 import { MobileStudentsList } from './mobile-students-list'
 import { createStudentColumns } from './student-columns'
 import { StudentsFilterBar } from './students-filter-bar'
-import { StudentsHeader } from './students-header'
-import { useBatches } from '../../hooks/use-batches'
-import { useStudentFilters } from '../../hooks/use-filters'
-import { useStudents } from '../../hooks/use-students'
-import { useUIStore } from '../../store/ui-store'
+import { filterStudents, countActiveFilters, useFilters } from '../../store/ui-store'
 
 // Performance indicator for search
 const SearchPerformanceIndicator = memo(function SearchPerformanceIndicator({
@@ -35,34 +32,44 @@ const SearchPerformanceIndicator = memo(function SearchPerformanceIndicator({
   )
 })
 
-export function StudentsTable() {
-  const { filteredStudents, students } = useStudents()
-  const { batches } = useBatches()
-  const { filters, hasActiveFilters } = useStudentFilters()
-  const { studentsLoading } = useUIStore()
+interface StudentsTableProps {
+  students: BatchStudentData[]
+  batches: BatchWithCount[]
+}
 
-  // Debug removed
+export function StudentsTable({ students, batches }: StudentsTableProps) {
+  const filters = useFilters()
+
+  // Compute filtered students based on current filters
+  const filteredStudents = useMemo(
+    () => filterStudents(students, filters),
+    [students, filters]
+  )
+
+  // Compute if there are active filters
+  const activeFilterCount = useMemo(
+    () => countActiveFilters(filters),
+    [filters]
+  )
+  const hasActiveFilters = activeFilterCount > 0
 
   const hasActiveSearch = Boolean(filters.search?.query?.trim())
   const columns = createStudentColumns()
 
-  if (studentsLoading.isLoading) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        <div className="text-muted-foreground">
-          {studentsLoading.loadingText || 'Loading students...'}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-4 sm:space-y-6">
-      <StudentsHeader
-        totalCount={students.length}
-        filteredCount={filteredStudents.length}
-        hasActiveFilters={hasActiveFilters}
-      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Students</h2>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          {hasActiveFilters ? (
+            <span>
+              Showing {filteredStudents.length} of {students.length} students
+            </span>
+          ) : (
+            <span>{students.length} students total</span>
+          )}
+        </div>
+      </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <SearchPerformanceIndicator

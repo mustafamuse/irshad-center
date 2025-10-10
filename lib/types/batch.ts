@@ -16,6 +16,8 @@ import {
 } from '@prisma/client'
 import { LucideIcon } from 'lucide-react'
 
+import { StudentStatus as StudentStatusEnum } from './student'
+
 // ============================================================================
 // BATCH TYPES (Built on Prisma types)
 // ============================================================================
@@ -23,18 +25,15 @@ import { LucideIcon } from 'lucide-react'
 // Use Prisma's generated type directly
 export type Batch = PrismaBatch
 
-// Batch with student count (using Prisma's Select)
-export type BatchWithCount = Prisma.BatchGetPayload<{
-  select: {
-    id: true
-    name: true
-    startDate: true
-    _count: {
-      select: { students: true }
-    }
-  }
-}> & {
-  studentCount: number // Computed from _count
+// Batch with student count - simplified version returned from queries
+export interface BatchWithCount {
+  id: string
+  name: string
+  startDate: Date | null
+  endDate: Date | null
+  createdAt: Date
+  updatedAt: Date
+  studentCount: number
 }
 
 // Simpler version for API responses
@@ -99,14 +98,9 @@ export type StudentWithBatch = Prisma.StudentGetPayload<{
   }
 }>
 
-// For backward compatibility with existing code using enum
-export enum StudentStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  GRADUATED = 'GRADUATED',
-  SUSPENDED = 'SUSPENDED',
-  TRANSFERRED = 'TRANSFERRED',
-}
+// Re-export StudentStatus enum from student.ts for convenience
+export { StudentStatusEnum as StudentStatus }
+export type { StudentStatusEnum }
 
 // Student with batch and related data for UI
 export type BatchStudentData = Prisma.StudentGetPayload<{
@@ -198,8 +192,8 @@ export interface DuplicateGroup {
   duplicateRecords: DuplicateStudent[]
   hasSiblingGroup: boolean
   hasRecentActivity: boolean
-  differences: Record<string, Set<string>> | null
-  lastUpdated: string
+  differences?: Record<string, Set<string>> | null
+  lastUpdated: number
 }
 
 // Search and filtering types
@@ -512,8 +506,8 @@ export interface ThemeVariant {
 
 // Animation and transition types
 export interface AnimationProps {
-  initial?: any
-  animate?: any
-  exit?: any
-  transition?: any
+  initial?: Record<string, unknown>
+  animate?: Record<string, unknown>
+  exit?: Record<string, unknown>
+  transition?: Record<string, unknown>
 }

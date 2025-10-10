@@ -369,7 +369,65 @@ export async function registerWithSiblings(input: RegisterWithSiblingsInput) {
         siblingIds: input.siblingIds,
       })
 
-      // 2. Create the student
+      // 2. Check for existing student with same phone number
+      if (validated.phone) {
+        // Normalize the phone number for comparison
+        const normalizedPhone = validated.phone.replace(/\D/g, '')
+
+        if (normalizedPhone.length >= 7) {
+          // Find all students and check their normalized phone numbers
+          const allStudents = await tx.student.findMany({
+            where: {
+              phone: {
+                not: null,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              email: true,
+            },
+          })
+
+          const existingStudent = allStudents.find((student) => {
+            if (!student.phone) return false
+            const existingNormalized = student.phone.replace(/\D/g, '')
+            return existingNormalized === normalizedPhone
+          })
+
+          if (existingStudent) {
+            throw new Error(
+              `A student with phone number ${validated.phone} already exists: ${existingStudent.name}`
+            )
+          }
+        }
+      }
+
+      // 3. Check for existing student with same email (if provided)
+      if (validated.email) {
+        const existingByEmail = await tx.student.findFirst({
+          where: {
+            email: {
+              equals: validated.email,
+              mode: 'insensitive',
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        })
+
+        if (existingByEmail) {
+          throw new Error(
+            `A student with email ${validated.email} already exists: ${existingByEmail.name}`
+          )
+        }
+      }
+
+      // 4. Create the student
       const newStudent = await tx.student.create({
         data: {
           name: fullName,
@@ -382,7 +440,7 @@ export async function registerWithSiblings(input: RegisterWithSiblingsInput) {
         },
       })
 
-      // 3. If there are siblings, create/update sibling group
+      // 5. If there are siblings, create/update sibling group
       if (input.siblingIds?.length) {
         // Create sibling group and connect students
         await tx.sibling.create({
