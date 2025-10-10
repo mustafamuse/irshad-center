@@ -217,7 +217,7 @@ export interface StudentFilters {
     includeUnassigned?: boolean
   }
   status?: {
-    selected?: StudentStatus[]
+    selected?: StudentStatusEnum[]
   }
   educationLevel?: {
     selected?: EducationLevel[]
