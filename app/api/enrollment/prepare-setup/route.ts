@@ -118,7 +118,7 @@ export async function POST(req: Request) {
         customerId: customer.id,
         customerEmail: customer.email,
         totalMonthlyRate,
-        students: validatedStudents.map((student) => ({
+        Student: validatedStudents.map((student) => ({
           id: student.id,
           name: student.name,
           monthlyRate: student.monthlyRate,

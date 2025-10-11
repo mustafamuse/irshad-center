@@ -22,7 +22,7 @@ export async function getBatches() {
       createdAt: true,
       updatedAt: true,
       _count: {
-        select: { students: true },
+        select: { Student: true },
       },
     },
     orderBy: {
@@ -37,7 +37,7 @@ export async function getBatches() {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.students,
+    studentCount: batch._count.Student,
   }))
 }
 
@@ -55,7 +55,7 @@ export async function getBatchById(id: string) {
       createdAt: true,
       updatedAt: true,
       _count: {
-        select: { students: true },
+        select: { Student: true },
       },
     },
   })
@@ -69,7 +69,7 @@ export async function getBatchById(id: string) {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.students,
+    studentCount: batch._count.Student,
   }
 }
 
@@ -117,7 +117,7 @@ export async function createBatch(data: {
       createdAt: true,
       updatedAt: true,
       _count: {
-        select: { students: true },
+        select: { Student: true },
       },
     },
   })
@@ -129,7 +129,7 @@ export async function createBatch(data: {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.students,
+    studentCount: batch._count.Student,
   }
 }
 
@@ -159,7 +159,7 @@ export async function updateBatch(
       createdAt: true,
       updatedAt: true,
       _count: {
-        select: { students: true },
+        select: { Student: true },
       },
     },
   })
@@ -171,7 +171,7 @@ export async function updateBatch(
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.students,
+    studentCount: batch._count.Student,
   }
 }
 
@@ -324,7 +324,7 @@ export async function getBatchSummary() {
     prisma.student.count(),
     prisma.batch.count({
       where: {
-        students: {
+        Student: {
           some: {},
         },
       },
@@ -362,9 +362,9 @@ export async function getBatchesWithFilters(filters: {
 
   if (filters.hasStudents !== undefined) {
     if (filters.hasStudents) {
-      where.students = { some: {} }
+      where.Student = { some: {} }
     } else {
-      where.students = { none: {} }
+      where.Student = { none: {} }
     }
   }
 
@@ -385,7 +385,7 @@ export async function getBatchesWithFilters(filters: {
       createdAt: true,
       updatedAt: true,
       _count: {
-        select: { students: true },
+        select: { Student: true },
       },
     },
     orderBy: {
@@ -400,6 +400,6 @@ export async function getBatchesWithFilters(filters: {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.students,
+    studentCount: batch._count.Student,
   }))
 }

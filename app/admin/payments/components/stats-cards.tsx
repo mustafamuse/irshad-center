@@ -12,7 +12,7 @@ import { prisma } from '@/lib/db'
 async function getStats() {
   // Base filter to exclude "Test" batch students
   const baseExcludeFilter = {
-    batch: {
+    Batch: {
       name: {
         not: 'Test',
       },

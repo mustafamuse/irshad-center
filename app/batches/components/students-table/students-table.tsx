@@ -9,7 +9,11 @@ import { BatchWithCount, BatchStudentData } from '@/lib/types/batch'
 import { MobileStudentsList } from './mobile-students-list'
 import { createStudentColumns } from './student-columns'
 import { StudentsFilterBar } from './students-filter-bar'
-import { filterStudents, countActiveFilters, useFilters } from '../../store/ui-store'
+import {
+  filterStudents,
+  countActiveFilters,
+  useFilters,
+} from '../../store/ui-store'
 
 // Performance indicator for search
 const SearchPerformanceIndicator = memo(function SearchPerformanceIndicator({
@@ -59,7 +63,9 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Students</h2>
+        <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+          Students
+        </h2>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {hasActiveFilters ? (
             <span>

@@ -355,7 +355,9 @@ export async function resolveDuplicatesAction(
       }
     }
 
-    const missingRecords = deleteIds.filter((id, index) => !deleteRecords[index])
+    const missingRecords = deleteIds.filter(
+      (id, index) => !deleteRecords[index]
+    )
     if (missingRecords.length > 0) {
       return {
         success: false,
@@ -383,7 +385,8 @@ export async function resolveDuplicatesAction(
   } catch (error) {
     return handleActionError(error, 'resolveDuplicatesAction', {
       handlers: {
-        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'One or more student records not found',
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]:
+          'One or more student records not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Cannot resolve duplicates due to related records',
       },

@@ -105,23 +105,31 @@ function ComingSoonContent() {
                 </div>
               </div>
 
-              {/* Irshad Dugsi - Coming Soon */}
+              {/* Irshad Dugsi - Available */}
               <div className="group relative">
-                <div className="h-auto w-full rounded-2xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-white p-4 shadow-sm transition-all duration-300 group-hover:shadow-md sm:p-6">
-                  <div className="flex flex-col items-center gap-2 text-center sm:gap-3">
-                    <div className="text-xl font-semibold text-gray-600 sm:text-2xl">
+                <Button
+                  asChild
+                  size="lg"
+                  className="h-auto w-full rounded-2xl bg-[#007078] p-4 text-white shadow-lg transition-all duration-300 group-hover:scale-[1.02] group-hover:bg-[#007078]/90 group-hover:shadow-xl sm:p-6"
+                >
+                  <Link
+                    href="/dugsi/register"
+                    className="flex flex-col items-center gap-2 sm:gap-3"
+                  >
+                    <div className="text-xl font-semibold sm:text-2xl">
                       Irshād Dugsi
                     </div>
-                    <div className="text-sm text-gray-500 sm:text-base">
+                    <div className="text-sm opacity-90 sm:text-base">
                       Youth Islamic Learning Program
                     </div>
-                    <div className="mt-2 rounded-full border border-gray-200 bg-gray-100 px-4 py-1.5 text-xs font-medium text-gray-600 sm:px-6 sm:py-2 sm:text-sm">
-                      Coming Soon
+                    <div className="mt-2 flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm">
+                      <span>Register Now</span>
+                      <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1 sm:h-4 sm:w-4" />
                     </div>
-                  </div>
-                </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] text-gray-500 shadow-sm sm:px-3 sm:py-1 sm:text-xs">
-                  Under Development
+                  </Link>
+                </Button>
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#007078]/10 bg-white px-2 py-0.5 text-[10px] text-[#007078] shadow-sm sm:px-3 sm:py-1 sm:text-xs">
+                  Registration Open
                 </div>
               </div>
             </div>

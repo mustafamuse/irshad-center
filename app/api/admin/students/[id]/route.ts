@@ -14,7 +14,7 @@ export async function GET(
         id,
       },
       include: {
-        batch: true,
+        Batch: true,
       },
     })
 
@@ -59,7 +59,7 @@ export async function PATCH(
       },
       data: body,
       include: {
-        batch: true,
+        Batch: true,
       },
     })
 

@@ -27,10 +27,10 @@ export async function backupData() {
     // Get all data with complete relationships
     const students = await prisma.student.findMany({
       include: {
-        batch: true,
-        siblingGroup: {
+        Batch: true,
+        Sibling: {
           include: {
-            students: {
+            Student: {
               select: {
                 id: true,
                 name: true,
@@ -47,7 +47,7 @@ export async function backupData() {
     const batches = await prisma.batch.findMany()
     const siblings = await prisma.sibling.findMany({
       include: {
-        students: true,
+        Student: true,
       },
     })
     const studentPayments = await prisma.studentPayment.findMany()
@@ -56,21 +56,21 @@ export async function backupData() {
     const validation: BackupValidation = {
       students: {
         total: students.length,
-        withBatch: students.filter((s) => s.batch).length,
+        withBatch: students.filter((s) => s.Batch).length,
         withSubscription: students.filter((s) => s.stripeSubscriptionId).length,
-        withSiblings: students.filter((s) => s.siblingGroup).length,
+        withSiblings: students.filter((s) => s.Sibling).length,
       },
       relationships: {
         validSiblingGroups: students.every(
           (s) =>
             !s.siblingGroupId ||
-            s.siblingGroup?.students.some(
+            s.Sibling?.Student.some(
               (sibling) =>
                 sibling.id !== s.id &&
                 sibling.siblingGroupId === s.siblingGroupId
             )
         ),
-        validBatchLinks: students.every((s) => !s.batchId || s.batch !== null),
+        validBatchLinks: students.every((s) => !s.batchId || s.Batch !== null),
       },
     }
 

@@ -16,10 +16,7 @@ interface BatchManagementProps {
   students: BatchStudentData[]
 }
 
-export function BatchManagement({
-  batches,
-  students,
-}: BatchManagementProps) {
+export function BatchManagement({ batches, students }: BatchManagementProps) {
   const { setAssignStudentsDialogOpen } = useLegacyActions()
 
   return (

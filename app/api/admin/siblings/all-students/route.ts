@@ -14,7 +14,7 @@ export async function GET() {
         status: true,
         batchId: true,
         siblingGroupId: true,
-        batch: {
+        Batch: {
           select: {
             name: true,
           },
@@ -42,7 +42,7 @@ export async function GET() {
       totalWithoutSiblings: studentsWithoutSiblings.length,
     })
   } catch (error) {
-    console.error('Failed to fetch all students:', error)
+    console.error('Failed to fetch all Student:', error)
     return NextResponse.json(
       { error: 'Failed to fetch all students' },
       { status: 500 }

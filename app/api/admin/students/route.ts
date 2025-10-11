@@ -10,9 +10,9 @@ export async function GET() {
         id: true,
         name: true,
         siblingGroupId: true,
-        siblingGroup: {
+        Sibling: {
           include: {
-            students: {
+            Student: {
               select: {
                 id: true,
                 name: true,
@@ -34,7 +34,7 @@ export async function GET() {
       siblingGroupCount,
     })
   } catch (error) {
-    console.error('Failed to fetch students:', error)
+    console.error('Failed to fetch Student:', error)
     return NextResponse.json(
       { error: 'Failed to fetch students' },
       { status: 500 }
@@ -73,7 +73,7 @@ export async function PUT() {
       batchId: batch.id,
     })
   } catch (error) {
-    console.error('Failed to update students batch:', error)
+    console.error('Failed to update students Batch:', error)
     return NextResponse.json(
       { error: 'Failed to update students batch' },
       { status: 500 }

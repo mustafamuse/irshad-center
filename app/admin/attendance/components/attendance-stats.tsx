@@ -10,7 +10,7 @@ export async function AttendanceStats() {
     // Active students (attended at least one session)
     prisma.student.count({
       where: {
-        attendanceRecords: {
+        AttendanceRecord: {
           some: {},
         },
       },

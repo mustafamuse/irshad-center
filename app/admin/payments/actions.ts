@@ -35,7 +35,7 @@ export async function runPaymentsBackfill() {
     const allStudents = await prisma.student.findMany({
       where: {
         stripeSubscriptionId: { not: null },
-        batch: {
+        Batch: {
           name: { not: 'Test' },
         },
       },

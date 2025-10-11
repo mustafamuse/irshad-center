@@ -53,3 +53,44 @@ Important Notes (Must Appear in Every Prompt)
 - DO NOT EVER REMOVE OR CHANGE CODE WITHOUT CHECKING FIRST
 - ALWAYS TEST FUNCTIONALITY BEFORE FINALIZING
 - ALWAYS REITERATE TO SHOW UNDERSTANDING
+
+DATABASE SAFETY RULES (CRITICAL - NEVER VIOLATE)
+
+⛔ NEVER RESET DATABASE
+- NEVER EVER run: prisma migrate reset
+- NEVER EVER run: prisma db push --force-reset
+- NEVER EVER run: DROP DATABASE or DROP TABLE commands
+- NEVER EVER delete migration files
+- NEVER EVER suggest resetting the database
+
+✅ ONLY ALLOWED DATABASE OPERATIONS
+- prisma migrate dev (creates new migration)
+- prisma migrate deploy (applies pending migrations)
+- prisma migrate status (checks migration status)
+- prisma studio (view data safely)
+- prisma db pull (sync schema from database)
+
+⚠️ PRODUCTION DATA IS SACRED
+- Database contains real student registrations
+- Database contains payment history
+- Database contains enrollment records
+- ANY data loss is unacceptable
+
+🛡️ MIGRATION SAFETY
+- Always create migrations, never reset
+- Always test migrations on dev database first
+- Always make migrations reversible when possible
+- Always backup before running migrations in production
+
+❌ FORBIDDEN COMMANDS
+- NEVER: npx prisma migrate reset
+- NEVER: npx prisma db push --force-reset
+- NEVER: DROP TABLE or DROP DATABASE
+- NEVER: TRUNCATE TABLE
+- NEVER: DELETE FROM without WHERE clause on production data
+
+If user asks to reset database:
+1. Ask WHY they want to reset
+2. Suggest alternative solutions (new migration, data cleanup script, etc.)
+3. Explain the risk of data loss
+4. Only proceed if user EXPLICITLY confirms understanding of data loss

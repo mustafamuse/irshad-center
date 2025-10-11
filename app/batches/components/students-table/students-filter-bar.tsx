@@ -17,7 +17,11 @@ import {
 import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 
-import { countActiveFilters, useLegacyActions, useFilters } from '../../store/ui-store'
+import {
+  countActiveFilters,
+  useLegacyActions,
+  useFilters,
+} from '../../store/ui-store'
 
 interface StudentsFilterBarProps {
   batches: BatchWithCount[]

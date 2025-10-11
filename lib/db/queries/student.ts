@@ -44,7 +44,7 @@ export async function getStudents() {
 export async function getStudentsWithBatch() {
   const students = await prisma.student.findMany({
     include: {
-      batch: {
+      Batch: {
         select: {
           id: true,
           name: true,
@@ -52,9 +52,9 @@ export async function getStudentsWithBatch() {
           endDate: true,
         },
       },
-      siblingGroup: {
+      Sibling: {
         include: {
-          students: {
+          Student: {
             select: {
               id: true,
               name: true,
@@ -71,12 +71,10 @@ export async function getStudentsWithBatch() {
 
   return students.map((student) => ({
     ...student,
-    siblingGroup: student.siblingGroup
+    Sibling: student.Sibling
       ? {
-          ...student.siblingGroup,
-          students: student.siblingGroup.students.filter(
-            (s) => s.id !== student.id
-          ),
+          ...student.Sibling,
+          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
         }
       : null,
   }))
@@ -103,7 +101,7 @@ export async function getStudentById(id: string) {
       batchId: true,
       createdAt: true,
       updatedAt: true,
-      batch: {
+      Batch: {
         select: {
           id: true,
           name: true,
@@ -111,12 +109,12 @@ export async function getStudentById(id: string) {
           endDate: true,
         },
       },
-      siblingGroup: {
+      Sibling: {
         select: {
           id: true,
           createdAt: true,
           updatedAt: true,
-          students: {
+          Student: {
             select: {
               id: true,
               name: true,
@@ -132,12 +130,10 @@ export async function getStudentById(id: string) {
 
   return {
     ...student,
-    siblingGroup: student.siblingGroup
+    Sibling: student.Sibling
       ? {
-          ...student.siblingGroup,
-          students: student.siblingGroup.students.filter(
-            (s) => s.id !== student.id
-          ),
+          ...student.Sibling,
+          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
         }
       : null,
   }
@@ -195,7 +191,7 @@ export async function getStudentsByBatch(batchId: string) {
       customRate: true,
       createdAt: true,
       updatedAt: true,
-      batch: {
+      Batch: {
         select: {
           id: true,
           name: true,
@@ -203,12 +199,12 @@ export async function getStudentsByBatch(batchId: string) {
           endDate: true,
         },
       },
-      siblingGroup: {
+      Sibling: {
         select: {
           id: true,
           createdAt: true,
           updatedAt: true,
-          students: {
+          Student: {
             select: {
               id: true,
               name: true,
@@ -225,12 +221,10 @@ export async function getStudentsByBatch(batchId: string) {
 
   return students.map((student) => ({
     ...student,
-    siblingGroup: student.siblingGroup
+    Sibling: student.Sibling
       ? {
-          ...student.siblingGroup,
-          students: student.siblingGroup.students.filter(
-            (s) => s.id !== student.id
-          ),
+          ...student.Sibling,
+          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
         }
       : null,
   }))
@@ -258,12 +252,12 @@ export async function getUnassignedStudents() {
       customRate: true,
       createdAt: true,
       updatedAt: true,
-      siblingGroup: {
+      Sibling: {
         select: {
           id: true,
           createdAt: true,
           updatedAt: true,
-          students: {
+          Student: {
             select: {
               id: true,
               name: true,
@@ -280,13 +274,11 @@ export async function getUnassignedStudents() {
 
   return students.map((student) => ({
     ...student,
-    batch: null,
-    siblingGroup: student.siblingGroup
+    Batch: null,
+    Sibling: student.Sibling
       ? {
-          id: student.siblingGroup.id,
-          students: student.siblingGroup.students.filter(
-            (s) => s.id !== student.id
-          ),
+          id: student.Sibling.id,
+          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
         }
       : null,
   }))
@@ -461,7 +453,7 @@ export async function searchStudents(
         customRate: true,
         createdAt: true,
         updatedAt: true,
-        batch: {
+        Batch: {
           select: {
             id: true,
             name: true,
@@ -469,10 +461,10 @@ export async function searchStudents(
             endDate: true,
           },
         },
-        siblingGroup: {
+        Sibling: {
           select: {
             id: true,
-            students: {
+            Student: {
               select: {
                 id: true,
                 name: true,
@@ -493,12 +485,10 @@ export async function searchStudents(
 
   const mappedStudents = students.map((student) => ({
     ...student,
-    siblingGroup: student.siblingGroup
+    Sibling: student.Sibling
       ? {
-          id: student.siblingGroup.id,
-          students: student.siblingGroup.students.filter(
-            (s) => s.id !== student.id
-          ),
+          id: student.Sibling.id,
+          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
         }
       : null,
   }))
@@ -524,7 +514,7 @@ export async function findDuplicateStudents() {
       status: true,
       createdAt: true,
       updatedAt: true,
-      siblingGroup: {
+      Sibling: {
         select: { id: true },
       },
     },
@@ -539,7 +529,8 @@ export async function findDuplicateStudents() {
     if (student.phone && student.phone.trim().length > 0) {
       // Normalize phone: remove spaces, dashes, parentheses, and any other non-digit characters
       const normalizedPhone = student.phone.replace(/\D/g, '')
-      if (normalizedPhone.length >= 7) { // Valid phone number length (at least 7 digits)
+      if (normalizedPhone.length >= 7) {
+        // Valid phone number length (at least 7 digits)
         const existing = phoneGroups.get(normalizedPhone) || []
         phoneGroups.set(normalizedPhone, [...existing, student])
       }
@@ -549,7 +540,7 @@ export async function findDuplicateStudents() {
   const allDuplicateGroups: Array<{
     email: string
     count: number
-    keepRecord: typeof allStudents[0]
+    keepRecord: (typeof allStudents)[0]
     duplicateRecords: typeof allStudents
     hasSiblingGroup: boolean
     hasRecentActivity: boolean
@@ -566,7 +557,7 @@ export async function findDuplicateStudents() {
         count: students.length,
         keepRecord,
         duplicateRecords,
-        hasSiblingGroup: students.some((s) => s.siblingGroup),
+        hasSiblingGroup: students.some((s) => s.Sibling),
         hasRecentActivity: students.some(
           (s) =>
             new Date(s.updatedAt).getTime() >
@@ -706,12 +697,12 @@ export async function getStudentDeleteWarnings(id: string) {
   const student = await prisma.student.findUnique({
     where: { id },
     select: {
-      siblingGroup: {
+      Sibling: {
         select: {
-          students: { select: { id: true } },
+          Student: { select: { id: true } },
         },
       },
-      attendance: {
+      Attendance: {
         select: { id: true },
         take: 1,
       },
@@ -719,42 +710,38 @@ export async function getStudentDeleteWarnings(id: string) {
   })
 
   return {
-    hasSiblings: student?.siblingGroup
-      ? student.siblingGroup.students.length > 1
-      : false,
-    hasAttendanceRecords: (student?.attendance?.length ?? 0) > 0,
+    hasSiblings: student?.Sibling ? student.Sibling.Student.length > 1 : false,
+    hasAttendanceRecords: (student?.Attendance?.length ?? 0) > 0,
   }
 }
 
 /**
  * Export students data
  */
-export async function exportStudents(
-  filters?: {
-    search?: {
-      query?: string
-      fields?: ('name' | 'email' | 'phone')[]
-    }
-    batch?: {
-      selected?: string[]
-      includeUnassigned?: boolean
-    }
-    status?: {
-      selected?: string[]
-    }
-    educationLevel?: {
-      selected?: EducationLevel[]
-    }
-    gradeLevel?: {
-      selected?: GradeLevel[]
-    }
-    dateRange?: {
-      from?: Date
-      to?: Date
-      field?: 'createdAt' | 'updatedAt' | 'dateOfBirth'
-    }
+export async function exportStudents(filters?: {
+  search?: {
+    query?: string
+    fields?: ('name' | 'email' | 'phone')[]
   }
-) {
+  batch?: {
+    selected?: string[]
+    includeUnassigned?: boolean
+  }
+  status?: {
+    selected?: string[]
+  }
+  educationLevel?: {
+    selected?: EducationLevel[]
+  }
+  gradeLevel?: {
+    selected?: GradeLevel[]
+  }
+  dateRange?: {
+    from?: Date
+    to?: Date
+    field?: 'createdAt' | 'updatedAt' | 'dateOfBirth'
+  }
+}) {
   const where = filters ? buildStudentWhereClause('', filters) : {}
 
   const students = await prisma.student.findMany({
@@ -769,7 +756,7 @@ export async function exportStudents(
       dateOfBirth: true,
       createdAt: true,
       updatedAt: true,
-      batch: {
+      Batch: {
         select: { name: true },
       },
     },
@@ -779,7 +766,7 @@ export async function exportStudents(
     name: student.name,
     email: student.email || '',
     phone: student.phone || '',
-    batch: student.batch?.name || 'Unassigned',
+    batch: student.Batch?.name || 'Unassigned',
     status: student.status,
     educationLevel: student.educationLevel || '',
     gradeLevel: student.gradeLevel || '',

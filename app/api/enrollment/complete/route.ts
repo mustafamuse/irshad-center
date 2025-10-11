@@ -169,7 +169,7 @@ export async function POST(req: Request) {
       return {
         subscriptionId: subscription.id,
         customerId: setupIntent.customer,
-        students: validatedStudents,
+        Student: validatedStudents,
         payerDetails,
       }
     })

@@ -37,7 +37,7 @@ export async function GET(request: Request) {
         createdAt: true,
         updatedAt: true,
         batchId: true,
-        batch: {
+        Batch: {
           select: {
             name: true,
           },
@@ -75,7 +75,7 @@ export async function GET(request: Request) {
         inactiveSubscriptions: inactiveSubscriptions.length,
         noSubscription: noSubscription.length,
       },
-      students: {
+      Student: {
         active: activeSubscriptions,
         inactive: inactiveSubscriptions,
         none: noSubscription,

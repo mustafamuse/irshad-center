@@ -75,7 +75,7 @@ export async function getActiveSubscriptions() {
       stripeCustomerId: true,
       subscriptionStatus: true,
       monthlyRate: true,
-      batch: {
+      Batch: {
         select: {
           id: true,
           name: true,
@@ -133,9 +133,9 @@ export async function validateStudentForEnrollment(studentId: string) {
   const student = await prisma.student.findUnique({
     where: { id: studentId },
     include: {
-      siblingGroup: {
+      Sibling: {
         include: {
-          students: {
+          Student: {
             select: {
               id: true,
               name: true,
@@ -145,7 +145,7 @@ export async function validateStudentForEnrollment(studentId: string) {
           },
         },
       },
-      batch: true,
+      Batch: true,
     },
   })
 
@@ -171,8 +171,8 @@ export async function validateStudentForEnrollment(studentId: string) {
       name: student.name,
       monthlyRate: student.monthlyRate,
       customRate: student.customRate,
-      batch: student.batch,
-      siblingGroup: student.siblingGroup,
+      batch: student.Batch,
+      siblingGroup: student.Sibling,
     },
     isEligible: true,
   }
@@ -191,10 +191,10 @@ export async function getEligibleStudents() {
       status: 'registered',
     },
     include: {
-      batch: true,
-      siblingGroup: {
+      Batch: true,
+      Sibling: {
         include: {
-          students: {
+          Student: {
             select: {
               id: true,
               name: true,

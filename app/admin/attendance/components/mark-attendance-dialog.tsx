@@ -41,7 +41,7 @@ interface Student {
 interface AttendanceRecord {
   id: string
   status: AttendanceStatus
-  student: { id: string; name: string }
+  Student: { id: string; name: string }
 }
 
 interface Props {
@@ -66,7 +66,7 @@ export function MarkAttendanceDialog({
   const [open, setOpen] = useState(false)
   const [records, setRecords] = useState(() =>
     students.map((student) => {
-      const record = attendance.find((a) => a.student.id === student.id)
+      const record = attendance.find((a) => a.Student.id === student.id)
       return {
         studentId: student.id,
         status: record?.status || AttendanceStatus.ABSENT,

@@ -24,7 +24,7 @@ export async function GET(request: Request) {
           status: true,
           batchId: true,
           siblingGroupId: true,
-          batch: {
+          Batch: {
             select: {
               name: true,
             },
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
         status: true,
         batchId: true,
         siblingGroupId: true,
-        batch: {
+        Batch: {
           select: {
             name: true,
           },
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
       query,
     })
   } catch (error) {
-    console.error('Failed to search students:', error)
+    console.error('Failed to search Student:', error)
     return NextResponse.json(
       { error: 'Failed to search students' },
       { status: 500 }

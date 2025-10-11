@@ -18,16 +18,16 @@ const BASE_RATE = 150
 
 type StudentWithRelations = Prisma.StudentGetPayload<{
   include: {
-    batch: {
+    Batch: {
       select: {
         id: true
         name: true
       }
     }
-    siblingGroup: {
+    Sibling: {
       select: {
         id: true
-        students: {
+        Student: {
           select: {
             id: true
             name: true
@@ -72,7 +72,7 @@ interface StudentQueryOptions {
 
 // Async mapper function for server components
 async function mapToDTO(student: StudentWithRelations): Promise<StudentDTO> {
-  const siblingCount = student.siblingGroup?.students.length ?? 0
+  const siblingCount = student.Sibling?.Student.length ?? 0
   const hasActiveSubscription =
     student.stripeSubscriptionId !== null &&
     student.subscriptionStatus === 'active'
@@ -99,8 +99,8 @@ async function mapToDTO(student: StudentWithRelations): Promise<StudentDTO> {
     hasCustomRate: student.customRate,
     status: student.status as StudentStatus,
     siblingGroupId: student.siblingGroupId,
-    batchId: student.batch?.id ?? null,
-    batchName: student.batch?.name ?? null,
+    batchId: student.Batch?.id ?? null,
+    batchName: student.Batch?.name ?? null,
     email: student.email,
     phone: student.phone,
     stripeCustomerId: student.stripeCustomerId,
@@ -139,16 +139,16 @@ export const getStudents = cache(async (options: StudentQueryOptions = {}) => {
         }),
       },
       include: {
-        batch: {
+        Batch: {
           select: {
             id: true,
             name: true,
           },
         },
-        siblingGroup: {
+        Sibling: {
           select: {
             id: true,
-            students: {
+            Student: {
               select: {
                 id: true,
                 name: true,

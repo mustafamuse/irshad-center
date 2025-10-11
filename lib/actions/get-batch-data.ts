@@ -47,7 +47,7 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
         status: true,
         createdAt: true,
         updatedAt: true,
-        batch: {
+        Batch: {
           select: {
             id: true,
             name: true,
@@ -55,10 +55,10 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
             endDate: true,
           },
         },
-        siblingGroup: {
+        Sibling: {
           select: {
             id: true,
-            students: {
+            Student: {
               select: {
                 id: true,
                 name: true,
@@ -75,17 +75,17 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
       dateOfBirth: student.dateOfBirth?.toISOString() ?? null,
       createdAt: student.createdAt.toISOString(),
       updatedAt: student.updatedAt.toISOString(),
-      batch: student.batch
+      batch: student.Batch
         ? {
-            ...student.batch,
-            startDate: student.batch.startDate?.toISOString() ?? null,
-            endDate: student.batch.endDate?.toISOString() ?? null,
+            ...student.Batch,
+            startDate: student.Batch.startDate?.toISOString() ?? null,
+            endDate: student.Batch.endDate?.toISOString() ?? null,
           }
         : null,
-      siblingGroup: student.siblingGroup
+      siblingGroup: student.Sibling
         ? {
-            id: student.siblingGroup.id,
-            students: student.siblingGroup.students.filter(
+            id: student.Sibling.id,
+            students: student.Sibling.Student.filter(
               (s) => s.id !== student.id
             ),
           }
@@ -119,10 +119,10 @@ export async function getDuplicateStudents() {
       const records = await prisma.student.findMany({
         where: { email },
         include: {
-          siblingGroup: true,
+          Sibling: true,
         },
         orderBy: [
-          { siblingGroup: { id: 'desc' } },
+          { Sibling: { id: 'desc' } },
           { updatedAt: 'desc' },
           { createdAt: 'desc' },
         ],
@@ -154,7 +154,7 @@ export async function getDuplicateStudents() {
           createdAt: record.createdAt.toISOString(),
           updatedAt: record.updatedAt.toISOString(),
         })),
-        hasSiblingGroup: !!keepRecord.siblingGroup,
+        hasSiblingGroup: !!keepRecord.Sibling,
         hasRecentActivity:
           new Date().getTime() - keepRecord.updatedAt.getTime() <
           30 * 24 * 60 * 60 * 1000,

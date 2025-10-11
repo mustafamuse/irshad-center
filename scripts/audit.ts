@@ -4,13 +4,13 @@ const prisma = new PrismaClient()
 async function main() {
   const students = await prisma.student.findMany({
     include: {
-      batch: {
+      Batch: {
         select: {
           id: true,
           name: true,
         },
       },
-      siblingGroup: {
+      Sibling: {
         select: {
           id: true,
         },
@@ -31,8 +31,8 @@ async function main() {
       stripeCustomerId: student.stripeCustomerId,
       stripeSubscriptionId: student.stripeSubscriptionId,
       monthlyRate: student.monthlyRate,
-      batch: student.batch?.name,
-      siblingGroup: student.siblingGroup?.id,
+      batch: student.Batch?.name,
+      siblingGroup: student.Sibling?.id,
       lastPaymentDate: student.lastPaymentDate,
       nextPaymentDue: student.nextPaymentDue,
     })
