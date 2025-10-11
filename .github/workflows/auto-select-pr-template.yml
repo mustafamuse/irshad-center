@@ -1,0 +1,204 @@
+name: Auto-Select PR Template
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+jobs:
+  auto-template:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v44
+        with:
+          files: |
+            prisma/**
+            **/*.prisma
+
+      - name: Analyze PR and select template
+        id: analyze
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+
+            const branch = pr.head.ref.toLowerCase();
+            const title = pr.title.toLowerCase();
+            const body = pr.body || '';
+            const changedFiles = `${{ steps.changed-files.outputs.all_changed_files }}`;
+            
+            // Check if PR already has a template applied
+            const hasTemplate = body.includes('## Type of Change') || 
+                               body.includes('## Bug Description') || 
+                               body.includes('## Feature Description') ||
+                               body.includes('## Migration Description') ||
+                               body.includes('## Critical Issue');
+            
+            if (hasTemplate) {
+              console.log('PR already has a template applied. Skipping.');
+              return { skip: true };
+            }
+
+            let templateType = 'default';
+            let templatePath = '.github/PULL_REQUEST_TEMPLATE.md';
+            let reason = '';
+
+            // Calculate database-related changes
+            const allFiles = changedFiles.split(' ').filter(f => f.trim());
+            const dbFiles = allFiles.filter(f => 
+              f.includes('prisma/schema.prisma') || 
+              f.includes('prisma/migrations') ||
+              f.includes('prisma/seed')
+            );
+            const totalFiles = allFiles.length;
+            const dbPercentage = totalFiles > 0 ? (dbFiles.length / totalFiles) * 100 : 0;
+
+            // Priority 1: Database migration detection (CRITICAL)
+            // Only trigger if:
+            // - Branch explicitly named migration/database, OR
+            // - Database files are >50% of changes, OR
+            // - Small PR (≤3 files) with DB changes
+            if (branch.startsWith('migration/') || 
+                branch.startsWith('database/') ||
+                branch.startsWith('schema/') ||
+                (dbFiles.length > 0 && totalFiles <= 3) ||
+                dbPercentage > 50) {
+              templateType = 'database_migration';
+              templatePath = '.github/PULL_REQUEST_TEMPLATE/database_migration.md';
+              reason = branch.startsWith('migration/') 
+                ? '🗃️ Migration branch detected' 
+                : `🗃️ Database-focused changes (${dbFiles.length}/${totalFiles} files)`;
+            }
+            // Priority 2: Hotfix detection
+            else if (branch.startsWith('hotfix/') || 
+                     branch.startsWith('emergency/') ||
+                     title.includes('hotfix') ||
+                     title.includes('urgent') ||
+                     title.includes('critical')) {
+              templateType = 'hotfix';
+              templatePath = '.github/PULL_REQUEST_TEMPLATE/hotfix.md';
+              reason = '🔥 Detected hotfix/urgent change';
+            }
+            // Priority 3: Bug fix detection
+            else if (branch.startsWith('fix/') || 
+                     branch.startsWith('bugfix/') ||
+                     branch.startsWith('bug/') ||
+                     title.includes('fix') ||
+                     title.includes('bug')) {
+              templateType = 'bug_fix';
+              templatePath = '.github/PULL_REQUEST_TEMPLATE/bug_fix.md';
+              reason = '🐛 Detected bug fix';
+            }
+            // Priority 4: Feature detection
+            else if (branch.startsWith('feature/') || 
+                     branch.startsWith('feat/') ||
+                     title.includes('feature') ||
+                     title.includes('add')) {
+              templateType = 'feature';
+              templatePath = '.github/PULL_REQUEST_TEMPLATE/feature.md';
+              reason = '✨ Detected new feature';
+            }
+            // Default: Use default template
+            else {
+              reason = '📝 Using default template';
+            }
+
+            console.log(`Selected template: ${templateType}`);
+            console.log(`Reason: ${reason}`);
+            console.log(`Branch: ${branch}`);
+            console.log(`Changed files: ${changedFiles}`);
+
+            return { 
+              templateType, 
+              templatePath, 
+              reason,
+              skip: false 
+            };
+
+      - name: Read selected template
+        if: steps.analyze.outputs.result && fromJSON(steps.analyze.outputs.result).skip != true
+        id: read-template
+        run: |
+          TEMPLATE_PATH=$(echo '${{ steps.analyze.outputs.result }}' | jq -r '.templatePath')
+          if [ -f "$TEMPLATE_PATH" ]; then
+            TEMPLATE_CONTENT=$(cat "$TEMPLATE_PATH")
+            # Escape for GitHub Actions
+            echo "template<<EOF" >> $GITHUB_OUTPUT
+            echo "$TEMPLATE_CONTENT" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "Template file not found: $TEMPLATE_PATH"
+            exit 1
+          fi
+
+      - name: Update PR with template
+        if: steps.analyze.outputs.result && fromJSON(steps.analyze.outputs.result).skip != true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const result = ${{ steps.analyze.outputs.result }};
+            const template = `${{ steps.read-template.outputs.template }}`;
+            
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number
+            });
+
+            // Create updated body with template
+            const updatedBody = `${result.reason}
+
+**🤖 Auto-selected template based on:**
+- Branch: \`${pr.head.ref}\`
+- Title: \`${pr.title}\`
+- Changed files detected
+
+---
+
+${template}`;
+
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              body: updatedBody
+            });
+
+            // Add a comment explaining the automation
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: `${result.reason}
+
+I've automatically applied the **${result.templateType}** template to this PR based on the branch name and detected changes.
+
+### Template Selection Rules:
+- 🗃️ **Database Migration**: Detects changes to \`schema.prisma\` or database-related keywords
+- 🔥 **Hotfix**: Branch starts with \`hotfix/\` or title contains "urgent"/"critical"
+- 🐛 **Bug Fix**: Branch starts with \`fix/\`, \`bugfix/\`, or \`bug/\`
+- ✨ **Feature**: Branch starts with \`feature/\` or \`feat/\`
+- 📝 **Default**: Everything else
+
+Please fill out the template checklist before requesting a review! 🚀`
+            });
+

@@ -27,7 +27,9 @@
     "dev:webhook": "concurrently \"npm run dev\" \"npm run webhook\"",
     "seed": "tsx prisma/seed.ts",
     "export-data": "curl -o seed-data.json http://localhost:3000/api/admin/export",
-    "seed-from-export": "tsx scripts/seed-from-export.ts"
+    "seed-from-export": "tsx scripts/seed-from-export.ts",
+    "pr-template": "node .github/scripts/suggest-pr-template.js",
+    "setup-hooks": "bash .github/scripts/setup-hooks.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
