@@ -397,155 +397,93 @@ export function DugsiRegistrationsTable({
         open={!!selectedRegistration}
         onOpenChange={(open) => !open && setSelectedRegistration(null)}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
+        <SheetContent className="flex w-full flex-col sm:max-w-3xl">
           {selectedRegistration && (
             <>
-              <SheetHeader className="space-y-4 pr-12">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#007078]/10">
-                    <Users className="h-6 w-6 text-[#007078]" />
-                  </div>
-                  <div>
-                    <SheetTitle className="text-2xl">
-                      Family Registration
-                    </SheetTitle>
-                    <SheetDescription className="mt-1">
-                      {isLoadingFamily ? (
-                        'Loading family details...'
-                      ) : (
-                        <>
-                          {familyMembers.length} child
-                          {familyMembers.length !== 1 ? 'ren' : ''} enrolled
-                        </>
-                      )}
-                    </SheetDescription>
-                  </div>
-                </div>
-
-                {/* Delete Button - Full Width Below Header */}
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setShowDeleteDialog(true)}
-                  disabled={isDeleting || isLoadingFamily}
-                  className="w-full gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete Family
-                </Button>
-
-                {/* Quick Stats */}
-                {!isLoadingFamily && familyMembers.length > 0 && (
-                  <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-[#007078]">
-                        {familyMembers.length}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {familyMembers.length === 1 ? 'Child' : 'Children'}
-                      </p>
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto">
+                <SheetHeader className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#007078]/10">
+                      <Users className="h-6 w-6 text-[#007078]" />
                     </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold text-[#007078]">
-                        {selectedRegistration.parentPhone &&
-                        selectedRegistration.parent2Phone
-                          ? '2'
-                          : '1'}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedRegistration.parent2Phone
-                          ? 'Parents'
-                          : 'Parent'}
-                      </p>
+                    <div>
+                      <SheetTitle className="text-2xl">
+                        Family Registration
+                      </SheetTitle>
+                      <SheetDescription className="mt-1">
+                        {isLoadingFamily ? (
+                          'Loading family details...'
+                        ) : (
+                          <>
+                            {familyMembers.length} child
+                            {familyMembers.length !== 1 ? 'ren' : ''} enrolled
+                          </>
+                        )}
+                      </SheetDescription>
                     </div>
                   </div>
-                )}
-              </SheetHeader>
 
-              {isLoadingFamily ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <Loader2 className="h-8 w-8 animate-spin text-[#007078]" />
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Loading family details...
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-6 space-y-6">
-                  {/* Parent Information */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
-                        <User className="h-4 w-4 text-[#007078]" />
+                  {/* Quick Stats */}
+                  {!isLoadingFamily && familyMembers.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/30 p-3">
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-[#007078]">
+                          {familyMembers.length}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {familyMembers.length === 1 ? 'Child' : 'Children'}
+                        </p>
                       </div>
-                      <h3 className="text-lg font-semibold">Parents</h3>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold text-[#007078]">
+                          {selectedRegistration.parentPhone &&
+                          selectedRegistration.parent2Phone
+                            ? '2'
+                            : '1'}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {selectedRegistration.parent2Phone
+                            ? 'Parents'
+                            : 'Parent'}
+                        </p>
+                      </div>
                     </div>
+                  )}
+                </SheetHeader>
 
+                {isLoadingFamily ? (
+                  <div className="flex flex-col items-center justify-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin text-[#007078]" />
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Loading family details...
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-6 space-y-6">
+                    {/* Parent Information */}
                     <div className="space-y-3">
-                      {/* Parent 1 */}
-                      <Card className="overflow-hidden">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-xs">
-                                  Parent 1
-                                </Badge>
-                                <p className="font-semibold">
-                                  {[
-                                    selectedRegistration.parentFirstName,
-                                    selectedRegistration.parentLastName,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' ') || 'Not provided'}
-                                </p>
-                              </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+                          <User className="h-4 w-4 text-[#007078]" />
+                        </div>
+                        <h3 className="text-lg font-semibold">Parents</h3>
+                      </div>
 
-                              <div className="space-y-1.5">
-                                {selectedRegistration.parentEmail && (
-                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Mail className="h-3.5 w-3.5" />
-                                    <a
-                                      href={`mailto:${selectedRegistration.parentEmail}`}
-                                      className="hover:text-[#007078] hover:underline"
-                                    >
-                                      {selectedRegistration.parentEmail}
-                                    </a>
-                                  </div>
-                                )}
-                                {selectedRegistration.parentPhone && (
-                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Phone className="h-3.5 w-3.5" />
-                                    <a
-                                      href={`tel:${selectedRegistration.parentPhone}`}
-                                      className="hover:text-[#007078] hover:underline"
-                                    >
-                                      {selectedRegistration.parentPhone}
-                                    </a>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      {/* Parent 2 */}
-                      {(selectedRegistration.parent2FirstName ||
-                        selectedRegistration.parent2LastName ||
-                        selectedRegistration.parent2Email ||
-                        selectedRegistration.parent2Phone) && (
+                      <div className="space-y-3">
+                        {/* Parent 1 */}
                         <Card className="overflow-hidden">
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex-1 space-y-2">
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="text-xs">
-                                    Parent 2
+                                    Parent 1
                                   </Badge>
                                   <p className="font-semibold">
                                     {[
-                                      selectedRegistration.parent2FirstName,
-                                      selectedRegistration.parent2LastName,
+                                      selectedRegistration.parentFirstName,
+                                      selectedRegistration.parentLastName,
                                     ]
                                       .filter(Boolean)
                                       .join(' ') || 'Not provided'}
@@ -553,25 +491,25 @@ export function DugsiRegistrationsTable({
                                 </div>
 
                                 <div className="space-y-1.5">
-                                  {selectedRegistration.parent2Email && (
+                                  {selectedRegistration.parentEmail && (
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                       <Mail className="h-3.5 w-3.5" />
                                       <a
-                                        href={`mailto:${selectedRegistration.parent2Email}`}
+                                        href={`mailto:${selectedRegistration.parentEmail}`}
                                         className="hover:text-[#007078] hover:underline"
                                       >
-                                        {selectedRegistration.parent2Email}
+                                        {selectedRegistration.parentEmail}
                                       </a>
                                     </div>
                                   )}
-                                  {selectedRegistration.parent2Phone && (
+                                  {selectedRegistration.parentPhone && (
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                       <Phone className="h-3.5 w-3.5" />
                                       <a
-                                        href={`tel:${selectedRegistration.parent2Phone}`}
+                                        href={`tel:${selectedRegistration.parentPhone}`}
                                         className="hover:text-[#007078] hover:underline"
                                       >
-                                        {selectedRegistration.parent2Phone}
+                                        {selectedRegistration.parentPhone}
                                       </a>
                                     </div>
                                   )}
@@ -580,129 +518,206 @@ export function DugsiRegistrationsTable({
                             </div>
                           </CardContent>
                         </Card>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Children */}
-                  <div>
-                    <div className="mb-4 flex items-center gap-2">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
-                        <GraduationCap className="h-4 w-4 text-[#007078]" />
-                      </div>
-                      <h3 className="text-lg font-semibold">Children</h3>
-                    </div>
-
-                    <div className="space-y-3">
-                      {familyMembers.map((child, index) => (
-                        <Card
-                          key={child.id}
-                          className={`transition-all ${
-                            child.id === selectedRegistration.id
-                              ? 'border-[#007078] bg-[#007078]/5 shadow-sm'
-                              : 'border-border hover:border-[#007078]/30'
-                          }`}
-                        >
-                          <CardContent className="p-4">
-                            <div className="mb-3 flex items-start justify-between gap-3">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#007078] text-sm font-bold text-white">
-                                  {index + 1}
-                                </div>
-                                <div>
+                        {/* Parent 2 */}
+                        {(selectedRegistration.parent2FirstName ||
+                          selectedRegistration.parent2LastName ||
+                          selectedRegistration.parent2Email ||
+                          selectedRegistration.parent2Phone) && (
+                          <Card className="overflow-hidden">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1 space-y-2">
                                   <div className="flex items-center gap-2">
-                                    <h4 className="font-semibold">
-                                      {child.name}
-                                    </h4>
-                                    {child.id === selectedRegistration.id && (
-                                      <Badge
-                                        variant="secondary"
-                                        className="text-[10px]"
-                                      >
-                                        ✓ Selected
-                                      </Badge>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      Parent 2
+                                    </Badge>
+                                    <p className="font-semibold">
+                                      {[
+                                        selectedRegistration.parent2FirstName,
+                                        selectedRegistration.parent2LastName,
+                                      ]
+                                        .filter(Boolean)
+                                        .join(' ') || 'Not provided'}
+                                    </p>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    {selectedRegistration.parent2Email && (
+                                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Mail className="h-3.5 w-3.5" />
+                                        <a
+                                          href={`mailto:${selectedRegistration.parent2Email}`}
+                                          className="hover:text-[#007078] hover:underline"
+                                        >
+                                          {selectedRegistration.parent2Email}
+                                        </a>
+                                      </div>
+                                    )}
+                                    {selectedRegistration.parent2Phone && (
+                                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                        <Phone className="h-3.5 w-3.5" />
+                                        <a
+                                          href={`tel:${selectedRegistration.parent2Phone}`}
+                                          className="hover:text-[#007078] hover:underline"
+                                        >
+                                          {selectedRegistration.parent2Phone}
+                                        </a>
+                                      </div>
                                     )}
                                   </div>
-                                  <p className="mt-0.5 text-xs text-muted-foreground">
-                                    Registered {formatDate(child.createdAt)}
-                                  </p>
                                 </div>
                               </div>
-                            </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
+                    </div>
 
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              {child.dateOfBirth && (
-                                <div className="flex items-start gap-2">
-                                  <Calendar className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                    {/* Children */}
+                    <div>
+                      <div className="mb-4 flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+                          <GraduationCap className="h-4 w-4 text-[#007078]" />
+                        </div>
+                        <h3 className="text-lg font-semibold">Children</h3>
+                      </div>
+
+                      <div className="space-y-3">
+                        {familyMembers.map((child, index) => (
+                          <Card
+                            key={child.id}
+                            className={`transition-all ${
+                              child.id === selectedRegistration.id
+                                ? 'border-[#007078] bg-[#007078]/5 shadow-sm'
+                                : 'border-border hover:border-[#007078]/30'
+                            }`}
+                          >
+                            <CardContent className="p-4">
+                              <div className="mb-3 flex items-start justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#007078] text-sm font-bold text-white">
+                                    {index + 1}
+                                  </div>
                                   <div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Age
-                                    </p>
-                                    <p className="text-sm font-medium">
-                                      {calculateAge(child.dateOfBirth)}
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-semibold">
+                                        {child.name}
+                                      </h4>
+                                      {child.id === selectedRegistration.id && (
+                                        <Badge
+                                          variant="secondary"
+                                          className="text-[10px]"
+                                        >
+                                          ✓ Selected
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                      Registered {formatDate(child.createdAt)}
                                     </p>
                                   </div>
                                 </div>
-                              )}
-
-                              <div className="flex items-start gap-2">
-                                <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Grade
-                                  </p>
-                                  <p className="text-sm font-medium">
-                                    {formatGradeLevel(child.gradeLevel)}
-                                  </p>
-                                </div>
                               </div>
 
-                              <div className="flex items-start gap-2">
-                                <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Education Level
-                                  </p>
-                                  <p className="text-sm font-medium">
-                                    {formatEducationLevel(child.educationLevel)}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {child.schoolName && (
-                                <div className="flex items-start gap-2">
-                                  <School className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">
-                                      School
-                                    </p>
-                                    <p className="text-sm font-medium">
-                                      {child.schoolName}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-
-                              {child.healthInfo &&
-                                child.healthInfo.toLowerCase() !== 'none' && (
-                                  <div className="flex items-start gap-2 sm:col-span-2">
-                                    <AlertCircle className="mt-0.5 h-4 w-4 text-red-600" />
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                {child.dateOfBirth && (
+                                  <div className="flex items-start gap-2">
+                                    <Calendar className="mt-0.5 h-4 w-4 text-muted-foreground" />
                                     <div>
-                                      <p className="text-xs text-red-600">
-                                        Health Information
+                                      <p className="text-xs text-muted-foreground">
+                                        Age
                                       </p>
-                                      <p className="text-sm font-medium text-red-600">
-                                        {child.healthInfo}
+                                      <p className="text-sm font-medium">
+                                        {calculateAge(child.dateOfBirth)}
                                       </p>
                                     </div>
                                   </div>
                                 )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+
+                                <div className="flex items-start gap-2">
+                                  <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Grade
+                                    </p>
+                                    <p className="text-sm font-medium">
+                                      {formatGradeLevel(child.gradeLevel)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-start gap-2">
+                                  <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Education Level
+                                    </p>
+                                    <p className="text-sm font-medium">
+                                      {formatEducationLevel(
+                                        child.educationLevel
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {child.schoolName && (
+                                  <div className="flex items-start gap-2">
+                                    <School className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        School
+                                      </p>
+                                      <p className="text-sm font-medium">
+                                        {child.schoolName}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {child.healthInfo &&
+                                  child.healthInfo.toLowerCase() !== 'none' && (
+                                    <div className="flex items-start gap-2 sm:col-span-2">
+                                      <AlertCircle className="mt-0.5 h-4 w-4 text-red-600" />
+                                      <div>
+                                        <p className="text-xs text-red-600">
+                                          Health Information
+                                        </p>
+                                        <p className="text-sm font-medium text-red-600">
+                                          {child.healthInfo}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
                   </div>
+                )}
+              </div>
+
+              {/* Footer with Delete Button */}
+              {!isLoadingFamily && (
+                <div className="border-t bg-background p-4">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                    disabled={isDeleting}
+                    className="w-full gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Entire Family
+                  </Button>
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    This action cannot be undone
+                  </p>
                 </div>
               )}
             </>
