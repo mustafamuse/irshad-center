@@ -13,11 +13,22 @@ import {
   Phone,
   School,
   Search,
+  Trash2,
   User,
   Users,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -43,7 +54,7 @@ import {
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
 
-import { getFamilyMembers } from '../actions'
+import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 
 interface DugsiRegistration {
   id: string
@@ -124,6 +135,8 @@ export function DugsiRegistrationsTable({
     useState<DugsiRegistration | null>(null)
   const [familyMembers, setFamilyMembers] = useState<DugsiRegistration[]>([])
   const [isLoadingFamily, startTransition] = useTransition()
+  const [isDeleting, startDeleteTransition] = useTransition()
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
   // Fetch family members when a registration is selected
   useEffect(() => {
@@ -136,6 +149,27 @@ export function DugsiRegistrationsTable({
       setFamilyMembers([])
     }
   }, [selectedRegistration])
+
+  // Handle family deletion
+  const handleDeleteFamily = async () => {
+    if (!selectedRegistration) return
+
+    startDeleteTransition(async () => {
+      const result = await deleteDugsiFamily(selectedRegistration.id)
+
+      if (result.success) {
+        toast.success(
+          `Successfully deleted ${familyMembers.length} student${familyMembers.length > 1 ? 's' : ''} and their family information`
+        )
+        setShowDeleteDialog(false)
+        setSelectedRegistration(null)
+        setFamilyMembers([])
+        // The page will automatically update due to revalidatePath in the action
+      } else {
+        toast.error(result.error || 'Failed to delete family')
+      }
+    })
+  }
 
   // Filter registrations based on last 4 digits of phone numbers and date
   const filteredRegistrations = registrations.filter((reg) => {
@@ -388,6 +422,16 @@ export function DugsiRegistrationsTable({
                       </SheetDescription>
                     </div>
                   </div>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setShowDeleteDialog(true)}
+                    disabled={isDeleting || isLoadingFamily}
+                    className="gap-2"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete Family
+                  </Button>
                 </div>
 
                 {/* Quick Stats */}
@@ -665,6 +709,53 @@ export function DugsiRegistrationsTable({
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Entire Family?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>
+                This action will permanently delete{' '}
+                <span className="font-semibold text-foreground">
+                  {familyMembers.length} student
+                  {familyMembers.length > 1 ? 's' : ''}
+                </span>{' '}
+                and all their parent information:
+              </p>
+              <ul className="list-disc space-y-1 pl-5 text-sm">
+                {familyMembers.map((child) => (
+                  <li key={child.id}>{child.name}</li>
+                ))}
+              </ul>
+              <p className="font-semibold text-destructive">
+                This action cannot be undone.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteFamily()
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete Family'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   )
 }
