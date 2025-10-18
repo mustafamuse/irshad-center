@@ -400,39 +400,39 @@ export function DugsiRegistrationsTable({
         <SheetContent className="w-full overflow-y-auto sm:max-w-3xl">
           {selectedRegistration && (
             <>
-              <SheetHeader className="space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#007078]/10">
-                      <Users className="h-6 w-6 text-[#007078]" />
-                    </div>
-                    <div>
-                      <SheetTitle className="text-2xl">
-                        Family Registration
-                      </SheetTitle>
-                      <SheetDescription className="mt-1">
-                        {isLoadingFamily ? (
-                          'Loading family details...'
-                        ) : (
-                          <>
-                            {familyMembers.length} child
-                            {familyMembers.length !== 1 ? 'ren' : ''} enrolled
-                          </>
-                        )}
-                      </SheetDescription>
-                    </div>
+              <SheetHeader className="space-y-4 pr-12">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#007078]/10">
+                    <Users className="h-6 w-6 text-[#007078]" />
                   </div>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => setShowDeleteDialog(true)}
-                    disabled={isDeleting || isLoadingFamily}
-                    className="gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Delete Family
-                  </Button>
+                  <div>
+                    <SheetTitle className="text-2xl">
+                      Family Registration
+                    </SheetTitle>
+                    <SheetDescription className="mt-1">
+                      {isLoadingFamily ? (
+                        'Loading family details...'
+                      ) : (
+                        <>
+                          {familyMembers.length} child
+                          {familyMembers.length !== 1 ? 'ren' : ''} enrolled
+                        </>
+                      )}
+                    </SheetDescription>
+                  </div>
                 </div>
+
+                {/* Delete Button - Full Width Below Header */}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                  disabled={isDeleting || isLoadingFamily}
+                  className="w-full gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete Family
+                </Button>
 
                 {/* Quick Stats */}
                 {!isLoadingFamily && familyMembers.length > 0 && (
@@ -715,24 +715,24 @@ export function DugsiRegistrationsTable({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Entire Family?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>
-                This action will permanently delete{' '}
-                <span className="font-semibold text-foreground">
-                  {familyMembers.length} student
-                  {familyMembers.length > 1 ? 's' : ''}
-                </span>{' '}
-                and all their parent information:
-              </p>
-              <ul className="list-disc space-y-1 pl-5 text-sm">
+            <AlertDialogDescription>
+              This action will permanently delete{' '}
+              <span className="font-semibold text-foreground">
+                {familyMembers.length} student
+                {familyMembers.length > 1 ? 's' : ''}
+              </span>{' '}
+              and all their parent information:
+            </AlertDialogDescription>
+            <div className="space-y-3 pt-2">
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                 {familyMembers.map((child) => (
                   <li key={child.id}>{child.name}</li>
                 ))}
               </ul>
-              <p className="font-semibold text-destructive">
+              <p className="text-sm font-semibold text-destructive">
                 This action cannot be undone.
               </p>
-            </AlertDialogDescription>
+            </div>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
