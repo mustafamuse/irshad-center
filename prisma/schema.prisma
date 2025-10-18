@@ -221,30 +221,27 @@ model Student {
   stripeSubscriptionId String?
   subscriptionStatus   SubscriptionStatus?
   paidUntil            DateTime?
-
-  // Parent/Guardian contact info (for Dugsi students)
-  parentFirstName      String?
-  parentLastName       String?
-  parentEmail          String?
-  parentPhone          String?
+  healthInfo           String?
+  parent2Email         String?
   parent2FirstName     String?
   parent2LastName      String?
-  parent2Email         String?
   parent2Phone         String?
-  healthInfo           String?
-
+  parentEmail          String?
+  parentFirstName      String?
+  parentLastName       String?
+  parentPhone          String?
+  program              Program             @default(MAHAD_PROGRAM)
   Attendance           Attendance[]
   AttendanceRecord     AttendanceRecord[]
   Batch                Batch?              @relation(fields: [batchId], references: [id])
   Sibling              Sibling?            @relation(fields: [siblingGroupId], references: [id])
   StudentPayment       StudentPayment[]
 
-  @@unique([name, dateOfBirth], map: "Student_name_dateOfBirth_key")
+  @@unique([name, dateOfBirth])
   @@index([batchId])
   @@index([createdAt, status])
   @@index([email])
   @@index([name])
-  @@index([phone])
   @@index([parentEmail])
   @@index([parentPhone])
   @@index([siblingGroupId])
@@ -346,4 +343,9 @@ enum SubscriptionStatus {
   canceled
   unpaid
   paused
+}
+
+enum Program {
+  MAHAD_PROGRAM
+  DUGSI_PROGRAM
 }

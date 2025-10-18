@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
+
+import { useRouter } from 'next/navigation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { UserPlus, X, Users, Loader2 } from 'lucide-react'
@@ -39,18 +41,20 @@ import {
 } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
 
-import { PaymentSuccessDialog } from '../../../mahad/register/components/payment-success-dialog'
+import { DugsiSuccessDialog } from './dugsi-success-dialog'
 import { registerDugsiChildren } from '../actions'
 
 export function DugsiRegisterForm() {
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
-  const [studentCount, setStudentCount] = useState(0)
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false)
+  const [registrationData, setRegistrationData] =
+    useState<DugsiRegistrationValues | null>(null)
 
   const form = useForm<DugsiRegistrationValues>({
     resolver: zodResolver(dugsiRegistrationSchema),
     defaultValues: DUGSI_DEFAULT_FORM_VALUES,
-    mode: 'onChange',
+    mode: 'onBlur',
   })
 
   const { fields, append, remove } = useFieldArray({
@@ -62,31 +66,39 @@ export function DugsiRegisterForm() {
   const isSingleParent = form.watch('isSingleParent')
 
   const onSubmit = async (data: DugsiRegistrationValues) => {
-    if (isSubmitting) return
+    if (isPending) return
 
-    setIsSubmitting(true)
+    console.log('🔍 Starting registration...', {
+      childCount: data.children.length,
+    })
 
-    try {
-      const result = await registerDugsiChildren(data)
+    startTransition(async () => {
+      try {
+        const result = await registerDugsiChildren(data)
+        console.log('🔍 Server action result:', result)
 
-      if (result.success) {
-        toast.success(
-          `Successfully enrolled ${data.children.length} ${data.children.length === 1 ? 'child' : 'children'}!`
+        if (result.success) {
+          console.log('✅ Registration successful!')
+          toast.success(
+            `Successfully enrolled ${data.children.length} ${data.children.length === 1 ? 'child' : 'children'}!`
+          )
+          console.log('📝 Setting registrationData and showing dialog')
+          setRegistrationData(data)
+          setShowSuccessDialog(true)
+          // Form will reset when dialog closes
+        } else {
+          console.error('❌ Registration failed:', result.error)
+          toast.error(result.error || 'Registration failed. Please try again.')
+        }
+      } catch (error) {
+        console.error('💥 Unexpected error during registration:', error)
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : 'An unexpected error occurred. Please try again.'
         )
-        form.reset()
-        setStudentCount(data.children.length)
-        setShowPaymentDialog(true)
       }
-    } catch (error) {
-      console.error('Registration failed:', error)
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : 'Registration failed. Please try again.'
-      )
-    } finally {
-      setIsSubmitting(false)
-    }
+    })
   }
 
   const handleAddChild = () => {
@@ -100,7 +112,7 @@ export function DugsiRegisterForm() {
   }
 
   return (
-    <>
+    <section className="flex flex-col">
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
@@ -226,13 +238,14 @@ export function DugsiRegisterForm() {
                       {fields.length > 1 && (
                         <Button
                           type="button"
-                          variant="ghost"
-                          size="icon"
+                          variant="outline"
                           onClick={() => handleRemoveChild(index)}
-                          className="h-7 w-7 text-gray-400 hover:bg-red-50 hover:text-red-500 sm:h-8 sm:w-8"
+                          className="flex h-auto flex-col items-center gap-1 border-red-200 bg-red-50 px-3 py-2 text-red-600 hover:bg-red-100 hover:text-red-700 sm:h-12 sm:w-12 sm:flex-row sm:gap-0 sm:rounded-full sm:p-0"
                         >
-                          <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                          <span className="sr-only">Remove child</span>
+                          <X className="h-5 w-5" />
+                          <span className="text-xs font-medium sm:sr-only">
+                            Remove
+                          </span>
                         </Button>
                       )}
                     </div>
@@ -355,16 +368,16 @@ export function DugsiRegisterForm() {
                   buttonClassNames.primary,
                   'mt-4 h-11 text-sm sm:mt-6 sm:h-12 sm:text-base'
                 )}
-                disabled={isSubmitting}
+                disabled={isPending}
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin sm:h-5 sm:w-5" />
+                {isPending ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
                     <span className="xs:inline hidden">Processing...</span>
                     <span className="xs:hidden">Processing...</span>
-                  </>
+                  </span>
                 ) : (
-                  <>
+                  <span className="flex items-center gap-2">
                     <span className="hidden sm:inline">
                       Continue to Payment ({fields.length}{' '}
                       {fields.length === 1 ? 'child' : 'children'})
@@ -372,7 +385,7 @@ export function DugsiRegisterForm() {
                     <span className="sm:hidden">
                       Continue ({fields.length})
                     </span>
-                  </>
+                  </span>
                 )}
               </Button>
             </CardContent>
@@ -380,12 +393,21 @@ export function DugsiRegisterForm() {
         </form>
       </Form>
 
-      {/* Payment Success Dialog */}
-      <PaymentSuccessDialog
-        isOpen={showPaymentDialog}
-        onOpenChange={setShowPaymentDialog}
-        studentCount={studentCount}
+      {/* Registration Success Dialog */}
+      <DugsiSuccessDialog
+        isOpen={showSuccessDialog && !!registrationData}
+        onOpenChange={(open) => {
+          setShowSuccessDialog(open)
+          if (!open) {
+            // Reset form when dialog closes
+            form.reset()
+            setRegistrationData(null)
+            // Redirect to homepage
+            router.push('/')
+          }
+        }}
+        data={registrationData}
       />
-    </>
+    </section>
   )
 }

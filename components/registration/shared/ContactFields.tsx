@@ -80,7 +80,7 @@ export function ContactFields<T extends FieldValues>({
         required={required}
       >
         {(field, fieldState) => (
-          <>
+          <div className="space-y-1.5">
             <Input
               type="tel"
               placeholder={phonePlaceholder}
@@ -98,7 +98,7 @@ export function ContactFields<T extends FieldValues>({
             {phoneHelperText && (
               <p className="text-xs text-muted-foreground">{phoneHelperText}</p>
             )}
-          </>
+          </div>
         )}
       </FormFieldWrapper>
     </div>

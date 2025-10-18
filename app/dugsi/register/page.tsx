@@ -13,7 +13,7 @@ export const metadata: Metadata = {
       'Register your child for the 2024-2025 academic year at Irshād Dugsi. Weekend Islamic education program for children in Eden Prairie.',
     images: [
       {
-        url: '/images/Latest Irshad Mahad.png',
+        url: '/images/latest-irshad-mahad.png',
         width: 1200,
         height: 630,
         alt: 'Irshād Dugsi Registration',
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     title: 'Child Registration - Irshād Dugsi',
     description:
       'Register your child for the 2024-2025 academic year at Irshād Dugsi. Weekend Islamic education program for children in Eden Prairie.',
-    images: ['/images/Latest Irshad Mahad.png'],
+    images: ['/images/latest-irshad-mahad.png'],
   },
 }
 

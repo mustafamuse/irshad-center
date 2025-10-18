@@ -92,6 +92,7 @@ export async function registerDugsiChildren(
               gradeLevel: child.gradeLevel,
               schoolName: child.schoolName,
               healthInfo: child.healthInfo,
+              program: 'DUGSI_PROGRAM',
 
               // Parent 1 contact
               parentFirstName: parent1FirstName,

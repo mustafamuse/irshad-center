@@ -139,6 +139,7 @@ export async function registerStudent(input: {
             gradeLevel: validated.gradeLevel,
             schoolName: validated.schoolName,
             siblingGroupId,
+            program: 'MAHAD_PROGRAM',
           },
           select: { id: true, name: true },
         })

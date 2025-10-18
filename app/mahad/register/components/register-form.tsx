@@ -64,6 +64,7 @@ export function RegisterForm() {
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(studentFormSchema),
     defaultValues: DEFAULT_FORM_VALUES,
+    mode: 'onBlur',
   })
 
   // Custom hooks
@@ -215,10 +216,10 @@ export function RegisterForm() {
                   disabled={form.formState.isSubmitting}
                 >
                   {form.formState.isSubmitting ? (
-                    <>
+                    <span className="flex items-center gap-2">
                       <Loader2 className="h-5 w-5 animate-spin" />
                       Submitting...
-                    </>
+                    </span>
                   ) : (
                     'Continue to Next Step'
                   )}
@@ -259,10 +260,10 @@ export function RegisterForm() {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? (
-                  <>
+                  <div className="flex flex-col gap-4 sm:gap-6">
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Processing...
-                  </>
+                  </div>
                 ) : (
                   'No, Continue to Payment'
                 )}

@@ -29,7 +29,7 @@ function ComingSoonContent() {
             {/* Logo */}
             <div className="mx-auto w-full max-w-[280px] sm:max-w-md">
               <Image
-                src="/images/Latest Irshad.png"
+                src="/images/latest-irshad-mahad.png"
                 alt="Irshād Mâhad"
                 width={500}
                 height={300}
