@@ -73,7 +73,7 @@
 //     console.log('Creating students...')
 //     const createdStudents = new Map<string, string>() // Map student names to their IDs
 
-//     for (const studentData of seedData.students) {
+//     for (const studentData of seedData.Student) {
 //       // Check if student with same name exists
 //       const existingStudent = await prisma.student.findFirst({
 //         where: { name: studentData.name },
@@ -145,7 +145,7 @@
 //         // Create new sibling group
 //         const siblingGroup = await prisma.sibling.create({
 //           data: {
-//             students: {
+//             Student: {
 //               connect: studentIds.map((id) => ({ id })),
 //             },
 //           },

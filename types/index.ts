@@ -5,7 +5,7 @@ export type SearchParams = {
 }
 
 export type StudentWithDetails = Student & {
-  batch: Batch | null
+  Batch: Batch | null
   StudentPayment: StudentPayment[]
   subscriptionMembers?: Array<{
     id: string

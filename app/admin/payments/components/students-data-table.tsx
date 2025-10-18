@@ -152,12 +152,12 @@ export function StudentsDataTable({ data }: StudentsDataTableProps) {
             </TableCell>
 
             <TableCell className="bg-card">
-              {student.batch ? (
+              {student.Batch ? (
                 <Badge
                   variant="outline"
                   className="border-border bg-muted/50 text-muted-foreground"
                 >
-                  {student.batch.name}
+                  {student.Batch.name}
                 </Badge>
               ) : (
                 <span className="text-sm text-muted-foreground">No batch</span>

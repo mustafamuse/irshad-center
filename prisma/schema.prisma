@@ -2,55 +2,152 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// generator dbml {
-//   provider = "prisma-dbml-generator"
-//   output   = "./dbml"
-// }
-
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
-model Subject {
-  id          String          @id @default(uuid())
-  name        String          @unique
-  description String?
-  isActive    Boolean         @default(true)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  schedules   ClassSchedule[]
+model ArchivedBatch {
+  id              String            @id
+  originalBatchId String            @unique
+  name            String
+  description     String?
+  isActive        Boolean
+  createdAt       DateTime
+  updatedAt       DateTime
+  archivedAt      DateTime          @default(now())
+  archiveReason   String            @default("Batch cleanup")
+  ArchivedStudent ArchivedStudent[]
+
+  @@index([archivedAt])
+  @@index([originalBatchId])
 }
 
-model Semester {
-  id        String          @id @default(uuid())
-  name      String          @unique
-  startDate DateTime
-  endDate   DateTime
-  isActive  Boolean         @default(true)
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-  schedules ClassSchedule[]
+model ArchivedStudent {
+  id                   String              @id
+  originalStudentId    String              @unique
+  name                 String
+  email                String?
+  monthlyRate          Int
+  customRate           Boolean
+  status               String
+  lastPaymentDate      DateTime?
+  nextPaymentDue       DateTime?
+  dateOfBirth          DateTime?
+  educationLevel       EducationLevel?
+  gradeLevel           GradeLevel?
+  highSchoolGradYear   Int?
+  highSchoolGraduated  Boolean
+  phone                String?
+  postGradCompleted    Boolean
+  postGradYear         Int?
+  schoolName           String?
+  collegeGradYear      Int?
+  collegeGraduated     Boolean
+  originalBatchId      String
+  siblingGroupId       String?
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+  subscriptionStatus   SubscriptionStatus?
+  paidUntil            DateTime?
+  createdAt            DateTime
+  updatedAt            DateTime
+  archivedAt           DateTime            @default(now())
+  archiveReason        String              @default("Batch cleanup")
+  archivedBatchId      String
+  ArchivedBatch        ArchivedBatch       @relation(fields: [archivedBatchId], references: [id])
+
+  @@index([archivedAt])
+  @@index([email])
+  @@index([name])
+  @@index([originalBatchId])
+  @@index([originalStudentId])
+}
+
+model Attendance {
+  id           String           @id
+  studentId    String
+  sessionId    String
+  status       AttendanceStatus
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime
+  ClassSession ClassSession     @relation(fields: [sessionId], references: [id])
+  Student      Student          @relation(fields: [studentId], references: [id])
+
+  @@unique([studentId, sessionId])
+  @@index([sessionId])
+  @@index([studentId])
+}
+
+model AttendanceRecord {
+  id                String            @id @default(uuid())
+  sessionId         String
+  studentId         String
+  status            AttendanceStatus
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  checkInMethod     CheckInMethod     @default(MANUAL)
+  checkedInAt       DateTime?
+  AttendanceSession AttendanceSession @relation(fields: [sessionId], references: [id])
+  Student           Student           @relation(fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+}
+
+model AttendanceSession {
+  id               String             @id @default(uuid())
+  date             DateTime
+  batchId          String
+  notes            String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  allowSelfCheckIn Boolean            @default(false)
+  qrTokens         Json?
+  AttendanceRecord AttendanceRecord[]
+  Batch            Batch              @relation(fields: [batchId], references: [id])
+
+  @@index([batchId])
+  @@index([date])
+}
+
+model Batch {
+  id                String              @id @default(uuid())
+  name              String              @unique
+  startDate         DateTime?
+  endDate           DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  AttendanceSession AttendanceSession[]
+  ClassSchedule     ClassSchedule[]
+  Student           Student[]
+
+  @@index([createdAt])
+  @@index([endDate])
+  @@index([startDate])
 }
 
 model ClassSchedule {
-  id         String         @id @default(uuid())
-  batchId    String
-  subjectId  String
-  semesterId String
-  isActive   Boolean        @default(true)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  daysOfWeek DayOfWeek[]
-  endTime    String
-  startTime  String
-  teacherId  String?
-  batch      Batch          @relation(fields: [batchId], references: [id])
-  semester   Semester       @relation(fields: [semesterId], references: [id])
-  subject    Subject        @relation(fields: [subjectId], references: [id])
-  Teacher    Teacher?       @relation(fields: [teacherId], references: [id])
-  sessions   ClassSession[]
+  id           String         @id
+  batchId      String
+  subjectId    String
+  semesterId   String
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  daysOfWeek   DayOfWeek[]
+  endTime      String
+  startTime    String
+  teacherId    String?
+  Batch        Batch          @relation(fields: [batchId], references: [id])
+  Semester     Semester       @relation(fields: [semesterId], references: [id])
+  Subject      Subject        @relation(fields: [subjectId], references: [id])
+  Teacher      Teacher?       @relation(fields: [teacherId], references: [id])
+  ClassSession ClassSession[]
 
   @@unique([batchId, subjectId])
   @@index([semesterId])
@@ -58,7 +155,7 @@ model ClassSchedule {
 }
 
 model ClassSession {
-  id              String        @id @default(uuid())
+  id              String        @id
   classScheduleId String
   date            DateTime
   startTime       DateTime
@@ -67,29 +164,33 @@ model ClassSession {
   notes           String?
   isActive        Boolean       @default(true)
   createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  attendance      Attendance[]
-  schedule        ClassSchedule @relation(fields: [classScheduleId], references: [id])
+  updatedAt       DateTime
+  Attendance      Attendance[]
+  ClassSchedule   ClassSchedule @relation(fields: [classScheduleId], references: [id])
 
   @@index([classScheduleId])
-  @@index([date])
   @@index([createdAt, status])
+  @@index([date])
 }
 
-model Attendance {
-  id        String           @id @default(uuid())
-  studentId String
-  sessionId String
-  status    AttendanceStatus
-  notes     String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  session   ClassSession     @relation(fields: [sessionId], references: [id])
-  student   Student          @relation(fields: [studentId], references: [id])
+model Semester {
+  id            String          @id
+  name          String          @unique
+  startDate     DateTime
+  endDate       DateTime
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  ClassSchedule ClassSchedule[]
+}
 
-  @@unique([studentId, sessionId])
-  @@index([studentId])
-  @@index([sessionId])
+model Sibling {
+  id        String    @id @default(uuid())
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  Student   Student[]
+
+  @@index([updatedAt])
 }
 
 model Student {
@@ -120,44 +221,32 @@ model Student {
   stripeSubscriptionId String?
   subscriptionStatus   SubscriptionStatus?
   paidUntil            DateTime?
-  attendance           Attendance[]
-  attendanceRecords    AttendanceRecord[]
-  batch                Batch?              @relation(fields: [batchId], references: [id])
-  siblingGroup         Sibling?            @relation(fields: [siblingGroupId], references: [id])
+  healthInfo           String?
+  parent2Email         String?
+  parent2FirstName     String?
+  parent2LastName      String?
+  parent2Phone         String?
+  parentEmail          String?
+  parentFirstName      String?
+  parentLastName       String?
+  parentPhone          String?
+  program              Program             @default(MAHAD_PROGRAM)
+  Attendance           Attendance[]
+  AttendanceRecord     AttendanceRecord[]
+  Batch                Batch?              @relation(fields: [batchId], references: [id])
+  Sibling              Sibling?            @relation(fields: [siblingGroupId], references: [id])
   StudentPayment       StudentPayment[]
 
-  @@index([status])
-  @@index([siblingGroupId])
+  @@unique([name, dateOfBirth])
   @@index([batchId])
-  @@index([name])
-  @@index([email])
-  @@index([updatedAt])
   @@index([createdAt, status])
-}
-
-model Sibling {
-  id        String    @id @default(uuid())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  students  Student[]
-
+  @@index([email])
+  @@index([name])
+  @@index([parentEmail])
+  @@index([parentPhone])
+  @@index([siblingGroupId])
+  @@index([status])
   @@index([updatedAt])
-}
-
-model Batch {
-  id                String              @id @default(uuid())
-  name              String              @unique
-  startDate         DateTime?
-  endDate           DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  classSchedules    ClassSchedule[]
-  students          Student[]
-  attendanceSessions AttendanceSession[]
-
-  @@index([startDate])
-  @@index([endDate])
-  @@index([createdAt])
 }
 
 model StudentPayment {
@@ -174,50 +263,55 @@ model StudentPayment {
   @@index([studentId, year, month])
 }
 
+model Subject {
+  id            String          @id
+  name          String          @unique
+  description   String?
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  ClassSchedule ClassSchedule[]
+}
+
 model Teacher {
-  id            String          @id @default(uuid())
+  id            String          @id
   name          String
   email         String          @unique
   phone         String?
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  updatedAt     DateTime
   ClassSchedule ClassSchedule[]
 }
 
-model AttendanceSession {
-  id        String           @id @default(uuid())
-  date      DateTime
-  batchId   String
-  notes     String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  batch     Batch           @relation(fields: [batchId], references: [id])
-  records   AttendanceRecord[]
-
-  @@index([batchId])
-  @@index([date])
+enum AttendanceStatus {
+  PRESENT
+  UNEXCUSED
+  LATE
+  EXCUSED
+  ABSENT
 }
 
-model AttendanceRecord {
-  id        String           @id @default(uuid())
-  sessionId String
-  studentId String
-  status    AttendanceStatus
-  notes     String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  session   AttendanceSession @relation(fields: [sessionId], references: [id])
-  student   Student          @relation(fields: [studentId], references: [id])
+enum CheckInMethod {
+  MANUAL
+  QR_CODE
+}
 
-  @@unique([sessionId, studentId])
-  @@index([sessionId])
-  @@index([studentId])
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
 }
 
 enum EducationLevel {
   HIGH_SCHOOL
   COLLEGE
   POST_GRAD
+  ELEMENTARY
+  MIDDLE_SCHOOL
 }
 
 enum GradeLevel {
@@ -225,14 +319,19 @@ enum GradeLevel {
   SOPHOMORE
   JUNIOR
   SENIOR
-}
-
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  UNEXCUSED
-  LATE
-  EXCUSED
+  KINDERGARTEN
+  GRADE_1
+  GRADE_2
+  GRADE_3
+  GRADE_4
+  GRADE_5
+  GRADE_6
+  GRADE_7
+  GRADE_8
+  GRADE_9
+  GRADE_10
+  GRADE_11
+  GRADE_12
 }
 
 enum SubscriptionStatus {
@@ -246,74 +345,7 @@ enum SubscriptionStatus {
   paused
 }
 
-enum DayOfWeek {
-  MONDAY
-  TUESDAY
-  WEDNESDAY
-  THURSDAY
-  FRIDAY
-  SATURDAY
-  SUNDAY
-}
-
-// Archive tables for tracking removed batches and students
-model ArchivedBatch {
-  id                String   @id @default(uuid())
-  originalBatchId   String   @unique
-  name              String
-  description       String?
-  isActive          Boolean
-  createdAt         DateTime
-  updatedAt         DateTime
-  archivedAt        DateTime @default(now())
-  archiveReason     String   @default("Batch cleanup")
-  
-  // Related archived students
-  archivedStudents  ArchivedStudent[]
-  
-  @@index([archivedAt])
-  @@index([originalBatchId])
-}
-
-model ArchivedStudent {
-  id                     String             @id @default(uuid())
-  originalStudentId      String             @unique
-  name                   String
-  email                  String?
-  monthlyRate            Int
-  customRate             Boolean
-  status                 String
-  lastPaymentDate        DateTime?
-  nextPaymentDue         DateTime?
-  dateOfBirth            DateTime?
-  educationLevel         EducationLevel?
-  gradeLevel             GradeLevel?
-  highSchoolGradYear     Int?
-  highSchoolGraduated    Boolean
-  phone                  String?
-  postGradCompleted      Boolean
-  postGradYear           Int?
-  schoolName             String?
-  collegeGradYear        Int?
-  collegeGraduated       Boolean
-  originalBatchId        String
-  siblingGroupId         String?
-  stripeCustomerId       String?
-  stripeSubscriptionId   String?
-  subscriptionStatus     SubscriptionStatus?
-  paidUntil              DateTime?
-  createdAt              DateTime
-  updatedAt              DateTime
-  archivedAt             DateTime           @default(now())
-  archiveReason          String             @default("Batch cleanup")
-  
-  // Reference to archived batch
-  archivedBatch          ArchivedBatch      @relation(fields: [archivedBatchId], references: [id])
-  archivedBatchId        String
-  
-  @@index([archivedAt])
-  @@index([originalStudentId])
-  @@index([originalBatchId])
-  @@index([email])
-  @@index([name])
+enum Program {
+  MAHAD_PROGRAM
+  DUGSI_PROGRAM
 }

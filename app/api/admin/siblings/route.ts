@@ -7,7 +7,7 @@ export async function GET() {
     // Get all sibling groups with their students
     const siblingGroups = await prisma.sibling.findMany({
       include: {
-        students: {
+        Student: {
           select: {
             id: true,
             name: true,
@@ -15,7 +15,7 @@ export async function GET() {
             phone: true,
             status: true,
             batchId: true,
-            batch: {
+            Batch: {
               select: {
                 name: true,
               },
@@ -43,7 +43,7 @@ export async function GET() {
         phone: true,
         status: true,
         batchId: true,
-        batch: {
+        Batch: {
           select: {
             name: true,
           },
@@ -59,8 +59,8 @@ export async function GET() {
       id: group.id,
       createdAt: group.createdAt,
       updatedAt: group.updatedAt,
-      students: group.students,
-      studentCount: group.students.length,
+      Student: group.Student,
+      studentCount: group.Student.length,
     }))
 
     return NextResponse.json({
@@ -68,7 +68,7 @@ export async function GET() {
       studentsWithoutSiblings,
       totalGroups: formattedGroups.length,
       totalStudentsWithSiblings: formattedGroups.reduce(
-        (acc, group) => acc + group.students.length,
+        (acc, group) => acc + group.Student.length,
         0
       ),
       totalStudentsWithoutSiblings: studentsWithoutSiblings.length,
@@ -97,12 +97,12 @@ export async function POST(request: Request) {
     // Create a new sibling group
     const siblingGroup = await prisma.sibling.create({
       data: {
-        students: {
+        Student: {
           connect: studentIds.map((id) => ({ id })),
         },
       },
       include: {
-        students: {
+        Student: {
           select: {
             id: true,
             name: true,

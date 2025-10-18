@@ -76,17 +76,17 @@ export async function AttendanceManagement({ searchParams }: Props) {
       skip: (page - 1) * pageSize,
       orderBy: { date: 'desc' },
       include: {
-        batch: {
+        Batch: {
           select: {
             name: true,
-            students: {
+            Student: {
               select: { id: true, name: true },
             },
           },
         },
-        records: {
+        AttendanceRecord: {
           include: {
-            student: {
+            Student: {
               select: { id: true, name: true },
             },
           },
@@ -98,9 +98,10 @@ export async function AttendanceManagement({ searchParams }: Props) {
 
   const sessions = sessionsData.map((session) => ({
     ...session,
-    studentsCount: session.batch.students.length,
-    attendanceMarked: session.records.length,
-    isComplete: session.records.length === session.batch.students.length,
+    studentsCount: session.Batch.Student.length,
+    attendanceMarked: session.AttendanceRecord.length,
+    isComplete:
+      session.AttendanceRecord.length === session.Batch.Student.length,
   }))
 
   const totalPages = Math.ceil(total / pageSize)
@@ -145,15 +146,15 @@ export async function AttendanceManagement({ searchParams }: Props) {
                 {sessions.map((session) => (
                   <TableRow key={session.id}>
                     <TableCell>{format(session.date, 'MMM d, yyyy')}</TableCell>
-                    <TableCell>{session.batch.name}</TableCell>
+                    <TableCell>{session.Batch.name}</TableCell>
                     <TableCell>
                       {session.attendanceMarked}/{session.studentsCount}
                     </TableCell>
                     <TableCell className="text-right">
                       <MarkAttendanceDialog
-                        attendance={session.records}
+                        attendance={session.AttendanceRecord}
                         sessionId={session.id}
-                        students={session.batch.students}
+                        students={session.Batch.Student}
                       />
                     </TableCell>
                   </TableRow>
@@ -186,7 +187,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Batch:</span>
-                    <span className="font-medium">{session.batch.name}</span>
+                    <span className="font-medium">{session.Batch.name}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Attendance:</span>
@@ -198,9 +199,9 @@ export async function AttendanceManagement({ searchParams }: Props) {
                 </div>
                 <div className="pt-2">
                   <MarkAttendanceDialog
-                    attendance={session.records}
+                    attendance={session.AttendanceRecord}
                     sessionId={session.id}
-                    students={session.batch.students}
+                    students={session.Batch.Student}
                   />
                 </div>
               </div>

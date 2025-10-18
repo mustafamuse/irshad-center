@@ -1,8 +1,11 @@
 'use client'
 
+import { useEffect } from 'react'
+
 import Link from 'next/link'
 
 import { ArrowLeft } from 'lucide-react'
+import { useTheme } from 'next-themes'
 
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
@@ -11,6 +14,12 @@ import { RegisterForm } from './components/register-form'
 import { Providers } from './providers'
 
 export function RegisterPage() {
+  const { setTheme } = useTheme()
+
+  useEffect(() => {
+    setTheme('light')
+  }, [setTheme])
+
   return (
     <Providers>
       <div className="min-h-screen bg-white">

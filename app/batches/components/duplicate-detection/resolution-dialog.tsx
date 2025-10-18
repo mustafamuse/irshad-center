@@ -62,8 +62,8 @@ export function ResolutionDialog({
           <AlertDialogDescription asChild>
             <div className="space-y-2">
               <p>
-                You are about to delete {group.duplicateRecords.length} duplicate
-                records for <strong>{group.email}</strong>.
+                You are about to delete {group.duplicateRecords.length}{' '}
+                duplicate records for <strong>{group.email}</strong>.
               </p>
               <p>
                 The record for <strong>{group.keepRecord.name}</strong> will be
@@ -71,7 +71,8 @@ export function ResolutionDialog({
               </p>
               {group.hasSiblingGroup && (
                 <p className="rounded-md bg-amber-50 p-2 text-sm text-amber-800">
-                  ⚠️ This student has sibling relationships that may be affected.
+                  ⚠️ This student has sibling relationships that may be
+                  affected.
                 </p>
               )}
             </div>

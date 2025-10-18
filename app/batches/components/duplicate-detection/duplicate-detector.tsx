@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button'
 import { DuplicateGroup } from '@/lib/types/batch'
 
 import { DuplicatesList } from './duplicates-list'
-import { useLegacyActions, useDuplicatesExpandedState } from '../../store/ui-store'
+import {
+  useLegacyActions,
+  useDuplicatesExpandedState,
+} from '../../store/ui-store'
 
 interface DuplicateDetectorProps {
   duplicates: DuplicateGroup[]

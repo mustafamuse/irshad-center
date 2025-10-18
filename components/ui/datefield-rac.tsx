@@ -1,54 +1,44 @@
 'use client'
 
 import {
-  DateField as AriaDateField,
-  DateInput as AriaDateInput,
-  DateSegment,
-  DateValue,
-  TimeField as TimeFieldRac,
-  TimeValue,
   composeRenderProps,
+  DateFieldProps,
+  DateField as DateFieldRac,
+  DateInputProps as DateInputPropsRac,
+  DateInput as DateInputRac,
+  DateSegmentProps,
+  DateSegment as DateSegmentRac,
+  DateValue as DateValueRac,
+  TimeFieldProps,
+  TimeField as TimeFieldRac,
+  TimeValue as TimeValueRac,
 } from 'react-aria-components'
 
 import { cn } from '@/lib/utils'
 
-interface DateFieldProps {
-  value?: DateValue | null
-  onChange?: (date: DateValue | null) => void
-  className?: string
-  children?: React.ReactNode
-  label?: string
-  'aria-label'?: string
-}
-
-function DateField({
-  className,
-  label,
-  'aria-label': ariaLabel,
-  ...props
-}: DateFieldProps) {
-  return (
-    <AriaDateField
-      className={cn('flex flex-col gap-1', className)}
-      aria-label={ariaLabel || label}
-      {...props}
-    />
-  )
-}
-
-function TimeField<T extends TimeValue>({
+function DateField<T extends DateValueRac>({
   className,
   children,
   ...props
-}: {
-  className?: string
-  children?: React.ReactNode
-}) {
+}: DateFieldProps<T>) {
+  return (
+    <DateFieldRac
+      className={composeRenderProps(className, (className) => cn(className))}
+      {...props}
+    >
+      {children}
+    </DateFieldRac>
+  )
+}
+
+function TimeField<T extends TimeValueRac>({
+  className,
+  children,
+  ...props
+}: TimeFieldProps<T>) {
   return (
     <TimeFieldRac
-      className={composeRenderProps(className, (className) =>
-        cn('space-y-2', className)
-      )}
+      className={composeRenderProps(className, (className) => cn(className))}
       {...props}
     >
       {children}
@@ -56,27 +46,45 @@ function TimeField<T extends TimeValue>({
   )
 }
 
-function DateInput({ className }: { className?: string }) {
+function DateSegment({ className, ...props }: DateSegmentProps) {
   return (
-    <AriaDateInput
-      className={cn(
-        'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-        className
+    <DateSegmentRac
+      className={composeRenderProps(className, (className) =>
+        cn(
+          'data-focused:bg-accent data-invalid:data-focused:bg-destructive data-focused:data-placeholder:text-foreground data-focused:text-foreground data-invalid:data-placeholder:text-destructive data-invalid:text-destructive data-placeholder:text-muted-foreground/70 outline-hidden data-disabled:cursor-not-allowed data-disabled:opacity-50 data-invalid:data-focused:text-white data-invalid:data-focused:data-placeholder:text-white inline rounded p-0.5 text-foreground caret-transparent data-[type=literal]:px-0 data-[type=literal]:text-muted-foreground/70',
+          className
+        )
       )}
-    >
-      {(segment) => (
-        <DateSegment
-          segment={segment}
-          className={cn(
-            'focus:rounded-[2px] focus:bg-primary focus:text-primary-foreground focus:outline-none',
-            {
-              'text-muted-foreground': segment.type === 'literal',
-            }
-          )}
-        />
-      )}
-    </AriaDateInput>
+      {...props}
+      data-invalid
+    />
   )
 }
 
-export { DateField, DateInput, TimeField }
+const dateInputStyle =
+  'relative inline-flex h-9 w-full items-center overflow-hidden whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none data-focus-within:border-ring data-focus-within:ring-ring/50 data-focus-within:ring-[3px] data-focus-within:has-aria-invalid:ring-destructive/20 dark:data-focus-within:has-aria-invalid:ring-destructive/40 data-focus-within:has-aria-invalid:border-destructive'
+
+interface DateInputProps extends DateInputPropsRac {
+  className?: string
+  unstyled?: boolean
+}
+
+function DateInput({
+  className,
+  unstyled = false,
+  ...props
+}: Omit<DateInputProps, 'children'>) {
+  return (
+    <DateInputRac
+      className={composeRenderProps(className, (className) =>
+        cn(!unstyled && dateInputStyle, className)
+      )}
+      {...props}
+    >
+      {(segment) => <DateSegment segment={segment} />}
+    </DateInputRac>
+  )
+}
+
+export { DateField, DateInput, DateSegment, TimeField, dateInputStyle }
+export type { DateInputProps }

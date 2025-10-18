@@ -151,11 +151,11 @@ export function StudentsMobileCards({ data }: StudentsMobileCardsProps) {
                     <h3 className="text-base font-semibold leading-tight text-card-foreground">
                       {student.name}
                     </h3>
-                    {student.batch && (
+                    {student.Batch && (
                       <div className="mt-1 flex items-center">
                         <GraduationCap className="mr-1.5 h-3.5 w-3.5 text-muted-foreground" />
                         <span className="text-sm font-medium text-muted-foreground">
-                          {student.batch.name}
+                          {student.Batch.name}
                         </span>
                       </div>
                     )}

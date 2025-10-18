@@ -83,12 +83,12 @@ export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
       },
     },
     {
-      accessorKey: 'batch',
+      accessorKey: 'Batch',
       header: 'Batch',
       cell: ({ row }) => {
         const student = row.original
-        return student.batch ? (
-          <Badge variant="outline">{student.batch.name}</Badge>
+        return student.Batch ? (
+          <Badge variant="outline">{student.Batch.name}</Badge>
         ) : (
           <Badge variant="secondary">Unassigned</Badge>
         )
@@ -102,7 +102,8 @@ export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
         return (
           <Badge
             variant={
-              status === StudentStatus.ENROLLED || status === StudentStatus.REGISTERED
+              status === StudentStatus.ENROLLED ||
+              status === StudentStatus.REGISTERED
                 ? 'default'
                 : 'secondary'
             }

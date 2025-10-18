@@ -4,7 +4,10 @@ import { Metadata } from 'next'
 
 import { Separator } from '@/components/ui/separator'
 import { getBatches } from '@/lib/db/queries/batch'
-import { getStudentsWithBatch, findDuplicateStudents } from '@/lib/db/queries/student'
+import {
+  getStudentsWithBatch,
+  findDuplicateStudents,
+} from '@/lib/db/queries/student'
 
 import { Providers } from '../providers'
 import { BatchManagement } from './components/batch-management'

@@ -19,7 +19,11 @@ import { AssignmentActions } from './assignment-actions'
 import { BatchSelector } from './batch-selector'
 import { StudentSelector } from './student-selector'
 import { TransferProgress } from './transfer-progress'
-import { useLegacyActions, useSelectedStudents, useAssignStudentsDialogState } from '../../store/ui-store'
+import {
+  useLegacyActions,
+  useSelectedStudents,
+  useAssignStudentsDialogState,
+} from '../../store/ui-store'
 
 interface AssignStudentsFormProps {
   children?: React.ReactNode

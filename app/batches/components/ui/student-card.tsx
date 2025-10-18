@@ -92,9 +92,9 @@ export function StudentCard({
                 {student.status}
               </Badge>
 
-              {student.batch && (
+              {student.Batch && (
                 <Badge variant="outline" className="text-xs">
-                  {student.batch.name}
+                  {student.Batch.name}
                 </Badge>
               )}
 
@@ -107,12 +107,12 @@ export function StudentCard({
           </div>
 
           {!compact &&
-            student.siblingGroup &&
-            student.siblingGroup.students.length > 0 && (
+            student.Sibling &&
+            student.Sibling.Student.length > 0 && (
               <div className="mt-2">
                 <p className="text-xs text-muted-foreground">
                   Siblings:{' '}
-                  {student.siblingGroup.students.map((s) => s.name).join(', ')}
+                  {student.Sibling.Student.map((s) => s.name).join(', ')}
                 </p>
               </div>
             )}

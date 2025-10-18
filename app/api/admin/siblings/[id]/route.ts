@@ -14,7 +14,7 @@ export async function GET(
         id,
       },
       include: {
-        students: {
+        Student: {
           select: {
             id: true,
             name: true,
@@ -22,7 +22,7 @@ export async function GET(
             phone: true,
             status: true,
             batchId: true,
-            batch: {
+            Batch: {
               select: {
                 name: true,
               },
@@ -68,7 +68,7 @@ export async function PATCH(
         id,
       },
       include: {
-        students: {
+        Student: {
           select: {
             id: true,
           },
@@ -103,10 +103,10 @@ export async function PATCH(
       Array.isArray(removeStudentIds) &&
       removeStudentIds.length > 0
     ) {
-      if (!updateData.students) {
-        updateData.students = {}
+      if (!updateData.Student) {
+        updateData.Student = {}
       }
-      updateData.students.disconnect = removeStudentIds.map((id) => ({ id }))
+      updateData.Student.disconnect = removeStudentIds.map((id) => ({ id }))
     }
 
     // Update the sibling group
@@ -116,7 +116,7 @@ export async function PATCH(
       },
       data: updateData,
       include: {
-        students: {
+        Student: {
           select: {
             id: true,
             name: true,
@@ -124,7 +124,7 @@ export async function PATCH(
             phone: true,
             status: true,
             batchId: true,
-            batch: {
+            Batch: {
               select: {
                 name: true,
               },
@@ -138,12 +138,12 @@ export async function PATCH(
     })
 
     // If there are no students left in the group, delete it
-    if (updatedSiblingGroup.students.length < 2) {
+    if (updatedSiblingGroup.Student.length < 2) {
       // If only one student left, remove them from the group
-      if (updatedSiblingGroup.students.length === 1) {
+      if (updatedSiblingGroup.Student.length === 1) {
         await prisma.student.update({
           where: {
-            id: updatedSiblingGroup.students[0].id,
+            id: updatedSiblingGroup.Student[0].id,
           },
           data: {
             siblingGroupId: null,
@@ -167,7 +167,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      siblingGroup: updatedSiblingGroup,
+      Sibling: updatedSiblingGroup,
     })
   } catch (error) {
     console.error('Failed to update sibling group:', error)
@@ -191,7 +191,7 @@ export async function DELETE(
         id,
       },
       include: {
-        students: {
+        Student: {
           select: {
             id: true,
           },

@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       // 3. Create students (with relationships)
       if (backup.data.students) {
         await tx.student.createMany({
-          data: backup.data.students.map((student: any) => ({
+          data: backup.data.Student.map((student: any) => ({
             id: student.id,
             name: student.name,
             email: student.email,

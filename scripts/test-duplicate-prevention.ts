@@ -131,9 +131,9 @@ async function main() {
       ],
     },
     include: {
-      siblingGroup: {
+      Sibling: {
         include: {
-          students: {
+          Student: {
             select: {
               id: true,
               name: true,
@@ -150,9 +150,9 @@ async function main() {
     console.log(`Found ${potentialSiblings.length} potential siblings:`)
     potentialSiblings.forEach((student) => {
       console.log(`- ${student.name} (${student.email})`)
-      if (student.siblingGroup) {
+      if (student.Sibling) {
         console.log(
-          `  Part of sibling group with ${student.siblingGroup.students.length} students`
+          `  Part of sibling group with ${student.Sibling.Student.length} students`
         )
       }
     })

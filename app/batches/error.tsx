@@ -20,7 +20,8 @@ export default function Error({
           <div className="space-y-2">
             <h2 className="text-2xl font-bold">Something went wrong!</h2>
             <p className="text-muted-foreground">
-              {error.message || 'An unexpected error occurred while loading the batches page.'}
+              {error.message ||
+                'An unexpected error occurred while loading the batches page.'}
             </p>
             {error.digest && (
               <p className="text-xs text-muted-foreground">
@@ -30,7 +31,10 @@ export default function Error({
           </div>
           <div className="flex gap-2">
             <Button onClick={reset}>Try again</Button>
-            <Button variant="outline" onClick={() => window.location.href = '/'}>
+            <Button
+              variant="outline"
+              onClick={() => (window.location.href = '/')}
+            >
               Go home
             </Button>
           </div>

@@ -18,7 +18,7 @@ export async function GET() {
         subscriptionStatus: true,
         stripeSubscriptionId: true,
         stripeCustomerId: true,
-        batch: {
+        Batch: {
           select: {
             name: true,
           },
@@ -35,7 +35,7 @@ export async function GET() {
       name: student.name,
       email: student.email,
       phone: student.phone,
-      batchName: student.batch?.name,
+      batchName: student.Batch?.name,
       monthlyAmount: student.monthlyRate,
       status: student.subscriptionStatus,
       stripeSubscriptionId: student.stripeSubscriptionId,
@@ -43,7 +43,7 @@ export async function GET() {
     }))
 
     return NextResponse.json({
-      students: transformedStudents,
+      Student: transformedStudents,
       summary: {
         total: students.length,
         active: students.filter((s) => s.subscriptionStatus === 'active')

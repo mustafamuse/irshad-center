@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Pre-push hook to suggest PR template
+# This hook runs before you push and suggests which template to use
+# To install: cp .github/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
+
+# Get the current branch
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Don't run on main/master
+if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+  exit 0
+fi
+
+# Check if we're about to create a PR (pushing a new branch or feature branch)
+if git rev-parse --verify "origin/$BRANCH" >/dev/null 2>&1; then
+  # Branch already exists on remote, might be updating an existing PR
+  :
+else
+  # New branch being pushed - show template suggestion
+  echo ""
+  echo "🤖 Running PR Template Suggester..."
+  echo ""
+  
+  # Run the template suggester
+  node .github/scripts/suggest-pr-template.js
+  
+  echo ""
+  echo "✅ Push will continue. GitHub Action will auto-apply the template when you create the PR."
+  echo ""
+fi
+
+exit 0
+

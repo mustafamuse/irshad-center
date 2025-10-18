@@ -78,7 +78,10 @@ interface UIStore {
   resetFilters: () => void
 
   // Dialog actions
-  setDialogOpen: (dialog: 'createBatch' | 'assignStudents' | 'duplicates', open: boolean) => void
+  setDialogOpen: (
+    dialog: 'createBatch' | 'assignStudents' | 'duplicates',
+    open: boolean
+  ) => void
 
   // Utility actions
   reset: () => void
@@ -273,7 +276,7 @@ export function filterStudents(
 
     // Batch filter
     if ((filters.batch?.selected?.length ?? 0) > 0) {
-      const studentBatchId = student.batch?.id
+      const studentBatchId = student.Batch?.id
       const isInSelectedBatch =
         studentBatchId && filters.batch?.selected?.includes(studentBatchId)
       const isUnassignedAndIncluded =
@@ -376,7 +379,9 @@ export const useLegacyActions = () => {
     resetFilters: () => store.resetFilters(),
 
     setBatchFilter: (batchIds: string[]) =>
-      store.updateFilters({ batch: { selected: batchIds, includeUnassigned: true } }),
+      store.updateFilters({
+        batch: { selected: batchIds, includeUnassigned: true },
+      }),
     toggleBatchFilter: (id: string) => store.toggleFilter('batch', id),
     setIncludeUnassigned: (include: boolean) =>
       store.updateFilters({
@@ -385,7 +390,8 @@ export const useLegacyActions = () => {
 
     setStatusFilter: (statuses: StudentStatus[]) =>
       store.updateFilters({ status: { selected: statuses } }),
-    toggleStatusFilter: (status: StudentStatus) => store.toggleFilter('status', status),
+    toggleStatusFilter: (status: StudentStatus) =>
+      store.toggleFilter('status', status),
 
     setEducationLevelFilter: (levels: EducationLevel[]) =>
       store.updateFilters({ educationLevel: { selected: levels } }),
@@ -394,11 +400,14 @@ export const useLegacyActions = () => {
 
     setGradeLevelFilter: (levels: GradeLevel[]) =>
       store.updateFilters({ gradeLevel: { selected: levels } }),
-    toggleGradeLevelFilter: (level: GradeLevel) => store.toggleFilter('gradeLevel', level),
+    toggleGradeLevelFilter: (level: GradeLevel) =>
+      store.toggleFilter('gradeLevel', level),
 
-    setCreateBatchDialogOpen: (open: boolean) => store.setDialogOpen('createBatch', open),
+    setCreateBatchDialogOpen: (open: boolean) =>
+      store.setDialogOpen('createBatch', open),
     setAssignStudentsDialogOpen: (open: boolean) =>
       store.setDialogOpen('assignStudents', open),
-    setDuplicatesExpanded: (open: boolean) => store.setDialogOpen('duplicates', open),
+    setDuplicatesExpanded: (open: boolean) =>
+      store.setDialogOpen('duplicates', open),
   }
 }

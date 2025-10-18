@@ -50,7 +50,7 @@ async function checkDuplicateNames() {
       createdAt: true,
       updatedAt: true,
       batchId: true,
-      batch: {
+      Batch: {
         select: {
           name: true,
         },
@@ -145,7 +145,7 @@ async function checkDuplicateNames() {
         console.log(`  ${index + 1}. ID: ${student.id}`)
         console.log(`     Email: ${student.email || 'None'}`)
         console.log(`     Phone: ${student.phone || 'None'}`)
-        console.log(`     Batch: ${student.batch?.name || 'None'}`)
+        console.log(`     Batch: ${student.Batch?.name || 'None'}`)
         console.log(`     Created: ${student.createdAt.toISOString()}`)
         console.log(`     Updated: ${student.updatedAt.toISOString()}`)
       })
@@ -168,7 +168,7 @@ async function checkDuplicateNames() {
         console.log(`     ID: ${student.id}`)
         console.log(`     Email: ${student.email || 'None'}`)
         console.log(`     Phone: ${student.phone || 'None'}`)
-        console.log(`     Batch: ${student.batch?.name || 'None'}`)
+        console.log(`     Batch: ${student.Batch?.name || 'None'}`)
       })
     })
   }

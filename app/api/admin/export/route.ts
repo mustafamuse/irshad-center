@@ -8,13 +8,13 @@ export async function GET() {
     const [students, batches, siblings] = await Promise.all([
       prisma.student.findMany({
         include: {
-          siblingGroup: true,
+          Sibling: true,
         },
       }),
       prisma.batch.findMany(),
       prisma.sibling.findMany({
         include: {
-          students: {
+          Student: {
             select: {
               name: true, // Use name instead of ID for matching
             },
@@ -30,7 +30,7 @@ export async function GET() {
         startDate: batch.startDate?.toISOString() || null,
         endDate: batch.endDate?.toISOString() || null,
       })),
-      students: students.map((student) => ({
+      Student: students.map((student) => ({
         name: student.name,
         email: student.email,
         phone: student.phone,
@@ -47,7 +47,7 @@ export async function GET() {
         batchName: batches.find((b) => b.id === student.batchId)?.name || null,
       })),
       siblingGroups: siblings.map((sibling) => ({
-        studentNames: sibling.students.map((s) => s.name),
+        studentNames: sibling.Student.map((s) => s.name),
       })),
     }
 

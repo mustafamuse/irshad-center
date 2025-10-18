@@ -8,10 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { BatchWithCount } from '@/lib/types/batch'
 
-import {
-  assignStudentsAction,
-  transferStudentsAction,
-} from '../../actions'
+import { assignStudentsAction, transferStudentsAction } from '../../actions'
 import { useLegacyActions, useSelectedStudents } from '../../store/ui-store'
 
 interface AssignmentActionsProps {

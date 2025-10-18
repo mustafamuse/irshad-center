@@ -11,26 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { formatPhoneNumber } from '@/lib/registration/utils/form-utils'
 import { EnrollmentFormValues } from '@/lib/schemas/enrollment'
 import { cn } from '@/lib/utils'
-
-// Utility function to format phone numbers
-function formatPhoneNumber(value: string): string {
-  // Remove all non-digit characters
-  const digits = value.replace(/\D/g, '')
-
-  // Format based on the number of digits
-  if (digits.length <= 3) {
-    return digits
-  } else if (digits.length <= 6) {
-    return `${digits.slice(0, 3)}-${digits.slice(3)}`
-  } else if (digits.length <= 10) {
-    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`
-  }
-
-  // If more than 10 digits, truncate to 10
-  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`
-}
 
 interface RelationshipSelectProps {
   value: string | undefined

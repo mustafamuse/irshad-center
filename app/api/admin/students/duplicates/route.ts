@@ -60,7 +60,7 @@ export async function GET(request: Request) {
         updatedAt: true,
         batchId: true,
         siblingGroupId: true,
-        batch: {
+        Batch: {
           select: {
             name: true,
           },
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
         groups: Array<{
           name: string
           count: number
-          students: any[]
+          Student: any[]
         }>
         totalGroups: number
         totalStudents: number
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
       similar?: {
         groups: Array<{
           similarity: number
-          students: any[]
+          Student: any[]
         }>
         totalGroups: number
         totalStudents: number
@@ -113,7 +113,7 @@ export async function GET(request: Request) {
         .map(([name, groupStudents]) => ({
           name,
           count: groupStudents.length,
-          students: groupStudents.sort(
+          Student: groupStudents.sort(
             (a, b) =>
               new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
           ),
@@ -124,7 +124,7 @@ export async function GET(request: Request) {
         groups: exactDuplicateGroups,
         totalGroups: exactDuplicateGroups.length,
         totalStudents: exactDuplicateGroups.reduce(
-          (acc, group) => acc + group.students.length,
+          (acc, group) => acc + group.Student.length,
           0
         ),
       }
@@ -133,7 +133,7 @@ export async function GET(request: Request) {
     // Find similar names if mode is 'similar' or 'all'
     if (mode === 'similar' || mode === 'all') {
       const similarGroups: Array<{
-        students: typeof students
+        Student: typeof students
         similarity: number
       }> = []
 
@@ -151,7 +151,7 @@ export async function GET(request: Request) {
           if (similarity >= similarityThreshold) {
             // Check if either student is already in a group
             const existingGroupIndex = similarGroups.findIndex((group) =>
-              group.students.some(
+              group.Student.some(
                 (s) => s.id === students[i].id || s.id === students[j].id
               )
             )
@@ -159,18 +159,18 @@ export async function GET(request: Request) {
             if (existingGroupIndex >= 0) {
               // Add to existing group if not already present
               const group = similarGroups[existingGroupIndex]
-              if (!group.students.some((s) => s.id === students[i].id)) {
-                group.students.push(students[i])
+              if (!group.Student.some((s) => s.id === students[i].id)) {
+                group.Student.push(students[i])
               }
-              if (!group.students.some((s) => s.id === students[j].id)) {
-                group.students.push(students[j])
+              if (!group.Student.some((s) => s.id === students[j].id)) {
+                group.Student.push(students[j])
               }
               // Update similarity to the lowest found
               group.similarity = Math.min(group.similarity, similarity)
             } else {
               // Create new group
               similarGroups.push({
-                students: [students[i], students[j]],
+                Student: [students[i], students[j]],
                 similarity,
               })
             }
@@ -183,23 +183,21 @@ export async function GET(request: Request) {
         .sort((a, b) => b.similarity - a.similarity)
         .map((group) => ({
           ...group,
-          students: group.students.sort((a, b) => a.name.localeCompare(b.name)),
+          Student: group.Student.sort((a, b) => a.name.localeCompare(b.name)),
         }))
 
       response.similar = {
         groups: sortedSimilarGroups,
         totalGroups: sortedSimilarGroups.length,
         totalStudents: new Set(
-          sortedSimilarGroups.flatMap((group) =>
-            group.students.map((s) => s.id)
-          )
+          sortedSimilarGroups.flatMap((group) => group.Student.map((s) => s.id))
         ).size,
       }
     }
 
     return NextResponse.json(response)
   } catch (error) {
-    console.error('Failed to check for duplicate students:', error)
+    console.error('Failed to check for duplicate Student:', error)
     return NextResponse.json(
       { error: 'Failed to check for duplicate students' },
       { status: 500 }

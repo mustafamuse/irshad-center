@@ -69,7 +69,7 @@ export async function StudentsTableShell({
 
   // Always exclude students from "Test" batch
   const baseExcludeFilter = {
-    batch: {
+    Batch: {
       name: {
         not: 'Test',
       },
@@ -111,7 +111,7 @@ export async function StudentsTableShell({
   const students = await prisma.student.findMany({
     where,
     include: {
-      batch: true,
+      Batch: true,
       StudentPayment: {
         orderBy: {
           paidAt: 'desc',

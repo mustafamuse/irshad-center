@@ -94,7 +94,7 @@ export type Student = PrismaStudent
 // Student with batch relation
 export type StudentWithBatch = Prisma.StudentGetPayload<{
   include: {
-    batch: true
+    Batch: true
   }
 }>
 
@@ -105,7 +105,7 @@ export type { StudentStatusEnum }
 // Student with batch and related data for UI
 export type BatchStudentData = Prisma.StudentGetPayload<{
   include: {
-    batch: {
+    Batch: {
       select: {
         id: true
         name: true
@@ -113,9 +113,9 @@ export type BatchStudentData = Prisma.StudentGetPayload<{
         endDate: true
       }
     }
-    siblingGroup: {
+    Sibling: {
       include: {
-        students: {
+        Student: {
           select: {
             id: true
             name: true
@@ -136,7 +136,7 @@ export type UpdateStudentDto = Prisma.StudentUpdateInput
 export interface LegacyStudentWithBatch {
   id: string
   name: string
-  batch: {
+  Batch: {
     id: string
     name: string
     startDate: Date | null
@@ -155,7 +155,7 @@ export type StudentSibling = Prisma.StudentGetPayload<{
 
 export type SiblingGroupWithStudents = Prisma.SiblingGetPayload<{
   include: {
-    students: {
+    Student: {
       select: {
         id: true
         name: true
@@ -177,7 +177,7 @@ export type DuplicateStudent = Prisma.StudentGetPayload<{
     status: true
     createdAt: true
     updatedAt: true
-    siblingGroup: {
+    Sibling: {
       select: {
         id: true
       }

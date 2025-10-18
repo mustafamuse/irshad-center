@@ -18,7 +18,10 @@ import {
 } from '@/components/ui/sheet'
 
 import { createBatchAction } from '../../actions'
-import { useLegacyActions, useCreateBatchDialogState } from '../../store/ui-store'
+import {
+  useLegacyActions,
+  useCreateBatchDialogState,
+} from '../../store/ui-store'
 
 interface CreateBatchDialogProps {
   children?: React.ReactNode

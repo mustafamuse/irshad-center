@@ -14,6 +14,9 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "type-check": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
     "prepare": "husky install",
     "cleanup": "npm run format && npm run lint -- --fix && npm run type-check",
     "cleanup-stripe": "tsx scripts/cleanup-stripe.ts",
@@ -24,11 +27,13 @@
     "dev:webhook": "concurrently \"npm run dev\" \"npm run webhook\"",
     "seed": "tsx prisma/seed.ts",
     "export-data": "curl -o seed-data.json http://localhost:3000/api/admin/export",
-    "seed-from-export": "tsx scripts/seed-from-export.ts"
+    "seed-from-export": "tsx scripts/seed-from-export.ts",
+    "pr-template": "node .github/scripts/suggest-pr-template.js",
+    "setup-hooks": "bash .github/scripts/setup-hooks.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
-    "@internationalized/date": "^3.8.0",
+    "@internationalized/date": "^3.9.0",
     "@prisma/client": "^6.16.2",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.0.5",
@@ -92,7 +97,7 @@
     "praytime": "^3.2.0",
     "raw-body": "^3.0.0",
     "react": "^18",
-    "react-aria-components": "^1.6.0",
+    "react-aria-components": "^1.12.2",
     "react-countup": "^6.5.3",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18",
@@ -120,6 +125,7 @@
     "@types/react-dom": "^18",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
+    "@vitest/ui": "^3.2.4",
     "autoprefixer": "^10.0.1",
     "axios": "^1.7.9",
     "concurrently": "^8.2.2",
@@ -144,10 +150,13 @@
     "prompts": "^2.4.2",
     "table": "^6.9.0",
     "tailwindcss": "^3.3.0",
+    "tdd-guard": "^1.0.2",
+    "tdd-guard-vitest": "^0.1.5",
     "ts-node": "^10.9.2",
     "tsc-files": "^1.1.4",
     "tsx": "^4.19.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

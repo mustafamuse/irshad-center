@@ -26,7 +26,7 @@ export async function GET() {
           id: intent.id,
           email: customer.email,
           name: customer.name,
-          // students: students.map((s: any) => s.name),
+          // Student: students.map((s: any) => s.name),
           created: new Date(intent.created * 1000).toISOString(),
           last_setup_error: intent.last_setup_error?.message,
         }
