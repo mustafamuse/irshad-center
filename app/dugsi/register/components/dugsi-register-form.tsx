@@ -23,8 +23,8 @@ import {
 } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Form } from '@/components/ui/form'
-import { Label } from '@/components/ui/label'
 import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
+import { Label } from '@/components/ui/label'
 import { SchoolCombobox } from '@/components/ui/school-combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
@@ -35,6 +35,7 @@ import {
   DEFAULT_CHILD_VALUES,
   DUGSI_EDUCATION_OPTIONS,
   DUGSI_GRADE_OPTIONS,
+  GENDER_OPTIONS,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,

@@ -1,10 +1,9 @@
 import { Gender } from '@prisma/client'
 import { User } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { getGenderDisplay } from '@/lib/utils/gender-utils'
 
 // ============================================================================
-// GENDER DISPLAY COMPONENT
+// SIMPLE GENDER DISPLAY COMPONENT
 // ============================================================================
 
 export interface GenderDisplayProps {
@@ -12,7 +11,6 @@ export interface GenderDisplayProps {
   size?: 'sm' | 'md' | 'lg'
   showLabel?: boolean
   className?: string
-  fallback?: React.ReactNode
 }
 
 const SIZE_CLASSES = {
@@ -26,22 +24,26 @@ export function GenderDisplay({
   size = 'md',
   showLabel = true,
   className,
-  fallback = <span className="text-xs text-muted-foreground">—</span>,
 }: GenderDisplayProps) {
-  const display = getGenderDisplay(gender)
-  
-  if (!display) {
-    return <>{fallback}</>
+  if (!gender) {
+    return <span className="text-xs text-muted-foreground">—</span>
   }
   
   const iconSizeClass = SIZE_CLASSES[size]
+  const isMale = gender === 'MALE'
   
   return (
     <div className={cn('flex items-center gap-1', className)}>
-      <User className={cn(iconSizeClass, display.iconColor)} />
+      <User className={cn(
+        iconSizeClass,
+        isMale ? 'text-blue-500' : 'text-pink-500'
+      )} />
       {showLabel && (
-        <span className={cn('text-xs', display.labelColor)}>
-          {display.label}
+        <span className={cn(
+          'text-xs',
+          isMale ? 'text-blue-600' : 'text-pink-600'
+        )}>
+          {isMale ? 'Boy' : 'Girl'}
         </span>
       )}
     </div>
@@ -59,15 +61,18 @@ export interface GenderIconProps {
 }
 
 export function GenderIcon({ gender, size = 'md', className }: GenderIconProps) {
-  const display = getGenderDisplay(gender)
-  
-  if (!display) {
+  if (!gender) {
     return <span className="text-xs text-muted-foreground">—</span>
   }
   
   const iconSizeClass = SIZE_CLASSES[size]
+  const isMale = gender === 'MALE'
   
   return (
-    <User className={cn(iconSizeClass, display.iconColor, className)} />
+    <User className={cn(
+      iconSizeClass,
+      isMale ? 'text-blue-500' : 'text-pink-500',
+      className
+    )} />
   )
 }

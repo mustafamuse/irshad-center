@@ -2,8 +2,6 @@ import { EducationLevel, GradeLevel, Gender } from '@prisma/client'
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
-import { GENDER_OPTIONS } from '@/lib/utils/gender-utils'
-
 // ============================================================================
 // SHARED CONSTANTS & LABELS
 // ============================================================================
@@ -72,6 +70,11 @@ export const DUGSI_GRADE_OPTIONS = [
   { value: 'GRADE_10', label: '10th Grade' },
   { value: 'GRADE_11', label: '11th Grade' },
   { value: 'GRADE_12', label: '12th Grade' },
+] as const
+
+export const GENDER_OPTIONS = [
+  { value: 'MALE', label: 'Boy' },
+  { value: 'FEMALE', label: 'Girl' },
 ] as const
 
 // ============================================================================
