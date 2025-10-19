@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 interface LogoProps {
@@ -9,20 +10,35 @@ interface LogoProps {
   variant?: 'light' | 'dark'
 }
 
-const sizes = {
-  xs: { width: 120, height: 40 },
-  sm: { width: 180, height: 60 },
-  md: { width: 240, height: 80 },
-  lg: { width: 360, height: 120 },
-  xl: { width: 480, height: 160 },
-}
-
 export function Logo({ className, size = 'sm', variant = 'dark' }: LogoProps) {
+  const pathname = usePathname()
+
+  // Determine which logo to show based on route
+  const getLogoPath = () => {
+    if (pathname.startsWith('/mahad')) {
+      return '/images/Mahad.svg'
+    } else if (pathname.startsWith('/dugsi')) {
+      return '/images/Dugsi.svg'
+    } else {
+      return '/images/Mosque.svg'
+    }
+  }
+
+  const getLogoAlt = () => {
+    if (pathname.startsWith('/mahad')) {
+      return 'Irshād Māhad'
+    } else if (pathname.startsWith('/dugsi')) {
+      return 'Irshād Dugsi'
+    } else {
+      return 'Irshād Center'
+    }
+  }
+
   return (
     <div className={cn('relative flex items-center justify-center', className)}>
       <Image
-        src="/images/latest-irshad-mahad.png"
-        alt="Irshād Mâhad"
+        src={getLogoPath()}
+        alt={getLogoAlt()}
         width={500}
         height={500}
         className={cn(
