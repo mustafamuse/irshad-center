@@ -15,6 +15,7 @@ export interface GenderRadioGroupProps {
   name: string
   className?: string
   disabled?: boolean
+  options?: readonly { readonly value: string; readonly label: string }[]
 }
 
 const GENDER_STYLES = {
@@ -40,6 +41,7 @@ export function GenderRadioGroup({
   name,
   className,
   disabled = false,
+  options = GENDER_OPTIONS,
 }: GenderRadioGroupProps) {
   return (
     <RadioGroup
@@ -48,7 +50,7 @@ export function GenderRadioGroup({
       className={cn('grid w-full grid-cols-2 gap-4', className)}
       disabled={disabled}
     >
-      {GENDER_OPTIONS.map((option) => {
+      {options.map((option) => {
         const isSelected = value === option.value
         const styles = GENDER_STYLES[option.value as keyof typeof GENDER_STYLES]
 

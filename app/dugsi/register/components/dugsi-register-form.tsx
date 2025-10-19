@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { UserPlus, X, Users, Loader2 } from 'lucide-react'
+import { useTranslations } from 'next-intl'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -27,6 +28,11 @@ import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
 import { Label } from '@/components/ui/label'
 import { SchoolCombobox } from '@/components/ui/school-combobox'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  useTranslatedGenderOptions,
+  useTranslatedEducationOptions,
+  useTranslatedGradeOptions,
+} from '@/lib/i18n/use-translated-options'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import {
   dugsiRegistrationSchema,
@@ -42,11 +48,16 @@ import {
 } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
 
+
 import { DugsiSuccessDialog } from './dugsi-success-dialog'
 import { registerDugsiChildren } from '../actions'
 
 export function DugsiRegisterForm() {
   const router = useRouter()
+  const t = useTranslations('dugsi')
+  const genderOptions = useTranslatedGenderOptions()
+  const educationOptions = useTranslatedEducationOptions()
+  const gradeOptions = useTranslatedGradeOptions()
   const [isPending, startTransition] = useTransition()
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [registrationData, setRegistrationData] =
@@ -80,8 +91,15 @@ export function DugsiRegisterForm() {
 
         if (result.success) {
           console.log('✅ Registration successful!')
+          const childText =
+            data.children.length === 1
+              ? t('childrenSection.child')
+              : t('childrenSection.children')
           toast.success(
-            `Successfully enrolled ${data.children.length} ${data.children.length === 1 ? 'child' : 'children'}!`
+            t('messages.enrollmentSuccess', {
+              count: data.children.length,
+              childText,
+            })
           )
           console.log('📝 Setting registrationData and showing dialog')
           setRegistrationData(data)
@@ -89,14 +107,12 @@ export function DugsiRegisterForm() {
           // Form will reset when dialog closes
         } else {
           console.error('❌ Registration failed:', result.error)
-          toast.error(result.error || 'Registration failed. Please try again.')
+          toast.error(result.error || t('messages.enrollmentError'))
         }
       } catch (error) {
         console.error('💥 Unexpected error during registration:', error)
         toast.error(
-          error instanceof Error
-            ? error.message
-            : 'An unexpected error occurred. Please try again.'
+          error instanceof Error ? error.message : t('messages.unexpectedError')
         )
       }
     })
@@ -123,10 +139,10 @@ export function DugsiRegisterForm() {
           <Card className="rounded-xl border-0 bg-white shadow-sm ring-1 ring-gray-200 sm:rounded-2xl">
             <CardHeader className="space-y-2 border-b p-4 sm:p-6">
               <CardTitle className="text-xl font-semibold text-[#007078] sm:text-2xl">
-                Parent Information
+                {t('parentSection.title')}
               </CardTitle>
               <CardDescription className="text-sm text-gray-600 sm:text-base">
-                Primary contact for registration
+                {t('parentSection.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 p-4 sm:space-y-8 sm:p-6">
@@ -135,20 +151,26 @@ export function DugsiRegisterForm() {
                 <div className="flex items-center gap-2">
                   <Users className="h-4 w-4 text-[#007078] sm:h-5 sm:w-5" />
                   <h3 className="text-base font-semibold text-[#007078] sm:text-lg">
-                    Parent 1
+                    {t('parentSection.parent1')}
                   </h3>
                 </div>
                 <NameFields
                   control={form.control}
                   firstNameField="parent1FirstName"
                   lastNameField="parent1LastName"
+                  firstNameLabel={t('fields.firstName')}
+                  lastNameLabel={t('fields.lastName')}
+                  firstNamePlaceholder={t('placeholders.firstName')}
+                  lastNamePlaceholder={t('placeholders.lastName')}
                 />
 
                 <ContactFields
                   control={form.control}
                   emailField="parent1Email"
                   phoneField="parent1Phone"
-                  emailPlaceholder="parent@example.com"
+                  emailLabel={t('fields.email')}
+                  phoneLabel={t('fields.phone')}
+                  emailPlaceholder={t('placeholders.email')}
                   onPhoneChange={(formatted) =>
                     form.setValue('parent1Phone', formatted)
                   }
@@ -171,7 +193,7 @@ export function DugsiRegisterForm() {
                   htmlFor="isSingleParent"
                   className="cursor-pointer text-xs font-medium leading-snug peer-disabled:cursor-not-allowed peer-disabled:opacity-70 sm:text-sm"
                 >
-                  Single parent household
+                  {t('parentSection.singleParent')}
                 </Label>
               </div>
 
@@ -181,13 +203,17 @@ export function DugsiRegisterForm() {
                   <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-[#007078] sm:h-5 sm:w-5" />
                     <h3 className="text-base font-semibold text-[#007078] sm:text-lg">
-                      Parent 2
+                      {t('parentSection.parent2')}
                     </h3>
                   </div>
                   <NameFields
                     control={form.control}
                     firstNameField="parent2FirstName"
                     lastNameField="parent2LastName"
+                    firstNameLabel={t('fields.firstName')}
+                    lastNameLabel={t('fields.lastName')}
+                    firstNamePlaceholder={t('placeholders.firstName')}
+                    lastNamePlaceholder={t('placeholders.lastName')}
                     required={!isSingleParent}
                   />
 
@@ -195,7 +221,9 @@ export function DugsiRegisterForm() {
                     control={form.control}
                     emailField="parent2Email"
                     phoneField="parent2Phone"
-                    emailPlaceholder="parent@example.com"
+                    emailLabel={t('fields.email')}
+                    phoneLabel={t('fields.phone')}
+                    emailPlaceholder={t('placeholders.email')}
                     required={!isSingleParent}
                     onPhoneChange={(formatted) =>
                       form.setValue('parent2Phone', formatted)
@@ -212,15 +240,18 @@ export function DugsiRegisterForm() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-xl font-semibold text-[#007078] sm:text-2xl">
-                    Children
+                    {t('childrenSection.title')}
                   </CardTitle>
                   <CardDescription className="mt-1 text-sm text-gray-600 sm:mt-2 sm:text-base">
-                    Add each child to enroll
+                    {t('childrenSection.description')}
                   </CardDescription>
                 </div>
                 <div className="self-start rounded-full bg-[#007078]/10 px-3 py-1.5 sm:px-4 sm:py-2">
                   <span className="whitespace-nowrap text-xs font-medium text-[#007078] sm:text-sm">
-                    {fields.length} {fields.length === 1 ? 'child' : 'children'}
+                    {fields.length}{' '}
+                    {fields.length === 1
+                      ? t('childrenSection.child')
+                      : t('childrenSection.children')}
                   </span>
                 </div>
               </div>
@@ -234,7 +265,9 @@ export function DugsiRegisterForm() {
                   <CardHeader className="border-b bg-gray-50/50 p-3 sm:p-4 sm:pb-4">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base font-medium text-[#007078] sm:text-lg">
-                        Child #{index + 1}
+                        {t('childrenSection.childNumber', {
+                          number: index + 1,
+                        })}
                       </CardTitle>
                       {fields.length > 1 && (
                         <Button
@@ -245,7 +278,7 @@ export function DugsiRegisterForm() {
                         >
                           <X className="h-5 w-5" />
                           <span className="text-xs font-medium sm:sr-only">
-                            Remove
+                            {t('buttons.remove')}
                           </span>
                         </Button>
                       )}
@@ -257,15 +290,17 @@ export function DugsiRegisterForm() {
                       control={form.control}
                       firstNameField={`children.${index}.firstName`}
                       lastNameField={`children.${index}.lastName`}
-                      firstNamePlaceholder="Enter child's first name"
-                      lastNamePlaceholder="Enter child's last name"
+                      firstNameLabel={t('fields.firstName')}
+                      lastNameLabel={t('fields.lastName')}
+                      firstNamePlaceholder={t('placeholders.childFirstName')}
+                      lastNamePlaceholder={t('placeholders.childLastName')}
                     />
 
                     {/* Gender Selection */}
                     <FormFieldWrapper
                       name={`children.${index}.gender`}
                       control={form.control}
-                      label="Gender"
+                      label={t('fields.gender')}
                       required
                     >
                       {(field) => (
@@ -273,6 +308,7 @@ export function DugsiRegisterForm() {
                           value={field.value}
                           onValueChange={field.onChange}
                           name={`children.${index}.gender`}
+                          options={genderOptions}
                         />
                       )}
                     </FormFieldWrapper>
@@ -281,6 +317,7 @@ export function DugsiRegisterForm() {
                     <DateOfBirthField
                       control={form.control}
                       fieldName={`children.${index}.dateOfBirth`}
+                      label={t('fields.dateOfBirth')}
                       onValueChange={(dateValue) => {
                         form.setValue(
                           `children.${index}.dateOfBirth`,
@@ -294,12 +331,12 @@ export function DugsiRegisterForm() {
                       control={form.control}
                       educationLevelField={`children.${index}.educationLevel`}
                       gradeLevelField={`children.${index}.gradeLevel`}
-                      educationOptions={DUGSI_EDUCATION_OPTIONS}
-                      gradeOptions={DUGSI_GRADE_OPTIONS}
-                      educationLabel="School Level"
-                      gradeLabel="Grade"
-                      educationPlaceholder="Select level"
-                      gradePlaceholder="Select grade"
+                      educationOptions={educationOptions}
+                      gradeOptions={gradeOptions}
+                      educationLabel={t('fields.schoolLevel')}
+                      gradeLabel={t('fields.grade')}
+                      educationPlaceholder={t('placeholders.selectLevel')}
+                      gradePlaceholder={t('placeholders.selectGrade')}
                       onEducationChange={(value) => {
                         form.setValue(
                           `children.${index}.educationLevel`,
@@ -318,7 +355,7 @@ export function DugsiRegisterForm() {
                     <FormFieldWrapper
                       control={form.control}
                       name={`children.${index}.schoolName`}
-                      label="School"
+                      label={t('fields.school')}
                       required
                     >
                       {(field, fieldState) => (
@@ -329,7 +366,7 @@ export function DugsiRegisterForm() {
                             field.onChange(value)
                           }}
                           onBlur={field.onBlur}
-                          placeholder="Select school..."
+                          placeholder={t('placeholders.selectSchool')}
                           className={getInputClassNames(!!fieldState.error)}
                         />
                       )}
@@ -339,19 +376,17 @@ export function DugsiRegisterForm() {
                     <FormFieldWrapper
                       control={form.control}
                       name={`children.${index}.healthInfo`}
-                      label="Health & Support Information"
+                      label={t('fields.healthInfo')}
                       required
                     >
                       {(field, fieldState) => (
                         <div className="space-y-2">
                           <p className="text-xs leading-relaxed text-gray-600 sm:text-sm">
-                            Share any allergies, medical conditions,
-                            ADHD/Autism, medications, dietary needs, or support
-                            strategies. Type "None" if not applicable.
+                            {t('helpText.healthInfo')}
                           </p>
                           <Textarea
                             {...field}
-                            placeholder="Example: Peanut allergy (EpiPen in backpack), ADHD (takes medication at home), or 'None'"
+                            placeholder={t('placeholders.healthInfo')}
                             rows={4}
                             aria-invalid={!!fieldState.error}
                             className={cn(
@@ -375,7 +410,7 @@ export function DugsiRegisterForm() {
                 onClick={handleAddChild}
               >
                 <UserPlus className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
-                Add Another Child
+                {t('buttons.addChild')}
               </Button>
 
               {/* Submit Button */}
@@ -390,17 +425,24 @@ export function DugsiRegisterForm() {
                 {isPending ? (
                   <span className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
-                    <span className="xs:inline hidden">Processing...</span>
-                    <span className="xs:hidden">Processing...</span>
+                    <span className="xs:inline hidden">
+                      {t('buttons.processing')}
+                    </span>
+                    <span className="xs:hidden">{t('buttons.processing')}</span>
                   </span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <span className="hidden sm:inline">
-                      Continue to Payment ({fields.length}{' '}
-                      {fields.length === 1 ? 'child' : 'children'})
+                      {t('buttons.continueToPayment', {
+                        count: fields.length,
+                        childText:
+                          fields.length === 1
+                            ? t('childrenSection.child')
+                            : t('childrenSection.children'),
+                      })}
                     </span>
                     <span className="sm:hidden">
-                      Continue ({fields.length})
+                      {t('buttons.continueShort', { count: fields.length })}
                     </span>
                   </span>
                 )}
