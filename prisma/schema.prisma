@@ -231,6 +231,7 @@ model Student {
   parentLastName       String?
   parentPhone          String?
   program              Program             @default(MAHAD_PROGRAM)
+  gender               Gender?
   Attendance           Attendance[]
   AttendanceRecord     AttendanceRecord[]
   Batch                Batch?              @relation(fields: [batchId], references: [id])
@@ -348,4 +349,9 @@ enum SubscriptionStatus {
 enum Program {
   MAHAD_PROGRAM
   DUGSI_PROGRAM
+}
+
+enum Gender {
+  MALE
+  FEMALE
 }

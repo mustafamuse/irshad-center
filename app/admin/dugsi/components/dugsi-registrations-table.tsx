@@ -59,6 +59,7 @@ import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 interface DugsiRegistration {
   id: string
   name: string
+  gender: string | null
   dateOfBirth: Date | string | null
   educationLevel: string | null
   gradeLevel: string | null
@@ -306,6 +307,7 @@ export function DugsiRegistrationsTable({
               <TableHeader>
                 <TableRow>
                   <TableHead>Child Name</TableHead>
+                  <TableHead className="w-16">Gender</TableHead>
                   <TableHead>Parent</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Registered</TableHead>
@@ -316,7 +318,7 @@ export function DugsiRegistrationsTable({
                 {filteredRegistrations.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
                       No registrations found.
@@ -331,6 +333,17 @@ export function DugsiRegistrationsTable({
                     >
                       <TableCell className="font-medium">
                         {registration.name}
+                      </TableCell>
+                      <TableCell className="w-16">
+                        {registration.gender === 'MALE' ? (
+                          <User className="h-5 w-5 text-blue-500" />
+                        ) : registration.gender === 'FEMALE' ? (
+                          <User className="h-5 w-5 text-pink-500" />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            —
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm">
                         {registration.parentFirstName ||
@@ -607,6 +620,25 @@ export function DugsiRegistrationsTable({
                                       <h4 className="font-semibold">
                                         {child.name}
                                       </h4>
+                                      {child.gender && (
+                                        <div className="flex items-center gap-1">
+                                          {child.gender === 'MALE' ? (
+                                            <>
+                                              <User className="h-3.5 w-3.5 text-blue-500" />
+                                              <span className="text-xs text-blue-600">
+                                                Boy
+                                              </span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <User className="h-3.5 w-3.5 text-pink-500" />
+                                              <span className="text-xs text-pink-600">
+                                                Girl
+                                              </span>
+                                            </>
+                                          )}
+                                        </div>
+                                      )}
                                       {child.id === selectedRegistration.id && (
                                         <Badge
                                           variant="secondary"
@@ -799,6 +831,24 @@ function MobileRegistrationCard({
                 {registration.name}
               </p>
             </div>
+
+            {/* Gender */}
+            {registration.gender && (
+              <div>
+                <p className="text-[11px] text-muted-foreground">Gender</p>
+                {registration.gender === 'MALE' ? (
+                  <div className="flex items-center gap-1.5">
+                    <User className="h-4 w-4 text-blue-500" />
+                    <p className="text-sm">Boy</p>
+                  </div>
+                ) : registration.gender === 'FEMALE' ? (
+                  <div className="flex items-center gap-1.5">
+                    <User className="h-4 w-4 text-pink-500" />
+                    <p className="text-sm">Girl</p>
+                  </div>
+                ) : null}
+              </div>
+            )}
 
             {/* Parent */}
             <div>

@@ -24,6 +24,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Form } from '@/components/ui/form'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { SchoolCombobox } from '@/components/ui/school-combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
@@ -34,6 +35,7 @@ import {
   DEFAULT_CHILD_VALUES,
   DUGSI_EDUCATION_OPTIONS,
   DUGSI_GRADE_OPTIONS,
+  GENDER_OPTIONS,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
@@ -259,6 +261,40 @@ export function DugsiRegisterForm() {
                       firstNamePlaceholder="Enter child's first name"
                       lastNamePlaceholder="Enter child's last name"
                     />
+
+                    {/* Gender Selection */}
+                    <FormFieldWrapper
+                      name={`children.${index}.gender`}
+                      control={form.control}
+                      label="Gender"
+                      required
+                    >
+                      {(field) => (
+                        <RadioGroup
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          className="flex gap-4"
+                        >
+                          {GENDER_OPTIONS.map((option) => (
+                            <div
+                              key={option.value}
+                              className="flex items-center space-x-2"
+                            >
+                              <RadioGroupItem
+                                value={option.value}
+                                id={`children.${index}.gender-${option.value}`}
+                              />
+                              <Label
+                                htmlFor={`children.${index}.gender-${option.value}`}
+                                className="cursor-pointer font-normal"
+                              >
+                                {option.label}
+                              </Label>
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      )}
+                    </FormFieldWrapper>
 
                     {/* Date of Birth */}
                     <DateOfBirthField

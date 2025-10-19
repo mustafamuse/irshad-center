@@ -163,10 +163,27 @@ export function DugsiSuccessDialog({
                       <h4 className="truncate font-semibold">
                         {child.firstName} {child.lastName}
                       </h4>
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(child.dateOfBirth)}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(child.dateOfBirth)}
+                        </p>
+                        {child.gender && (
+                          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                            {child.gender === 'MALE' ? (
+                              <>
+                                <User className="h-3 w-3 text-blue-500" />
+                                <span>Boy</span>
+                              </>
+                            ) : (
+                              <>
+                                <User className="h-3 w-3 text-pink-500" />
+                                <span>Girl</span>
+                              </>
+                            )}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
 
