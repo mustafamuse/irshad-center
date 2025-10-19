@@ -45,7 +45,7 @@ export function GenderRadioGroup({
     <RadioGroup
       value={value || ''}
       onValueChange={onValueChange}
-      className={cn('grid grid-cols-2 gap-3', className)}
+      className={cn('grid grid-cols-2 gap-4', className)}
       disabled={disabled}
     >
       {GENDER_OPTIONS.map((option) => {
