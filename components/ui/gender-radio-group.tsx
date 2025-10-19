@@ -45,7 +45,7 @@ export function GenderRadioGroup({
     <RadioGroup
       value={value || ''}
       onValueChange={onValueChange}
-      className={cn('grid grid-cols-2 gap-4', className)}
+      className={cn('grid grid-cols-2 gap-4 w-full', className)}
       disabled={disabled}
     >
       {GENDER_OPTIONS.map((option) => {
@@ -53,7 +53,7 @@ export function GenderRadioGroup({
         const styles = GENDER_STYLES[option.value as keyof typeof GENDER_STYLES]
 
         return (
-          <div key={option.value} className="relative">
+          <div key={option.value} className="relative w-full">
             <RadioGroupItem
               value={option.value}
               id={`${name}-${option.value}`}
@@ -62,7 +62,7 @@ export function GenderRadioGroup({
             <Label
               htmlFor={`${name}-${option.value}`}
               className={cn(
-                'flex cursor-pointer items-center gap-3 rounded-lg border-2 p-4 transition-all duration-200',
+                'flex cursor-pointer items-center gap-3 rounded-lg border-2 p-4 transition-all duration-200 w-full min-h-[80px]',
                 'peer-focus:ring-2 peer-focus:ring-offset-2',
                 styles.bgColor,
                 styles.borderColor,
@@ -144,7 +144,7 @@ export function CompactGenderRadioGroup({
         const styles = GENDER_STYLES[option.value as keyof typeof GENDER_STYLES]
 
         return (
-          <div key={option.value} className="relative">
+          <div key={option.value} className="relative w-full">
             <RadioGroupItem
               value={option.value}
               id={`${name}-${option.value}`}
