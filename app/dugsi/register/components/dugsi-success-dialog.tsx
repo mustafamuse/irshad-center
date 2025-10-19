@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
+import { GenderDisplay } from '@/components/ui/gender-display'
 import type { DugsiRegistrationValues } from '@/lib/registration/schemas/registration'
 import {
   formatEducationLevel,
@@ -163,10 +164,20 @@ export function DugsiSuccessDialog({
                       <h4 className="truncate font-semibold">
                         {child.firstName} {child.lastName}
                       </h4>
-                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {formatDate(child.dateOfBirth)}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {formatDate(child.dateOfBirth)}
+                        </p>
+                        {child.gender && (
+                          <GenderDisplay 
+                            gender={child.gender} 
+                            size="sm" 
+                            showLabel={true}
+                            className="text-xs text-muted-foreground"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
 

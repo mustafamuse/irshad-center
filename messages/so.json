@@ -1,0 +1,105 @@
+{
+  "dugsi": {
+    "navigation": {
+      "backToHome": "Ku noqo Bogga Hore",
+      "back": "Dib u noqo"
+    },
+    "header": {
+      "title": "Diiwaan Gelinta Dugsi",
+      "description": "Ku qor carruurtaada barnaamijka Islaamka ee maalinta Jimcaha"
+    },
+    "footer": {
+      "needHelp": "Ma u baahan tahay caawimaad? Nala soo xiriir",
+      "email": "info@irshadcenter.com"
+    },
+    "parentSection": {
+      "title": "Macluumaadka Waalidiinta",
+      "description": "Xiriirka ugu muhiimsan ee diiwaan gelinta",
+      "parent1": "Waalid 1",
+      "parent2": "Waalid 2",
+      "singleParent": "Qoys hal waalid ah"
+    },
+    "childrenSection": {
+      "title": "Carruurta",
+      "description": "Ku dar ilmo kasta oo doonaysa inuu/ay isdiiwaangaliso",
+      "child": "ilmo",
+      "children": "caruur",
+      "childNumber": "Ilmo #{number}"
+    },
+    "fields": {
+      "firstName": "Magaca Hore",
+      "lastName": "Magaca Qoyska",
+      "email": "Iimayl",
+      "phone": "Telefoon",
+      "gender": "Jinsiga",
+      "dateOfBirth": "Taariikhda Dhalashada",
+      "schoolLevel": "Heerka Dugsiga",
+      "grade": "Fasalka",
+      "school": "Dugsi",
+      "healthInfo": "Macluumaadka Caafimaadka iyo Taageerada"
+    },
+    "placeholders": {
+      "firstName": "Geli magaca hore",
+      "lastName": "Geli magaca qoyska",
+      "email": "waalid@tusaale.com",
+      "childFirstName": "Geli magaca hore ee ilmaha",
+      "childLastName": "Geli magaca qoyska ee ilmaha",
+      "selectLevel": "Dooro heerka",
+      "selectGrade": "Dooro fasalka",
+      "selectSchool": "Dooro dugsi...",
+      "healthInfo": "Tusaale: Xasaasiyadda lowyada (EpiPen ku jirta boorsooyinka), ADHD (dawooyinka guriga ku qaata), ama 'Ma jiro'"
+    },
+    "gender": {
+      "boy": "Wiil",
+      "girl": "Gabadh"
+    },
+    "education": {
+      "elementary": "Dugsiga Hoose",
+      "middleSchool": "Dugsiga Dhexe",
+      "highSchool": "Dugsiga Sare"
+    },
+    "grades": {
+      "kindergarten": "Kindergarten",
+      "grade1": "Fasalka 1aad",
+      "grade2": "Fasalka 2aad",
+      "grade3": "Fasalka 3aad",
+      "grade4": "Fasalka 4aad",
+      "grade5": "Fasalka 5aad",
+      "grade6": "Fasalka 6aad",
+      "grade7": "Fasalka 7aad",
+      "grade8": "Fasalka 8aad",
+      "grade9": "Fasalka 9aad",
+      "grade10": "Fasalka 10aad",
+      "grade11": "Fasalka 11aad",
+      "grade12": "Fasalka 12aad"
+    },
+    "helpText": {
+      "healthInfo": "La wadaag wax kasta oo xasaasiyadood ah, xaaladaha caafimaad, ADHD/Autism, dawooyinka, baahiyaha cuntada, ama xeeladaha taageerada. Qor \"Ma jiro\" haddii aan jirin."
+    },
+    "buttons": {
+      "addChild": "Ku Dar Ilmo Kale",
+      "remove": "Ka saar",
+      "processing": "Socota...",
+      "continueToPayment": "Sii wad Lacag Bixinta ({count} {childText})",
+      "continueShort": "Sii wad ({count})"
+    },
+    "messages": {
+      "enrollmentSuccess": "Si guul leh ayaa loo diiwaan geliyay {count} {childText}!",
+      "enrollmentError": "Diiwaan gelinta way fashilantay. Fadlan isku day mar labaad.",
+      "unexpectedError": "Khalad aan la filayn ayaa dhacay. Fadlan isku day mar labaad."
+    },
+    "validation": {
+      "nameMin": "Magaca waa inuu ahaadaa ugu yaraan 2 xaraf",
+      "nameMax": "Magaca waa inuu ka yaraan yahay 50 xaraf",
+      "nameInvalid": "Magaca wuxuu ka koobmi karaa kaliya xarfaha, bannaan, iyo xarriiqaha",
+      "emailInvalid": "Fadlan geli iimayl sax ah",
+      "emailMin": "Iimayl waa inuu ahaadaa ugu yaraan 5 xaraf",
+      "emailMax": "Iimayl waa inuu ka yaraan yahay 100 xaraf",
+      "phoneInvalid": "Geli lambar telefoon sax ah (XXX-XXX-XXXX)",
+      "required": "Goobtan waa loo baahan yahay",
+      "genderRequired": "Fadlan dooro jinsiga",
+      "dateRequired": "Fadlan dooro taariikhda dhalashada",
+      "healthInfoMin": "Fadlan bixi macluumaadka caafimaadka ama qor 'Ma jiro'"
+    }
+  }
+}

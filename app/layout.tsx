@@ -16,15 +16,15 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: '/images/latest-irshad-mahad.png',
-        type: 'image/png',
+        url: '/images/Mosque.svg',
+        type: 'image/svg+xml',
         sizes: '32x32',
       },
     ],
     apple: [
       {
-        url: '/images/latest-irshad-mahad.png',
-        type: 'image/png',
+        url: '/images/Mosque.svg',
+        type: 'image/svg+xml',
         sizes: '180x180',
       },
     ],
@@ -35,10 +35,10 @@ export const metadata: Metadata = {
       "Accredited two-year Islamic education program in English at Eden Prairie. Study Qur'an, Fiqh, Hadith, and Arabic from distinguished Sheikhs and Islamic university graduates",
     images: [
       {
-        url: '/images/latest-irshad-mahad.png',
+        url: '/images/Mosque.svg',
         width: 1200,
         height: 630,
-        alt: 'Irshād Mâhad',
+        alt: 'Irshād Center',
       },
     ],
   },
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
     title: 'Irshād Mâhad - Islamic Studies & Arabic Institute',
     description:
       "Accredited two-year Islamic education program in English at Eden Prairie. Study Qur'an, Fiqh, Hadith, and Arabic from distinguished Sheikhs and Islamic university graduates",
-    images: ['/images/latest-irshad-mahad.png'],
+    images: ['/images/Mosque.svg'],
   },
 }
 

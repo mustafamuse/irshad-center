@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
+import { Gender } from '@prisma/client'
 import { format } from 'date-fns'
 import {
   AlertCircle,
@@ -32,6 +33,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { GenderDisplay, GenderIcon } from '@/components/ui/gender-display'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
@@ -59,6 +61,7 @@ import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 interface DugsiRegistration {
   id: string
   name: string
+  gender: Gender | null
   dateOfBirth: Date | string | null
   educationLevel: string | null
   gradeLevel: string | null
@@ -306,6 +309,7 @@ export function DugsiRegistrationsTable({
               <TableHeader>
                 <TableRow>
                   <TableHead>Child Name</TableHead>
+                  <TableHead className="w-16">Gender</TableHead>
                   <TableHead>Parent</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Registered</TableHead>
@@ -316,7 +320,7 @@ export function DugsiRegistrationsTable({
                 {filteredRegistrations.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={5}
+                      colSpan={6}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
                       No registrations found.
@@ -331,6 +335,9 @@ export function DugsiRegistrationsTable({
                     >
                       <TableCell className="font-medium">
                         {registration.name}
+                      </TableCell>
+                      <TableCell className="w-16">
+                        <GenderIcon gender={registration.gender} size="lg" />
                       </TableCell>
                       <TableCell className="text-sm">
                         {registration.parentFirstName ||
@@ -607,6 +614,13 @@ export function DugsiRegistrationsTable({
                                       <h4 className="font-semibold">
                                         {child.name}
                                       </h4>
+                                      {child.gender && (
+                                        <GenderDisplay
+                                          gender={child.gender}
+                                          size="sm"
+                                          showLabel={true}
+                                        />
+                                      )}
                                       {child.id === selectedRegistration.id && (
                                         <Badge
                                           variant="secondary"
@@ -799,6 +813,18 @@ function MobileRegistrationCard({
                 {registration.name}
               </p>
             </div>
+
+            {/* Gender */}
+            {registration.gender && (
+              <div>
+                <p className="text-[11px] text-muted-foreground">Gender</p>
+                <GenderDisplay
+                  gender={registration.gender}
+                  size="md"
+                  showLabel={true}
+                />
+              </div>
+            )}
 
             {/* Parent */}
             <div>

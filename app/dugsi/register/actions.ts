@@ -88,6 +88,7 @@ export async function registerDugsiChildren(
               email: null, // Children don't have email
               phone: null, // Children don't have phone
               dateOfBirth: child.dateOfBirth,
+              gender: child.gender,
               educationLevel: child.educationLevel,
               gradeLevel: child.gradeLevel,
               schoolName: child.schoolName,

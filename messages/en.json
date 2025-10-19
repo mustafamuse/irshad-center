@@ -1,0 +1,105 @@
+{
+  "dugsi": {
+    "navigation": {
+      "backToHome": "Back to Home",
+      "back": "Back"
+    },
+    "header": {
+      "title": "Dugsi Registration",
+      "description": "Enroll your children in our weekend Islamic program"
+    },
+    "footer": {
+      "needHelp": "Need help? Contact us at",
+      "email": "info@irshadcenter.com"
+    },
+    "parentSection": {
+      "title": "Parent Information",
+      "description": "Primary contact for registration",
+      "parent1": "Parent 1",
+      "parent2": "Parent 2",
+      "singleParent": "Single parent household"
+    },
+    "childrenSection": {
+      "title": "Children",
+      "description": "Add each child to enroll",
+      "child": "child",
+      "children": "children",
+      "childNumber": "Child #{number}"
+    },
+    "fields": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "phone": "Phone",
+      "gender": "Gender",
+      "dateOfBirth": "Date of Birth",
+      "schoolLevel": "School Level",
+      "grade": "Grade",
+      "school": "School",
+      "healthInfo": "Health & Support Information"
+    },
+    "placeholders": {
+      "firstName": "Enter first name",
+      "lastName": "Enter last name",
+      "email": "parent@example.com",
+      "childFirstName": "Enter child's first name",
+      "childLastName": "Enter child's last name",
+      "selectLevel": "Select level",
+      "selectGrade": "Select grade",
+      "selectSchool": "Select school...",
+      "healthInfo": "Example: Peanut allergy (EpiPen in backpack), ADHD (takes medication at home), or 'None'"
+    },
+    "gender": {
+      "boy": "Boy",
+      "girl": "Girl"
+    },
+    "education": {
+      "elementary": "Elementary School",
+      "middleSchool": "Middle School",
+      "highSchool": "High School"
+    },
+    "grades": {
+      "kindergarten": "Kindergarten",
+      "grade1": "1st Grade",
+      "grade2": "2nd Grade",
+      "grade3": "3rd Grade",
+      "grade4": "4th Grade",
+      "grade5": "5th Grade",
+      "grade6": "6th Grade",
+      "grade7": "7th Grade",
+      "grade8": "8th Grade",
+      "grade9": "9th Grade",
+      "grade10": "10th Grade",
+      "grade11": "11th Grade",
+      "grade12": "12th Grade"
+    },
+    "helpText": {
+      "healthInfo": "Share any allergies, medical conditions, ADHD/Autism, medications, dietary needs, or support strategies. Type \"None\" if not applicable."
+    },
+    "buttons": {
+      "addChild": "Add Another Child",
+      "remove": "Remove",
+      "processing": "Processing...",
+      "continueToPayment": "Continue to Payment ({count} {childText})",
+      "continueShort": "Continue ({count})"
+    },
+    "messages": {
+      "enrollmentSuccess": "Successfully enrolled {count} {childText}!",
+      "enrollmentError": "Registration failed. Please try again.",
+      "unexpectedError": "An unexpected error occurred. Please try again."
+    },
+    "validation": {
+      "nameMin": "Name must be at least 2 characters",
+      "nameMax": "Name must be less than 50 characters",
+      "nameInvalid": "Name can only contain letters, spaces, and hyphens",
+      "emailInvalid": "Please enter a valid email address",
+      "emailMin": "Email must be at least 5 characters",
+      "emailMax": "Email must be less than 100 characters",
+      "phoneInvalid": "Enter a valid phone number (XXX-XXX-XXXX)",
+      "required": "This field is required",
+      "genderRequired": "Please select a gender",
+      "dateRequired": "Please select a date of birth",
+      "healthInfoMin": "Please provide health information or type 'None'"
+    }
+  }
+}

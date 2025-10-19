@@ -1,4 +1,4 @@
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, Gender } from '@prisma/client'
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -70,6 +70,11 @@ export const DUGSI_GRADE_OPTIONS = [
   { value: 'GRADE_10', label: '10th Grade' },
   { value: 'GRADE_11', label: '11th Grade' },
   { value: 'GRADE_12', label: '12th Grade' },
+] as const
+
+export const GENDER_OPTIONS = [
+  { value: 'MALE', label: 'Boy' },
+  { value: 'FEMALE', label: 'Girl' },
 ] as const
 
 // ============================================================================
@@ -156,6 +161,9 @@ export const MAHAD_DEFAULT_FORM_VALUES: Partial<MahadRegistrationValues> = {
 export const childInfoSchema = z.object({
   firstName: nameSchema,
   lastName: nameSchema,
+  gender: z.nativeEnum(Gender, {
+    required_error: 'Please select gender',
+  }),
   dateOfBirth: z
     .date()
     .refine((date) => {
@@ -233,6 +241,7 @@ export interface DugsiFormSectionProps {
 export const DEFAULT_CHILD_VALUES: ChildInfo = {
   firstName: '',
   lastName: '',
+  gender: undefined as unknown as Gender,
   dateOfBirth: null as unknown as Date,
   educationLevel: undefined as unknown as EducationLevel,
   gradeLevel: null,

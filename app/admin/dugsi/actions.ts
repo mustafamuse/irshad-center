@@ -11,6 +11,7 @@ export async function getDugsiRegistrations() {
     select: {
       id: true,
       name: true,
+      gender: true,
       dateOfBirth: true,
       educationLevel: true,
       gradeLevel: true,
@@ -61,6 +62,7 @@ export async function getFamilyMembers(studentId: string) {
     select: {
       id: true,
       name: true,
+      gender: true,
       dateOfBirth: true,
       educationLevel: true,
       gradeLevel: true,
