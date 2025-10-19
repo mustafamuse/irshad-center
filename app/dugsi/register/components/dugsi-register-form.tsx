@@ -24,7 +24,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Form } from '@/components/ui/form'
 import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
 import { SchoolCombobox } from '@/components/ui/school-combobox'
 import { Textarea } from '@/components/ui/textarea'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
@@ -41,7 +41,6 @@ import {
   getInputClassNames,
 } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
-import { GENDER_OPTIONS } from '@/lib/utils/gender-utils'
 
 import { DugsiSuccessDialog } from './dugsi-success-dialog'
 import { registerDugsiChildren } from '../actions'
@@ -270,29 +269,11 @@ export function DugsiRegisterForm() {
                       required
                     >
                       {(field) => (
-                        <RadioGroup
+                        <GenderRadioGroup
                           value={field.value}
                           onValueChange={field.onChange}
-                          className="flex gap-4"
-                        >
-                          {GENDER_OPTIONS.map((option) => (
-                            <div
-                              key={option.value}
-                              className="flex items-center space-x-2"
-                            >
-                              <RadioGroupItem
-                                value={option.value}
-                                id={`children.${index}.gender-${option.value}`}
-                              />
-                              <Label
-                                htmlFor={`children.${index}.gender-${option.value}`}
-                                className="cursor-pointer font-normal"
-                              >
-                                {option.label}
-                              </Label>
-                            </div>
-                          ))}
-                        </RadioGroup>
+                          name={`children.${index}.gender`}
+                        />
                       )}
                     </FormFieldWrapper>
 

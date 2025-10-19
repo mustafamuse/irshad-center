@@ -615,9 +615,9 @@ export function DugsiRegistrationsTable({
                                         {child.name}
                                       </h4>
                                       {child.gender && (
-                                        <GenderDisplay 
-                                          gender={child.gender} 
-                                          size="sm" 
+                                        <GenderDisplay
+                                          gender={child.gender}
+                                          size="sm"
                                           showLabel={true}
                                         />
                                       )}
@@ -818,9 +818,9 @@ function MobileRegistrationCard({
             {registration.gender && (
               <div>
                 <p className="text-[11px] text-muted-foreground">Gender</p>
-                <GenderDisplay 
-                  gender={registration.gender} 
-                  size="md" 
+                <GenderDisplay
+                  gender={registration.gender}
+                  size="md"
                   showLabel={true}
                 />
               </div>
