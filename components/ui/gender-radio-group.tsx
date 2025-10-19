@@ -10,7 +10,7 @@ import { GENDER_OPTIONS } from '@/lib/registration/schemas/registration'
 // ============================================================================
 
 export interface GenderRadioGroupProps {
-  value?: Gender | string | null
+  value?: Gender | null
   onValueChange?: (value: Gender) => void
   name: string
   className?: string
@@ -118,7 +118,7 @@ export function GenderRadioGroup({
 // ============================================================================
 
 export interface CompactGenderRadioGroupProps {
-  value?: Gender | string | null
+  value?: Gender | null
   onValueChange?: (value: Gender) => void
   name: string
   className?: string

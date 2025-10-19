@@ -35,7 +35,6 @@ import {
   DEFAULT_CHILD_VALUES,
   DUGSI_EDUCATION_OPTIONS,
   DUGSI_GRADE_OPTIONS,
-  GENDER_OPTIONS,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,

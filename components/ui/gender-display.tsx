@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 // ============================================================================
 
 export interface GenderDisplayProps {
-  gender: Gender | string | null
+  gender: Gender | null
   size?: 'sm' | 'md' | 'lg'
   showLabel?: boolean
   className?: string
@@ -28,21 +28,22 @@ export function GenderDisplay({
   if (!gender) {
     return <span className="text-xs text-muted-foreground">—</span>
   }
-  
+
   const iconSizeClass = SIZE_CLASSES[size]
   const isMale = gender === 'MALE'
-  
+
   return (
     <div className={cn('flex items-center gap-1', className)}>
-      <User className={cn(
-        iconSizeClass,
-        isMale ? 'text-blue-500' : 'text-pink-500'
-      )} />
+      <User
+        className={cn(
+          iconSizeClass,
+          isMale ? 'text-blue-500' : 'text-pink-500'
+        )}
+      />
       {showLabel && (
-        <span className={cn(
-          'text-xs',
-          isMale ? 'text-blue-600' : 'text-pink-600'
-        )}>
+        <span
+          className={cn('text-xs', isMale ? 'text-blue-600' : 'text-pink-600')}
+        >
           {isMale ? 'Boy' : 'Girl'}
         </span>
       )}
@@ -55,24 +56,30 @@ export function GenderDisplay({
 // ============================================================================
 
 export interface GenderIconProps {
-  gender: Gender | string | null
+  gender: Gender | null
   size?: 'sm' | 'md' | 'lg'
   className?: string
 }
 
-export function GenderIcon({ gender, size = 'md', className }: GenderIconProps) {
+export function GenderIcon({
+  gender,
+  size = 'md',
+  className,
+}: GenderIconProps) {
   if (!gender) {
     return <span className="text-xs text-muted-foreground">—</span>
   }
-  
+
   const iconSizeClass = SIZE_CLASSES[size]
   const isMale = gender === 'MALE'
-  
+
   return (
-    <User className={cn(
-      iconSizeClass,
-      isMale ? 'text-blue-500' : 'text-pink-500',
-      className
-    )} />
+    <User
+      className={cn(
+        iconSizeClass,
+        isMale ? 'text-blue-500' : 'text-pink-500',
+        className
+      )}
+    />
   )
 }
