@@ -45,7 +45,7 @@ export function GenderRadioGroup({
     <RadioGroup
       value={value || ''}
       onValueChange={onValueChange}
-      className={cn('grid grid-cols-2 gap-4 w-full', className)}
+      className={cn('grid w-full grid-cols-2 gap-4', className)}
       disabled={disabled}
     >
       {GENDER_OPTIONS.map((option) => {
@@ -62,7 +62,7 @@ export function GenderRadioGroup({
             <Label
               htmlFor={`${name}-${option.value}`}
               className={cn(
-                'flex cursor-pointer items-center gap-3 rounded-lg border-2 p-4 transition-all duration-200 w-full min-h-[80px]',
+                'flex min-h-[60px] w-full cursor-pointer items-center gap-2 rounded-lg border-2 p-3 transition-all duration-200',
                 'peer-focus:ring-2 peer-focus:ring-offset-2',
                 styles.bgColor,
                 styles.borderColor,
@@ -75,11 +75,11 @@ export function GenderRadioGroup({
             >
               <div
                 className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full',
+                  'flex h-6 w-6 items-center justify-center rounded-full',
                   isSelected ? styles.color : 'text-muted-foreground'
                 )}
               >
-                <User className="h-5 w-5" />
+                <User className="h-4 w-4" />
               </div>
               <div className="flex-1">
                 <div
@@ -90,19 +90,19 @@ export function GenderRadioGroup({
                 >
                   {option.label}
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  {option.value === 'MALE' ? 'Male student' : 'Female student'}
+                <div className="text-[10px] text-muted-foreground">
+                  {option.value === 'MALE' ? 'Male' : 'Female'}
                 </div>
               </div>
               {isSelected && (
                 <div
                   className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded-full',
+                    'flex h-4 w-4 items-center justify-center rounded-full',
                     styles.color,
                     styles.bgColor
                   )}
                 >
-                  <div className="h-2 w-2 rounded-full bg-current" />
+                  <div className="h-1.5 w-1.5 rounded-full bg-current" />
                 </div>
               )}
             </Label>
