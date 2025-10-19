@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
+import { Gender } from '@prisma/client'
 import { format } from 'date-fns'
 import {
   AlertCircle,
@@ -32,6 +33,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { GenderDisplay, GenderIcon } from '@/components/ui/gender-display'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
@@ -59,7 +61,7 @@ import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 interface DugsiRegistration {
   id: string
   name: string
-  gender: string | null
+  gender: Gender | null
   dateOfBirth: Date | string | null
   educationLevel: string | null
   gradeLevel: string | null
@@ -335,15 +337,7 @@ export function DugsiRegistrationsTable({
                         {registration.name}
                       </TableCell>
                       <TableCell className="w-16">
-                        {registration.gender === 'MALE' ? (
-                          <User className="h-5 w-5 text-blue-500" />
-                        ) : registration.gender === 'FEMALE' ? (
-                          <User className="h-5 w-5 text-pink-500" />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            —
-                          </span>
-                        )}
+                        <GenderIcon gender={registration.gender} size="lg" />
                       </TableCell>
                       <TableCell className="text-sm">
                         {registration.parentFirstName ||
@@ -621,23 +615,11 @@ export function DugsiRegistrationsTable({
                                         {child.name}
                                       </h4>
                                       {child.gender && (
-                                        <div className="flex items-center gap-1">
-                                          {child.gender === 'MALE' ? (
-                                            <>
-                                              <User className="h-3.5 w-3.5 text-blue-500" />
-                                              <span className="text-xs text-blue-600">
-                                                Boy
-                                              </span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <User className="h-3.5 w-3.5 text-pink-500" />
-                                              <span className="text-xs text-pink-600">
-                                                Girl
-                                              </span>
-                                            </>
-                                          )}
-                                        </div>
+                                        <GenderDisplay 
+                                          gender={child.gender} 
+                                          size="sm" 
+                                          showLabel={true}
+                                        />
                                       )}
                                       {child.id === selectedRegistration.id && (
                                         <Badge
@@ -836,17 +818,11 @@ function MobileRegistrationCard({
             {registration.gender && (
               <div>
                 <p className="text-[11px] text-muted-foreground">Gender</p>
-                {registration.gender === 'MALE' ? (
-                  <div className="flex items-center gap-1.5">
-                    <User className="h-4 w-4 text-blue-500" />
-                    <p className="text-sm">Boy</p>
-                  </div>
-                ) : registration.gender === 'FEMALE' ? (
-                  <div className="flex items-center gap-1.5">
-                    <User className="h-4 w-4 text-pink-500" />
-                    <p className="text-sm">Girl</p>
-                  </div>
-                ) : null}
+                <GenderDisplay 
+                  gender={registration.gender} 
+                  size="md" 
+                  showLabel={true}
+                />
               </div>
             )}
 
