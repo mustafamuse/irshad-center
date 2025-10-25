@@ -45,12 +45,12 @@ describe('StudentMatcher', () => {
   })
 
   describe('findByCheckoutSession', () => {
-    it('should find student by name from custom field', async () => {
+    it('should find student by email from custom field', async () => {
       const mockSession = {
         custom_fields: [
           {
             key: 'studentsemailonethatyouusedtoregister',
-            text: { value: 'John Doe' },
+            text: { value: 'john.doe@example.com' },
           },
         ],
         customer_details: { email: null },
@@ -59,7 +59,7 @@ describe('StudentMatcher', () => {
       const mockStudent = {
         id: 'student-1',
         name: 'John Doe',
-        email: null,
+        email: 'john.doe@example.com',
         stripeSubscriptionId: null,
       } as Student
 
@@ -68,17 +68,17 @@ describe('StudentMatcher', () => {
       const result = await matcher.findByCheckoutSession(mockSession)
 
       expect(result.student).toEqual(mockStudent)
-      expect(result.matchMethod).toBe('name')
-      expect(result.validatedEmail).toBeNull()
+      expect(result.matchMethod).toBe('email')
+      expect(result.validatedEmail).toBe('john.doe@example.com')
       expect(prisma.student.findMany).toHaveBeenCalledWith({
         where: {
-          name: { equals: 'John Doe', mode: 'insensitive' },
+          email: { equals: 'john.doe@example.com', mode: 'insensitive' },
           stripeSubscriptionId: null,
         },
       })
     })
 
-    it('should fallback to phone when name not found', async () => {
+    it('should fallback to phone when custom email not found', async () => {
       const mockSession = {
         custom_fields: [
           {
@@ -109,7 +109,7 @@ describe('StudentMatcher', () => {
       expect(result.validatedEmail).toBeNull()
     })
 
-    it('should fallback to email when name and phone not found', async () => {
+    it('should fallback to payer email when custom email and phone not found', async () => {
       const mockSession = {
         custom_fields: [],
         customer_details: { email: 'john@example.com' },
@@ -148,12 +148,12 @@ describe('StudentMatcher', () => {
       expect(result.validatedEmail).toBe('unknown@example.com')
     })
 
-    it('should not match when multiple students found with same name', async () => {
+    it('should not match when multiple students found with same email', async () => {
       const mockSession = {
         custom_fields: [
           {
             key: 'studentsemailonethatyouusedtoregister',
-            text: { value: 'John' },
+            text: { value: 'john@example.com' },
           },
         ],
         customer_details: { email: null },
@@ -161,8 +161,8 @@ describe('StudentMatcher', () => {
 
       // Return multiple students (ambiguous)
       vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', name: 'John Doe' } as Student,
-        { id: '2', name: 'John Smith' } as Student,
+        { id: '1', name: 'John Doe', email: 'john@example.com' } as Student,
+        { id: '2', name: 'John Smith', email: 'john@example.com' } as Student,
       ])
 
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -172,7 +172,7 @@ describe('StudentMatcher', () => {
       expect(result.student).toBeNull()
       expect(result.matchMethod).toBeNull()
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Multiple students found with name')
+        expect.stringContaining('Multiple students found with email')
       )
     })
 
@@ -234,7 +234,7 @@ describe('StudentMatcher', () => {
         custom_fields: [
           {
             key: 'studentsemailonethatyouusedtoregister',
-            text: { value: 'John Doe' },
+            text: { value: 'john.doe@example.com' },
           },
         ],
         customer_details: { email: null },
@@ -243,7 +243,7 @@ describe('StudentMatcher', () => {
       const mockStudent = {
         id: 'student-1',
         name: 'John Doe',
-        email: null,
+        email: 'john.doe@example.com',
         stripeSubscriptionId: null, // Only match unlinked students
       } as Student
 
@@ -254,7 +254,7 @@ describe('StudentMatcher', () => {
       // Verify the query includes stripeSubscriptionId: null
       expect(prisma.student.findMany).toHaveBeenCalledWith({
         where: {
-          name: { equals: 'John Doe', mode: 'insensitive' },
+          email: { equals: 'john.doe@example.com', mode: 'insensitive' },
           stripeSubscriptionId: null,
         },
       })
@@ -309,24 +309,24 @@ describe('StudentMatcher', () => {
   })
 
   describe('match priority', () => {
-    it('should prioritize name over phone and email', async () => {
+    it('should prioritize custom email over phone and payer email', async () => {
       const mockSession = {
         custom_fields: [
           {
             key: 'studentsemailonethatyouusedtoregister',
-            text: { value: 'John Doe' },
+            text: { value: 'john.student@example.com' },
           },
           {
             key: 'studentswhatsappthatyouuseforourgroup',
             numeric: { value: '1234567890' },
           },
         ],
-        customer_details: { email: 'john@example.com' },
+        customer_details: { email: 'john.parent@example.com' },
       } as unknown as Stripe.Checkout.Session
 
-      const mockStudentByName = {
-        id: 'student-name',
-        name: 'John Doe',
+      const mockStudentByCustomEmail = {
+        id: 'student-custom-email',
+        email: 'john.student@example.com',
         stripeSubscriptionId: null,
       } as Student
 
@@ -336,31 +336,31 @@ describe('StudentMatcher', () => {
         stripeSubscriptionId: null,
       } as Student
 
-      const mockStudentByEmail = {
-        id: 'student-email',
-        email: 'john@example.com',
+      const mockStudentByPayerEmail = {
+        id: 'student-payer-email',
+        email: 'john.parent@example.com',
         stripeSubscriptionId: null,
       } as Student
 
-      // Name query returns a student
+      // Custom email query returns a student
       vi.mocked(prisma.student.findMany)
-        .mockResolvedValueOnce([mockStudentByName]) // First call for name
-        .mockResolvedValueOnce([mockStudentByEmail]) // Would be called for email if reached
+        .mockResolvedValueOnce([mockStudentByCustomEmail]) // First call for custom email
+        .mockResolvedValueOnce([mockStudentByPayerEmail]) // Would be called for payer email if reached
 
       vi.mocked(prisma.$queryRaw).mockResolvedValue([mockStudentByPhone])
 
       const result = await matcher.findByCheckoutSession(mockSession)
 
-      // Should match by name and stop there
-      expect(result.student).toEqual(mockStudentByName)
-      expect(result.matchMethod).toBe('name')
+      // Should match by custom email and stop there
+      expect(result.student).toEqual(mockStudentByCustomEmail)
+      expect(result.matchMethod).toBe('email')
 
-      // Phone and email queries should not be made
+      // Phone and payer email queries should not be made
       expect(prisma.$queryRaw).not.toHaveBeenCalled()
-      expect(prisma.student.findMany).toHaveBeenCalledTimes(1) // Only name query
+      expect(prisma.student.findMany).toHaveBeenCalledTimes(1) // Only custom email query
     })
 
-    it('should prioritize phone over email when name not found', async () => {
+    it('should prioritize phone over payer email when custom email not found', async () => {
       const mockSession = {
         custom_fields: [
           {

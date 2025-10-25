@@ -65,9 +65,7 @@ export function PaymentSuccessDialog({
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#007078]" />
-                <span>
-                  Secure bank-to-bank transfer with no processing fees
-                </span>
+                <span>Secure payment processing through Stripe</span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#007078]" />

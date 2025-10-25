@@ -4,7 +4,6 @@ import type { Stripe } from 'stripe'
 
 import { prisma } from '@/lib/db'
 import {
-  webhookStudentNameSchema,
   webhookPhoneSchema,
   webhookEmailSchema,
   validateWebhookData,
@@ -16,8 +15,8 @@ import {
 export interface StudentMatchResult {
   /** The matched student, or null if no unique match found */
   student: Student | null
-  /** How the student was matched (name, phone, or email) */
-  matchMethod: 'name' | 'phone' | 'email' | null
+  /** How the student was matched (phone or email) */
+  matchMethod: 'phone' | 'email' | null
   /** Validated email address from the session (may be useful for updating student) */
   validatedEmail: string | null
 }
@@ -25,7 +24,7 @@ export interface StudentMatchResult {
 /**
  * Service for matching Stripe checkout sessions to existing students.
  * Attempts multiple matching strategies in order of preference:
- * 1. Student name from custom field
+ * 1. Student email from custom field
  * 2. Student phone from custom field
  * 3. Payer email from customer details
  *
@@ -44,10 +43,10 @@ export class StudentMatcher {
   ): Promise<StudentMatchResult> {
     // Try matching strategies in order of preference
 
-    // 1. Try by name from custom field (most reliable)
-    const nameResult = await this.findByName(session)
-    if (nameResult.student) {
-      return nameResult
+    // 1. Try by email from custom field (most reliable - unique identifier)
+    const customEmailResult = await this.findByCustomEmail(session)
+    if (customEmailResult.student) {
+      return customEmailResult
     }
 
     // 2. Try by phone from custom field
@@ -56,62 +55,62 @@ export class StudentMatcher {
       return phoneResult
     }
 
-    // 3. Try by payer email (least reliable but includes validated email)
+    // 3. Try by payer email (fallback - might be parent's email)
     return this.findByEmail(session)
   }
 
   /**
-   * Attempts to find a student by name from the custom field.
+   * Attempts to find a student by email from the custom field.
    * Only returns a match if exactly one unlinked student is found.
    */
-  private async findByName(
+  private async findByCustomEmail(
     session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
-    const nameField = session.custom_fields?.find(
+    const emailField = session.custom_fields?.find(
       (f) => f.key === 'studentsemailonethatyouusedtoregister'
     )
-    const rawName = nameField?.text?.value
+    const rawEmail = emailField?.text?.value
 
-    if (!rawName) {
+    if (!rawEmail) {
       return { student: null, matchMethod: null, validatedEmail: null }
     }
 
-    const validatedName = validateWebhookData(
-      rawName,
-      webhookStudentNameSchema,
-      'student name'
+    const validatedEmail = validateWebhookData(
+      rawEmail,
+      webhookEmailSchema,
+      'student email (custom field)'
     )
 
-    if (!validatedName) {
+    if (!validatedEmail) {
       return { student: null, matchMethod: null, validatedEmail: null }
     }
 
     const students = await prisma.student.findMany({
       where: {
-        name: { equals: validatedName, mode: 'insensitive' },
+        email: { equals: validatedEmail, mode: 'insensitive' },
         stripeSubscriptionId: null,
       },
     })
 
     if (students.length === 1) {
       console.log(
-        `[WEBHOOK] Found unique student by name: ${validatedName}. Student ID: ${students[0].id}`
+        `[WEBHOOK] Found unique student by custom field email: ${validatedEmail}. Student ID: ${students[0].id}`
       )
       return {
         student: students[0],
-        matchMethod: 'name',
-        validatedEmail: null,
+        matchMethod: 'email',
+        validatedEmail,
       }
     }
 
-    // No match or ambiguous (multiple students with same name)
+    // No match or ambiguous (multiple students with same email)
     if (students.length > 1) {
       console.warn(
-        `[WEBHOOK] Multiple students found with name: ${validatedName}. Cannot determine unique match.`
+        `[WEBHOOK] Multiple students found with email: ${validatedEmail}. Cannot determine unique match.`
       )
     }
 
-    return { student: null, matchMethod: null, validatedEmail: null }
+    return { student: null, matchMethod: null, validatedEmail }
   }
 
   /**
@@ -240,7 +239,7 @@ export class StudentMatcher {
     session: Stripe.Checkout.Session,
     subscriptionId: string
   ): void {
-    const nameField = session.custom_fields?.find(
+    const emailField = session.custom_fields?.find(
       (f) => f.key === 'studentsemailonethatyouusedtoregister'
     )
     const phoneField = session.custom_fields?.find(
@@ -249,7 +248,7 @@ export class StudentMatcher {
 
     console.warn(
       `[WEBHOOK] Could not find a unique, unlinked student for subscription ${subscriptionId}. ` +
-        `Attempted lookup with name: "${nameField?.text?.value || 'N/A'}", ` +
+        `Attempted lookup with custom field email: "${emailField?.text?.value || 'N/A'}", ` +
         `phone: "${phoneField?.numeric?.value || 'N/A'}", ` +
         `and payer email: "${session.customer_details?.email || 'N/A'}". Manual review required.`
     )
