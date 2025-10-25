@@ -105,7 +105,7 @@ export function GlobalHeader({
                 variant="secondary"
                 className="hidden h-10 px-4 md:inline-flex md:h-11"
               >
-                <Link href="/mahad#pricing">Pay Tuition →</Link>
+                <Link href="/mahad">Pay Tuition →</Link>
               </Button>
             </>
           )}
@@ -178,7 +178,7 @@ export function GlobalHeader({
                 </Link>
                 <div className="pt-2">
                   <Button asChild className="w-full">
-                    <Link href="/mahad#pricing">Pay Tuition →</Link>
+                    <Link href="/mahad">Pay Tuition →</Link>
                   </Button>
                 </div>
               </>
