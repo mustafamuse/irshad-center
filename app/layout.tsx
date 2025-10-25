@@ -2,7 +2,6 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata } from 'next'
 import { Toaster } from 'sonner'
 
-import { EnrollmentProvider } from '@/contexts/enrollment-context'
 import { ThemeProvider } from '@/providers/theme-provider'
 
 import { Providers } from './providers'
@@ -72,7 +71,7 @@ export default function RootLayout({
             enableSystem={true}
             disableTransitionOnChange={false}
           >
-            <EnrollmentProvider>{children}</EnrollmentProvider>
+            {children}
             <Toaster
               position="top-right"
               toastOptions={{

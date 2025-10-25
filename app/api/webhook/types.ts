@@ -22,7 +22,6 @@ export interface LogEventData {
   error?: string
   timestamp: number
   customerId?: string
-  setupIntentId?: string
   amount?: number
   status?: string
   subscriptionId?: string

@@ -1,8 +1,7 @@
-import type { Student } from '@prisma/client'
-import { Prisma } from '@prisma/client'
 import type { Stripe } from 'stripe'
 
 import { prisma } from '@/lib/db'
+import { studentMatcher } from '@/lib/services/student-matcher'
 import { stripeServerClient as stripe } from '@/lib/stripe'
 
 /**
@@ -87,99 +86,33 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
     return
   }
 
-  let studentToUpdate: Student | null = null
+  // Use the StudentMatcher service to find the student
+  const matchResult = await studentMatcher.findByCheckoutSession(session)
 
-  // 1. Find by name from the custom field.
-  const studentNameField = session.custom_fields?.find(
-    (f) => f.key === 'studentsemailonethatyouusedtoregister'
-  )
-  const studentName = studentNameField?.text?.value
-
-  if (studentName) {
-    const students = await prisma.student.findMany({
-      where: {
-        name: { equals: studentName, mode: 'insensitive' },
-        stripeSubscriptionId: null,
-      },
-    })
-    if (students.length === 1) {
-      studentToUpdate = students[0]
-      console.log(
-        `[WEBHOOK] Found unique student by name: ${studentName}. Student ID: ${studentToUpdate.id}`
-      )
-    }
-  }
-
-  // 2. If not found, find by phone number from the custom field.
-  if (!studentToUpdate) {
-    const studentPhoneField = session.custom_fields?.find(
-      (f) => f.key === 'studentswhatsappthatyouuseforourgroup'
-    )
-    const studentPhoneFromStripe = studentPhoneField?.numeric?.value
-
-    if (studentPhoneFromStripe) {
-      const normalizedPhone = studentPhoneFromStripe.replace(/\D/g, '')
-      const students = await prisma.$queryRaw<Student[]>(Prisma.sql`
-        SELECT * FROM "Student"
-        WHERE REGEXP_REPLACE("phone", '[^0-9]', '', 'g') = ${normalizedPhone}
-        AND "stripeSubscriptionId" IS NULL
-      `)
-
-      if (students.length === 1) {
-        studentToUpdate = students[0]
-        console.log(
-          `[WEBHOOK] Found unique student by normalized phone: ${normalizedPhone}. Student ID: ${studentToUpdate.id}`
-        )
-      }
-    }
-  }
-
-  // 3. If still not found, fall back to the payer's email.
-  const payerEmail = session.customer_details?.email
-  if (!studentToUpdate && payerEmail) {
-    const students = await prisma.student.findMany({
-      where: {
-        email: { equals: payerEmail, mode: 'insensitive' },
-        stripeSubscriptionId: null,
-      },
-    })
-    if (students.length === 1) {
-      studentToUpdate = students[0]
-      console.log(
-        `[WEBHOOK] Found unique student by payer email: ${payerEmail}. Student ID: ${studentToUpdate.id}`
-      )
-    }
-  }
-
-  // If a unique student was found by either strategy, link them.
-  if (studentToUpdate) {
+  if (matchResult.student) {
+    // Link the student to the subscription
     await prisma.student.update({
-      where: { id: studentToUpdate.id },
+      where: { id: matchResult.student.id },
       data: {
         stripeCustomerId: session.customer as string,
         stripeSubscriptionId: subscriptionId,
         status: 'enrolled',
-        email: payerEmail,
+        // Only update email if we have a validated one and student doesn't have one
+        ...(matchResult.validatedEmail &&
+          !matchResult.student.email && { email: matchResult.validatedEmail }),
       },
     })
+
     console.log(
-      `[WEBHOOK] Successfully linked Subscription ID: ${subscriptionId} to Student: ${studentToUpdate.name} (${studentToUpdate.id})`
+      `[WEBHOOK] Successfully linked Subscription ID: ${subscriptionId} to Student: ${matchResult.student.name} (${matchResult.student.id}) via ${matchResult.matchMethod}`
     )
 
     // Sync the initial state. The subscription is now linked, and its status
     // will be updated to reflect the true state from Stripe (e.g., 'trialing' or 'active').
     await syncStudentSubscriptionState(subscriptionId)
   } else {
-    // If no unique student was found, log a detailed warning for manual review.
-    const studentPhone = session.custom_fields?.find(
-      (f) => f.key === 'studentswhatsappthatyouuseforourgroup'
-    )?.numeric?.value
-    console.warn(
-      `[WEBHOOK] Could not find a unique, unlinked student for subscription ${subscriptionId}. ` +
-        `Attempted lookup with name: "${studentName || 'N/A'}", ` +
-        `phone: "${studentPhone || 'N/A'}", ` +
-        `and payer email: "${payerEmail || 'N/A'}". Manual review required.`
-    )
+    // Log detailed warning for manual review
+    studentMatcher.logNoMatchFound(session, subscriptionId)
   }
 }
 

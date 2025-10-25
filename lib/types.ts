@@ -39,20 +39,6 @@ export interface StudentsJson {
   }
 }
 
-export interface EnrollmentFormData {
-  students: string[]
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  accountHolderName: string
-  routingNumber: string
-  accountNumber: string
-  confirmAccountNumber: string
-  accountType: 'checking' | 'savings'
-  termsAccepted: boolean
-}
-
 export interface DashboardSubscription {
   id: string
   status: Stripe.Subscription.Status
@@ -199,39 +185,6 @@ export interface PaymentNotification {
   balance?: number
 }
 
-export interface PaymentSetupStatus {
-  customerId: string
-  subscriptionId: string | null
-  setupCompleted: boolean
-  bankVerified: boolean
-  subscriptionActive: boolean
-  timestamp: number
-}
-
-export interface BankAccountStatus {
-  customerId: string
-  verified: boolean
-  last4: string | null
-  bankName: string | null
-  accountType: 'checking' | 'savings' | null
-  accountHolderType: 'company' | 'individual' | null
-  routingNumber: string | null
-  statusDetails: {
-    blocked?: {
-      network_code: string | null
-      reason:
-        | 'bank_account_closed'
-        | 'bank_account_frozen'
-        | 'bank_account_invalid_details'
-        | 'bank_account_restricted'
-        | 'bank_account_unusable'
-        | 'debit_not_authorized'
-        | null
-    }
-  } | null
-  timestamp: number
-}
-
 export interface DashboardResponse {
   // ... existing fields ...
   notEnrolledPotentialRevenue: number
@@ -265,43 +218,6 @@ export interface TableStudent extends ProcessedStudent {
   displayDate?: string // Formatted date string
   statusColor: string // CSS color class for status
   discountBadgeVariant: 'default' | 'secondary' | 'outline'
-}
-
-export interface SubscriptionPaymentStatus {
-  subscriptionId: string
-  setupCompleted: boolean
-  subscriptionActive: boolean
-  bankVerified: boolean
-  lastPaymentStatus: 'succeeded' | 'failed' | 'pending'
-  lastPaymentDate: string
-  currentPeriodEnd: string
-  timestamp: number
-}
-
-interface _SubscriptionStatus {
-  setupIntentId: string
-  status: 'pending' | 'processing' | 'completed' | 'failed'
-  subscriptionId?: string
-  error?: string
-  createdAt: string
-  updatedAt: string
-}
-export type Relationship =
-  | 'self'
-  | 'father'
-  | 'mother'
-  | 'sibling'
-  | 'uncle'
-  | 'aunt'
-  | 'step-father'
-  | 'step-mother'
-  | 'other'
-export interface PayorDetails {
-  firstName?: string
-  lastName?: string
-  email?: string
-  phone?: string
-  relationship?: Relationship
 }
 
 export interface SubscriptionQueryParams {
