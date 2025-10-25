@@ -48,7 +48,6 @@ import {
 } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
 
-
 import { DugsiSuccessDialog } from './dugsi-success-dialog'
 import { registerDugsiChildren } from '../actions'
 
@@ -62,6 +61,7 @@ export function DugsiRegisterForm() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false)
   const [registrationData, setRegistrationData] =
     useState<DugsiRegistrationValues | null>(null)
+  const [paymentUrl, setPaymentUrl] = useState<string | undefined>()
 
   const form = useForm<DugsiRegistrationValues>({
     resolver: zodResolver(dugsiRegistrationSchema),
@@ -103,6 +103,7 @@ export function DugsiRegisterForm() {
           )
           console.log('📝 Setting registrationData and showing dialog')
           setRegistrationData(data)
+          setPaymentUrl(result.data?.paymentUrl) // Capture the payment URL
           setShowSuccessDialog(true)
           // Form will reset when dialog closes
         } else {
@@ -461,11 +462,13 @@ export function DugsiRegisterForm() {
             // Reset form when dialog closes
             form.reset()
             setRegistrationData(null)
+            setPaymentUrl(undefined)
             // Redirect to homepage
             router.push('/')
           }
         }}
         data={registrationData}
+        paymentUrl={paymentUrl}
       />
     </section>
   )

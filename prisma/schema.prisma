@@ -232,6 +232,15 @@ model Student {
   parentPhone          String?
   program              Program             @default(MAHAD_PROGRAM)
   gender               Gender?
+
+  // Dugsi-specific payment fields
+  stripeCustomerIdDugsi      String?   // Separate from mahad stripeCustomerId
+  stripeSubscriptionIdDugsi  String?   // For manually created dugsi subscriptions
+  paymentMethodCaptured      Boolean   @default(false)
+  paymentMethodCapturedAt    DateTime?
+  familyReferenceId          String?   // Links children in same family
+  stripeAccountType          StripeAccountType?  // Tracks which Stripe account
+
   Attendance           Attendance[]
   AttendanceRecord     AttendanceRecord[]
   Batch                Batch?              @relation(fields: [batchId], references: [id])
@@ -248,6 +257,8 @@ model Student {
   @@index([siblingGroupId])
   @@index([status])
   @@index([updatedAt])
+  @@index([familyReferenceId])
+  @@index([stripeCustomerIdDugsi])
 }
 
 model StudentPayment {
@@ -354,4 +365,22 @@ enum Program {
 enum Gender {
   MALE
   FEMALE
+}
+
+enum StripeAccountType {
+  MAHAD
+  DUGSI
+}
+
+model WebhookEvent {
+  id          String   @id @default(uuid())
+  eventId     String
+  eventType   String
+  source      String   // 'mahad' or 'dugsi'
+  processedAt DateTime @default(now())
+  payload     Json?
+
+  @@unique([eventId, source])
+  @@index([processedAt])
+  @@index([eventType])
 }

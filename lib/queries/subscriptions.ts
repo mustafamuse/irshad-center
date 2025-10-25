@@ -32,8 +32,11 @@ export interface StudentSubscriptionInfo {
 export async function getStudentSubscriptionStatus(
   studentId: string
 ): Promise<StudentSubscriptionInfo> {
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
+  const student = await prisma.student.findFirst({
+    where: {
+      id: studentId,
+      program: 'MAHAD_PROGRAM', // Explicit filter for Mahad
+    },
     select: {
       stripeSubscriptionId: true,
       stripeCustomerId: true,
@@ -64,6 +67,7 @@ export async function getStudentSubscriptionStatus(
 export async function getActiveSubscriptions() {
   return prisma.student.findMany({
     where: {
+      program: 'MAHAD_PROGRAM', // Explicit filter for Mahad
       subscriptionStatus: 'active',
       stripeSubscriptionId: { not: null },
     },
@@ -153,6 +157,11 @@ export async function validateStudentForEnrollment(studentId: string) {
     throw new Error('Student not found')
   }
 
+  // Ensure this is a Mahad student
+  if (student.program !== 'MAHAD_PROGRAM') {
+    throw new Error('This function is only for Mahad program students')
+  }
+
   // Check if student already has an active subscription
   if (student.subscriptionStatus === 'active') {
     throw new Error('Student already has an active subscription')
@@ -184,6 +193,7 @@ export async function validateStudentForEnrollment(studentId: string) {
 export async function getEligibleStudents() {
   return prisma.student.findMany({
     where: {
+      program: 'MAHAD_PROGRAM', // Explicit filter for Mahad
       OR: [
         { subscriptionStatus: null },
         { subscriptionStatus: { not: 'active' } },

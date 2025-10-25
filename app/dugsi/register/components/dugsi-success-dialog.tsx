@@ -3,6 +3,7 @@
 import {
   Calendar,
   CheckCircle2,
+  CreditCard,
   GraduationCap,
   Mail,
   MessageCircle,
@@ -20,8 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Separator } from '@/components/ui/separator'
 import { GenderDisplay } from '@/components/ui/gender-display'
+import { Separator } from '@/components/ui/separator'
 import type { DugsiRegistrationValues } from '@/lib/registration/schemas/registration'
 import {
   formatEducationLevel,
@@ -32,12 +33,14 @@ interface DugsiSuccessDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   data: DugsiRegistrationValues | null
+  paymentUrl?: string
 }
 
 export function DugsiSuccessDialog({
   isOpen,
   onOpenChange,
   data,
+  paymentUrl,
 }: DugsiSuccessDialogProps) {
   // Don't render if data is null
   if (!data) {
@@ -49,6 +52,13 @@ export function DugsiSuccessDialog({
     const encodedText = encodeURIComponent(text)
     // Send directly to Sh Nuur's WhatsApp: +1 (952) 855-2101
     window.open(`https://wa.me/19528552101?text=${encodedText}`, '_blank')
+  }
+
+  const handlePaymentSetup = () => {
+    if (paymentUrl) {
+      // Redirect to Stripe payment link
+      window.location.href = paymentUrl
+    }
   }
 
   return (
@@ -170,9 +180,9 @@ export function DugsiSuccessDialog({
                           {formatDate(child.dateOfBirth)}
                         </p>
                         {child.gender && (
-                          <GenderDisplay 
-                            gender={child.gender} 
-                            size="sm" 
+                          <GenderDisplay
+                            gender={child.gender}
+                            size="sm"
                             showLabel={true}
                             className="text-xs text-muted-foreground"
                           />
@@ -264,23 +274,59 @@ export function DugsiSuccessDialog({
 
         {/* Action Buttons - Fixed at bottom */}
         <div className="sticky bottom-0 z-10 border-t bg-white/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-white/80 sm:p-6">
-          <Button
-            onClick={handleWhatsApp}
-            size="lg"
-            className="w-full touch-manipulation bg-[#25D366] hover:bg-[#20BA5A] active:scale-[0.98]"
-          >
-            <MessageCircle className="mr-2 h-5 w-5" />
-            Send to Sh Nuur
-          </Button>
+          {paymentUrl ? (
+            <>
+              <Button
+                onClick={handlePaymentSetup}
+                size="lg"
+                className="w-full touch-manipulation bg-[#007078] hover:bg-[#005a61] active:scale-[0.98]"
+              >
+                <CreditCard className="mr-2 h-5 w-5" />
+                Setup Payment Method ($1)
+              </Button>
 
-          <Button
-            onClick={() => onOpenChange(false)}
-            variant="ghost"
-            size="lg"
-            className="mt-2 w-full touch-manipulation active:scale-[0.98]"
-          >
-            Done
-          </Button>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  onClick={handleWhatsApp}
+                  size="lg"
+                  variant="outline"
+                  className="flex-1 touch-manipulation active:scale-[0.98]"
+                >
+                  <MessageCircle className="mr-2 h-5 w-5" />
+                  Send to Sh Nuur
+                </Button>
+
+                <Button
+                  onClick={() => onOpenChange(false)}
+                  variant="ghost"
+                  size="lg"
+                  className="flex-1 touch-manipulation active:scale-[0.98]"
+                >
+                  Complete Later
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <Button
+                onClick={handleWhatsApp}
+                size="lg"
+                className="w-full touch-manipulation bg-[#25D366] hover:bg-[#20BA5A] active:scale-[0.98]"
+              >
+                <MessageCircle className="mr-2 h-5 w-5" />
+                Send to Sh Nuur
+              </Button>
+
+              <Button
+                onClick={() => onOpenChange(false)}
+                variant="ghost"
+                size="lg"
+                className="mt-2 w-full touch-manipulation active:scale-[0.98]"
+              >
+                Done
+              </Button>
+            </>
+          )}
         </div>
       </DialogContent>
     </Dialog>
