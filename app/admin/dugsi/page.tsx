@@ -1,5 +1,6 @@
 import { getDugsiRegistrations } from './actions'
 import { DugsiRegistrationsTable } from './components/dugsi-registrations-table'
+import { DugsiStats } from './components/dugsi-stats'
 
 export default async function DugsiAdminPage() {
   const registrations = await getDugsiRegistrations()
@@ -11,9 +12,12 @@ export default async function DugsiAdminPage() {
           Dugsi Registrations
         </h1>
         <p className="text-sm text-muted-foreground sm:text-base">
-          Review Dugsi student registrations and parent contact information.
+          Manage student registrations and family subscriptions for the Dugsi
+          program.
         </p>
       </div>
+
+      <DugsiStats registrations={registrations} />
 
       <DugsiRegistrationsTable registrations={registrations} />
     </div>

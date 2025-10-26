@@ -14,7 +14,11 @@ import type Stripe from 'stripe'
 import { prisma } from '@/lib/db'
 import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
 import { parseDugsiReferenceId } from '@/lib/utils/dugsi-payment'
-
+import {
+  extractCustomerId,
+  extractPeriodEnd,
+  isValidSubscriptionStatus,
+} from '@/lib/utils/type-guards'
 
 /**
  * Handle successful payment method capture (checkout.session.completed).
@@ -86,11 +90,8 @@ async function handlePaymentMethodCaptured(
 async function handleSubscriptionEvent(
   subscription: Stripe.Subscription
 ): Promise<void> {
-  // Validate customer ID
-  const customerId =
-    typeof subscription.customer === 'string'
-      ? subscription.customer
-      : subscription.customer?.id
+  // Validate and extract customer ID using type guard
+  const customerId = extractCustomerId(subscription.customer)
 
   if (!customerId) {
     throw new Error('Invalid or missing customer ID in subscription')
@@ -118,18 +119,8 @@ async function handleSubscriptionEvent(
         throw new Error(`No students found for customer: ${customerId}`)
       }
 
-      // Validate subscription status matches our enum
-      const validStatuses = [
-        'incomplete',
-        'incomplete_expired',
-        'trialing',
-        'active',
-        'past_due',
-        'canceled',
-        'unpaid',
-        'paused',
-      ]
-      if (!validStatuses.includes(subscription.status)) {
+      // Validate subscription status using type guard
+      if (!isValidSubscriptionStatus(subscription.status)) {
         throw new Error(`Invalid subscription status: ${subscription.status}`)
       }
 
@@ -142,9 +133,7 @@ async function handleSubscriptionEvent(
         data: {
           stripeSubscriptionIdDugsi: subscriptionId,
           subscriptionStatus: subscription.status,
-          paidUntil: (subscription as any).current_period_end
-            ? new Date((subscription as any).current_period_end * 1000)
-            : undefined,
+          paidUntil: extractPeriodEnd(subscription),
         },
       })
 
@@ -231,10 +220,7 @@ export async function POST(req: Request) {
       case 'customer.subscription.deleted':
         // Handle subscription cancellation
         const canceledSub = event.data.object as Stripe.Subscription
-        const canceledCustomerId =
-          typeof canceledSub.customer === 'string'
-            ? canceledSub.customer
-            : canceledSub.customer?.id
+        const canceledCustomerId = extractCustomerId(canceledSub.customer)
 
         if (!canceledCustomerId) {
           throw new Error('Invalid customer ID in canceled subscription')

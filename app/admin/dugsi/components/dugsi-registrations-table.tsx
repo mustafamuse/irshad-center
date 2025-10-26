@@ -57,6 +57,7 @@ import {
 } from '@/lib/utils/enum-formatters'
 
 import { deleteDugsiFamily, getFamilyMembers } from '../actions'
+import { PaymentStatusSection } from './payment-status-section'
 
 interface DugsiRegistration {
   id: string
@@ -76,6 +77,15 @@ interface DugsiRegistration {
   parent2LastName: string | null
   parent2Email: string | null
   parent2Phone: string | null
+  // Payment fields
+  paymentMethodCaptured: boolean
+  paymentMethodCapturedAt: Date | string | null
+  stripeCustomerIdDugsi: string | null
+  stripeSubscriptionIdDugsi: string | null
+  subscriptionStatus: string | null
+  paidUntil: Date | string | null
+  familyReferenceId: string | null
+  stripeAccountType: string | null
 }
 
 interface DugsiRegistrationsTableProps {
@@ -312,6 +322,8 @@ export function DugsiRegistrationsTable({
                   <TableHead className="w-16">Gender</TableHead>
                   <TableHead>Parent</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Payment</TableHead>
+                  <TableHead>Subscription</TableHead>
                   <TableHead>Registered</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
@@ -320,7 +332,7 @@ export function DugsiRegistrationsTable({
                 {filteredRegistrations.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={8}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
                       No registrations found.
@@ -382,6 +394,32 @@ export function DugsiRegistrationsTable({
                           <span>{registration.parent2Phone}</span>
                         ) : (
                           <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {registration.paymentMethodCaptured ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            💳 Ready
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            No Payment
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {registration.subscriptionStatus === 'active' ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            Active
+                          </Badge>
+                        ) : registration.stripeSubscriptionIdDugsi ? (
+                          <Badge variant="outline" className="text-xs">
+                            {registration.subscriptionStatus || 'Inactive'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            None
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
@@ -712,6 +750,11 @@ export function DugsiRegistrationsTable({
                         ))}
                       </div>
                     </div>
+
+                    {/* Payment Status Section - Moved below children */}
+                    {familyMembers.length > 0 && (
+                      <PaymentStatusSection familyMembers={familyMembers} />
+                    )}
                   </div>
                 )}
               </div>
@@ -865,6 +908,40 @@ function MobileRegistrationCard({
               ) : (
                 <p className="text-sm text-muted-foreground">—</p>
               )}
+            </div>
+
+            {/* Payment Status */}
+            <div className="flex items-center gap-2">
+              <div>
+                <p className="text-[11px] text-muted-foreground">Payment</p>
+                {registration.paymentMethodCaptured ? (
+                  <Badge className="bg-green-100 text-xs text-green-800 hover:bg-green-100">
+                    💳 Ready
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">
+                    No Payment
+                  </Badge>
+                )}
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">
+                  Subscription
+                </p>
+                {registration.subscriptionStatus === 'active' ? (
+                  <Badge className="bg-green-100 text-xs text-green-800 hover:bg-green-100">
+                    Active
+                  </Badge>
+                ) : registration.stripeSubscriptionIdDugsi ? (
+                  <Badge variant="outline" className="text-xs">
+                    {registration.subscriptionStatus || 'Inactive'}
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-xs">
+                    None
+                  </Badge>
+                )}
+              </div>
             </div>
 
             {/* Registration Date */}
