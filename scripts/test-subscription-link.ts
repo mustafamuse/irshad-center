@@ -1,12 +1,28 @@
 import { linkDugsiSubscription } from '../app/admin/dugsi/actions'
 
 async function testSubscriptionLinking() {
-  console.log('Testing subscription linking...\n')
+  // Get parameters from command line arguments or environment variables
+  const parentEmail = process.argv[2] || process.env.DUGSI_TEST_EMAIL
+  const subscriptionId =
+    process.argv[3] || process.env.DUGSI_TEST_SUBSCRIPTION_ID
 
-  // Try to link the second subscription to the student with email zxczc@gmai.coma
+  if (!parentEmail || !subscriptionId) {
+    console.error(
+      'Usage: tsx scripts/test-subscription-link.ts <parentEmail> <subscriptionId>'
+    )
+    console.error(
+      'Or set DUGSI_TEST_EMAIL and DUGSI_TEST_SUBSCRIPTION_ID environment variables'
+    )
+    process.exit(1)
+  }
+
+  console.log('Testing subscription linking...')
+  console.log(`Parent Email: ${parentEmail}`)
+  console.log(`Subscription ID: ${subscriptionId}\n`)
+
   const result = await linkDugsiSubscription({
-    parentEmail: 'zxczc@gmai.coma',
-    subscriptionId: 'sub_1SMFXBEPoTboEBNA3HdYjXEa',
+    parentEmail,
+    subscriptionId,
   })
 
   console.log('Link result:', result)

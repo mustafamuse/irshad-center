@@ -5,10 +5,24 @@ import { getDugsiStripeClient } from '../lib/stripe-dugsi'
 const prisma = new PrismaClient()
 
 async function linkSubscriptionDirectly() {
-  console.log('Linking subscription directly...\n')
+  // Get parameters from command line arguments or environment variables
+  const parentEmail = process.argv[2] || process.env.DUGSI_TEST_EMAIL
+  const subscriptionId =
+    process.argv[3] || process.env.DUGSI_TEST_SUBSCRIPTION_ID
 
-  const parentEmail = 'zxczc@gmai.coma'
-  const subscriptionId = 'sub_1SMFXBEPoTboEBNA3HdYjXEa'
+  if (!parentEmail || !subscriptionId) {
+    console.error(
+      'Usage: tsx scripts/link-subscription-direct.ts <parentEmail> <subscriptionId>'
+    )
+    console.error(
+      'Or set DUGSI_TEST_EMAIL and DUGSI_TEST_SUBSCRIPTION_ID environment variables'
+    )
+    process.exit(1)
+  }
+
+  console.log('Linking subscription directly...')
+  console.log(`Parent Email: ${parentEmail}`)
+  console.log(`Subscription ID: ${subscriptionId}\n`)
 
   try {
     // Validate the subscription exists in Stripe

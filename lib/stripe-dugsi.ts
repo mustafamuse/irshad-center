@@ -8,6 +8,8 @@
 
 import Stripe from 'stripe'
 
+import { isValidEmail } from '@/lib/utils/type-guards'
+
 let dugsiStripeClient: Stripe | null = null
 
 /**
@@ -52,9 +54,8 @@ export function constructDugsiPaymentUrl(params: {
     throw new Error('Parent email is required and must be a string')
   }
 
-  // Basic email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(params.parentEmail)) {
+  // Use improved email validation
+  if (!isValidEmail(params.parentEmail)) {
     throw new Error('Invalid parent email format')
   }
 

@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react'
 
-import { format } from 'date-fns'
+import { useRouter } from 'next/navigation'
+
 import {
   CheckCircle2,
   Clock,
@@ -26,6 +27,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import {
+  STRIPE_ID_DISPLAY_LENGTH,
+  getStripeCustomerUrl,
+} from '@/lib/constants/dugsi'
+import { formatDate } from '@/lib/utils/formatters'
+import {
+  isPaymentStatusData,
+  type PaymentStatusData,
+} from '@/lib/utils/type-guards'
 
 import { getDugsiPaymentStatus } from '../actions'
 import { LinkSubscriptionDialog } from './link-subscription-dialog'
@@ -44,21 +54,10 @@ interface PaymentStatusSectionProps {
   }>
 }
 
-interface PaymentStatusData {
-  familyEmail: string
-  studentCount: number
-  hasPaymentMethod: boolean
-  hasSubscription: boolean
-  stripeCustomerId?: string | null
-  subscriptionId?: string | null
-  subscriptionStatus?: string | null
-  paidUntil?: Date | null
-  students: Array<{ id: string; name: string }>
-}
-
 export function PaymentStatusSection({
   familyMembers,
 }: PaymentStatusSectionProps) {
+  const router = useRouter()
   const [isRefreshing, startTransition] = useTransition()
   const [showLinkDialog, setShowLinkDialog] = useState(false)
   const [_paymentStatus, setPaymentStatus] = useState<PaymentStatusData | null>(
@@ -86,10 +85,15 @@ export function PaymentStatusSection({
     startTransition(async () => {
       const result = await getDugsiPaymentStatus(parentEmail)
       if (result.success && result.data) {
-        setPaymentStatus(result.data as PaymentStatusData)
-        toast.success('Payment status refreshed')
-        // Optionally refresh the parent component's data here
-        window.location.reload()
+        // Use type guard for runtime validation
+        if (isPaymentStatusData(result.data)) {
+          setPaymentStatus(result.data)
+          toast.success('Payment status refreshed')
+          // Use Next.js router for better UX
+          router.refresh()
+        } else {
+          toast.error('Invalid payment status data received')
+        }
       } else {
         toast.error(result.error || 'Failed to refresh status')
       }
@@ -102,9 +106,8 @@ export function PaymentStatusSection({
   }
 
   const handleOpenInStripe = (customerId: string) => {
-    // Using live mode URL for Dugsi Stripe account
-    const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
-    window.open(stripeUrl, '_blank')
+    // Using helper function for URL generation
+    window.open(getStripeCustomerUrl(customerId), '_blank')
   }
 
   return (
@@ -248,7 +251,11 @@ export function PaymentStatusSection({
                     </span>
                     <div className="flex items-center gap-1">
                       <code className="rounded bg-background px-2 py-0.5 text-xs">
-                        {familyMembers[0].stripeCustomerIdDugsi.slice(0, 20)}...
+                        {familyMembers[0].stripeCustomerIdDugsi.slice(
+                          0,
+                          STRIPE_ID_DISPLAY_LENGTH
+                        )}
+                        ...
                       </code>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -297,7 +304,7 @@ export function PaymentStatusSection({
                       <code className="rounded bg-background px-2 py-0.5 text-xs">
                         {activeSubscription.stripeSubscriptionIdDugsi.slice(
                           0,
-                          20
+                          STRIPE_ID_DISPLAY_LENGTH
                         )}
                         ...
                       </code>
@@ -336,7 +343,9 @@ export function PaymentStatusSection({
                   variant="outline"
                   onClick={() =>
                     window.open(
-                      `https://dashboard.stripe.com/customers/${familyMembers[0].stripeCustomerIdDugsi}`,
+                      getStripeCustomerUrl(
+                        familyMembers[0].stripeCustomerIdDugsi!
+                      ),
                       '_blank'
                     )
                   }
@@ -366,8 +375,4 @@ export function PaymentStatusSection({
   )
 }
 
-function formatDate(value: Date | string | null) {
-  if (!value) return '—'
-  const date = value instanceof Date ? value : new Date(value)
-  return format(date, 'MMM d, yyyy')
-}
+// formatDate function moved to shared formatters utility

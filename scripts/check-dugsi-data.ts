@@ -66,8 +66,9 @@ async function checkDugsiData() {
 
   console.log(`\nTotal families with reference IDs: ${families.length}`)
 
-  // Check specific Stripe customer IDs from the API response
-  const stripeCustomerIds = ['cus_TIrnjMoM4gchtu', 'cus_TIrFz0IzuAhAg0']
+  // Check specific Stripe customer IDs if provided via environment
+  const stripeCustomerIds =
+    process.env.DUGSI_CHECK_CUSTOMER_IDS?.split(',') || []
 
   for (const customerId of stripeCustomerIds) {
     const student = await prisma.student.findFirst({
@@ -85,11 +86,9 @@ async function checkDugsiData() {
     }
   }
 
-  // Check specific subscription IDs from the API response
-  const subscriptionIds = [
-    'sub_1SMG3tEPoTboEBNAK8uUzcwt',
-    'sub_1SMFXBEPoTboEBNA3HdYjXEa',
-  ]
+  // Check specific subscription IDs if provided via environment
+  const subscriptionIds =
+    process.env.DUGSI_CHECK_SUBSCRIPTION_IDS?.split(',') || []
 
   for (const subId of subscriptionIds) {
     const students = await prisma.student.findMany({
