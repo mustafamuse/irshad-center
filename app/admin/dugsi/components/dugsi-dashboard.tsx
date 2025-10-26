@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useTransition } from 'react'
+
+import { useRouter } from 'next/navigation'
 
 import {
   Users,
@@ -10,14 +12,27 @@ import {
   TrendingUp,
   Search,
   Filter,
+  Loader2,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+import { deleteDugsiFamily } from '../actions'
 import { AdvancedFilters } from './advanced-filters'
 import { DugsiRegistrationsTable } from './dugsi-registrations-table'
 import { DugsiStats } from './dugsi-stats'
@@ -60,6 +75,7 @@ type TabValue = 'overview' | 'active' | 'pending' | 'needs-attention' | 'all'
 type ViewMode = 'grid' | 'table'
 
 export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabValue>('overview')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [searchQuery, setSearchQuery] = useState('')
@@ -73,6 +89,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
     grades: [] as string[],
     hasHealthInfo: false,
   })
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isDeleting, startDeleteTransition] = useTransition()
 
   // Group registrations by family
   const familyGroups = useMemo(() => {
@@ -193,8 +211,69 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
   )
 
   const handleBulkAction = (action: string) => {
-    console.log(`Performing ${action} on ${selectedFamilies.size} families`)
-    // Implement bulk actions here
+    switch (action) {
+      case 'delete':
+        if (selectedFamilies.size > 0) {
+          setShowDeleteDialog(true)
+        }
+        break
+      case 'send-payment-link':
+        toast.info(`Sending payment links to ${selectedFamilies.size} families`)
+        // TODO: Implement send payment link
+        break
+      case 'link-subscription':
+        toast.info(
+          `Linking subscriptions for ${selectedFamilies.size} families`
+        )
+        // TODO: Implement link subscription
+        break
+      case 'export':
+        toast.info(`Exporting ${selectedFamilies.size} families to CSV`)
+        // TODO: Implement export
+        break
+      default:
+        console.log(`Performing ${action} on ${selectedFamilies.size} families`)
+    }
+  }
+
+  const handleDeleteFamilies = async () => {
+    if (selectedFamilies.size === 0) return
+
+    startDeleteTransition(async () => {
+      const familyIds = Array.from(selectedFamilies)
+      let successCount = 0
+      let errorCount = 0
+
+      for (const familyKey of familyIds) {
+        // Find the first student from this family to get the ID
+        const family = familyGroups.find((f) => f.familyKey === familyKey)
+        if (family && family.members.length > 0) {
+          const result = await deleteDugsiFamily(family.members[0].id)
+          if (result.success) {
+            successCount++
+          } else {
+            errorCount++
+            console.error(`Failed to delete family ${familyKey}:`, result.error)
+          }
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(
+          `Successfully deleted ${successCount} ${successCount === 1 ? 'family' : 'families'}`
+        )
+        setSelectedFamilies(new Set())
+        router.refresh()
+      }
+
+      if (errorCount > 0) {
+        toast.error(
+          `Failed to delete ${errorCount} ${errorCount === 1 ? 'family' : 'families'}`
+        )
+      }
+
+      setShowDeleteDialog(false)
+    })
   }
 
   return (
@@ -471,6 +550,68 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selectedFamilies.size}{' '}
+              {selectedFamilies.size === 1 ? 'Family' : 'Families'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will permanently delete the selected{' '}
+              {selectedFamilies.size === 1 ? 'family' : 'families'} including:
+            </AlertDialogDescription>
+            <div className="space-y-2 pt-2">
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                <li>All student records</li>
+                <li>Parent information</li>
+                <li>Payment history</li>
+                <li>Subscription data</li>
+              </ul>
+              <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3">
+                <p className="text-sm font-semibold text-destructive">
+                  Warning: This action cannot be undone!
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {Array.from(selectedFamilies)
+                    .map((familyKey) => {
+                      const family = familyGroups.find(
+                        (f) => f.familyKey === familyKey
+                      )
+                      return family
+                        ? `${family.members.length} student(s) from ${family.parentEmail || 'family'}`
+                        : null
+                    })
+                    .filter(Boolean)
+                    .join(', ')}
+                </p>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDeleteFamilies()
+              }}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                `Delete ${selectedFamilies.size} ${selectedFamilies.size === 1 ? 'Family' : 'Families'}`
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
