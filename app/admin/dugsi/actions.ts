@@ -179,9 +179,6 @@ export async function linkDugsiSubscription(params: {
       data: {
         stripeSubscriptionIdDugsi: subscriptionId,
         subscriptionStatus: subscription.status,
-        paidUntil: subscription.current_period_end
-          ? new Date(subscription.current_period_end * 1000)
-          : undefined,
         stripeAccountType: 'DUGSI',
       },
     })
