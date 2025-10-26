@@ -199,9 +199,11 @@ export function AdvancedFilters({
           <div className="space-y-2">
             <Label className="text-xs">School</Label>
             <Select
-              value={filters.schools[0] || ''}
+              value={filters.schools[0] || 'all'}
               onValueChange={(value) => {
-                if (value) {
+                if (value === 'all') {
+                  onFiltersChange({ ...filters, schools: [] })
+                } else {
                   onFiltersChange({ ...filters, schools: [value] })
                 }
               }}
@@ -210,7 +212,7 @@ export function AdvancedFilters({
                 <SelectValue placeholder="Select school" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Schools</SelectItem>
+                <SelectItem value="all">All Schools</SelectItem>
                 {schools.map((school) => (
                   <SelectItem key={school} value={school}>
                     {school}
@@ -239,9 +241,11 @@ export function AdvancedFilters({
           <div className="space-y-2">
             <Label className="text-xs">Grade Level</Label>
             <Select
-              value={filters.grades[0] || ''}
+              value={filters.grades[0] || 'all'}
               onValueChange={(value) => {
-                if (value) {
+                if (value === 'all') {
+                  onFiltersChange({ ...filters, grades: [] })
+                } else {
                   onFiltersChange({ ...filters, grades: [value] })
                 }
               }}
@@ -250,7 +254,7 @@ export function AdvancedFilters({
                 <SelectValue placeholder="Select grade" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Grades</SelectItem>
+                <SelectItem value="all">All Grades</SelectItem>
                 {grades.map((grade) => (
                   <SelectItem key={grade} value={grade}>
                     Grade {grade}
