@@ -107,8 +107,11 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
   const filteredFamilies = useMemo(() => {
     let filtered = familyGroups
 
-    // Apply tab filter
+    // Apply tab filter (but not for overview - it shows all with filters)
     switch (activeTab) {
+      case 'overview':
+        // Overview shows all families, filters will be applied below
+        break
       case 'active':
         filtered = filtered.filter((f) => f.hasSubscription)
         break
@@ -349,15 +352,33 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           {/* Recent Activity */}
           <Card>
             <CardHeader>
-              <CardTitle>Recent Registrations</CardTitle>
+              <CardTitle>
+                Recent Registrations
+                {(searchQuery ||
+                  filters.dateRange ||
+                  filters.schools.length > 0 ||
+                  filters.grades.length > 0 ||
+                  filters.hasHealthInfo) && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    (filtered: showing {Math.min(filteredFamilies.length, 6)} of{' '}
+                    {filteredFamilies.length})
+                  </span>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <FamilyGridView
-                families={familyGroups.slice(0, 6)}
-                selectedFamilies={selectedFamilies}
-                onSelectionChange={setSelectedFamilies}
-                viewMode="compact"
-              />
+              {filteredFamilies.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  No families match the current filters
+                </div>
+              ) : (
+                <FamilyGridView
+                  families={filteredFamilies.slice(0, 6)}
+                  selectedFamilies={selectedFamilies}
+                  onSelectionChange={setSelectedFamilies}
+                  viewMode="compact"
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
