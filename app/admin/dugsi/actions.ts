@@ -27,6 +27,15 @@ export async function getDugsiRegistrations() {
       parent2LastName: true,
       parent2Email: true,
       parent2Phone: true,
+      // Payment fields
+      paymentMethodCaptured: true,
+      paymentMethodCapturedAt: true,
+      stripeCustomerIdDugsi: true,
+      stripeSubscriptionIdDugsi: true,
+      subscriptionStatus: true,
+      paidUntil: true,
+      familyReferenceId: true,
+      stripeAccountType: true,
     },
   })
 
@@ -78,6 +87,15 @@ export async function getFamilyMembers(studentId: string) {
       parent2LastName: true,
       parent2Email: true,
       parent2Phone: true,
+      // Payment fields
+      paymentMethodCaptured: true,
+      paymentMethodCapturedAt: true,
+      stripeCustomerIdDugsi: true,
+      stripeSubscriptionIdDugsi: true,
+      subscriptionStatus: true,
+      paidUntil: true,
+      familyReferenceId: true,
+      stripeAccountType: true,
     },
   })
 
@@ -160,9 +178,9 @@ export async function linkDugsiSubscription(params: {
       },
       data: {
         stripeSubscriptionIdDugsi: subscriptionId,
-        subscriptionStatus: subscription.status as any,
-        paidUntil: (subscription as any).current_period_end
-          ? new Date((subscription as any).current_period_end * 1000)
+        subscriptionStatus: subscription.status,
+        paidUntil: subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
           : undefined,
         stripeAccountType: 'DUGSI',
       },
