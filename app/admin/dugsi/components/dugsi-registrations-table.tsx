@@ -622,11 +622,6 @@ export function DugsiRegistrationsTable({
                       </div>
                     </div>
 
-                    {/* Payment Status Section */}
-                    {familyMembers.length > 0 && (
-                      <PaymentStatusSection familyMembers={familyMembers} />
-                    )}
-
                     {/* Children */}
                     <div>
                       <div className="mb-4 flex items-center gap-2">
@@ -755,6 +750,11 @@ export function DugsiRegistrationsTable({
                         ))}
                       </div>
                     </div>
+
+                    {/* Payment Status Section - Moved below children */}
+                    {familyMembers.length > 0 && (
+                      <PaymentStatusSection familyMembers={familyMembers} />
+                    )}
                   </div>
                 )}
               </div>

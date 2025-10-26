@@ -4,20 +4,28 @@ import { useState, useTransition } from 'react'
 
 import { format } from 'date-fns'
 import {
-  CheckCircle,
+  CheckCircle2,
+  Clock,
   Copy,
   CreditCard,
   ExternalLink,
   Loader2,
   RefreshCw,
   XCircle,
+  Calendar,
+  AlertCircle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 
 import { getDugsiPaymentStatus } from '../actions'
 import { LinkSubscriptionDialog } from './link-subscription-dialog'
@@ -80,7 +88,8 @@ export function PaymentStatusSection({
       if (result.success && result.data) {
         setPaymentStatus(result.data as PaymentStatusData)
         toast.success('Payment status refreshed')
-        // You might want to refresh the parent component's data here
+        // Optionally refresh the parent component's data here
+        window.location.reload()
       } else {
         toast.error(result.error || 'Failed to refresh status')
       }
@@ -100,185 +109,249 @@ export function PaymentStatusSection({
 
   return (
     <>
-      <Card className="overflow-hidden">
-        <CardHeader className="bg-muted/30">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <CreditCard className="h-5 w-5" />
-              Payment Information
-            </CardTitle>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleRefreshStatus}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-6">
-          {/* Payment Method Status */}
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Payment Method
-            </p>
-            <div className="mt-1.5 flex items-center gap-2">
-              {hasPaymentMethod ? (
-                <>
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-600">Captured</span>
-                  {familyMembers[0]?.paymentMethodCapturedAt && (
-                    <span className="text-sm text-muted-foreground">
-                      on {formatDate(familyMembers[0].paymentMethodCapturedAt)}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-5 w-5 text-red-600" />
-                  <span className="font-medium text-red-600">Not Captured</span>
-                  <Badge variant="secondary" className="ml-2 text-xs">
-                    Awaiting $1 payment
-                  </Badge>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Stripe Customer ID */}
-          {familyMembers[0]?.stripeCustomerIdDugsi && (
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">
-                Stripe Customer ID
-              </p>
-              <div className="mt-1.5 flex items-center gap-2">
-                <code className="rounded bg-muted px-2 py-1 text-xs">
-                  {familyMembers[0].stripeCustomerIdDugsi}
-                </code>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2"
-                  onClick={() =>
-                    handleCopyCustomerId(
-                      familyMembers[0].stripeCustomerIdDugsi!
-                    )
-                  }
-                >
-                  <Copy className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-2"
-                  onClick={() =>
-                    handleOpenInStripe(familyMembers[0].stripeCustomerIdDugsi!)
-                  }
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </Button>
+      <TooltipProvider>
+        <Card className="overflow-hidden border-[#007078]/20">
+          <CardHeader className="bg-gradient-to-r from-[#007078]/5 to-[#007078]/10 pb-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+                  <CreditCard className="h-4 w-4 text-[#007078]" />
+                </div>
+                <CardTitle className="text-lg font-semibold">
+                  Payment & Subscription
+                </CardTitle>
               </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleRefreshStatus}
+                    disabled={isRefreshing}
+                    className="h-8 w-8 p-0"
+                  >
+                    {isRefreshing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh payment status</TooltipContent>
+              </Tooltip>
             </div>
-          )}
+          </CardHeader>
 
-          <Separator />
-
-          {/* Subscription Status */}
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              Subscription
-            </p>
-            {hasSubscription && activeSubscription ? (
-              <div className="mt-2 space-y-3">
-                <div className="flex items-center gap-2">
-                  {activeSubscription.subscriptionStatus === 'active' ? (
-                    <>
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                      <Badge className="bg-green-100 text-green-800">
-                        Active
-                      </Badge>
-                    </>
+          <CardContent className="space-y-4 p-4">
+            {/* Status Grid - Compact 3-column layout */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {/* Payment Method Status */}
+              <div className="rounded-lg border bg-background p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Payment Method
+                  </span>
+                  {hasPaymentMethod ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
                   ) : (
-                    <>
-                      <XCircle className="h-5 w-5 text-yellow-600" />
-                      <Badge variant="outline">
-                        {activeSubscription.subscriptionStatus || 'Inactive'}
-                      </Badge>
-                    </>
+                    <XCircle className="h-4 w-4 text-red-500" />
                   )}
                 </div>
-
-                <div className="space-y-1.5 rounded-lg bg-muted/50 p-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">ID:</span>
-                    <code className="text-xs">
-                      {activeSubscription.stripeSubscriptionIdDugsi}
-                    </code>
-                  </div>
-                  {activeSubscription.paidUntil && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Paid Until:</span>
-                      <span>{formatDate(activeSubscription.paidUntil)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Children:</span>
-                    <span>{familyMembers.length}</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-2">
                 <div className="flex items-center gap-2">
-                  <XCircle className="h-5 w-5 text-gray-400" />
-                  <span className="text-gray-600">No Subscription</span>
+                  {hasPaymentMethod ? (
+                    <Badge className="border-green-200 bg-green-100 text-green-800">
+                      Captured
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="destructive"
+                      className="border-red-200 bg-red-100 text-red-800"
+                    >
+                      Not Captured
+                    </Badge>
+                  )}
                 </div>
-                {hasPaymentMethod && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Payment method ready. You can now create a subscription in
-                    Stripe Dashboard or link an existing one.
-                  </p>
+                {hasPaymentMethod &&
+                  familyMembers[0]?.paymentMethodCapturedAt && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {formatDate(familyMembers[0].paymentMethodCapturedAt)}
+                    </p>
+                  )}
+              </div>
+
+              {/* Subscription Status */}
+              <div className="rounded-lg border bg-background p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Subscription
+                  </span>
+                  {activeSubscription?.subscriptionStatus === 'active' ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  ) : hasSubscription ? (
+                    <Clock className="h-4 w-4 text-yellow-600" />
+                  ) : (
+                    <XCircle className="h-4 w-4 text-gray-400" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {activeSubscription?.subscriptionStatus === 'active' ? (
+                    <Badge className="border-green-200 bg-green-100 text-green-800">
+                      Active
+                    </Badge>
+                  ) : hasSubscription ? (
+                    <Badge
+                      variant="outline"
+                      className="border-yellow-600 text-yellow-700"
+                    >
+                      {activeSubscription?.subscriptionStatus || 'Inactive'}
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">None</Badge>
+                  )}
+                </div>
+                {!hasSubscription && hasPaymentMethod && (
+                  <p className="mt-1 text-xs text-amber-600">Ready to link</p>
+                )}
+              </div>
+
+              {/* Next Billing */}
+              <div className="rounded-lg border bg-background p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    Next Billing
+                  </span>
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex items-center gap-2">
+                  {activeSubscription?.paidUntil ? (
+                    <span className="text-sm font-medium">
+                      {formatDate(activeSubscription.paidUntil)}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">—</span>
+                  )}
+                </div>
+                {activeSubscription?.subscriptionStatus === 'active' && (
+                  <p className="mt-1 text-xs text-muted-foreground">Monthly</p>
+                )}
+              </div>
+            </div>
+
+            {/* Customer & Subscription Details */}
+            {(familyMembers[0]?.stripeCustomerIdDugsi ||
+              activeSubscription?.stripeSubscriptionIdDugsi) && (
+              <div className="space-y-2 rounded-lg bg-muted/30 p-3">
+                {familyMembers[0]?.stripeCustomerIdDugsi && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Customer:
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <code className="rounded bg-background px-2 py-0.5 text-xs">
+                        {familyMembers[0].stripeCustomerIdDugsi.slice(0, 20)}...
+                      </code>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={() =>
+                              handleCopyCustomerId(
+                                familyMembers[0].stripeCustomerIdDugsi!
+                              )
+                            }
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Copy customer ID</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={() =>
+                              handleOpenInStripe(
+                                familyMembers[0].stripeCustomerIdDugsi!
+                              )
+                            }
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>View in Stripe</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  </div>
+                )}
+
+                {activeSubscription?.stripeSubscriptionIdDugsi && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Subscription:
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <code className="rounded bg-background px-2 py-0.5 text-xs">
+                        {activeSubscription.stripeSubscriptionIdDugsi.slice(
+                          0,
+                          20
+                        )}
+                        ...
+                      </code>
+                      <Badge variant="outline" className="text-xs">
+                        {familyMembers.length}{' '}
+                        {familyMembers.length === 1 ? 'child' : 'children'}
+                      </Badge>
+                    </div>
+                  </div>
                 )}
               </div>
             )}
-          </div>
 
-          {/* Action Buttons */}
-          <div className="flex gap-2 pt-2">
-            {!hasSubscription && hasPaymentMethod && parentEmail && (
-              <Button
-                size="sm"
-                onClick={() => setShowLinkDialog(true)}
-                className="flex-1"
-              >
-                Link Subscription
-              </Button>
-            )}
-            {familyMembers[0]?.stripeCustomerIdDugsi && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  window.open(
-                    `https://dashboard.stripe.com/customers/${familyMembers[0].stripeCustomerIdDugsi}`,
-                    '_blank'
-                  )
-                }
-                className="flex-1"
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                View in Stripe
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              {!hasSubscription && hasPaymentMethod && parentEmail && (
+                <Button
+                  size="sm"
+                  onClick={() => setShowLinkDialog(true)}
+                  className="flex-1 bg-[#007078] hover:bg-[#007078]/90"
+                >
+                  Link Subscription
+                </Button>
+              )}
+              {!hasPaymentMethod && (
+                <div className="flex-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-center">
+                  <AlertCircle className="mx-auto mb-1 h-4 w-4 text-amber-600" />
+                  <p className="text-xs text-amber-800">
+                    Awaiting $1 payment method capture
+                  </p>
+                </div>
+              )}
+              {familyMembers[0]?.stripeCustomerIdDugsi && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    window.open(
+                      `https://dashboard.stripe.com/customers/${familyMembers[0].stripeCustomerIdDugsi}`,
+                      '_blank'
+                    )
+                  }
+                  className={
+                    !hasSubscription && hasPaymentMethod ? '' : 'flex-1'
+                  }
+                >
+                  <ExternalLink className="mr-2 h-3.5 w-3.5" />
+                  Manage in Stripe
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </TooltipProvider>
 
       {/* Link Subscription Dialog */}
       {parentEmail && (
