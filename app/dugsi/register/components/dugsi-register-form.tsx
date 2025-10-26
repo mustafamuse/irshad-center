@@ -1,8 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-
-import { useRouter } from 'next/navigation'
+import { useTransition } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { UserPlus, X, Users, Loader2 } from 'lucide-react'
@@ -48,20 +46,14 @@ import {
 } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
 
-import { DugsiSuccessDialog } from './dugsi-success-dialog'
 import { registerDugsiChildren } from '../actions'
 
 export function DugsiRegisterForm() {
-  const router = useRouter()
   const t = useTranslations('dugsi')
   const genderOptions = useTranslatedGenderOptions()
   const educationOptions = useTranslatedEducationOptions()
   const gradeOptions = useTranslatedGradeOptions()
   const [isPending, startTransition] = useTransition()
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false)
-  const [registrationData, setRegistrationData] =
-    useState<DugsiRegistrationValues | null>(null)
-  const [paymentUrl, setPaymentUrl] = useState<string | undefined>()
 
   const form = useForm<DugsiRegistrationValues>({
     resolver: zodResolver(dugsiRegistrationSchema),
@@ -89,23 +81,26 @@ export function DugsiRegisterForm() {
         const result = await registerDugsiChildren(data)
         console.log('🔍 Server action result:', result)
 
-        if (result.success) {
-          console.log('✅ Registration successful!')
+        if (result.success && result.data?.paymentUrl) {
+          console.log('✅ Registration successful! Redirecting to payment...')
+
+          // Show informative message before redirect
           const childText =
             data.children.length === 1
               ? t('childrenSection.child')
               : t('childrenSection.children')
+
           toast.success(
-            t('messages.enrollmentSuccess', {
-              count: data.children.length,
-              childText,
-            })
+            `Registration saved for ${data.children.length} ${childText}. Redirecting to complete payment...`,
+            {
+              duration: 2500,
+            }
           )
-          console.log('📝 Setting registrationData and showing dialog')
-          setRegistrationData(data)
-          setPaymentUrl(result.data?.paymentUrl) // Capture the payment URL
-          setShowSuccessDialog(true)
-          // Form will reset when dialog closes
+
+          // Redirect to Stripe payment
+          setTimeout(() => {
+            window.location.href = result.data!.paymentUrl!
+          }, 1500) // Brief delay to show message
         } else {
           console.error('❌ Registration failed:', result.error)
           toast.error(result.error || t('messages.enrollmentError'))
@@ -452,24 +447,6 @@ export function DugsiRegisterForm() {
           </Card>
         </form>
       </Form>
-
-      {/* Registration Success Dialog */}
-      <DugsiSuccessDialog
-        isOpen={showSuccessDialog && !!registrationData}
-        onOpenChange={(open) => {
-          setShowSuccessDialog(open)
-          if (!open) {
-            // Reset form when dialog closes
-            form.reset()
-            setRegistrationData(null)
-            setPaymentUrl(undefined)
-            // Redirect to homepage
-            router.push('/')
-          }
-        }}
-        data={registrationData}
-        paymentUrl={paymentUrl}
-      />
     </section>
   )
 }
