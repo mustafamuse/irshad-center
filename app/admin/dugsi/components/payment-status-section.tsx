@@ -93,8 +93,8 @@ export function PaymentStatusSection({
   }
 
   const handleOpenInStripe = (customerId: string) => {
-    // Using test mode URL - adjust for production
-    const stripeUrl = `https://dashboard.stripe.com/test/customers/${customerId}`
+    // Using live mode URL for Dugsi Stripe account
+    const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
     window.open(stripeUrl, '_blank')
   }
 
@@ -266,7 +266,7 @@ export function PaymentStatusSection({
                 variant="outline"
                 onClick={() =>
                   window.open(
-                    `https://dashboard.stripe.com/test/customers/${familyMembers[0].stripeCustomerIdDugsi}`,
+                    `https://dashboard.stripe.com/customers/${familyMembers[0].stripeCustomerIdDugsi}`,
                     '_blank'
                   )
                 }
