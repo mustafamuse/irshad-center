@@ -77,8 +77,8 @@ export function PaymentStatusSection({
 
     startTransition(async () => {
       const result = await getDugsiPaymentStatus(parentEmail)
-      if (result.success) {
-        setPaymentStatus(result.data)
+      if (result.success && result.data) {
+        setPaymentStatus(result.data as PaymentStatusData)
         toast.success('Payment status refreshed')
         // You might want to refresh the parent component's data here
       } else {
