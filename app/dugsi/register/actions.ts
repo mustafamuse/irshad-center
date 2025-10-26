@@ -4,7 +4,7 @@
  * Dugsi Registration Server Actions
  *
  * Direct Server Actions for parent-led registration (K-12 children).
- * Follows the same pattern as app/batches/actions.ts
+ * Includes payment link generation for capturing payment methods.
  */
 
 import { revalidatePath } from 'next/cache'
@@ -18,6 +18,10 @@ import {
   formatFullName,
 } from '@/lib/registration/utils/name-formatting'
 import { handlePrismaUniqueError } from '@/lib/registration/utils/prisma-error-handler'
+import {
+  constructDugsiPaymentUrl,
+  generateFamilyId,
+} from '@/lib/utils/dugsi-payment'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -41,6 +45,7 @@ type ActionResult<T = void> = {
 
 /**
  * Register multiple children for Dugsi (parent-led enrollment)
+ * Now includes payment link generation for capturing payment methods.
  */
 export async function registerDugsiChildren(
   input: z.infer<typeof dugsiRegistrationSchema>
@@ -48,13 +53,18 @@ export async function registerDugsiChildren(
   ActionResult<{
     children: Array<{ id: string; name: string }>
     count: number
+    paymentUrl?: string
+    familyId?: string
   }>
 > {
   try {
     const validated = dugsiRegistrationSchema.parse(input)
 
     return await prisma.$transaction(async (tx) => {
-      // 1. Capitalize parent names
+      // 1. Generate family ID for tracking
+      const familyId = generateFamilyId(validated.parent1LastName)
+
+      // 2. Capitalize parent names
       const { firstName: parent1FirstName, lastName: parent1LastName } =
         capitalizeNames(validated.parent1FirstName, validated.parent1LastName)
 
@@ -73,14 +83,13 @@ export async function registerDugsiChildren(
         parent2LastName = parent2Names.lastName
       }
 
-      // 2. Create all children (database will enforce uniqueness)
+      // 3. Create all children with family reference ID
       const createdChildren = []
 
       for (const child of validated.children) {
         const childFullName = formatFullName(child.firstName, child.lastName)
 
-        // Create student record with parent contact info
-        // Database constraints will prevent duplicates
+        // Create student record with parent contact info and family reference
         try {
           const newStudent = await tx.student.create({
             data: {
@@ -94,6 +103,9 @@ export async function registerDugsiChildren(
               schoolName: child.schoolName,
               healthInfo: child.healthInfo,
               program: 'DUGSI_PROGRAM',
+
+              // Family tracking
+              familyReferenceId: familyId,
 
               // Parent 1 contact
               parentFirstName: parent1FirstName,
@@ -132,7 +144,7 @@ export async function registerDugsiChildren(
         }
       }
 
-      // 3. Create sibling group if multiple children
+      // 4. Create sibling group if multiple children
       if (createdChildren.length > 1) {
         await tx.sibling.create({
           data: {
@@ -143,11 +155,28 @@ export async function registerDugsiChildren(
         })
       }
 
+      // 5. Generate payment URL if configured
+      let paymentUrl: string | undefined
+      if (process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI) {
+        try {
+          paymentUrl = constructDugsiPaymentUrl({
+            parentEmail: validated.parent1Email,
+            familyId,
+            childCount: createdChildren.length,
+          })
+        } catch (error) {
+          console.warn('Could not generate payment URL:', error)
+          // Continue without payment URL - registration should still succeed
+        }
+      }
+
       return {
         success: true,
         data: {
           children: createdChildren,
           count: createdChildren.length,
+          paymentUrl,
+          familyId,
         },
       }
     })
