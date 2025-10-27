@@ -40,12 +40,19 @@ export interface UpdateStudentPayload {
 export const FORM_DEFAULTS = {
   NONE: 'none' as const,
   EMPTY: '' as const,
-  DEFAULT_RATE: 150,
+  DEFAULT_RATE: 150 as const,
 } as const
 
 /**
- * Type guard to check if a value is the 'none' placeholder
+ * Type for empty/none placeholder values
  */
-export function isNoneValue(value: string): boolean {
+export type EmptyValue = typeof FORM_DEFAULTS.NONE | typeof FORM_DEFAULTS.EMPTY
+
+/**
+ * Type guard to check if a value is the 'none' or empty placeholder
+ * @param value - Value to check
+ * @returns true if value is 'none' or empty string
+ */
+export function isNoneValue(value: string): value is EmptyValue {
   return value === FORM_DEFAULTS.NONE || value === FORM_DEFAULTS.EMPTY
 }

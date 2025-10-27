@@ -1,6 +1,7 @@
 import { EducationLevel, GradeLevel } from '@prisma/client'
 
 import type { BatchStudentData } from '@/lib/types/batch'
+import { formatEnumValue } from '@/lib/utils/formatters'
 
 import {
   FORM_DEFAULTS,
@@ -54,16 +55,46 @@ export function convertFormDataToPayload(
 }
 
 /**
+ * Validate email format
+ */
+function isValidEmail(email: string): boolean {
+  if (!email) return true // Empty email is optional
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailRegex.test(email)
+}
+
+/**
+ * Validate phone number format
+ */
+function isValidPhone(phone: string): boolean {
+  if (!phone) return true // Empty phone is optional
+  const digits = phone.replace(/\D/g, '')
+  // Allow 10 or 11 digit numbers
+  return digits.length >= 10 && digits.length <= 11
+}
+
+/**
  * Check if form data is valid
+ * Returns true if all required fields are present and valid
  */
 export function isFormValid(formData: StudentFormData): boolean {
-  // Name is required
+  // Name is required and must not be empty/whitespace
   if (!formData.name || formData.name.trim() === '') {
     return false
   }
 
   // Monthly rate must be non-negative
   if (formData.monthlyRate < 0) {
+    return false
+  }
+
+  // Email must be valid if provided
+  if (formData.email && !isValidEmail(formData.email)) {
+    return false
+  }
+
+  // Phone must be valid if provided
+  if (formData.phone && !isValidPhone(formData.phone)) {
     return false
   }
 
@@ -95,40 +126,16 @@ export function hasFormChanges(
 
 /**
  * Format education level for display
+ * Uses shared formatEnumValue utility to convert UPPER_SNAKE_CASE to Title Case
  */
 export function formatEducationLevel(level: string | null): string {
-  if (!level) return 'Not specified'
-
-  return level
-    .split('_')
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(' ')
+  return formatEnumValue(level)
 }
 
 /**
  * Format grade level for display
+ * Uses shared formatEnumValue utility to convert UPPER_SNAKE_CASE to Title Case
  */
 export function formatGradeLevel(grade: string | null): string {
-  if (!grade) return 'Not specified'
-
-  return grade
-    .split('_')
-    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
-    .join(' ')
-}
-
-/**
- * Format phone number for display (basic formatting)
- */
-export function formatPhoneNumber(phone: string): string {
-  // Remove all non-numeric characters
-  const cleaned = phone.replace(/\D/g, '')
-
-  // Format as (XXX) XXX-XXXX for 10-digit numbers
-  if (cleaned.length === 10) {
-    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
-  }
-
-  // Return as-is if not 10 digits
-  return phone
+  return formatEnumValue(grade)
 }
