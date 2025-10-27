@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import { ColumnDef } from '@tanstack/react-table'
 import { MoreHorizontal } from 'lucide-react'
 
@@ -14,11 +16,88 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { BatchStudentData } from '@/lib/types/batch'
+import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 
+import { StudentDetailsSheet } from './student-details-sheet'
+import { DeleteStudentDialog } from '../batch-management/delete-student-dialog'
 import { CopyableText } from '../ui/copyable-text'
 import { PhoneContact } from '../ui/phone-contact'
-export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
+
+// Actions cell component that can use hooks
+function StudentActionsCell({
+  student,
+  batches,
+}: {
+  student: BatchStudentData
+  batches: BatchWithCount[]
+}) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false)
+  const [detailsSheetMode, setDetailsSheetMode] = useState<'view' | 'edit'>(
+    'view'
+  )
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={() => {
+              setDetailsSheetMode('view')
+              setDetailsSheetOpen(true)
+            }}
+          >
+            View details
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setDetailsSheetMode('edit')
+              setDetailsSheetOpen(true)
+            }}
+          >
+            Edit student
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-red-600"
+            onClick={() => {
+              setDeleteDialogOpen(true)
+            }}
+          >
+            Delete student
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <StudentDetailsSheet
+        student={student}
+        batches={batches}
+        open={detailsSheetOpen}
+        mode={detailsSheetMode}
+        onOpenChange={setDetailsSheetOpen}
+        onModeChange={setDetailsSheetMode}
+      />
+
+      <DeleteStudentDialog
+        studentId={student.id}
+        studentName={student.name}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+      />
+    </>
+  )
+}
+
+export function createStudentColumns(
+  batches: BatchWithCount[]
+): ColumnDef<BatchStudentData>[] {
   return [
     {
       id: 'select',
@@ -141,33 +220,7 @@ export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
       id: 'actions',
       cell: ({ row }) => {
         const student = row.original
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>View details</DropdownMenuItem>
-              <DropdownMenuItem>Edit student</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-red-600"
-                onClick={() => {
-                  if (window.confirm(`Delete ${student.name}?`)) {
-                    // deleteStudent(student.id) - will implement later
-                    console.log('Delete student:', student.id)
-                  }
-                }}
-              >
-                Delete student
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
+        return <StudentActionsCell student={student} batches={batches} />
       },
     },
   ]
