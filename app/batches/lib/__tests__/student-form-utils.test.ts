@@ -121,7 +121,7 @@ describe('student-form-utils', () => {
       })
     })
 
-    it('should convert empty strings to undefined', () => {
+    it('should convert empty strings to null', () => {
       const formData: StudentFormData = {
         name: 'John Doe',
         email: '',
@@ -137,12 +137,12 @@ describe('student-form-utils', () => {
 
       const payload = convertFormDataToPayload(formData)
 
-      expect(payload.email).toBeUndefined()
-      expect(payload.phone).toBeUndefined()
-      expect(payload.schoolName).toBeUndefined()
+      expect(payload.email).toBeNull()
+      expect(payload.phone).toBeNull()
+      expect(payload.schoolName).toBeNull()
     })
 
-    it('should convert "none" placeholder to undefined', () => {
+    it('should convert "none" placeholder to null', () => {
       const formData: StudentFormData = {
         name: 'John Doe',
         email: '',
@@ -158,9 +158,9 @@ describe('student-form-utils', () => {
 
       const payload = convertFormDataToPayload(formData)
 
-      expect(payload.educationLevel).toBeUndefined()
-      expect(payload.gradeLevel).toBeUndefined()
-      expect(payload.batchId).toBeUndefined()
+      expect(payload.educationLevel).toBeNull()
+      expect(payload.gradeLevel).toBeNull()
+      expect(payload.batchId).toBeNull()
     })
   })
 

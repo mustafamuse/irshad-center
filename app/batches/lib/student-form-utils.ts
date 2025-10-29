@@ -31,26 +31,26 @@ export function getDefaultFormData(student: BatchStudentData): StudentFormData {
 
 /**
  * Convert form data to API payload
- * Handles 'none' placeholder conversion to undefined
+ * Handles 'none' placeholder conversion to null
  */
 export function convertFormDataToPayload(
   formData: StudentFormData
 ): UpdateStudentPayload {
   return {
     name: formData.name,
-    email: formData.email || undefined,
-    phone: formData.phone || undefined,
-    dateOfBirth: formData.dateOfBirth || undefined,
+    email: formData.email || null,
+    phone: formData.phone || null,
+    dateOfBirth: formData.dateOfBirth || null,
     educationLevel: isNoneValue(formData.educationLevel)
-      ? undefined
+      ? null
       : (formData.educationLevel as EducationLevel),
     gradeLevel: isNoneValue(formData.gradeLevel)
-      ? undefined
+      ? null
       : (formData.gradeLevel as GradeLevel),
-    schoolName: formData.schoolName || undefined,
+    schoolName: formData.schoolName || null,
     monthlyRate: formData.monthlyRate,
     customRate: formData.customRate,
-    batchId: isNoneValue(formData.batchId) ? undefined : formData.batchId,
+    batchId: isNoneValue(formData.batchId) ? null : formData.batchId,
   }
 }
 
