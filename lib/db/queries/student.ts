@@ -39,10 +39,15 @@ export async function getStudents() {
 }
 
 /**
- * Get all students with batch and sibling information
+ * Get all students with batch and sibling information (excluding withdrawn)
  */
 export async function getStudentsWithBatch() {
   const students = await prisma.student.findMany({
+    where: {
+      status: {
+        not: 'withdrawn',
+      },
+    },
     include: {
       Batch: {
         select: {
