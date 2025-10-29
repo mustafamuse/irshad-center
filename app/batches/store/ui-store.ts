@@ -280,6 +280,9 @@ export function filterStudents(
             const phoneDigits = value.replace(/\D/g, '')
             const searchDigits = searchQuery.replace(/\D/g, '')
 
+            // Skip phone search if query has no digits
+            if (searchDigits.length === 0) return false
+
             // Support last 4 digits search OR full/partial number match
             return (
               phoneDigits.includes(searchDigits) ||
