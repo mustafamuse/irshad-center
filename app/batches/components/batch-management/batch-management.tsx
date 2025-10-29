@@ -50,7 +50,7 @@ export function BatchManagement({ batches, students }: BatchManagementProps) {
           </Button>
         </AssignStudentsForm>
 
-        <DeleteStudentSheet />
+        <DeleteStudentSheet students={students} />
       </div>
 
       <BatchGrid batches={batches} />

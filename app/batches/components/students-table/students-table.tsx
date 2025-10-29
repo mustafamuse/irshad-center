@@ -13,6 +13,7 @@ import {
   filterStudents,
   countActiveFilters,
   useFilters,
+  useLegacyActions,
 } from '../../store/ui-store'
 
 // Performance indicator for search
@@ -43,6 +44,7 @@ interface StudentsTableProps {
 
 export function StudentsTable({ students, batches }: StudentsTableProps) {
   const filters = useFilters()
+  const { selectAllStudents } = useLegacyActions()
 
   // Compute filtered students based on current filters
   const filteredStudents = useMemo(
@@ -58,7 +60,13 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
   const hasActiveFilters = activeFilterCount > 0
 
   const hasActiveSearch = Boolean(filters.search?.query?.trim())
-  const columns = createStudentColumns()
+  const columns = createStudentColumns(batches)
+
+  // Handler to sync table selection with Zustand store
+  const handleRowSelectionChange = (selectedRows: BatchStudentData[]) => {
+    const selectedIds = selectedRows.map((row) => row.id)
+    selectAllStudents(selectedIds)
+  }
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -99,7 +107,11 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
 
       {/* Desktop Table View (hidden on mobile) */}
       <div className="hidden sm:block">
-        <DataTable columns={columns} data={filteredStudents} />
+        <DataTable
+          columns={columns}
+          data={filteredStudents}
+          onRowSelectionChange={handleRowSelectionChange}
+        />
       </div>
     </div>
   )

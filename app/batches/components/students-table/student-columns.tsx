@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
+
 import { ColumnDef } from '@tanstack/react-table'
-import { MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal, Users } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,12 +15,95 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { BatchStudentData } from '@/lib/types/batch'
+import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 
+import { StudentDetailsSheet } from './student-details-sheet'
+import { DeleteStudentDialog } from '../batch-management/delete-student-dialog'
 import { CopyableText } from '../ui/copyable-text'
 import { PhoneContact } from '../ui/phone-contact'
-export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
+
+// Actions cell component that can use hooks
+function StudentActionsCell({
+  student,
+  batches,
+}: {
+  student: BatchStudentData
+  batches: BatchWithCount[]
+}) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false)
+  const [detailsSheetMode, setDetailsSheetMode] = useState<'view' | 'edit'>(
+    'view'
+  )
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-8 w-8 p-0">
+            <span className="sr-only">Open menu</span>
+            <MoreHorizontal className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={() => {
+              setDetailsSheetMode('view')
+              setDetailsSheetOpen(true)
+            }}
+          >
+            View details
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() => {
+              setDetailsSheetMode('edit')
+              setDetailsSheetOpen(true)
+            }}
+          >
+            Edit student
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-red-600"
+            onClick={() => {
+              setDeleteDialogOpen(true)
+            }}
+          >
+            Delete student
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <StudentDetailsSheet
+        student={student}
+        batches={batches}
+        open={detailsSheetOpen}
+        mode={detailsSheetMode}
+        onOpenChange={setDetailsSheetOpen}
+        onModeChange={setDetailsSheetMode}
+      />
+
+      <DeleteStudentDialog
+        studentId={student.id}
+        studentName={student.name}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+      />
+    </>
+  )
+}
+
+export function createStudentColumns(
+  batches: BatchWithCount[]
+): ColumnDef<BatchStudentData>[] {
   return [
     {
       id: 'select',
@@ -66,17 +151,12 @@ export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
     },
     {
       accessorKey: 'phone',
-      header: 'Phone',
+      header: 'Contact',
       cell: ({ row }) => {
         const phone = row.getValue('phone') as string
         const student = row.original
         return phone ? (
-          <PhoneContact
-            phone={phone}
-            name={student.name}
-            compact
-            className="text-sm"
-          />
+          <PhoneContact phone={phone} name={student.name} className="text-sm" />
         ) : (
           <span className="text-muted-foreground">-</span>
         )
@@ -114,26 +194,54 @@ export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
       },
     },
     {
-      accessorKey: 'educationLevel',
-      header: 'Education',
+      id: 'siblings',
+      header: () => (
+        <div className="flex items-center justify-center">
+          <Users className="h-4 w-4" />
+        </div>
+      ),
       cell: ({ row }) => {
-        const level = row.getValue('educationLevel') as string
-        return level ? (
-          <span className="text-sm">{level}</span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )
-      },
-    },
-    {
-      accessorKey: 'gradeLevel',
-      header: 'Grade',
-      cell: ({ row }) => {
-        const grade = row.getValue('gradeLevel') as string
-        return grade ? (
-          <span className="text-sm">{grade}</span>
-        ) : (
-          <span className="text-muted-foreground">-</span>
+        const student = row.original
+        const activeSiblings =
+          student.Sibling?.Student.filter(
+            (sibling) =>
+              sibling.id !== student.id &&
+              (sibling.status === 'enrolled' || sibling.status === 'registered')
+          ) || []
+
+        if (activeSiblings.length === 0) {
+          return (
+            <div className="flex justify-center">
+              <span className="text-muted-foreground">-</span>
+            </div>
+          )
+        }
+
+        return (
+          <div className="flex justify-center">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-1 text-primary">
+                    <Users className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      {activeSiblings.length}
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="space-y-1">
+                    <p className="font-semibold">Active Siblings:</p>
+                    {activeSiblings.map((sibling) => (
+                      <p key={sibling.id} className="text-sm">
+                        {sibling.name}
+                      </p>
+                    ))}
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         )
       },
     },
@@ -141,33 +249,7 @@ export function createStudentColumns(): ColumnDef<BatchStudentData>[] {
       id: 'actions',
       cell: ({ row }) => {
         const student = row.original
-
-        return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem>View details</DropdownMenuItem>
-              <DropdownMenuItem>Edit student</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-red-600"
-                onClick={() => {
-                  if (window.confirm(`Delete ${student.name}?`)) {
-                    // deleteStudent(student.id) - will implement later
-                    console.log('Delete student:', student.id)
-                  }
-                }}
-              >
-                Delete student
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )
+        return <StudentActionsCell student={student} batches={batches} />
       },
     },
   ]

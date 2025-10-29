@@ -143,3 +143,26 @@ export function getInitials(name: string): string {
 
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
+
+/**
+ * Format enum value to human-readable string
+ * Converts UPPER_SNAKE_CASE to Title Case
+ * @param value - Enum value or null
+ * @param notSpecifiedText - Text to display when value is null/empty
+ * @returns Formatted string
+ * @example
+ * formatEnumValue('MIDDLE_SCHOOL') // 'Middle School'
+ * formatEnumValue('HIGH_SCHOOL') // 'High School'
+ * formatEnumValue(null) // 'Not specified'
+ */
+export function formatEnumValue(
+  value: string | null,
+  notSpecifiedText = 'Not specified'
+): string {
+  if (!value) return notSpecifiedText
+
+  return value
+    .split('_')
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(' ')
+}

@@ -24,11 +24,15 @@ import {
 import {
   getStudentById,
   resolveDuplicateStudents,
+  deleteStudent,
+  getStudentDeleteWarnings,
+  updateStudent,
 } from '@/lib/db/queries/student'
 import {
   CreateBatchSchema,
   BatchAssignmentSchema,
   BatchTransferSchema,
+  UpdateStudentSchema,
 } from '@/lib/validations/batch'
 
 // ============================================================================
@@ -389,6 +393,174 @@ export async function resolveDuplicatesAction(
           'One or more student records not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Cannot resolve duplicates due to related records',
+      },
+    })
+  }
+}
+
+// ============================================================================
+// STUDENT DELETION ACTIONS
+// ============================================================================
+
+/**
+ * Get delete warnings for a student
+ */
+export async function getStudentDeleteWarningsAction(id: string) {
+  try {
+    const warnings = await getStudentDeleteWarnings(id)
+    return { success: true, data: warnings } as const
+  } catch (error) {
+    console.error('Failed to fetch delete warnings:', error)
+    return {
+      success: false,
+      data: { hasSiblings: false, hasAttendanceRecords: false },
+    } as const
+  }
+}
+
+/**
+ * Delete a single student
+ */
+export async function deleteStudentAction(id: string): Promise<ActionResult> {
+  try {
+    const student = await getStudentById(id)
+    if (!student) {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
+    }
+
+    // Delete the student
+    await deleteStudent(id)
+
+    revalidatePath('/batches')
+    if (student.batchId) {
+      revalidatePath(`/batches/${student.batchId}`)
+    }
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    return handleActionError(error, 'deleteStudentAction', {
+      handlers: {
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Student not found',
+        [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
+          'Cannot delete student with related records',
+      },
+    })
+  }
+}
+
+/**
+ * Bulk delete students
+ */
+export async function bulkDeleteStudentsAction(
+  studentIds: string[]
+): Promise<ActionResult<{ deletedCount: number; failedDeletes: string[] }>> {
+  try {
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: false, error: 'No students selected for deletion' }
+    }
+
+    let deletedCount = 0
+    const failedDeletes: string[] = []
+    const batchIdsToRevalidate = new Set<string>()
+
+    for (const id of studentIds) {
+      try {
+        const student = await getStudentById(id)
+        if (student?.batchId) {
+          batchIdsToRevalidate.add(student.batchId)
+        }
+        await deleteStudent(id)
+        deletedCount++
+      } catch (error) {
+        console.error(`Failed to delete student ${id}:`, error)
+        failedDeletes.push(id)
+      }
+    }
+
+    revalidatePath('/batches')
+    Array.from(batchIdsToRevalidate).forEach((batchId) => {
+      revalidatePath(`/batches/${batchId}`)
+    })
+
+    return {
+      success: true,
+      data: { deletedCount, failedDeletes },
+    }
+  } catch (error) {
+    return handleActionError(error, 'bulkDeleteStudentsAction')
+  }
+}
+
+/**
+ * Update a student
+ */
+export async function updateStudentAction(
+  id: string,
+  data: Record<string, unknown>
+): Promise<ActionResult> {
+  try {
+    // Validate input data
+    const validated = UpdateStudentSchema.parse(data)
+
+    // Get current student to check if it exists
+    const currentStudent = await getStudentById(id)
+    if (!currentStudent) {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
+    }
+
+    // Update the student
+    await updateStudent(id, {
+      ...(validated.name !== undefined && { name: validated.name }),
+      ...(validated.email !== undefined && { email: validated.email || null }),
+      ...(validated.phone !== undefined && { phone: validated.phone || null }),
+      ...(validated.dateOfBirth !== undefined && {
+        dateOfBirth: validated.dateOfBirth || null,
+      }),
+      ...(validated.educationLevel !== undefined && {
+        educationLevel: validated.educationLevel || null,
+      }),
+      ...(validated.gradeLevel !== undefined && {
+        gradeLevel: validated.gradeLevel || null,
+      }),
+      ...(validated.schoolName !== undefined && {
+        schoolName: validated.schoolName || null,
+      }),
+      ...(validated.monthlyRate !== undefined && {
+        monthlyRate: validated.monthlyRate,
+      }),
+      ...(validated.customRate !== undefined && {
+        customRate: validated.customRate,
+      }),
+      ...(validated.batchId !== undefined && {
+        batchId: validated.batchId || null,
+      }),
+    })
+
+    revalidatePath('/batches')
+    if (currentStudent.batchId) {
+      revalidatePath(`/batches/${currentStudent.batchId}`)
+    }
+    if (validated.batchId && validated.batchId !== currentStudent.batchId) {
+      revalidatePath(`/batches/${validated.batchId}`)
+    }
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    return handleActionError(error, 'updateStudentAction', {
+      handlers: {
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Student not found',
+        [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
+          'Invalid batch or related record reference',
       },
     })
   }
