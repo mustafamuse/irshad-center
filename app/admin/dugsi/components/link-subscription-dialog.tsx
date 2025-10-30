@@ -4,9 +4,10 @@ import { useState, useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import { CheckCircle, Loader2, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, Loader2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -45,7 +46,14 @@ export function LinkSubscriptionDialog({
   >('idle')
   const [isLinking, startTransition] = useTransition()
 
+  // Check if parentEmail is missing or empty
+  const isParentEmailMissing = !parentEmail || parentEmail.trim() === ''
+
   const handleValidate = async () => {
+    if (isParentEmailMissing) {
+      toast.error('Parent email is required to link subscription')
+      return
+    }
     if (!subscriptionId.startsWith('sub_')) {
       setValidationStatus('invalid')
       toast.error('Invalid subscription ID format')
@@ -115,6 +123,18 @@ export function LinkSubscriptionDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {isParentEmailMissing && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Missing Parent Email</AlertTitle>
+              <AlertDescription>
+                This student does not have a parent email on record. Please
+                update the student's profile with a parent email before linking
+                a subscription.
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="subscription-id">Stripe Subscription ID</Label>
             <div className="flex gap-2">
@@ -141,7 +161,12 @@ export function LinkSubscriptionDialog({
                 type="button"
                 variant="outline"
                 onClick={handleValidate}
-                disabled={!subscriptionId || isValidating || isLinking}
+                disabled={
+                  !subscriptionId ||
+                  isValidating ||
+                  isLinking ||
+                  isParentEmailMissing
+                }
               >
                 {isValidating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -194,7 +219,10 @@ export function LinkSubscriptionDialog({
           <Button
             onClick={handleLink}
             disabled={
-              !subscriptionId || validationStatus !== 'valid' || isLinking
+              !subscriptionId ||
+              validationStatus !== 'valid' ||
+              isLinking ||
+              isParentEmailMissing
             }
           >
             {isLinking ? (

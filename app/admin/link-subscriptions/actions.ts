@@ -419,6 +419,15 @@ export async function linkSubscriptionToStudent(
         }
       }
 
+      // Validate parentEmail is not null/empty to prevent matching all null emails
+      if (!student.parentEmail || student.parentEmail.trim() === '') {
+        return {
+          success: false,
+          error:
+            'Parent email is required to link subscription. Please update the student record with a parent email first.',
+        }
+      }
+
       // Get subscription from Stripe
       const dugsiStripe = getDugsiStripeClient()
       const subscription =

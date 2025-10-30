@@ -381,6 +381,35 @@ describe('Dugsi Server Actions', () => {
       })
       expect(console.error).toHaveBeenCalled()
     })
+
+    it('should return error if parentEmail is null or empty', async () => {
+      // Test with empty string
+      const resultEmpty = await linkDugsiSubscription({
+        parentEmail: '',
+        subscriptionId: 'sub_test123',
+      })
+
+      expect(resultEmpty).toEqual({
+        success: false,
+        error:
+          'Parent email is required to link subscription. Please update the student record with a parent email first.',
+      })
+
+      // Test with whitespace only
+      const resultWhitespace = await linkDugsiSubscription({
+        parentEmail: '   ',
+        subscriptionId: 'sub_test123',
+      })
+
+      expect(resultWhitespace).toEqual({
+        success: false,
+        error:
+          'Parent email is required to link subscription. Please update the student record with a parent email first.',
+      })
+
+      // Verify Stripe API was never called
+      expect(getDugsiStripeClient).not.toHaveBeenCalled()
+    })
   })
 
   describe('getDugsiPaymentStatus', () => {

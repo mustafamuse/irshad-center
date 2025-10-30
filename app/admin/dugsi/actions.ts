@@ -167,6 +167,15 @@ export async function linkDugsiSubscription(params: {
   try {
     const { parentEmail, subscriptionId } = params
 
+    // Validate parentEmail is not null/empty to prevent matching all null emails
+    if (!parentEmail || parentEmail.trim() === '') {
+      return {
+        success: false,
+        error:
+          'Parent email is required to link subscription. Please update the student record with a parent email first.',
+      }
+    }
+
     // Validate the subscription exists in Stripe
     const dugsiStripe = getDugsiStripeClient()
     const subscription =
