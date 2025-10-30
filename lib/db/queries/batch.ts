@@ -10,7 +10,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 
 /**
- * Get all batches with student count
+ * Get all batches with student count (excluding withdrawn students)
  */
 export async function getBatches() {
   const batches = await prisma.batch.findMany({
@@ -21,8 +21,13 @@ export async function getBatches() {
       endDate: true,
       createdAt: true,
       updatedAt: true,
-      _count: {
-        select: { Student: true },
+      Student: {
+        where: {
+          status: {
+            not: 'withdrawn',
+          },
+        },
+        select: { id: true },
       },
     },
     orderBy: {
@@ -37,12 +42,12 @@ export async function getBatches() {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.Student,
+    studentCount: batch.Student.length,
   }))
 }
 
 /**
- * Get a single batch by ID
+ * Get a single batch by ID (excluding withdrawn students from count)
  */
 export async function getBatchById(id: string) {
   const batch = await prisma.batch.findUnique({
@@ -54,8 +59,13 @@ export async function getBatchById(id: string) {
       endDate: true,
       createdAt: true,
       updatedAt: true,
-      _count: {
-        select: { Student: true },
+      Student: {
+        where: {
+          status: {
+            not: 'withdrawn',
+          },
+        },
+        select: { id: true },
       },
     },
   })
@@ -69,7 +79,7 @@ export async function getBatchById(id: string) {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.Student,
+    studentCount: batch.Student.length,
   }
 }
 
@@ -98,7 +108,7 @@ export async function getBatchByName(name: string) {
 }
 
 /**
- * Create a new batch
+ * Create a new batch (student count excludes withdrawn)
  */
 export async function createBatch(data: {
   name: string
@@ -116,8 +126,13 @@ export async function createBatch(data: {
       endDate: true,
       createdAt: true,
       updatedAt: true,
-      _count: {
-        select: { Student: true },
+      Student: {
+        where: {
+          status: {
+            not: 'withdrawn',
+          },
+        },
+        select: { id: true },
       },
     },
   })
@@ -129,12 +144,12 @@ export async function createBatch(data: {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.Student,
+    studentCount: batch.Student.length,
   }
 }
 
 /**
- * Update a batch
+ * Update a batch (student count excludes withdrawn)
  */
 export async function updateBatch(
   id: string,
@@ -158,8 +173,13 @@ export async function updateBatch(
       endDate: true,
       createdAt: true,
       updatedAt: true,
-      _count: {
-        select: { Student: true },
+      Student: {
+        where: {
+          status: {
+            not: 'withdrawn',
+          },
+        },
+        select: { id: true },
       },
     },
   })
@@ -171,7 +191,7 @@ export async function updateBatch(
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.Student,
+    studentCount: batch.Student.length,
   }
 }
 
@@ -384,8 +404,13 @@ export async function getBatchesWithFilters(filters: {
       endDate: true,
       createdAt: true,
       updatedAt: true,
-      _count: {
-        select: { Student: true },
+      Student: {
+        where: {
+          status: {
+            not: 'withdrawn',
+          },
+        },
+        select: { id: true },
       },
     },
     orderBy: {
@@ -400,6 +425,6 @@ export async function getBatchesWithFilters(filters: {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch._count.Student,
+    studentCount: batch.Student.length,
   }))
 }

@@ -101,7 +101,11 @@ const defaultFilters: StudentFilters = {
     includeUnassigned: true,
   },
   status: {
-    selected: [],
+    selected: [
+      StudentStatus.REGISTERED,
+      StudentStatus.ENROLLED,
+      StudentStatus.ON_LEAVE,
+    ],
   },
   educationLevel: {
     selected: [],
@@ -265,11 +269,29 @@ export function filterStudents(
   return students.filter((student) => {
     // Search filter
     if (filters.search?.query) {
-      const searchQuery = filters.search.query.toLowerCase()
+      const searchQuery = filters.search.query.toLowerCase().trim()
       const matchesSearch =
         filters.search.fields?.some((field) => {
           const value = student[field]
-          return value && value.toLowerCase().includes(searchQuery)
+          if (!value) return false
+
+          // Special handling for phone field
+          if (field === 'phone') {
+            const phoneDigits = value.replace(/\D/g, '')
+            const searchDigits = searchQuery.replace(/\D/g, '')
+
+            // Skip phone search if query has no digits
+            if (searchDigits.length === 0) return false
+
+            // Support last 4 digits search OR full/partial number match
+            return (
+              phoneDigits.includes(searchDigits) ||
+              (searchDigits.length === 4 && phoneDigits.endsWith(searchDigits))
+            )
+          }
+
+          // Standard text search for name, email
+          return value.toLowerCase().includes(searchQuery)
         }) ?? false
       if (!matchesSearch) return false
     }

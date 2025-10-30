@@ -1,5 +1,7 @@
 'use client'
 
+import { Users } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -15,6 +17,7 @@ interface StudentCardProps {
   onToggle: () => void
   selectable: boolean
   compact?: boolean
+  onViewDetails?: () => void
 }
 
 export function StudentCard({
@@ -23,9 +26,12 @@ export function StudentCard({
   onToggle,
   selectable,
   compact = false,
+  onViewDetails,
 }: StudentCardProps) {
   const handleClick = () => {
-    if (selectable) {
+    if (onViewDetails) {
+      onViewDetails()
+    } else if (selectable) {
       onToggle()
     }
   }
@@ -97,12 +103,6 @@ export function StudentCard({
                   {student.Batch.name}
                 </Badge>
               )}
-
-              {student.educationLevel && (
-                <span className="text-xs text-muted-foreground">
-                  {student.educationLevel}
-                </span>
-              )}
             </div>
           </div>
 
@@ -110,9 +110,14 @@ export function StudentCard({
             student.Sibling &&
             student.Sibling.Student.length > 0 && (
               <div className="mt-2">
-                <p className="text-xs text-muted-foreground">
-                  Siblings:{' '}
-                  {student.Sibling.Student.map((s) => s.name).join(', ')}
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Users className="h-3.5 w-3.5" />
+                  <span>
+                    {student.Sibling.Student.length}{' '}
+                    {student.Sibling.Student.length === 1
+                      ? 'sibling'
+                      : 'siblings'}
+                  </span>
                 </p>
               </div>
             )}

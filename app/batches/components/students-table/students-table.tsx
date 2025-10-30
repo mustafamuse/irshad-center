@@ -102,7 +102,7 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
 
       {/* Mobile Card View (hidden on larger screens) */}
       <div className="sm:hidden">
-        <MobileStudentsList students={filteredStudents} />
+        <MobileStudentsList students={filteredStudents} batches={batches} />
       </div>
 
       {/* Desktop Table View (hidden on mobile) */}
