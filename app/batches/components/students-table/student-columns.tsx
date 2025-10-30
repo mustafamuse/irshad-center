@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { SubscriptionStatus } from '@prisma/client'
 import { ColumnDef } from '@tanstack/react-table'
 import { MoreHorizontal, Users } from 'lucide-react'
 
@@ -24,6 +25,7 @@ import {
 import { BatchStudentData } from '@/lib/types/batch'
 import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
+import { getSubscriptionStatusDisplay } from '@/lib/utils/subscription-status'
 
 import { StudentDetailsSheet } from './student-details-sheet'
 import { DeleteStudentDialog } from '../batch-management/delete-student-dialog'
@@ -189,6 +191,31 @@ export function createStudentColumns(
             }
           >
             {getStudentStatusDisplay(status)}
+          </Badge>
+        )
+      },
+    },
+    {
+      accessorKey: 'subscriptionStatus',
+      header: 'Subscription',
+      cell: ({ row }) => {
+        const status = row.getValue(
+          'subscriptionStatus'
+        ) as SubscriptionStatus | null
+        if (!status) {
+          return <span className="text-muted-foreground">-</span>
+        }
+        return (
+          <Badge
+            variant={
+              status === 'active'
+                ? 'default'
+                : status === 'past_due'
+                  ? 'destructive'
+                  : 'secondary'
+            }
+          >
+            {getSubscriptionStatusDisplay(status)}
           </Badge>
         )
       },

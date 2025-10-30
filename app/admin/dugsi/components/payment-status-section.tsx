@@ -32,6 +32,7 @@ import {
   getStripeCustomerUrl,
 } from '@/lib/constants/dugsi'
 import { formatDate } from '@/lib/utils/formatters'
+import { formatPeriodRange } from '@/lib/utils/subscription-status'
 import {
   isPaymentStatusData,
   type PaymentStatusData,
@@ -51,6 +52,8 @@ interface PaymentStatusSectionProps {
     stripeSubscriptionIdDugsi: string | null
     subscriptionStatus: string | null
     paidUntil: Date | string | null
+    currentPeriodStart: Date | string | null
+    currentPeriodEnd: Date | string | null
   }>
 }
 
@@ -221,12 +224,27 @@ export function PaymentStatusSection({
               <div className="rounded-lg border bg-background p-3">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Next Billing
+                    Billing Period
                   </span>
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <div className="flex items-center gap-2">
-                  {activeSubscription?.paidUntil ? (
+                <div className="flex flex-col gap-1">
+                  {activeSubscription?.currentPeriodStart &&
+                  activeSubscription?.currentPeriodEnd ? (
+                    <>
+                      <span className="text-sm font-medium">
+                        {formatPeriodRange(
+                          activeSubscription.currentPeriodStart,
+                          activeSubscription.currentPeriodEnd
+                        )}
+                      </span>
+                      {activeSubscription.paidUntil && (
+                        <p className="text-xs text-muted-foreground">
+                          Ends {formatDate(activeSubscription.paidUntil)}
+                        </p>
+                      )}
+                    </>
+                  ) : activeSubscription?.paidUntil ? (
                     <span className="text-sm font-medium">
                       {formatDate(activeSubscription.paidUntil)}
                     </span>

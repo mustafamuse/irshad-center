@@ -17,6 +17,8 @@ export interface PaymentStatusData {
   subscriptionId?: string | null
   subscriptionStatus?: string | null
   paidUntil?: Date | string | null
+  currentPeriodStart?: Date | string | null
+  currentPeriodEnd?: Date | string | null
   students: Array<{ id: string; name: string }>
 }
 
@@ -52,6 +54,33 @@ export function isPaymentStatusData(data: unknown): data is PaymentStatusData {
     obj.subscriptionStatus !== undefined &&
     obj.subscriptionStatus !== null &&
     typeof obj.subscriptionStatus !== 'string'
+  ) {
+    return false
+  }
+
+  if (
+    obj.paidUntil !== undefined &&
+    obj.paidUntil !== null &&
+    !(obj.paidUntil instanceof Date) &&
+    typeof obj.paidUntil !== 'string'
+  ) {
+    return false
+  }
+
+  if (
+    obj.currentPeriodStart !== undefined &&
+    obj.currentPeriodStart !== null &&
+    !(obj.currentPeriodStart instanceof Date) &&
+    typeof obj.currentPeriodStart !== 'string'
+  ) {
+    return false
+  }
+
+  if (
+    obj.currentPeriodEnd !== undefined &&
+    obj.currentPeriodEnd !== null &&
+    !(obj.currentPeriodEnd instanceof Date) &&
+    typeof obj.currentPeriodEnd !== 'string'
   ) {
     return false
   }
@@ -198,4 +227,36 @@ export function extractPeriodEnd(subscription: unknown): Date | undefined {
   }
 
   return undefined
+}
+
+/**
+ * Safe extraction of subscription period start
+ */
+export function extractPeriodStart(subscription: unknown): Date | undefined {
+  if (!subscription || typeof subscription !== 'object') return undefined
+
+  const sub = subscription as Record<string, unknown>
+  const periodStart = sub.current_period_start
+
+  if (!periodStart) return undefined
+
+  if (typeof periodStart === 'number') {
+    // Stripe timestamps are in seconds, not milliseconds
+    return new Date(periodStart * 1000)
+  }
+
+  return undefined
+}
+
+/**
+ * Extract both period start and end from Stripe subscription
+ */
+export function extractPeriodDates(subscription: unknown): {
+  periodStart: Date | undefined
+  periodEnd: Date | undefined
+} {
+  return {
+    periodStart: extractPeriodStart(subscription),
+    periodEnd: extractPeriodEnd(subscription),
+  }
 }

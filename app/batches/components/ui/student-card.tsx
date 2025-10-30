@@ -6,7 +6,9 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { BatchStudentData } from '@/lib/types/batch'
+import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 import { cn } from '@/lib/utils'
+import { getSubscriptionStatusDisplay } from '@/lib/utils/subscription-status'
 
 import { CopyableText } from './copyable-text'
 import { PhoneContact } from './phone-contact'
@@ -92,15 +94,35 @@ export function StudentCard({
 
             <div className="flex flex-col items-end gap-1">
               <Badge
-                variant={student.status === 'ACTIVE' ? 'default' : 'secondary'}
+                variant={
+                  student.status === StudentStatus.ENROLLED ||
+                  student.status === StudentStatus.REGISTERED
+                    ? 'default'
+                    : 'secondary'
+                }
                 className="text-xs"
               >
-                {student.status}
+                {getStudentStatusDisplay(student.status as StudentStatus)}
               </Badge>
 
               {student.Batch && (
                 <Badge variant="outline" className="text-xs">
                   {student.Batch.name}
+                </Badge>
+              )}
+
+              {student.subscriptionStatus && (
+                <Badge
+                  variant={
+                    student.subscriptionStatus === 'active'
+                      ? 'default'
+                      : student.subscriptionStatus === 'past_due'
+                        ? 'destructive'
+                        : 'secondary'
+                  }
+                  className="text-xs"
+                >
+                  {getSubscriptionStatusDisplay(student.subscriptionStatus)}
                 </Badge>
               )}
             </div>

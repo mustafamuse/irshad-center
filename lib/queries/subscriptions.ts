@@ -114,10 +114,16 @@ export async function updateStudentSubscriptionStatus(
 }
 
 // Helper function to map subscription status to student status
-function getNewStudentStatus(
-  subscriptionStatus: SubscriptionStatus
+export function getNewStudentStatus(
+  subscriptionStatus: SubscriptionStatus | string
 ): StudentStatus {
-  switch (subscriptionStatus) {
+  // Handle string status from Stripe
+  const status =
+    typeof subscriptionStatus === 'string'
+      ? (subscriptionStatus as SubscriptionStatus)
+      : subscriptionStatus
+
+  switch (status) {
     case SubscriptionStatus.active:
       return StudentStatus.ENROLLED
     case SubscriptionStatus.canceled:
