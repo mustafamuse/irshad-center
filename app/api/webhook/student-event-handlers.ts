@@ -1,5 +1,6 @@
 import type { Stripe } from 'stripe'
 
+import { STUDENT_STATUS } from '@/lib/constants'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { studentMatcher } from '@/lib/services/student-matcher'
@@ -118,7 +119,7 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
     const updateData: any = {
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: subscriptionId,
-      status: 'enrolled',
+      status: STUDENT_STATUS.ENROLLED,
       // Only update email if we have a validated one and student doesn't have one
       ...(matchResult.validatedEmail &&
         !matchResult.student.email && { email: matchResult.validatedEmail }),
@@ -345,7 +346,7 @@ export async function handleSubscriptionDeleted(event: Stripe.Event) {
           where: { id: studentId },
           data: {
             subscriptionStatus: 'canceled',
-            status: 'withdrawn', // ✅ Update status to withdrawn when subscription is canceled
+            status: STUDENT_STATUS.WITHDRAWN, // ✅ Update status to withdrawn when subscription is canceled
             subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
             previousSubscriptionIds: {
               push: subscription.id, // Add to history before unlinking

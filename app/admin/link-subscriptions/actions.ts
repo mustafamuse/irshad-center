@@ -11,6 +11,15 @@ import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
 /**
+ * Type-safe update data for student subscription linking
+ * Extends Prisma's StudentUpdateInput with array push operations
+ */
+type StudentUpdateData = Prisma.StudentUpdateInput & {
+  previousSubscriptionIds?: { push: string }
+  previousSubscriptionIdsDugsi?: { push: string }
+}
+
+/**
  * Get production Stripe client for admin tools
  * Always uses production keys regardless of NODE_ENV
  */
@@ -367,7 +376,7 @@ export async function linkSubscriptionToStudent(
 
       // Track subscription history: check if student already has a subscription
       const oldSubscriptionId = student.stripeSubscriptionId
-      const updateData: any = {
+      const updateData: StudentUpdateData = {
         stripeSubscriptionId: subscriptionId,
         stripeCustomerId: customerId,
         subscriptionStatus: subscription.status,
@@ -382,7 +391,14 @@ export async function linkSubscriptionToStudent(
         }),
       }
 
-      // Add old subscription ID to history if it exists and is different
+      /**
+       * Track subscription history
+       *
+       * Note: Potential race condition if multiple admins link subscriptions simultaneously.
+       * The subscription history could be missed since the read-then-write is not atomic.
+       * This is acceptable for admin tool context with low concurrency.
+       * For high-concurrency scenarios (like webhook handlers), consider using transactions.
+       */
       if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
         updateData.previousSubscriptionIds = {
           push: oldSubscriptionId,
@@ -467,7 +483,7 @@ export async function linkSubscriptionToStudent(
           const statusChanged =
             familyStudent.subscriptionStatus !== subscription.status
 
-          const updateData: any = {
+          const updateData: StudentUpdateData = {
             stripeSubscriptionIdDugsi: subscriptionId,
             stripeCustomerIdDugsi: customerId,
             subscriptionStatus: subscription.status,

@@ -619,6 +619,10 @@ describe('Dugsi Webhook Handler', () => {
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
+          createSubscriptionTransactionMock([
+            { id: '1', name: 'Child 1' },
+            { id: '2', name: 'Child 2' },
+          ])
         },
         expectedStatus: 200,
         customAssertions: () => {

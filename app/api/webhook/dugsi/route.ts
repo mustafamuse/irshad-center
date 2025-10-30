@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
+import { STUDENT_STATUS } from '@/lib/constants'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
@@ -21,6 +22,14 @@ import {
   extractPeriodDates,
   isValidSubscriptionStatus,
 } from '@/lib/utils/type-guards'
+
+/**
+ * Type-safe update data for student subscription updates
+ * Extends Prisma's StudentUpdateInput with array push operations
+ */
+type StudentUpdateData = Prisma.StudentUpdateInput & {
+  previousSubscriptionIdsDugsi?: { push: string }
+}
 
 /**
  * Handle successful payment method capture (checkout.session.completed).
@@ -140,7 +149,7 @@ async function handleSubscriptionEvent(
         const statusChanged =
           student?.subscriptionStatus !== subscription.status
 
-        const updateData: any = {
+        const updateData: StudentUpdateData = {
           stripeSubscriptionIdDugsi: subscriptionId,
           subscriptionStatus: subscription.status,
           status: newStudentStatus,
@@ -327,7 +336,7 @@ export async function POST(req: Request) {
                 where: { id: student.id },
                 data: {
                   subscriptionStatus: 'canceled',
-                  status: 'withdrawn', // ✅ Now updates student status when subscription canceled!
+                  status: STUDENT_STATUS.WITHDRAWN, // ✅ Now updates student status when subscription canceled!
                   subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
                   previousSubscriptionIdsDugsi: {
                     push: canceledSub.id, // Add to history before unlinking
