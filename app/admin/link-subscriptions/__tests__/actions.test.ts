@@ -90,6 +90,11 @@ vi.mock('@/lib/queries/subscriptions', () => ({
 }))
 
 vi.mock('@/lib/utils/type-guards', () => ({
+  extractCustomerId: vi.fn((customer: any) => {
+    if (!customer) return ''
+    if (typeof customer === 'string') return customer
+    return customer.id || ''
+  }),
   extractPeriodDates: vi.fn((subscription: any) => ({
     periodStart: subscription.current_period_start
       ? new Date(subscription.current_period_start * 1000)
