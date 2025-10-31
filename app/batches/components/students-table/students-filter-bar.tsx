@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 
+import { SubscriptionStatus } from '@prisma/client'
 import { Search, X, Filter } from 'lucide-react'
 import { useDebouncedCallback } from 'use-debounce'
 
@@ -17,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
+import { getSubscriptionStatusDisplay } from '@/lib/utils/subscription-status'
 
 import {
   countActiveFilters,
@@ -34,6 +36,7 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
     setSearchQuery,
     toggleBatchFilter,
     toggleStatusFilter,
+    toggleSubscriptionStatusFilter,
     resetFilters,
   } = useLegacyActions()
 
@@ -43,6 +46,8 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
   // Local state for controlled Select components
   const [batchSelectValue, setBatchSelectValue] = useState('')
   const [statusSelectValue, setStatusSelectValue] = useState('')
+  const [subscriptionStatusSelectValue, setSubscriptionStatusSelectValue] =
+    useState('')
 
   // Debounced search to avoid filtering on every keystroke
   const debouncedSetSearchQuery = useDebouncedCallback(
@@ -64,6 +69,17 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
     StudentStatus.ENROLLED,
     StudentStatus.ON_LEAVE,
     StudentStatus.WITHDRAWN,
+  ]
+
+  const subscriptionStatusOptions: SubscriptionStatus[] = [
+    'active',
+    'past_due',
+    'canceled',
+    'unpaid',
+    'trialing',
+    'incomplete',
+    'incomplete_expired',
+    'paused',
   ]
 
   return (
@@ -152,6 +168,28 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             </SelectContent>
           </Select>
 
+          {/* Subscription Status Filter */}
+          <Select
+            value={subscriptionStatusSelectValue}
+            onValueChange={(value) => {
+              if (value) {
+                toggleSubscriptionStatusFilter(value as SubscriptionStatus)
+                setSubscriptionStatusSelectValue('') // Reset to placeholder after selection
+              }
+            }}
+          >
+            <SelectTrigger className="h-11 w-full sm:w-[200px]">
+              <SelectValue placeholder="Subscription Status..." />
+            </SelectTrigger>
+            <SelectContent>
+              {subscriptionStatusOptions.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {getSubscriptionStatusDisplay(status)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           {/* Active Filters Display */}
           {filters.batch?.selected && filters.batch.selected.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
@@ -188,6 +226,23 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             </div>
           )}
 
+          {filters.subscriptionStatus?.selected &&
+            filters.subscriptionStatus.selected.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {filters.subscriptionStatus.selected.map((status) => (
+                  <Badge
+                    key={status}
+                    variant="secondary"
+                    className="h-9 cursor-pointer px-3"
+                    onClick={() => toggleSubscriptionStatusFilter(status)}
+                  >
+                    {getSubscriptionStatusDisplay(status)}
+                    <X className="ml-1.5 h-3.5 w-3.5" />
+                  </Badge>
+                ))}
+              </div>
+            )}
+
           {/* Reset Filters */}
           {hasActiveFilters && (
             <Button
@@ -197,6 +252,7 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
                 resetFilters()
                 setBatchSelectValue('')
                 setStatusSelectValue('')
+                setSubscriptionStatusSelectValue('')
               }}
               className="h-9 w-full sm:ml-auto sm:w-auto"
             >

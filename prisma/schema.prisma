@@ -194,58 +194,63 @@ model Sibling {
 }
 
 model Student {
-  id                   String              @id @default(uuid())
-  name                 String
-  email                String?             @unique
-  monthlyRate          Int                 @default(150)
-  customRate           Boolean             @default(false)
-  status               String              @default("registered")
-  lastPaymentDate      DateTime?
-  nextPaymentDue       DateTime?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  batchId              String?
-  collegeGradYear      Int?
-  collegeGraduated     Boolean             @default(false)
-  dateOfBirth          DateTime?
-  educationLevel       EducationLevel?
-  gradeLevel           GradeLevel?
-  highSchoolGradYear   Int?
-  highSchoolGraduated  Boolean             @default(false)
-  phone                String?
-  postGradCompleted    Boolean             @default(false)
-  postGradYear         Int?
-  schoolName           String?
-  siblingGroupId       String?
-  stripeCustomerId     String?             @unique
-  stripeSubscriptionId String?
-  subscriptionStatus   SubscriptionStatus?
-  paidUntil            DateTime?
-  healthInfo           String?
-  parent2Email         String?
-  parent2FirstName     String?
-  parent2LastName      String?
-  parent2Phone         String?
-  parentEmail          String?
-  parentFirstName      String?
-  parentLastName       String?
-  parentPhone          String?
-  program              Program             @default(MAHAD_PROGRAM)
-  gender               Gender?
+  id                           String              @id @default(uuid())
+  name                         String
+  email                        String?             @unique
+  monthlyRate                  Int                 @default(150)
+  customRate                   Boolean             @default(false)
+  status                       String              @default("registered")
+  lastPaymentDate              DateTime?
+  nextPaymentDue               DateTime?
+  createdAt                    DateTime            @default(now())
+  updatedAt                    DateTime            @updatedAt
+  batchId                      String?
+  collegeGradYear              Int?
+  collegeGraduated             Boolean             @default(false)
+  dateOfBirth                  DateTime?
+  educationLevel               EducationLevel?
+  gradeLevel                   GradeLevel?
+  highSchoolGradYear           Int?
+  highSchoolGraduated          Boolean             @default(false)
+  phone                        String?
+  postGradCompleted            Boolean             @default(false)
+  postGradYear                 Int?
+  schoolName                   String?
+  siblingGroupId               String?
+  stripeCustomerId             String?
+  stripeSubscriptionId         String?
+  subscriptionStatus           SubscriptionStatus?
+  paidUntil                    DateTime?
+  currentPeriodStart           DateTime?
+  currentPeriodEnd             DateTime?
+  subscriptionStatusUpdatedAt  DateTime?
+  previousSubscriptionIds      String[]            @default([]) // History of Mahad subscription IDs
+  previousSubscriptionIdsDugsi String[]            @default([]) // History of Dugsi subscription IDs
+  healthInfo                   String?
+  parent2Email                 String?
+  parent2FirstName             String?
+  parent2LastName              String?
+  parent2Phone                 String?
+  parentEmail                  String?
+  parentFirstName              String?
+  parentLastName               String?
+  parentPhone                  String?
+  program                      Program             @default(MAHAD_PROGRAM)
+  gender                       Gender?
 
   // Dugsi-specific payment fields
-  stripeCustomerIdDugsi      String?   // Separate from mahad stripeCustomerId
-  stripeSubscriptionIdDugsi  String?   // For manually created dugsi subscriptions
-  paymentMethodCaptured      Boolean   @default(false)
-  paymentMethodCapturedAt    DateTime?
-  familyReferenceId          String?   // Links children in same family
-  stripeAccountType          StripeAccountType?  // Tracks which Stripe account
+  stripeCustomerIdDugsi     String? // Separate from mahad stripeCustomerId
+  stripeSubscriptionIdDugsi String? // For manually created dugsi subscriptions
+  paymentMethodCaptured     Boolean            @default(false)
+  paymentMethodCapturedAt   DateTime?
+  familyReferenceId         String? // Links children in same family
+  stripeAccountType         StripeAccountType? // Tracks which Stripe account
 
-  Attendance           Attendance[]
-  AttendanceRecord     AttendanceRecord[]
-  Batch                Batch?              @relation(fields: [batchId], references: [id])
-  Sibling              Sibling?            @relation(fields: [siblingGroupId], references: [id])
-  StudentPayment       StudentPayment[]
+  Attendance       Attendance[]
+  AttendanceRecord AttendanceRecord[]
+  Batch            Batch?             @relation(fields: [batchId], references: [id])
+  Sibling          Sibling?           @relation(fields: [siblingGroupId], references: [id])
+  StudentPayment   StudentPayment[]
 
   @@unique([name, dateOfBirth])
   @@index([batchId])
@@ -376,7 +381,7 @@ model WebhookEvent {
   id          String   @id @default(uuid())
   eventId     String
   eventType   String
-  source      String   // 'mahad' or 'dugsi'
+  source      String // 'mahad' or 'dugsi'
   processedAt DateTime @default(now())
   payload     Json?
 

@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache'
 
 import { prisma } from '@/lib/db'
+import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
+import { extractPeriodDates } from '@/lib/utils/type-guards'
 
 export async function getDugsiRegistrations() {
   const students = await prisma.student.findMany({
@@ -34,6 +37,8 @@ export async function getDugsiRegistrations() {
       stripeSubscriptionIdDugsi: true,
       subscriptionStatus: true,
       paidUntil: true,
+      currentPeriodStart: true,
+      currentPeriodEnd: true,
       familyReferenceId: true,
       stripeAccountType: true,
     },
@@ -94,6 +99,8 @@ export async function getFamilyMembers(studentId: string) {
       stripeSubscriptionIdDugsi: true,
       subscriptionStatus: true,
       paidUntil: true,
+      currentPeriodStart: true,
+      currentPeriodEnd: true,
       familyReferenceId: true,
       stripeAccountType: true,
     },
@@ -161,6 +168,15 @@ export async function linkDugsiSubscription(params: {
   try {
     const { parentEmail, subscriptionId } = params
 
+    // Validate parentEmail is not null/empty to prevent matching all null emails
+    if (!parentEmail || parentEmail.trim() === '') {
+      return {
+        success: false,
+        error:
+          'Parent email is required to link subscription. Please update the student record with a parent email first.',
+      }
+    }
+
     // Validate the subscription exists in Stripe
     const dugsiStripe = getDugsiStripeClient()
     const subscription =
@@ -170,20 +186,62 @@ export async function linkDugsiSubscription(params: {
       return { success: false, error: 'Subscription not found in Stripe' }
     }
 
-    // Update all children of this parent with the subscription ID
-    const updateResult = await prisma.student.updateMany({
-      where: {
-        parentEmail,
-        program: 'DUGSI_PROGRAM',
-      },
-      data: {
-        stripeSubscriptionIdDugsi: subscriptionId,
-        subscriptionStatus: subscription.status,
-        stripeAccountType: 'DUGSI',
-      },
+    // Extract customer ID (type guard ensures it's a string)
+    const customerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id
+
+    if (!customerId) {
+      return { success: false, error: 'Invalid customer ID in subscription' }
+    }
+
+    // Derive student status from subscription status
+    const newStudentStatus = getNewStudentStatus(subscription.status)
+
+    // Extract period dates
+    const periodDates = extractPeriodDates(subscription)
+
+    // Use transaction to atomically update all students in the family
+    const studentsToUpdate = await prisma.$transaction(async (tx) => {
+      // Find all students to update and track history
+      const students = await tx.student.findMany({
+        where: {
+          parentEmail,
+          program: 'DUGSI_PROGRAM',
+        },
+        select: {
+          id: true,
+          stripeSubscriptionIdDugsi: true,
+          subscriptionStatus: true,
+        },
+      })
+
+      if (students.length === 0) {
+        return []
+      }
+
+      // Update each student using centralized utility
+      const updatePromises = updateStudentsInTransaction(
+        students,
+        {
+          subscriptionId,
+          customerId,
+          subscriptionStatus: subscription.status,
+          newStudentStatus,
+          periodStart: periodDates.periodStart,
+          periodEnd: periodDates.periodEnd,
+          program: 'DUGSI',
+        },
+        tx
+      )
+
+      await Promise.all(updatePromises)
+
+      return students
     })
 
-    if (updateResult.count === 0) {
+    if (studentsToUpdate.length === 0) {
       return {
         success: false,
         error: 'No students found with this parent email',
@@ -195,8 +253,8 @@ export async function linkDugsiSubscription(params: {
 
     return {
       success: true,
-      updated: updateResult.count,
-      message: `Successfully linked subscription to ${updateResult.count} students`,
+      updated: studentsToUpdate.length,
+      message: `Successfully linked subscription to ${studentsToUpdate.length} students`,
     }
   } catch (error) {
     console.error('Error linking Dugsi subscription:', error)
@@ -228,6 +286,8 @@ export async function getDugsiPaymentStatus(parentEmail: string) {
         stripeSubscriptionIdDugsi: true,
         subscriptionStatus: true,
         paidUntil: true,
+        currentPeriodStart: true,
+        currentPeriodEnd: true,
       },
     })
 
@@ -250,6 +310,8 @@ export async function getDugsiPaymentStatus(parentEmail: string) {
         subscriptionId: students[0]?.stripeSubscriptionIdDugsi,
         subscriptionStatus: students[0]?.subscriptionStatus,
         paidUntil: students[0]?.paidUntil,
+        currentPeriodStart: students[0]?.currentPeriodStart,
+        currentPeriodEnd: students[0]?.currentPeriodEnd,
         students: students.map((s) => ({
           id: s.id,
           name: s.name,

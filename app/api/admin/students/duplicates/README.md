@@ -21,7 +21,6 @@ http://localhost:3000/api/admin/students/duplicates
 The endpoint supports the following query parameters:
 
 - **`mode`**: Controls which type of duplicates to check for
-
   - `exact`: Only find exact name matches
   - `similar`: Only find similar names
   - `all`: Find both exact and similar matches (default)
@@ -54,7 +53,6 @@ The endpoint supports the following query parameters:
 The response includes:
 
 1. **`exact`**: Contains groups of students with identical names
-
    - Each group includes the name, count, and full student details
    - Students are sorted by creation date (oldest first)
 

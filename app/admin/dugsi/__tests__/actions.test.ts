@@ -23,19 +23,29 @@ vi.mock('next/cache', () => ({
 }))
 
 // Mock Prisma
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    student: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      findFirst: vi.fn(),
-      updateMany: vi.fn(),
-      delete: vi.fn(),
-      deleteMany: vi.fn(),
+vi.mock('@/lib/db', () => {
+  const mockStudent = {
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+    delete: vi.fn(),
+    deleteMany: vi.fn(),
+  }
+
+  return {
+    prisma: {
+      student: mockStudent,
+      // Mock $transaction to execute the callback with a transaction client
+      $transaction: vi.fn((callback) => {
+        // Create a transaction client that uses the same mocks
+        const tx = { student: mockStudent }
+        return callback(tx)
+      }),
     },
-    $transaction: vi.fn(),
-  },
-}))
+  }
+})
 
 // Mock Stripe Dugsi
 vi.mock('@/lib/stripe-dugsi', () => ({
@@ -255,34 +265,53 @@ describe('Dugsi Server Actions', () => {
       const mockSubscription = {
         id: 'sub_test123',
         status: 'active',
+        customer: 'cus_test123',
+        current_period_start: Math.floor(Date.now() / 1000),
+        current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+        items: {
+          data: [{ price: { unit_amount: 15000 } }],
+        },
       }
 
-      const stripeClient = getDugsiStripeClient()
-      vi.mocked(stripeClient.subscriptions.retrieve).mockResolvedValue(
-        mockSubscription as any
-      )
+      vi.mocked(getDugsiStripeClient).mockReturnValue({
+        subscriptions: {
+          retrieve: vi.fn().mockResolvedValue(mockSubscription as any),
+        },
+      } as any)
 
-      vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
+      vi.mocked(prisma.student.findMany).mockResolvedValue([
+        { id: '1', stripeSubscriptionIdDugsi: null, subscriptionStatus: null },
+        { id: '2', stripeSubscriptionIdDugsi: null, subscriptionStatus: null },
+      ] as any)
+      vi.mocked(prisma.student.update).mockResolvedValue({} as any)
 
       const result = await linkDugsiSubscription({
         parentEmail: 'parent@example.com',
         subscriptionId: 'sub_test123',
       })
 
-      expect(stripeClient.subscriptions.retrieve).toHaveBeenCalledWith(
-        'sub_test123'
-      )
-
-      expect(prisma.student.updateMany).toHaveBeenCalledWith({
+      expect(prisma.student.findMany).toHaveBeenCalledWith({
         where: {
           parentEmail: 'parent@example.com',
           program: 'DUGSI_PROGRAM',
         },
-        data: {
-          stripeSubscriptionIdDugsi: 'sub_test123',
-          subscriptionStatus: 'active',
-          stripeAccountType: 'DUGSI',
+        select: {
+          id: true,
+          stripeSubscriptionIdDugsi: true,
+          subscriptionStatus: true,
         },
+      })
+
+      expect(prisma.student.update).toHaveBeenCalledTimes(2)
+
+      const updateCall = vi.mocked(prisma.student.update).mock.calls[0]
+      expect(updateCall[0].data).toMatchObject({
+        stripeSubscriptionIdDugsi: 'sub_test123',
+        subscriptionStatus: 'active',
+        stripeAccountType: 'DUGSI',
+        currentPeriodStart: expect.any(Date),
+        currentPeriodEnd: expect.any(Date),
+        paidUntil: expect.any(Date),
       })
 
       expect(result).toEqual({
@@ -293,10 +322,13 @@ describe('Dugsi Server Actions', () => {
     })
 
     it('should return error if subscription not found', async () => {
-      const stripeClient = getDugsiStripeClient()
-      vi.mocked(stripeClient.subscriptions.retrieve).mockResolvedValue(
-        null as any
-      )
+      vi.mocked(getDugsiStripeClient).mockReturnValue({
+        subscriptions: {
+          retrieve: vi
+            .fn()
+            .mockRejectedValue(new Error('Subscription not found')),
+        },
+      } as any)
 
       const result = await linkDugsiSubscription({
         parentEmail: 'parent@example.com',
@@ -305,7 +337,7 @@ describe('Dugsi Server Actions', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Subscription not found in Stripe',
+        error: 'Subscription not found',
       })
     })
 
@@ -313,14 +345,21 @@ describe('Dugsi Server Actions', () => {
       const mockSubscription = {
         id: 'sub_test123',
         status: 'active',
+        customer: 'cus_test123',
+        current_period_start: Math.floor(Date.now() / 1000),
+        current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+        items: {
+          data: [{ price: { unit_amount: 15000 } }],
+        },
       }
 
-      const stripeClient = getDugsiStripeClient()
-      vi.mocked(stripeClient.subscriptions.retrieve).mockResolvedValue(
-        mockSubscription as any
-      )
+      vi.mocked(getDugsiStripeClient).mockReturnValue({
+        subscriptions: {
+          retrieve: vi.fn().mockResolvedValue(mockSubscription as any),
+        },
+      } as any)
 
-      vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 0 })
+      vi.mocked(prisma.student.findMany).mockResolvedValue([])
 
       const result = await linkDugsiSubscription({
         parentEmail: 'nonexistent@example.com',
@@ -334,10 +373,11 @@ describe('Dugsi Server Actions', () => {
     })
 
     it('should handle Stripe API errors', async () => {
-      const stripeClient = getDugsiStripeClient()
-      vi.mocked(stripeClient.subscriptions.retrieve).mockRejectedValue(
-        new Error('Stripe API error')
-      )
+      vi.mocked(getDugsiStripeClient).mockReturnValue({
+        subscriptions: {
+          retrieve: vi.fn().mockRejectedValue(new Error('Stripe API error')),
+        },
+      } as any)
 
       const result = await linkDugsiSubscription({
         parentEmail: 'parent@example.com',
@@ -349,6 +389,35 @@ describe('Dugsi Server Actions', () => {
         error: 'Stripe API error',
       })
       expect(console.error).toHaveBeenCalled()
+    })
+
+    it('should return error if parentEmail is null or empty', async () => {
+      // Test with empty string
+      const resultEmpty = await linkDugsiSubscription({
+        parentEmail: '',
+        subscriptionId: 'sub_test123',
+      })
+
+      expect(resultEmpty).toEqual({
+        success: false,
+        error:
+          'Parent email is required to link subscription. Please update the student record with a parent email first.',
+      })
+
+      // Test with whitespace only
+      const resultWhitespace = await linkDugsiSubscription({
+        parentEmail: '   ',
+        subscriptionId: 'sub_test123',
+      })
+
+      expect(resultWhitespace).toEqual({
+        success: false,
+        error:
+          'Parent email is required to link subscription. Please update the student record with a parent email first.',
+      })
+
+      // Verify Stripe API was never called
+      expect(getDugsiStripeClient).not.toHaveBeenCalled()
     })
   })
 

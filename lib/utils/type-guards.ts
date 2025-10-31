@@ -16,7 +16,9 @@ export interface PaymentStatusData {
   stripeCustomerId?: string | null
   subscriptionId?: string | null
   subscriptionStatus?: string | null
-  paidUntil?: Date | string | null
+  paidUntil?: Date | null
+  currentPeriodStart?: Date | null
+  currentPeriodEnd?: Date | null
   students: Array<{ id: string; name: string }>
 }
 
@@ -52,6 +54,30 @@ export function isPaymentStatusData(data: unknown): data is PaymentStatusData {
     obj.subscriptionStatus !== undefined &&
     obj.subscriptionStatus !== null &&
     typeof obj.subscriptionStatus !== 'string'
+  ) {
+    return false
+  }
+
+  if (
+    obj.paidUntil !== undefined &&
+    obj.paidUntil !== null &&
+    !(obj.paidUntil instanceof Date)
+  ) {
+    return false
+  }
+
+  if (
+    obj.currentPeriodStart !== undefined &&
+    obj.currentPeriodStart !== null &&
+    !(obj.currentPeriodStart instanceof Date)
+  ) {
+    return false
+  }
+
+  if (
+    obj.currentPeriodEnd !== undefined &&
+    obj.currentPeriodEnd !== null &&
+    !(obj.currentPeriodEnd instanceof Date)
   ) {
     return false
   }
@@ -183,19 +209,54 @@ export function isValidStripeId(id: unknown, prefix: string): id is string {
 
 /**
  * Safe extraction of subscription period end
+ * Returns null instead of undefined for consistency with Prisma types
  */
-export function extractPeriodEnd(subscription: unknown): Date | undefined {
-  if (!subscription || typeof subscription !== 'object') return undefined
+export function extractPeriodEnd(subscription: unknown): Date | null {
+  if (!subscription || typeof subscription !== 'object') return null
 
   const sub = subscription as Record<string, unknown>
   const periodEnd = sub.current_period_end
 
-  if (!periodEnd) return undefined
+  if (!periodEnd) return null
 
   if (typeof periodEnd === 'number') {
     // Stripe timestamps are in seconds, not milliseconds
     return new Date(periodEnd * 1000)
   }
 
-  return undefined
+  return null
+}
+
+/**
+ * Safe extraction of subscription period start
+ * Returns null instead of undefined for consistency with Prisma types
+ */
+export function extractPeriodStart(subscription: unknown): Date | null {
+  if (!subscription || typeof subscription !== 'object') return null
+
+  const sub = subscription as Record<string, unknown>
+  const periodStart = sub.current_period_start
+
+  if (!periodStart) return null
+
+  if (typeof periodStart === 'number') {
+    // Stripe timestamps are in seconds, not milliseconds
+    return new Date(periodStart * 1000)
+  }
+
+  return null
+}
+
+/**
+ * Extract both period start and end from Stripe subscription
+ * Returns null for missing values for consistency with Prisma DateTime? types
+ */
+export function extractPeriodDates(subscription: unknown): {
+  periodStart: Date | null
+  periodEnd: Date | null
+} {
+  return {
+    periodStart: extractPeriodStart(subscription),
+    periodEnd: extractPeriodEnd(subscription),
+  }
 }

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { STUDENT_STATUS } from '@/lib/constants'
 import { prisma } from '@/lib/db'
 
 async function getStats() {
@@ -37,14 +38,14 @@ async function getStats() {
           baseExcludeFilter,
           {
             subscriptionStatus: 'active',
-            status: { not: 'withdrawn' },
+            status: { not: STUDENT_STATUS.WITHDRAWN },
           },
         ],
       },
     }),
     prisma.student.count({
       where: {
-        AND: [baseExcludeFilter, { status: 'registered' }],
+        AND: [baseExcludeFilter, { status: STUDENT_STATUS.REGISTERED }],
       },
     }),
     prisma.studentPayment.aggregate({
@@ -55,7 +56,7 @@ async function getStats() {
     }),
     prisma.student.count({
       where: {
-        AND: [baseExcludeFilter, { status: 'enrolled' }],
+        AND: [baseExcludeFilter, { status: STUDENT_STATUS.ENROLLED }],
       },
     }),
   ])

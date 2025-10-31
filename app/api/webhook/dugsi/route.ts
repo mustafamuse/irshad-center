@@ -9,14 +9,20 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
+import type { Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
+import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
 import { parseDugsiReferenceId } from '@/lib/utils/dugsi-payment'
 import {
+  updateStudentsInTransaction,
+  buildCancellationUpdateData,
+} from '@/lib/utils/student-updates'
+import {
   extractCustomerId,
-  extractPeriodEnd,
+  extractPeriodDates,
   isValidSubscriptionStatus,
 } from '@/lib/utils/type-guards'
 
@@ -105,6 +111,14 @@ async function handleSubscriptionEvent(
     status: subscription.status,
   })
 
+  // Validate subscription status using type guard
+  if (!isValidSubscriptionStatus(subscription.status)) {
+    throw new Error(`Invalid subscription status: ${subscription.status}`)
+  }
+
+  // Extract period dates
+  const periodDates = extractPeriodDates(subscription)
+
   try {
     await prisma.$transaction(async (tx) => {
       // Find all students with this Stripe customer ID
@@ -113,37 +127,53 @@ async function handleSubscriptionEvent(
           stripeCustomerIdDugsi: customerId,
           program: 'DUGSI_PROGRAM',
         },
+        select: {
+          id: true,
+          subscriptionStatus: true,
+          stripeSubscriptionIdDugsi: true,
+        },
       })
 
       if (students.length === 0) {
         throw new Error(`No students found for customer: ${customerId}`)
       }
 
-      // Validate subscription status using type guard
-      if (!isValidSubscriptionStatus(subscription.status)) {
-        throw new Error(`Invalid subscription status: ${subscription.status}`)
-      }
-
-      // Update all students in the family with the subscription
-      const studentIds = students.map((s) => s.id)
-      const updateResult = await tx.student.updateMany({
-        where: {
-          id: { in: studentIds },
-        },
-        data: {
-          stripeSubscriptionIdDugsi: subscriptionId,
+      // Update each student using centralized utility
+      const updatePromises = updateStudentsInTransaction(
+        students,
+        {
+          subscriptionId,
+          customerId,
           subscriptionStatus: subscription.status,
-          paidUntil: extractPeriodEnd(subscription),
+          newStudentStatus: getNewStudentStatus(subscription.status),
+          periodStart: periodDates.periodStart,
+          periodEnd: periodDates.periodEnd,
+          program: 'DUGSI',
         },
-      })
+        tx
+      )
 
-      if (updateResult.count === 0) {
+      const updateResults = await Promise.all(updatePromises)
+
+      if (updateResults.length === 0) {
         throw new Error('Failed to update students with subscription')
       }
 
       console.log(
-        `✅ Updated ${updateResult.count} students with subscription ${subscriptionId}`
+        `✅ Updated ${updateResults.length} students with subscription ${subscriptionId}`
       )
+
+      // Log if any subscription IDs were added to history
+      const studentsWithHistory = students.filter(
+        (s) =>
+          s.stripeSubscriptionIdDugsi &&
+          s.stripeSubscriptionIdDugsi !== subscriptionId
+      )
+      if (studentsWithHistory.length > 0) {
+        console.log(
+          `📝 Added previous subscription IDs to history for ${studentsWithHistory.length} students`
+        )
+      }
     })
   } catch (error) {
     console.error('❌ Error handling subscription event:', error)
@@ -158,7 +188,18 @@ export async function POST(req: Request) {
   let eventId: string | undefined
 
   try {
+    // Read raw body once for signature verification
     const body = await req.text()
+
+    // Validate body is not empty
+    if (!body || body.trim().length === 0) {
+      console.error('❌ Empty request body')
+      return NextResponse.json(
+        { message: 'Request body is required' },
+        { status: 400 }
+      )
+    }
+
     const headersList = await headers()
     const signature = headersList.get('stripe-signature')
 
@@ -171,7 +212,23 @@ export async function POST(req: Request) {
     }
 
     // Verify the webhook using Dugsi-specific secret
-    const event = verifyDugsiWebhook(body, signature)
+    // This validates the signature against the raw body
+    let event: Stripe.Event
+    try {
+      event = verifyDugsiWebhook(body, signature)
+    } catch (verificationError) {
+      // Signature verification failed - return 401
+      const errorMessage =
+        verificationError instanceof Error
+          ? verificationError.message
+          : 'Unknown verification error'
+      console.error('❌ Dugsi webhook verification failed:', errorMessage)
+      return NextResponse.json(
+        { message: 'Invalid webhook signature' },
+        { status: 401 }
+      )
+    }
+
     eventId = event.id
 
     console.log(`🔔 Dugsi webhook received: ${event.type} (${eventId})`)
@@ -194,13 +251,25 @@ export async function POST(req: Request) {
       )
     }
 
+    // Parse JSON payload safely after signature verification
+    let payload: Prisma.InputJsonValue
+    try {
+      payload = JSON.parse(body) as Prisma.InputJsonValue
+    } catch (parseError) {
+      console.error('❌ Failed to parse webhook body as JSON:', parseError)
+      return NextResponse.json(
+        { message: 'Invalid JSON payload' },
+        { status: 400 }
+      )
+    }
+
     // Record the event to prevent duplicate processing
     await prisma.webhookEvent.create({
       data: {
         eventId: event.id,
         eventType: event.type,
         source: 'dugsi',
-        payload: JSON.parse(body),
+        payload: payload,
       },
     })
 
@@ -226,21 +295,41 @@ export async function POST(req: Request) {
           throw new Error('Invalid customer ID in canceled subscription')
         }
 
-        const cancelResult = await prisma.student.updateMany({
-          where: {
-            stripeCustomerIdDugsi: canceledCustomerId,
-            program: 'DUGSI_PROGRAM',
-          },
-          data: {
-            subscriptionStatus: 'canceled',
-          },
-        })
+        // Use transaction to atomically update all students
+        await prisma.$transaction(async (tx) => {
+          // Find students first to track history before updating
+          const studentsToCancel = await tx.student.findMany({
+            where: {
+              stripeCustomerIdDugsi: canceledCustomerId,
+              program: 'DUGSI_PROGRAM',
+            },
+          })
 
-        if (cancelResult.count === 0) {
-          console.warn(
-            `⚠️ No students found to cancel for customer: ${canceledCustomerId}`
-          )
-        }
+          if (studentsToCancel.length === 0) {
+            console.warn(
+              `⚠️ No students found to cancel for customer: ${canceledCustomerId}`
+            )
+          } else {
+            // Build cancellation data using centralized utility
+            const cancellationData = buildCancellationUpdateData(
+              canceledSub.id,
+              'DUGSI'
+            )
+
+            // Update each student with cancellation data
+            await Promise.all(
+              studentsToCancel.map((student) =>
+                tx.student.update({
+                  where: { id: student.id },
+                  data: cancellationData,
+                })
+              )
+            )
+            console.log(
+              `✅ Added subscription ${canceledSub.id} to history and canceled ${studentsToCancel.length} students`
+            )
+          }
+        })
         break
 
       default:
@@ -270,9 +359,11 @@ export async function POST(req: Request) {
     }
 
     // Return appropriate status codes based on error type
+    // Signature and validation errors should return 400/401 (client errors)
     if (
       errorMessage.includes('Missing signature') ||
-      errorMessage.includes('verification failed')
+      errorMessage.includes('verification failed') ||
+      errorMessage.includes('Webhook verification failed')
     ) {
       return NextResponse.json(
         { message: 'Invalid webhook signature' },
@@ -280,12 +371,23 @@ export async function POST(req: Request) {
       )
     }
 
+    // Validation errors (malformed data, missing required fields)
     if (
-      errorMessage.includes('No students found') ||
-      errorMessage.includes('Invalid reference ID')
+      errorMessage.includes('Invalid reference ID') ||
+      errorMessage.includes('Invalid JSON payload') ||
+      errorMessage.includes('Request body is required')
     ) {
-      // These are data issues, not webhook failures
-      // Return 200 to prevent Stripe from retrying
+      return NextResponse.json({ message: errorMessage }, { status: 400 })
+    }
+
+    // Data consistency issues (missing client_reference_id, invalid customer ID, student not found, etc.)
+    // These are not webhook failures - return 200 to prevent Stripe retry
+    if (
+      errorMessage.includes('No client_reference_id') ||
+      errorMessage.includes('Invalid or missing customer ID') ||
+      errorMessage.includes('No students found') ||
+      errorMessage.includes('No students found for family')
+    ) {
       console.warn('Data issue, returning 200 to prevent retry:', errorMessage)
       return NextResponse.json(
         { received: true, warning: errorMessage },
@@ -293,7 +395,7 @@ export async function POST(req: Request) {
       )
     }
 
-    // For other errors, return 500 to trigger Stripe retry
+    // For other unexpected errors, return 500 to trigger Stripe retry
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }

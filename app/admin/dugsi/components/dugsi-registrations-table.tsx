@@ -84,6 +84,8 @@ interface DugsiRegistration {
   stripeSubscriptionIdDugsi: string | null
   subscriptionStatus: string | null
   paidUntil: Date | string | null
+  currentPeriodStart: Date | string | null
+  currentPeriodEnd: Date | string | null
   familyReferenceId: string | null
   stripeAccountType: string | null
 }

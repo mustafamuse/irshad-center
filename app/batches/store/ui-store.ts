@@ -6,7 +6,7 @@
  * and passed down as props to Client Components.
  */
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, SubscriptionStatus } from '@prisma/client'
 import { enableMapSet } from 'immer'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -45,6 +45,9 @@ export interface StudentFilters {
     to: Date | null
     field: 'createdAt' | 'updatedAt' | 'dateOfBirth'
   }
+  subscriptionStatus?: {
+    selected: SubscriptionStatus[]
+  }
 }
 
 interface UIStore {
@@ -71,7 +74,12 @@ interface UIStore {
   // Filter actions (unified)
   updateFilters: (updates: Partial<StudentFilters>) => void
   toggleFilter: (
-    filterType: 'batch' | 'status' | 'educationLevel' | 'gradeLevel',
+    filterType:
+      | 'batch'
+      | 'status'
+      | 'educationLevel'
+      | 'gradeLevel'
+      | 'subscriptionStatus',
     value: string
   ) => void
   setSearchQuery: (query: string) => void
@@ -117,6 +125,9 @@ const defaultFilters: StudentFilters = {
     from: null,
     to: null,
     field: 'createdAt',
+  },
+  subscriptionStatus: {
+    selected: [],
   },
 }
 
@@ -313,6 +324,19 @@ export function filterStudents(
       if (!filters.status?.selected?.includes(studentStatus)) return false
     }
 
+    // Subscription status filter
+    if ((filters.subscriptionStatus?.selected?.length ?? 0) > 0) {
+      const studentSubscriptionStatus = student.subscriptionStatus
+      if (
+        !studentSubscriptionStatus ||
+        !filters.subscriptionStatus?.selected?.includes(
+          studentSubscriptionStatus
+        )
+      ) {
+        return false
+      }
+    }
+
     // Education level filter
     if ((filters.educationLevel?.selected?.length ?? 0) > 0) {
       if (
@@ -362,6 +386,7 @@ export function countActiveFilters(filters: StudentFilters): number {
   if ((filters.search?.query?.length ?? 0) > 0) count++
   if ((filters.batch?.selected?.length ?? 0) > 0) count++
   if ((filters.status?.selected?.length ?? 0) > 0) count++
+  if ((filters.subscriptionStatus?.selected?.length ?? 0) > 0) count++
   if ((filters.educationLevel?.selected?.length ?? 0) > 0) count++
   if ((filters.gradeLevel?.selected?.length ?? 0) > 0) count++
   if (filters.dateRange?.from || filters.dateRange?.to) count++
@@ -414,6 +439,9 @@ export const useLegacyActions = () => {
       store.updateFilters({ status: { selected: statuses } }),
     toggleStatusFilter: (status: StudentStatus) =>
       store.toggleFilter('status', status),
+
+    toggleSubscriptionStatusFilter: (status: SubscriptionStatus) =>
+      store.toggleFilter('subscriptionStatus', status),
 
     setEducationLevelFilter: (levels: EducationLevel[]) =>
       store.updateFilters({ educationLevel: { selected: levels } }),
