@@ -8,16 +8,11 @@ import Stripe from 'stripe'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import {
+  buildStudentUpdateData,
+  updateStudentsInTransaction,
+} from '@/lib/utils/student-updates'
 import { extractCustomerId, extractPeriodDates } from '@/lib/utils/type-guards'
-
-/**
- * Type-safe update data for student subscription linking
- * Extends Prisma's StudentUpdateInput with array push operations
- */
-type StudentUpdateData = Prisma.StudentUpdateInput & {
-  previousSubscriptionIds?: { push: string }
-  previousSubscriptionIdsDugsi?: { push: string }
-}
 
 /**
  * Get production Stripe client for admin tools
@@ -168,15 +163,24 @@ async function getLinkedSubscriptionIds(
 /**
  * Build an OrphanedSubscription object from a Stripe subscription
  * Uses type-safe helpers for customer ID and period date extraction
+ * Returns null if customer ID is invalid (should be filtered out)
  */
 function buildOrphanedSubscriptionObject(
   sub: Stripe.Subscription,
   program: 'MAHAD' | 'DUGSI',
   customerSubscriptionCount?: Map<string, number>
-): OrphanedSubscription {
+): OrphanedSubscription | null {
   const customer = sub.customer as Stripe.Customer
-  // extractCustomerId returns string | null, default to empty string for compatibility
-  const customerId = extractCustomerId(sub.customer) || ''
+  // extractCustomerId returns string | null - validate it's not null
+  const customerId = extractCustomerId(sub.customer)
+
+  if (!customerId) {
+    // Skip subscriptions with invalid customer IDs to prevent silent failures
+    console.warn(
+      `[link-subscriptions] Skipping subscription ${sub.id} - invalid customer ID`
+    )
+    return null
+  }
 
   // Use type-safe period date extraction
   const periodDates = extractPeriodDates(sub)
@@ -228,12 +232,19 @@ async function getOrphanedSubscriptionsForProgram(
     : undefined
 
   // Build orphaned subscription objects for unlinked subscriptions
+  // Filter out subscriptions with invalid customer IDs
   const orphanedSubs: OrphanedSubscription[] = []
   for (const sub of activeSubscriptions) {
     if (!linkedIds.has(sub.id)) {
-      orphanedSubs.push(
-        buildOrphanedSubscriptionObject(sub, program, customerSubCount)
+      const orphanedSub = buildOrphanedSubscriptionObject(
+        sub,
+        program,
+        customerSubCount
       )
+      // Only include subscriptions with valid customer IDs
+      if (orphanedSub) {
+        orphanedSubs.push(orphanedSub)
+      }
     }
   }
 
@@ -413,42 +424,20 @@ export async function linkSubscriptionToStudent(
         return { success: false, error: 'Invalid customer ID in subscription' }
       }
 
-      const newStudentStatus = getNewStudentStatus(subscription.status)
-
       // Extract period dates
       const periodDates = extractPeriodDates(subscription)
-      const statusChanged = student.subscriptionStatus !== subscription.status
 
-      // Track subscription history: check if student already has a subscription
-      const oldSubscriptionId = student.stripeSubscriptionId
-      const updateData: StudentUpdateData = {
-        stripeSubscriptionId: subscriptionId,
-        stripeCustomerId: customerId,
+      // Build update data using centralized utility
+      const updateData = buildStudentUpdateData(student, {
+        subscriptionId,
+        customerId,
         subscriptionStatus: subscription.status,
-        status: newStudentStatus,
-        paidUntil: periodDates.periodEnd,
-        currentPeriodStart: periodDates.periodStart,
-        currentPeriodEnd: periodDates.periodEnd,
+        newStudentStatus: getNewStudentStatus(subscription.status),
+        periodStart: periodDates.periodStart,
+        periodEnd: periodDates.periodEnd,
         monthlyRate: subscription.items.data[0]?.price.unit_amount || 0,
-        // Only update timestamp if status actually changed
-        ...(statusChanged && {
-          subscriptionStatusUpdatedAt: new Date(),
-        }),
-      }
-
-      /**
-       * Track subscription history
-       *
-       * Note: Potential race condition if multiple admins link subscriptions simultaneously.
-       * The subscription history could be missed since the read-then-write is not atomic.
-       * This is acceptable for admin tool context with low concurrency.
-       * For high-concurrency scenarios (like webhook handlers), consider using transactions.
-       */
-      if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
-        updateData.previousSubscriptionIds = {
-          push: oldSubscriptionId,
-        }
-      }
+        program: 'MAHAD',
+      })
 
       // Link subscription to student
       await prisma.student.update({
@@ -523,41 +512,23 @@ export async function linkSubscriptionToStudent(
           },
         })
 
-        // Update each student individually to track subscription history
-        await Promise.all(
-          familyStudents.map((familyStudent) => {
-            const oldSubscriptionId = familyStudent.stripeSubscriptionIdDugsi
-            const statusChanged =
-              familyStudent.subscriptionStatus !== subscription.status
-
-            const updateData: StudentUpdateData = {
-              stripeSubscriptionIdDugsi: subscriptionId,
-              stripeCustomerIdDugsi: customerId,
-              subscriptionStatus: subscription.status,
-              status: newStudentStatus,
-              paidUntil: periodDates.periodEnd,
-              currentPeriodStart: periodDates.periodStart,
-              currentPeriodEnd: periodDates.periodEnd,
-              monthlyRate: subscription.items.data[0]?.price.unit_amount || 0,
-              // Only update timestamp if status actually changed
-              ...(statusChanged && {
-                subscriptionStatusUpdatedAt: new Date(),
-              }),
-            }
-
-            // Add old subscription ID to history if it exists and is different
-            if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
-              updateData.previousSubscriptionIdsDugsi = {
-                push: oldSubscriptionId,
-              }
-            }
-
-            return tx.student.update({
-              where: { id: familyStudent.id },
-              data: updateData,
-            })
-          })
+        // Update each student using centralized utility
+        const updatePromises = updateStudentsInTransaction(
+          familyStudents,
+          {
+            subscriptionId,
+            customerId,
+            subscriptionStatus: subscription.status,
+            newStudentStatus,
+            periodStart: periodDates.periodStart,
+            periodEnd: periodDates.periodEnd,
+            monthlyRate: subscription.items.data[0]?.price.unit_amount || 0,
+            program: 'DUGSI',
+          },
+          tx
         )
+
+        await Promise.all(updatePromises)
       })
 
       revalidatePath('/admin/link-subscriptions')

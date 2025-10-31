@@ -218,6 +218,11 @@ describe('Mahad Webhook Student Event Handlers', () => {
           stripeSubscriptionId: 'sub_test123',
           program: 'MAHAD_PROGRAM', // ✅ Program filter
         },
+        select: {
+          id: true,
+          subscriptionStatus: true,
+          stripeSubscriptionId: true,
+        },
       })
 
       // Verify update is called for each student
@@ -497,6 +502,9 @@ describe('Mahad Webhook Student Event Handlers', () => {
         where: {
           stripeSubscriptionId: 'sub_test123',
           program: 'MAHAD_PROGRAM', // ✅ Program filter
+        },
+        select: {
+          id: true,
         },
       })
     })

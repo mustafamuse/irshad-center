@@ -1,6 +1,7 @@
 # Duplicate Prevention & Batch Management Summary
 
 ## Overview
+
 This document summarizes the duplicate prevention system implemented for student registration and the current state of the batches module.
 
 ---
@@ -8,9 +9,11 @@ This document summarizes the duplicate prevention system implemented for student
 ## 🎯 Duplicate Prevention Implementation
 
 ### 1. Registration Duplicate Prevention
+
 **File:** `lib/actions/register.ts`
 
 #### Features Implemented:
+
 - ✅ **Phone Number Duplicate Detection**
   - Normalizes phone numbers by removing all non-digit characters (`/\D/g`)
   - Supports various formats: `(123) 456-7890`, `123-456-7890`, `+1 123 456 7890`
@@ -27,6 +30,7 @@ This document summarizes the duplicate prevention system implemented for student
   - Example: "A student with phone number 1234567890 already exists: Jane Doe"
 
 #### Code Location:
+
 ```typescript
 // lib/actions/register.ts:372-428
 // Check for existing student with same phone number
@@ -36,9 +40,11 @@ This document summarizes the duplicate prevention system implemented for student
 ---
 
 ### 2. Duplicate Student Detection (Batches Module)
+
 **File:** `lib/db/queries/student.ts`
 
 #### Features Implemented:
+
 - ✅ **Phone Number Matching Only**
   - Removed fuzzy name matching (was causing false positives like "Ayan" vs "Ebyan")
   - Uses exact phone number matching with normalization
@@ -55,6 +61,7 @@ This document summarizes the duplicate prevention system implemented for student
   - Handles sibling relationships
 
 #### Code Location:
+
 ```typescript
 // lib/db/queries/student.ts:516-581
 export async function findDuplicateStudents()
@@ -63,11 +70,14 @@ export async function findDuplicateStudents()
 ---
 
 ### 3. UI Improvements
+
 **Files:**
+
 - `app/batches/components/duplicate-detection/duplicate-group-card.tsx`
 - `app/batches/components/duplicate-detection/resolution-dialog.tsx`
 
 #### Features Implemented:
+
 - ✅ **Formatted Date/Time Display**
   - Shows creation dates like: "Jan 15, 2024 at 02:30 PM"
   - Displays on both keep and delete records
@@ -81,6 +91,7 @@ export async function findDuplicateStudents()
   - Fixed HTML structure for proper rendering
 
 #### Code Location:
+
 ```typescript
 // app/batches/components/duplicate-detection/duplicate-group-card.tsx:76-147
 // app/batches/components/duplicate-detection/resolution-dialog.tsx:62-78
@@ -91,6 +102,7 @@ export async function findDuplicateStudents()
 ## 🧪 Test Coverage
 
 ### Comprehensive Tests
+
 **File:** `__tests__/lib/actions/register-duplicate-prevention.test.ts`
 
 **Total: 17 Tests - All Passing ✅**
@@ -98,6 +110,7 @@ export async function findDuplicateStudents()
 #### Test Categories:
 
 **1. Phone Number Duplicate Detection (6 tests)**
+
 - ✅ Exact duplicate detection
 - ✅ Different formats: spaces (`123 456 7890`)
 - ✅ Different formats: dashes (`123-456-7890`)
@@ -106,25 +119,30 @@ export async function findDuplicateStudents()
 - ✅ 7-digit minimum validation
 
 **2. Email Duplicate Detection (3 tests)**
+
 - ✅ Exact duplicate detection
 - ✅ Case-insensitive matching
 - ✅ Allows registration without email
 
 **3. Edge Cases (3 tests)**
+
 - ✅ Null phone number handling
 - ✅ Empty string phone number
 - ✅ Phone with only non-digit characters
 
 **4. Successful Registration (3 tests)**
+
 - ✅ Unique phone and email
 - ✅ Registration with siblings
 - ✅ Name capitalization
 
 **5. Database Query Efficiency (2 tests)**
+
 - ✅ Skips phone query when not provided
 - ✅ Skips email query when not provided
 
 ### Running Tests:
+
 ```bash
 npm test -- __tests__/lib/actions/register-duplicate-prevention.test.ts
 ```
@@ -134,6 +152,7 @@ npm test -- __tests__/lib/actions/register-duplicate-prevention.test.ts
 ## 📦 Batches Module Overview
 
 ### Module Structure
+
 ```
 app/batches/
 ├── actions.ts                    # Server actions for batch operations
@@ -174,12 +193,14 @@ app/batches/
 ### Key Features
 
 #### 1. Batch Management
+
 - Create new batches with names and date ranges
 - View all batches with student counts
 - Delete batches (with proper cleanup)
 - Assign/transfer students between batches
 
 #### 2. Student Management
+
 - View all students in a table
 - Filter by batch, status, education level, etc.
 - Mobile-responsive student list
@@ -187,6 +208,7 @@ app/batches/
 - Bulk student operations
 
 #### 3. Duplicate Detection & Resolution
+
 - **Automatic duplicate detection** based on phone numbers
 - Visual display of duplicate groups
 - Shows which record will be kept (oldest)
@@ -194,6 +216,7 @@ app/batches/
 - Handles sibling relationships properly
 
 #### 4. Student Assignment
+
 - Assign multiple students to a batch
 - Transfer students between batches
 - Progress tracking for bulk operations
@@ -204,16 +227,19 @@ app/batches/
 ## 🔑 Key Implementation Details
 
 ### Why Phone Numbers Instead of Email?
+
 1. **Family Context**: In Somali educational institutions, families share phone numbers
 2. **More Reliable**: Phone numbers are more consistently collected than emails
 3. **Normalization**: Phone formats vary, but digits are consistent
 
 ### Why Keep Oldest Record?
+
 1. **Data Integrity**: Original record likely has most complete payment history
 2. **Stripe Integration**: Original record has established Stripe customer relationships
 3. **Audit Trail**: Preserves the original creation timestamp
 
 ### Why Remove Fuzzy Name Matching?
+
 1. **False Positives**: "Ayan Hassan" and "Ebyan Hassan" are different people
 2. **Cultural Names**: Somali names can have similar spellings but be different people
 3. **Too Aggressive**: 2-character difference threshold was too lenient
@@ -223,6 +249,7 @@ app/batches/
 ## 🚀 Usage Examples
 
 ### Registering a New Student
+
 ```typescript
 // Automatic duplicate prevention
 const result = await registerWithSiblings({
@@ -233,7 +260,7 @@ const result = await registerWithSiblings({
     email: 'ahmed@example.com', // Case-insensitive check
     // ... other fields
   },
-  siblingIds: ['sibling-id-1'] // Optional
+  siblingIds: ['sibling-id-1'], // Optional
 })
 
 // If duplicate found:
@@ -241,6 +268,7 @@ const result = await registerWithSiblings({
 ```
 
 ### Finding Duplicates
+
 ```typescript
 // Finds all duplicate groups based on phone numbers
 const duplicates = await findDuplicateStudents()
@@ -258,6 +286,7 @@ const duplicates = await findDuplicateStudents()
 ```
 
 ### Resolving Duplicates
+
 ```typescript
 // In the UI, user clicks "Delete Duplicates"
 await resolveDuplicatesAction(
@@ -272,17 +301,20 @@ await resolveDuplicatesAction(
 ## 🛡️ What's Protected
 
 ### Student Registration (lib/actions/register.ts)
+
 - ✅ Prevents duplicate phone numbers
 - ✅ Prevents duplicate emails
 - ✅ Normalizes phone formats
 - ✅ Clear error messages
 
 ### Duplicate Detection (lib/db/queries/student.ts)
+
 - ✅ Phone-based matching only
 - ✅ Keeps oldest record
 - ✅ Safe deletion with data merge
 
 ### UI Components
+
 - ✅ Shows formatted dates/times
 - ✅ Clear labeling of kept vs deleted records
 - ✅ No hydration errors
@@ -292,6 +324,7 @@ await resolveDuplicatesAction(
 ## 📝 Future Improvements
 
 ### Potential Enhancements:
+
 1. **Bulk Import Validation**: Add duplicate checks for CSV/Excel imports
 2. **Admin Override**: Allow admins to force registration despite duplicates
 3. **Duplicate Alerts**: Email notifications when duplicates are detected
@@ -303,17 +336,20 @@ await resolveDuplicatesAction(
 ## 🔍 Files Modified
 
 ### Core Implementation:
+
 1. `lib/actions/register.ts` - Registration duplicate prevention
 2. `lib/db/queries/student.ts` - Duplicate detection and resolution
 3. `app/batches/components/duplicate-detection/duplicate-group-card.tsx` - UI improvements
 4. `app/batches/components/duplicate-detection/resolution-dialog.tsx` - Fixed hydration error
 
 ### Testing:
+
 1. `__tests__/lib/actions/register-duplicate-prevention.test.ts` - Comprehensive test suite
 2. `__tests__/setup.ts` - Updated test configuration
 3. `vitest.config.ts` - Changed environment to 'node'
 
 ### Database:
+
 - No schema changes required (phone is not unique at DB level to allow siblings)
 
 ---
@@ -321,6 +357,7 @@ await resolveDuplicatesAction(
 ## ✅ Summary
 
 The duplicate prevention system is now **production-ready** with:
+
 - ✅ Comprehensive duplicate detection (phone & email)
 - ✅ Smart normalization (handles all phone formats)
 - ✅ First-created record priority

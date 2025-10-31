@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
 export async function getDugsiRegistrations() {
@@ -220,68 +221,22 @@ export async function linkDugsiSubscription(params: {
         return []
       }
 
-      // Update each student individually to track subscription history
-      await Promise.all(
-        students.map((student) => {
-          const oldSubscriptionId = student.stripeSubscriptionIdDugsi
-          const statusChanged =
-            student.subscriptionStatus !== subscription.status
-
-          const updateData: {
-            stripeSubscriptionIdDugsi: string
-            stripeCustomerIdDugsi: string
-            subscriptionStatus:
-              | 'active'
-              | 'canceled'
-              | 'past_due'
-              | 'unpaid'
-              | 'trialing'
-              | 'incomplete'
-              | 'incomplete_expired'
-              | 'paused'
-            status: string
-            stripeAccountType: 'DUGSI'
-            paidUntil: Date | null
-            currentPeriodStart: Date | null
-            currentPeriodEnd: Date | null
-            subscriptionStatusUpdatedAt?: Date
-            previousSubscriptionIdsDugsi?: { push: string }
-          } = {
-            stripeSubscriptionIdDugsi: subscriptionId,
-            stripeCustomerIdDugsi: customerId,
-            subscriptionStatus: subscription.status as
-              | 'active'
-              | 'canceled'
-              | 'past_due'
-              | 'unpaid'
-              | 'trialing'
-              | 'incomplete'
-              | 'incomplete_expired'
-              | 'paused',
-            status: newStudentStatus,
-            stripeAccountType: 'DUGSI',
-            paidUntil: periodDates.periodEnd ?? null,
-            currentPeriodStart: periodDates.periodStart,
-            currentPeriodEnd: periodDates.periodEnd,
-            // Only update timestamp if status actually changed
-            ...(statusChanged && {
-              subscriptionStatusUpdatedAt: new Date(),
-            }),
-          }
-
-          // Add old subscription ID to history if it exists and is different
-          if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
-            updateData.previousSubscriptionIdsDugsi = {
-              push: oldSubscriptionId,
-            }
-          }
-
-          return tx.student.update({
-            where: { id: student.id },
-            data: updateData,
-          })
-        })
+      // Update each student using centralized utility
+      const updatePromises = updateStudentsInTransaction(
+        students,
+        {
+          subscriptionId,
+          customerId,
+          subscriptionStatus: subscription.status,
+          newStudentStatus,
+          periodStart: periodDates.periodStart,
+          periodEnd: periodDates.periodEnd,
+          program: 'DUGSI',
+        },
+        tx
       )
+
+      await Promise.all(updatePromises)
 
       return students
     })

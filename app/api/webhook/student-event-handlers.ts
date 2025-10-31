@@ -1,10 +1,13 @@
 import type { Stripe } from 'stripe'
 
-import { STUDENT_STATUS } from '@/lib/constants'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { studentMatcher } from '@/lib/services/student-matcher'
 import { stripeServerClient as stripe } from '@/lib/stripe'
+import {
+  updateStudentsInTransaction,
+  buildCancellationUpdateData,
+} from '@/lib/utils/student-updates'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
 /**
@@ -32,6 +35,11 @@ export async function syncStudentSubscriptionState(subscriptionId: string) {
           stripeSubscriptionId: subscription.id,
           program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
         },
+        select: {
+          id: true,
+          subscriptionStatus: true,
+          stripeSubscriptionId: true,
+        },
       })
 
       if (students.length === 0) {
@@ -41,27 +49,19 @@ export async function syncStudentSubscriptionState(subscriptionId: string) {
         return []
       }
 
-      // Update each student individually to properly track status changes
-      const updatePromises = students.map((student) => {
-        const statusChanged = student.subscriptionStatus !== subscription.status
-
-        const updateData: any = {
+      // Update each student using centralized utility
+      const updatePromises = updateStudentsInTransaction(
+        students,
+        {
+          subscriptionId: subscription.id,
           subscriptionStatus: subscription.status,
-          status: getNewStudentStatus(subscription.status), // ✅ Update status field to match subscription status
-          paidUntil: periodDates.periodEnd,
-          currentPeriodStart: periodDates.periodStart,
-          currentPeriodEnd: periodDates.periodEnd,
-          // Only update timestamp if THIS student's status actually changed
-          ...(statusChanged && {
-            subscriptionStatusUpdatedAt: new Date(),
-          }),
-        }
-
-        return tx.student.update({
-          where: { id: student.id },
-          data: updateData,
-        })
-      })
+          newStudentStatus: getNewStudentStatus(subscription.status),
+          periodStart: periodDates.periodStart,
+          periodEnd: periodDates.periodEnd,
+          program: 'MAHAD',
+        },
+        tx
+      )
 
       return await Promise.all(updatePromises)
     })
@@ -122,7 +122,8 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
     const updateData: any = {
       stripeCustomerId: session.customer as string,
       stripeSubscriptionId: subscriptionId,
-      status: STUDENT_STATUS.ENROLLED,
+      // Don't set status here - let syncStudentSubscriptionState handle it
+      // based on the actual Stripe subscription status (e.g., 'trialing' -> REGISTERED, 'active' -> ENROLLED)
       // Only update email if we have a validated one and student doesn't have one
       ...(matchResult.validatedEmail &&
         !matchResult.student.email && { email: matchResult.validatedEmail }),
@@ -151,7 +152,7 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
     }
 
     // Sync the initial state. The subscription is now linked, and its status
-    // will be updated to reflect the true state from Stripe (e.g., 'trialing' or 'active').
+    // will be updated to reflect the true state from Stripe (e.g., 'trialing' -> REGISTERED, 'active' -> ENROLLED).
     await syncStudentSubscriptionState(subscriptionId)
   } else {
     // Log detailed warning for manual review
@@ -339,28 +340,24 @@ export async function handleSubscriptionDeleted(event: Stripe.Event) {
         stripeSubscriptionId: subscription.id,
         program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
       },
+      select: {
+        id: true,
+      },
     })
 
     if (students.length > 0) {
-      const studentIds = students.map((s) => s.id)
+      // Build cancellation data using centralized utility
+      const cancellationData = buildCancellationUpdateData(
+        subscription.id,
+        'MAHAD'
+      )
 
-      // Update each student individually to add subscription to history before unlinking
+      // Update each student with cancellation data
       await Promise.all(
-        studentIds.map((studentId) =>
+        students.map((student) =>
           tx.student.update({
-            where: { id: studentId },
-            data: {
-              subscriptionStatus: 'canceled',
-              status: STUDENT_STATUS.WITHDRAWN, // ✅ Update status to withdrawn when subscription is canceled
-              subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
-              previousSubscriptionIds: {
-                push: subscription.id, // Add to history before unlinking
-              },
-              stripeSubscriptionId: null, // Unlink the subscription
-              paidUntil: null, // Clear the paid until date
-              currentPeriodStart: null, // ✅ Clear period fields
-              currentPeriodEnd: null, // ✅ Clear period fields
-            },
+            where: { id: student.id },
+            data: cancellationData,
           })
         )
       )

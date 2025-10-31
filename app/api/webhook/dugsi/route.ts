@@ -9,27 +9,21 @@
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-import type { Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
-import { STUDENT_STATUS } from '@/lib/constants'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
 import { parseDugsiReferenceId } from '@/lib/utils/dugsi-payment'
 import {
+  updateStudentsInTransaction,
+  buildCancellationUpdateData,
+} from '@/lib/utils/student-updates'
+import {
   extractCustomerId,
   extractPeriodDates,
   isValidSubscriptionStatus,
 } from '@/lib/utils/type-guards'
-
-/**
- * Type-safe update data for student subscription updates
- * Extends Prisma's StudentUpdateInput with array push operations
- */
-type StudentUpdateData = Prisma.StudentUpdateInput & {
-  previousSubscriptionIdsDugsi?: { push: string }
-}
 
 /**
  * Handle successful payment method capture (checkout.session.completed).
@@ -116,6 +110,14 @@ async function handleSubscriptionEvent(
     status: subscription.status,
   })
 
+  // Validate subscription status using type guard
+  if (!isValidSubscriptionStatus(subscription.status)) {
+    throw new Error(`Invalid subscription status: ${subscription.status}`)
+  }
+
+  // Extract period dates
+  const periodDates = extractPeriodDates(subscription)
+
   try {
     await prisma.$transaction(async (tx) => {
       // Find all students with this Stripe customer ID
@@ -124,56 +126,31 @@ async function handleSubscriptionEvent(
           stripeCustomerIdDugsi: customerId,
           program: 'DUGSI_PROGRAM',
         },
+        select: {
+          id: true,
+          subscriptionStatus: true,
+          stripeSubscriptionIdDugsi: true,
+        },
       })
 
       if (students.length === 0) {
         throw new Error(`No students found for customer: ${customerId}`)
       }
 
-      // Validate subscription status using type guard
-      if (!isValidSubscriptionStatus(subscription.status)) {
-        throw new Error(`Invalid subscription status: ${subscription.status}`)
-      }
-
-      // Derive the student status from subscription status
-      const newStudentStatus = getNewStudentStatus(subscription.status)
-
-      // Extract period dates
-      const periodDates = extractPeriodDates(subscription)
-
-      // Update each student individually to track subscription history
-      const studentIds = students.map((s) => s.id)
-      const updatePromises = studentIds.map((studentId) => {
-        const student = students.find((s) => s.id === studentId)
-        const oldSubscriptionId = student?.stripeSubscriptionIdDugsi
-        const statusChanged =
-          student?.subscriptionStatus !== subscription.status
-
-        const updateData: StudentUpdateData = {
-          stripeSubscriptionIdDugsi: subscriptionId,
+      // Update each student using centralized utility
+      const updatePromises = updateStudentsInTransaction(
+        students,
+        {
+          subscriptionId,
+          customerId,
           subscriptionStatus: subscription.status,
-          status: newStudentStatus,
-          paidUntil: periodDates.periodEnd,
-          currentPeriodStart: periodDates.periodStart,
-          currentPeriodEnd: periodDates.periodEnd,
-          // Only update timestamp if status actually changed
-          ...(statusChanged && {
-            subscriptionStatusUpdatedAt: new Date(),
-          }),
-        }
-
-        // Track subscription history: if student already has a different subscription, add it to history
-        if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
-          updateData.previousSubscriptionIdsDugsi = {
-            push: oldSubscriptionId,
-          }
-        }
-
-        return tx.student.update({
-          where: { id: studentId },
-          data: updateData,
-        })
-      })
+          newStudentStatus: getNewStudentStatus(subscription.status),
+          periodStart: periodDates.periodStart,
+          periodEnd: periodDates.periodEnd,
+          program: 'DUGSI',
+        },
+        tx
+      )
 
       const updateResults = await Promise.all(updatePromises)
 
@@ -184,15 +161,16 @@ async function handleSubscriptionEvent(
       console.log(
         `✅ Updated ${updateResults.length} students with subscription ${subscriptionId}`
       )
-      if (
-        students.some(
-          (s) =>
-            s.stripeSubscriptionIdDugsi &&
-            s.stripeSubscriptionIdDugsi !== subscriptionId
-        )
-      ) {
+
+      // Log if any subscription IDs were added to history
+      const studentsWithHistory = students.filter(
+        (s) =>
+          s.stripeSubscriptionIdDugsi &&
+          s.stripeSubscriptionIdDugsi !== subscriptionId
+      )
+      if (studentsWithHistory.length > 0) {
         console.log(
-          `📝 Added previous subscription IDs to history for ${students.filter((s) => s.stripeSubscriptionIdDugsi && s.stripeSubscriptionIdDugsi !== subscriptionId).length} students`
+          `📝 Added previous subscription IDs to history for ${studentsWithHistory.length} students`
         )
       }
     })
@@ -331,23 +309,18 @@ export async function POST(req: Request) {
               `⚠️ No students found to cancel for customer: ${canceledCustomerId}`
             )
           } else {
-            // Update each student individually to add subscription to history before unlinking
+            // Build cancellation data using centralized utility
+            const cancellationData = buildCancellationUpdateData(
+              canceledSub.id,
+              'DUGSI'
+            )
+
+            // Update each student with cancellation data
             await Promise.all(
               studentsToCancel.map((student) =>
                 tx.student.update({
                   where: { id: student.id },
-                  data: {
-                    subscriptionStatus: 'canceled',
-                    status: STUDENT_STATUS.WITHDRAWN, // ✅ Now updates student status when subscription canceled!
-                    subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
-                    previousSubscriptionIdsDugsi: {
-                      push: canceledSub.id, // Add to history before unlinking
-                    },
-                    stripeSubscriptionIdDugsi: null, // Unlink the subscription
-                    paidUntil: null, // Clear paid until date
-                    currentPeriodStart: null, // ✅ Clear period fields
-                    currentPeriodEnd: null, // ✅ Clear period fields
-                  },
+                  data: cancellationData,
                 })
               )
             )

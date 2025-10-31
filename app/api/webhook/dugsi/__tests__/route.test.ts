@@ -7,12 +7,18 @@
  */
 
 import type Stripe from 'stripe'
-import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 
 import { prisma } from '@/lib/db'
 import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
 
 import { POST } from '../route'
+import {
+  buildPrismaStudentTxMock,
+  buildPaymentMethodTxMock,
+  buildFailingTxMock,
+  installTransaction,
+} from './helpers'
 
 // ============================================================================
 // Mocks
@@ -274,11 +280,14 @@ function setupWebhookMocks(
   } = {}
 ) {
   if (options.verificationError) {
-    vi.mocked(verifyDugsiWebhook).mockImplementationOnce(() => {
+    vi.mocked(verifyDugsiWebhook).mockImplementation(() => {
       throw options.verificationError
     })
   } else {
-    vi.mocked(verifyDugsiWebhook).mockReturnValue(event)
+    // verifyDugsiWebhook takes (body: string, signature: string) and returns Stripe.Event
+    vi.mocked(verifyDugsiWebhook).mockImplementation((_body, _signature) => {
+      return event
+    })
   }
 
   if (options.isProcessed) {
@@ -293,108 +302,6 @@ function setupWebhookMocks(
   } else {
     vi.mocked(prisma.webhookEvent.findUnique).mockResolvedValue(null)
   }
-}
-
-/**
- * Create a transaction mock for payment method capture
- */
-function createPaymentMethodTransactionMock(updateCount: number = 2) {
-  return vi.mocked(prisma.$transaction).mockImplementationOnce(async (fn) => {
-    const tx = {
-      student: {
-        updateMany: vi.fn().mockResolvedValue({ count: updateCount }),
-      },
-    }
-    return await fn(tx as Parameters<typeof fn>[0])
-  })
-}
-
-/**
- * Create a transaction mock for subscription events
- */
-function createSubscriptionTransactionMock(
-  students: Array<{
-    id: string
-    name?: string
-    subscriptionStatus?: string | null
-  }> = [{ id: '1', name: 'Child 1' }],
-  updateCount?: number
-) {
-  const count = updateCount ?? students.length
-  let capturedUpdateData: Record<string, unknown> | undefined
-
-  vi.mocked(prisma.$transaction).mockImplementationOnce(async (fn) => {
-    const tx = {
-      student: {
-        findMany: vi.fn().mockResolvedValue(students),
-        update: vi
-          .fn()
-          .mockImplementation(
-            (args: {
-              where: { id: string }
-              data: Record<string, unknown>
-            }) => {
-              capturedUpdateData = args.data
-              return Promise.resolve({} as any)
-            }
-          ),
-        updateMany: vi.fn().mockResolvedValue({ count }),
-      },
-    }
-    return await fn(tx as Parameters<typeof fn>[0])
-  })
-
-  return {
-    getCapturedData: () => capturedUpdateData,
-  }
-}
-
-/**
- * Create a transaction mock that captures update data
- */
-function createCapturingTransactionMock(
-  students: Array<{ id: string; name?: string }> = [
-    { id: '1', name: 'Child 1' },
-  ]
-) {
-  let capturedUpdateData: Record<string, unknown> | undefined
-
-  vi.mocked(prisma.$transaction).mockImplementationOnce(async (fn) => {
-    const tx = {
-      student: {
-        findMany: vi.fn().mockResolvedValue(students),
-        update: vi
-          .fn()
-          .mockImplementation(
-            (args: {
-              where: { id: string }
-              data: Record<string, unknown>
-            }) => {
-              capturedUpdateData = args.data
-              return Promise.resolve({} as any)
-            }
-          ),
-        updateMany: vi
-          .fn()
-          .mockImplementation((args: { data: Record<string, unknown> }) => {
-            capturedUpdateData = args.data
-            return Promise.resolve({ count: 1 })
-          }),
-      },
-    }
-    return await fn(tx as Parameters<typeof fn>[0])
-  })
-
-  return {
-    getCapturedData: () => capturedUpdateData,
-  }
-}
-
-/**
- * Create a transaction mock that throws an error
- */
-function createFailingTransactionMock(error: Error) {
-  return vi.mocked(prisma.$transaction).mockRejectedValueOnce(error)
 }
 
 /**
@@ -452,6 +359,25 @@ async function runWebhookTest(options: {
   })
   const response = await POST(request)
 
+  // Debug: log response if status doesn't match
+  if (response.status !== options.expectedStatus) {
+    const body = getResponseBody(response)
+    console.error('Unexpected response:', {
+      status: response.status,
+      expectedStatus: options.expectedStatus,
+      body,
+    })
+    // Also log what verifyDugsiWebhook was called with
+    const verifyCalls = vi.mocked(verifyDugsiWebhook).mock.calls
+    console.error('verifyDugsiWebhook calls:', verifyCalls.length)
+    if (verifyCalls.length > 0) {
+      console.error('Last verify call:', {
+        body: verifyCalls[verifyCalls.length - 1][0],
+        signature: verifyCalls[verifyCalls.length - 1][1],
+      })
+    }
+  }
+
   expect(response.status).toBe(options.expectedStatus)
 
   if (options.expectedBody) {
@@ -475,8 +401,46 @@ describe('Dugsi Webhook Handler', () => {
     console.error = vi.fn()
     console.warn = vi.fn()
 
+    // Clear all mock call history (keeps implementations)
+    vi.clearAllMocks()
+
     await setupHeadersMock()
     setupDefaultWebhookMocks()
+
+    // Reset transaction mock to use the SAME prisma.student mock object
+    // This ensures tests can mock prisma.student and it will work inside transactions
+    vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
+      const tx = { student: prisma.student }
+      return callback(tx as any)
+    })
+
+    // Set default verification mock (tests can override via setupWebhookMocks)
+    // This mock will be used if setupWebhookMocks is not called
+    vi.mocked(verifyDugsiWebhook).mockImplementation((body, _signature) => {
+      // Try to parse the body - if it fails, return a minimal event
+      try {
+        const parsed = JSON.parse(body)
+        // Ensure it has required fields
+        if (parsed && parsed.id && parsed.type) {
+          return parsed as Stripe.Event
+        }
+      } catch {
+        // If parsing fails, return a minimal valid event
+      }
+      // Return a minimal valid event structure
+      return {
+        id: 'evt_default',
+        object: 'event',
+        type: 'checkout.session.completed',
+        created: Date.now(),
+        data: { object: {} },
+      } as Stripe.Event
+    })
+  })
+
+  afterEach(() => {
+    // Note: We don't use vi.restoreAllMocks() here because it clears implementations
+    // vi.resetAllMocks() in beforeEach handles cleanup between tests
   })
 
   describe('Signature Verification', () => {
@@ -495,9 +459,11 @@ describe('Dugsi Webhook Handler', () => {
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
-          vi.mocked(verifyDugsiWebhook).mockImplementationOnce(() => {
-            throw new Error('Webhook verification failed: Invalid signature')
-          })
+          vi.mocked(verifyDugsiWebhook).mockImplementation(
+            (_body, _signature) => {
+              throw new Error('Webhook verification failed: Invalid signature')
+            }
+          )
         },
         expectedStatus: 401,
         expectedBody: { message: 'Invalid webhook signature' },
@@ -532,14 +498,23 @@ describe('Dugsi Webhook Handler', () => {
         }
       )
 
+      const { tx, spies } = buildPaymentMethodTxMock(2)
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createPaymentMethodTransactionMock()
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
-        customAssertions: () => {
+        customAssertions: (response) => {
+          if (response.status !== 200) {
+            console.log(
+              'Response body:',
+              JSON.stringify(response.body, null, 2)
+            )
+          }
           expect(prisma.webhookEvent.create).toHaveBeenCalledWith({
             data: {
               eventId: TEST_CONSTANTS.EVENT_IDS.NEW,
@@ -548,8 +523,11 @@ describe('Dugsi Webhook Handler', () => {
               payload: mockEvent,
             },
           })
+          expect(spies.student.updateMany).toHaveBeenCalled()
         },
       })
+
+      restore?.()
     })
   })
 
@@ -560,11 +538,14 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.PAYMENT }
       )
 
+      const { tx, spies } = buildPaymentMethodTxMock(2)
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createPaymentMethodTransactionMock(2)
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
         expectedBody: { received: true },
@@ -572,8 +553,11 @@ describe('Dugsi Webhook Handler', () => {
           expect(console.log).toHaveBeenCalledWith(
             expect.stringContaining('✅ Updated 2 students')
           )
+          expect(spies.student.updateMany).toHaveBeenCalled()
         },
       })
+
+      restore?.()
     })
 
     it('should handle missing client_reference_id', async () => {
@@ -623,14 +607,19 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.SUB_CREATED }
       )
 
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [
+          { id: '1', name: 'Child 1' },
+          { id: '2', name: 'Child 2' },
+        ],
+      })
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createSubscriptionTransactionMock([
-            { id: '1', name: 'Child 1' },
-            { id: '2', name: 'Child 2' },
-          ])
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
         customAssertions: () => {
@@ -639,8 +628,13 @@ describe('Dugsi Webhook Handler', () => {
               `✅ Updated 2 students with subscription ${TEST_CONSTANTS.SUBSCRIPTION.ID}`
             )
           )
+          expect(spies.student.findMany).toHaveBeenCalled()
+          // updateStudentsInTransaction uses update() for each student, not updateMany
+          expect(spies.student.update).toHaveBeenCalledTimes(2)
         },
       })
+
+      restore?.()
     })
 
     it('should handle subscription updates', async () => {
@@ -650,17 +644,30 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.SUB_UPDATED }
       )
 
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [
+          { id: '1', name: 'Child 1' },
+          { id: '2', name: 'Child 2' },
+        ],
+      })
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createSubscriptionTransactionMock([
-            { id: '1', name: 'Child 1' },
-            { id: '2', name: 'Child 2' },
-          ])
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
+        customAssertions: () => {
+          expect(spies.student.findMany).toHaveBeenCalled()
+          // updateStudentsInTransaction uses update() for each student
+          // This test has 2 students, so expect 2 calls
+          expect(spies.student.update).toHaveBeenCalledTimes(2)
+        },
       })
+
+      restore?.()
     })
 
     it('should handle subscription cancellation', async () => {
@@ -670,33 +677,39 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.SUB_CANCELED }
       )
 
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [
+          { id: '1', name: 'Child 1' },
+          { id: '2', name: 'Child 2' },
+        ],
+      })
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          vi.mocked(prisma.student.findMany).mockResolvedValue([
-            { id: '1', name: 'Child 1' },
-            { id: '2', name: 'Child 2' },
-          ] as any)
-          vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
         customAssertions: () => {
-          expect(prisma.student.findMany).toHaveBeenCalledWith({
+          expect(spies.student.findMany).toHaveBeenCalledWith({
             where: {
               stripeCustomerIdDugsi: TEST_CONSTANTS.CUSTOMER.ID,
               program: 'DUGSI_PROGRAM',
             },
           })
-          expect(prisma.student.update).toHaveBeenCalledTimes(2)
+          expect(spies.student.update).toHaveBeenCalledTimes(2)
 
-          const updateCall = vi.mocked(prisma.student.update).mock.calls[0]
+          const updateCall = spies.student.update.mock.calls[0]
           expect(updateCall[0].data).toMatchObject({
             subscriptionStatus: 'canceled',
             status: 'withdrawn',
           })
         },
       })
+
+      restore?.()
     })
 
     it('should validate subscription status against enum', async () => {
@@ -706,13 +719,15 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.INVALID_STATUS }
       )
 
+      const { install, restore } = buildFailingTxMock(
+        new Error('Invalid subscription status: invalid_status')
+      )
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createFailingTransactionMock(
-            new Error('Invalid subscription status: invalid_status')
-          )
+          install()
         },
         expectedStatus: 500,
         customAssertions: () => {
@@ -721,6 +736,8 @@ describe('Dugsi Webhook Handler', () => {
           )
         },
       })
+
+      restore()
     })
   })
 
@@ -735,38 +752,55 @@ describe('Dugsi Webhook Handler', () => {
           current_period_start: periodStartTimestamp,
           current_period_end: periodEndTimestamp,
         },
-        { id: TEST_CONSTANTS.EVENT_IDS.SUB_CREATED }
+        { id: 'evt_period_fields_test' }
       )
 
-      const mock = createSubscriptionTransactionMock(
-        [{ id: '1', name: 'Child 1' }],
-        1
-      )
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [
+          {
+            id: '1',
+            name: 'Child 1',
+            subscriptionStatus: null,
+            stripeSubscriptionIdDugsi: null,
+          },
+        ],
+      })
+      let restore: (() => void) | undefined
 
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
         customAssertions: () => {
-          const capturedData = mock.getCapturedData()
-          expect(capturedData).toMatchObject({
-            subscriptionStatus: 'active',
+          expect(console.log).toHaveBeenCalledWith(
+            expect.stringContaining('✅ Updated 1 students with subscription')
+          )
+          expect(spies.student.findMany).toHaveBeenCalled()
+          expect(spies.student.update).toHaveBeenCalledTimes(1)
+
+          // Verify period fields are synced correctly
+          const updateCall = spies.student.update.mock.calls[0]
+          expect(updateCall[0].data).toMatchObject({
             currentPeriodStart: expect.any(Date),
             currentPeriodEnd: expect.any(Date),
             paidUntil: expect.any(Date),
           })
 
-          // Verify dates are correct
-          const periodStart = (
-            capturedData?.currentPeriodStart as Date
-          )?.getTime()
-          const periodEnd = (capturedData?.currentPeriodEnd as Date)?.getTime()
-          expect(periodStart).toBe(periodStartTimestamp * 1000)
-          expect(periodEnd).toBe(periodEndTimestamp * 1000)
+          // Verify the dates match the subscription period
+          const updateData = updateCall[0].data as any
+          expect(updateData.currentPeriodStart?.getTime()).toBe(
+            periodStartTimestamp * 1000
+          )
+          expect(updateData.currentPeriodEnd?.getTime()).toBe(
+            periodEndTimestamp * 1000
+          )
         },
       })
+
+      restore?.()
     })
 
     it('should update subscriptionStatusUpdatedAt when status changes', async () => {
@@ -779,30 +813,45 @@ describe('Dugsi Webhook Handler', () => {
           current_period_start: periodStartTimestamp,
           current_period_end: periodEndTimestamp,
         },
-        { id: TEST_CONSTANTS.EVENT_IDS.SUB_UPDATED }
+        { id: 'evt_status_updated_test' }
       )
 
-      const mock = createSubscriptionTransactionMock(
-        [
-          { id: '1', subscriptionStatus: 'active' }, // Status is changing
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [
+          {
+            id: '1',
+            name: 'Child 1',
+            subscriptionStatus: 'active', // Status changes from active to past_due
+          },
         ],
-        1
-      )
+      })
+      let restore: (() => void) | undefined
 
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
         customAssertions: () => {
-          const capturedData = mock.getCapturedData()
-          expect(capturedData).toMatchObject({
+          expect(console.log).toHaveBeenCalledWith(
+            expect.stringContaining('✅ Updated 1 students with subscription')
+          )
+          expect(spies.student.findMany).toHaveBeenCalled()
+          expect(spies.student.update).toHaveBeenCalledTimes(1)
+
+          // Verify subscriptionStatusUpdatedAt is set when status changes
+          const updateCall = spies.student.update.mock.calls[0]
+          expect(updateCall[0].data).toMatchObject({
             subscriptionStatus: 'past_due',
+            status: 'enrolled',
             subscriptionStatusUpdatedAt: expect.any(Date),
           })
         },
       })
+
+      restore?.()
     })
 
     it('should clear period fields when subscription is canceled', async () => {
@@ -812,23 +861,30 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.SUB_CANCELED }
       )
 
-      // Note: This test checks the subscription.deleted handler which uses prisma.student.update directly
-      // (not in a transaction), so we need to mock it separately
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [
+          {
+            id: '1',
+            name: 'Child 1',
+            subscriptionStatus: 'active',
+          },
+        ],
+      })
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          vi.mocked(prisma.student.findMany).mockResolvedValue([
-            { id: '1', name: 'Child 1' },
-          ] as any)
-          vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
         customAssertions: () => {
-          const updateCalls = vi.mocked(prisma.student.update).mock.calls
-          expect(updateCalls.length).toBeGreaterThan(0)
+          expect(spies.student.findMany).toHaveBeenCalled()
+          expect(spies.student.update).toHaveBeenCalledTimes(1)
 
-          const updateCall = updateCalls[0]
+          // Verify period fields are cleared on cancellation
+          const updateCall = spies.student.update.mock.calls[0]
           expect(updateCall[0].data).toMatchObject({
             subscriptionStatus: 'canceled',
             status: 'withdrawn',
@@ -840,6 +896,8 @@ describe('Dugsi Webhook Handler', () => {
           })
         },
       })
+
+      restore?.()
     })
   })
 
@@ -850,11 +908,15 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.DB_ERROR }
       )
 
+      const { install, restore } = buildFailingTxMock(
+        new Error('Database connection error')
+      )
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createFailingTransactionMock(new Error('Database connection error'))
+          install()
         },
         expectedStatus: 500,
         expectedBody: { message: 'Internal server error' },
@@ -869,6 +931,8 @@ describe('Dugsi Webhook Handler', () => {
           })
         },
       })
+
+      restore()
     })
 
     it('should return 200 for data issues to prevent retry', async () => {
@@ -877,21 +941,18 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.NO_STUDENTS }
       )
 
+      const updateMany = vi.fn().mockResolvedValue({ count: 0 })
+      const tx = { student: { updateMany } }
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          vi.mocked(prisma.$transaction).mockImplementationOnce(
-            async (fn: any) => {
-              const tx = {
-                student: {
-                  updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-                },
-              }
-              await fn(tx)
-              throw new Error('No students found for family test_family_123')
-            }
-          )
+          // Override transaction to throw error after executing
+          vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
+            await fn(tx)
+            throw new Error('No students found for family test_family_123')
+          })
         },
         expectedStatus: 200,
         customAssertions: (response) => {
@@ -938,14 +999,28 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.CUSTOMER_OBJECT }
       )
 
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [{ id: '1' }],
+        updateCount: 1,
+      })
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createSubscriptionTransactionMock([{ id: '1' }], 1)
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
+        customAssertions: () => {
+          expect(spies.student.findMany).toHaveBeenCalled()
+          // updateStudentsInTransaction uses update() for each student
+          // These tests have 1 student, so expect 1 call
+          expect(spies.student.update).toHaveBeenCalledTimes(1)
+        },
       })
+
+      restore?.()
     })
 
     it('should handle missing paidUntil field gracefully', async () => {
@@ -955,14 +1030,28 @@ describe('Dugsi Webhook Handler', () => {
         { id: TEST_CONSTANTS.EVENT_IDS.NO_PERIOD_END }
       )
 
+      const { tx, spies } = buildPrismaStudentTxMock({
+        students: [{ id: '1' }],
+        updateCount: 1,
+      })
+      let restore: (() => void) | undefined
+
       await runWebhookTest({
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
-          createSubscriptionTransactionMock([{ id: '1' }], 1)
+          restore = installTransaction(tx)
         },
         expectedStatus: 200,
+        customAssertions: () => {
+          expect(spies.student.findMany).toHaveBeenCalled()
+          // updateStudentsInTransaction uses update() for each student
+          // These tests have 1 student, so expect 1 call
+          expect(spies.student.update).toHaveBeenCalledTimes(1)
+        },
       })
+
+      restore?.()
     })
   })
 
@@ -1005,18 +1094,26 @@ describe('Dugsi Webhook Handler', () => {
             { id: `evt_${subscriptionStatus}_status` }
           )
 
-          setupWebhookMocks(mockEvent)
+          const { tx, spies } = buildPrismaStudentTxMock({
+            students: [{ id: '1', name: 'Child 1' }],
+          })
+          let restore: (() => void) | undefined
 
-          const { getCapturedData } = createCapturingTransactionMock([
-            { id: '1', name: 'Child 1' },
-          ])
+          setupWebhookMocks(mockEvent)
+          restore = installTransaction(tx)
 
           await POST(createTestRequest(mockEvent))
 
-          expect(getCapturedData()).toMatchObject({
+          // Assert on the spy calls directly
+          // updateStudentsInTransaction uses update() for each student, not updateMany
+          expect(spies.student.update).toHaveBeenCalled()
+          const updateCall = spies.student.update.mock.calls[0]
+          expect(updateCall[0].data).toMatchObject({
             subscriptionStatus,
             status: expectedStatus,
           })
+
+          restore?.()
         })
       }
     )
