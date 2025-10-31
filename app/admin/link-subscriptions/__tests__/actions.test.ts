@@ -58,15 +58,25 @@ vi.mock('next/cache', () => ({
 }))
 
 // Mock Prisma
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    student: {
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
-      update: vi.fn(),
+vi.mock('@/lib/db', () => {
+  const mockStudent = {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn(),
+  }
+
+  return {
+    prisma: {
+      student: mockStudent,
+      // Mock $transaction to execute the callback with a transaction client
+      $transaction: vi.fn((callback) => {
+        // Create a transaction client that uses the same mocks
+        const tx = { student: mockStudent }
+        return callback(tx)
+      }),
     },
-  },
-}))
+  }
+})
 
 // Mock Stripe Dugsi
 vi.mock('@/lib/stripe-dugsi', () => ({

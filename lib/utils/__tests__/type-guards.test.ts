@@ -21,36 +21,36 @@ describe('extractPeriodStart', () => {
     expect(result?.getTime()).toBe(periodStartTimestamp * 1000)
   })
 
-  it('should return undefined for null subscription', () => {
+  it('should return null for null subscription', () => {
     const result = extractPeriodStart(null)
-    expect(result).toBeUndefined()
+    expect(result).toBeNull()
   })
 
-  it('should return undefined for undefined subscription', () => {
+  it('should return null for undefined subscription', () => {
     const result = extractPeriodStart(undefined)
-    expect(result).toBeUndefined()
+    expect(result).toBeNull()
   })
 
-  it('should return undefined for non-object input', () => {
+  it('should return null for non-object input', () => {
     const result = extractPeriodStart('not an object')
-    expect(result).toBeUndefined()
+    expect(result).toBeNull()
   })
 
-  it('should return undefined when current_period_start is missing', () => {
+  it('should return null when current_period_start is missing', () => {
     const subscription = {
       current_period_end: Math.floor(Date.now() / 1000),
     }
     const result = extractPeriodStart(subscription)
-    expect(result).toBeUndefined()
+    expect(result).toBeNull()
   })
 
-  it('should return undefined when current_period_start is not a number', () => {
+  it('should return null when current_period_start is not a number', () => {
     const subscription = {
       current_period_start: 'not a number',
       current_period_end: Math.floor(Date.now() / 1000),
     }
     const result = extractPeriodStart(subscription)
-    expect(result).toBeUndefined()
+    expect(result).toBeNull()
   })
 })
 
@@ -70,17 +70,17 @@ describe('extractPeriodDates', () => {
     expect(result.periodEnd?.getTime()).toBe(periodEndTimestamp * 1000)
   })
 
-  it('should return undefined for both dates when subscription is null', () => {
+  it('should return null for both dates when subscription is null', () => {
     const result = extractPeriodDates(null)
-    expect(result.periodStart).toBeUndefined()
-    expect(result.periodEnd).toBeUndefined()
+    expect(result.periodStart).toBeNull()
+    expect(result.periodEnd).toBeNull()
   })
 
-  it('should return undefined for missing dates', () => {
+  it('should return null for missing dates', () => {
     const subscription = {}
     const result = extractPeriodDates(subscription)
-    expect(result.periodStart).toBeUndefined()
-    expect(result.periodEnd).toBeUndefined()
+    expect(result.periodStart).toBeNull()
+    expect(result.periodEnd).toBeNull()
   })
 
   it('should extract start date even if end date is missing', () => {
@@ -91,7 +91,7 @@ describe('extractPeriodDates', () => {
 
     const result = extractPeriodDates(subscription)
     expect(result.periodStart).toBeInstanceOf(Date)
-    expect(result.periodEnd).toBeUndefined()
+    expect(result.periodEnd).toBeNull()
   })
 
   it('should extract end date even if start date is missing', () => {
@@ -101,7 +101,7 @@ describe('extractPeriodDates', () => {
     }
 
     const result = extractPeriodDates(subscription)
-    expect(result.periodStart).toBeUndefined()
+    expect(result.periodStart).toBeNull()
     expect(result.periodEnd).toBeInstanceOf(Date)
   })
 })

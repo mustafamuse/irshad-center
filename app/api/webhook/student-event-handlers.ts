@@ -21,27 +21,28 @@ export async function syncStudentSubscriptionState(subscriptionId: string) {
     const subscription: Stripe.Subscription =
       await stripe.subscriptions.retrieve(subscriptionId)
 
-    // Find all students linked to this subscription
-    const students = await prisma.student.findMany({
-      where: {
-        stripeSubscriptionId: subscription.id,
-        program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
-      },
-    })
-
-    if (students.length === 0) {
-      console.log(
-        `[WEBHOOK] syncStudentSubscriptionState: No students found for Subscription ID: ${subscription.id}. Skipping sync.`
-      )
-      return
-    }
-
     // Extract period dates
     const periodDates = extractPeriodDates(subscription)
 
-    // Update each student individually to properly track status changes
-    const updateResults = await Promise.all(
-      students.map((student) => {
+    // Use transaction to ensure atomic updates of all students
+    const updateResults = await prisma.$transaction(async (tx) => {
+      // Find all students linked to this subscription
+      const students = await tx.student.findMany({
+        where: {
+          stripeSubscriptionId: subscription.id,
+          program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
+        },
+      })
+
+      if (students.length === 0) {
+        console.log(
+          `[WEBHOOK] syncStudentSubscriptionState: No students found for Subscription ID: ${subscription.id}. Skipping sync.`
+        )
+        return []
+      }
+
+      // Update each student individually to properly track status changes
+      const updatePromises = students.map((student) => {
         const statusChanged = student.subscriptionStatus !== subscription.status
 
         const updateData: any = {
@@ -56,12 +57,14 @@ export async function syncStudentSubscriptionState(subscriptionId: string) {
           }),
         }
 
-        return prisma.student.update({
+        return tx.student.update({
           where: { id: student.id },
           data: updateData,
         })
       })
-    )
+
+      return await Promise.all(updatePromises)
+    })
 
     console.log(
       `[WEBHOOK] syncStudentSubscriptionState: Successfully synced Subscription ID: ${subscription.id}. Matched and updated ${updateResults.length} student(s) to status: ${subscription.status}.`
@@ -328,40 +331,43 @@ export async function handleSubscriptionDeleted(event: Stripe.Event) {
     `[WEBHOOK] Processing 'customer.subscription.deleted' for Subscription ID: ${subscription.id}`
   )
 
-  // First, find the students associated with the subscription before it's gone.
-  const students = await prisma.student.findMany({
-    where: {
-      stripeSubscriptionId: subscription.id,
-      program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
-    },
-  })
+  // Use transaction to atomically update all students
+  await prisma.$transaction(async (tx) => {
+    // First, find the students associated with the subscription before it's gone.
+    const students = await tx.student.findMany({
+      where: {
+        stripeSubscriptionId: subscription.id,
+        program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
+      },
+    })
 
-  if (students.length > 0) {
-    const studentIds = students.map((s) => s.id)
+    if (students.length > 0) {
+      const studentIds = students.map((s) => s.id)
 
-    // Update each student individually to add subscription to history before unlinking
-    await Promise.all(
-      studentIds.map((studentId) =>
-        prisma.student.update({
-          where: { id: studentId },
-          data: {
-            subscriptionStatus: 'canceled',
-            status: STUDENT_STATUS.WITHDRAWN, // ✅ Update status to withdrawn when subscription is canceled
-            subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
-            previousSubscriptionIds: {
-              push: subscription.id, // Add to history before unlinking
+      // Update each student individually to add subscription to history before unlinking
+      await Promise.all(
+        studentIds.map((studentId) =>
+          tx.student.update({
+            where: { id: studentId },
+            data: {
+              subscriptionStatus: 'canceled',
+              status: STUDENT_STATUS.WITHDRAWN, // ✅ Update status to withdrawn when subscription is canceled
+              subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
+              previousSubscriptionIds: {
+                push: subscription.id, // Add to history before unlinking
+              },
+              stripeSubscriptionId: null, // Unlink the subscription
+              paidUntil: null, // Clear the paid until date
+              currentPeriodStart: null, // ✅ Clear period fields
+              currentPeriodEnd: null, // ✅ Clear period fields
             },
-            stripeSubscriptionId: null, // Unlink the subscription
-            paidUntil: null, // Clear the paid until date
-            currentPeriodStart: null, // ✅ Clear period fields
-            currentPeriodEnd: null, // ✅ Clear period fields
-          },
-        })
+          })
+        )
       )
-    )
 
-    console.log(
-      `[WEBHOOK] Subscription ${subscription.id} deleted. Added to history, unlinked and marked ${students.length} student(s) as canceled/withdrawn.`
-    )
-  }
+      console.log(
+        `[WEBHOOK] Subscription ${subscription.id} deleted. Added to history, unlinked and marked ${students.length} student(s) as canceled/withdrawn.`
+      )
+    }
+  })
 }

@@ -30,22 +30,30 @@ vi.mock('next/server', () => ({
   },
 }))
 
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    $transaction: vi.fn(),
-    student: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
+vi.mock('@/lib/db', () => {
+  const mockStudent = {
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+  }
+
+  return {
+    prisma: {
+      student: mockStudent,
+      webhookEvent: {
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        delete: vi.fn(),
+      },
+      // Mock $transaction to execute the callback with a transaction client
+      $transaction: vi.fn((callback) => {
+        const tx = { student: mockStudent }
+        return callback(tx)
+      }),
     },
-    webhookEvent: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
-      delete: vi.fn(),
-    },
-  },
-}))
+  }
+})
 
 vi.mock('@/lib/stripe-dugsi', () => ({
   verifyDugsiWebhook: vi.fn(),
@@ -646,6 +654,10 @@ describe('Dugsi Webhook Handler', () => {
         event: mockEvent,
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
+          createSubscriptionTransactionMock([
+            { id: '1', name: 'Child 1' },
+            { id: '2', name: 'Child 2' },
+          ])
         },
         expectedStatus: 200,
       })

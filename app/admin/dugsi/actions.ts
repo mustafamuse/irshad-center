@@ -201,17 +201,89 @@ export async function linkDugsiSubscription(params: {
     // Extract period dates
     const periodDates = extractPeriodDates(subscription)
 
-    // Find all students to update and track history
-    const studentsToUpdate = await prisma.student.findMany({
-      where: {
-        parentEmail,
-        program: 'DUGSI_PROGRAM',
-      },
-      select: {
-        id: true,
-        stripeSubscriptionIdDugsi: true,
-        subscriptionStatus: true,
-      },
+    // Use transaction to atomically update all students in the family
+    const studentsToUpdate = await prisma.$transaction(async (tx) => {
+      // Find all students to update and track history
+      const students = await tx.student.findMany({
+        where: {
+          parentEmail,
+          program: 'DUGSI_PROGRAM',
+        },
+        select: {
+          id: true,
+          stripeSubscriptionIdDugsi: true,
+          subscriptionStatus: true,
+        },
+      })
+
+      if (students.length === 0) {
+        return []
+      }
+
+      // Update each student individually to track subscription history
+      await Promise.all(
+        students.map((student) => {
+          const oldSubscriptionId = student.stripeSubscriptionIdDugsi
+          const statusChanged =
+            student.subscriptionStatus !== subscription.status
+
+          const updateData: {
+            stripeSubscriptionIdDugsi: string
+            stripeCustomerIdDugsi: string
+            subscriptionStatus:
+              | 'active'
+              | 'canceled'
+              | 'past_due'
+              | 'unpaid'
+              | 'trialing'
+              | 'incomplete'
+              | 'incomplete_expired'
+              | 'paused'
+            status: string
+            stripeAccountType: 'DUGSI'
+            paidUntil: Date | null
+            currentPeriodStart: Date | null
+            currentPeriodEnd: Date | null
+            subscriptionStatusUpdatedAt?: Date
+            previousSubscriptionIdsDugsi?: { push: string }
+          } = {
+            stripeSubscriptionIdDugsi: subscriptionId,
+            stripeCustomerIdDugsi: customerId,
+            subscriptionStatus: subscription.status as
+              | 'active'
+              | 'canceled'
+              | 'past_due'
+              | 'unpaid'
+              | 'trialing'
+              | 'incomplete'
+              | 'incomplete_expired'
+              | 'paused',
+            status: newStudentStatus,
+            stripeAccountType: 'DUGSI',
+            paidUntil: periodDates.periodEnd ?? null,
+            currentPeriodStart: periodDates.periodStart,
+            currentPeriodEnd: periodDates.periodEnd,
+            // Only update timestamp if status actually changed
+            ...(statusChanged && {
+              subscriptionStatusUpdatedAt: new Date(),
+            }),
+          }
+
+          // Add old subscription ID to history if it exists and is different
+          if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
+            updateData.previousSubscriptionIdsDugsi = {
+              push: oldSubscriptionId,
+            }
+          }
+
+          return tx.student.update({
+            where: { id: student.id },
+            data: updateData,
+          })
+        })
+      )
+
+      return students
     })
 
     if (studentsToUpdate.length === 0) {
@@ -220,68 +292,6 @@ export async function linkDugsiSubscription(params: {
         error: 'No students found with this parent email',
       }
     }
-
-    // Update each student individually to track subscription history
-    await Promise.all(
-      studentsToUpdate.map((student) => {
-        const oldSubscriptionId = student.stripeSubscriptionIdDugsi
-        const statusChanged = student.subscriptionStatus !== subscription.status
-
-        const updateData: {
-          stripeSubscriptionIdDugsi: string
-          stripeCustomerIdDugsi: string
-          subscriptionStatus:
-            | 'active'
-            | 'canceled'
-            | 'past_due'
-            | 'unpaid'
-            | 'trialing'
-            | 'incomplete'
-            | 'incomplete_expired'
-            | 'paused'
-          status: string
-          stripeAccountType: 'DUGSI'
-          paidUntil: Date | null
-          currentPeriodStart: Date | null | undefined
-          currentPeriodEnd: Date | null | undefined
-          subscriptionStatusUpdatedAt?: Date
-          previousSubscriptionIdsDugsi?: { push: string }
-        } = {
-          stripeSubscriptionIdDugsi: subscriptionId,
-          stripeCustomerIdDugsi: customerId,
-          subscriptionStatus: subscription.status as
-            | 'active'
-            | 'canceled'
-            | 'past_due'
-            | 'unpaid'
-            | 'trialing'
-            | 'incomplete'
-            | 'incomplete_expired'
-            | 'paused',
-          status: newStudentStatus,
-          stripeAccountType: 'DUGSI',
-          paidUntil: periodDates.periodEnd ?? null,
-          currentPeriodStart: periodDates.periodStart,
-          currentPeriodEnd: periodDates.periodEnd,
-          // Only update timestamp if status actually changed
-          ...(statusChanged && {
-            subscriptionStatusUpdatedAt: new Date(),
-          }),
-        }
-
-        // Add old subscription ID to history if it exists and is different
-        if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
-          updateData.previousSubscriptionIdsDugsi = {
-            push: oldSubscriptionId,
-          }
-        }
-
-        return prisma.student.update({
-          where: { id: student.id },
-          data: updateData,
-        })
-      })
-    )
 
     // Revalidate the admin page
     revalidatePath('/admin/dugsi')

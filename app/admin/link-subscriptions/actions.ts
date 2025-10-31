@@ -508,54 +508,57 @@ export async function linkSubscriptionToStudent(
       // Extract period dates
       const periodDates = extractPeriodDates(subscription)
 
-      // Find all students in the same family
-      const familyStudents = await prisma.student.findMany({
-        where: {
-          parentEmail: student.parentEmail,
-          program: 'DUGSI_PROGRAM',
-        },
-        select: {
-          id: true,
-          stripeSubscriptionIdDugsi: true,
-          subscriptionStatus: true,
-        },
-      })
-
-      // Update each student individually to track subscription history
-      await Promise.all(
-        familyStudents.map((familyStudent) => {
-          const oldSubscriptionId = familyStudent.stripeSubscriptionIdDugsi
-          const statusChanged =
-            familyStudent.subscriptionStatus !== subscription.status
-
-          const updateData: StudentUpdateData = {
-            stripeSubscriptionIdDugsi: subscriptionId,
-            stripeCustomerIdDugsi: customerId,
-            subscriptionStatus: subscription.status,
-            status: newStudentStatus,
-            paidUntil: periodDates.periodEnd,
-            currentPeriodStart: periodDates.periodStart,
-            currentPeriodEnd: periodDates.periodEnd,
-            monthlyRate: subscription.items.data[0]?.price.unit_amount || 0,
-            // Only update timestamp if status actually changed
-            ...(statusChanged && {
-              subscriptionStatusUpdatedAt: new Date(),
-            }),
-          }
-
-          // Add old subscription ID to history if it exists and is different
-          if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
-            updateData.previousSubscriptionIdsDugsi = {
-              push: oldSubscriptionId,
-            }
-          }
-
-          return prisma.student.update({
-            where: { id: familyStudent.id },
-            data: updateData,
-          })
+      // Use transaction to atomically update all family members
+      await prisma.$transaction(async (tx) => {
+        // Find all students in the same family
+        const familyStudents = await tx.student.findMany({
+          where: {
+            parentEmail: student.parentEmail,
+            program: 'DUGSI_PROGRAM',
+          },
+          select: {
+            id: true,
+            stripeSubscriptionIdDugsi: true,
+            subscriptionStatus: true,
+          },
         })
-      )
+
+        // Update each student individually to track subscription history
+        await Promise.all(
+          familyStudents.map((familyStudent) => {
+            const oldSubscriptionId = familyStudent.stripeSubscriptionIdDugsi
+            const statusChanged =
+              familyStudent.subscriptionStatus !== subscription.status
+
+            const updateData: StudentUpdateData = {
+              stripeSubscriptionIdDugsi: subscriptionId,
+              stripeCustomerIdDugsi: customerId,
+              subscriptionStatus: subscription.status,
+              status: newStudentStatus,
+              paidUntil: periodDates.periodEnd,
+              currentPeriodStart: periodDates.periodStart,
+              currentPeriodEnd: periodDates.periodEnd,
+              monthlyRate: subscription.items.data[0]?.price.unit_amount || 0,
+              // Only update timestamp if status actually changed
+              ...(statusChanged && {
+                subscriptionStatusUpdatedAt: new Date(),
+              }),
+            }
+
+            // Add old subscription ID to history if it exists and is different
+            if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
+              updateData.previousSubscriptionIdsDugsi = {
+                push: oldSubscriptionId,
+              }
+            }
+
+            return tx.student.update({
+              where: { id: familyStudent.id },
+              data: updateData,
+            })
+          })
+        )
+      })
 
       revalidatePath('/admin/link-subscriptions')
       return { success: true }

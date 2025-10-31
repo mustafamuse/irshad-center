@@ -18,20 +18,29 @@ import {
 } from '../student-event-handlers'
 
 // Mock Prisma
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    student: {
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn(),
-      updateMany: vi.fn(),
+vi.mock('@/lib/db', () => {
+  const mockStudent = {
+    findMany: vi.fn(),
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+    updateMany: vi.fn(),
+  }
+
+  return {
+    prisma: {
+      student: mockStudent,
+      studentPayment: {
+        createMany: vi.fn(),
+      },
+      // Mock $transaction to execute the callback with a transaction client
+      $transaction: vi.fn((callback) => {
+        const tx = { student: mockStudent }
+        return callback(tx)
+      }),
     },
-    studentPayment: {
-      createMany: vi.fn(),
-    },
-  },
-}))
+  }
+})
 
 // Mock Stripe
 vi.mock('@/lib/stripe', () => ({
@@ -375,9 +384,9 @@ describe('Mahad Webhook Student Event Handlers', () => {
       await syncStudentSubscriptionState('sub_test123')
 
       const updateCall = vi.mocked(prisma.student.update).mock.calls[0][0]
-      expect(updateCall.data.currentPeriodStart).toBeUndefined()
-      expect(updateCall.data.currentPeriodEnd).toBeUndefined()
-      expect(updateCall.data.paidUntil).toBeUndefined()
+      expect(updateCall.data.currentPeriodStart).toBeNull()
+      expect(updateCall.data.currentPeriodEnd).toBeNull()
+      expect(updateCall.data.paidUntil).toBeNull()
     })
 
     it('should handle multiple students with different statuses individually', async () => {

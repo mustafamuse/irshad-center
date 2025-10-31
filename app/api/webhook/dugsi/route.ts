@@ -316,43 +316,46 @@ export async function POST(req: Request) {
           throw new Error('Invalid customer ID in canceled subscription')
         }
 
-        // Find students first to track history before updating
-        const studentsToCancel = await prisma.student.findMany({
-          where: {
-            stripeCustomerIdDugsi: canceledCustomerId,
-            program: 'DUGSI_PROGRAM',
-          },
-        })
+        // Use transaction to atomically update all students
+        await prisma.$transaction(async (tx) => {
+          // Find students first to track history before updating
+          const studentsToCancel = await tx.student.findMany({
+            where: {
+              stripeCustomerIdDugsi: canceledCustomerId,
+              program: 'DUGSI_PROGRAM',
+            },
+          })
 
-        if (studentsToCancel.length === 0) {
-          console.warn(
-            `⚠️ No students found to cancel for customer: ${canceledCustomerId}`
-          )
-        } else {
-          // Update each student individually to add subscription to history before unlinking
-          await Promise.all(
-            studentsToCancel.map((student) =>
-              prisma.student.update({
-                where: { id: student.id },
-                data: {
-                  subscriptionStatus: 'canceled',
-                  status: STUDENT_STATUS.WITHDRAWN, // ✅ Now updates student status when subscription canceled!
-                  subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
-                  previousSubscriptionIdsDugsi: {
-                    push: canceledSub.id, // Add to history before unlinking
-                  },
-                  stripeSubscriptionIdDugsi: null, // Unlink the subscription
-                  paidUntil: null, // Clear paid until date
-                  currentPeriodStart: null, // ✅ Clear period fields
-                  currentPeriodEnd: null, // ✅ Clear period fields
-                },
-              })
+          if (studentsToCancel.length === 0) {
+            console.warn(
+              `⚠️ No students found to cancel for customer: ${canceledCustomerId}`
             )
-          )
-          console.log(
-            `✅ Added subscription ${canceledSub.id} to history and canceled ${studentsToCancel.length} students`
-          )
-        }
+          } else {
+            // Update each student individually to add subscription to history before unlinking
+            await Promise.all(
+              studentsToCancel.map((student) =>
+                tx.student.update({
+                  where: { id: student.id },
+                  data: {
+                    subscriptionStatus: 'canceled',
+                    status: STUDENT_STATUS.WITHDRAWN, // ✅ Now updates student status when subscription canceled!
+                    subscriptionStatusUpdatedAt: new Date(), // ✅ Track when status changed
+                    previousSubscriptionIdsDugsi: {
+                      push: canceledSub.id, // Add to history before unlinking
+                    },
+                    stripeSubscriptionIdDugsi: null, // Unlink the subscription
+                    paidUntil: null, // Clear paid until date
+                    currentPeriodStart: null, // ✅ Clear period fields
+                    currentPeriodEnd: null, // ✅ Clear period fields
+                  },
+                })
+              )
+            )
+            console.log(
+              `✅ Added subscription ${canceledSub.id} to history and canceled ${studentsToCancel.length} students`
+            )
+          }
+        })
         break
 
       default:
