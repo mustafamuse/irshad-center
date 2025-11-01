@@ -80,8 +80,8 @@ export function AssignStudentsForm({
           </SheetTitle>
           <SheetDescription>
             {mode === 'assign'
-              ? 'Assign unassigned students to a batch'
-              : 'Transfer students from one batch to another'}
+              ? 'Assign unassigned students to a cohort'
+              : 'Transfer students from one cohort to another'}
           </SheetDescription>
         </SheetHeader>
 

@@ -69,14 +69,14 @@ export function StudentSelector({
     if (mode === 'assign') {
       return 'Available Students'
     }
-    return `Students in Source Batch`
+    return `Students in Source Cohort`
   }
 
   const getDestinationTitle = () => {
     if (mode === 'assign') {
-      return `Students in Target Batch`
+      return `Students in Target Cohort`
     }
-    return `Students in Destination Batch`
+    return `Students in Destination Cohort`
   }
 
   return (
@@ -140,7 +140,7 @@ export function StudentSelector({
                 {destinationSearch
                   ? 'No students match your search'
                   : mode === 'transfer' && !destinationBatchId
-                    ? 'Select a destination batch first'
+                    ? 'Select a destination cohort first'
                     : 'No students in this cohort'}
               </div>
             ) : (

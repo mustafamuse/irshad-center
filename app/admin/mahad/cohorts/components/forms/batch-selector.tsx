@@ -43,7 +43,7 @@ export function BatchSelector({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-4">
         <div className="flex-1 space-y-2">
           <label className="text-sm font-medium">
-            {mode === 'assign' ? 'Target Batch' : 'Source Batch'}
+            {mode === 'assign' ? 'Target Cohort' : 'Source Cohort'}
           </label>
           <Select
             value={selectedBatch || ''}
@@ -52,7 +52,7 @@ export function BatchSelector({
           >
             <SelectTrigger>
               <SelectValue
-                placeholder={`Select ${mode === 'assign' ? 'target' : 'source'} batch...`}
+                placeholder={`Select ${mode === 'assign' ? 'target' : 'source'} cohort...`}
               />
             </SelectTrigger>
             <SelectContent>
@@ -75,14 +75,14 @@ export function BatchSelector({
       {/* Destination Batch Selection (Transfer Mode Only) */}
       {mode === 'transfer' && selectedBatch && (
         <div className="space-y-2">
-          <label className="text-sm font-medium">Destination Batch</label>
+          <label className="text-sm font-medium">Destination Cohort</label>
           <Select
             value={destinationBatchId || ''}
             onValueChange={onDestinationBatchChange}
             disabled={isLoading}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Select destination batch..." />
+              <SelectValue placeholder="Select destination cohort..." />
             </SelectTrigger>
             <SelectContent>
               {destinationBatches.length === 0 ? (

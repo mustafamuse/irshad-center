@@ -72,7 +72,7 @@ export function BatchCard({ batch }: BatchCardProps) {
                   View Details
                 </DropdownMenuItem>
                 <DropdownMenuItem disabled={isPending}>
-                  Edit Batch
+                  Edit Cohort
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -80,7 +80,7 @@ export function BatchCard({ batch }: BatchCardProps) {
                   onClick={handleDelete}
                   disabled={isPending}
                 >
-                  {isPending ? 'Deleting...' : 'Delete Batch'}
+                  {isPending ? 'Deleting...' : 'Delete Cohort'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

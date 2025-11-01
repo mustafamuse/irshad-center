@@ -59,20 +59,20 @@ export function BatchSection({
     <div className="space-y-4 border-t pt-6">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <BookOpen className="h-4 w-4" />
-        Batch & Payment Information
+        Cohort & Payment Information
       </h3>
 
       <div className="space-y-3">
         <StudentSelectField
           id="batchId"
-          label="Batch Assignment"
+          label="Cohort Assignment"
           value={formData.batchId}
           options={batchOptions}
           isEditing={isEditing}
           onChange={(value) => updateField('batchId', value)}
           disabled={isPending}
           displayValue={currentBatchName || 'No Cohort Assigned'}
-          placeholder="Select a batch"
+          placeholder="Select a cohort"
         />
 
         <div className="space-y-2">
