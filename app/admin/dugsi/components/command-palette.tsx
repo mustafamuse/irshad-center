@@ -33,9 +33,14 @@ import { useLegacyActions } from '../store'
 interface CommandPaletteProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onExport?: () => void
 }
 
-export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({
+  open,
+  onOpenChange,
+  onExport,
+}: CommandPaletteProps) {
   const { setViewMode, setActiveTab, clearSelection } = useLegacyActions()
   const [search, setSearch] = useState('')
 
@@ -136,7 +141,11 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             <span>Clear Selection</span>
             <CommandShortcut>Esc</CommandShortcut>
           </CommandItem>
-          <CommandItem keywords={['export', 'download', 'csv']}>
+          <CommandItem
+            onSelect={() => onExport && runCommand(onExport)}
+            keywords={['export', 'download', 'csv']}
+            disabled={!onExport}
+          >
             <Download className="mr-2 h-4 w-4" />
             <span>Export to CSV</span>
             <CommandShortcut>⌘E</CommandShortcut>

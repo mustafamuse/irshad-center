@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { exportFamiliesToCSV } from '@/lib/csv-export'
 
 import { CommandPalette } from './command-palette'
 import { useFamilyFilters } from '../_hooks/use-family-filters'
@@ -112,10 +113,16 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
         )
         // TODO: Implement link subscription (GitHub issue #27)
         break
-      case 'export':
-        toast.info(`Exporting ${selectedFamilyKeys.size} families to CSV`)
-        // TODO: Implement export (GitHub issue #27)
+      case 'export': {
+        const selectedFamilies = familyGroups.filter((f) =>
+          selectedFamilyKeys.has(f.familyKey)
+        )
+        exportFamiliesToCSV(selectedFamilies)
+        toast.success(
+          `Exported ${selectedFamilyKeys.size} ${selectedFamilyKeys.size === 1 ? 'family' : 'families'} to CSV`
+        )
         break
+      }
       default:
         console.log(
           `Performing ${action} on ${selectedFamilyKeys.size} families`
@@ -363,6 +370,17 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
       <CommandPalette
         open={commandPaletteOpen}
         onOpenChange={setCommandPaletteOpen}
+        onExport={() => {
+          // Export selected families if any, otherwise export all filtered
+          const familiesToExport =
+            selectedFamilyKeys.size > 0
+              ? familyGroups.filter((f) => selectedFamilyKeys.has(f.familyKey))
+              : filteredFamilies
+          exportFamiliesToCSV(familiesToExport)
+          toast.success(
+            `Exported ${familiesToExport.length} ${familiesToExport.length === 1 ? 'family' : 'families'} to CSV`
+          )
+        }}
       />
     </div>
   )
