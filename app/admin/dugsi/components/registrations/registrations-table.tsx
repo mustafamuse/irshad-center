@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import React, { useEffect, useState, useTransition } from 'react'
 
 import {
   AlertCircle,
@@ -17,6 +17,8 @@ import {
   Users,
   CheckCircle2,
   Copy,
+  List,
+  Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -57,6 +59,7 @@ import {
 } from '@/lib/utils/enum-formatters'
 
 import { DugsiRegistration, DateFilter } from '../../_types'
+import { groupRegistrationsByDate } from '../../_utils/date-grouping'
 import { getDateRange } from '../../_utils/filters'
 import {
   formatRegistrationDate,
@@ -82,6 +85,7 @@ export function DugsiRegistrationsTable({
   const [isLoadingFamily, startTransition] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [groupByDate, setGroupByDate] = useState(false)
 
   useEffect(() => {
     if (selectedRegistration) {
@@ -175,6 +179,11 @@ export function DugsiRegistrationsTable({
     )
   })
 
+  // Group registrations by date if enabled
+  const groupedRegistrations = groupByDate
+    ? groupRegistrationsByDate(filteredRegistrations)
+    : []
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="flex flex-col gap-3 sm:gap-4">
@@ -232,6 +241,24 @@ export function DugsiRegistrationsTable({
             className="text-xs sm:text-sm"
           >
             Last Week
+          </Button>
+          <Button
+            variant={groupByDate ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setGroupByDate(!groupByDate)}
+            className="text-xs sm:text-sm"
+          >
+            {groupByDate ? (
+              <>
+                <Layers className="mr-1.5 h-3.5 w-3.5" />
+                Grouped
+              </>
+            ) : (
+              <>
+                <List className="mr-1.5 h-3.5 w-3.5" />
+                Group by Date
+              </>
+            )}
           </Button>
         </div>
 
@@ -320,7 +347,125 @@ export function DugsiRegistrationsTable({
                       No registrations found.
                     </TableCell>
                   </TableRow>
+                ) : groupByDate ? (
+                  // Grouped view
+                  groupedRegistrations.map((group) => (
+                    <React.Fragment key={group.group}>
+                      {/* Group Header Row */}
+                      <TableRow className="bg-muted/30 hover:bg-muted/30">
+                        <TableCell
+                          colSpan={8}
+                          className="py-3 text-sm font-semibold"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <span>{group.group}</span>
+                            <Badge variant="secondary" className="ml-1">
+                              {group.count}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      {/* Group Items */}
+                      {group.registrations.map((registration) => (
+                        <TableRow
+                          key={registration.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => setSelectedRegistration(registration)}
+                        >
+                          <TableCell className="font-medium">
+                            {registration.name}
+                          </TableCell>
+                          <TableCell className="w-16">
+                            <GenderIcon
+                              gender={registration.gender}
+                              size="lg"
+                            />
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {registration.parentFirstName ||
+                            registration.parentLastName ? (
+                              <div className="flex items-center gap-2">
+                                <span>
+                                  {[
+                                    registration.parentFirstName,
+                                    registration.parentLastName,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                                </span>
+                                {(registration.parent2FirstName ||
+                                  registration.parent2LastName) && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="px-1.5 text-[10px]"
+                                  >
+                                    +1
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">?</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {registration.parentPhone ? (
+                              <div className="flex items-center gap-2">
+                                <span>{registration.parentPhone}</span>
+                                {registration.parent2Phone && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="px-1.5 text-[10px]"
+                                  >
+                                    +1
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : registration.parent2Phone ? (
+                              <span>{registration.parent2Phone}</span>
+                            ) : (
+                              <span className="text-muted-foreground">?</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {registration.paymentMethodCaptured ? (
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                <CheckCircle2 className="mr-1 h-3 w-3" />
+                                Ready
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                No Payment
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {registration.subscriptionStatus === 'active' ? (
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                Active
+                              </Badge>
+                            ) : registration.stripeSubscriptionIdDugsi ? (
+                              <Badge variant="outline" className="text-xs">
+                                {registration.subscriptionStatus || 'Inactive'}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                None
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {formatRegistrationDate(registration.createdAt)}
+                          </TableCell>
+                          <TableCell className="w-12">
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </React.Fragment>
+                  ))
                 ) : (
+                  // Ungrouped view (original)
                   filteredRegistrations.map((registration) => (
                     <TableRow
                       key={registration.id}
