@@ -30,9 +30,9 @@ export async function getFamilyMembers(studentId: string) {
 
   if (!student) return []
 
-    // Find all siblings (students with the same parent phone number)
-    // Use utility function for consistent family identification
-    const phoneNumbers = getFamilyPhoneNumbers(student)
+  // Find all siblings (students with the same parent phone number)
+  // Use utility function for consistent family identification
+  const phoneNumbers = getFamilyPhoneNumbers(student)
 
   if (phoneNumbers.length === 0) return []
 
