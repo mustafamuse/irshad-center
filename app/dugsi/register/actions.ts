@@ -6,7 +6,7 @@
  * Direct Server Actions for parent-led registration (K-12 children).
  * Includes payment link generation for capturing payment methods.
  *
- * Follows the same error handling pattern as app/batches/actions.ts
+ * Follows the same error handling pattern as app/admin/mahad/cohorts/actions.ts
  */
 
 import { revalidatePath } from 'next/cache'

@@ -21,7 +21,7 @@ export function BatchGrid({ batches, isLoading = false }: BatchGridProps) {
     return (
       <div className="flex h-[200px] items-center justify-center rounded-lg border border-dashed">
         <div className="text-center text-muted-foreground">
-          Loading batches...
+          Loading cohorts...
         </div>
       </div>
     )
@@ -32,7 +32,7 @@ export function BatchGrid({ batches, isLoading = false }: BatchGridProps) {
       <div className="flex h-[200px] flex-col items-center justify-center rounded-lg border border-dashed">
         <div className="text-center">
           <p className="text-sm text-muted-foreground">
-            No batches created yet
+            No cohorts created yet
           </p>
           <CreateBatchDialog>
             <Button

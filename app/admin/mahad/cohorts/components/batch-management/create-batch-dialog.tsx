@@ -43,11 +43,11 @@ export function CreateBatchDialog({ children }: CreateBatchDialogProps) {
 
       const result = await createBatchAction(formData)
       if (result.success) {
-        toast.success('Batch created successfully')
+        toast.success('Cohort created successfully')
         setName('')
         setCreateBatchDialogOpen(false)
       } else {
-        toast.error(result.error || 'Failed to create batch')
+        toast.error(result.error || 'Failed to create cohort')
       }
     })
   }
@@ -67,10 +67,10 @@ export function CreateBatchDialog({ children }: CreateBatchDialogProps) {
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            Create New Batch
+            Create New Cohort
           </SheetTitle>
           <SheetDescription>
-            Create a new batch to organize your students
+            Create a new cohort to organize your students
           </SheetDescription>
         </SheetHeader>
 
@@ -80,13 +80,13 @@ export function CreateBatchDialog({ children }: CreateBatchDialogProps) {
               htmlFor="name"
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              Batch Name
+              Cohort Name
             </label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter batch name..."
+              placeholder="Enter cohort name..."
               disabled={isPending}
               autoFocus
             />

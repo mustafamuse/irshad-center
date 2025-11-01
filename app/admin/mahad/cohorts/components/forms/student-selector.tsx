@@ -141,7 +141,7 @@ export function StudentSelector({
                   ? 'No students match your search'
                   : mode === 'transfer' && !destinationBatchId
                     ? 'Select a destination batch first'
-                    : 'No students in this batch'}
+                    : 'No students in this cohort'}
               </div>
             ) : (
               filteredDestinationStudents.map((student) => (

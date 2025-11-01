@@ -30,9 +30,9 @@ export function BatchCard({ batch }: BatchCardProps) {
       startTransition(async () => {
         const result = await deleteBatchAction(batch.id)
         if (result.success) {
-          toast.success('Batch deleted successfully')
+          toast.success('Cohort deleted successfully')
         } else {
-          toast.error(result.error || 'Failed to delete batch')
+          toast.error(result.error || 'Failed to delete cohort')
         }
       })
     }

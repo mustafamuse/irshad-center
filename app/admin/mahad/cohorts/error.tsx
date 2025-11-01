@@ -21,7 +21,7 @@ export default function Error({
             <h2 className="text-2xl font-bold">Something went wrong!</h2>
             <p className="text-muted-foreground">
               {error.message ||
-                'An unexpected error occurred while loading the batches page.'}
+                'An unexpected error occurred while loading the cohorts page.'}
             </p>
             {error.digest && (
               <p className="text-xs text-muted-foreground">

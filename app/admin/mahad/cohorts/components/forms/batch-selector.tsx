@@ -58,7 +58,7 @@ export function BatchSelector({
             <SelectContent>
               {availableBatches.length === 0 ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">
-                  No batches available
+                  No cohorts available
                 </div>
               ) : (
                 availableBatches.map((batch) => (
@@ -87,7 +87,7 @@ export function BatchSelector({
             <SelectContent>
               {destinationBatches.length === 0 ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">
-                  No other batches available
+                  No other cohorts available
                 </div>
               ) : (
                 destinationBatches.map((batch) => (

@@ -148,7 +148,7 @@ export async function createBatchAction(
       startDate: validated.startDate ?? null,
     })
 
-    revalidatePath('/batches')
+    revalidatePath('/admin/mahad/cohorts')
 
     return {
       success: true,
@@ -157,7 +157,7 @@ export async function createBatchAction(
   } catch (error) {
     return handleActionError(error, 'createBatchAction', {
       handlers: {
-        [PRISMA_ERRORS.UNIQUE_CONSTRAINT]: `A batch with the name "${String(rawData.name)}" already exists`,
+        [PRISMA_ERRORS.UNIQUE_CONSTRAINT]: `A cohort with the name "${String(rawData.name)}" already exists`,
       },
     })
   }
@@ -172,7 +172,7 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
     if (!batch) {
       return {
         success: false,
-        error: 'Batch not found',
+        error: 'Cohort not found',
       }
     }
 
@@ -180,12 +180,12 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
     if (batch.studentCount > 0) {
       return {
         success: false,
-        error: `Cannot delete batch "${batch.name}": ${batch.studentCount} student${batch.studentCount > 1 ? 's' : ''} enrolled. Transfer them first.`,
+        error: `Cannot delete cohort "${batch.name}": ${batch.studentCount} student${batch.studentCount > 1 ? 's' : ''} enrolled. Transfer them first.`,
       }
     }
 
     await deleteBatch(id)
-    revalidatePath('/batches')
+    revalidatePath('/admin/mahad/cohorts')
 
     return {
       success: true,
@@ -193,9 +193,9 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
   } catch (error) {
     return handleActionError(error, 'deleteBatchAction', {
       handlers: {
-        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Batch not found',
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Cohort not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
-          'Cannot delete batch with related records',
+          'Cannot delete cohort with related records',
       },
     })
   }
@@ -219,7 +219,7 @@ export async function assignStudentsAction(
     if (!batch) {
       return {
         success: false,
-        error: 'Batch not found',
+        error: 'Cohort not found',
       }
     }
 
@@ -228,7 +228,7 @@ export async function assignStudentsAction(
       validated.studentIds
     )
 
-    revalidatePath('/batches')
+    revalidatePath('/admin/mahad/cohorts')
     revalidatePath(`/batches/${validated.batchId}`)
 
     return {
@@ -242,8 +242,8 @@ export async function assignStudentsAction(
     return handleActionError(error, 'assignStudentsAction', {
       handlers: {
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
-          'Invalid batch or student reference',
-        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Batch or student not found',
+          'Invalid cohort or student reference',
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Cohort or student not found',
       },
     })
   }
@@ -272,21 +272,21 @@ export async function transferStudentsAction(
     if (!fromBatch) {
       return {
         success: false,
-        error: 'Source batch not found',
+        error: 'Source cohort not found',
       }
     }
 
     if (!toBatch) {
       return {
         success: false,
-        error: 'Destination batch not found',
+        error: 'Destination cohort not found',
       }
     }
 
     if (validated.fromBatchId === validated.toBatchId) {
       return {
         success: false,
-        error: `Cannot transfer within the same batch (${fromBatch.name})`,
+        error: `Cannot transfer within the same cohort (${fromBatch.name})`,
       }
     }
 
@@ -296,9 +296,9 @@ export async function transferStudentsAction(
       validated.studentIds
     )
 
-    revalidatePath('/batches')
-    revalidatePath(`/batches/${validated.fromBatchId}`)
-    revalidatePath(`/batches/${validated.toBatchId}`)
+    revalidatePath('/admin/mahad/cohorts')
+    revalidatePath(`/admin/mahad/cohorts/${validated.fromBatchId}`)
+    revalidatePath(`/admin/mahad/cohorts/${validated.toBatchId}`)
 
     return {
       success: true,
@@ -311,8 +311,8 @@ export async function transferStudentsAction(
     return handleActionError(error, 'transferStudentsAction', {
       handlers: {
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
-          'Invalid batch or student reference',
-        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Batch or student not found',
+          'Invalid cohort or student reference',
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Cohort or student not found',
       },
     })
   }
@@ -378,9 +378,9 @@ export async function resolveDuplicatesAction(
 
     await resolveDuplicateStudents(keepId, deleteIds, mergeData)
 
-    revalidatePath('/batches')
+    revalidatePath('/admin/mahad/cohorts')
     Array.from(batchIdsToRevalidate).forEach((batchId) => {
-      revalidatePath(`/batches/${batchId}`)
+      revalidatePath(`/admin/mahad/cohorts/${batchId}`)
     })
 
     return {
@@ -434,9 +434,9 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
     // Delete the student
     await deleteStudent(id)
 
-    revalidatePath('/batches')
+    revalidatePath('/admin/mahad/cohorts')
     if (student.batchId) {
-      revalidatePath(`/batches/${student.batchId}`)
+      revalidatePath(`/admin/mahad/cohorts/${student.batchId}`)
     }
 
     return {
@@ -482,9 +482,9 @@ export async function bulkDeleteStudentsAction(
       }
     }
 
-    revalidatePath('/batches')
+    revalidatePath('/admin/mahad/cohorts')
     Array.from(batchIdsToRevalidate).forEach((batchId) => {
-      revalidatePath(`/batches/${batchId}`)
+      revalidatePath(`/admin/mahad/cohorts/${batchId}`)
     })
 
     return {
@@ -544,12 +544,12 @@ export async function updateStudentAction(
       }),
     })
 
-    revalidatePath('/batches')
+    revalidatePath('/admin/mahad/cohorts')
     if (currentStudent.batchId) {
-      revalidatePath(`/batches/${currentStudent.batchId}`)
+      revalidatePath(`/admin/mahad/cohorts/${currentStudent.batchId}`)
     }
     if (validated.batchId && validated.batchId !== currentStudent.batchId) {
-      revalidatePath(`/batches/${validated.batchId}`)
+      revalidatePath(`/admin/mahad/cohorts/${validated.batchId}`)
     }
 
     return {

@@ -30,7 +30,7 @@ export function BatchSection({
   studentStatus,
 }: BatchSectionProps) {
   const batchOptions = [
-    { value: 'none', label: 'No Batch' },
+    { value: 'none', label: 'No Cohort' },
     ...batches.map((batch) => ({
       value: batch.id,
       label: `${batch.name} (${batch.studentCount} students)`,
@@ -71,7 +71,7 @@ export function BatchSection({
           isEditing={isEditing}
           onChange={(value) => updateField('batchId', value)}
           disabled={isPending}
-          displayValue={currentBatchName || 'No Batch Assigned'}
+          displayValue={currentBatchName || 'No Cohort Assigned'}
           placeholder="Select a batch"
         />
 

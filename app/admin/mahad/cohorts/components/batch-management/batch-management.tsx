@@ -23,17 +23,17 @@ export function BatchManagement({ batches, students }: BatchManagementProps) {
     <div className="space-y-4 sm:space-y-6">
       <div className="space-y-1">
         <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
-          Batch Management
+          Cohort Management
         </h2>
         <p className="text-sm text-muted-foreground">
-          Create and manage student batches
+          Create and manage student cohorts
         </p>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2">
         <CreateBatchDialog>
           <Button variant="outline" size="sm" className="w-full sm:w-auto">
-            Create Batch
+            Create Cohort
           </Button>
         </CreateBatchDialog>
 
