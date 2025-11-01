@@ -8,6 +8,8 @@
 
 'use client'
 
+import { useState } from 'react'
+
 import {
   Users,
   AlertCircle,
@@ -24,9 +26,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+import { CommandPalette } from './command-palette'
 import { useFamilyFilters } from '../_hooks/use-family-filters'
 import { useFamilyGroups, useFamilyStats } from '../_hooks/use-family-groups'
 import { DugsiRegistration } from '../_types'
+import { useKeyboardShortcuts } from '../hooks/use-keyboard-shortcuts'
 import { usePersistedViewMode } from '../hooks/use-persisted-view-mode'
 import {
   useActiveTab,
@@ -48,8 +52,16 @@ interface DugsiDashboardProps {
 }
 
 export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
+  // Command palette state
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+
   // Persist view mode to localStorage
   usePersistedViewMode()
+
+  // Keyboard shortcuts
+  useKeyboardShortcuts({
+    onOpenCommandPalette: () => setCommandPaletteOpen(true),
+  })
 
   // Zustand store state
   const activeTab = useActiveTab()
@@ -346,6 +358,12 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
 
       {/* Delete Dialog */}
       <DeleteFamilyDialog families={familyGroups} />
+
+      {/* Command Palette */}
+      <CommandPalette
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+      />
     </div>
   )
 }
