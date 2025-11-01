@@ -58,18 +58,17 @@ export async function validateDugsiSubscription(subscriptionId: string) {
       return { success: false, error: 'Invalid customer ID in subscription' }
     }
 
+    // Extract period dates using utility function
+    const periodDates = extractPeriodDates(subscription)
+
     return {
       success: true,
       data: {
         subscriptionId: subscription.id,
         customerId,
         status: subscription.status,
-        currentPeriodStart: subscription.current_period_start
-          ? new Date(subscription.current_period_start * 1000)
-          : null,
-        currentPeriodEnd: subscription.current_period_end
-          ? new Date(subscription.current_period_end * 1000)
-          : null,
+        currentPeriodStart: periodDates.periodStart,
+        currentPeriodEnd: periodDates.periodEnd,
       },
     }
   } catch (error) {
