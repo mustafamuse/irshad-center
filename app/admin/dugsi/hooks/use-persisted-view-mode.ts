@@ -14,13 +14,14 @@ export function usePersistedViewMode() {
   const viewMode = useViewMode()
   const { setViewMode } = useLegacyActions()
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount ONLY (run once)
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved === 'grid' || saved === 'table') {
+    if ((saved === 'grid' || saved === 'table') && saved !== viewMode) {
       setViewMode(saved as ViewMode)
     }
-  }, [setViewMode])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Empty array = only run on mount
 
   // Save to localStorage when viewMode changes
   useEffect(() => {
