@@ -48,11 +48,11 @@ export function FilterControls({ batches }: FilterControlsProps) {
     }
     // Reset to first page when filters change
     params.delete('page')
-    router.push(`/admin/attendance?${params.toString()}`)
+    router.push(`/admin/shared/attendance?${params.toString()}`)
   }
 
   const clearFilters = () => {
-    router.push('/admin/attendance')
+    router.push('/admin/shared/attendance')
   }
 
   return (

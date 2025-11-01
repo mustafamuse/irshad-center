@@ -212,7 +212,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
             <PaginationContent>
               <PaginationItem>
                 <PaginationPrevious
-                  href={`/admin/attendance?${new URLSearchParams(
+                  href={`/admin/shared/attendance?${new URLSearchParams(
                     Object.fromEntries(
                       Object.entries({
                         ...searchParams,
@@ -227,7 +227,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
               {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <PaginationItem key={p}>
                   <PaginationLink
-                    href={`/admin/attendance?${new URLSearchParams(
+                    href={`/admin/shared/attendance?${new URLSearchParams(
                       Object.fromEntries(
                         Object.entries({
                           ...searchParams,
@@ -245,7 +245,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
               ))}
               <PaginationItem>
                 <PaginationNext
-                  href={`/admin/attendance?${new URLSearchParams(
+                  href={`/admin/shared/attendance?${new URLSearchParams(
                     Object.fromEntries(
                       Object.entries({
                         ...searchParams,

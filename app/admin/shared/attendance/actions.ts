@@ -26,7 +26,7 @@ export async function createSession(
     },
   })
 
-  revalidatePath('/admin/attendance')
+  revalidatePath('/admin/shared/attendance')
   return session
 }
 
@@ -88,7 +88,7 @@ export async function markAttendance(
       : []),
   ])
 
-  revalidatePath('/admin/attendance')
+  revalidatePath('/admin/shared/attendance')
 }
 
 export async function deleteSession(sessionId: string) {
@@ -96,5 +96,5 @@ export async function deleteSession(sessionId: string) {
     where: { id: sessionId },
   })
 
-  revalidatePath('/admin/attendance')
+  revalidatePath('/admin/shared/attendance')
 }
