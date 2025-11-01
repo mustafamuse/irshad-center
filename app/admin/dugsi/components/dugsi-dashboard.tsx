@@ -27,6 +27,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { exportFamiliesToCSV } from '@/lib/csv-export'
 
+import { LiveRegion } from './accessibility/live-region'
+import { SkipLink } from './accessibility/skip-link'
 import { CommandPalette } from './command-palette'
 import { useFamilyFilters } from '../_hooks/use-family-filters'
 import { useFamilyGroups, useFamilyStats } from '../_hooks/use-family-groups'
@@ -142,246 +144,261 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
     filters.advanced?.hasHealthInfo === true
 
   return (
-    <div className="container mx-auto space-y-6 p-4 sm:space-y-8 sm:p-6">
-      {/* Header */}
-      <DashboardHeader />
-
-      {/* Filters */}
-      <DashboardFilters registrations={registrations} />
-
-      {/* Quick Actions Bar */}
-      {selectedFamilyKeys.size > 0 && (
-        <QuickActionsBar
-          selectedCount={selectedFamilyKeys.size}
-          onAction={handleBulkAction}
-          onClearSelection={clearSelection}
-        />
-      )}
-
-      {/* Main Content Tabs */}
-      <Tabs
-        value={activeTab}
-        onValueChange={(v) => setActiveTab(v as typeof activeTab)}
-        aria-label="Family management tabs"
+    <>
+      <SkipLink />
+      <div
+        id="main-content"
+        className="container mx-auto space-y-6 p-4 sm:space-y-8 sm:p-6"
       >
-        <TabsList className="flex h-auto flex-wrap justify-start sm:grid sm:grid-cols-5">
-          <TabsTrigger
-            value="overview"
-            className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
-          >
-            <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Overview</span>
-            <span className="sm:hidden">Stats</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="active"
-            className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
-          >
-            <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Active</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
-            >
-              {tabStats.active}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="pending"
-            className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
-          >
-            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Pending</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
-            >
-              {tabStats.pending}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="needs-attention"
-            className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
-          >
-            <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">Needs Action</span>
-            <span className="sm:hidden">Action</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
-            >
-              {tabStats.needsAttention}
-            </Badge>
-          </TabsTrigger>
-          <TabsTrigger
-            value="all"
-            className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
-          >
-            <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden sm:inline">All</span>
-            <Badge
-              variant="secondary"
-              className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
-            >
-              {tabStats.all}
-            </Badge>
-          </TabsTrigger>
-        </TabsList>
+        {/* Live Region for screen reader announcements */}
+        <LiveRegion>
+          {filteredFamilies.length}{' '}
+          {filteredFamilies.length === 1 ? 'family' : 'families'} in {activeTab}{' '}
+          tab
+        </LiveRegion>
 
-        <TabsContent value="overview" className="space-y-6">
-          <DashboardStats registrations={registrations} />
+        {/* Header */}
+        <DashboardHeader />
 
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Recent Registrations
-                {hasActiveFilters && (
-                  <span className="ml-2 text-sm font-normal text-muted-foreground">
-                    (filtered: showing {Math.min(filteredFamilies.length, 6)} of{' '}
-                    {filteredFamilies.length})
-                  </span>
+        {/* Filters */}
+        <DashboardFilters registrations={registrations} />
+
+        {/* Quick Actions Bar */}
+        {selectedFamilyKeys.size > 0 && (
+          <QuickActionsBar
+            selectedCount={selectedFamilyKeys.size}
+            onAction={handleBulkAction}
+            onClearSelection={clearSelection}
+          />
+        )}
+
+        {/* Main Content Tabs */}
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as typeof activeTab)}
+          aria-label="Family management tabs"
+        >
+          <TabsList className="flex h-auto flex-wrap justify-start sm:grid sm:grid-cols-5">
+            <TabsTrigger
+              value="overview"
+              className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Overview</span>
+              <span className="sm:hidden">Stats</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="active"
+              className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Active</span>
+              <Badge
+                variant="secondary"
+                className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
+              >
+                {tabStats.active}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger
+              value="pending"
+              className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Pending</span>
+              <Badge
+                variant="secondary"
+                className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
+              >
+                {tabStats.pending}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger
+              value="needs-attention"
+              className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <AlertCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Needs Action</span>
+              <span className="sm:hidden">Action</span>
+              <Badge
+                variant="secondary"
+                className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
+              >
+                {tabStats.needsAttention}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger
+              value="all"
+              className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">All</span>
+              <Badge
+                variant="secondary"
+                className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
+              >
+                {tabStats.all}
+              </Badge>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <DashboardStats registrations={registrations} />
+
+            {/* Recent Activity */}
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Recent Registrations
+                  {hasActiveFilters && (
+                    <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      (filtered: showing {Math.min(filteredFamilies.length, 6)}{' '}
+                      of {filteredFamilies.length})
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {filteredFamilies.length === 0 ? (
+                  <EmptyState
+                    icon={<Filter className="h-8 w-8" />}
+                    title="No families match your filters"
+                    description="Try adjusting your search or filter criteria to see results."
+                    action={{
+                      label: 'Clear Filters',
+                      onClick: resetFilters,
+                      variant: 'outline',
+                    }}
+                  />
+                ) : viewMode === 'grid' ? (
+                  <FamilyGridView
+                    families={filteredFamilies.slice(0, 6)}
+                    selectedFamilies={selectedFamilyKeys}
+                    onSelectionChange={handleSelectionChange}
+                    viewMode="compact"
+                  />
+                ) : (
+                  <DugsiRegistrationsTable
+                    registrations={filteredFamilies
+                      .flatMap((f) => f.members)
+                      .slice(0, 6)}
+                  />
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {filteredFamilies.length === 0 ? (
-                <EmptyState
-                  icon={<Filter className="h-8 w-8" />}
-                  title="No families match your filters"
-                  description="Try adjusting your search or filter criteria to see results."
-                  action={{
-                    label: 'Clear Filters',
-                    onClick: resetFilters,
-                    variant: 'outline',
-                  }}
-                />
-              ) : viewMode === 'grid' ? (
-                <FamilyGridView
-                  families={filteredFamilies.slice(0, 6)}
-                  selectedFamilies={selectedFamilyKeys}
-                  onSelectionChange={handleSelectionChange}
-                  viewMode="compact"
-                />
-              ) : (
-                <DugsiRegistrationsTable
-                  registrations={filteredFamilies
-                    .flatMap((f) => f.members)
-                    .slice(0, 6)}
-                />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="active" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
-              Active Subscriptions ({filteredFamilies.length} families)
-            </h2>
-          </div>
-          {viewMode === 'grid' ? (
-            <FamilyGridView
-              families={filteredFamilies}
-              selectedFamilies={selectedFamilyKeys}
-              onSelectionChange={handleSelectionChange}
-            />
-          ) : (
-            <DugsiRegistrationsTable
-              registrations={filteredFamilies.flatMap((f) => f.members)}
-            />
-          )}
-        </TabsContent>
+          <TabsContent value="active" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                Active Subscriptions ({filteredFamilies.length} families)
+              </h2>
+            </div>
+            {viewMode === 'grid' ? (
+              <FamilyGridView
+                families={filteredFamilies}
+                selectedFamilies={selectedFamilyKeys}
+                onSelectionChange={handleSelectionChange}
+              />
+            ) : (
+              <DugsiRegistrationsTable
+                registrations={filteredFamilies.flatMap((f) => f.members)}
+              />
+            )}
+          </TabsContent>
 
-        <TabsContent value="pending" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
-              Pending Setup ({filteredFamilies.length} families)
-            </h2>
-            <Button
-              size="sm"
-              onClick={() => handleBulkAction('send-reminders')}
-            >
-              Send Setup Reminders
-            </Button>
-          </div>
-          {viewMode === 'grid' ? (
-            <FamilyGridView
-              families={filteredFamilies}
-              selectedFamilies={selectedFamilyKeys}
-              onSelectionChange={handleSelectionChange}
-            />
-          ) : (
-            <DugsiRegistrationsTable
-              registrations={filteredFamilies.flatMap((f) => f.members)}
-            />
-          )}
-        </TabsContent>
+          <TabsContent value="pending" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                Pending Setup ({filteredFamilies.length} families)
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => handleBulkAction('send-reminders')}
+              >
+                Send Setup Reminders
+              </Button>
+            </div>
+            {viewMode === 'grid' ? (
+              <FamilyGridView
+                families={filteredFamilies}
+                selectedFamilies={selectedFamilyKeys}
+                onSelectionChange={handleSelectionChange}
+              />
+            ) : (
+              <DugsiRegistrationsTable
+                registrations={filteredFamilies.flatMap((f) => f.members)}
+              />
+            )}
+          </TabsContent>
 
-        <TabsContent value="needs-attention" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
-              Needs Attention ({filteredFamilies.length} families)
-            </h2>
-            <Button
-              size="sm"
-              onClick={() => handleBulkAction('send-payment-links')}
-            >
-              Send Payment Links
-            </Button>
-          </div>
-          {viewMode === 'grid' ? (
-            <FamilyGridView
-              families={filteredFamilies}
-              selectedFamilies={selectedFamilyKeys}
-              onSelectionChange={handleSelectionChange}
-            />
-          ) : (
-            <DugsiRegistrationsTable
-              registrations={filteredFamilies.flatMap((f) => f.members)}
-            />
-          )}
-        </TabsContent>
+          <TabsContent value="needs-attention" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                Needs Attention ({filteredFamilies.length} families)
+              </h2>
+              <Button
+                size="sm"
+                onClick={() => handleBulkAction('send-payment-links')}
+              >
+                Send Payment Links
+              </Button>
+            </div>
+            {viewMode === 'grid' ? (
+              <FamilyGridView
+                families={filteredFamilies}
+                selectedFamilies={selectedFamilyKeys}
+                onSelectionChange={handleSelectionChange}
+              />
+            ) : (
+              <DugsiRegistrationsTable
+                registrations={filteredFamilies.flatMap((f) => f.members)}
+              />
+            )}
+          </TabsContent>
 
-        <TabsContent value="all" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
-              All Families ({filteredFamilies.length} families)
-            </h2>
-          </div>
-          {viewMode === 'grid' ? (
-            <FamilyGridView
-              families={filteredFamilies}
-              selectedFamilies={selectedFamilyKeys}
-              onSelectionChange={handleSelectionChange}
-            />
-          ) : (
-            <DugsiRegistrationsTable
-              registrations={filteredFamilies.flatMap((f) => f.members)}
-            />
-          )}
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="all" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">
+                All Families ({filteredFamilies.length} families)
+              </h2>
+            </div>
+            {viewMode === 'grid' ? (
+              <FamilyGridView
+                families={filteredFamilies}
+                selectedFamilies={selectedFamilyKeys}
+                onSelectionChange={handleSelectionChange}
+              />
+            ) : (
+              <DugsiRegistrationsTable
+                registrations={filteredFamilies.flatMap((f) => f.members)}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
 
-      {/* Delete Dialog */}
-      <DeleteFamilyDialog families={familyGroups} />
+        {/* Delete Dialog */}
+        <DeleteFamilyDialog families={familyGroups} />
 
-      {/* Command Palette */}
-      <CommandPalette
-        open={commandPaletteOpen}
-        onOpenChange={setCommandPaletteOpen}
-        onExport={() => {
-          // Export selected families if any, otherwise export all filtered
-          const familiesToExport =
-            selectedFamilyKeys.size > 0
-              ? familyGroups.filter((f) => selectedFamilyKeys.has(f.familyKey))
-              : filteredFamilies
-          exportFamiliesToCSV(familiesToExport)
-          toast.success(
-            `Exported ${familiesToExport.length} ${familiesToExport.length === 1 ? 'family' : 'families'} to CSV`
-          )
-        }}
-      />
-    </div>
+        {/* Command Palette */}
+        <CommandPalette
+          open={commandPaletteOpen}
+          onOpenChange={setCommandPaletteOpen}
+          onExport={() => {
+            // Export selected families if any, otherwise export all filtered
+            const familiesToExport =
+              selectedFamilyKeys.size > 0
+                ? familyGroups.filter((f) =>
+                    selectedFamilyKeys.has(f.familyKey)
+                  )
+                : filteredFamilies
+            exportFamiliesToCSV(familiesToExport)
+            toast.success(
+              `Exported ${familiesToExport.length} ${familiesToExport.length === 1 ? 'family' : 'families'} to CSV`
+            )
+          }}
+        />
+      </div>
+    </>
   )
 }
