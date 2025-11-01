@@ -102,7 +102,7 @@ export function CreateBatchDialog({ children }: CreateBatchDialogProps) {
               Cancel
             </Button>
             <Button type="submit" disabled={!name.trim() || isPending}>
-              {isPending ? 'Creating...' : 'Create Batch'}
+              {isPending ? 'Creating...' : 'Create Cohort'}
             </Button>
           </SheetFooter>
         </form>
