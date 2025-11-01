@@ -7,11 +7,6 @@ import {
   ChevronRight,
   Users,
   CreditCard,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Mail,
-  Phone,
   ExternalLink,
   MoreVertical,
   Send,
@@ -35,36 +30,11 @@ import {
   formatEducationLevel,
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
-
-interface Family {
-  familyKey: string
-  members: Array<{
-    id: string
-    name: string
-    gender: 'MALE' | 'FEMALE' | null
-    dateOfBirth: Date | string | null
-    educationLevel: string | null
-    gradeLevel: string | null
-    schoolName: string | null
-    healthInfo: string | null
-    createdAt: Date | string
-    parentFirstName: string | null
-    parentLastName: string | null
-    parentEmail: string | null
-    parentPhone: string | null
-    parent2FirstName: string | null
-    parent2LastName: string | null
-    parent2Email: string | null
-    parent2Phone: string | null
-    stripeCustomerIdDugsi: string | null
-    stripeSubscriptionIdDugsi: string | null
-    paidUntil: Date | string | null
-  }>
-  hasPayment: boolean
-  hasSubscription: boolean
-  parentEmail: string | null
-  parentPhone: string | null
-}
+import { Family } from '../_types'
+import { getFamilyStatus } from '../_utils/family'
+import { formatParentName, hasSecondParent } from '../_utils/format'
+import { FamilyStatusBadge } from './family-status-badge'
+import { ParentInfo } from './parent-info'
 
 interface FamilyGridViewProps {
   families: Family[]
@@ -103,47 +73,6 @@ export function FamilyGridView({
     onSelectionChange(newSelection)
   }
 
-  const getStatusBadge = (family: Family) => {
-    if (family.hasSubscription) {
-      return (
-        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-          <CheckCircle2 className="mr-1 h-3 w-3" />
-          Active
-        </Badge>
-      )
-    } else if (family.hasPayment) {
-      return (
-        <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-          <AlertCircle className="mr-1 h-3 w-3" />
-          Pending Setup
-        </Badge>
-      )
-    } else {
-      return (
-        <Badge variant="secondary">
-          <XCircle className="mr-1 h-3 w-3" />
-          No Payment
-        </Badge>
-      )
-    }
-  }
-
-  const getPrimaryParent = (family: Family) => {
-    const firstMember = family.members[0]
-    if (!firstMember) return null
-
-    return {
-      name: [firstMember.parentFirstName, firstMember.parentLastName]
-        .filter(Boolean)
-        .join(' '),
-      email: firstMember.parentEmail,
-      phone: firstMember.parentPhone,
-      hasSecondParent: !!(
-        firstMember.parent2FirstName || firstMember.parent2LastName
-      ),
-    }
-  }
-
   if (families.length === 0) {
     return (
       <div className="py-10 text-center">
@@ -158,7 +87,8 @@ export function FamilyGridView({
       {families.map((family) => {
         const isExpanded = expandedFamilies.has(family.familyKey)
         const isSelected = selectedFamilies.has(family.familyKey)
-        const parent = getPrimaryParent(family)
+        const firstMember = family.members[0]
+        const status = getFamilyStatus(family)
 
         return (
           <Card
@@ -188,9 +118,14 @@ export function FamilyGridView({
                         ) : (
                           <ChevronRight className="mr-1 h-4 w-4" />
                         )}
-                        {parent?.name || 'Family'}
+                        {firstMember
+                          ? formatParentName(
+                              firstMember.parentFirstName,
+                              firstMember.parentLastName
+                            )
+                          : 'Family'}
                       </Button>
-                      {parent?.hasSecondParent && (
+                      {firstMember && hasSecondParent(firstMember) && (
                         <Badge variant="outline" className="text-xs">
                           2 Parents
                         </Badge>
@@ -198,12 +133,12 @@ export function FamilyGridView({
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {getStatusBadge(family)}
+                      <FamilyStatusBadge status={status} />
                       <Badge variant="secondary">
                         {family.members.length}{' '}
                         {family.members.length === 1 ? 'Child' : 'Children'}
                       </Badge>
-                      {family.members[0]?.stripeCustomerIdDugsi && (
+                      {firstMember?.stripeCustomerIdDugsi && (
                         <Badge variant="outline" className="text-xs">
                           <CreditCard className="mr-1 h-3 w-3" />
                           Customer
@@ -211,20 +146,14 @@ export function FamilyGridView({
                       )}
                     </div>
 
-                    {viewMode === 'full' && (
-                      <div className="mt-3 space-y-1">
-                        {parent?.email && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Mail className="h-3.5 w-3.5" />
-                            <span className="truncate">{parent.email}</span>
-                          </div>
-                        )}
-                        {parent?.phone && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5" />
-                            <span>{parent.phone}</span>
-                          </div>
-                        )}
+                    {viewMode === 'full' && firstMember && (
+                      <div className="mt-3">
+                        <ParentInfo
+                          registration={firstMember}
+                          showEmail={true}
+                          showPhone={true}
+                          showSecondParentBadge={false}
+                        />
                       </div>
                     )}
                   </div>

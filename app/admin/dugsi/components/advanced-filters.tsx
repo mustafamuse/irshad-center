@@ -25,23 +25,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-interface Filters {
-  dateRange: { start: Date; end: Date } | null
-  schools: string[]
-  grades: string[]
-  hasHealthInfo: boolean
-}
-
-interface AdvancedFiltersProps {
-  filters: Filters
-  onFiltersChange: (filters: Filters) => void
-  registrations: Array<{
-    schoolName: string | null
-    gradeLevel: string | null
-    healthInfo: string | null
-    createdAt: Date | string
-  }>
-}
+import { FamilyFilters, DugsiRegistration } from '../_types'
 
 export function AdvancedFilters({
   filters,

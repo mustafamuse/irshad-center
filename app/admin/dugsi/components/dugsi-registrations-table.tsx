@@ -57,87 +57,13 @@ import {
 } from '@/lib/utils/enum-formatters'
 
 import { deleteDugsiFamily, getFamilyMembers } from '../actions'
+import { DugsiRegistration, DateFilter } from '../_types'
+import { getDateRange } from '../_utils/filters'
+import { formatRegistrationDate, formatParentName } from '../_utils/format'
 import { PaymentStatusSection } from './payment-status-section'
-
-interface DugsiRegistration {
-  id: string
-  name: string
-  gender: Gender | null
-  dateOfBirth: Date | string | null
-  educationLevel: string | null
-  gradeLevel: string | null
-  schoolName: string | null
-  healthInfo: string | null
-  createdAt: Date | string
-  parentFirstName: string | null
-  parentLastName: string | null
-  parentEmail: string | null
-  parentPhone: string | null
-  parent2FirstName: string | null
-  parent2LastName: string | null
-  parent2Email: string | null
-  parent2Phone: string | null
-  // Payment fields
-  paymentMethodCaptured: boolean
-  paymentMethodCapturedAt: Date | string | null
-  stripeCustomerIdDugsi: string | null
-  stripeSubscriptionIdDugsi: string | null
-  subscriptionStatus: string | null
-  paidUntil: Date | string | null
-  currentPeriodStart: Date | string | null
-  currentPeriodEnd: Date | string | null
-  familyReferenceId: string | null
-  stripeAccountType: string | null
-}
 
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]
-}
-
-type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
-
-function getDateRange(filter: DateFilter): { start: Date; end: Date } | null {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-
-  switch (filter) {
-    case 'all':
-      return null
-    case 'today':
-      return {
-        start: today,
-        end: new Date(today.getTime() + 24 * 60 * 60 * 1000),
-      }
-    case 'yesterday':
-      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
-      return {
-        start: yesterday,
-        end: today,
-      }
-    case 'thisWeek':
-      const dayOfWeek = today.getDay()
-      const startOfWeek = new Date(
-        today.getTime() - dayOfWeek * 24 * 60 * 60 * 1000
-      )
-      return {
-        start: startOfWeek,
-        end: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-      }
-    case 'lastWeek':
-      const dayOfWeek2 = today.getDay()
-      const startOfLastWeek = new Date(
-        today.getTime() - (dayOfWeek2 + 7) * 24 * 60 * 60 * 1000
-      )
-      const endOfLastWeek = new Date(
-        today.getTime() - dayOfWeek2 * 24 * 60 * 60 * 1000
-      )
-      return {
-        start: startOfLastWeek,
-        end: endOfLastWeek,
-      }
-    default:
-      return null
-  }
 }
 
 export function DugsiRegistrationsTable({
@@ -376,7 +302,7 @@ export function DugsiRegistrationsTable({
                             )}
                           </div>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">?</span>
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
@@ -395,13 +321,13 @@ export function DugsiRegistrationsTable({
                         ) : registration.parent2Phone ? (
                           <span>{registration.parent2Phone}</span>
                         ) : (
-                          <span className="text-muted-foreground">—</span>
+                          <span className="text-muted-foreground">?</span>
                         )}
                       </TableCell>
                       <TableCell>
                         {registration.paymentMethodCaptured ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                            💳 Ready
+                            ?? Ready
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-xs">
@@ -425,7 +351,7 @@ export function DugsiRegistrationsTable({
                         )}
                       </TableCell>
                       <TableCell className="text-sm">
-                        {formatDate(registration.createdAt)}
+                        {formatRegistrationDate(registration.createdAt)}
                       </TableCell>
                       <TableCell className="w-12">
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -666,12 +592,12 @@ export function DugsiRegistrationsTable({
                                           variant="secondary"
                                           className="text-[10px]"
                                         >
-                                          ✓ Selected
+                                          ? Selected
                                         </Badge>
                                       )}
                                     </div>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
-                                      Registered {formatDate(child.createdAt)}
+                                      Registered {formatRegistrationDate(child.createdAt)}
                                     </p>
                                   </div>
                                 </div>
@@ -889,7 +815,7 @@ function MobileRegistrationCard({
                   )}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">—</p>
+                <p className="text-sm text-muted-foreground">?</p>
               )}
             </div>
 
@@ -908,7 +834,7 @@ function MobileRegistrationCard({
               ) : registration.parent2Phone ? (
                 <p className="text-sm">{registration.parent2Phone}</p>
               ) : (
-                <p className="text-sm text-muted-foreground">—</p>
+                <p className="text-sm text-muted-foreground">?</p>
               )}
             </div>
 
@@ -918,7 +844,7 @@ function MobileRegistrationCard({
                 <p className="text-[11px] text-muted-foreground">Payment</p>
                 {registration.paymentMethodCaptured ? (
                   <Badge className="bg-green-100 text-xs text-green-800 hover:bg-green-100">
-                    💳 Ready
+                    ?? Ready
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="text-xs">
@@ -949,7 +875,7 @@ function MobileRegistrationCard({
             {/* Registration Date */}
             <div>
               <p className="text-[11px] text-muted-foreground">Registered</p>
-              <p className="text-sm">{formatDate(registration.createdAt)}</p>
+              <p className="text-sm">{formatRegistrationDate(registration.createdAt)}</p>
             </div>
           </div>
           <ChevronRight className="ml-2 mt-1 h-5 w-5 flex-shrink-0 text-muted-foreground" />
@@ -957,31 +883,4 @@ function MobileRegistrationCard({
       </CardContent>
     </Card>
   )
-}
-
-function formatDate(value: Date | string | null) {
-  if (!value) return '—'
-  const date = value instanceof Date ? value : new Date(value)
-  return format(date, 'MMM d, yyyy')
-}
-
-function calculateAge(dateOfBirth: Date | string | null): string {
-  if (!dateOfBirth) return 'N/A'
-
-  const birthDate =
-    dateOfBirth instanceof Date ? dateOfBirth : new Date(dateOfBirth)
-  const today = new Date()
-
-  let age = today.getFullYear() - birthDate.getFullYear()
-  const monthDiff = today.getMonth() - birthDate.getMonth()
-
-  // Adjust age if birthday hasn't occurred this year yet
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && today.getDate() < birthDate.getDate())
-  ) {
-    age--
-  }
-
-  return `${age} years old`
 }
