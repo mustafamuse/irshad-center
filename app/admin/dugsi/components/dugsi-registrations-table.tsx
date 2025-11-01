@@ -59,7 +59,7 @@ import {
 import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 import { DugsiRegistration, DateFilter } from '../_types'
 import { getDateRange } from '../_utils/filters'
-import { formatRegistrationDate, formatParentName } from '../_utils/format'
+import { formatRegistrationDate, formatParentName, calculateAge } from '../_utils/format'
 import { PaymentStatusSection } from './payment-status-section'
 
 interface DugsiRegistrationsTableProps {
