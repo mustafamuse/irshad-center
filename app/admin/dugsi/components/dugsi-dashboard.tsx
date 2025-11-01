@@ -65,6 +65,8 @@ interface DugsiRegistration {
   paidUntil: Date | string | null
   familyReferenceId: string | null
   stripeAccountType: string | null
+  currentPeriodStart: Date | string | null
+  currentPeriodEnd: Date | string | null
 }
 
 interface DugsiDashboardProps {
