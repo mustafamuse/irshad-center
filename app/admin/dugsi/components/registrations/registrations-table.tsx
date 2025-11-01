@@ -11,14 +11,11 @@ import {
   Mail,
   Phone,
   School,
-  Search,
   Trash2,
   User,
   Users,
   CheckCircle2,
   Copy,
-  List,
-  Layers,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -36,7 +33,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { GenderDisplay, GenderIcon } from '@/components/ui/gender-display'
-import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
@@ -68,6 +64,9 @@ import {
 } from '../../_utils/format'
 import { deleteDugsiFamily, getFamilyMembers } from '../../actions'
 import { PaymentStatusSection } from '../payment-status-section'
+import { FilterButtonGroup } from './filter-button-group'
+import { SearchInputWithIcon } from './search-input-with-icon'
+import { SearchTypeIndicator } from './search-type-indicator'
 
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]
@@ -186,13 +185,13 @@ export function DugsiRegistrationsTable({
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="flex flex-col gap-3 sm:gap-4">
+      <CardHeader className="flex flex-col gap-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-xl sm:text-2xl">
               Registered Students
             </CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground sm:text-base">
+            <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">
               Total Registrations: {filteredRegistrations.length}
               {(debouncedSearch || dateFilter !== 'all') &&
                 ` (filtered from ${registrations.length})`}
@@ -201,103 +200,25 @@ export function DugsiRegistrationsTable({
         </div>
 
         {/* Date Filter Buttons */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={dateFilter === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateFilter('all')}
-            className="text-xs sm:text-sm"
-          >
-            All Time
-          </Button>
-          <Button
-            variant={dateFilter === 'today' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateFilter('today')}
-            className="text-xs sm:text-sm"
-          >
-            Today
-          </Button>
-          <Button
-            variant={dateFilter === 'yesterday' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateFilter('yesterday')}
-            className="text-xs sm:text-sm"
-          >
-            Yesterday
-          </Button>
-          <Button
-            variant={dateFilter === 'thisWeek' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateFilter('thisWeek')}
-            className="text-xs sm:text-sm"
-          >
-            This Week
-          </Button>
-          <Button
-            variant={dateFilter === 'lastWeek' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setDateFilter('lastWeek')}
-            className="text-xs sm:text-sm"
-          >
-            Last Week
-          </Button>
-          <Button
-            variant={groupByDate ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setGroupByDate(!groupByDate)}
-            className="text-xs sm:text-sm"
-          >
-            {groupByDate ? (
-              <>
-                <Layers className="mr-1.5 h-3.5 w-3.5" />
-                Grouped
-              </>
-            ) : (
-              <>
-                <List className="mr-1.5 h-3.5 w-3.5" />
-                Group by Date
-              </>
-            )}
-          </Button>
-        </div>
+        <FilterButtonGroup
+          activeFilter={dateFilter}
+          onFilterChange={setDateFilter}
+          groupByDate={groupByDate}
+          onGroupByDateChange={setGroupByDate}
+        />
 
         <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Search by name, phone, or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <SearchInputWithIcon
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search by name, phone, or email..."
+            aria-label="Search registrations by name, phone, or email"
+          />
 
-          {/* Search type indicator */}
-          {debouncedSearch && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {debouncedSearch.includes('@') ? (
-                <>
-                  <Mail className="h-3 w-3" />
-                  <span>Searching emails...</span>
-                </>
-              ) : debouncedSearch.replace(/\D/g, '').length >= 4 ? (
-                <>
-                  <Phone className="h-3 w-3" />
-                  <span>Searching phones...</span>
-                </>
-              ) : (
-                <>
-                  <Users className="h-3 w-3" />
-                  <span>Searching names...</span>
-                </>
-              )}
-              <span className="font-medium">
-                {filteredRegistrations.length} results
-              </span>
-            </div>
-          )}
+          <SearchTypeIndicator
+            searchQuery={debouncedSearch}
+            resultCount={filteredRegistrations.length}
+          />
         </div>
       </CardHeader>
       <CardContent className="p-0">
