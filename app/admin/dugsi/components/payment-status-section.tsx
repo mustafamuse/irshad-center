@@ -39,7 +39,7 @@ import {
 } from '@/lib/utils/type-guards'
 
 import { getDugsiPaymentStatus } from '../actions'
-import { LinkSubscriptionDialog } from './link-subscription-dialog'
+import { LinkSubscriptionDialog } from './dialogs/link-subscription-dialog'
 
 interface PaymentStatusSectionProps {
   familyMembers: Array<{

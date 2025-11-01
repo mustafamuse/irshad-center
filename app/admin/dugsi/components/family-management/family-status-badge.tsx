@@ -5,9 +5,10 @@
 
 'use client'
 
-import { FamilyStatus } from '../_types'
-import { getStatusBadgeConfig } from '../_utils/status'
 import { Badge } from '@/components/ui/badge'
+
+import { FamilyStatus } from '../../_types'
+import { getStatusBadgeConfig } from '../../_utils/status'
 
 export function FamilyStatusBadge({ status }: { status: FamilyStatus }) {
   const config = getStatusBadgeConfig(status)

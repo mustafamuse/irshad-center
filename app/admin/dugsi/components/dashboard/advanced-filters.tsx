@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
-import { FamilyFilters, DugsiRegistration } from '../_types'
+import { FamilyFilters, DugsiRegistration } from '../../_types'
 
 interface AdvancedFiltersProps {
   filters: FamilyFilters

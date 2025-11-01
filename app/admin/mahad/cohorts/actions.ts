@@ -229,7 +229,7 @@ export async function assignStudentsAction(
     )
 
     revalidatePath('/admin/mahad/cohorts')
-    revalidatePath(`/batches/${validated.batchId}`)
+    revalidatePath(`/admin/mahad/cohorts/${validated.batchId}`)
 
     return {
       success: true,

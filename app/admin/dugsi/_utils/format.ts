@@ -4,7 +4,9 @@
  */
 
 import { format } from 'date-fns'
+
 import { DATE_FORMAT } from '@/lib/constants/dugsi'
+
 import { DugsiRegistration } from '../_types'
 
 /**
@@ -21,17 +23,13 @@ export function formatParentName(
  * Check if registration has second parent
  */
 export function hasSecondParent(registration: DugsiRegistration): boolean {
-  return !!(
-    registration.parent2FirstName || registration.parent2LastName
-  )
+  return !!(registration.parent2FirstName || registration.parent2LastName)
 }
 
 /**
  * Format date consistently
  */
-export function formatRegistrationDate(
-  date: Date | string | null
-): string {
+export function formatRegistrationDate(date: Date | string | null): string {
   if (!date) return '—'
   const dateObj = date instanceof Date ? date : new Date(date)
   return format(dateObj, DATE_FORMAT)

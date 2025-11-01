@@ -4,7 +4,7 @@
  */
 
 // Base types from Prisma
-import { Gender, Student } from '@prisma/client'
+import { Student } from '@prisma/client'
 
 // Full registration type (extends Prisma Student)
 export type DugsiRegistration = Pick<
@@ -57,7 +57,12 @@ export interface FamilyFilters {
 }
 
 // Tab and view types
-export type TabValue = 'overview' | 'active' | 'pending' | 'needs-attention' | 'all'
+export type TabValue =
+  | 'overview'
+  | 'active'
+  | 'pending'
+  | 'needs-attention'
+  | 'all'
 export type ViewMode = 'grid' | 'table'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
 export type FamilyStatus = 'active' | 'pending' | 'no-payment'

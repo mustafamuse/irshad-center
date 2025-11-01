@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 const fs = require('fs')
-const path = require('path')
 
 const filePaths = process.argv.slice(2)
 
@@ -33,7 +32,10 @@ function detectSlop(filePath) {
 
     consecutiveBlankLines = 0
 
-    const isComment = trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('*')
+    const isComment =
+      trimmed.startsWith('//') ||
+      trimmed.startsWith('/*') ||
+      trimmed.startsWith('*')
 
     if (isComment) {
       const nextLine = lines[i + 1]
@@ -64,27 +66,26 @@ function detectSlop(filePath) {
     cleanedLines.push(line)
   }
 
-  while (cleanedLines.length > 0 && cleanedLines[cleanedLines.length - 1].trim() === '') {
+  while (
+    cleanedLines.length > 0 &&
+    cleanedLines[cleanedLines.length - 1].trim() === ''
+  ) {
     cleanedLines.pop()
     modified = true
   }
 
   if (modified) {
-    const cleanedContent = cleanedLines.join('\n') + (cleanedLines.length > 0 ? '\n' : '')
+    const cleanedContent =
+      cleanedLines.join('\n') + (cleanedLines.length > 0 ? '\n' : '')
     fs.writeFileSync(filePath, cleanedContent, 'utf-8')
   }
 
   return modified
 }
 
-let totalModified = 0
-
 for (const filePath of filePaths) {
   if (fs.existsSync(filePath)) {
-    const modified = detectSlop(filePath)
-    if (modified) {
-      totalModified++
-    }
+    detectSlop(filePath)
   }
 }
 

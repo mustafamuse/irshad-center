@@ -55,15 +55,15 @@ import {
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
 
-import { DugsiRegistration, DateFilter } from '../_types'
-import { PaymentStatusSection } from './payment-status-section'
-import { getDateRange } from '../_utils/filters'
+import { DugsiRegistration, DateFilter } from '../../_types'
+import { getDateRange } from '../../_utils/filters'
 import {
   formatRegistrationDate,
   calculateAge,
   formatParentName,
-} from '../_utils/format'
-import { deleteDugsiFamily, getFamilyMembers } from '../actions'
+} from '../../_utils/format'
+import { deleteDugsiFamily, getFamilyMembers } from '../../actions'
+import { PaymentStatusSection } from '../payment-status-section'
 
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]

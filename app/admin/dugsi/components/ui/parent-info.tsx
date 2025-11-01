@@ -6,9 +6,11 @@
 'use client'
 
 import { Mail, Phone } from 'lucide-react'
+
 import { Badge } from '@/components/ui/badge'
-import { DugsiRegistration } from '../_types'
-import { formatParentName, hasSecondParent } from '../_utils/format'
+
+import { DugsiRegistration } from '../../_types'
+import { formatParentName, hasSecondParent } from '../../_utils/format'
 
 interface ParentInfoProps {
   registration: DugsiRegistration

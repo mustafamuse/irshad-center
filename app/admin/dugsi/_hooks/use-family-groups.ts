@@ -6,12 +6,11 @@
 'use client'
 
 import { useMemo } from 'react'
+
 import { DugsiRegistration, Family } from '../_types'
 import { groupRegistrationsByFamily } from '../_utils/family'
 
-export function useFamilyGroups(
-  registrations: DugsiRegistration[]
-): Family[] {
+export function useFamilyGroups(registrations: DugsiRegistration[]): Family[] {
   return useMemo(
     () => groupRegistrationsByFamily(registrations),
     [registrations]

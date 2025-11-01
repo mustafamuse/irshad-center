@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-import { linkDugsiSubscription, validateDugsiSubscription } from '../actions'
+import { linkDugsiSubscription, validateDugsiSubscription } from '../../actions'
 
 interface LinkSubscriptionDialogProps {
   open: boolean

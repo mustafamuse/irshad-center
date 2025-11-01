@@ -1,4 +1,5 @@
 <!-- 8e7bc6ba-a828-4684-ad3c-daec409378ef 7185735a-88e7-4ff8-8d27-c54418e0c23d -->
+
 # Dugsi Admin Refactoring - Multi-Phase Plan
 
 ## Executive Summary
@@ -70,15 +71,35 @@ This plan refactors the Dugsi admin module to eliminate DRY violations, improve 
 import { Gender, Student } from '@prisma/client'
 
 // Full registration type (extends Prisma Student)
-export type DugsiRegistration = Pick<Student, 
-  'id' | 'name' | 'gender' | 'dateOfBirth' | 'educationLevel' | 
-  'gradeLevel' | 'schoolName' | 'healthInfo' | 'createdAt' |
-  'parentFirstName' | 'parentLastName' | 'parentEmail' | 'parentPhone' |
-  'parent2FirstName' | 'parent2LastName' | 'parent2Email' | 'parent2Phone' |
-  'paymentMethodCaptured' | 'paymentMethodCapturedAt' |
-  'stripeCustomerIdDugsi' | 'stripeSubscriptionIdDugsi' | 
-  'subscriptionStatus' | 'paidUntil' | 'currentPeriodStart' | 
-  'currentPeriodEnd' | 'familyReferenceId' | 'stripeAccountType'
+export type DugsiRegistration = Pick<
+  Student,
+  | 'id'
+  | 'name'
+  | 'gender'
+  | 'dateOfBirth'
+  | 'educationLevel'
+  | 'gradeLevel'
+  | 'schoolName'
+  | 'healthInfo'
+  | 'createdAt'
+  | 'parentFirstName'
+  | 'parentLastName'
+  | 'parentEmail'
+  | 'parentPhone'
+  | 'parent2FirstName'
+  | 'parent2LastName'
+  | 'parent2Email'
+  | 'parent2Phone'
+  | 'paymentMethodCaptured'
+  | 'paymentMethodCapturedAt'
+  | 'stripeCustomerIdDugsi'
+  | 'stripeSubscriptionIdDugsi'
+  | 'subscriptionStatus'
+  | 'paidUntil'
+  | 'currentPeriodStart'
+  | 'currentPeriodEnd'
+  | 'familyReferenceId'
+  | 'stripeAccountType'
 >
 
 // Family type
@@ -99,7 +120,12 @@ export interface FamilyFilters {
   hasHealthInfo: boolean
 }
 
-export type TabValue = 'overview' | 'active' | 'pending' | 'needs-attention' | 'all'
+export type TabValue =
+  | 'overview'
+  | 'active'
+  | 'pending'
+  | 'needs-attention'
+  | 'all'
 export type ViewMode = 'grid' | 'table'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
 export type FamilyStatus = 'active' | 'pending' | 'no-payment'
@@ -170,9 +196,11 @@ import { DugsiRegistration, Family, FamilyStatus } from '../_types'
  * Priority: familyReferenceId > parentEmail > id
  */
 export function getFamilyKey(registration: DugsiRegistration): string {
-  return registration.familyReferenceId || 
-         registration.parentEmail || 
-         registration.id
+  return (
+    registration.familyReferenceId ||
+    registration.parentEmail ||
+    registration.id
+  )
 }
 
 /**
@@ -196,15 +224,16 @@ export function groupRegistrationsByFamily(
   // Convert to Family objects
   return Array.from(groups.entries()).map(([key, members]) => {
     const sorted = members.sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     )
 
     return {
       familyKey: key,
       members: sorted,
-      hasPayment: sorted.some(m => m.paymentMethodCaptured),
+      hasPayment: sorted.some((m) => m.paymentMethodCaptured),
       hasSubscription: sorted.some(
-        m => m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
+        (m) => m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
       ),
       parentEmail: sorted[0]?.parentEmail ?? null,
       parentPhone: sorted[0]?.parentPhone ?? null,
@@ -228,8 +257,9 @@ export function getFamilyStatus(family: Family): FamilyStatus {
 export function getFamilyPhoneNumbers(
   registration: DugsiRegistration
 ): string[] {
-  return [registration.parentPhone, registration.parent2Phone]
-    .filter((phone): phone is string => Boolean(phone))
+  return [registration.parentPhone, registration.parent2Phone].filter(
+    (phone): phone is string => Boolean(phone)
+  )
 }
 ```
 
@@ -274,7 +304,7 @@ export function getStatusBadgeConfig(status: FamilyStatus) {
 export function FamilyStatusBadge({ status }: { status: FamilyStatus }) {
   const config = getStatusBadgeConfig(status)
   const Icon = config.icon
-  
+
   return (
     <Badge className={config.className}>
       <Icon className="mr-1 h-3 w-3" />
@@ -320,18 +350,13 @@ export function formatParentName(
  * Check if registration has second parent
  */
 export function hasSecondParent(registration: DugsiRegistration): boolean {
-  return !!(
-    registration.parent2FirstName || 
-    registration.parent2LastName
-  )
+  return !!(registration.parent2FirstName || registration.parent2LastName)
 }
 
 /**
  * Format date consistently
  */
-export function formatRegistrationDate(
-  date: Date | string | null
-): string {
+export function formatRegistrationDate(date: Date | string | null): string {
   if (!date) return '—'
   const dateObj = date instanceof Date ? date : new Date(date)
   return format(dateObj, DATE_FORMAT)
@@ -342,19 +367,20 @@ export function formatRegistrationDate(
  */
 export function calculateAge(dateOfBirth: Date | string | null): string {
   if (!dateOfBirth) return 'N/A'
-  const birthDate = dateOfBirth instanceof Date 
-    ? dateOfBirth 
-    : new Date(dateOfBirth)
+  const birthDate =
+    dateOfBirth instanceof Date ? dateOfBirth : new Date(dateOfBirth)
   const today = new Date()
-  
+
   let age = today.getFullYear() - birthDate.getFullYear()
   const monthDiff = today.getMonth() - birthDate.getMonth()
-  
-  if (monthDiff < 0 || 
-      (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
     age--
   }
-  
+
   return `${age} years old`
 }
 ```
@@ -415,15 +441,16 @@ export function filterFamiliesBySearch(
   query: string
 ): Family[] {
   if (!query) return families
-  
+
   const normalizedQuery = query.toLowerCase()
-  
-  return families.filter(family => {
-    return family.members.some(member =>
-      member.name?.toLowerCase().includes(normalizedQuery) ||
-      member.parentEmail?.toLowerCase().includes(normalizedQuery) ||
-      member.parentPhone?.includes(query) ||
-      member.schoolName?.toLowerCase().includes(normalizedQuery)
+
+  return families.filter((family) => {
+    return family.members.some(
+      (member) =>
+        member.name?.toLowerCase().includes(normalizedQuery) ||
+        member.parentEmail?.toLowerCase().includes(normalizedQuery) ||
+        member.parentPhone?.includes(query) ||
+        member.schoolName?.toLowerCase().includes(normalizedQuery)
     )
   })
 }
@@ -439,12 +466,11 @@ export function filterFamiliesByAdvanced(
 
   // Date range filter
   if (filters.dateRange) {
-    filtered = filtered.filter(family => {
-      return family.members.some(member => {
+    filtered = filtered.filter((family) => {
+      return family.members.some((member) => {
         const date = new Date(member.createdAt)
         return (
-          date >= filters.dateRange!.start && 
-          date <= filters.dateRange!.end
+          date >= filters.dateRange!.start && date <= filters.dateRange!.end
         )
       })
     })
@@ -452,8 +478,8 @@ export function filterFamiliesByAdvanced(
 
   // School filter
   if (filters.schools.length > 0) {
-    filtered = filtered.filter(family => {
-      return family.members.some(member =>
+    filtered = filtered.filter((family) => {
+      return family.members.some((member) =>
         filters.schools.includes(member.schoolName || '')
       )
     })
@@ -461,8 +487,8 @@ export function filterFamiliesByAdvanced(
 
   // Grade filter
   if (filters.grades.length > 0) {
-    filtered = filtered.filter(family => {
-      return family.members.some(member =>
+    filtered = filtered.filter((family) => {
+      return family.members.some((member) =>
         filters.grades.includes(member.gradeLevel || '')
       )
     })
@@ -470,11 +496,10 @@ export function filterFamiliesByAdvanced(
 
   // Health info filter
   if (filters.hasHealthInfo) {
-    filtered = filtered.filter(family => {
+    filtered = filtered.filter((family) => {
       return family.members.some(
-        member =>
-          member.healthInfo && 
-          member.healthInfo.toLowerCase() !== 'none'
+        (member) =>
+          member.healthInfo && member.healthInfo.toLowerCase() !== 'none'
       )
     })
   }
@@ -493,11 +518,11 @@ export function filterFamiliesByTab(
     case 'overview':
       return families // Show all
     case 'active':
-      return families.filter(f => f.hasSubscription)
+      return families.filter((f) => f.hasSubscription)
     case 'pending':
-      return families.filter(f => f.hasPayment && !f.hasSubscription)
+      return families.filter((f) => f.hasPayment && !f.hasSubscription)
     case 'needs-attention':
-      return families.filter(f => !f.hasPayment)
+      return families.filter((f) => !f.hasPayment)
     case 'all':
       return families
   }
@@ -556,9 +581,7 @@ import { useMemo } from 'react'
 import { DugsiRegistration, Family } from '../_types'
 import { groupRegistrationsByFamily } from '../_utils/family'
 
-export function useFamilyGroups(
-  registrations: DugsiRegistration[]
-): Family[] {
+export function useFamilyGroups(registrations: DugsiRegistration[]): Family[] {
   return useMemo(
     () => groupRegistrationsByFamily(registrations),
     [registrations]
@@ -569,9 +592,10 @@ export function useFamilyStats(families: Family[]) {
   return useMemo(
     () => ({
       all: families.length,
-      active: families.filter(f => f.hasSubscription).length,
-      pending: families.filter(f => f.hasPayment && !f.hasSubscription).length,
-      needsAttention: families.filter(f => !f.hasPayment).length,
+      active: families.filter((f) => f.hasSubscription).length,
+      pending: families.filter((f) => f.hasPayment && !f.hasSubscription)
+        .length,
+      needsAttention: families.filter((f) => !f.hasPayment).length,
     }),
     [families]
   )
@@ -631,7 +655,7 @@ import { Badge } from '@/components/ui/badge'
 export function FamilyStatusBadge({ status }: { status: FamilyStatus }) {
   const config = getStatusBadgeConfig(status)
   const Icon = config.icon
-  
+
   return (
     <Badge className={config.className}>
       <Icon className="mr-1 h-3 w-3" />
@@ -682,14 +706,14 @@ export function ParentInfo({
           </Badge>
         )}
       </div>
-      
+
       {showEmail && registration.parentEmail && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Mail className="h-3.5 w-3.5" />
           <span className="truncate">{registration.parentEmail}</span>
         </div>
       )}
-      
+
       {showPhone && registration.parentPhone && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="h-3.5 w-3.5" />

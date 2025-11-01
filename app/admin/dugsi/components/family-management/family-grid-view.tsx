@@ -33,11 +33,11 @@ import {
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
 
-import { Family } from '../_types'
 import { FamilyStatusBadge } from './family-status-badge'
-import { ParentInfo } from './parent-info'
-import { getFamilyStatus } from '../_utils/family'
-import { formatParentName, hasSecondParent } from '../_utils/format'
+import { Family } from '../../_types'
+import { getFamilyStatus } from '../../_utils/family'
+import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { ParentInfo } from '../ui/parent-info'
 
 interface FamilyGridViewProps {
   families: Family[]
