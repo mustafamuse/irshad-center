@@ -16,6 +16,7 @@ import {
   User,
   Users,
   CheckCircle2,
+  Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -111,6 +112,16 @@ export function DugsiRegistrationsTable({
         toast.error(result.error || 'Failed to delete family')
       }
     })
+  }
+
+  // Copy to clipboard helper
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${label} copied to clipboard`)
+    } catch (err) {
+      toast.error('Failed to copy to clipboard')
+    }
   }
 
   // Filter registrations based on last 4 digits of phone numbers and date
@@ -481,11 +492,27 @@ export function DugsiRegistrationsTable({
                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                       <Phone className="h-3.5 w-3.5" />
                                       <a
-                                        href={`tel:${selectedRegistration.parentPhone}`}
+                                        href={`https://wa.me/${selectedRegistration.parentPhone.replace(/\D/g, '')}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
                                         className="hover:text-[#007078] hover:underline"
                                       >
                                         {selectedRegistration.parentPhone}
                                       </a>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-5 w-5"
+                                        onClick={() =>
+                                          copyToClipboard(
+                                            selectedRegistration.parentPhone,
+                                            'Phone number'
+                                          )
+                                        }
+                                        aria-label="Copy phone number"
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
                                     </div>
                                   )}
                                 </div>
@@ -536,11 +563,27 @@ export function DugsiRegistrationsTable({
                                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                         <Phone className="h-3.5 w-3.5" />
                                         <a
-                                          href={`tel:${selectedRegistration.parent2Phone}`}
+                                          href={`https://wa.me/${selectedRegistration.parent2Phone.replace(/\D/g, '')}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
                                           className="hover:text-[#007078] hover:underline"
                                         >
                                           {selectedRegistration.parent2Phone}
                                         </a>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5"
+                                          onClick={() =>
+                                            copyToClipboard(
+                                              selectedRegistration.parent2Phone,
+                                              'Phone number'
+                                            )
+                                          }
+                                          aria-label="Copy phone number"
+                                        >
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
                                       </div>
                                     )}
                                   </div>

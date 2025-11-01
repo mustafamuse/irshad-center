@@ -223,12 +223,18 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
                 <div className="py-8 text-center text-muted-foreground">
                   No families match the current filters
                 </div>
-              ) : (
+              ) : viewMode === 'grid' ? (
                 <FamilyGridView
                   families={filteredFamilies.slice(0, 6)}
                   selectedFamilies={selectedFamilyKeys}
                   onSelectionChange={handleSelectionChange}
                   viewMode="compact"
+                />
+              ) : (
+                <DugsiRegistrationsTable
+                  registrations={filteredFamilies
+                    .flatMap((f) => f.members)
+                    .slice(0, 6)}
                 />
               )}
             </CardContent>

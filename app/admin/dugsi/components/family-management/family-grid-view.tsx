@@ -13,7 +13,9 @@ import {
   Send,
   Link,
   Mail,
+  Copy,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -74,6 +76,15 @@ export function FamilyGridView({
       newSelection.add(familyKey)
     }
     onSelectionChange(newSelection)
+  }
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${label} copied to clipboard`)
+    } catch (err) {
+      toast.error('Failed to copy to clipboard')
+    }
   }
 
   if (families.length === 0) {
@@ -208,7 +219,18 @@ export function FamilyGridView({
                       Send Email
                     </DropdownMenuItem>
                     {family.members[0]?.stripeCustomerIdDugsi && (
-                      <DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          const customerId =
+                            family.members[0].stripeCustomerIdDugsi
+                          const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
+                          window.open(
+                            stripeUrl,
+                            '_blank',
+                            'noopener,noreferrer'
+                          )
+                        }}
+                      >
                         <ExternalLink className="mr-2 h-4 w-4" />
                         View in Stripe
                       </DropdownMenuItem>
@@ -293,30 +315,62 @@ export function FamilyGridView({
                         Payment Details
                       </h4>
                       <div className="space-y-1 text-sm">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <span className="text-muted-foreground">
                             Customer ID:
                           </span>
-                          <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                            {family.members[0].stripeCustomerIdDugsi.slice(
-                              0,
-                              14
-                            )}
-                            ...
-                          </code>
-                        </div>
-                        {family.members[0]?.stripeSubscriptionIdDugsi && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">
-                              Subscription:
-                            </span>
+                          <div className="flex items-center gap-1">
                             <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                              {family.members[0].stripeSubscriptionIdDugsi.slice(
+                              {family.members[0].stripeCustomerIdDugsi.slice(
                                 0,
                                 14
                               )}
                               ...
                             </code>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() =>
+                                copyToClipboard(
+                                  family.members[0].stripeCustomerIdDugsi,
+                                  'Customer ID'
+                                )
+                              }
+                              aria-label="Copy customer ID"
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        {family.members[0]?.stripeSubscriptionIdDugsi && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">
+                              Subscription:
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <code className="rounded bg-muted px-2 py-0.5 text-xs">
+                                {family.members[0].stripeSubscriptionIdDugsi.slice(
+                                  0,
+                                  14
+                                )}
+                                ...
+                              </code>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() =>
+                                  copyToClipboard(
+                                    family.members[0].stripeSubscriptionIdDugsi,
+                                    'Subscription ID'
+                                  )
+                                }
+                                aria-label="Copy subscription ID"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         )}
                         {family.members[0]?.paidUntil && (
