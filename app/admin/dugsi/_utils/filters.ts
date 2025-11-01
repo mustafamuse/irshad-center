@@ -82,9 +82,7 @@ export function filterFamiliesByAdvanced(
     filtered = filtered.filter((family) => {
       return family.members.some((member) => {
         const date = new Date(member.createdAt)
-        return (
-          date >= filters.dateRange!.start && date <= filters.dateRange!.end
-        )
+        return date >= filters.dateRange!.start && date < filters.dateRange!.end
       })
     })
   }

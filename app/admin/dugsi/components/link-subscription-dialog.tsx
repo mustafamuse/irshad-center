@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-import { linkDugsiSubscription } from '../actions'
+import { linkDugsiSubscription, validateDugsiSubscription } from '../actions'
 
 interface LinkSubscriptionDialogProps {
   open: boolean
@@ -61,13 +61,23 @@ export function LinkSubscriptionDialog({
     }
 
     setIsValidating(true)
-    // In a real implementation, you might want to validate against Stripe API
-    // For now, we'll just check the format
-    setTimeout(() => {
-      setValidationStatus('valid')
+
+    try {
+      const result = await validateDugsiSubscription(subscriptionId)
+
+      if (result.success) {
+        setValidationStatus('valid')
+        toast.success('Subscription ID is valid and exists in Stripe')
+      } else {
+        setValidationStatus('invalid')
+        toast.error(result.error || 'Invalid subscription ID')
+      }
+    } catch (error) {
+      setValidationStatus('invalid')
+      toast.error('Failed to validate subscription')
+    } finally {
       setIsValidating(false)
-      toast.success('Subscription ID format is valid')
-    }, 500)
+    }
   }
 
   const handleLink = async () => {

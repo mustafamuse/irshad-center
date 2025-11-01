@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import {
+  AlertCircle,
   ChevronDown,
   ChevronRight,
   Users,
@@ -11,6 +12,7 @@ import {
   MoreVertical,
   Send,
   Link,
+  Mail,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -30,11 +32,12 @@ import {
   formatEducationLevel,
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
+
 import { Family } from '../_types'
-import { getFamilyStatus } from '../_utils/family'
-import { formatParentName, hasSecondParent } from '../_utils/format'
 import { FamilyStatusBadge } from './family-status-badge'
 import { ParentInfo } from './parent-info'
+import { getFamilyStatus } from '../_utils/family'
+import { formatParentName, hasSecondParent } from '../_utils/format'
 
 interface FamilyGridViewProps {
   families: Family[]
@@ -83,7 +86,11 @@ export function FamilyGridView({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div
+      className="grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+      role="list"
+      aria-label="Family list"
+    >
       {families.map((family) => {
         const isExpanded = expandedFamilies.has(family.familyKey)
         const isSelected = selectedFamilies.has(family.familyKey)
@@ -96,6 +103,8 @@ export function FamilyGridView({
             className={`transition-all ${
               isSelected ? 'border-primary ring-2 ring-primary/20' : ''
             } ${isExpanded ? 'md:col-span-2 lg:col-span-3' : ''}`}
+            role="listitem"
+            aria-label={`Family: ${firstMember ? formatParentName(firstMember.parentFirstName, firstMember.parentLastName) : 'Unknown'}, ${family.members.length} ${family.members.length === 1 ? 'child' : 'children'}`}
           >
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
@@ -104,6 +113,7 @@ export function FamilyGridView({
                     checked={isSelected}
                     onCheckedChange={() => toggleSelection(family.familyKey)}
                     className="mt-1"
+                    aria-label={`Select family ${firstMember ? formatParentName(firstMember.parentFirstName, firstMember.parentLastName) : family.familyKey}`}
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -112,6 +122,9 @@ export function FamilyGridView({
                         size="sm"
                         className="h-auto p-0 font-semibold hover:bg-transparent"
                         onClick={() => toggleFamily(family.familyKey)}
+                        aria-expanded={isExpanded}
+                        aria-controls={`family-details-${family.familyKey}`}
+                        aria-label={`${isExpanded ? 'Collapse' : 'Expand'} family details`}
                       >
                         {isExpanded ? (
                           <ChevronDown className="mr-1 h-4 w-4" />
@@ -161,8 +174,14 @@ export function FamilyGridView({
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      aria-label={`Actions for family ${firstMember ? formatParentName(firstMember.parentFirstName, firstMember.parentLastName) : family.familyKey}`}
+                    >
                       <MoreVertical className="h-4 w-4" />
+                      <span className="sr-only">More actions</span>
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -200,17 +219,26 @@ export function FamilyGridView({
             </CardHeader>
 
             {isExpanded && (
-              <CardContent className="pt-0">
+              <CardContent
+                className="pt-0"
+                id={`family-details-${family.familyKey}`}
+              >
                 <div className="space-y-3">
                   <div className="border-t pt-3">
                     <h4 className="mb-3 text-sm font-medium">
                       Children Details
                     </h4>
-                    <div className="space-y-2">
+                    <div
+                      className="space-y-2"
+                      role="list"
+                      aria-label="Children list"
+                    >
                       {family.members.map((child, index) => (
                         <div
                           key={child.id}
                           className="flex items-start gap-3 rounded-lg bg-muted/30 p-3"
+                          role="listitem"
+                          aria-label={`Child ${index + 1}: ${child.name}`}
                         >
                           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                             {index + 1}

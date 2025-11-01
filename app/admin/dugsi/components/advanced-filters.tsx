@@ -27,6 +27,12 @@ import { cn } from '@/lib/utils'
 
 import { FamilyFilters, DugsiRegistration } from '../_types'
 
+interface AdvancedFiltersProps {
+  filters: FamilyFilters
+  onFiltersChange: (filters: FamilyFilters) => void
+  registrations: DugsiRegistration[]
+}
+
 export function AdvancedFilters({
   filters,
   onFiltersChange,
@@ -58,9 +64,18 @@ export function AdvancedFilters({
 
   const handleDateChange = () => {
     if (dateRange.from && dateRange.to) {
+      // Set start date to beginning of day (00:00:00.000) for inclusive filtering
+      const startDate = new Date(dateRange.from)
+      startDate.setHours(0, 0, 0, 0)
+
+      // Set end date to end of day (23:59:59.999) to make it inclusive of the selected day
+      // This ensures records created on the selected end date are included
+      const endDate = new Date(dateRange.to)
+      endDate.setHours(23, 59, 59, 999)
+
       onFiltersChange({
         ...filters,
-        dateRange: { start: dateRange.from, end: dateRange.to },
+        dateRange: { start: startDate, end: endDate },
       })
     }
   }

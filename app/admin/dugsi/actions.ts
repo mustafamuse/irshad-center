@@ -2,13 +2,18 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
-import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { DUGSI_REGISTRATION_SELECT, DUGSI_FAMILY_SELECT, DUGSI_PAYMENT_STATUS_SELECT } from './_queries/selects'
+
+import {
+  DUGSI_REGISTRATION_SELECT,
+  DUGSI_FAMILY_SELECT,
+  DUGSI_PAYMENT_STATUS_SELECT,
+} from './_queries/selects'
 import { getFamilyPhoneNumbers } from './_utils/family'
 
 export async function getDugsiRegistrations() {
@@ -19,6 +24,74 @@ export async function getDugsiRegistrations() {
   })
 
   return students
+}
+
+/**
+ * Validate a Stripe subscription ID without linking it.
+ * Used by the link subscription dialog to check if a subscription exists.
+ */
+export async function validateDugsiSubscription(subscriptionId: string) {
+  try {
+    if (!subscriptionId.startsWith('sub_')) {
+      return {
+        success: false,
+        error: 'Invalid subscription ID format. Must start with "sub_"',
+      }
+    }
+
+    // Validate the subscription exists in Stripe
+    const dugsiStripe = getDugsiStripeClient()
+    const subscription =
+      await dugsiStripe.subscriptions.retrieve(subscriptionId)
+
+    if (!subscription) {
+      return { success: false, error: 'Subscription not found in Stripe' }
+    }
+
+    // Extract customer ID
+    const customerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id
+
+    if (!customerId) {
+      return { success: false, error: 'Invalid customer ID in subscription' }
+    }
+
+    return {
+      success: true,
+      data: {
+        subscriptionId: subscription.id,
+        customerId,
+        status: subscription.status,
+        currentPeriodStart: subscription.current_period_start
+          ? new Date(subscription.current_period_start * 1000)
+          : null,
+        currentPeriodEnd: subscription.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
+          : null,
+      },
+    }
+  } catch (error) {
+    console.error('Error validating Dugsi subscription:', error)
+    if (error instanceof Error) {
+      // Check if it's a Stripe error
+      if (error.message.includes('No such subscription')) {
+        return {
+          success: false,
+          error: 'Subscription not found in Stripe',
+        }
+      }
+      return {
+        success: false,
+        error: error.message || 'Failed to validate subscription',
+      }
+    }
+    return {
+      success: false,
+      error: 'Failed to validate subscription',
+    }
+  }
 }
 
 export async function getFamilyMembers(studentId: string) {

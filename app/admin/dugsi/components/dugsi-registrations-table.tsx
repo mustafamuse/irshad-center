@@ -2,8 +2,6 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import { Gender } from '@prisma/client'
-import { format } from 'date-fns'
 import {
   AlertCircle,
   Calendar,
@@ -17,6 +15,7 @@ import {
   Trash2,
   User,
   Users,
+  CheckCircle2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -56,11 +55,11 @@ import {
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
 
-import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 import { DugsiRegistration, DateFilter } from '../_types'
-import { getDateRange } from '../_utils/filters'
-import { formatRegistrationDate, formatParentName, calculateAge } from '../_utils/format'
 import { PaymentStatusSection } from './payment-status-section'
+import { getDateRange } from '../_utils/filters'
+import { formatRegistrationDate, calculateAge } from '../_utils/format'
+import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]
@@ -327,7 +326,8 @@ export function DugsiRegistrationsTable({
                       <TableCell>
                         {registration.paymentMethodCaptured ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                            ?? Ready
+                            <CheckCircle2 className="mr-1 h-3 w-3" />
+                            Ready
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-xs">
@@ -592,12 +592,13 @@ export function DugsiRegistrationsTable({
                                           variant="secondary"
                                           className="text-[10px]"
                                         >
-                                          ? Selected
+                                          Selected
                                         </Badge>
                                       )}
                                     </div>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
-                                      Registered {formatRegistrationDate(child.createdAt)}
+                                      Registered{' '}
+                                      {formatRegistrationDate(child.createdAt)}
                                     </p>
                                   </div>
                                 </div>
@@ -844,7 +845,8 @@ function MobileRegistrationCard({
                 <p className="text-[11px] text-muted-foreground">Payment</p>
                 {registration.paymentMethodCaptured ? (
                   <Badge className="bg-green-100 text-xs text-green-800 hover:bg-green-100">
-                    ?? Ready
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                    Ready
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="text-xs">
@@ -875,7 +877,9 @@ function MobileRegistrationCard({
             {/* Registration Date */}
             <div>
               <p className="text-[11px] text-muted-foreground">Registered</p>
-              <p className="text-sm">{formatRegistrationDate(registration.createdAt)}</p>
+              <p className="text-sm">
+                {formatRegistrationDate(registration.createdAt)}
+              </p>
             </div>
           </div>
           <ChevronRight className="ml-2 mt-1 h-5 w-5 flex-shrink-0 text-muted-foreground" />

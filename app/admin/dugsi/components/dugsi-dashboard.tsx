@@ -32,15 +32,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-import { deleteDugsiFamily } from '../actions'
-import { DugsiRegistration, TabValue, ViewMode, FamilyFilters } from '../_types'
-import { useFamilyGroups, useFamilyStats } from '../_hooks/use-family-groups'
-import { useFamilyFilters } from '../_hooks/use-family-filters'
 import { AdvancedFilters } from './advanced-filters'
 import { DugsiRegistrationsTable } from './dugsi-registrations-table'
 import { DugsiStats } from './dugsi-stats'
 import { FamilyGridView } from './family-grid-view'
 import { QuickActionsBar } from './quick-actions-bar'
+import { useFamilyFilters } from '../_hooks/use-family-filters'
+import { useFamilyGroups, useFamilyStats } from '../_hooks/use-family-groups'
+import { DugsiRegistration, TabValue, ViewMode, FamilyFilters } from '../_types'
+import { deleteDugsiFamily } from '../actions'
 
 interface DugsiDashboardProps {
   registrations: DugsiRegistration[]
@@ -155,11 +155,13 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
         </div>
 
         {/* View Mode Toggle */}
-        <div className="flex gap-2">
+        <div className="flex gap-2" role="group" aria-label="View mode">
           <Button
             variant={viewMode === 'grid' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewMode('grid')}
+            aria-pressed={viewMode === 'grid'}
+            aria-label="Grid view"
           >
             Grid View
           </Button>
@@ -167,6 +169,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             variant={viewMode === 'table' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewMode('table')}
+            aria-pressed={viewMode === 'table'}
+            aria-label="Table view"
           >
             Table View
           </Button>
@@ -183,12 +187,15 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
+            aria-label="Search families by name, email, phone, or school"
           />
         </div>
         <Button
           variant="outline"
           onClick={() => setShowFilters(!showFilters)}
           className="gap-2"
+          aria-expanded={showFilters}
+          aria-controls="advanced-filters-panel"
         >
           <Filter className="h-4 w-4" />
           Advanced Filters
@@ -196,7 +203,11 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             filters.schools.length > 0 ||
             filters.grades.length > 0 ||
             filters.hasHealthInfo) && (
-            <Badge variant="secondary" className="ml-1">
+            <Badge
+              variant="secondary"
+              className="ml-1"
+              aria-label="Active filters"
+            >
               Active
             </Badge>
           )}
@@ -205,11 +216,17 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
 
       {/* Advanced Filters Panel */}
       {showFilters && (
-        <AdvancedFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          registrations={registrations}
-        />
+        <div
+          id="advanced-filters-panel"
+          role="region"
+          aria-label="Advanced filters"
+        >
+          <AdvancedFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            registrations={registrations}
+          />
+        </div>
       )}
 
       {/* Quick Actions Bar */}
@@ -225,6 +242,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
       <Tabs
         value={activeTab}
         onValueChange={(v) => setActiveTab(v as TabValue)}
+        aria-label="Family management tabs"
       >
         <TabsList className="flex h-auto flex-wrap justify-start sm:grid sm:grid-cols-5">
           <TabsTrigger

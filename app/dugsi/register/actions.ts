@@ -5,10 +5,13 @@
  *
  * Direct Server Actions for parent-led registration (K-12 children).
  * Includes payment link generation for capturing payment methods.
+ *
+ * Follows the same error handling pattern as app/batches/actions.ts
  */
 
 import { revalidatePath } from 'next/cache'
 
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
@@ -27,10 +30,74 @@ import {
 // TYPE DEFINITIONS
 // ============================================================================
 
+/**
+ * Action result type for consistent response structure
+ */
 type ActionResult<T = void> = {
   success: boolean
   data?: T
   error?: string
+  errors?: Partial<Record<string, string[]>>
+}
+
+// ============================================================================
+// PRISMA ERROR HANDLING
+// ============================================================================
+
+/**
+ * Prisma error code constants
+ */
+const PRISMA_ERRORS = {
+  UNIQUE_CONSTRAINT: 'P2002',
+  RECORD_NOT_FOUND: 'P2025',
+  FOREIGN_KEY_CONSTRAINT: 'P2003',
+} as const
+
+/**
+ * Check if error is a Prisma error
+ */
+function isPrismaError(
+  error: unknown
+): error is Prisma.PrismaClientKnownRequestError {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string'
+  )
+}
+
+/**
+ * Centralized error handler for all actions
+ */
+function handleActionError<T = void>(
+  error: unknown,
+  action: string,
+  context?: { name?: string; handlers?: Record<string, string> }
+): ActionResult<T> {
+  // Handle Zod validation errors
+  if (error instanceof z.ZodError) {
+    return {
+      success: false,
+      errors: error.flatten().fieldErrors,
+    }
+  }
+
+  // Log error with context for debugging
+  console.error(`[${action}] Error:`, error)
+
+  // Handle Prisma-specific errors with custom messages
+  if (isPrismaError(error) && context?.handlers?.[error.code]) {
+    return {
+      success: false,
+      error: context.handlers[error.code],
+    }
+  }
+
+  // Default generic error message
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : `Failed to ${action}`,
+  }
 }
 
 // ============================================================================
@@ -181,11 +248,15 @@ export async function registerDugsiChildren(
       }
     })
   } catch (error) {
-    console.error('[registerDugsiChildren] Error:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Registration failed',
-    }
+    return handleActionError(error, 'registerDugsiChildren', {
+      handlers: {
+        [PRISMA_ERRORS.UNIQUE_CONSTRAINT]:
+          'A student with this information already exists',
+        [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
+          'Invalid reference in registration data',
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Required record not found',
+      },
+    })
   } finally {
     revalidatePath('/dugsi/register')
   }
@@ -207,6 +278,8 @@ export async function checkParentEmailExists(email: string): Promise<boolean> {
     return !!student
   } catch (error) {
     console.error('[checkParentEmailExists] Error:', error)
+    // Return false on error to allow registration to proceed
+    // The database constraint will catch duplicates anyway
     return false
   }
 }
