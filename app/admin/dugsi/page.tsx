@@ -2,6 +2,8 @@ import { getDugsiRegistrations } from './actions'
 import { DugsiRegistrationsTable } from './components/dugsi-registrations-table'
 import { DugsiStats } from './components/dugsi-stats'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DugsiAdminPage() {
   const registrations = await getDugsiRegistrations()
 
