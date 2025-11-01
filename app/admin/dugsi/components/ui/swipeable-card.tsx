@@ -90,13 +90,13 @@ export function SwipeableCard({
     x.set(0)
   }
 
-  // Don't apply swipe behavior on desktop or when disabled
-  if (disabled || (typeof window !== 'undefined' && window.innerWidth >= 768)) {
-    return <>{children}</>
+  // If disabled, render children without swipe wrapper to maintain consistent structure
+  if (disabled) {
+    return <div ref={cardRef}>{children}</div>
   }
 
   return (
-    <div className="relative overflow-hidden" ref={cardRef}>
+    <div className="relative overflow-hidden md:overflow-visible" ref={cardRef}>
       {/* Left actions (revealed when swiping right) */}
       {leftActions.length > 0 && (
         <motion.div
