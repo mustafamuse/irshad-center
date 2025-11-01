@@ -29,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { EmptyState } from '@/components/ui/empty-state'
 import { GenderDisplay } from '@/components/ui/gender-display'
 import {
   formatEducationLevel,
@@ -89,10 +90,11 @@ export function FamilyGridView({
 
   if (families.length === 0) {
     return (
-      <div className="py-10 text-center">
-        <Users className="mx-auto h-12 w-12 text-muted-foreground" />
-        <p className="mt-2 text-sm text-muted-foreground">No families found</p>
-      </div>
+      <EmptyState
+        icon={<Users className="h-8 w-8" />}
+        title="No families found"
+        description="No families match your current filters. Try adjusting your search or filter criteria."
+      />
     )
   }
 

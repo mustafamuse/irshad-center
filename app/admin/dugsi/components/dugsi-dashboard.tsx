@@ -14,17 +14,20 @@ import {
   CheckCircle2,
   Clock,
   TrendingUp,
+  Filter,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { useFamilyFilters } from '../_hooks/use-family-filters'
 import { useFamilyGroups, useFamilyStats } from '../_hooks/use-family-groups'
 import { DugsiRegistration } from '../_types'
+import { usePersistedViewMode } from '../hooks/use-persisted-view-mode'
 import {
   useActiveTab,
   useSelectedFamilies,
@@ -45,6 +48,9 @@ interface DugsiDashboardProps {
 }
 
 export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
+  // Persist view mode to localStorage
+  usePersistedViewMode()
+
   // Zustand store state
   const activeTab = useActiveTab()
   const viewMode = useViewMode()
@@ -55,6 +61,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
     clearSelection,
     setDeleteDialogOpen,
     selectAllFamilies,
+    resetFilters,
   } = useLegacyActions()
 
   // Custom hooks for data processing
@@ -220,9 +227,16 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             </CardHeader>
             <CardContent>
               {filteredFamilies.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">
-                  No families match the current filters
-                </div>
+                <EmptyState
+                  icon={<Filter className="h-8 w-8" />}
+                  title="No families match your filters"
+                  description="Try adjusting your search or filter criteria to see results."
+                  action={{
+                    label: 'Clear Filters',
+                    onClick: resetFilters,
+                    variant: 'outline',
+                  }}
+                />
               ) : viewMode === 'grid' ? (
                 <FamilyGridView
                   families={filteredFamilies.slice(0, 6)}
