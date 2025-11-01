@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
 import { AdvancedFilters } from './advanced-filters'
+import { MobileFilterDrawer } from './mobile-filter-drawer'
 import { DugsiRegistration } from '../../_types'
 import {
   useAdvancedFiltersState,
@@ -38,6 +39,13 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
     advancedFilters.grades.length > 0 ||
     advancedFilters.hasHealthInfo
 
+  // Count active filters for mobile drawer badge
+  const activeFilterCount =
+    (advancedFilters.dateRange ? 1 : 0) +
+    advancedFilters.schools.length +
+    advancedFilters.grades.length +
+    (advancedFilters.hasHealthInfo ? 1 : 0)
+
   return (
     <>
       <div className="flex flex-col gap-4 sm:flex-row">
@@ -52,10 +60,12 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
             aria-label="Search families by name, email, phone, or school"
           />
         </div>
+
+        {/* Desktop: Inline Advanced Filters Toggle */}
         <Button
           variant="outline"
           onClick={() => setAdvancedFiltersOpen(!showAdvancedFilters)}
-          className="gap-2"
+          className="hidden gap-2 lg:flex"
           aria-expanded={showAdvancedFilters}
           aria-controls="advanced-filters-panel"
         >
@@ -71,13 +81,24 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
             </Badge>
           )}
         </Button>
+
+        {/* Mobile: Filter Drawer */}
+        <MobileFilterDrawer activeFilterCount={activeFilterCount}>
+          <AdvancedFilters
+            filters={advancedFilters}
+            onFiltersChange={setAdvancedFilters}
+            registrations={registrations}
+          />
+        </MobileFilterDrawer>
       </div>
 
+      {/* Desktop: Inline Advanced Filters (shown when toggled) */}
       {showAdvancedFilters && (
         <div
           id="advanced-filters-panel"
           role="region"
           aria-label="Advanced filters"
+          className="hidden lg:block"
         >
           <AdvancedFilters
             filters={advancedFilters}
