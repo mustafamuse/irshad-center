@@ -54,3 +54,10 @@ export const DUGSI_PAYMENT_STATUS_SELECT = {
   currentPeriodStart: true,
   currentPeriodEnd: true,
 } as const
+
+// Subscription link select - minimal fields for subscription linking
+export const DUGSI_SUBSCRIPTION_LINK_SELECT = {
+  id: true,
+  stripeSubscriptionIdDugsi: true,
+  subscriptionStatus: true,
+} as const

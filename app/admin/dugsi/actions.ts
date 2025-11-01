@@ -13,6 +13,7 @@ import {
   DUGSI_REGISTRATION_SELECT,
   DUGSI_FAMILY_SELECT,
   DUGSI_PAYMENT_STATUS_SELECT,
+  DUGSI_SUBSCRIPTION_LINK_SELECT,
 } from './_queries/selects'
 import { getFamilyPhoneNumbers } from './_utils/family'
 
@@ -219,11 +220,7 @@ export async function linkDugsiSubscription(params: {
           parentEmail,
           program: DUGSI_PROGRAM,
         },
-        select: {
-          id: true,
-          stripeSubscriptionIdDugsi: true,
-          subscriptionStatus: true,
-        },
+        select: DUGSI_SUBSCRIPTION_LINK_SELECT,
       })
 
       if (students.length === 0) {

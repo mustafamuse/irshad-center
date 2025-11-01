@@ -58,7 +58,11 @@ import {
 import { DugsiRegistration, DateFilter } from '../_types'
 import { PaymentStatusSection } from './payment-status-section'
 import { getDateRange } from '../_utils/filters'
-import { formatRegistrationDate, calculateAge } from '../_utils/format'
+import {
+  formatRegistrationDate,
+  calculateAge,
+  formatParentName,
+} from '../_utils/format'
 import { deleteDugsiFamily, getFamilyMembers } from '../actions'
 
 interface DugsiRegistrationsTableProps {
@@ -804,9 +808,10 @@ function MobileRegistrationCard({
               {registration.parentFirstName || registration.parentLastName ? (
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm">
-                    {[registration.parentFirstName, registration.parentLastName]
-                      .filter(Boolean)
-                      .join(' ')}
+                    {formatParentName(
+                      registration.parentFirstName,
+                      registration.parentLastName
+                    )}
                   </p>
                   {(registration.parent2FirstName ||
                     registration.parent2LastName) && (
