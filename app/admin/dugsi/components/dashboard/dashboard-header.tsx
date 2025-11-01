@@ -1,10 +1,3 @@
-/**
- * Dashboard Header Component
- *
- * Displays the page title and view mode toggle.
- * Follows the same pattern as cohorts component structure.
- */
-
 'use client'
 
 import { Button } from '@/components/ui/button'
@@ -34,7 +27,6 @@ export function DashboardHeader({
         </p>
       </div>
 
-      {/* View Mode Toggle */}
       <div className="flex gap-2" role="group" aria-label="View mode">
         <Button
           variant={viewMode === 'grid' ? 'default' : 'outline'}

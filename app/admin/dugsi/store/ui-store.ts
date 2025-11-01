@@ -1,13 +1,3 @@
-/**
- * UI-Only State Store for Dugsi Admin
- *
- * Simplified store managing only UI state (filters, selections, dialog states).
- * Server data (registrations) should be fetched in Server Components
- * and passed down as props to Client Components.
- *
- * Follows the same pattern as app/admin/mahad/cohorts/store/ui-store.ts
- */
-
 import { enableMapSet } from 'immer'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -15,7 +5,6 @@ import { immer } from 'zustand/middleware/immer'
 
 import { FamilyFilters, TabValue, ViewMode } from '../_types'
 
-// Enable Immer MapSet plugin for using Set in the store
 enableMapSet()
 
 // ============================================================================
@@ -99,7 +88,6 @@ const defaultFilters: DugsiFilters = {
 export const useDugsiUIStore = create<DugsiUIStore>()(
   devtools(
     immer((set) => ({
-      // Initial state
       selectedFamilyKeys: new Set(),
       viewMode: 'grid',
       activeTab: 'overview',
@@ -230,7 +218,6 @@ export const useViewMode = () => useDugsiUIStore((state) => state.viewMode)
 export const useActiveTab = () => useDugsiUIStore((state) => state.activeTab)
 export const useDugsiFilters = () => useDugsiUIStore((state) => state.filters)
 
-// Separate selectors for each dialog type (avoids conditional hooks)
 export const useDeleteDialogState = () =>
   useDugsiUIStore((state) => state.isDeleteDialogOpen)
 export const useLinkSubscriptionDialogState = () =>
@@ -244,31 +231,23 @@ export const useLinkSubscriptionDialogData = () =>
 // LEGACY ACTION COMPATIBILITY (For gradual migration)
 // ============================================================================
 
-/**
- * These provide backward compatibility with old action names.
- * Components can be migrated gradually to use the new simplified actions.
- */
 export const useLegacyActions = () => {
   const store = useDugsiUIStore()
   return {
-    // Selection actions
     toggleFamily: (key: string) => store.toggleFamilySelection(key),
     selectFamily: (key: string) => store.toggleFamilySelection(key),
     deselectFamily: (key: string) => store.toggleFamilySelection(key),
     selectAllFamilies: (keys: string[]) => store.setFamilySelection(keys),
     clearSelection: () => store.clearFamilySelection(),
 
-    // Filter actions
     setSearchQuery: (query: string) => store.setSearchQuery(query),
     setAdvancedFilters: (filters: FamilyFilters) =>
       store.setAdvancedFilters(filters),
     resetFilters: () => store.resetFilters(),
 
-    // View actions
     setViewMode: (mode: ViewMode) => store.setViewMode(mode),
     setActiveTab: (tab: TabValue) => store.setActiveTab(tab),
 
-    // Dialog actions
     setDeleteDialogOpen: (open: boolean) => store.setDialogOpen('delete', open),
     setLinkSubscriptionDialogOpen: (open: boolean) =>
       store.setDialogOpen('linkSubscription', open),

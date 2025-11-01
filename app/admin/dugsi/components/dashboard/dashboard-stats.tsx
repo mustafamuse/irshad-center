@@ -1,8 +1,5 @@
 /**
  * Dashboard Stats Component
- *
- * Displays overview statistics cards.
- * Can potentially be a Server Component for better performance.
  */
 
 import { CreditCard, DollarSign, Users, UserCheck } from 'lucide-react'
@@ -17,7 +14,6 @@ interface DashboardStatsProps {
 }
 
 export function DashboardStats({ registrations }: DashboardStatsProps) {
-  // Use centralized utility for family grouping
   const families = groupRegistrationsByFamily(registrations)
 
   const totalFamilies = families.length
@@ -25,7 +21,6 @@ export function DashboardStats({ registrations }: DashboardStatsProps) {
   const paymentMethodsCaptured = families.filter((f) => f.hasPayment).length
   const activeSubscriptions = families.filter((f) => f.hasSubscription).length
 
-  // Calculate percentages
   const paymentCaptureRate =
     totalFamilies > 0
       ? Math.round((paymentMethodsCaptured / totalFamilies) * 100)

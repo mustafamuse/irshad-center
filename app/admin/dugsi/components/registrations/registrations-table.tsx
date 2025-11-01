@@ -82,7 +82,6 @@ export function DugsiRegistrationsTable({
   const [isDeleting, startDeleteTransition] = useTransition()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
 
-  // Fetch family members when a registration is selected
   useEffect(() => {
     if (selectedRegistration) {
       startTransition(async () => {
@@ -108,7 +107,6 @@ export function DugsiRegistrationsTable({
         setShowDeleteDialog(false)
         setSelectedRegistration(null)
         setFamilyMembers([])
-        // The page will automatically update due to revalidatePath in the action
       } else {
         toast.error(result.error || 'Failed to delete family')
       }

@@ -1,10 +1,3 @@
-/**
- * Dashboard Filters Component
- *
- * Combines search bar and advanced filters toggle.
- * Uses Zustand store for state management.
- */
-
 'use client'
 
 import { Search, Filter } from 'lucide-react'
@@ -47,7 +40,6 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
 
   return (
     <>
-      {/* Search and Filter Bar */}
       <div className="flex flex-col gap-4 sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -81,7 +73,6 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
         </Button>
       </div>
 
-      {/* Advanced Filters Panel */}
       {showAdvancedFilters && (
         <div
           id="advanced-filters-panel"

@@ -1,10 +1,3 @@
-/**
- * Delete Family Dialog Component
- *
- * Extracted from dugsi-dashboard for better organization.
- * Uses Zustand store for state management.
- */
-
 'use client'
 
 import { useTransition } from 'react'
@@ -53,7 +46,6 @@ export function DeleteFamilyDialog({ families }: DeleteFamilyDialogProps) {
       let errorCount = 0
 
       for (const familyKey of familyIds) {
-        // Find the first student from this family to get the ID
         const family = families.find((f) => f.familyKey === familyKey)
         if (family && family.members.length > 0) {
           const result = await deleteDugsiFamily(family.members[0].id)
