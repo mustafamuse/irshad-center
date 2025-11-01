@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -33,48 +33,18 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { deleteDugsiFamily } from '../actions'
+import { DugsiRegistration, TabValue, ViewMode, FamilyFilters } from '../_types'
+import { useFamilyGroups, useFamilyStats } from '../_hooks/use-family-groups'
+import { useFamilyFilters } from '../_hooks/use-family-filters'
 import { AdvancedFilters } from './advanced-filters'
 import { DugsiRegistrationsTable } from './dugsi-registrations-table'
 import { DugsiStats } from './dugsi-stats'
 import { FamilyGridView } from './family-grid-view'
 import { QuickActionsBar } from './quick-actions-bar'
 
-interface DugsiRegistration {
-  id: string
-  name: string
-  gender: 'MALE' | 'FEMALE' | null
-  dateOfBirth: Date | string | null
-  educationLevel: string | null
-  gradeLevel: string | null
-  schoolName: string | null
-  healthInfo: string | null
-  createdAt: Date | string
-  parentFirstName: string | null
-  parentLastName: string | null
-  parentEmail: string | null
-  parentPhone: string | null
-  parent2FirstName: string | null
-  parent2LastName: string | null
-  parent2Email: string | null
-  parent2Phone: string | null
-  paymentMethodCaptured: boolean
-  paymentMethodCapturedAt: Date | string | null
-  stripeCustomerIdDugsi: string | null
-  stripeSubscriptionIdDugsi: string | null
-  subscriptionStatus: string | null
-  paidUntil: Date | string | null
-  familyReferenceId: string | null
-  stripeAccountType: string | null
-  currentPeriodStart: Date | string | null
-  currentPeriodEnd: Date | string | null
-}
-
 interface DugsiDashboardProps {
   registrations: DugsiRegistration[]
 }
-
-type TabValue = 'overview' | 'active' | 'pending' | 'needs-attention' | 'all'
-type ViewMode = 'grid' | 'table'
 
 export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
   const router = useRouter()
@@ -85,132 +55,25 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
   const [selectedFamilies, setSelectedFamilies] = useState<Set<string>>(
     new Set()
   )
-  const [filters, setFilters] = useState({
-    dateRange: null as { start: Date; end: Date } | null,
-    schools: [] as string[],
-    grades: [] as string[],
+  const [filters, setFilters] = useState<FamilyFilters>({
+    dateRange: null,
+    schools: [],
+    grades: [],
     hasHealthInfo: false,
   })
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, startDeleteTransition] = useTransition()
 
-  // Group registrations by family
-  const familyGroups = useMemo(() => {
-    const groups = new Map<string, DugsiRegistration[]>()
+  // Use custom hooks for family grouping and stats
+  const familyGroups = useFamilyGroups(registrations)
+  const tabStats = useFamilyStats(familyGroups)
 
-    registrations.forEach((reg) => {
-      // Use family reference ID or parent email as the grouping key
-      const familyKey = reg.familyReferenceId || reg.parentEmail || reg.id
-
-      if (!groups.has(familyKey)) {
-        groups.set(familyKey, [])
-      }
-      groups.get(familyKey)!.push(reg)
-    })
-
-    return Array.from(groups.entries()).map(([key, members]) => ({
-      familyKey: key,
-      members: members.sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      ),
-      hasPayment: members.some((m) => m.paymentMethodCaptured),
-      hasSubscription: members.some(
-        (m) => m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
-      ),
-      parentEmail: members[0]?.parentEmail,
-      parentPhone: members[0]?.parentPhone,
-    }))
-  }, [registrations])
-
-  // Filter families based on tab
-  const filteredFamilies = useMemo(() => {
-    let filtered = familyGroups
-
-    // Apply tab filter (but not for overview - it shows all with filters)
-    switch (activeTab) {
-      case 'overview':
-        // Overview shows all families, filters will be applied below
-        break
-      case 'active':
-        filtered = filtered.filter((f) => f.hasSubscription)
-        break
-      case 'pending':
-        filtered = filtered.filter((f) => f.hasPayment && !f.hasSubscription)
-        break
-      case 'needs-attention':
-        filtered = filtered.filter((f) => !f.hasPayment)
-        break
-      case 'all':
-        // Show all families
-        break
-    }
-
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter((family) => {
-        return family.members.some(
-          (member) =>
-            member.name?.toLowerCase().includes(query) ||
-            member.parentEmail?.toLowerCase().includes(query) ||
-            member.parentPhone?.includes(searchQuery) ||
-            member.schoolName?.toLowerCase().includes(query)
-        )
-      })
-    }
-
-    // Apply advanced filters
-    if (filters.dateRange) {
-      filtered = filtered.filter((family) => {
-        return family.members.some((member) => {
-          const date = new Date(member.createdAt)
-          return (
-            date >= filters.dateRange!.start && date <= filters.dateRange!.end
-          )
-        })
-      })
-    }
-
-    if (filters.schools.length > 0) {
-      filtered = filtered.filter((family) => {
-        return family.members.some((member) =>
-          filters.schools.includes(member.schoolName || '')
-        )
-      })
-    }
-
-    if (filters.grades.length > 0) {
-      filtered = filtered.filter((family) => {
-        return family.members.some((member) =>
-          filters.grades.includes(member.gradeLevel || '')
-        )
-      })
-    }
-
-    if (filters.hasHealthInfo) {
-      filtered = filtered.filter((family) => {
-        return family.members.some(
-          (member) =>
-            member.healthInfo && member.healthInfo.toLowerCase() !== 'none'
-        )
-      })
-    }
-
-    return filtered
-  }, [familyGroups, activeTab, searchQuery, filters])
-
-  // Calculate stats for tabs
-  const tabStats = useMemo(
-    () => ({
-      all: familyGroups.length,
-      active: familyGroups.filter((f) => f.hasSubscription).length,
-      pending: familyGroups.filter((f) => f.hasPayment && !f.hasSubscription)
-        .length,
-      needsAttention: familyGroups.filter((f) => !f.hasPayment).length,
-    }),
-    [familyGroups]
-  )
+  // Use custom hook for filtering
+  const filteredFamilies = useFamilyFilters(familyGroups, {
+    tab: activeTab,
+    searchQuery,
+    advancedFilters: filters,
+  })
 
   const handleBulkAction = (action: string) => {
     switch (action) {
