@@ -39,7 +39,7 @@ import {
 } from '@/lib/utils/type-guards'
 
 import { getDugsiPaymentStatus } from '../actions'
-import { LinkSubscriptionDialog } from './link-subscription-dialog'
+import { LinkSubscriptionDialog } from './dialogs/link-subscription-dialog'
 
 interface PaymentStatusSectionProps {
   familyMembers: Array<{
@@ -67,14 +67,11 @@ export function PaymentStatusSection({
     null
   )
 
-  // Get the primary parent email (from first family member)
   const parentEmail = familyMembers[0]?.parentEmail
 
-  // Check if any family member has payment method
   const hasPaymentMethod = familyMembers.some((m) => m.paymentMethodCaptured)
   const hasSubscription = familyMembers.some((m) => m.stripeSubscriptionIdDugsi)
 
-  // Get subscription details from first member who has one
   const activeSubscription = familyMembers.find(
     (m) => m.stripeSubscriptionIdDugsi
   )

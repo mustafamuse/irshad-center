@@ -1,43 +1,21 @@
 import { CreditCard, DollarSign, Users, UserCheck } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-interface DugsiRegistration {
-  id: string
-  parentEmail: string | null
-  familyReferenceId: string | null
-  paymentMethodCaptured: boolean
-  stripeSubscriptionIdDugsi: string | null
-  subscriptionStatus: string | null
-}
+import { DugsiRegistration } from '../_types'
+import { groupRegistrationsByFamily } from '../_utils/family'
 
 interface DugsiStatsProps {
   registrations: DugsiRegistration[]
 }
 
 export function DugsiStats({ registrations }: DugsiStatsProps) {
-  // Calculate unique families based on familyReferenceId or parentEmail
-  const uniqueFamilies = new Set<string>()
-  const familiesWithPayment = new Set<string>()
-  const familiesWithSubscription = new Set<string>()
+  // Use centralized utility for family grouping
+  const families = groupRegistrationsByFamily(registrations)
 
-  registrations.forEach((reg) => {
-    const familyKey = reg.familyReferenceId || reg.parentEmail || reg.id
-    uniqueFamilies.add(familyKey)
-
-    if (reg.paymentMethodCaptured) {
-      familiesWithPayment.add(familyKey)
-    }
-
-    if (reg.stripeSubscriptionIdDugsi && reg.subscriptionStatus === 'active') {
-      familiesWithSubscription.add(familyKey)
-    }
-  })
-
-  const totalFamilies = uniqueFamilies.size
+  const totalFamilies = families.length
   const totalStudents = registrations.length
-  const paymentMethodsCaptured = familiesWithPayment.size
-  const activeSubscriptions = familiesWithSubscription.size
+  const paymentMethodsCaptured = families.filter((f) => f.hasPayment).length
+  const activeSubscriptions = families.filter((f) => f.hasSubscription).length
 
   // Calculate percentages
   const paymentCaptureRate =

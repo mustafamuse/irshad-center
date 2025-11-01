@@ -2,108 +2,122 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
+import {
+  DUGSI_REGISTRATION_SELECT,
+  DUGSI_FAMILY_SELECT,
+  DUGSI_PAYMENT_STATUS_SELECT,
+  DUGSI_SUBSCRIPTION_LINK_SELECT,
+} from './_queries/selects'
+import { getFamilyPhoneNumbers } from './_utils/family'
+
 export async function getDugsiRegistrations() {
   const students = await prisma.student.findMany({
-    where: { program: 'DUGSI_PROGRAM' },
+    where: { program: DUGSI_PROGRAM },
     orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      gender: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      healthInfo: true,
-      createdAt: true,
-      parentFirstName: true,
-      parentLastName: true,
-      parentEmail: true,
-      parentPhone: true,
-      parent2FirstName: true,
-      parent2LastName: true,
-      parent2Email: true,
-      parent2Phone: true,
-      // Payment fields
-      paymentMethodCaptured: true,
-      paymentMethodCapturedAt: true,
-      stripeCustomerIdDugsi: true,
-      stripeSubscriptionIdDugsi: true,
-      subscriptionStatus: true,
-      paidUntil: true,
-      currentPeriodStart: true,
-      currentPeriodEnd: true,
-      familyReferenceId: true,
-      stripeAccountType: true,
-    },
+    select: DUGSI_REGISTRATION_SELECT,
   })
 
   return students
+}
+
+/**
+ * Validate a Stripe subscription ID without linking it.
+ * Used by the link subscription dialog to check if a subscription exists.
+ */
+export async function validateDugsiSubscription(subscriptionId: string) {
+  try {
+    if (!subscriptionId.startsWith('sub_')) {
+      return {
+        success: false,
+        error: 'Invalid subscription ID format. Must start with "sub_"',
+      }
+    }
+
+    // Validate the subscription exists in Stripe
+    const dugsiStripe = getDugsiStripeClient()
+    const subscription =
+      await dugsiStripe.subscriptions.retrieve(subscriptionId)
+
+    if (!subscription) {
+      return { success: false, error: 'Subscription not found in Stripe' }
+    }
+
+    // Extract customer ID
+    const customerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id
+
+    if (!customerId) {
+      return { success: false, error: 'Invalid customer ID in subscription' }
+    }
+
+    // Extract period dates using utility function
+    const periodDates = extractPeriodDates(subscription)
+
+    return {
+      success: true,
+      data: {
+        subscriptionId: subscription.id,
+        customerId,
+        status: subscription.status,
+        currentPeriodStart: periodDates.periodStart,
+        currentPeriodEnd: periodDates.periodEnd,
+      },
+    }
+  } catch (error) {
+    console.error('Error validating Dugsi subscription:', error)
+    if (error instanceof Error) {
+      // Check if it's a Stripe error
+      if (error.message.includes('No such subscription')) {
+        return {
+          success: false,
+          error: 'Subscription not found in Stripe',
+        }
+      }
+      return {
+        success: false,
+        error: error.message || 'Failed to validate subscription',
+      }
+    }
+    return {
+      success: false,
+      error: 'Failed to validate subscription',
+    }
+  }
 }
 
 export async function getFamilyMembers(studentId: string) {
   // Get the selected student
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: {
-      parentPhone: true,
-      parent2Phone: true,
-    },
+    select: DUGSI_FAMILY_SELECT,
   })
 
   if (!student) return []
 
   // Find all siblings (students with the same parent phone number)
-  const phoneNumbers = [student.parentPhone, student.parent2Phone].filter(
-    Boolean
-  )
+  // Use utility function for consistent family identification
+  const phoneNumbers = getFamilyPhoneNumbers(student)
 
   if (phoneNumbers.length === 0) return []
 
   const siblings = await prisma.student.findMany({
     where: {
-      program: 'DUGSI_PROGRAM',
+      program: DUGSI_PROGRAM,
       OR: phoneNumbers.map((phone) => ({
         OR: [{ parentPhone: phone }, { parent2Phone: phone }],
       })),
     },
     orderBy: { createdAt: 'asc' },
-    select: {
-      id: true,
-      name: true,
-      gender: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      healthInfo: true,
-      createdAt: true,
-      parentFirstName: true,
-      parentLastName: true,
-      parentEmail: true,
-      parentPhone: true,
-      parent2FirstName: true,
-      parent2LastName: true,
-      parent2Email: true,
-      parent2Phone: true,
-      // Payment fields
-      paymentMethodCaptured: true,
-      paymentMethodCapturedAt: true,
-      stripeCustomerIdDugsi: true,
-      stripeSubscriptionIdDugsi: true,
-      subscriptionStatus: true,
-      paidUntil: true,
-      currentPeriodStart: true,
-      currentPeriodEnd: true,
-      familyReferenceId: true,
-      stripeAccountType: true,
-    },
+    select: DUGSI_REGISTRATION_SELECT,
   })
 
   return siblings
@@ -114,10 +128,7 @@ export async function deleteDugsiFamily(studentId: string) {
     // Get the student to find family members
     const student = await prisma.student.findUnique({
       where: { id: studentId },
-      select: {
-        parentPhone: true,
-        parent2Phone: true,
-      },
+      select: DUGSI_FAMILY_SELECT,
     })
 
     if (!student) {
@@ -125,9 +136,8 @@ export async function deleteDugsiFamily(studentId: string) {
     }
 
     // Find all phone numbers to identify the family
-    const phoneNumbers = [student.parentPhone, student.parent2Phone].filter(
-      Boolean
-    )
+    // Use utility function for consistent family identification
+    const phoneNumbers = getFamilyPhoneNumbers(student)
 
     if (phoneNumbers.length === 0) {
       // If no phone numbers, just delete the single student
@@ -138,7 +148,7 @@ export async function deleteDugsiFamily(studentId: string) {
       // Delete all family members (students with matching phone numbers)
       await prisma.student.deleteMany({
         where: {
-          program: 'DUGSI_PROGRAM',
+          program: DUGSI_PROGRAM,
           OR: phoneNumbers.map((phone) => ({
             OR: [{ parentPhone: phone }, { parent2Phone: phone }],
           })),
@@ -208,13 +218,9 @@ export async function linkDugsiSubscription(params: {
       const students = await tx.student.findMany({
         where: {
           parentEmail,
-          program: 'DUGSI_PROGRAM',
+          program: DUGSI_PROGRAM,
         },
-        select: {
-          id: true,
-          stripeSubscriptionIdDugsi: true,
-          subscriptionStatus: true,
-        },
+        select: DUGSI_SUBSCRIPTION_LINK_SELECT,
       })
 
       if (students.length === 0) {
@@ -275,20 +281,9 @@ export async function getDugsiPaymentStatus(parentEmail: string) {
     const students = await prisma.student.findMany({
       where: {
         parentEmail,
-        program: 'DUGSI_PROGRAM',
+        program: DUGSI_PROGRAM,
       },
-      select: {
-        id: true,
-        name: true,
-        paymentMethodCaptured: true,
-        paymentMethodCapturedAt: true,
-        stripeCustomerIdDugsi: true,
-        stripeSubscriptionIdDugsi: true,
-        subscriptionStatus: true,
-        paidUntil: true,
-        currentPeriodStart: true,
-        currentPeriodEnd: true,
-      },
+      select: DUGSI_PAYMENT_STATUS_SELECT,
     })
 
     if (students.length === 0) {

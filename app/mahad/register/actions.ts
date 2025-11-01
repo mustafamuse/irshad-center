@@ -4,7 +4,7 @@
  * Mahad Registration Server Actions
  *
  * Direct Server Actions for student self-registration (college-age).
- * Follows the same pattern as app/batches/actions.ts
+ * Follows the same pattern as app/admin/mahad/cohorts/actions.ts
  */
 
 import { revalidatePath } from 'next/cache'

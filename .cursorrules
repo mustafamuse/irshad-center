@@ -1,6 +1,11 @@
+# Project Rules & Best Practices
+
+## Core Expertise
 You are an expert in TypeScript, Node.js, Next.js App Router, React, Shadcn UI, Radix UI and Tailwind.
 
-Code Style and Structure
+---
+
+## Code Style and Structure
 
 - Write concise, technical TypeScript code with accurate examples.
 - Use functional and declarative programming patterns; avoid classes.
@@ -8,36 +13,60 @@ Code Style and Structure
 - Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
 - Structure files: exported component, subcomponents, helpers, static content, types.
 
-Naming Conventions
+---
+
+## Naming Conventions
 
 - Use lowercase with dashes for directories (e.g., components/auth-wizard).
 - Favor named exports for components.
+- Use PascalCase for components and interfaces.
+- Use camelCase for variables and functions.
+- Use UPPER_SNAKE_CASE for constants.
 
-TypeScript Usage
+---
+
+## TypeScript Usage
 
 - Use TypeScript for all code; prefer interfaces over types.
 - Avoid enums; use maps instead.
 - Use functional components with TypeScript interfaces.
+- Avoid `any` type; use `unknown` or proper types instead.
+- Use type guards for runtime type checking.
 
-Syntax and Formatting
+---
+
+## Syntax and Formatting
 
 - Use the "function" keyword for pure functions.
 - Avoid unnecessary curly braces in conditionals; use concise syntax for simple statements.
 - Use declarative JSX.
+- Prefer template literals over string concatenation.
+- Use optional chaining (`?.`) and nullish coalescing (`??`) when appropriate.
 
-UI and Styling
+---
+
+## UI and Styling
 
 - Use Shadcn UI, Radix, and Tailwind for components and styling.
 - Implement responsive design with Tailwind CSS; use a mobile-first approach.
+- Use consistent spacing (Tailwind spacing scale).
+- Use semantic HTML elements.
+- Ensure proper accessibility (ARIA labels, keyboard navigation).
 
-Performance Optimization
+---
+
+## Performance Optimization
 
 - Minimize 'use client', 'useEffect', and 'setState'; favor React Server Components (RSC).
 - Wrap client components in Suspense with fallback.
 - Use dynamic loading for non-critical components.
 - Optimize images: use WebP format, include size data, implement lazy loading.
+- Use `useMemo` and `useCallback` only when necessary (premature optimization).
+- Prefer Server Components for data fetching.
 
-Key Conventions
+---
+
+## Key Conventions
 
 - Use 'nuqs' for URL search parameter state management.
 - Optimize Web Vitals (LCP, CLS, FID).
@@ -48,13 +77,195 @@ Key Conventions
 
 Follow Next.js docs for Data Fetching, Rendering, and Routing.
 
-Important Notes (Must Appear in Every Prompt)
+---
+
+## Component Architecture
+
+### Server Components (Default)
+- ✅ Use for data fetching, database access, SEO content
+- ✅ No 'use client' directive
+- ✅ Can use async/await directly
+- ✅ Cannot use React hooks or browser APIs
+
+### Client Components (Only When Needed)
+- ✅ Use for interactivity (onClick, onChange)
+- ✅ Use for browser APIs (localStorage, window)
+- ✅ Use for React hooks (useState, useEffect)
+- ✅ Use for animations (Framer Motion)
+- ❌ Don't use for data fetching
+- ❌ Don't use for state management (use Zustand or Server State)
+
+### Component Organization
+- Organize by feature within routes:
+  ```
+  app/admin/dugsi/
+  ├── components/
+  │   ├── dashboard/        # Feature-specific
+  │   ├── family-management/
+  │   ├── dialogs/
+  │   └── ui/               # Shared UI
+  ```
+- Use barrel exports (`index.tsx`) for clean imports.
+- Keep components small and focused (single responsibility).
+
+---
+
+## State Management Patterns
+
+### Server State (Default)
+- Fetch data in Server Components
+- Use Server Actions for mutations
+- Use `revalidatePath` / `revalidateTag` for cache invalidation
+
+### Client UI State (Zustand)
+- Use Zustand for UI-only state (filters, selections, view modes)
+- Keep stores focused and domain-specific
+- Use `immer` middleware for immutable updates
+
+### URL State (nuqs)
+- Use `nuqs` for shareable URL state (filters, pagination)
+- Keep URL state minimal and meaningful
+
+### Form State (React Hook Form)
+- Use React Hook Form for form state
+- Use Zod for validation
+- Extract form logic into custom hooks
+
+---
+
+## Error Handling
+
+### Server Actions
+- Use consistent `ActionResult<T>` type:
+  ```typescript
+  type ActionResult<T = void> = {
+    success: boolean
+    data?: T
+    error?: string
+    errors?: Partial<Record<string, string[]>>
+  }
+  ```
+- Always handle errors with try-catch
+- Use centralized `handleActionError` utility
+- Return structured error responses
+
+### Page-Level Errors
+- Implement `error.tsx` files for route-level error boundaries
+- Provide user-friendly error messages
+- Include retry functionality
+
+### Component-Level Errors
+- Use try-catch for async operations in Client Components
+- Display toast notifications for user feedback
+- Log errors appropriately
+
+---
+
+## Loading States
+
+### Suspense Boundaries
+- Use `loading.tsx` files for route-level loading states
+- Create skeleton components that match layout
+- Use Suspense for data fetching boundaries
+
+### Inline Loading
+- Use `useTransition` for optimistic updates
+- Show loading indicators during async operations
+- Disable buttons/forms during pending states
+
+---
+
+## Data Fetching Patterns
+
+### Server Components
+```typescript
+export default async function Page() {
+  const data = await getData()
+  return <Component data={data} />
+}
+```
+
+### Parallel Fetching
+```typescript
+const [data1, data2, data3] = await Promise.all([
+  getData1(),
+  getData2(),
+  getData3(),
+])
+```
+
+### Server Actions
+```typescript
+'use server'
+export async function createItem(data: ItemInput): Promise<ActionResult> {
+  try {
+    await prisma.item.create({ data })
+    revalidatePath('/items')
+    return { success: true }
+  } catch (error) {
+    return handleActionError(error)
+  }
+}
+```
+
+---
+
+## Routing Patterns
+
+### Domain-Driven Routing
+- Organize routes by domain/program rather than feature:
+  ```
+  /mahad           # Public Mahad
+  /dugsi           # Public Dugsi
+  /admin/mahad     # Mahad admin
+  /admin/dugsi     # Dugsi admin
+  /admin/shared    # Shared admin
+  ```
+
+### Page Structure
+- Server Component pages by default
+- Include metadata for SEO
+- Use Suspense boundaries
+- Use Error Boundaries
+- Include loading.tsx and error.tsx files
+
+---
+
+## Code Organization
+
+### Feature-Based Structure
+```
+app/admin/dugsi/
+├── _types/          # Centralized types
+├── _utils/           # Utility functions
+├── _queries/         # Prisma select objects
+├── _hooks/           # Custom hooks
+├── components/       # Feature-based components
+├── actions.ts        # Server Actions
+├── page.tsx          # Route page
+├── loading.tsx        # Loading state
+└── error.tsx         # Error boundary
+```
+
+### Centralized Utilities
+- Types: `_types/index.ts`
+- Prisma selects: `_queries/selects.ts`
+- Utilities: `_utils/*.ts`
+- Custom hooks: `_hooks/*.ts`
+
+---
+
+## Important Notes (Must Appear in Every Prompt)
 
 - DO NOT EVER REMOVE OR CHANGE CODE WITHOUT CHECKING FIRST
 - ALWAYS TEST FUNCTIONALITY BEFORE FINALIZING
 - ALWAYS REITERATE TO SHOW UNDERSTANDING
+- ALWAYS CHECK FOR LINTING ERRORS BEFORE COMMITTING
+- ALWAYS USE CONSISTENT PATTERNS ACROSS THE CODEBASE
 
-DATABASE SAFETY RULES (CRITICAL - NEVER VIOLATE)
+---
+
+## DATABASE SAFETY RULES (CRITICAL - NEVER VIOLATE)
 
 ⛔ NEVER RESET DATABASE
 - NEVER EVER run: prisma migrate reset
@@ -94,3 +305,76 @@ If user asks to reset database:
 2. Suggest alternative solutions (new migration, data cleanup script, etc.)
 3. Explain the risk of data loss
 4. Only proceed if user EXPLICITLY confirms understanding of data loss
+
+---
+
+## Code Quality Standards
+
+### ✅ Do
+- Use Server Components by default
+- Organize components by feature
+- Use barrel exports for clean imports
+- Extract complex logic into custom hooks
+- Use consistent error handling patterns
+- Include loading states
+- Use TypeScript for type safety
+- Follow naming conventions
+- Write testable code
+- Document complex logic
+
+### ❌ Don't
+- Don't use 'use client' unless necessary
+- Don't mix server and client logic
+- Don't fetch data in Client Components
+- Don't skip error handling
+- Don't skip loading states
+- Don't duplicate component logic
+- Don't create overly large components
+- Don't use `any` type
+- Don't ignore linting errors
+- Don't commit without testing
+
+---
+
+## Testing Guidelines
+
+- Write unit tests for utility functions
+- Write integration tests for critical flows
+- Test error handling paths
+- Test loading states
+- Use Vitest for unit tests
+- Use Playwright for E2E tests (if applicable)
+
+---
+
+## Documentation Standards
+
+- Document complex logic with comments
+- Use JSDoc for public APIs (sparingly)
+- Keep README files updated
+- Document architectural decisions
+- Include code examples in documentation
+
+---
+
+## Git Workflow
+
+- Write clear, descriptive commit messages
+- Use conventional commit format when possible
+- Run linting and formatting before committing
+- Test before committing
+- Don't commit debugging code
+- Use meaningful branch names
+
+---
+
+## Resources
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [React Server Components](https://react.dev/reference/rsc/server-components)
+- [TypeScript Handbook](https://www.typescriptlang.org/docs/)
+- [Tailwind CSS](https://tailwindcss.com/docs)
+- [Shadcn UI](https://ui.shadcn.com/)
+- [Zustand](https://zustand-demo.pmnd.rs/)
+- [React Hook Form](https://react-hook-form.com/)
+- [Zod](https://zod.dev/)

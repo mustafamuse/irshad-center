@@ -81,81 +81,80 @@ A modern Next.js application for managing student attendance, payments, and admi
 ```
 irshad-center/
 ├── app/                    # Next.js App Router pages
-│   ├── (features)/        # Feature-based routes
-│   ├── api/               # API routes
-│   └── layout.tsx         # Root layout
+│   ├── mahad/             # Public Mahad program pages
+│   ├── dugsi/             # Public Dugsi program pages
+│   ├── admin/             # Admin routes
+│   │   ├── mahad/         # Mahad admin
+│   │   │   └── cohorts/   # Cohort management
+│   │   ├── dugsi/         # Dugsi admin
+│   │   └── shared/        # Shared admin features
+│   │       └── attendance/ # Attendance tracking
+│   └── api/               # API routes
+│       └── webhook/       # Stripe webhooks
 ├── components/            # Shared components
-│   ├── ui/               # UI components
+│   ├── ui/               # Shadcn UI components
 │   └── layout/           # Layout components
 ├── lib/                   # Utilities and configurations
-│   ├── actions/          # Server actions
-│   ├── config/           # App configuration
-│   └── utils/            # Helper functions
+│   ├── db/               # Database utilities
+│   ├── utils/            # Helper functions
+│   └── validations/      # Zod schemas
 ├── prisma/               # Database schema and migrations
+├── docs/                 # Documentation
+│   ├── ARCHITECTURE.md   # Architecture overview
+│   ├── ROUTING.md        # Routing structure
+│   └── COMPONENT_PATTERNS.md # Component patterns
 └── public/               # Static assets
 ```
 
 ## Architecture
 
-This application follows Next.js 15 best practices:
+This application follows Next.js 15 best practices with a **domain-driven routing structure**:
 
 - **Server Components** by default for optimal performance
 - **Server Actions** for data mutations and form handling
 - **TypeScript** for type safety
-- **Functional components** with React hooks
-- **Tailwind CSS** for styling
-- **Mobile-first responsive design**
+- **Zustand** for UI-only state management
+- **Feature-based component organization**
+- **Centralized types and utilities**
 
-### Component Structure
+### Domain-Driven Routing
 
-```typescript
-// Server Component (default)
-interface ComponentProps {
-  required: string
-  optional?: number
-}
+Routes are organized by program/domain:
 
-export default function ServerComponent({ required, optional }: ComponentProps) {
-  // Direct database access
-  const data = await prisma.model.findMany()
+- `/mahad` - Public Mahad program pages
+- `/dugsi` - Public Dugsi program pages
+- `/admin/mahad` - Mahad admin functionality
+- `/admin/dugsi` - Dugsi admin functionality
+- `/admin/shared` - Shared admin features
 
-  return (
-    <div>
-      {/* Server-side rendered content */}
-    </div>
-  )
-}
+### Documentation
 
-// Client Component (when needed)
-'use client'
+For detailed architecture information, see:
 
-export function ClientComponent({ data }: { data: any[] }) {
-  // 1. Client-side hooks
-  const [state, setState] = useState()
-
-  // 2. Event handlers
-  const handleClick = useCallback(...)
-
-  // 3. Render
-  return (...)
-}
-```
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Architecture overview, principles, and patterns
+- **[ROUTING.md](docs/ROUTING.md)** - Route structure and organization
+- **[COMPONENT_PATTERNS.md](docs/COMPONENT_PATTERNS.md)** - Component patterns and best practices
 
 ## Key Features
 
-### Weekend Attendance System
+### Program Management
 
-- Mobile-responsive attendance marking
-- Server Actions for data mutations
-- Real-time attendance tracking
-- Batch and session management
+- **Mahad Program** - College-level Islamic education
+  - Public registration flow
+  - Cohort management
+  - Student tracking
 
-### Payment Management
+- **Dugsi Program** - K-12 Islamic education (ages 5 to teens)
+  - Parent-led registration
+  - Family grouping and management
+  - Payment status tracking
 
-- Stripe integration for subscriptions
-- Manual payment recording
-- Payment history tracking
-- Student billing management
+### Shared Features
+
+- **Attendance Tracking** - Cross-program attendance management
+- **Payment Management** - Stripe integration for subscriptions
+- **Subscription Linking** - Manual subscription management
+- **Financial Reporting** - Profit share calculations
 
 ## Contributing
 
