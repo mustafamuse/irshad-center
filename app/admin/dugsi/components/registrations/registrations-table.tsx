@@ -124,7 +124,7 @@ export function DugsiRegistrationsTable({
     }
   }
 
-  // Filter registrations based on last 4 digits of phone numbers and date
+  // Smart search with auto-detection (email/phone/name)
   const filteredRegistrations = registrations.filter((reg) => {
     // Date filter
     const dateRange = getDateRange(dateFilter)
@@ -135,29 +135,44 @@ export function DugsiRegistrationsTable({
       }
     }
 
-    // Phone search filter
+    // If no search query, show all (date-filtered) results
     if (!debouncedSearch) return true
 
-    // Normalize search query (remove non-digits)
+    const searchLower = debouncedSearch.toLowerCase().trim()
+
+    // 1. Email search (if contains @)
+    if (searchLower.includes('@')) {
+      return (
+        reg.parentEmail?.toLowerCase().includes(searchLower) ||
+        reg.parent2Email?.toLowerCase().includes(searchLower)
+      )
+    }
+
+    // 2. Phone search (if 4+ digits)
     const searchDigits = debouncedSearch.replace(/\D/g, '')
-    if (searchDigits.length < 4) return true
+    if (searchDigits.length >= 4) {
+      const searchLast4 = searchDigits.slice(-4)
+      const parent1Digits = reg.parentPhone?.replace(/\D/g, '') || ''
+      const parent2Digits = reg.parent2Phone?.replace(/\D/g, '') || ''
 
-    // Get last 4 digits from search
-    const searchLast4 = searchDigits.slice(-4)
-
-    // Check parent 1 phone
-    if (reg.parentPhone) {
-      const parent1Digits = reg.parentPhone.replace(/\D/g, '')
-      if (parent1Digits.endsWith(searchLast4)) return true
+      return (
+        parent1Digits.endsWith(searchLast4) ||
+        parent2Digits.endsWith(searchLast4)
+      )
     }
 
-    // Check parent 2 phone
-    if (reg.parent2Phone) {
-      const parent2Digits = reg.parent2Phone.replace(/\D/g, '')
-      if (parent2Digits.endsWith(searchLast4)) return true
-    }
+    // 3. Name search (default) - searches child + both parents
+    const childName = reg.name.toLowerCase()
+    const parent1Name =
+      `${reg.parentFirstName || ''} ${reg.parentLastName || ''}`.toLowerCase()
+    const parent2Name =
+      `${reg.parent2FirstName || ''} ${reg.parent2LastName || ''}`.toLowerCase()
 
-    return false
+    return (
+      childName.includes(searchLower) ||
+      parent1Name.includes(searchLower) ||
+      parent2Name.includes(searchLower)
+    )
   })
 
   return (
@@ -220,15 +235,42 @@ export function DugsiRegistrationsTable({
           </Button>
         </div>
 
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search by last 4 digits of parent phone..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search by name, phone, or email..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {/* Search type indicator */}
+          {debouncedSearch && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              {debouncedSearch.includes('@') ? (
+                <>
+                  <Mail className="h-3 w-3" />
+                  <span>Searching emails...</span>
+                </>
+              ) : debouncedSearch.replace(/\D/g, '').length >= 4 ? (
+                <>
+                  <Phone className="h-3 w-3" />
+                  <span>Searching phones...</span>
+                </>
+              ) : (
+                <>
+                  <Users className="h-3 w-3" />
+                  <span>Searching names...</span>
+                </>
+              )}
+              <span className="font-medium">
+                {filteredRegistrations.length} results
+              </span>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-0">
