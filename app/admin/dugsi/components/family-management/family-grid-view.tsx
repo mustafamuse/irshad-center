@@ -90,15 +90,6 @@ export function FamilyGridView({
     onSelectionChange(newSelection)
   }
 
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      toast.success(`${label} copied to clipboard`)
-    } catch (err) {
-      toast.error('Failed to copy to clipboard')
-    }
-  }
-
   if (families.length === 0) {
     return (
       <EmptyState
@@ -120,7 +111,6 @@ export function FamilyGridView({
           const isExpanded = expandedFamilies.has(family.familyKey)
           const isSelected = selectedFamilies.has(family.familyKey)
           const firstMember = family.members[0]
-          const status = getFamilyStatus(family)
 
           // Define swipe actions for mobile
           const swipeActions: SwipeAction[] = [
@@ -192,22 +182,10 @@ export function FamilyGridView({
                         </Button>
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
-                          <FamilyStatusBadge status={status} />
-                          {firstMember && hasSecondParent(firstMember) && (
-                            <Badge variant="outline" className="text-xs">
-                              2 Parents
-                            </Badge>
-                          )}
                           <Badge variant="secondary" className="text-xs">
                             {family.members.length}{' '}
                             {family.members.length === 1 ? 'Child' : 'Children'}
                           </Badge>
-                          {firstMember?.stripeCustomerIdDugsi && (
-                            <Badge variant="outline" className="text-xs">
-                              <CreditCard className="mr-1 h-3 w-3" />
-                              Customer
-                            </Badge>
-                          )}
                         </div>
 
                         {viewMode === 'full' && firstMember && (
@@ -361,88 +339,6 @@ export function FamilyGridView({
                           ))}
                         </div>
                       </div>
-
-                      {/* Payment Details Section */}
-                      {family.members[0]?.stripeCustomerIdDugsi && (
-                        <div className="border-t pt-3">
-                          <h4 className="mb-2 text-sm font-medium">
-                            Payment Details
-                          </h4>
-                          <div className="space-y-1 text-sm">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-muted-foreground">
-                                Customer ID:
-                              </span>
-                              <div className="flex items-center gap-1">
-                                <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                                  {family.members[0].stripeCustomerIdDugsi.slice(
-                                    0,
-                                    14
-                                  )}
-                                  ...
-                                </code>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() =>
-                                    copyToClipboard(
-                                      family.members[0].stripeCustomerIdDugsi,
-                                      'Customer ID'
-                                    )
-                                  }
-                                  aria-label="Copy customer ID"
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            {family.members[0]?.stripeSubscriptionIdDugsi && (
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-muted-foreground">
-                                  Subscription:
-                                </span>
-                                <div className="flex items-center gap-1">
-                                  <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                                    {family.members[0].stripeSubscriptionIdDugsi.slice(
-                                      0,
-                                      14
-                                    )}
-                                    ...
-                                  </code>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() =>
-                                      copyToClipboard(
-                                        family.members[0]
-                                          .stripeSubscriptionIdDugsi,
-                                        'Subscription ID'
-                                      )
-                                    }
-                                    aria-label="Copy subscription ID"
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                            {family.members[0]?.paidUntil && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">
-                                  Next Billing:
-                                </span>
-                                <span className="text-xs">
-                                  {new Date(
-                                    family.members[0].paidUntil
-                                  ).toLocaleDateString()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </CardContent>
                 )}

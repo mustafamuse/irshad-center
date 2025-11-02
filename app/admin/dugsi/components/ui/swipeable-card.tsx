@@ -92,11 +92,18 @@ export function SwipeableCard({
 
   // If disabled, render children without swipe wrapper to maintain consistent structure
   if (disabled) {
-    return <div ref={cardRef}>{children}</div>
+    return (
+      <div ref={cardRef} className="h-full">
+        {children}
+      </div>
+    )
   }
 
   return (
-    <div className="relative overflow-hidden md:overflow-visible" ref={cardRef}>
+    <div
+      className="relative h-full overflow-hidden md:overflow-visible"
+      ref={cardRef}
+    >
       {/* Left actions (revealed when swiping right) */}
       {leftActions.length > 0 && (
         <motion.div

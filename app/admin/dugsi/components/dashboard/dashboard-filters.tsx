@@ -1,49 +1,52 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+
 import { Search, Filter } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useDebounce } from '@/hooks/use-debounce'
 
 import { AdvancedFilters } from './advanced-filters'
 import { MobileFilterDrawer } from './mobile-filter-drawer'
-import { DugsiRegistration } from '../../_types'
 import {
   useAdvancedFiltersState,
   useDugsiFilters,
   useLegacyActions,
 } from '../../store'
 
-interface DashboardFiltersProps {
-  registrations: DugsiRegistration[]
-}
-
-export function DashboardFilters({ registrations }: DashboardFiltersProps) {
+export function DashboardFilters() {
   const showAdvancedFilters = useAdvancedFiltersState()
   const filters = useDugsiFilters()
   const { setSearchQuery, setAdvancedFilters, setAdvancedFiltersOpen } =
     useLegacyActions()
 
-  const searchQuery = filters.search?.query || ''
+  // Local state for immediate input value
+  const [localSearchQuery, setLocalSearchQuery] = useState(
+    filters.search?.query || ''
+  )
+
+  // Debounced value
+  const debouncedSearchQuery = useDebounce(localSearchQuery, 300)
+
+  // Update Zustand store when debounced value changes
+  useEffect(() => {
+    setSearchQuery(debouncedSearchQuery)
+  }, [debouncedSearchQuery, setSearchQuery])
+
   const advancedFilters = filters.advanced || {
-    dateRange: null,
-    schools: [],
-    grades: [],
+    dateFilter: 'all',
     hasHealthInfo: false,
   }
 
   const hasActiveAdvancedFilters =
-    advancedFilters.dateRange ||
-    advancedFilters.schools.length > 0 ||
-    advancedFilters.grades.length > 0 ||
-    advancedFilters.hasHealthInfo
+    advancedFilters.dateFilter !== 'all' || advancedFilters.hasHealthInfo
 
   // Count active filters for mobile drawer badge
   const activeFilterCount =
-    (advancedFilters.dateRange ? 1 : 0) +
-    advancedFilters.schools.length +
-    advancedFilters.grades.length +
+    (advancedFilters.dateFilter !== 'all' ? 1 : 0) +
     (advancedFilters.hasHealthInfo ? 1 : 0)
 
   return (
@@ -53,11 +56,11 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search by name, email, phone, or school..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name, email, or phone..."
+            value={localSearchQuery}
+            onChange={(e) => setLocalSearchQuery(e.target.value)}
             className="pl-9"
-            aria-label="Search families by name, email, phone, or school"
+            aria-label="Search families by name, email, or phone"
           />
         </div>
 
@@ -87,7 +90,6 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
           <AdvancedFilters
             filters={advancedFilters}
             onFiltersChange={setAdvancedFilters}
-            registrations={registrations}
           />
         </MobileFilterDrawer>
       </div>
@@ -103,7 +105,6 @@ export function DashboardFilters({ registrations }: DashboardFiltersProps) {
           <AdvancedFilters
             filters={advancedFilters}
             onFiltersChange={setAdvancedFilters}
-            registrations={registrations}
           />
         </div>
       )}

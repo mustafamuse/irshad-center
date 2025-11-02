@@ -50,9 +50,7 @@ export interface Family {
 
 // Filter types
 export interface FamilyFilters {
-  dateRange: { start: Date; end: Date } | null
-  schools: string[]
-  grades: string[]
+  dateFilter: DateFilter
   hasHealthInfo: boolean
 }
 

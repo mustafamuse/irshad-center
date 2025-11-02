@@ -10,20 +10,11 @@
 
 import { useState } from 'react'
 
-import {
-  Users,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  TrendingUp,
-  Filter,
-} from 'lucide-react'
+import { Users, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { EmptyState } from '@/components/ui/empty-state'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { exportFamiliesToCSV } from '@/lib/csv-export'
 
@@ -76,7 +67,6 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
     clearSelection,
     setDeleteDialogOpen,
     selectAllFamilies,
-    resetFilters,
   } = useLegacyActions()
 
   // Custom hooks for data processing
@@ -136,13 +126,6 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
     selectAllFamilies(Array.from(keys))
   }
 
-  const hasActiveFilters =
-    (filters.search?.query?.trim().length ?? 0) > 0 ||
-    filters.advanced?.dateRange !== null ||
-    (filters.advanced?.schools.length ?? 0) > 0 ||
-    (filters.advanced?.grades.length ?? 0) > 0 ||
-    filters.advanced?.hasHealthInfo === true
-
   return (
     <>
       <SkipLink />
@@ -161,7 +144,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
         <DashboardHeader />
 
         {/* Filters */}
-        <DashboardFilters registrations={registrations} />
+        <DashboardFilters />
 
         {/* Quick Actions Bar */}
         {selectedFamilyKeys.size > 0 && (
@@ -172,21 +155,16 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           />
         )}
 
+        {/* Dashboard Stats */}
+        <DashboardStats registrations={registrations} />
+
         {/* Main Content Tabs */}
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as typeof activeTab)}
           aria-label="Family management tabs"
         >
-          <TabsList className="flex h-auto flex-wrap justify-start sm:grid sm:grid-cols-5">
-            <TabsTrigger
-              value="overview"
-              className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
-            >
-              <TrendingUp className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Overview</span>
-              <span className="sm:hidden">Stats</span>
-            </TabsTrigger>
+          <TabsList className="flex h-auto flex-wrap justify-start sm:grid sm:grid-cols-4">
             <TabsTrigger
               value="active"
               className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
@@ -242,58 +220,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-6">
-            <DashboardStats registrations={registrations} />
-
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  Recent Registrations
-                  {hasActiveFilters && (
-                    <span className="ml-2 text-sm font-normal text-muted-foreground">
-                      (filtered: showing {Math.min(filteredFamilies.length, 6)}{' '}
-                      of {filteredFamilies.length})
-                    </span>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {filteredFamilies.length === 0 ? (
-                  <EmptyState
-                    icon={<Filter className="h-8 w-8" />}
-                    title="No families match your filters"
-                    description="Try adjusting your search or filter criteria to see results."
-                    action={{
-                      label: 'Clear Filters',
-                      onClick: resetFilters,
-                      variant: 'outline',
-                    }}
-                  />
-                ) : viewMode === 'grid' ? (
-                  <FamilyGridView
-                    families={filteredFamilies.slice(0, 6)}
-                    selectedFamilies={selectedFamilyKeys}
-                    onSelectionChange={handleSelectionChange}
-                    viewMode="compact"
-                  />
-                ) : (
-                  <DugsiRegistrationsTable
-                    registrations={filteredFamilies
-                      .flatMap((f) => f.members)
-                      .slice(0, 6)}
-                  />
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="active" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                Active Subscriptions ({filteredFamilies.length} families)
-              </h2>
-            </div>
             {viewMode === 'grid' ? (
               <FamilyGridView
                 families={filteredFamilies}
@@ -308,10 +235,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsContent>
 
           <TabsContent value="pending" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                Pending Setup ({filteredFamilies.length} families)
-              </h2>
+            <div className="flex items-center justify-end">
               <Button
                 size="sm"
                 onClick={() => handleBulkAction('send-reminders')}
@@ -333,10 +257,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsContent>
 
           <TabsContent value="needs-attention" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                Needs Attention ({filteredFamilies.length} families)
-              </h2>
+            <div className="flex items-center justify-end">
               <Button
                 size="sm"
                 onClick={() => handleBulkAction('send-payment-links')}
@@ -358,11 +279,6 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsContent>
 
           <TabsContent value="all" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">
-                All Families ({filteredFamilies.length} families)
-              </h2>
-            </div>
             {viewMode === 'grid' ? (
               <FamilyGridView
                 families={filteredFamilies}

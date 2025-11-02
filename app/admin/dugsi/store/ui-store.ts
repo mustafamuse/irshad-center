@@ -70,15 +70,13 @@ interface DugsiUIStore {
 const defaultFilters: DugsiFilters = {
   search: {
     query: '',
-    fields: ['name', 'email', 'phone', 'school'],
+    fields: ['name', 'email', 'phone'],
   },
   advanced: {
-    dateRange: null,
-    schools: [],
-    grades: [],
+    dateFilter: 'all',
     hasHealthInfo: false,
   },
-  tab: 'overview',
+  tab: 'all',
 }
 
 // ============================================================================
@@ -90,7 +88,7 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
     immer((set) => ({
       selectedFamilyKeys: new Set(),
       viewMode: 'grid',
-      activeTab: 'overview',
+      activeTab: 'all',
       filters: defaultFilters,
       showAdvancedFilters: false,
       isDeleteDialogOpen: false,
@@ -194,7 +192,7 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
         set((state) => {
           state.selectedFamilyKeys = new Set()
           state.viewMode = 'grid'
-          state.activeTab = 'overview'
+          state.activeTab = 'all'
           state.filters = { ...defaultFilters }
           state.showAdvancedFilters = false
           state.isDeleteDialogOpen = false

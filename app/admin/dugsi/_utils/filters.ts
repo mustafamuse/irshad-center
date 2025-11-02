@@ -47,7 +47,7 @@ export function getDateRange(
 }
 
 /**
- * Filter families by search query
+ * Filter families by search query with smart detection
  */
 export function filterFamiliesBySearch(
   families: Family[],
@@ -55,16 +55,48 @@ export function filterFamiliesBySearch(
 ): Family[] {
   if (!query) return families
 
-  const normalizedQuery = query.toLowerCase()
+  const normalizedQuery = query.toLowerCase().trim()
+
+  // Smart detection based on query pattern
+  const isEmailSearch = normalizedQuery.includes('@')
+  const searchDigits = query.replace(/\D/g, '')
+  const isPhoneSearch = searchDigits.length >= 4
 
   return families.filter((family) => {
-    return family.members.some(
-      (member) =>
-        member.name?.toLowerCase().includes(normalizedQuery) ||
-        member.parentEmail?.toLowerCase().includes(normalizedQuery) ||
-        member.parentPhone?.includes(query) ||
-        member.schoolName?.toLowerCase().includes(normalizedQuery)
-    )
+    return family.members.some((member) => {
+      // 1. Email search (if contains @)
+      if (isEmailSearch) {
+        return (
+          member.parentEmail?.toLowerCase().includes(normalizedQuery) ||
+          member.parent2Email?.toLowerCase().includes(normalizedQuery)
+        )
+      }
+
+      // 2. Phone search (if 4+ digits) - match last 4 digits
+      if (isPhoneSearch) {
+        const searchLast4 = searchDigits.slice(-4)
+        const parent1Digits = member.parentPhone?.replace(/\D/g, '') || ''
+        const parent2Digits = member.parent2Phone?.replace(/\D/g, '') || ''
+
+        return (
+          parent1Digits.endsWith(searchLast4) ||
+          parent2Digits.endsWith(searchLast4)
+        )
+      }
+
+      // 3. Name search (default) - searches child + both parents
+      const childName = member.name?.toLowerCase() || ''
+      const parent1Name =
+        `${member.parentFirstName || ''} ${member.parentLastName || ''}`.toLowerCase()
+      const parent2Name =
+        `${member.parent2FirstName || ''} ${member.parent2LastName || ''}`.toLowerCase()
+
+      return (
+        childName.includes(normalizedQuery) ||
+        parent1Name.includes(normalizedQuery) ||
+        parent2Name.includes(normalizedQuery)
+      )
+    })
   })
 }
 
@@ -77,31 +109,14 @@ export function filterFamiliesByAdvanced(
 ): Family[] {
   let filtered = families
 
-  // Date range filter
-  if (filters.dateRange) {
+  // Date filter
+  const dateRange = getDateRange(filters.dateFilter)
+  if (dateRange) {
     filtered = filtered.filter((family) => {
       return family.members.some((member) => {
         const date = new Date(member.createdAt)
-        return date >= filters.dateRange!.start && date < filters.dateRange!.end
+        return date >= dateRange.start && date < dateRange.end
       })
-    })
-  }
-
-  // School filter
-  if (filters.schools.length > 0) {
-    filtered = filtered.filter((family) => {
-      return family.members.some((member) =>
-        filters.schools.includes(member.schoolName || '')
-      )
-    })
-  }
-
-  // Grade filter
-  if (filters.grades.length > 0) {
-    filtered = filtered.filter((family) => {
-      return family.members.some((member) =>
-        filters.grades.includes(member.gradeLevel || '')
-      )
     })
   }
 

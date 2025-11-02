@@ -48,15 +48,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { useDebounce } from '@/hooks/use-debounce'
 import {
   formatEducationLevel,
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
 
-import { DugsiRegistration, DateFilter } from '../../_types'
+import { DugsiRegistration } from '../../_types'
 import { groupRegistrationsByDate } from '../../_utils/date-grouping'
-import { getDateRange } from '../../_utils/filters'
 import {
   formatRegistrationDate,
   calculateAge,
@@ -64,9 +62,6 @@ import {
 } from '../../_utils/format'
 import { deleteDugsiFamily, getFamilyMembers } from '../../actions'
 import { PaymentStatusSection } from '../payment-status-section'
-import { FilterButtonGroup } from './filter-button-group'
-import { SearchInputWithIcon } from './search-input-with-icon'
-import { SearchTypeIndicator } from './search-type-indicator'
 
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]
@@ -75,16 +70,13 @@ interface DugsiRegistrationsTableProps {
 export function DugsiRegistrationsTable({
   registrations,
 }: DugsiRegistrationsTableProps) {
-  const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearch = useDebounce(searchQuery, 300)
-  const [dateFilter, setDateFilter] = useState<DateFilter>('all')
   const [selectedRegistration, setSelectedRegistration] =
     useState<DugsiRegistration | null>(null)
   const [familyMembers, setFamilyMembers] = useState<DugsiRegistration[]>([])
   const [isLoadingFamily, startTransition] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [groupByDate, setGroupByDate] = useState(false)
+  const [groupByDate] = useState(false)
 
   useEffect(() => {
     if (selectedRegistration) {
@@ -127,60 +119,9 @@ export function DugsiRegistrationsTable({
     }
   }
 
-  // Smart search with auto-detection (email/phone/name)
-  const filteredRegistrations = registrations.filter((reg) => {
-    // Date filter
-    const dateRange = getDateRange(dateFilter)
-    if (dateRange) {
-      const regDate = new Date(reg.createdAt)
-      if (regDate < dateRange.start || regDate >= dateRange.end) {
-        return false
-      }
-    }
-
-    // If no search query, show all (date-filtered) results
-    if (!debouncedSearch) return true
-
-    const searchLower = debouncedSearch.toLowerCase().trim()
-
-    // 1. Email search (if contains @)
-    if (searchLower.includes('@')) {
-      return (
-        reg.parentEmail?.toLowerCase().includes(searchLower) ||
-        reg.parent2Email?.toLowerCase().includes(searchLower)
-      )
-    }
-
-    // 2. Phone search (if 4+ digits)
-    const searchDigits = debouncedSearch.replace(/\D/g, '')
-    if (searchDigits.length >= 4) {
-      const searchLast4 = searchDigits.slice(-4)
-      const parent1Digits = reg.parentPhone?.replace(/\D/g, '') || ''
-      const parent2Digits = reg.parent2Phone?.replace(/\D/g, '') || ''
-
-      return (
-        parent1Digits.endsWith(searchLast4) ||
-        parent2Digits.endsWith(searchLast4)
-      )
-    }
-
-    // 3. Name search (default) - searches child + both parents
-    const childName = reg.name.toLowerCase()
-    const parent1Name =
-      `${reg.parentFirstName || ''} ${reg.parentLastName || ''}`.toLowerCase()
-    const parent2Name =
-      `${reg.parent2FirstName || ''} ${reg.parent2LastName || ''}`.toLowerCase()
-
-    return (
-      childName.includes(searchLower) ||
-      parent1Name.includes(searchLower) ||
-      parent2Name.includes(searchLower)
-    )
-  })
-
   // Group registrations by date if enabled
   const groupedRegistrations = groupByDate
-    ? groupRegistrationsByDate(filteredRegistrations)
+    ? groupRegistrationsByDate(registrations)
     : []
 
   return (
@@ -192,44 +133,20 @@ export function DugsiRegistrationsTable({
               Registered Students
             </CardTitle>
             <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">
-              Total Registrations: {filteredRegistrations.length}
-              {(debouncedSearch || dateFilter !== 'all') &&
-                ` (filtered from ${registrations.length})`}
+              Total Registrations: {registrations.length}
             </p>
           </div>
-        </div>
-
-        {/* Date Filter Buttons */}
-        <FilterButtonGroup
-          activeFilter={dateFilter}
-          onFilterChange={setDateFilter}
-          groupByDate={groupByDate}
-          onGroupByDateChange={setGroupByDate}
-        />
-
-        <div className="space-y-2">
-          <SearchInputWithIcon
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search by name, phone, or email..."
-            aria-label="Search registrations by name, phone, or email"
-          />
-
-          <SearchTypeIndicator
-            searchQuery={debouncedSearch}
-            resultCount={filteredRegistrations.length}
-          />
         </div>
       </CardHeader>
       <CardContent className="p-0">
         {/* Mobile Card Layout */}
         <div className="block space-y-4 p-4 sm:p-6 lg:hidden">
-          {filteredRegistrations.length === 0 ? (
+          {registrations.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">
               No registrations found.
             </div>
           ) : (
-            filteredRegistrations.map((registration) => (
+            registrations.map((registration) => (
               <MobileRegistrationCard
                 key={registration.id}
                 registration={registration}
@@ -259,7 +176,7 @@ export function DugsiRegistrationsTable({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRegistrations.length === 0 ? (
+                {registrations.length === 0 ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
@@ -387,7 +304,7 @@ export function DugsiRegistrationsTable({
                   ))
                 ) : (
                   // Ungrouped view (original)
-                  filteredRegistrations.map((registration) => (
+                  registrations.map((registration) => (
                     <TableRow
                       key={registration.id}
                       className="cursor-pointer hover:bg-muted/50"
