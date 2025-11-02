@@ -184,7 +184,7 @@ export function DugsiRegistrationsTable({
     : []
 
   return (
-    <Card className="overflow-hidden">
+    <div className="overflow-hidden">
       <CardHeader className="flex flex-col gap-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -910,7 +910,7 @@ export function DugsiRegistrationsTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </div>
   )
 }
 
