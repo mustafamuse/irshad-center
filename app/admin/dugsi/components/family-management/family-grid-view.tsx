@@ -312,9 +312,9 @@ export function FamilyGridView({
                               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                                 {index + 1}
                               </div>
-                              <div className="flex-1 space-y-1">
+                              <div className="flex-1 space-y-1.5">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-medium">
+                                  <span className="text-sm font-semibold">
                                     {child.name}
                                   </span>
                                   {child.gender && (
@@ -325,29 +325,34 @@ export function FamilyGridView({
                                     />
                                   )}
                                 </div>
-                                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                   {child.gradeLevel && (
-                                    <span>
+                                    <span className="font-medium">
                                       {formatGradeLevel(child.gradeLevel)}
                                     </span>
                                   )}
                                   {child.educationLevel && (
-                                    <span>
-                                      {formatEducationLevel(
-                                        child.educationLevel
-                                      )}
-                                    </span>
-                                  )}
-                                  {child.schoolName && (
-                                    <span className="truncate">
-                                      {child.schoolName}
-                                    </span>
+                                    <>
+                                      <span className="text-muted-foreground/50">
+                                        •
+                                      </span>
+                                      <span>
+                                        {formatEducationLevel(
+                                          child.educationLevel
+                                        )}
+                                      </span>
+                                    </>
                                   )}
                                 </div>
+                                {child.schoolName && (
+                                  <div className="text-xs text-muted-foreground">
+                                    {child.schoolName}
+                                  </div>
+                                )}
                                 {child.healthInfo &&
                                   child.healthInfo.toLowerCase() !== 'none' && (
-                                    <div className="mt-1 flex items-start gap-1">
-                                      <AlertCircle className="h-3 w-3 text-red-600" />
+                                    <div className="flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1">
+                                      <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-600" />
                                       <span className="text-xs text-red-600">
                                         {child.healthInfo}
                                       </span>
@@ -511,9 +516,11 @@ export function FamilyGridView({
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
                           {index + 1}
                         </div>
-                        <div className="flex-1 space-y-1">
+                        <div className="flex-1 space-y-1.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{child.name}</span>
+                            <span className="text-sm font-semibold">
+                              {child.name}
+                            </span>
                             {child.gender && (
                               <GenderDisplay
                                 gender={child.gender}
@@ -522,25 +529,32 @@ export function FamilyGridView({
                               />
                             )}
                           </div>
-                          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             {child.gradeLevel && (
-                              <span>{formatGradeLevel(child.gradeLevel)}</span>
+                              <span className="font-medium">
+                                {formatGradeLevel(child.gradeLevel)}
+                              </span>
                             )}
                             {child.educationLevel && (
-                              <span>
-                                {formatEducationLevel(child.educationLevel)}
-                              </span>
-                            )}
-                            {child.schoolName && (
-                              <span className="truncate">
-                                {child.schoolName}
-                              </span>
+                              <>
+                                <span className="text-muted-foreground/50">
+                                  •
+                                </span>
+                                <span>
+                                  {formatEducationLevel(child.educationLevel)}
+                                </span>
+                              </>
                             )}
                           </div>
+                          {child.schoolName && (
+                            <div className="text-xs text-muted-foreground">
+                              {child.schoolName}
+                            </div>
+                          )}
                           {child.healthInfo &&
                             child.healthInfo.toLowerCase() !== 'none' && (
-                              <div className="mt-1 flex items-start gap-1">
-                                <AlertCircle className="h-3 w-3 text-red-600" />
+                              <div className="flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1">
+                                <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-600" />
                                 <span className="text-xs text-red-600">
                                   {child.healthInfo}
                                 </span>
