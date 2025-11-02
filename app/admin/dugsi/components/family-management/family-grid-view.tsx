@@ -169,38 +169,36 @@ export function FamilyGridView({
                         aria-label={`Select family ${firstMember ? formatParentName(firstMember.parentFirstName, firstMember.parentLastName) : family.familyKey}`}
                       />
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-auto p-0 font-semibold hover:bg-transparent"
-                            onClick={() => toggleFamily(family.familyKey)}
-                            aria-expanded={isExpanded}
-                            aria-controls={`family-details-${family.familyKey}`}
-                            aria-label={`${isExpanded ? 'Collapse' : 'Expand'} family details`}
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="mr-1 h-4 w-4" />
-                            ) : (
-                              <ChevronRight className="mr-1 h-4 w-4" />
-                            )}
-                            {firstMember
-                              ? formatParentName(
-                                  firstMember.parentFirstName,
-                                  firstMember.parentLastName
-                                )
-                              : 'Family'}
-                          </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-auto p-0 text-base font-semibold hover:bg-transparent"
+                          onClick={() => toggleFamily(family.familyKey)}
+                          aria-expanded={isExpanded}
+                          aria-controls={`family-details-${family.familyKey}`}
+                          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} family details`}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="mr-1.5 h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="mr-1.5 h-4 w-4" />
+                          )}
+                          {firstMember
+                            ? formatParentName(
+                                firstMember.parentFirstName,
+                                firstMember.parentLastName
+                              )
+                            : 'Family'}
+                        </Button>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <FamilyStatusBadge status={status} />
                           {firstMember && hasSecondParent(firstMember) && (
                             <Badge variant="outline" className="text-xs">
                               2 Parents
                             </Badge>
                           )}
-                        </div>
-
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <FamilyStatusBadge status={status} />
-                          <Badge variant="secondary">
+                          <Badge variant="secondary" className="text-xs">
                             {family.members.length}{' '}
                             {family.members.length === 1 ? 'Child' : 'Children'}
                           </Badge>
