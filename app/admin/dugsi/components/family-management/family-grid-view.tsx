@@ -151,7 +151,7 @@ export function FamilyGridView({
           return (
             <SwipeableCard key={family.familyKey} rightActions={swipeActions}>
               <Card
-                className={`transition-all ${
+                className={`flex h-full flex-col transition-all ${
                   isSelected ? 'border-primary ring-2 ring-primary/20' : ''
                 } ${isExpanded ? 'md:col-span-2 lg:col-span-3' : ''}`}
                 role="listitem"
