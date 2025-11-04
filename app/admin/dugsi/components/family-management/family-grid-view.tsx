@@ -15,6 +15,7 @@ import {
   Mail,
   Copy,
   Trash2,
+  ShieldCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -48,6 +49,8 @@ import { FamilyStatusBadge } from './family-status-badge'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { useDugsiUIStore } from '../../store'
+import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 import { ParentInfo } from '../ui/parent-info'
 import { SwipeableCard, SwipeAction } from '../ui/swipeable-card'
 
@@ -69,6 +72,18 @@ export function FamilyGridView({
   )
   const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+
+  // Zustand store selectors
+  const isVerifyBankDialogOpen = useDugsiUIStore(
+    (state) => state.isVerifyBankDialogOpen
+  )
+  const verifyBankDialogData = useDugsiUIStore(
+    (state) => state.verifyBankDialogData
+  )
+  const setDialogOpen = useDugsiUIStore((state) => state.setDialogOpen)
+  const setVerifyBankDialogData = useDugsiUIStore(
+    (state) => state.setVerifyBankDialogData
+  )
 
   const toggleFamily = (familyKey: string) => {
     const newExpanded = new Set(expandedFamilies)
@@ -554,6 +569,35 @@ export function FamilyGridView({
 
                 {/* Actions */}
                 <div className="space-y-2">
+                  {/* Verify Bank Account - Show for families needing bank verification */}
+                  {selectedFamily.hasPayment &&
+                    (selectedFamily.members[0]?.subscriptionStatus !==
+                      'active' ||
+                      !selectedFamily.hasSubscription) &&
+                    selectedFamily.members[0]?.paymentIntentIdDugsi &&
+                    selectedFamily.parentEmail && (
+                      <Button
+                        className="w-full"
+                        variant="default"
+                        onClick={() => {
+                          const paymentIntentId =
+                            selectedFamily.members[0]?.paymentIntentIdDugsi
+                          const parentEmail = selectedFamily.parentEmail
+
+                          if (paymentIntentId && parentEmail) {
+                            setVerifyBankDialogData({
+                              paymentIntentId,
+                              parentEmail,
+                            })
+                            setDialogOpen('verifyBank', true)
+                          }
+                        }}
+                      >
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        Verify Bank Account
+                      </Button>
+                    )}
+
                   <Button className="w-full" variant="outline">
                     <Send className="mr-2 h-4 w-4" />
                     Send Payment Link
@@ -589,6 +633,16 @@ export function FamilyGridView({
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Verify Bank Dialog */}
+      {verifyBankDialogData && (
+        <VerifyBankDialog
+          open={isVerifyBankDialogOpen}
+          onOpenChange={(open) => setDialogOpen('verifyBank', open)}
+          paymentIntentId={verifyBankDialogData.paymentIntentId}
+          parentEmail={verifyBankDialogData.parentEmail}
+        />
+      )}
     </>
   )
 }

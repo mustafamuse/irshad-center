@@ -32,6 +32,11 @@ interface DugsiUIStore {
   isDeleteDialogOpen: boolean
   isLinkSubscriptionDialogOpen: boolean
   linkSubscriptionDialogParentEmail: string | null
+  isVerifyBankDialogOpen: boolean
+  verifyBankDialogData: {
+    paymentIntentId: string
+    parentEmail: string
+  } | null
 
   // ============================================================================
   // CORE ACTIONS
@@ -54,10 +59,16 @@ interface DugsiUIStore {
 
   // Dialog actions
   setDialogOpen: (
-    dialog: 'delete' | 'linkSubscription' | 'advancedFilters',
+    dialog: 'delete' | 'linkSubscription' | 'advancedFilters' | 'verifyBank',
     open: boolean
   ) => void
   setLinkSubscriptionDialogData: (parentEmail: string | null) => void
+  setVerifyBankDialogData: (
+    data: {
+      paymentIntentId: string
+      parentEmail: string
+    } | null
+  ) => void
 
   // Utility actions
   reset: () => void
@@ -94,6 +105,8 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       isDeleteDialogOpen: false,
       isLinkSubscriptionDialogOpen: false,
       linkSubscriptionDialogParentEmail: null,
+      isVerifyBankDialogOpen: false,
+      verifyBankDialogData: null,
 
       // ========================================================================
       // SELECTION ACTIONS
@@ -176,12 +189,19 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
             state.isLinkSubscriptionDialogOpen = open
           } else if (dialog === 'advancedFilters') {
             state.showAdvancedFilters = open
+          } else if (dialog === 'verifyBank') {
+            state.isVerifyBankDialogOpen = open
           }
         }),
 
       setLinkSubscriptionDialogData: (parentEmail) =>
         set((state) => {
           state.linkSubscriptionDialogParentEmail = parentEmail
+        }),
+
+      setVerifyBankDialogData: (data) =>
+        set((state) => {
+          state.verifyBankDialogData = data
         }),
 
       // ========================================================================
@@ -198,6 +218,8 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
           state.isDeleteDialogOpen = false
           state.isLinkSubscriptionDialogOpen = false
           state.linkSubscriptionDialogParentEmail = null
+          state.isVerifyBankDialogOpen = false
+          state.verifyBankDialogData = null
         }),
     })),
     {

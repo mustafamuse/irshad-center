@@ -241,6 +241,7 @@ model Student {
   // Dugsi-specific payment fields
   stripeCustomerIdDugsi     String? // Separate from mahad stripeCustomerId
   stripeSubscriptionIdDugsi String? // For manually created dugsi subscriptions
+  paymentIntentIdDugsi      String? // For bank account verification via microdeposits
   paymentMethodCaptured     Boolean            @default(false)
   paymentMethodCapturedAt   DateTime?
   familyReferenceId         String? // Links children in same family

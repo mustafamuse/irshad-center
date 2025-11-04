@@ -81,6 +81,7 @@ export function ParentInfo({
             size="icon"
             className="h-5 w-5"
             onClick={() =>
+              registration.parentPhone &&
               copyToClipboard(registration.parentPhone, 'Phone number')
             }
             aria-label="Copy phone number"

@@ -30,6 +30,7 @@ export type DugsiRegistration = Pick<
   | 'paymentMethodCapturedAt'
   | 'stripeCustomerIdDugsi'
   | 'stripeSubscriptionIdDugsi'
+  | 'paymentIntentIdDugsi'
   | 'subscriptionStatus'
   | 'paidUntil'
   | 'currentPeriodStart'

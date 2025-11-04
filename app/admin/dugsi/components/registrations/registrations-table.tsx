@@ -529,6 +529,7 @@ export function DugsiRegistrationsTable({
                                         size="icon"
                                         className="h-5 w-5"
                                         onClick={() =>
+                                          selectedRegistration.parentPhone &&
                                           copyToClipboard(
                                             selectedRegistration.parentPhone,
                                             'Phone number'
@@ -600,6 +601,7 @@ export function DugsiRegistrationsTable({
                                           size="icon"
                                           className="h-5 w-5"
                                           onClick={() =>
+                                            selectedRegistration.parent2Phone &&
                                             copyToClipboard(
                                               selectedRegistration.parent2Phone,
                                               'Phone number'

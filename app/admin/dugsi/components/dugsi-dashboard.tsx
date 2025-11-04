@@ -78,9 +78,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
     tab: activeTab,
     searchQuery: filters.search?.query || '',
     advancedFilters: filters.advanced || {
-      dateRange: null,
-      schools: [],
-      grades: [],
+      dateFilter: 'all',
       hasHealthInfo: false,
     },
   })
