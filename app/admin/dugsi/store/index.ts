@@ -4,7 +4,6 @@
 
 export {
   useDugsiUIStore,
-  useSelectedFamilies,
   useViewMode,
   useActiveTab,
   useDugsiFilters,

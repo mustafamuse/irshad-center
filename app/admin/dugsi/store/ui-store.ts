@@ -24,7 +24,6 @@ interface DugsiUIStore {
   // ============================================================================
   // STATE
   // ============================================================================
-  selectedFamilyKeys: Set<string>
   viewMode: ViewMode
   activeTab: TabValue
   filters: DugsiFilters
@@ -41,11 +40,6 @@ interface DugsiUIStore {
   // ============================================================================
   // CORE ACTIONS
   // ============================================================================
-
-  // Selection actions
-  toggleFamilySelection: (key: string) => void
-  setFamilySelection: (keys: string[]) => void
-  clearFamilySelection: () => void
 
   // Filter actions
   updateFilters: (updates: Partial<DugsiFilters>) => void
@@ -97,7 +91,6 @@ const defaultFilters: DugsiFilters = {
 export const useDugsiUIStore = create<DugsiUIStore>()(
   devtools(
     immer((set) => ({
-      selectedFamilyKeys: new Set(),
       viewMode: 'grid',
       activeTab: 'all',
       filters: defaultFilters,
@@ -107,29 +100,6 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       linkSubscriptionDialogParentEmail: null,
       isVerifyBankDialogOpen: false,
       verifyBankDialogData: null,
-
-      // ========================================================================
-      // SELECTION ACTIONS
-      // ========================================================================
-
-      toggleFamilySelection: (key) =>
-        set((state) => {
-          if (state.selectedFamilyKeys.has(key)) {
-            state.selectedFamilyKeys.delete(key)
-          } else {
-            state.selectedFamilyKeys.add(key)
-          }
-        }),
-
-      setFamilySelection: (keys) =>
-        set((state) => {
-          state.selectedFamilyKeys = new Set(keys)
-        }),
-
-      clearFamilySelection: () =>
-        set((state) => {
-          state.selectedFamilyKeys = new Set()
-        }),
 
       // ========================================================================
       // FILTER ACTIONS
@@ -159,7 +129,6 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       resetFilters: () =>
         set((state) => {
           state.filters = { ...defaultFilters }
-          state.selectedFamilyKeys = new Set()
         }),
 
       // ========================================================================
@@ -210,7 +179,6 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
 
       reset: () =>
         set((state) => {
-          state.selectedFamilyKeys = new Set()
           state.viewMode = 'grid'
           state.activeTab = 'all'
           state.filters = { ...defaultFilters }
@@ -232,8 +200,6 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
 // SELECTORS
 // ============================================================================
 
-export const useSelectedFamilies = () =>
-  useDugsiUIStore((state) => state.selectedFamilyKeys)
 export const useViewMode = () => useDugsiUIStore((state) => state.viewMode)
 export const useActiveTab = () => useDugsiUIStore((state) => state.activeTab)
 export const useDugsiFilters = () => useDugsiUIStore((state) => state.filters)
@@ -254,12 +220,6 @@ export const useLinkSubscriptionDialogData = () =>
 export const useLegacyActions = () => {
   const store = useDugsiUIStore()
   return {
-    toggleFamily: (key: string) => store.toggleFamilySelection(key),
-    selectFamily: (key: string) => store.toggleFamilySelection(key),
-    deselectFamily: (key: string) => store.toggleFamilySelection(key),
-    selectAllFamilies: (keys: string[]) => store.setFamilySelection(keys),
-    clearSelection: () => store.clearFamilySelection(),
-
     setSearchQuery: (query: string) => store.setSearchQuery(query),
     setAdvancedFilters: (filters: FamilyFilters) =>
       store.setAdvancedFilters(filters),

@@ -14,7 +14,6 @@ import {
   AlertCircle,
   Users,
   Download,
-  X,
 } from 'lucide-react'
 
 import {
@@ -41,7 +40,7 @@ export function CommandPalette({
   onOpenChange,
   onExport,
 }: CommandPaletteProps) {
-  const { setViewMode, setActiveTab, clearSelection } = useLegacyActions()
+  const { setViewMode, setActiveTab } = useLegacyActions()
   const [search, setSearch] = useState('')
 
   // Reset search when dialog closes
@@ -133,14 +132,6 @@ export function CommandPalette({
         <CommandSeparator />
 
         <CommandGroup heading="Actions">
-          <CommandItem
-            onSelect={() => runCommand(clearSelection)}
-            keywords={['clear', 'deselect', 'unselect']}
-          >
-            <X className="mr-2 h-4 w-4" />
-            <span>Clear Selection</span>
-            <CommandShortcut>Esc</CommandShortcut>
-          </CommandItem>
           <CommandItem
             onSelect={() => onExport && runCommand(onExport)}
             keywords={['export', 'download', 'csv']}

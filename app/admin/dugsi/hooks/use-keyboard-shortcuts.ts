@@ -7,8 +7,6 @@ import { useRef } from 'react'
 
 import { useHotkeys } from 'react-hotkeys-hook'
 
-import { useLegacyActions } from '../store'
-
 interface UseKeyboardShortcutsOptions {
   onOpenCommandPalette?: () => void
 }
@@ -16,7 +14,6 @@ interface UseKeyboardShortcutsOptions {
 export function useKeyboardShortcuts({
   onOpenCommandPalette,
 }: UseKeyboardShortcutsOptions = {}) {
-  const { clearSelection } = useLegacyActions()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Cmd/Ctrl + K - Open command palette
@@ -43,15 +40,6 @@ export function useKeyboardShortcuts({
       }
     },
     [searchInputRef]
-  )
-
-  // Escape - Clear selection
-  useHotkeys(
-    'escape',
-    () => {
-      clearSelection()
-    },
-    [clearSelection]
   )
 
   return { searchInputRef }

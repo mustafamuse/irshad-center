@@ -155,6 +155,37 @@ export function filterFamiliesByTab(
 }
 
 /**
+ * Sort families alphabetically by parent first name
+ */
+export function sortFamiliesByParentName(families: Family[]): Family[] {
+  return [...families].sort((a, b) => {
+    const aParent = a.members[0]
+    const bParent = b.members[0]
+
+    // Use first member's parent1 name, fallback to parent2, then empty string
+    const aFirstName =
+      aParent?.parentFirstName || aParent?.parent2FirstName || ''
+    const bFirstName =
+      bParent?.parentFirstName || bParent?.parent2FirstName || ''
+
+    // Primary sort: first name (case-insensitive)
+    const firstNameCompare = aFirstName
+      .toLowerCase()
+      .localeCompare(bFirstName.toLowerCase(), 'en', { sensitivity: 'base' })
+
+    if (firstNameCompare !== 0) return firstNameCompare
+
+    // Secondary sort: last name
+    const aLastName = aParent?.parentLastName || aParent?.parent2LastName || ''
+    const bLastName = bParent?.parentLastName || bParent?.parent2LastName || ''
+
+    return aLastName
+      .toLowerCase()
+      .localeCompare(bLastName.toLowerCase(), 'en', { sensitivity: 'base' })
+  })
+}
+
+/**
  * Composite filter function
  */
 export function applyAllFilters(
@@ -178,6 +209,9 @@ export function applyAllFilters(
   if (options.advancedFilters) {
     filtered = filterFamiliesByAdvanced(filtered, options.advancedFilters)
   }
+
+  // Sort by parent name (ascending alphabetical order)
+  filtered = sortFamiliesByParentName(filtered)
 
   return filtered
 }

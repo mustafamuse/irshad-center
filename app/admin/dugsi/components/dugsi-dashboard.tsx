@@ -14,7 +14,6 @@ import { Users, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { exportFamiliesToCSV } from '@/lib/csv-export'
 
@@ -28,7 +27,6 @@ import { useKeyboardShortcuts } from '../hooks/use-keyboard-shortcuts'
 import { usePersistedViewMode } from '../hooks/use-persisted-view-mode'
 import {
   useActiveTab,
-  useSelectedFamilies,
   useViewMode,
   useDugsiFilters,
   useLegacyActions,
@@ -36,9 +34,7 @@ import {
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
 import { DashboardStats } from './dashboard/dashboard-stats'
-import { DeleteFamilyDialog } from './dialogs/delete-family-dialog'
-import { FamilyGridView } from './family-management/family-grid-view'
-import { QuickActionsBar } from './quick-actions/quick-actions-bar'
+import { FamilyTableView } from './family-management/family-table-view'
 import { DugsiRegistrationsTable } from './registrations/registrations-table'
 
 interface DugsiDashboardProps {
@@ -60,14 +56,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
   // Zustand store state
   const activeTab = useActiveTab()
   const viewMode = useViewMode()
-  const selectedFamilyKeys = useSelectedFamilies()
   const filters = useDugsiFilters()
-  const {
-    setActiveTab,
-    clearSelection,
-    setDeleteDialogOpen,
-    selectAllFamilies,
-  } = useLegacyActions()
+  const { setActiveTab } = useLegacyActions()
 
   // Custom hooks for data processing
   const familyGroups = useFamilyGroups(registrations)
@@ -82,47 +72,6 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
       hasHealthInfo: false,
     },
   })
-
-  // Bulk action handler
-  const handleBulkAction = (action: string) => {
-    switch (action) {
-      case 'delete':
-        if (selectedFamilyKeys.size > 0) {
-          setDeleteDialogOpen(true)
-        }
-        break
-      case 'send-payment-link':
-        toast.info(
-          `Sending payment links to ${selectedFamilyKeys.size} families`
-        )
-        // TODO: Implement send payment link (GitHub issue #27)
-        break
-      case 'link-subscription':
-        toast.info(
-          `Linking subscriptions for ${selectedFamilyKeys.size} families`
-        )
-        // TODO: Implement link subscription (GitHub issue #27)
-        break
-      case 'export': {
-        const selectedFamilies = familyGroups.filter((f) =>
-          selectedFamilyKeys.has(f.familyKey)
-        )
-        exportFamiliesToCSV(selectedFamilies)
-        toast.success(
-          `Exported ${selectedFamilyKeys.size} ${selectedFamilyKeys.size === 1 ? 'family' : 'families'} to CSV`
-        )
-        break
-      }
-      default:
-        console.log(
-          `Performing ${action} on ${selectedFamilyKeys.size} families`
-        )
-    }
-  }
-
-  const handleSelectionChange = (keys: Set<string>) => {
-    selectAllFamilies(Array.from(keys))
-  }
 
   return (
     <>
@@ -143,15 +92,6 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
 
         {/* Filters */}
         <DashboardFilters />
-
-        {/* Quick Actions Bar */}
-        {selectedFamilyKeys.size > 0 && (
-          <QuickActionsBar
-            selectedCount={selectedFamilyKeys.size}
-            onAction={handleBulkAction}
-            onClearSelection={clearSelection}
-          />
-        )}
 
         {/* Dashboard Stats */}
         <DashboardStats registrations={registrations} />
@@ -220,11 +160,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
 
           <TabsContent value="active" className="space-y-6">
             {viewMode === 'grid' ? (
-              <FamilyGridView
-                families={filteredFamilies}
-                selectedFamilies={selectedFamilyKeys}
-                onSelectionChange={handleSelectionChange}
-              />
+              <FamilyTableView families={filteredFamilies} />
             ) : (
               <DugsiRegistrationsTable
                 registrations={filteredFamilies.flatMap((f) => f.members)}
@@ -233,20 +169,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsContent>
 
           <TabsContent value="pending" className="space-y-6">
-            <div className="flex items-center justify-end">
-              <Button
-                size="sm"
-                onClick={() => handleBulkAction('send-reminders')}
-              >
-                Send Setup Reminders
-              </Button>
-            </div>
             {viewMode === 'grid' ? (
-              <FamilyGridView
-                families={filteredFamilies}
-                selectedFamilies={selectedFamilyKeys}
-                onSelectionChange={handleSelectionChange}
-              />
+              <FamilyTableView families={filteredFamilies} />
             ) : (
               <DugsiRegistrationsTable
                 registrations={filteredFamilies.flatMap((f) => f.members)}
@@ -255,20 +179,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsContent>
 
           <TabsContent value="needs-attention" className="space-y-6">
-            <div className="flex items-center justify-end">
-              <Button
-                size="sm"
-                onClick={() => handleBulkAction('send-payment-links')}
-              >
-                Send Payment Links
-              </Button>
-            </div>
             {viewMode === 'grid' ? (
-              <FamilyGridView
-                families={filteredFamilies}
-                selectedFamilies={selectedFamilyKeys}
-                onSelectionChange={handleSelectionChange}
-              />
+              <FamilyTableView families={filteredFamilies} />
             ) : (
               <DugsiRegistrationsTable
                 registrations={filteredFamilies.flatMap((f) => f.members)}
@@ -278,11 +190,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
 
           <TabsContent value="all" className="space-y-6">
             {viewMode === 'grid' ? (
-              <FamilyGridView
-                families={filteredFamilies}
-                selectedFamilies={selectedFamilyKeys}
-                onSelectionChange={handleSelectionChange}
-              />
+              <FamilyTableView families={filteredFamilies} />
             ) : (
               <DugsiRegistrationsTable
                 registrations={filteredFamilies.flatMap((f) => f.members)}
@@ -291,24 +199,15 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsContent>
         </Tabs>
 
-        {/* Delete Dialog */}
-        <DeleteFamilyDialog families={familyGroups} />
-
         {/* Command Palette */}
         <CommandPalette
           open={commandPaletteOpen}
           onOpenChange={setCommandPaletteOpen}
           onExport={() => {
-            // Export selected families if any, otherwise export all filtered
-            const familiesToExport =
-              selectedFamilyKeys.size > 0
-                ? familyGroups.filter((f) =>
-                    selectedFamilyKeys.has(f.familyKey)
-                  )
-                : filteredFamilies
-            exportFamiliesToCSV(familiesToExport)
+            // Export all filtered families
+            exportFamiliesToCSV(filteredFamilies)
             toast.success(
-              `Exported ${familiesToExport.length} ${familiesToExport.length === 1 ? 'family' : 'families'} to CSV`
+              `Exported ${filteredFamilies.length} ${filteredFamilies.length === 1 ? 'family' : 'families'} to CSV`
             )
           }}
         />
