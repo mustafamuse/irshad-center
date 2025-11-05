@@ -2,121 +2,172 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
-export async function getDugsiRegistrations() {
+import {
+  DUGSI_REGISTRATION_SELECT,
+  DUGSI_FAMILY_SELECT,
+  DUGSI_PAYMENT_STATUS_SELECT,
+  DUGSI_SUBSCRIPTION_LINK_SELECT,
+} from './_queries/selects'
+import {
+  ActionResult,
+  SubscriptionValidationData,
+  PaymentStatusData,
+  BankVerificationData,
+  SubscriptionLinkData,
+  DugsiRegistration,
+} from './_types'
+
+export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
   const students = await prisma.student.findMany({
-    where: { program: 'DUGSI_PROGRAM' },
+    where: { program: DUGSI_PROGRAM },
     orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      name: true,
-      gender: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      healthInfo: true,
-      createdAt: true,
-      parentFirstName: true,
-      parentLastName: true,
-      parentEmail: true,
-      parentPhone: true,
-      parent2FirstName: true,
-      parent2LastName: true,
-      parent2Email: true,
-      parent2Phone: true,
-      // Payment fields
-      paymentMethodCaptured: true,
-      paymentMethodCapturedAt: true,
-      stripeCustomerIdDugsi: true,
-      stripeSubscriptionIdDugsi: true,
-      subscriptionStatus: true,
-      paidUntil: true,
-      currentPeriodStart: true,
-      currentPeriodEnd: true,
-      familyReferenceId: true,
-      stripeAccountType: true,
-    },
+    select: DUGSI_REGISTRATION_SELECT,
   })
 
   return students
 }
 
-export async function getFamilyMembers(studentId: string) {
+/**
+ * Validate a Stripe subscription ID without linking it.
+ * Used by the link subscription dialog to check if a subscription exists.
+ */
+export async function validateDugsiSubscription(
+  subscriptionId: string
+): Promise<ActionResult<SubscriptionValidationData>> {
+  try {
+    if (!subscriptionId.startsWith('sub_')) {
+      return {
+        success: false,
+        error: 'Invalid subscription ID format. Must start with "sub_"',
+      }
+    }
+
+    // Validate the subscription exists in Stripe
+    const dugsiStripe = getDugsiStripeClient()
+    const subscription =
+      await dugsiStripe.subscriptions.retrieve(subscriptionId)
+
+    if (!subscription) {
+      return { success: false, error: 'Subscription not found in Stripe' }
+    }
+
+    // Extract customer ID
+    const customerId =
+      typeof subscription.customer === 'string'
+        ? subscription.customer
+        : subscription.customer?.id
+
+    if (!customerId) {
+      return { success: false, error: 'Invalid customer ID in subscription' }
+    }
+
+    // Extract period dates using utility function
+    const periodDates = extractPeriodDates(subscription)
+
+    return {
+      success: true,
+      data: {
+        subscriptionId: subscription.id,
+        customerId,
+        status: subscription.status,
+        currentPeriodStart: periodDates.periodStart,
+        currentPeriodEnd: periodDates.periodEnd,
+      },
+    }
+  } catch (error) {
+    console.error('Error validating Dugsi subscription:', error)
+    if (error instanceof Error) {
+      // Check if it's a Stripe error
+      if (error.message.includes('No such subscription')) {
+        return {
+          success: false,
+          error: 'Subscription not found in Stripe',
+        }
+      }
+      return {
+        success: false,
+        error: error.message || 'Failed to validate subscription',
+      }
+    }
+    return {
+      success: false,
+      error: 'Failed to validate subscription',
+    }
+  }
+}
+
+export async function getFamilyMembers(
+  studentId: string
+): Promise<DugsiRegistration[]> {
   // Get the selected student
   const student = await prisma.student.findUnique({
     where: { id: studentId },
-    select: {
-      parentPhone: true,
-      parent2Phone: true,
-    },
+    select: DUGSI_FAMILY_SELECT,
   })
 
   if (!student) return []
 
-  // Find all siblings (students with the same parent phone number)
-  const phoneNumbers = [student.parentPhone, student.parent2Phone].filter(
-    Boolean
-  )
+  // Find all siblings using familyReferenceId-based matching (same as getFamilyKey)
+  // Priority: familyReferenceId > parentEmail > id
+  let siblings: DugsiRegistration[]
 
-  if (phoneNumbers.length === 0) return []
-
-  const siblings = await prisma.student.findMany({
-    where: {
-      program: 'DUGSI_PROGRAM',
-      OR: phoneNumbers.map((phone) => ({
-        OR: [{ parentPhone: phone }, { parent2Phone: phone }],
-      })),
-    },
-    orderBy: { createdAt: 'asc' },
-    select: {
-      id: true,
-      name: true,
-      gender: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      healthInfo: true,
-      createdAt: true,
-      parentFirstName: true,
-      parentLastName: true,
-      parentEmail: true,
-      parentPhone: true,
-      parent2FirstName: true,
-      parent2LastName: true,
-      parent2Email: true,
-      parent2Phone: true,
-      // Payment fields
-      paymentMethodCaptured: true,
-      paymentMethodCapturedAt: true,
-      stripeCustomerIdDugsi: true,
-      stripeSubscriptionIdDugsi: true,
-      subscriptionStatus: true,
-      paidUntil: true,
-      currentPeriodStart: true,
-      currentPeriodEnd: true,
-      familyReferenceId: true,
-      stripeAccountType: true,
-    },
-  })
+  if (student.familyReferenceId) {
+    // Find all students with the same familyReferenceId
+    siblings = await prisma.student.findMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        familyReferenceId: student.familyReferenceId,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: DUGSI_REGISTRATION_SELECT,
+    })
+  } else if (student.parentEmail) {
+    // Find all students with the same parentEmail (fallback)
+    siblings = await prisma.student.findMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        parentEmail: student.parentEmail,
+        familyReferenceId: null, // Only match students without familyReferenceId
+      },
+      orderBy: { createdAt: 'asc' },
+      select: DUGSI_REGISTRATION_SELECT,
+    })
+  } else {
+    // No family grouping - return just this student
+    siblings = [student as DugsiRegistration]
+  }
 
   return siblings
 }
 
-export async function deleteDugsiFamily(studentId: string) {
+/**
+ * Get a preview of students that will be deleted when deleting a family.
+ * This is used by the delete confirmation dialog to show which students will be affected.
+ *
+ * Returns the count and details of students that will be deleted based on the same
+ * familyReferenceId-based matching logic used by deleteDugsiFamily().
+ */
+export async function getDeleteFamilyPreview(studentId: string): Promise<
+  ActionResult<{
+    count: number
+    students: Array<{ id: string; name: string; parentEmail: string | null }>
+  }>
+> {
   try {
     // Get the student to find family members
     const student = await prisma.student.findUnique({
       where: { id: studentId },
       select: {
-        parentPhone: true,
-        parent2Phone: true,
+        id: true,
+        familyReferenceId: true,
+        parentEmail: true,
       },
     })
 
@@ -124,32 +175,114 @@ export async function deleteDugsiFamily(studentId: string) {
       return { success: false, error: 'Student not found' }
     }
 
-    // Find all phone numbers to identify the family
-    const phoneNumbers = [student.parentPhone, student.parent2Phone].filter(
-      Boolean
-    )
+    // Find all students that will be deleted using the same logic as deleteDugsiFamily
+    let studentsToDelete
 
-    if (phoneNumbers.length === 0) {
-      // If no phone numbers, just delete the single student
+    if (student.familyReferenceId) {
+      studentsToDelete = await prisma.student.findMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: student.familyReferenceId,
+        },
+        select: {
+          id: true,
+          name: true,
+          parentEmail: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      })
+    } else if (student.parentEmail) {
+      studentsToDelete = await prisma.student.findMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          parentEmail: student.parentEmail,
+          familyReferenceId: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          parentEmail: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      })
+    } else {
+      // Single student
+      studentsToDelete = [
+        {
+          id: student.id,
+          name: '',
+          parentEmail: null,
+        },
+      ]
+    }
+
+    return {
+      success: true,
+      data: {
+        count: studentsToDelete.length,
+        students: studentsToDelete,
+      },
+    }
+  } catch (error) {
+    console.error('Error getting delete preview:', error)
+    return {
+      success: false,
+      error: 'Failed to get delete preview',
+    }
+  }
+}
+
+export async function deleteDugsiFamily(
+  studentId: string
+): Promise<ActionResult> {
+  try {
+    // Get the student to find family members
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: DUGSI_FAMILY_SELECT,
+    })
+
+    if (!student) {
+      return { success: false, error: 'Student not found' }
+    }
+
+    // Use familyReferenceId-based matching to align with UI grouping logic
+    // Priority: familyReferenceId > parentEmail > id (same as getFamilyKey)
+    let deleteResult
+
+    if (student.familyReferenceId) {
+      // Delete all students with the same familyReferenceId
+      deleteResult = await prisma.student.deleteMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: student.familyReferenceId,
+        },
+      })
+    } else if (student.parentEmail) {
+      // Delete all students with the same parentEmail (fallback)
+      deleteResult = await prisma.student.deleteMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          parentEmail: student.parentEmail,
+          familyReferenceId: null, // Only match students without familyReferenceId
+        },
+      })
+    } else {
+      // No family grouping - delete single student
       await prisma.student.delete({
         where: { id: studentId },
       })
-    } else {
-      // Delete all family members (students with matching phone numbers)
-      await prisma.student.deleteMany({
-        where: {
-          program: 'DUGSI_PROGRAM',
-          OR: phoneNumbers.map((phone) => ({
-            OR: [{ parentPhone: phone }, { parent2Phone: phone }],
-          })),
-        },
-      })
+      deleteResult = { count: 1 }
     }
 
     // Revalidate the page to show updated data
     revalidatePath('/admin/dugsi')
 
-    return { success: true }
+    const count = deleteResult.count
+    return {
+      success: true,
+      message: `Successfully deleted ${count} ${count === 1 ? 'student' : 'students'}`,
+    }
   } catch (error) {
     console.error('Error deleting family:', error)
     return { success: false, error: 'Failed to delete family' }
@@ -164,7 +297,7 @@ export async function deleteDugsiFamily(studentId: string) {
 export async function linkDugsiSubscription(params: {
   parentEmail: string
   subscriptionId: string
-}) {
+}): Promise<ActionResult<SubscriptionLinkData>> {
   try {
     const { parentEmail, subscriptionId } = params
 
@@ -208,13 +341,9 @@ export async function linkDugsiSubscription(params: {
       const students = await tx.student.findMany({
         where: {
           parentEmail,
-          program: 'DUGSI_PROGRAM',
+          program: DUGSI_PROGRAM,
         },
-        select: {
-          id: true,
-          stripeSubscriptionIdDugsi: true,
-          subscriptionStatus: true,
-        },
+        select: DUGSI_SUBSCRIPTION_LINK_SELECT,
       })
 
       if (students.length === 0) {
@@ -253,7 +382,9 @@ export async function linkDugsiSubscription(params: {
 
     return {
       success: true,
-      updated: studentsToUpdate.length,
+      data: {
+        updated: studentsToUpdate.length,
+      },
       message: `Successfully linked subscription to ${studentsToUpdate.length} students`,
     }
   } catch (error) {
@@ -270,25 +401,16 @@ export async function linkDugsiSubscription(params: {
  * Get payment status for a Dugsi family.
  * Useful for admins to see if payment method has been captured.
  */
-export async function getDugsiPaymentStatus(parentEmail: string) {
+export async function getDugsiPaymentStatus(
+  parentEmail: string
+): Promise<ActionResult<PaymentStatusData>> {
   try {
     const students = await prisma.student.findMany({
       where: {
         parentEmail,
-        program: 'DUGSI_PROGRAM',
+        program: DUGSI_PROGRAM,
       },
-      select: {
-        id: true,
-        name: true,
-        paymentMethodCaptured: true,
-        paymentMethodCapturedAt: true,
-        stripeCustomerIdDugsi: true,
-        stripeSubscriptionIdDugsi: true,
-        subscriptionStatus: true,
-        paidUntil: true,
-        currentPeriodStart: true,
-        currentPeriodEnd: true,
-      },
+      select: DUGSI_PAYMENT_STATUS_SELECT,
     })
 
     if (students.length === 0) {
@@ -323,6 +445,103 @@ export async function getDugsiPaymentStatus(parentEmail: string) {
     return {
       success: false,
       error: 'Failed to get payment status',
+    }
+  }
+}
+
+/**
+ * Verify bank account using microdeposit descriptor code.
+ * Admins input the 6-digit SM code that families see in their bank statements.
+ */
+export async function verifyDugsiBankAccount(
+  paymentIntentId: string,
+  descriptorCode: string
+): Promise<ActionResult<BankVerificationData>> {
+  try {
+    // Validate inputs
+    if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
+      return {
+        success: false,
+        error: 'Invalid payment intent ID format. Must start with "pi_"',
+      }
+    }
+
+    // Validate descriptor code format (6 characters, starts with SM)
+    const cleanCode = descriptorCode.trim().toUpperCase()
+    if (!/^SM[A-Z0-9]{4}$/.test(cleanCode)) {
+      return {
+        success: false,
+        error:
+          'Invalid descriptor code format. Must be 6 characters starting with SM (e.g., SMT86W)',
+      }
+    }
+
+    // Call Stripe API to verify microdeposits
+    const dugsiStripe = getDugsiStripeClient()
+
+    console.log('🔍 Verifying bank account:', {
+      paymentIntentId,
+      descriptorCode: cleanCode,
+    })
+
+    const paymentIntent = await dugsiStripe.paymentIntents.verifyMicrodeposits(
+      paymentIntentId,
+      { descriptor_code: cleanCode }
+    )
+
+    console.log('✅ Bank account verified successfully:', {
+      paymentIntentId,
+      status: paymentIntent.status,
+    })
+
+    // Revalidate the dashboard to reflect updated payment status
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+      data: {
+        paymentIntentId,
+        status: paymentIntent.status,
+      },
+    }
+  } catch (error: unknown) {
+    console.error('❌ Error verifying bank account:', error)
+
+    // Handle specific Stripe errors
+    if (
+      error &&
+      typeof error === 'object' &&
+      'type' in error &&
+      error.type === 'StripeInvalidRequestError' &&
+      'code' in error
+    ) {
+      if (error.code === 'payment_intent_unexpected_state') {
+        return {
+          success: false,
+          error: 'This bank account has already been verified',
+        }
+      }
+      if (error.code === 'incorrect_code') {
+        return {
+          success: false,
+          error:
+            'Incorrect verification code. Please check the code in the bank statement and try again',
+        }
+      }
+      if (error.code === 'resource_missing') {
+        return {
+          success: false,
+          error: 'Payment intent not found. The verification may have expired',
+        }
+      }
+    }
+
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to verify bank account',
     }
   }
 }

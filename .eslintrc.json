@@ -9,7 +9,11 @@
         "varsIgnorePattern": "^_"
       }
     ],
-    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-explicit-any": "error",
+    "no-useless-catch": "error",
+    "no-extra-boolean-cast": "error",
+    "no-useless-escape": "error",
+    "no-useless-return": "error",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
     "react/jsx-curly-brace-presence": [

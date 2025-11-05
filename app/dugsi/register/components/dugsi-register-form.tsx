@@ -1,12 +1,9 @@
 'use client'
 
-import { useTransition } from 'react'
-
 import { zodResolver } from '@hookform/resolvers/zod'
 import { UserPlus, X, Users, Loader2 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useFieldArray, useForm } from 'react-hook-form'
-import { toast } from 'sonner'
 
 import { ContactFields } from '@/components/registration/shared/ContactFields'
 import { DateOfBirthField } from '@/components/registration/shared/DateOfBirthField'
@@ -46,14 +43,13 @@ import {
 } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
 
-import { registerDugsiChildren } from '../actions'
+import { useDugsiRegistration } from '../hooks/use-dugsi-registration'
 
 export function DugsiRegisterForm() {
   const t = useTranslations('dugsi')
   const genderOptions = useTranslatedGenderOptions()
   const educationOptions = useTranslatedEducationOptions()
   const gradeOptions = useTranslatedGradeOptions()
-  const [isPending, startTransition] = useTransition()
 
   const form = useForm<DugsiRegistrationValues>({
     resolver: zodResolver(dugsiRegistrationSchema),
@@ -69,49 +65,13 @@ export function DugsiRegisterForm() {
   // Watch isSingleParent to show/hide parent 2 fields
   const isSingleParent = form.watch('isSingleParent')
 
+  // Custom hook for registration logic
+  const { registerChildren, isPending } = useDugsiRegistration({
+    form,
+  })
+
   const onSubmit = async (data: DugsiRegistrationValues) => {
-    if (isPending) return
-
-    console.log('🔍 Starting registration...', {
-      childCount: data.children.length,
-    })
-
-    startTransition(async () => {
-      try {
-        const result = await registerDugsiChildren(data)
-        console.log('🔍 Server action result:', result)
-
-        if (result.success && result.data?.paymentUrl) {
-          console.log('✅ Registration successful! Redirecting to payment...')
-
-          // Show informative message before redirect
-          const childText =
-            data.children.length === 1
-              ? t('childrenSection.child')
-              : t('childrenSection.children')
-
-          toast.success(
-            `Registration saved for ${data.children.length} ${childText}. Redirecting to complete payment...`,
-            {
-              duration: 2500,
-            }
-          )
-
-          // Redirect to Stripe payment
-          setTimeout(() => {
-            window.location.href = result.data!.paymentUrl!
-          }, 1500) // Brief delay to show message
-        } else {
-          console.error('❌ Registration failed:', result.error)
-          toast.error(result.error || t('messages.enrollmentError'))
-        }
-      } catch (error) {
-        console.error('💥 Unexpected error during registration:', error)
-        toast.error(
-          error instanceof Error ? error.message : t('messages.unexpectedError')
-        )
-      }
-    })
+    await registerChildren(data)
   }
 
   const handleAddChild = () => {

@@ -33,12 +33,14 @@ import {
 async function handlePaymentMethodCaptured(
   session: Stripe.Checkout.Session
 ): Promise<void> {
-  const { client_reference_id, customer, customer_email } = session
+  const { client_reference_id, customer, customer_email, payment_intent } =
+    session
 
   console.log('💳 Processing Dugsi payment method capture:', {
     referenceId: client_reference_id,
     customer,
     email: customer_email,
+    paymentIntent: payment_intent,
   })
 
   // Parse the reference ID to get family information
@@ -182,6 +184,75 @@ async function handleSubscriptionEvent(
 }
 
 /**
+ * Handle invoice finalization to capture PaymentIntent IDs.
+ * This is the reliable way to get PaymentIntent IDs for subscriptions.
+ */
+async function handleInvoiceFinalized(invoice: Stripe.Invoice): Promise<void> {
+  // Cast to any for webhook context where these properties exist but aren't in the type
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const invoiceWithExtras = invoice as any
+
+  // Only process first subscription invoice (not renewals)
+  if (
+    !invoiceWithExtras.subscription ||
+    invoice.billing_reason !== 'subscription_create'
+  ) {
+    console.log(`⏭️ Skipping non-subscription-create invoice: ${invoice.id}`, {
+      billing_reason: invoice.billing_reason,
+    })
+    return
+  }
+
+  // Extract PaymentIntent ID from invoice
+  const paymentIntentId = invoiceWithExtras.payment_intent
+    ? typeof invoiceWithExtras.payment_intent === 'string'
+      ? invoiceWithExtras.payment_intent
+      : invoiceWithExtras.payment_intent?.id
+    : null
+
+  // Extract customer ID
+  const customerId =
+    typeof invoice.customer === 'string'
+      ? invoice.customer
+      : invoice.customer?.id
+
+  if (!paymentIntentId || !customerId) {
+    console.warn('⚠️ Invoice missing payment_intent or customer:', invoice.id, {
+      paymentIntentId,
+      customerId,
+    })
+    return
+  }
+
+  console.log('💳 Capturing PaymentIntent from invoice:', {
+    invoiceId: invoice.id,
+    customerId,
+    paymentIntentId,
+    billing_reason: invoice.billing_reason,
+  })
+
+  try {
+    // Update all students in family with this customer ID
+    const updateResult = await prisma.student.updateMany({
+      where: {
+        program: 'DUGSI_PROGRAM',
+        stripeCustomerIdDugsi: customerId,
+      },
+      data: {
+        paymentIntentIdDugsi: paymentIntentId,
+      },
+    })
+
+    console.log(
+      `✅ PaymentIntent ID captured for ${updateResult.count} students (customer: ${customerId})`
+    )
+  } catch (error) {
+    console.error('❌ Error updating PaymentIntent IDs:', error)
+    throw error
+  }
+}
+
+/**
  * Main webhook handler for Dugsi Stripe events.
  */
 export async function POST(req: Request) {
@@ -279,6 +350,10 @@ export async function POST(req: Request) {
         await handlePaymentMethodCaptured(
           event.data.object as Stripe.Checkout.Session
         )
+        break
+
+      case 'invoice.finalized':
+        await handleInvoiceFinalized(event.data.object as Stripe.Invoice)
         break
 
       case 'customer.subscription.created':

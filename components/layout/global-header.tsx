@@ -57,7 +57,7 @@ export function GlobalHeader({
                   Payments
                 </Link>
                 <Link
-                  href="/admin/attendance"
+                  href="/admin/shared/attendance"
                   className="text-sm font-medium transition-colors hover:text-primary"
                 >
                   Attendance
@@ -139,7 +139,7 @@ export function GlobalHeader({
                   Payments
                 </Link>
                 <Link
-                  href="/admin/attendance"
+                  href="/admin/shared/attendance"
                   className="text-sm font-medium transition-colors hover:text-primary"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >

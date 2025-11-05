@@ -163,7 +163,8 @@
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [
       "prettier --write",
-      "eslint --fix"
+      "eslint --fix",
+      "node scripts/detect-slop.js"
     ],
     "*.{json,md}": [
       "prettier --write"

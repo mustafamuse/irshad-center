@@ -1,0 +1,113 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+
+import { Search, Filter } from 'lucide-react'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { useDebounce } from '@/hooks/use-debounce'
+
+import { AdvancedFilters } from './advanced-filters'
+import { MobileFilterDrawer } from './mobile-filter-drawer'
+import {
+  useAdvancedFiltersState,
+  useDugsiFilters,
+  useLegacyActions,
+} from '../../store'
+
+export function DashboardFilters() {
+  const showAdvancedFilters = useAdvancedFiltersState()
+  const filters = useDugsiFilters()
+  const { setSearchQuery, setAdvancedFilters, setAdvancedFiltersOpen } =
+    useLegacyActions()
+
+  // Local state for immediate input value
+  const [localSearchQuery, setLocalSearchQuery] = useState(
+    filters.search?.query || ''
+  )
+
+  // Debounced value
+  const debouncedSearchQuery = useDebounce(localSearchQuery, 300)
+
+  // Update Zustand store when debounced value changes
+  useEffect(() => {
+    setSearchQuery(debouncedSearchQuery)
+  }, [debouncedSearchQuery, setSearchQuery])
+
+  const advancedFilters = filters.advanced || {
+    dateFilter: 'all',
+    hasHealthInfo: false,
+  }
+
+  const hasActiveAdvancedFilters =
+    advancedFilters.dateFilter !== 'all' || advancedFilters.hasHealthInfo
+
+  // Count active filters for mobile drawer badge
+  const activeFilterCount =
+    (advancedFilters.dateFilter !== 'all' ? 1 : 0) +
+    (advancedFilters.hasHealthInfo ? 1 : 0)
+
+  return (
+    <>
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            placeholder="Search by name, email, or phone..."
+            value={localSearchQuery}
+            onChange={(e) => setLocalSearchQuery(e.target.value)}
+            className="pl-9"
+            aria-label="Search families by name, email, or phone"
+          />
+        </div>
+
+        {/* Desktop: Inline Advanced Filters Toggle */}
+        <Button
+          variant="outline"
+          onClick={() => setAdvancedFiltersOpen(!showAdvancedFilters)}
+          className="hidden gap-2 lg:flex"
+          aria-expanded={showAdvancedFilters}
+          aria-controls="advanced-filters-panel"
+        >
+          <Filter className="h-4 w-4" />
+          Advanced Filters
+          {hasActiveAdvancedFilters && (
+            <Badge
+              variant="secondary"
+              className="ml-1"
+              aria-label="Active filters"
+            >
+              Active
+            </Badge>
+          )}
+        </Button>
+
+        {/* Mobile: Filter Drawer */}
+        <MobileFilterDrawer activeFilterCount={activeFilterCount}>
+          <AdvancedFilters
+            filters={advancedFilters}
+            onFiltersChange={setAdvancedFilters}
+          />
+        </MobileFilterDrawer>
+      </div>
+
+      {/* Desktop: Inline Advanced Filters (shown when toggled) */}
+      {showAdvancedFilters && (
+        <div
+          id="advanced-filters-panel"
+          role="region"
+          aria-label="Advanced filters"
+          className="hidden lg:block"
+        >
+          <AdvancedFilters
+            filters={advancedFilters}
+            onFiltersChange={setAdvancedFilters}
+          />
+        </div>
+      )}
+    </>
+  )
+}
