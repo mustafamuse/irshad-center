@@ -1,8 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
 import { BadgeCheck, Loader2, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -19,6 +17,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { useActionHandler } from '../../_hooks/use-action-handler'
 import { verifyDugsiBankAccount } from '../../actions'
 
 interface VerifyBankDialogProps {
@@ -34,9 +33,19 @@ export function VerifyBankDialog({
   paymentIntentId,
   parentEmail,
 }: VerifyBankDialogProps) {
-  const router = useRouter()
   const [descriptorCode, setDescriptorCode] = useState('')
-  const [isVerifying, startTransition] = useTransition()
+
+  // Hook for handling bank verification with automatic error handling
+  const { execute: verifyBank, isPending: isVerifying } = useActionHandler(
+    verifyDugsiBankAccount,
+    {
+      successMessage: 'Bank account verified successfully!',
+      onSuccess: () => {
+        onOpenChange(false)
+        setDescriptorCode('')
+      },
+    }
+  )
 
   const handleVerify = async () => {
     if (!descriptorCode.trim()) {
@@ -44,21 +53,7 @@ export function VerifyBankDialog({
       return
     }
 
-    startTransition(async () => {
-      const result = await verifyDugsiBankAccount(
-        paymentIntentId,
-        descriptorCode
-      )
-
-      if (result.success) {
-        toast.success('Bank account verified successfully!')
-        onOpenChange(false)
-        setDescriptorCode('')
-        router.refresh()
-      } else {
-        toast.error(result.error || 'Failed to verify bank account')
-      }
-    })
+    await verifyBank(paymentIntentId, descriptorCode)
   }
 
   const handleClose = () => {

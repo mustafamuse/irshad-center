@@ -53,6 +53,7 @@ import {
   formatGradeLevel,
 } from '@/lib/utils/enum-formatters'
 
+import { useActionHandler } from '../../_hooks/use-action-handler'
 import { DugsiRegistration } from '../../_types'
 import { groupRegistrationsByDate } from '../../_utils/date-grouping'
 import {
@@ -74,9 +75,23 @@ export function DugsiRegistrationsTable({
     useState<DugsiRegistration | null>(null)
   const [familyMembers, setFamilyMembers] = useState<DugsiRegistration[]>([])
   const [isLoadingFamily, startTransition] = useTransition()
-  const [isDeleting, startDeleteTransition] = useTransition()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [groupByDate] = useState(false)
+
+  // Hook for handling family deletion with automatic error handling
+  const { execute: deleteFamily, isPending: isDeleting } = useActionHandler(
+    deleteDugsiFamily,
+    {
+      onSuccess: () => {
+        toast.success(
+          `Successfully deleted ${familyMembers.length} student${familyMembers.length > 1 ? 's' : ''} and their family information`
+        )
+        setShowDeleteDialog(false)
+        setSelectedRegistration(null)
+        setFamilyMembers([])
+      },
+    }
+  )
 
   useEffect(() => {
     if (selectedRegistration) {
@@ -92,21 +107,7 @@ export function DugsiRegistrationsTable({
   // Handle family deletion
   const handleDeleteFamily = async () => {
     if (!selectedRegistration) return
-
-    startDeleteTransition(async () => {
-      const result = await deleteDugsiFamily(selectedRegistration.id)
-
-      if (result.success) {
-        toast.success(
-          `Successfully deleted ${familyMembers.length} student${familyMembers.length > 1 ? 's' : ''} and their family information`
-        )
-        setShowDeleteDialog(false)
-        setSelectedRegistration(null)
-        setFamilyMembers([])
-      } else {
-        toast.error(result.error || 'Failed to delete family')
-      }
-    })
+    await deleteFamily(selectedRegistration.id)
   }
 
   // Copy to clipboard helper

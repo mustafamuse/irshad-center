@@ -1,8 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
 import { AlertCircle, CheckCircle, Loader2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -20,6 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
+import { useActionHandler } from '../../_hooks/use-action-handler'
 import { linkDugsiSubscription, validateDugsiSubscription } from '../../actions'
 
 interface LinkSubscriptionDialogProps {
@@ -38,13 +37,24 @@ export function LinkSubscriptionDialog({
   parentEmail,
   familyMembers,
 }: LinkSubscriptionDialogProps) {
-  const router = useRouter()
   const [subscriptionId, setSubscriptionId] = useState('')
   const [isValidating, setIsValidating] = useState(false)
   const [validationStatus, setValidationStatus] = useState<
     'idle' | 'valid' | 'invalid'
   >('idle')
-  const [isLinking, startTransition] = useTransition()
+
+  // Hook for handling subscription linking with automatic error handling
+  const { execute: linkSubscription, isPending: isLinking } = useActionHandler(
+    linkDugsiSubscription,
+    {
+      successMessage: 'Subscription linked successfully',
+      onSuccess: () => {
+        onOpenChange(false)
+        setSubscriptionId('')
+        setValidationStatus('idle')
+      },
+    }
+  )
 
   // Check if parentEmail is missing or empty
   const isParentEmailMissing = !parentEmail || parentEmail.trim() === ''
@@ -86,22 +96,7 @@ export function LinkSubscriptionDialog({
       return
     }
 
-    startTransition(async () => {
-      const result = await linkDugsiSubscription({
-        parentEmail,
-        subscriptionId,
-      })
-
-      if (result.success) {
-        toast.success(result.message || 'Subscription linked successfully')
-        onOpenChange(false)
-        setSubscriptionId('')
-        setValidationStatus('idle')
-        router.refresh()
-      } else {
-        toast.error(result.error || 'Failed to link subscription')
-      }
-    })
+    await linkSubscription({ parentEmail, subscriptionId })
   }
 
   const handleClose = () => {
