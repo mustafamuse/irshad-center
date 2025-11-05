@@ -204,7 +204,7 @@ export function DugsiRegistrationsTable({
                   <TableHead className="w-16">Gender</TableHead>
                   <TableHead>Parent</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Payment</TableHead>
+                  <TableHead>Bank Info</TableHead>
                   <TableHead>Subscription</TableHead>
                   <TableHead>Registered</TableHead>
                   <TableHead className="w-12"></TableHead>
@@ -304,11 +304,11 @@ export function DugsiRegistrationsTable({
                             {registration.paymentMethodCaptured ? (
                               <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
                                 <CheckCircle2 className="mr-1 h-3 w-3" />
-                                Ready
+                                On File
                               </Badge>
                             ) : (
                               <Badge variant="secondary" className="text-xs">
-                                No Payment
+                                Needed
                               </Badge>
                             )}
                           </TableCell>
@@ -400,11 +400,11 @@ export function DugsiRegistrationsTable({
                         {registration.paymentMethodCaptured ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
                             <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Ready
+                            On File
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="text-xs">
-                            No Payment
+                            Needed
                           </Badge>
                         )}
                       </TableCell>
@@ -975,15 +975,15 @@ function MobileRegistrationCard({
             {/* Payment Status */}
             <div className="flex items-center gap-2">
               <div>
-                <p className="text-[11px] text-muted-foreground">Payment</p>
+                <p className="text-[11px] text-muted-foreground">Bank Info</p>
                 {registration.paymentMethodCaptured ? (
                   <Badge className="bg-green-100 text-xs text-green-800 hover:bg-green-100">
                     <CheckCircle2 className="mr-1 h-3 w-3" />
-                    Ready
+                    On File
                   </Badge>
                 ) : (
                   <Badge variant="secondary" className="text-xs">
-                    No Payment
+                    Needed
                   </Badge>
                 )}
               </div>

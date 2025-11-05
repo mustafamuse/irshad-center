@@ -100,7 +100,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
               <div className="flex flex-wrap items-center gap-2">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">
-                    Payment:
+                    Bank Info:
                   </span>
                   {family.hasPayment ? (
                     <Badge
@@ -108,7 +108,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                       className="gap-1 border-green-600 text-green-600"
                     >
                       <CheckCircle className="h-3 w-3" />
-                      Paid
+                      On File
                     </Badge>
                   ) : (
                     <Badge
@@ -116,7 +116,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                       className="gap-1 border-red-600 text-red-600"
                     >
                       <XCircle className="h-3 w-3" />
-                      Unpaid
+                      Needed
                     </Badge>
                   )}
                 </div>
@@ -137,7 +137,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
             <TableRow>
               <TableHead>Parent Name</TableHead>
               <TableHead># Students</TableHead>
-              <TableHead>Payment</TableHead>
+              <TableHead>Bank Info</TableHead>
               <TableHead>Subscription</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -197,8 +197,8 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                       <TooltipContent>
                         <p>
                           {family.hasPayment
-                            ? 'Payment Captured'
-                            : 'No Payment'}
+                            ? 'Bank info on file'
+                            : 'Bank info needed'}
                         </p>
                       </TooltipContent>
                     </Tooltip>
