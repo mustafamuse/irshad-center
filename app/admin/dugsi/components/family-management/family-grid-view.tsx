@@ -11,9 +11,7 @@ import {
   Send,
   Link,
   Mail,
-  Trash2,
 } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,13 +28,14 @@ import {
 import { EmptyState } from '@/components/ui/empty-state'
 
 import { FamilyDetailSheet } from './family-detail-sheet'
+import { useFamilyActions } from '../../_hooks/use-family-actions'
 import { Family } from '../../_types'
 import { formatParentName } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 import { ChildInfoCard } from '../ui/child-info-card'
 import { ParentInfo } from '../ui/parent-info'
-import { SwipeableCard, SwipeAction } from '../ui/swipeable-card'
+import { SwipeableCard } from '../ui/swipeable-card'
 
 interface FamilyGridViewProps {
   families: Family[]
@@ -68,6 +67,14 @@ export function FamilyGridView({
   const setVerifyBankDialogData = useDugsiUIStore(
     (state) => state.setVerifyBankDialogData
   )
+
+  // Family actions hook
+  const familyActions = useFamilyActions({
+    onViewDetails: (family) => {
+      setSelectedFamily(family)
+      setIsSheetOpen(true)
+    },
+  })
 
   const toggleFamily = (familyKey: string) => {
     const newExpanded = new Set(expandedFamilies)
@@ -111,34 +118,11 @@ export function FamilyGridView({
           const isSelected = selectedFamilies.has(family.familyKey)
           const firstMember = family.members[0]
 
-          // Define swipe actions for mobile
-          const swipeActions: SwipeAction[] = [
-            {
-              icon: Mail,
-              label: 'Email',
-              color: 'blue',
-              onAction: () => {
-                toast.info(
-                  `Email action for ${formatParentName(firstMember?.parentFirstName, firstMember?.parentLastName)}`
-                )
-                // TODO: Implement email functionality
-              },
-            },
-            {
-              icon: Trash2,
-              label: 'Delete',
-              color: 'red',
-              onAction: () => {
-                toast.info(
-                  `Delete action for ${formatParentName(firstMember?.parentFirstName, firstMember?.parentLastName)}`
-                )
-                // TODO: Implement delete with confirmation
-              },
-            },
-          ]
-
           return (
-            <SwipeableCard key={family.familyKey} rightActions={swipeActions}>
+            <SwipeableCard
+              key={family.familyKey}
+              rightActions={familyActions.getSwipeActions(family)}
+            >
               <Card
                 className={`flex h-full flex-col transition-all ${
                   isSelected ? 'border-primary ring-2 ring-primary/20' : ''
@@ -216,42 +200,46 @@ export function FamilyGridView({
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
-                          onClick={() => {
-                            setSelectedFamily(family)
-                            setIsSheetOpen(true)
-                          }}
+                          onClick={() =>
+                            familyActions.handleViewDetails(family)
+                          }
                         >
                           <Users className="mr-2 h-4 w-4" />
                           View Details
                         </DropdownMenuItem>
                         {family.hasPayment && !family.hasSubscription && (
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              familyActions.handleLinkSubscription(family)
+                            }
+                          >
                             <Link className="mr-2 h-4 w-4" />
                             Link Subscription
                           </DropdownMenuItem>
                         )}
                         {!family.hasPayment && (
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              familyActions.handleSendPaymentLink(family)
+                            }
+                          >
                             <Send className="mr-2 h-4 w-4" />
                             Send Payment Link
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => familyActions.handleSendEmail(family)}
+                        >
                           <Mail className="mr-2 h-4 w-4" />
                           Send Email
                         </DropdownMenuItem>
                         {family.members[0]?.stripeCustomerIdDugsi && (
                           <DropdownMenuItem
-                            onClick={() => {
-                              const customerId =
-                                family.members[0].stripeCustomerIdDugsi
-                              const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
-                              window.open(
-                                stripeUrl,
-                                '_blank',
-                                'noopener,noreferrer'
+                            onClick={() =>
+                              familyActions.handleViewInStripe(
+                                family.members[0].stripeCustomerIdDugsi!
                               )
-                            }}
+                            }
                           >
                             <ExternalLink className="mr-2 h-4 w-4" />
                             View in Stripe
