@@ -9,6 +9,8 @@
 
 'use client'
 
+import { useCallback } from 'react'
+
 import {
   CreditCard,
   ExternalLink,
@@ -49,29 +51,52 @@ export function FamilyDetailSheet({
   onOpenChange,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
-  if (!family) return null
+  // All hooks must be called before any conditional returns (Rules of Hooks)
+  const handleVerifyBank = useCallback(() => {
+    if (!family) return
 
-  const handleVerifyBank = () => {
     const paymentIntentId = family.members[0]?.paymentIntentIdDugsi
     const parentEmail = family.parentEmail
 
     if (paymentIntentId && parentEmail && onVerifyBankAccount) {
       onVerifyBankAccount(paymentIntentId, parentEmail)
     }
-  }
+  }, [family, onVerifyBankAccount])
 
-  const handleViewInStripe = () => {
+  const handleViewInStripe = useCallback(() => {
+    if (!family) return
+
     const customerId = family.members[0]?.stripeCustomerIdDugsi
     if (customerId) {
       const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
       window.open(stripeUrl, '_blank', 'noopener,noreferrer')
     }
-  }
+  }, [family])
 
-  const copyToClipboard = (text: string, label: string) => {
+  const copyToClipboard = useCallback((text: string, label: string) => {
     navigator.clipboard.writeText(text)
     toast.success(`${label} copied to clipboard`)
-  }
+  }, [])
+
+  const handleCopyCustomerId = useCallback(() => {
+    if (!family) return
+
+    const customerId = family.members[0]?.stripeCustomerIdDugsi
+    if (customerId) {
+      copyToClipboard(customerId, 'Customer ID')
+    }
+  }, [family, copyToClipboard])
+
+  const handleCopySubscriptionId = useCallback(() => {
+    if (!family) return
+
+    const subscriptionId = family.members[0]?.stripeSubscriptionIdDugsi
+    if (subscriptionId) {
+      copyToClipboard(subscriptionId, 'Subscription ID')
+    }
+  }, [family, copyToClipboard])
+
+  if (!family) return null
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -143,13 +168,7 @@ export function FamilyDetailSheet({
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
-                      onClick={() =>
-                        family.members[0]?.stripeCustomerIdDugsi &&
-                        copyToClipboard(
-                          family.members[0].stripeCustomerIdDugsi,
-                          'Customer ID'
-                        )
-                      }
+                      onClick={handleCopyCustomerId}
                       aria-label="Copy customer ID"
                     >
                       <Copy className="h-3 w-3" />
@@ -171,13 +190,7 @@ export function FamilyDetailSheet({
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={() =>
-                          family.members[0]?.stripeSubscriptionIdDugsi &&
-                          copyToClipboard(
-                            family.members[0].stripeSubscriptionIdDugsi,
-                            'Subscription ID'
-                          )
-                        }
+                        onClick={handleCopySubscriptionId}
                         aria-label="Copy subscription ID"
                       >
                         <Copy className="h-3 w-3" />

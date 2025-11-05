@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 import { Users, CheckCircle, XCircle } from 'lucide-react'
 
@@ -50,10 +50,28 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
     (state) => state.setVerifyBankDialogData
   )
 
-  const handleRowClick = (family: Family) => {
+  const handleRowClick = useCallback((family: Family) => {
     setSelectedFamily(family)
     setIsSheetOpen(true)
-  }
+  }, [])
+
+  const handleVerifyBankAccount = useCallback(
+    (paymentIntentId: string, parentEmail: string) => {
+      setVerifyBankDialogData({ paymentIntentId, parentEmail })
+      setDialogOpen('verifyBank', true)
+    },
+    [setVerifyBankDialogData, setDialogOpen]
+  )
+
+  const handleVerifyBankDialogChange = useCallback(
+    (open: boolean) => {
+      setDialogOpen('verifyBank', open)
+      if (!open) {
+        setVerifyBankDialogData(null)
+      }
+    },
+    [setDialogOpen, setVerifyBankDialogData]
+  )
 
   if (families.length === 0) {
     return (
@@ -230,22 +248,14 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
         family={selectedFamily}
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
-        onVerifyBankAccount={(paymentIntentId, parentEmail) => {
-          setVerifyBankDialogData({ paymentIntentId, parentEmail })
-          setDialogOpen('verifyBank', true)
-        }}
+        onVerifyBankAccount={handleVerifyBankAccount}
       />
 
       {/* Verify Bank Dialog */}
       {verifyBankDialogData && (
         <VerifyBankDialog
           open={isVerifyBankDialogOpen}
-          onOpenChange={(open) => {
-            setDialogOpen('verifyBank', open)
-            if (!open) {
-              setVerifyBankDialogData(null)
-            }
-          }}
+          onOpenChange={handleVerifyBankDialogChange}
           paymentIntentId={verifyBankDialogData.paymentIntentId}
           parentEmail={verifyBankDialogData.parentEmail}
         />

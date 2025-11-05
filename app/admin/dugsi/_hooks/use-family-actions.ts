@@ -10,6 +10,8 @@
 
 'use client'
 
+import { useCallback } from 'react'
+
 import { Mail, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -23,7 +25,7 @@ interface UseFamilyActionsProps {
 
 export function useFamilyActions({ onViewDetails }: UseFamilyActionsProps) {
   // Swipe actions for mobile
-  const getSwipeActions = (family: Family): SwipeAction[] => {
+  const getSwipeActions = useCallback((family: Family): SwipeAction[] => {
     const firstMember = family.members[0]
     const parentName = formatParentName(
       firstMember?.parentFirstName,
@@ -50,32 +52,35 @@ export function useFamilyActions({ onViewDetails }: UseFamilyActionsProps) {
         },
       },
     ]
-  }
+  }, [])
 
   // Dropdown action handlers
-  const handleViewDetails = (family: Family) => {
-    onViewDetails(family)
-  }
+  const handleViewDetails = useCallback(
+    (family: Family) => {
+      onViewDetails(family)
+    },
+    [onViewDetails]
+  )
 
-  const handleLinkSubscription = (_family: Family) => {
+  const handleLinkSubscription = useCallback((_family: Family) => {
     toast.info('Link subscription functionality coming soon')
     // TODO: Implement link subscription dialog
-  }
+  }, [])
 
-  const handleSendPaymentLink = (_family: Family) => {
+  const handleSendPaymentLink = useCallback((_family: Family) => {
     toast.info('Send payment link functionality coming soon')
     // TODO: Implement send payment link functionality
-  }
+  }, [])
 
-  const handleSendEmail = (_family: Family) => {
+  const handleSendEmail = useCallback((_family: Family) => {
     toast.info('Send email functionality coming soon')
     // TODO: Implement send email functionality
-  }
+  }, [])
 
-  const handleViewInStripe = (customerId: string) => {
+  const handleViewInStripe = useCallback((customerId: string) => {
     const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
     window.open(stripeUrl, '_blank', 'noopener,noreferrer')
-  }
+  }, [])
 
   return {
     getSwipeActions,
