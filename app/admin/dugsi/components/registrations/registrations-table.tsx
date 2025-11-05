@@ -61,7 +61,11 @@ import {
   calculateAge,
   formatParentName,
 } from '../../_utils/format'
-import { deleteDugsiFamily, getFamilyMembers } from '../../actions'
+import {
+  deleteDugsiFamily,
+  getFamilyMembers,
+  getDeleteFamilyPreview,
+} from '../../actions'
 import { PaymentStatusSection } from '../payment-status-section'
 
 interface DugsiRegistrationsTableProps {
@@ -76,6 +80,11 @@ export function DugsiRegistrationsTable({
   const [familyMembers, setFamilyMembers] = useState<DugsiRegistration[]>([])
   const [isLoadingFamily, startTransition] = useTransition()
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deletePreview, setDeletePreview] = useState<{
+    count: number
+    students: Array<{ id: string; name: string; parentEmail: string | null }>
+  } | null>(null)
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [groupByDate] = useState(false)
 
   // Hook for handling family deletion with automatic error handling
@@ -83,12 +92,11 @@ export function DugsiRegistrationsTable({
     deleteDugsiFamily,
     {
       onSuccess: () => {
-        toast.success(
-          `Successfully deleted ${familyMembers.length} student${familyMembers.length > 1 ? 's' : ''} and their family information`
-        )
+        // Success message comes from the action itself now
         setShowDeleteDialog(false)
         setSelectedRegistration(null)
         setFamilyMembers([])
+        setDeletePreview(null)
       },
     }
   )
@@ -103,6 +111,32 @@ export function DugsiRegistrationsTable({
       setFamilyMembers([])
     }
   }, [selectedRegistration])
+
+  // Load delete preview when dialog opens
+  useEffect(() => {
+    if (showDeleteDialog && selectedRegistration) {
+      setIsLoadingPreview(true)
+      getDeleteFamilyPreview(selectedRegistration.id)
+        .then((result) => {
+          if (result.success && result.data) {
+            setDeletePreview(result.data)
+          } else {
+            toast.error(result.error || 'Failed to load delete preview')
+            setShowDeleteDialog(false)
+          }
+        })
+        .catch((error) => {
+          console.error('Error loading delete preview:', error)
+          toast.error('Failed to load delete preview')
+          setShowDeleteDialog(false)
+        })
+        .finally(() => {
+          setIsLoadingPreview(false)
+        })
+    } else {
+      setDeletePreview(null)
+    }
+  }, [showDeleteDialog, selectedRegistration])
 
   // Handle family deletion
   const handleDeleteFamily = async () => {
@@ -787,47 +821,72 @@ export function DugsiRegistrationsTable({
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Entire Family?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action will permanently delete{' '}
-              <span className="font-semibold text-foreground">
-                {familyMembers.length} student
-                {familyMembers.length > 1 ? 's' : ''}
-              </span>{' '}
-              and all their parent information:
-            </AlertDialogDescription>
-            <div className="space-y-3 pt-2">
-              <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                {familyMembers.map((child) => (
-                  <li key={child.id}>{child.name}</li>
-                ))}
-              </ul>
-              <p className="text-sm font-semibold text-destructive">
-                This action cannot be undone.
+          {isLoadingPreview ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-[#007078]" />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Loading deletion preview...
               </p>
             </div>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(e) => {
-                e.preventDefault()
-                handleDeleteFamily()
-              }}
-              disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                'Delete Family'
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          ) : deletePreview ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Entire Family?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action will permanently delete{' '}
+                  <span className="font-semibold text-foreground">
+                    {deletePreview.count} student
+                    {deletePreview.count > 1 ? 's' : ''}
+                  </span>{' '}
+                  and all their parent information:
+                </AlertDialogDescription>
+                <div className="space-y-3 pt-2">
+                  <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                    {deletePreview.students.map((student) => (
+                      <li key={student.id}>
+                        {student.name || 'Unnamed student'}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3">
+                    <p className="text-sm font-semibold text-destructive">
+                      ⚠️ This action cannot be undone.
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      All {deletePreview.count} student
+                      {deletePreview.count > 1 ? 's' : ''} shown above will be
+                      permanently deleted from the database.
+                    </p>
+                  </div>
+                </div>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleDeleteFamily()
+                  }}
+                  disabled={isDeleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      Delete {deletePreview.count} Student
+                      {deletePreview.count > 1 ? 's' : ''}
+                    </>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : null}
         </AlertDialogContent>
       </AlertDialog>
     </div>
