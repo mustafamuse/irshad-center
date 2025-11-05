@@ -855,3 +855,35 @@ function buildStudentWhereClause(
 
   return where
 }
+
+/**
+ * Get students with payment information for Mahad payment management.
+ * Includes subscription status, payment intent IDs, and billing dates.
+ */
+export async function getStudentsWithPaymentInfo() {
+  const students = await prisma.student.findMany({
+    where: {
+      program: 'MAHAD_PROGRAM',
+      status: {
+        not: 'withdrawn',
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      parentEmail: true,
+      stripeSubscriptionId: true,
+      stripeCustomerId: true,
+      paymentIntentIdMahad: true,
+      subscriptionStatus: true,
+      paidUntil: true,
+      currentPeriodStart: true,
+      currentPeriodEnd: true,
+    },
+    orderBy: {
+      name: 'asc',
+    },
+  })
+
+  return students
+}

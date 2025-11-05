@@ -7,11 +7,13 @@ import { getBatches } from '@/lib/db/queries/batch'
 import {
   getStudentsWithBatch,
   findDuplicateStudents,
+  getStudentsWithPaymentInfo,
 } from '@/lib/db/queries/student'
 
 import { BatchManagement } from './components/batch-management'
 import { DuplicateDetector } from './components/duplicate-detection'
 import { BatchErrorBoundary } from './components/error-boundary'
+import { PaymentManagement } from './components/payment-management'
 import { StudentsTable } from './components/students-table'
 import { Providers } from '../../../providers'
 
@@ -26,11 +28,13 @@ export const metadata: Metadata = {
 
 export default async function CohortsPage() {
   // Fetch data in parallel
-  const [batches, students, duplicates] = await Promise.all([
-    getBatches(),
-    getStudentsWithBatch(),
-    findDuplicateStudents(),
-  ])
+  const [batches, students, duplicates, studentsWithPayment] =
+    await Promise.all([
+      getBatches(),
+      getStudentsWithBatch(),
+      findDuplicateStudents(),
+      getStudentsWithPaymentInfo(),
+    ])
 
   return (
     <Providers>
@@ -44,6 +48,14 @@ export default async function CohortsPage() {
         <BatchErrorBoundary>
           <Suspense fallback={<Loading />}>
             <BatchManagement batches={batches} students={students} />
+          </Suspense>
+        </BatchErrorBoundary>
+
+        <Separator className="my-4 sm:my-6 lg:my-8" />
+
+        <BatchErrorBoundary>
+          <Suspense fallback={<Loading />}>
+            <PaymentManagement students={studentsWithPayment} />
           </Suspense>
         </BatchErrorBoundary>
 
