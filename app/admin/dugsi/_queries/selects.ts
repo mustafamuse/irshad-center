@@ -37,7 +37,12 @@ export const DUGSI_REGISTRATION_SELECT = {
 } as const
 
 // Family lookup select - minimal fields for family identification
+// Updated to use familyReferenceId-based matching (aligns with getFamilyKey logic)
 export const DUGSI_FAMILY_SELECT = {
+  id: true,
+  familyReferenceId: true,
+  parentEmail: true,
+  // Legacy phone fields (deprecated for family matching but kept for data access)
   parentPhone: true,
   parent2Phone: true,
 } as const

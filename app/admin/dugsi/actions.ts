@@ -23,7 +23,6 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
 } from './_types'
-import { getFamilyPhoneNumbers } from './_utils/family'
 
 export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
   const students = await prisma.student.findMany({
@@ -115,24 +114,122 @@ export async function getFamilyMembers(
 
   if (!student) return []
 
-  // Find all siblings (students with the same parent phone number)
-  // Use utility function for consistent family identification
-  const phoneNumbers = getFamilyPhoneNumbers(student)
+  // Find all siblings using familyReferenceId-based matching (same as getFamilyKey)
+  // Priority: familyReferenceId > parentEmail > id
+  let siblings: DugsiRegistration[]
 
-  if (phoneNumbers.length === 0) return []
-
-  const siblings = await prisma.student.findMany({
-    where: {
-      program: DUGSI_PROGRAM,
-      OR: phoneNumbers.map((phone) => ({
-        OR: [{ parentPhone: phone }, { parent2Phone: phone }],
-      })),
-    },
-    orderBy: { createdAt: 'asc' },
-    select: DUGSI_REGISTRATION_SELECT,
-  })
+  if (student.familyReferenceId) {
+    // Find all students with the same familyReferenceId
+    siblings = await prisma.student.findMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        familyReferenceId: student.familyReferenceId,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: DUGSI_REGISTRATION_SELECT,
+    })
+  } else if (student.parentEmail) {
+    // Find all students with the same parentEmail (fallback)
+    siblings = await prisma.student.findMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        parentEmail: student.parentEmail,
+        familyReferenceId: null, // Only match students without familyReferenceId
+      },
+      orderBy: { createdAt: 'asc' },
+      select: DUGSI_REGISTRATION_SELECT,
+    })
+  } else {
+    // No family grouping - return just this student
+    siblings = [student as DugsiRegistration]
+  }
 
   return siblings
+}
+
+/**
+ * Get a preview of students that will be deleted when deleting a family.
+ * This is used by the delete confirmation dialog to show which students will be affected.
+ *
+ * Returns the count and details of students that will be deleted based on the same
+ * familyReferenceId-based matching logic used by deleteDugsiFamily().
+ */
+export async function getDeleteFamilyPreview(studentId: string): Promise<
+  ActionResult<{
+    count: number
+    students: Array<{ id: string; name: string; parentEmail: string | null }>
+  }>
+> {
+  try {
+    // Get the student to find family members
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        familyReferenceId: true,
+        parentEmail: true,
+      },
+    })
+
+    if (!student) {
+      return { success: false, error: 'Student not found' }
+    }
+
+    // Find all students that will be deleted using the same logic as deleteDugsiFamily
+    let studentsToDelete
+
+    if (student.familyReferenceId) {
+      studentsToDelete = await prisma.student.findMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: student.familyReferenceId,
+        },
+        select: {
+          id: true,
+          name: true,
+          parentEmail: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      })
+    } else if (student.parentEmail) {
+      studentsToDelete = await prisma.student.findMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          parentEmail: student.parentEmail,
+          familyReferenceId: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          parentEmail: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      })
+    } else {
+      // Single student
+      studentsToDelete = [
+        {
+          id: student.id,
+          name: '',
+          parentEmail: null,
+        },
+      ]
+    }
+
+    return {
+      success: true,
+      data: {
+        count: studentsToDelete.length,
+        students: studentsToDelete,
+      },
+    }
+  } catch (error) {
+    console.error('Error getting delete preview:', error)
+    return {
+      success: false,
+      error: 'Failed to get delete preview',
+    }
+  }
 }
 
 export async function deleteDugsiFamily(
@@ -149,31 +246,43 @@ export async function deleteDugsiFamily(
       return { success: false, error: 'Student not found' }
     }
 
-    // Find all phone numbers to identify the family
-    // Use utility function for consistent family identification
-    const phoneNumbers = getFamilyPhoneNumbers(student)
+    // Use familyReferenceId-based matching to align with UI grouping logic
+    // Priority: familyReferenceId > parentEmail > id (same as getFamilyKey)
+    let deleteResult
 
-    if (phoneNumbers.length === 0) {
-      // If no phone numbers, just delete the single student
+    if (student.familyReferenceId) {
+      // Delete all students with the same familyReferenceId
+      deleteResult = await prisma.student.deleteMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: student.familyReferenceId,
+        },
+      })
+    } else if (student.parentEmail) {
+      // Delete all students with the same parentEmail (fallback)
+      deleteResult = await prisma.student.deleteMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          parentEmail: student.parentEmail,
+          familyReferenceId: null, // Only match students without familyReferenceId
+        },
+      })
+    } else {
+      // No family grouping - delete single student
       await prisma.student.delete({
         where: { id: studentId },
       })
-    } else {
-      // Delete all family members (students with matching phone numbers)
-      await prisma.student.deleteMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          OR: phoneNumbers.map((phone) => ({
-            OR: [{ parentPhone: phone }, { parent2Phone: phone }],
-          })),
-        },
-      })
+      deleteResult = { count: 1 }
     }
 
     // Revalidate the page to show updated data
     revalidatePath('/admin/dugsi')
 
-    return { success: true }
+    const count = deleteResult.count
+    return {
+      success: true,
+      message: `Successfully deleted ${count} ${count === 1 ? 'student' : 'students'}`,
+    }
   } catch (error) {
     console.error('Error deleting family:', error)
     return { success: false, error: 'Failed to delete family' }

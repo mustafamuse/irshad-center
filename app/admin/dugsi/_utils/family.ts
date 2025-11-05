@@ -6,19 +6,31 @@
 import { DugsiRegistration, Family, FamilyStatus } from '../_types'
 
 /**
- * Get family key from registration
+ * Get family key from registration - SINGLE SOURCE OF TRUTH for family identification.
  * Priority: familyReferenceId > parentEmail > id
  *
- * This function is used for grouping registrations into families in the UI.
- * It uses a simplified approach that prioritizes explicit family references
- * (familyReferenceId) or parent email for consistency.
+ * This function defines how families are grouped throughout the application:
+ * - **UI grouping**: Groups students into families for display
+ * - **Database operations**: Determines which students are affected by deletions/updates
  *
- * @see getFamilyPhoneNumbers - Used for database queries with phone-based matching
+ * **How it works:**
+ * 1. If `familyReferenceId` exists, all students with the same ID are one family
+ * 2. If no `familyReferenceId`, students with the same `parentEmail` are one family
+ * 3. If neither exists, each student is their own family (fallback to `id`)
  *
- * Note: This differs from getFamilyMembers in actions.ts which uses phone numbers
- * for sibling lookup. getFamilyKey is optimized for UI grouping where email/id
- * provides better consistency, while phone-based matching is better for database
- * queries where siblings might have different emails but share phone numbers.
+ * **Aligned server actions:**
+ * - `getFamilyMembers()` - Uses this exact logic to fetch family members
+ * - `deleteDugsiFamily()` - Uses this exact logic to determine what to delete
+ * - `getDeleteFamilyPreview()` - Uses this exact logic to show delete preview
+ *
+ * **Why this matters:**
+ * This ensures UI-database consistency. When you see a family in the UI,
+ * any operation (delete, update) will affect exactly those students shown.
+ * No hidden surprises, no accidental data loss.
+ *
+ * @see groupRegistrationsByFamily - Uses this function for UI grouping
+ * @see getFamilyMembers - Server action that mirrors this logic
+ * @see deleteDugsiFamily - Server action that mirrors this logic
  */
 export function getFamilyKey(registration: DugsiRegistration): string {
   return (
@@ -76,23 +88,33 @@ export function getFamilyStatus(family: Family): FamilyStatus {
 }
 
 /**
- * Get phone numbers for family lookup
- * Used by actions.ts for consistent family identification
+ * @deprecated Phone-based family matching is deprecated in favor of familyReferenceId-based matching.
  *
- * This function is used for database queries to find siblings based on phone numbers.
- * It differs from getFamilyKey() which uses email/id for UI grouping.
  *
- * **Why phone-based matching for database queries?**
- * - Siblings often share parent phone numbers but may have different emails
- * - Phone numbers are more reliable for family identification in real-world scenarios
- * - Allows finding siblings even when email addresses differ between registrations
+ * Previous versions used phone number matching for database queries to find family members.
+ * This approach had a critical flaw: if a parent registered different children with the same
+ * phone number but different emails, the UI would show them as separate families, but
+ * deletion/updates would affect all students with matching phone numbers.
  *
- * **Why email-based grouping for UI?**
- * - Provides better consistency when families are explicitly linked via email
- * - Prevents grouping unrelated students who happen to share a phone number
- * - Better performance for UI rendering (email/id lookups are faster)
+ * **Migration:**
+ * All family identification now uses the same logic as getFamilyKey():
+ * - Priority: familyReferenceId > parentEmail > id
+ * - See: getFamilyMembers(), deleteDugsiFamily(), getDeleteFamilyPreview()
  *
- * @see getFamilyKey - Used for UI grouping with email/id prioritization
+ * **Why this was changed:**
+ * - UI-database consistency: What you see in the UI is what gets deleted/updated
+ * - Predictable behavior: Family grouping is transparent and consistent
+ * - Safer deletions: No risk of accidentally deleting unrelated students
+ *
+ * **Risk of phone-based matching:**
+ * Example scenario that caused issues:
+ * - Day 1: Parent registers 2 kids with email parent1@gmail.com, phone 555-1234
+ * - Day 30: Same parent registers 1 kid with email parent2@gmail.com, same phone
+ * - UI shows: 2 separate families (grouped by email)
+ * - Old deletion logic: Would delete all 3 kids (matched by phone)
+ * - Result: Unexpected data loss
+ *
+ * @see getFamilyKey - Current source of truth for family identification
  */
 export function getFamilyPhoneNumbers(
   registration:
