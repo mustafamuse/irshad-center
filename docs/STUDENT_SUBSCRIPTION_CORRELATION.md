@@ -142,6 +142,7 @@ model Student {
   // Dugsi Stripe fields
   stripeCustomerIdDugsi: String?
   stripeSubscriptionIdDugsi: String?
+  paymentIntentIdDugsi: String?  // For ACH bank verification via microdeposits
   paymentMethodCaptured: Boolean @default(false)
   paymentMethodCapturedAt: DateTime?
   familyReferenceId: String?
@@ -283,10 +284,10 @@ sequenceDiagram
     UI-->>P: Show payment link ($1)
 
     P->>Stripe: 2. Complete $1 payment
-    Note over P,Stripe: Captures bank account info
+    Note over P,Stripe: Captures bank account info (ACH)
 
     Stripe->>WH: 3. checkout.session.completed
-    WH->>DB: Update ALL children: paymentMethodCaptured=true
+    WH->>DB: Update ALL children: paymentMethodCaptured=true, paymentIntentIdDugsi
 
     Admin->>Stripe: 4. Create subscription manually
     Note over Admin,Stripe: Sets amount based on # of kids
@@ -308,6 +309,7 @@ sequenceDiagram
 
 - Family-based subscription management
 - Two-step process: $1 payment capture, then admin creates subscription
+- ACH bank account verification via microdeposits (PaymentIntent stored for verification)
 - Automatic or manual subscription linking
 - All siblings linked to same subscription
 - Parent can add/remove children by updating subscription amount
