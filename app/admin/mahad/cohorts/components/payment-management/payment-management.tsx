@@ -5,14 +5,12 @@ import { useState } from 'react'
 import {
   AlertCircle,
   CheckCircle,
-  Circle,
   Clock,
   Search,
   ShieldCheck,
   XCircle,
 } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -26,6 +24,10 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { VerifyBankDialog } from '@/components/shared/verify-bank-dialog'
+import {
+  getPaymentStatusBadge,
+  needsBankVerification,
+} from '@/lib/utils/payment-status'
 
 import { verifyMahadBankAccount } from '../../actions'
 
@@ -108,64 +110,6 @@ export function PaymentManagement({ students }: PaymentManagementProps) {
   const handleVerifyClick = (student: Student) => {
     setSelectedStudent(student)
     setVerifyDialogOpen(true)
-  }
-
-  const needsVerification = (student: Student) => {
-    return (
-      student.paymentIntentIdMahad &&
-      student.subscriptionStatus !== 'active' &&
-      student.stripeSubscriptionId
-    )
-  }
-
-  const getStatusBadge = (status: string | null) => {
-    switch (status) {
-      case 'active':
-        return (
-          <Badge variant="default" className="gap-1 bg-green-600">
-            <CheckCircle className="h-3 w-3" />
-            Active
-          </Badge>
-        )
-      case 'incomplete':
-        return (
-          <Badge
-            variant="secondary"
-            className="gap-1 border-yellow-600 text-yellow-600"
-          >
-            <AlertCircle className="h-3 w-3" />
-            Incomplete
-          </Badge>
-        )
-      case 'past_due':
-        return (
-          <Badge variant="destructive" className="gap-1">
-            <AlertCircle className="h-3 w-3" />
-            Past Due
-          </Badge>
-        )
-      case 'trialing':
-        return (
-          <Badge variant="outline" className="gap-1">
-            <Clock className="h-3 w-3" />
-            Trialing
-          </Badge>
-        )
-      case 'canceled':
-        return (
-          <Badge variant="outline" className="gap-1 text-muted-foreground">
-            <XCircle className="h-3 w-3" />
-            Canceled
-          </Badge>
-        )
-      default:
-        return (
-          <Badge variant="secondary" className="gap-1">
-            <Circle className="h-2 w-2" />
-            No Subscription
-          </Badge>
-        )
-    }
   }
 
   return (
@@ -284,7 +228,10 @@ export function PaymentManagement({ students }: PaymentManagementProps) {
                   <TableCell className="font-medium">{student.name}</TableCell>
                   <TableCell>{student.parentEmail || 'N/A'}</TableCell>
                   <TableCell>
-                    {getStatusBadge(student.subscriptionStatus)}
+                    {getPaymentStatusBadge(
+                      student.subscriptionStatus,
+                      Boolean(student.stripeSubscriptionId)
+                    )}
                   </TableCell>
                   <TableCell>
                     {student.paidUntil
@@ -292,7 +239,7 @@ export function PaymentManagement({ students }: PaymentManagementProps) {
                       : 'N/A'}
                   </TableCell>
                   <TableCell className="text-right">
-                    {needsVerification(student) && (
+                    {needsBankVerification(student) && (
                       <Button
                         size="sm"
                         variant="outline"
