@@ -66,22 +66,31 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
 
   const execute = async (...args: TArgs) => {
     startTransition(async () => {
-      const result = await action(...args)
+      try {
+        const result = await action(...args)
 
-      if (result.success) {
-        const message =
-          result.message || successMessage || 'Action completed successfully'
-        toast.success(message)
+        if (result.success) {
+          const message =
+            result.message || successMessage || 'Action completed successfully'
+          toast.success(message)
 
-        if (refreshOnSuccess) {
-          router.refresh()
+          if (refreshOnSuccess) {
+            router.refresh()
+          }
+
+          onSuccess?.(result.data)
+        } else {
+          const message = result.error || errorMessage || 'Action failed'
+          toast.error(message)
+          onError?.(result.error || 'Unknown error')
         }
-
-        onSuccess?.(result.data)
-      } else {
-        const message = result.error || errorMessage || 'Action failed'
+      } catch (error) {
+        // Handle unexpected exceptions (network errors, validation throws, etc.)
+        console.error('Unexpected action error:', error)
+        const message =
+          errorMessage || 'An unexpected error occurred. Please try again.'
         toast.error(message)
-        onError?.(result.error || 'Unknown error')
+        onError?.(error instanceof Error ? error.message : 'Unknown error')
       }
     })
   }
