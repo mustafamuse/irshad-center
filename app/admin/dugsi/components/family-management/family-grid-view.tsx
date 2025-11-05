@@ -3,19 +3,15 @@
 import { useState } from 'react'
 
 import {
-  AlertCircle,
   ChevronDown,
   ChevronRight,
   Users,
-  CreditCard,
   ExternalLink,
   MoreVertical,
   Send,
   Link,
   Mail,
-  Copy,
   Trash2,
-  ShieldCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -32,25 +28,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { EmptyState } from '@/components/ui/empty-state'
-import { GenderDisplay } from '@/components/ui/gender-display'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import {
-  formatEducationLevel,
-  formatGradeLevel,
-} from '@/lib/utils/enum-formatters'
 
-import { FamilyStatusBadge } from './family-status-badge'
+import { FamilyDetailSheet } from './family-detail-sheet'
 import { Family } from '../../_types'
-import { getFamilyStatus } from '../../_utils/family'
-import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { formatParentName } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
+import { ChildInfoCard } from '../ui/child-info-card'
 import { ParentInfo } from '../ui/parent-info'
 import { SwipeableCard, SwipeAction } from '../ui/swipeable-card'
 
@@ -294,63 +278,11 @@ export function FamilyGridView({
                           aria-label="Children list"
                         >
                           {family.members.map((child, index) => (
-                            <div
+                            <ChildInfoCard
                               key={child.id}
-                              className="flex items-start gap-3 rounded-lg bg-muted/30 p-3"
-                              role="listitem"
-                              aria-label={`Child ${index + 1}: ${child.name}`}
-                            >
-                              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                                {index + 1}
-                              </div>
-                              <div className="flex-1 space-y-1.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-semibold">
-                                    {child.name}
-                                  </span>
-                                  {child.gender && (
-                                    <GenderDisplay
-                                      gender={child.gender}
-                                      size="sm"
-                                      showLabel
-                                    />
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                                  {child.gradeLevel && (
-                                    <span className="font-medium">
-                                      {formatGradeLevel(child.gradeLevel)}
-                                    </span>
-                                  )}
-                                  {child.educationLevel && (
-                                    <>
-                                      <span className="text-muted-foreground/50">
-                                        •
-                                      </span>
-                                      <span>
-                                        {formatEducationLevel(
-                                          child.educationLevel
-                                        )}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                                {child.schoolName && (
-                                  <div className="text-xs text-muted-foreground">
-                                    {child.schoolName}
-                                  </div>
-                                )}
-                                {child.healthInfo &&
-                                  child.healthInfo.toLowerCase() !== 'none' && (
-                                    <div className="flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1">
-                                      <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-600" />
-                                      <span className="text-xs text-red-600">
-                                        {child.healthInfo}
-                                      </span>
-                                    </div>
-                                  )}
-                              </div>
-                            </div>
+                              child={child}
+                              index={index}
+                            />
                           ))}
                         </div>
                       </div>
@@ -364,275 +296,15 @@ export function FamilyGridView({
       </div>
 
       {/* Family Details Sheet */}
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-          {selectedFamily && (
-            <>
-              <SheetHeader>
-                <SheetTitle>
-                  {formatParentName(
-                    selectedFamily.members[0]?.parentFirstName,
-                    selectedFamily.members[0]?.parentLastName
-                  )}
-                </SheetTitle>
-                <SheetDescription>
-                  Family details and information
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="mt-6 space-y-6">
-                {/* Family Status */}
-                <div className="flex items-center gap-2">
-                  <FamilyStatusBadge status={getFamilyStatus(selectedFamily)} />
-                  {selectedFamily.members[0] &&
-                    hasSecondParent(selectedFamily.members[0]) && (
-                      <Badge variant="outline" className="text-xs">
-                        2 Parents
-                      </Badge>
-                    )}
-                  {selectedFamily.members[0]?.stripeCustomerIdDugsi && (
-                    <Badge variant="outline" className="text-xs">
-                      <CreditCard className="mr-1 h-3 w-3" />
-                      Customer
-                    </Badge>
-                  )}
-                </div>
-
-                {/* Contact Information */}
-                {selectedFamily.members[0] && (
-                  <div className="space-y-4 rounded-lg border p-4">
-                    <h3 className="font-semibold">Contact Information</h3>
-                    <ParentInfo
-                      registration={selectedFamily.members[0]}
-                      showEmail={true}
-                      showPhone={true}
-                      showSecondParentBadge={true}
-                    />
-                  </div>
-                )}
-
-                {/* Children Details */}
-                <div className="space-y-4 rounded-lg border p-4">
-                  <h3 className="font-semibold">
-                    Children ({selectedFamily.members.length})
-                  </h3>
-                  <div className="space-y-3">
-                    {selectedFamily.members.map((child, index) => (
-                      <div
-                        key={child.id}
-                        className="flex items-start gap-3 rounded-lg bg-muted/30 p-3"
-                      >
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1 space-y-1.5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold">
-                              {child.name}
-                            </span>
-                            {child.gender && (
-                              <GenderDisplay
-                                gender={child.gender}
-                                size="sm"
-                                showLabel
-                              />
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                            {child.gradeLevel && (
-                              <span className="font-medium">
-                                {formatGradeLevel(child.gradeLevel)}
-                              </span>
-                            )}
-                            {child.educationLevel && (
-                              <>
-                                <span className="text-muted-foreground/50">
-                                  •
-                                </span>
-                                <span>
-                                  {formatEducationLevel(child.educationLevel)}
-                                </span>
-                              </>
-                            )}
-                          </div>
-                          {child.schoolName && (
-                            <div className="text-xs text-muted-foreground">
-                              {child.schoolName}
-                            </div>
-                          )}
-                          {child.healthInfo &&
-                            child.healthInfo.toLowerCase() !== 'none' && (
-                              <div className="flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1">
-                                <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-600" />
-                                <span className="text-xs text-red-600">
-                                  {child.healthInfo}
-                                </span>
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Payment Details */}
-                {selectedFamily.members[0]?.stripeCustomerIdDugsi && (
-                  <div className="space-y-4 rounded-lg border p-4">
-                    <h3 className="font-semibold">Payment Details</h3>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">
-                          Customer ID:
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                            {selectedFamily.members[0].stripeCustomerIdDugsi.slice(
-                              0,
-                              14
-                            )}
-                            ...
-                          </code>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => {
-                              if (
-                                selectedFamily.members[0]?.stripeCustomerIdDugsi
-                              ) {
-                                navigator.clipboard.writeText(
-                                  selectedFamily.members[0]
-                                    .stripeCustomerIdDugsi
-                                )
-                                toast.success('Customer ID copied to clipboard')
-                              }
-                            }}
-                            aria-label="Copy customer ID"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      {selectedFamily.members[0]?.stripeSubscriptionIdDugsi && (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-muted-foreground">
-                            Subscription:
-                          </span>
-                          <div className="flex items-center gap-1">
-                            <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                              {selectedFamily.members[0].stripeSubscriptionIdDugsi.slice(
-                                0,
-                                14
-                              )}
-                              ...
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={() => {
-                                if (
-                                  selectedFamily.members[0]
-                                    ?.stripeSubscriptionIdDugsi
-                                ) {
-                                  navigator.clipboard.writeText(
-                                    selectedFamily.members[0]
-                                      .stripeSubscriptionIdDugsi
-                                  )
-                                  toast.success(
-                                    'Subscription ID copied to clipboard'
-                                  )
-                                }
-                              }}
-                              aria-label="Copy subscription ID"
-                            >
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                      {selectedFamily.members[0]?.paidUntil && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">
-                            Next Billing:
-                          </span>
-                          <span className="text-xs">
-                            {new Date(
-                              selectedFamily.members[0].paidUntil
-                            ).toLocaleDateString()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Actions */}
-                <div className="space-y-2">
-                  {/* Verify Bank Account - Show for families needing bank verification */}
-                  {selectedFamily.hasPayment &&
-                    (selectedFamily.members[0]?.subscriptionStatus !==
-                      'active' ||
-                      !selectedFamily.hasSubscription) &&
-                    selectedFamily.members[0]?.paymentIntentIdDugsi &&
-                    selectedFamily.parentEmail && (
-                      <Button
-                        className="w-full"
-                        variant="default"
-                        onClick={() => {
-                          const paymentIntentId =
-                            selectedFamily.members[0]?.paymentIntentIdDugsi
-                          const parentEmail = selectedFamily.parentEmail
-
-                          if (paymentIntentId && parentEmail) {
-                            setVerifyBankDialogData({
-                              paymentIntentId,
-                              parentEmail,
-                            })
-                            setDialogOpen('verifyBank', true)
-                          }
-                        }}
-                      >
-                        <ShieldCheck className="mr-2 h-4 w-4" />
-                        Verify Bank Account
-                      </Button>
-                    )}
-
-                  <Button className="w-full" variant="outline">
-                    <Send className="mr-2 h-4 w-4" />
-                    Send Payment Link
-                  </Button>
-                  <Button className="w-full" variant="outline">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Send Email
-                  </Button>
-                  {selectedFamily.members[0]?.stripeCustomerIdDugsi && (
-                    <Button
-                      className="w-full"
-                      variant="outline"
-                      onClick={() => {
-                        const customerId =
-                          selectedFamily.members[0]?.stripeCustomerIdDugsi
-                        if (customerId) {
-                          const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
-                          window.open(
-                            stripeUrl,
-                            '_blank',
-                            'noopener,noreferrer'
-                          )
-                        }
-                      }}
-                    >
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      View in Stripe
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <FamilyDetailSheet
+        family={selectedFamily}
+        open={isSheetOpen}
+        onOpenChange={setIsSheetOpen}
+        onVerifyBankAccount={(paymentIntentId, parentEmail) => {
+          setVerifyBankDialogData({ paymentIntentId, parentEmail })
+          setDialogOpen('verifyBank', true)
+        }}
+      />
 
       {/* Verify Bank Dialog */}
       {verifyBankDialogData && (
