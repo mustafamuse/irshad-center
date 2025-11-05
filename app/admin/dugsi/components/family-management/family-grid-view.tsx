@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 import {
   ChevronDown,
@@ -76,25 +76,46 @@ export function FamilyGridView({
     },
   })
 
-  const toggleFamily = (familyKey: string) => {
-    const newExpanded = new Set(expandedFamilies)
-    if (newExpanded.has(familyKey)) {
-      newExpanded.delete(familyKey)
-    } else {
-      newExpanded.add(familyKey)
-    }
-    setExpandedFamilies(newExpanded)
-  }
+  const toggleFamily = useCallback(
+    (familyKey: string) => {
+      const newExpanded = new Set(expandedFamilies)
+      if (newExpanded.has(familyKey)) {
+        newExpanded.delete(familyKey)
+      } else {
+        newExpanded.add(familyKey)
+      }
+      setExpandedFamilies(newExpanded)
+    },
+    [expandedFamilies]
+  )
 
-  const toggleSelection = (familyKey: string) => {
-    const newSelection = new Set(selectedFamilies)
-    if (newSelection.has(familyKey)) {
-      newSelection.delete(familyKey)
-    } else {
-      newSelection.add(familyKey)
-    }
-    onSelectionChange(newSelection)
-  }
+  const toggleSelection = useCallback(
+    (familyKey: string) => {
+      const newSelection = new Set(selectedFamilies)
+      if (newSelection.has(familyKey)) {
+        newSelection.delete(familyKey)
+      } else {
+        newSelection.add(familyKey)
+      }
+      onSelectionChange(newSelection)
+    },
+    [selectedFamilies, onSelectionChange]
+  )
+
+  const handleVerifyBankAccount = useCallback(
+    (paymentIntentId: string, parentEmail: string) => {
+      setVerifyBankDialogData({ paymentIntentId, parentEmail })
+      setDialogOpen('verifyBank', true)
+    },
+    [setVerifyBankDialogData, setDialogOpen]
+  )
+
+  const handleVerifyBankDialogChange = useCallback(
+    (open: boolean) => {
+      setDialogOpen('verifyBank', open)
+    },
+    [setDialogOpen]
+  )
 
   if (families.length === 0) {
     return (
@@ -288,17 +309,14 @@ export function FamilyGridView({
         family={selectedFamily}
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
-        onVerifyBankAccount={(paymentIntentId, parentEmail) => {
-          setVerifyBankDialogData({ paymentIntentId, parentEmail })
-          setDialogOpen('verifyBank', true)
-        }}
+        onVerifyBankAccount={handleVerifyBankAccount}
       />
 
       {/* Verify Bank Dialog */}
       {verifyBankDialogData && (
         <VerifyBankDialog
           open={isVerifyBankDialogOpen}
-          onOpenChange={(open) => setDialogOpen('verifyBank', open)}
+          onOpenChange={handleVerifyBankDialogChange}
           paymentIntentId={verifyBankDialogData.paymentIntentId}
           parentEmail={verifyBankDialogData.parentEmail}
         />
