@@ -73,3 +73,35 @@ export interface ActionResult<T = void> {
   error?: string
   message?: string
 }
+
+// Action data payload types
+export interface SubscriptionValidationData {
+  subscriptionId: string
+  customerId: string
+  status: string
+  currentPeriodStart: Date | null
+  currentPeriodEnd: Date | null
+}
+
+export interface PaymentStatusData {
+  familyEmail: string
+  studentCount: number
+  hasPaymentMethod: boolean
+  hasSubscription: boolean
+  stripeCustomerId: string | null
+  subscriptionId: string | null
+  subscriptionStatus: string | null
+  paidUntil: Date | null
+  currentPeriodStart: Date | null
+  currentPeriodEnd: Date | null
+  students: Array<{ id: string; name: string }>
+}
+
+export interface BankVerificationData {
+  paymentIntentId: string
+  status: string
+}
+
+export interface SubscriptionLinkData {
+  updated: number
+}

@@ -25,17 +25,11 @@ import { useFamilyGroups, useFamilyStats } from '../_hooks/use-family-groups'
 import { DugsiRegistration } from '../_types'
 import { useKeyboardShortcuts } from '../hooks/use-keyboard-shortcuts'
 import { usePersistedViewMode } from '../hooks/use-persisted-view-mode'
-import {
-  useActiveTab,
-  useViewMode,
-  useDugsiFilters,
-  useLegacyActions,
-} from '../store'
+import { useActiveTab, useDugsiFilters, useLegacyActions } from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
 import { DashboardStats } from './dashboard/dashboard-stats'
-import { FamilyTableView } from './family-management/family-table-view'
-import { DugsiRegistrationsTable } from './registrations/registrations-table'
+import { TabContent } from './dashboard/tab-content'
 
 interface DugsiDashboardProps {
   registrations: DugsiRegistration[]
@@ -55,7 +49,6 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
 
   // Zustand store state
   const activeTab = useActiveTab()
-  const viewMode = useViewMode()
   const filters = useDugsiFilters()
   const { setActiveTab } = useLegacyActions()
 
@@ -159,43 +152,19 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsList>
 
           <TabsContent value="active" className="space-y-6">
-            {viewMode === 'grid' ? (
-              <FamilyTableView families={filteredFamilies} />
-            ) : (
-              <DugsiRegistrationsTable
-                registrations={filteredFamilies.flatMap((f) => f.members)}
-              />
-            )}
+            <TabContent families={filteredFamilies} />
           </TabsContent>
 
           <TabsContent value="pending" className="space-y-6">
-            {viewMode === 'grid' ? (
-              <FamilyTableView families={filteredFamilies} />
-            ) : (
-              <DugsiRegistrationsTable
-                registrations={filteredFamilies.flatMap((f) => f.members)}
-              />
-            )}
+            <TabContent families={filteredFamilies} />
           </TabsContent>
 
           <TabsContent value="needs-attention" className="space-y-6">
-            {viewMode === 'grid' ? (
-              <FamilyTableView families={filteredFamilies} />
-            ) : (
-              <DugsiRegistrationsTable
-                registrations={filteredFamilies.flatMap((f) => f.members)}
-              />
-            )}
+            <TabContent families={filteredFamilies} />
           </TabsContent>
 
           <TabsContent value="all" className="space-y-6">
-            {viewMode === 'grid' ? (
-              <FamilyTableView families={filteredFamilies} />
-            ) : (
-              <DugsiRegistrationsTable
-                registrations={filteredFamilies.flatMap((f) => f.members)}
-              />
-            )}
+            <TabContent families={filteredFamilies} />
           </TabsContent>
         </Tabs>
 

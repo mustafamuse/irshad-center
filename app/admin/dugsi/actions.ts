@@ -15,9 +15,17 @@ import {
   DUGSI_PAYMENT_STATUS_SELECT,
   DUGSI_SUBSCRIPTION_LINK_SELECT,
 } from './_queries/selects'
+import {
+  ActionResult,
+  SubscriptionValidationData,
+  PaymentStatusData,
+  BankVerificationData,
+  SubscriptionLinkData,
+  DugsiRegistration,
+} from './_types'
 import { getFamilyPhoneNumbers } from './_utils/family'
 
-export async function getDugsiRegistrations() {
+export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
   const students = await prisma.student.findMany({
     where: { program: DUGSI_PROGRAM },
     orderBy: { createdAt: 'desc' },
@@ -31,7 +39,9 @@ export async function getDugsiRegistrations() {
  * Validate a Stripe subscription ID without linking it.
  * Used by the link subscription dialog to check if a subscription exists.
  */
-export async function validateDugsiSubscription(subscriptionId: string) {
+export async function validateDugsiSubscription(
+  subscriptionId: string
+): Promise<ActionResult<SubscriptionValidationData>> {
   try {
     if (!subscriptionId.startsWith('sub_')) {
       return {
@@ -94,7 +104,9 @@ export async function validateDugsiSubscription(subscriptionId: string) {
   }
 }
 
-export async function getFamilyMembers(studentId: string) {
+export async function getFamilyMembers(
+  studentId: string
+): Promise<DugsiRegistration[]> {
   // Get the selected student
   const student = await prisma.student.findUnique({
     where: { id: studentId },
@@ -123,7 +135,9 @@ export async function getFamilyMembers(studentId: string) {
   return siblings
 }
 
-export async function deleteDugsiFamily(studentId: string) {
+export async function deleteDugsiFamily(
+  studentId: string
+): Promise<ActionResult> {
   try {
     // Get the student to find family members
     const student = await prisma.student.findUnique({
@@ -174,7 +188,7 @@ export async function deleteDugsiFamily(studentId: string) {
 export async function linkDugsiSubscription(params: {
   parentEmail: string
   subscriptionId: string
-}) {
+}): Promise<ActionResult<SubscriptionLinkData>> {
   try {
     const { parentEmail, subscriptionId } = params
 
@@ -259,7 +273,9 @@ export async function linkDugsiSubscription(params: {
 
     return {
       success: true,
-      updated: studentsToUpdate.length,
+      data: {
+        updated: studentsToUpdate.length,
+      },
       message: `Successfully linked subscription to ${studentsToUpdate.length} students`,
     }
   } catch (error) {
@@ -276,7 +292,9 @@ export async function linkDugsiSubscription(params: {
  * Get payment status for a Dugsi family.
  * Useful for admins to see if payment method has been captured.
  */
-export async function getDugsiPaymentStatus(parentEmail: string) {
+export async function getDugsiPaymentStatus(
+  parentEmail: string
+): Promise<ActionResult<PaymentStatusData>> {
   try {
     const students = await prisma.student.findMany({
       where: {
@@ -329,7 +347,7 @@ export async function getDugsiPaymentStatus(parentEmail: string) {
 export async function verifyDugsiBankAccount(
   paymentIntentId: string,
   descriptorCode: string
-) {
+): Promise<ActionResult<BankVerificationData>> {
   try {
     // Validate inputs
     if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
