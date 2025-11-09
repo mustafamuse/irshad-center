@@ -27,6 +27,7 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
 } from './_types'
+import { getFamilyWhereClause } from './_utils/family'
 
 export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
   const students = await prisma.student.findMany({
@@ -180,44 +181,43 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<
     }
 
     // Find all students that will be deleted using the same logic as deleteDugsiFamily
+    const { where, isSingleStudent } = getFamilyWhereClause({
+      familyReferenceId: student.familyReferenceId,
+      parentEmail: student.parentEmail,
+    })
+
     let studentsToDelete
 
-    if (student.familyReferenceId) {
-      studentsToDelete = await prisma.student.findMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: student.familyReferenceId,
-        },
-        select: {
-          id: true,
-          name: true,
-          parentEmail: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      })
-    } else if (student.parentEmail) {
-      studentsToDelete = await prisma.student.findMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          parentEmail: student.parentEmail,
-          familyReferenceId: null,
-        },
-        select: {
-          id: true,
-          name: true,
-          parentEmail: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      })
-    } else {
+    if (isSingleStudent) {
       // Single student
-      studentsToDelete = [
-        {
-          id: student.id,
-          name: '',
-          parentEmail: null,
+      const singleStudent = await prisma.student.findUnique({
+        where: { id: studentId },
+        select: {
+          id: true,
+          name: true,
+          parentEmail: true,
         },
-      ]
+      })
+      studentsToDelete = singleStudent
+        ? [
+            {
+              id: singleStudent.id,
+              name: singleStudent.name,
+              parentEmail: singleStudent.parentEmail,
+            },
+          ]
+        : []
+    } else {
+      // Find all students in the family
+      studentsToDelete = await prisma.student.findMany({
+        where: where!,
+        select: {
+          id: true,
+          name: true,
+          parentEmail: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      })
     }
 
     return {
@@ -252,31 +252,24 @@ export async function deleteDugsiFamily(
 
     // Use familyReferenceId-based matching to align with UI grouping logic
     // Priority: familyReferenceId > parentEmail > id (same as getFamilyKey)
+    const { where, isSingleStudent } = getFamilyWhereClause({
+      familyReferenceId: student.familyReferenceId,
+      parentEmail: student.parentEmail,
+    })
+
     let deleteResult
 
-    if (student.familyReferenceId) {
-      // Delete all students with the same familyReferenceId
-      deleteResult = await prisma.student.deleteMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: student.familyReferenceId,
-        },
-      })
-    } else if (student.parentEmail) {
-      // Delete all students with the same parentEmail (fallback)
-      deleteResult = await prisma.student.deleteMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          parentEmail: student.parentEmail,
-          familyReferenceId: null, // Only match students without familyReferenceId
-        },
-      })
-    } else {
+    if (isSingleStudent) {
       // No family grouping - delete single student
       await prisma.student.delete({
         where: { id: studentId },
       })
       deleteResult = { count: 1 }
+    } else {
+      // Delete all students in the family
+      deleteResult = await prisma.student.deleteMany({
+        where: where!,
+      })
     }
 
     // Revalidate the page to show updated data
@@ -577,71 +570,67 @@ export async function updateParentInfo(params: {
       }
     }
 
-    // Get the student to find family members
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        familyReferenceId: true,
-        parentEmail: true,
-      },
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
-    }
-
-    // Determine which parent fields to update
-    // SECURITY: Email fields are intentionally excluded - they are immutable
-    // and used for family identification and security purposes
-    const updateData =
-      parentNumber === 1
-        ? {
-            parentFirstName: firstName,
-            parentLastName: lastName,
-            parentPhone: phone,
-          }
-        : {
-            parent2FirstName: firstName,
-            parent2LastName: lastName,
-            parent2Phone: phone,
-          }
-
-    let updateResult
-
-    // Use same family matching logic as other operations
-    if (student.familyReferenceId) {
-      // Update all students with the same familyReferenceId
-      updateResult = await prisma.student.updateMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: student.familyReferenceId,
-        },
-        data: updateData,
-      })
-    } else if (student.parentEmail) {
-      // Update all students with the same parentEmail (fallback)
-      updateResult = await prisma.student.updateMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          parentEmail: student.parentEmail,
-          familyReferenceId: null,
-        },
-        data: updateData,
-      })
-    } else {
-      // No family grouping - update single student
-      await prisma.student.update({
+    // Use transaction to ensure atomic read-write
+    const count = await prisma.$transaction(async (tx) => {
+      // Get the student to find family members (within transaction)
+      const student = await tx.student.findUnique({
         where: { id: studentId },
-        data: updateData,
+        select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
+        },
       })
-      updateResult = { count: 1 }
-    }
+
+      if (!student) {
+        throw new Error('Student not found')
+      }
+
+      // Determine which parent fields to update
+      // SECURITY: Email fields are intentionally excluded - they are immutable
+      // and used for family identification and security purposes
+      const updateData =
+        parentNumber === 1
+          ? {
+              parentFirstName: firstName,
+              parentLastName: lastName,
+              parentPhone: phone,
+            }
+          : {
+              parent2FirstName: firstName,
+              parent2LastName: lastName,
+              parent2Phone: phone,
+            }
+
+      // Use shared utility for family matching logic
+      const { where, isSingleStudent } = getFamilyWhereClause({
+        familyReferenceId: student.familyReferenceId,
+        parentEmail: student.parentEmail,
+      })
+
+      let updateResult
+
+      if (isSingleStudent) {
+        // No family grouping - update single student
+        await tx.student.update({
+          where: { id: studentId },
+          data: updateData,
+        })
+        updateResult = { count: 1 }
+      } else {
+        // Update all students in the family
+        updateResult = await tx.student.updateMany({
+          where: where!,
+          data: updateData,
+        })
+      }
+
+      return updateResult.count
+    })
 
     // Revalidate the page
     revalidatePath('/admin/dugsi')
 
-    const count = updateResult.count
     return {
       success: true,
       data: { updated: count },
@@ -649,9 +638,13 @@ export async function updateParentInfo(params: {
     }
   } catch (error) {
     console.error('Error updating parent information:', error)
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Failed to update parent information'
     return {
       success: false,
-      error: 'Failed to update parent information',
+      error: errorMessage,
     }
   }
 }
@@ -670,68 +663,72 @@ export async function addSecondParent(params: {
   try {
     const { studentId, firstName, lastName, email, phone } = params
 
-    // Get the student to check if second parent exists
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        familyReferenceId: true,
-        parentEmail: true,
-        parent2FirstName: true,
-      },
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
-    }
-
-    // Check if second parent already exists
-    if (student.parent2FirstName) {
+    // Validate email format (no database access, can be outside transaction)
+    if (!isValidEmail(email)) {
       return {
         success: false,
-        error: 'Second parent already exists',
+        error: 'Invalid email format',
       }
     }
 
-    const updateData = {
-      parent2FirstName: firstName,
-      parent2LastName: lastName,
-      parent2Email: email,
-      parent2Phone: phone,
-    }
-
-    let updateResult
-
-    // Use same family matching logic
-    if (student.familyReferenceId) {
-      updateResult = await prisma.student.updateMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: student.familyReferenceId,
-        },
-        data: updateData,
-      })
-    } else if (student.parentEmail) {
-      updateResult = await prisma.student.updateMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          parentEmail: student.parentEmail,
-          familyReferenceId: null,
-        },
-        data: updateData,
-      })
-    } else {
-      await prisma.student.update({
+    // Use transaction to ensure atomic read-write
+    const count = await prisma.$transaction(async (tx) => {
+      // Get the student to check if second parent exists (within transaction)
+      const student = await tx.student.findUnique({
         where: { id: studentId },
-        data: updateData,
+        select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
+          parent2FirstName: true,
+        },
       })
-      updateResult = { count: 1 }
-    }
+
+      if (!student) {
+        throw new Error('Student not found')
+      }
+
+      // Check if second parent already exists
+      if (student.parent2FirstName) {
+        throw new Error('Second parent already exists')
+      }
+
+      const updateData = {
+        parent2FirstName: firstName,
+        parent2LastName: lastName,
+        parent2Email: email,
+        parent2Phone: phone,
+      }
+
+      // Use shared utility for family matching logic
+      const { where, isSingleStudent } = getFamilyWhereClause({
+        familyReferenceId: student.familyReferenceId,
+        parentEmail: student.parentEmail,
+      })
+
+      let updateResult
+
+      if (isSingleStudent) {
+        // No family grouping - update single student
+        await tx.student.update({
+          where: { id: studentId },
+          data: updateData,
+        })
+        updateResult = { count: 1 }
+      } else {
+        // Update all students in the family
+        updateResult = await tx.student.updateMany({
+          where: where!,
+          data: updateData,
+        })
+      }
+
+      return updateResult.count
+    })
 
     // Revalidate the page
     revalidatePath('/admin/dugsi')
 
-    const count = updateResult.count
     return {
       success: true,
       data: { updated: count },
@@ -739,9 +736,11 @@ export async function addSecondParent(params: {
     }
   } catch (error) {
     console.error('Error adding second parent:', error)
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to add second parent'
     return {
       success: false,
-      error: 'Failed to add second parent',
+      error: errorMessage,
     }
   }
 }

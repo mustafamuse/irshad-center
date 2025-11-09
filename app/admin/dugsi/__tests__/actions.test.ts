@@ -919,6 +919,24 @@ describe('Dugsi Server Actions', () => {
         error: 'Student not found',
       })
     })
+
+    it('should return error if email format is invalid', async () => {
+      const result = await addSecondParent({
+        studentId: '1',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'invalid-email',
+        phone: '+9876543210',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Invalid email format',
+      })
+
+      // Should not call database if email is invalid
+      expect(prisma.student.findUnique).not.toHaveBeenCalled()
+    })
   })
 
   describe('updateChildInfo', () => {
