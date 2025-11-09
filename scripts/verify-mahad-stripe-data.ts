@@ -143,10 +143,10 @@ async function verifyStripeData() {
           .sort((a, b) => a.created - b.created)
           .find(inv => inv.billing_reason === 'subscription_create')
 
-        if (firstInvoice?.payment_intent) {
-          const piId = typeof firstInvoice.payment_intent === 'string'
-            ? firstInvoice.payment_intent
-            : firstInvoice.payment_intent.id
+        if ((firstInvoice as any)?.payment_intent) {
+          const piId = typeof (firstInvoice as any).payment_intent === 'string'
+            ? (firstInvoice as any).payment_intent
+            : (firstInvoice as any).payment_intent.id
           result.firstInvoicePaymentIntent = piId
           console.log(`📄 First Invoice PaymentIntent: ${piId}`)
         } else {

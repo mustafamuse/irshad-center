@@ -343,7 +343,7 @@ export async function getBatchPerformance() {
     include: {
       _count: {
         select: {
-          students: {
+          Student: {
             where: {
               status: {
                 not: 'withdrawn'
@@ -376,11 +376,11 @@ export async function getBatchPerformance() {
       return {
         id: batch.id,
         name: batch.name,
-        studentCount: batch._count.students,
+        studentCount: batch._count.Student,
         activeSubscriptions: activeCount,
         revenue: totalRevenue,
-        healthScore: batch._count.students > 0
-          ? Math.round((activeCount / batch._count.students) * 100)
+        healthScore: batch._count.Student > 0
+          ? Math.round((activeCount / batch._count.Student) * 100)
           : 0
       }
     })

@@ -114,9 +114,9 @@ async function researchPaymentIntentLocations() {
         const latestInvoice = subscription.latest_invoice as any
         if (latestInvoice) {
           const piFromLatest =
-            typeof latestInvoice.payment_intent === 'string'
-              ? latestInvoice.payment_intent
-              : latestInvoice.payment_intent?.id || null
+            typeof (latestInvoice as any).payment_intent === 'string'
+              ? (latestInvoice as any).payment_intent
+              : (latestInvoice as any).payment_intent?.id || null
 
           result.subscriptionLatestInvoicePI = piFromLatest
           result.latestInvoicePI = piFromLatest
@@ -198,12 +198,12 @@ async function researchPaymentIntentLocations() {
         console.log('\n   📋 Invoice History:')
         sortedInvoices.forEach((inv, index) => {
           const pi =
-            typeof inv.payment_intent === 'string'
-              ? inv.payment_intent
-              : (inv.payment_intent as any)?.id || null
+            typeof (inv as any).payment_intent === 'string'
+              ? (inv as any).payment_intent
+              : (inv as any).payment_intent?.id || null
 
           console.log(
-            `      ${index + 1}. ${inv.id} | ${inv.billing_reason?.padEnd(20)} | ${inv.status.padEnd(10)} | PI: ${pi || 'NULL'}`
+            `      ${index + 1}. ${inv.id} | ${inv.billing_reason?.padEnd(20)} | ${(inv.status || '').padEnd(10)} | PI: ${pi || 'NULL'}`
           )
         })
 
@@ -217,9 +217,9 @@ async function researchPaymentIntentLocations() {
 
         if (firstInvoice) {
           const piFromFirst =
-            typeof firstInvoice.payment_intent === 'string'
-              ? firstInvoice.payment_intent
-              : (firstInvoice.payment_intent as any)?.id || null
+            typeof (firstInvoice as any).payment_intent === 'string'
+              ? (firstInvoice as any).payment_intent
+              : (firstInvoice as any).payment_intent?.id || null
 
           result.firstInvoicePI = piFromFirst
           result.firstInvoiceBillingReason = firstInvoice.billing_reason

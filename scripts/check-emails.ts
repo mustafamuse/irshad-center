@@ -53,10 +53,10 @@ async function checkStudentEmails() {
   // Get students WITH emails for comparison
   const studentsWithEmail = await prisma.student.findMany({
     where: {
-      email: {
-        not: null,
-        not: ''
-      }
+      AND: [
+        { email: { not: null } },
+        { email: { not: '' } }
+      ]
     },
     select: {
       id: true,
@@ -151,10 +151,10 @@ async function checkStudentEmails() {
   const totalStudents = await prisma.student.count()
   const withEmailCount = await prisma.student.count({
     where: {
-      email: {
-        not: null,
-        not: ''
-      }
+      AND: [
+        { email: { not: null } },
+        { email: { not: '' } }
+      ]
     }
   })
 
