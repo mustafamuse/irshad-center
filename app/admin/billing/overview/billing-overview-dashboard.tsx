@@ -264,9 +264,6 @@ export function BillingOverviewDashboard({
 
       {/* Monthly Revenue Card */}
       <Card
-        variant="gradient"
-        hover={true}
-        dataSlot="card"
         className={cn(spacing.card.default, "bg-gradient-to-br from-accent/10 to-accent/5")}
       >
         <div data-slot="content" className="flex items-center justify-between">
