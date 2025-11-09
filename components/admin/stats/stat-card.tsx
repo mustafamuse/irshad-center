@@ -158,10 +158,6 @@ export function StatCard({
 
   return (
     <Card
-      variant="gradient"
-      hover="scale"
-      container="stat"
-      dataSlot="stat-card"
       className={cn(
         'relative overflow-hidden',
         styles.gradient,
