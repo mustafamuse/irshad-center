@@ -61,8 +61,8 @@ export function InvoiceDataTable({
   const batches = useMemo(() => {
     const uniqueBatches = new Set<string>()
     students.forEach((s) => {
-      if (s.batch?.name) {
-        uniqueBatches.add(s.batch.name)
+      if (s.Batch?.name) {
+        uniqueBatches.add(s.Batch.name)
       }
     })
     return Array.from(uniqueBatches).sort()
@@ -80,7 +80,7 @@ export function InvoiceDataTable({
         stripeInvoiceId: payment.stripeInvoiceId,
         studentId: payment.studentId,
         studentName: student?.name || 'Unknown',
-        batchName: student?.batch?.name || '',
+        batchName: student?.Batch?.name || '',
         amount: payment.amountPaid,
         status: payment.paidAt ? 'paid' : 'unpaid',
         subscriptionStatus: studentPayment?.subscriptionStatus,
