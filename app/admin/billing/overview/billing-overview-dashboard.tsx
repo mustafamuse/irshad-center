@@ -134,9 +134,6 @@ export function BillingOverviewDashboard({
     <div className={spacing.section}>
       {/* Modern Payment Health Hero Section */}
       <Card
-        variant="gradient"
-        hover={true}
-        dataSlot="hero-card"
         className={spacing.card.spacious}
       >
         <div className="relative space-y-6">
