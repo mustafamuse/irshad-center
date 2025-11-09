@@ -33,18 +33,18 @@ export function DashboardHeader({
           size="sm"
           onClick={() => setViewMode('grid')}
           aria-pressed={viewMode === 'grid'}
-          aria-label="Grid view"
+          aria-label="Parents view"
         >
-          Grid View
+          Parents
         </Button>
         <Button
           variant={viewMode === 'table' ? 'default' : 'outline'}
           size="sm"
           onClick={() => setViewMode('table')}
           aria-pressed={viewMode === 'table'}
-          aria-label="Table view"
+          aria-label="Students view"
         >
-          Table View
+          Students
         </Button>
       </div>
     </div>

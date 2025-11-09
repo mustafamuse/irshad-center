@@ -68,18 +68,18 @@ export function CommandPalette({
         <CommandGroup heading="View">
           <CommandItem
             onSelect={() => runCommand(() => setViewMode('grid'))}
-            keywords={['grid', 'cards']}
+            keywords={['parents', 'grid', 'cards', 'families']}
           >
             <LayoutGrid className="mr-2 h-4 w-4" />
-            <span>Grid View</span>
+            <span>Parents</span>
             <CommandShortcut>G</CommandShortcut>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => setViewMode('table'))}
-            keywords={['table', 'list']}
+            keywords={['students', 'table', 'list', 'registrations']}
           >
             <Table2 className="mr-2 h-4 w-4" />
-            <span>Table View</span>
+            <span>Students</span>
             <CommandShortcut>T</CommandShortcut>
           </CommandItem>
         </CommandGroup>

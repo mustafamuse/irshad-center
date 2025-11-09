@@ -47,7 +47,7 @@ export function ParentInfo({
       <div className="flex items-center gap-2">
         <span className="font-medium">{parentName}</span>
         {hasSecond && showSecondParentBadge && (
-          <Badge variant="outline" className="text-xs">
+          <Badge variant="outline" className="px-1.5 text-xs">
             2 Parents
           </Badge>
         )}
@@ -55,19 +55,31 @@ export function ParentInfo({
 
       {showEmail && registration.parentEmail && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Mail className="h-3.5 w-3.5" />
+          <Mail className="h-3.5 w-3.5 shrink-0" />
           <a
             href={`mailto:${registration.parentEmail}`}
             className="truncate hover:text-[#007078] hover:underline"
           >
             {registration.parentEmail}
           </a>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0"
+            onClick={() =>
+              registration.parentEmail &&
+              copyToClipboard(registration.parentEmail, 'Email address')
+            }
+            aria-label="Copy email address"
+          >
+            <Copy className="h-3 w-3" />
+          </Button>
         </div>
       )}
 
       {showPhone && registration.parentPhone && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Phone className="h-3.5 w-3.5" />
+          <Phone className="h-3.5 w-3.5 shrink-0" />
           <a
             href={`https://wa.me/${registration.parentPhone.replace(/\D/g, '')}`}
             target="_blank"
@@ -79,7 +91,7 @@ export function ParentInfo({
           <Button
             variant="ghost"
             size="icon"
-            className="h-5 w-5"
+            className="h-5 w-5 shrink-0"
             onClick={() =>
               registration.parentPhone &&
               copyToClipboard(registration.parentPhone, 'Phone number')

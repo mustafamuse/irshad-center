@@ -157,13 +157,13 @@ export function DashboardHeader() {
           variant={viewMode === 'grid' ? 'default' : 'outline'}
           onClick={() => setViewMode('grid')}
         >
-          Grid View
+          Parents
         </Button>
         <Button
           variant={viewMode === 'table' ? 'default' : 'outline'}
           onClick={() => setViewMode('table')}
         >
-          Table View
+          Students
         </Button>
       </div>
     </div>
