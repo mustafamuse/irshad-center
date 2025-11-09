@@ -324,3 +324,4 @@ describe('groupRegistrationsByFamily', () => {
     expect(families).toEqual([])
   })
 })
+

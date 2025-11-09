@@ -6,11 +6,15 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { prisma } from '@/lib/db'
-
 import { ProfitShareCalculator } from './components/profit-share-calculator'
 
 // Force dynamic rendering to avoid static build issues
 export const dynamic = 'force-dynamic'
+
+export const metadata = {
+  title: 'Profit Share | Billing',
+  description: 'Calculate profit sharing distributions',
+}
 
 export default async function ProfitSharePage() {
   const batches = await prisma.batch.findMany({
@@ -20,10 +24,18 @@ export default async function ProfitSharePage() {
   })
 
   return (
-    <div className="flex-1 space-y-4 p-4 pt-6 md:p-8">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Profit Sharing</h2>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">
+            Profit Sharing Calculator
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Calculate monthly payouts and profit distributions
+          </p>
+        </div>
       </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Monthly Payout Calculator</CardTitle>

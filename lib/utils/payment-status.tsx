@@ -22,7 +22,7 @@ export function getPaymentStatusBadge(
 ) {
   if (!hasSubscription || !status) {
     return (
-      <Badge variant="secondary" className="gap-1">
+      <Badge variant="secondary" className="gap-1 !bg-gray-100 !text-gray-700 dark:!bg-gray-800 dark:!text-gray-300">
         <Circle className="h-2 w-2" />
         No Subscription
       </Badge>
@@ -32,7 +32,7 @@ export function getPaymentStatusBadge(
   switch (status) {
     case 'active':
       return (
-        <Badge variant="default" className="gap-1 bg-green-600">
+        <Badge variant="default" className="gap-1 !bg-green-600 !text-white hover:!bg-green-700">
           <CheckCircle className="h-3 w-3" />
           Active
         </Badge>
@@ -41,7 +41,7 @@ export function getPaymentStatusBadge(
       return (
         <Badge
           variant="secondary"
-          className="gap-1 border-yellow-600 text-yellow-600"
+          className="gap-1 !border-yellow-600 !bg-yellow-50 !text-yellow-700 dark:!bg-yellow-950 dark:!text-yellow-300"
         >
           <AlertCircle className="h-3 w-3" />
           Incomplete
@@ -49,35 +49,35 @@ export function getPaymentStatusBadge(
       )
     case 'past_due':
       return (
-        <Badge variant="destructive" className="gap-1">
+        <Badge variant="destructive" className="gap-1 !bg-red-600 !text-white">
           <AlertCircle className="h-3 w-3" />
           Past Due
         </Badge>
       )
     case 'trialing':
       return (
-        <Badge variant="outline" className="gap-1">
+        <Badge variant="outline" className="gap-1 !border-blue-400 !bg-blue-50 !text-blue-700 dark:!bg-blue-950 dark:!text-blue-300">
           <Clock className="h-3 w-3" />
           Trialing
         </Badge>
       )
     case 'canceled':
       return (
-        <Badge variant="outline" className="gap-1 text-muted-foreground">
+        <Badge variant="outline" className="gap-1 !border-gray-400 !bg-gray-50 !text-gray-600 dark:!bg-gray-900 dark:!text-gray-400">
           <XCircle className="h-3 w-3" />
           Canceled
         </Badge>
       )
     case 'unpaid':
       return (
-        <Badge variant="destructive" className="gap-1">
+        <Badge variant="destructive" className="gap-1 !bg-red-600 !text-white">
           <XCircle className="h-3 w-3" />
           Unpaid
         </Badge>
       )
     case 'incomplete_expired':
       return (
-        <Badge variant="secondary" className="gap-1 text-muted-foreground">
+        <Badge variant="secondary" className="gap-1 !bg-gray-200 !text-gray-700 dark:!bg-gray-800 dark:!text-gray-300">
           <XCircle className="h-3 w-3" />
           Expired
         </Badge>

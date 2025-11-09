@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 
 import { Metadata } from 'next'
 
-import { Separator } from '@/components/ui/separator'
 import { getBatches } from '@/lib/db/queries/batch'
 import {
   getStudentsWithBatch,
@@ -10,11 +9,8 @@ import {
   getStudentsWithPaymentInfo,
 } from '@/lib/db/queries/student'
 
-import { BatchManagement } from './components/batch-management'
-import { DuplicateDetector } from './components/duplicate-detection'
 import { BatchErrorBoundary } from './components/error-boundary'
-import { PaymentManagement } from './components/payment-management'
-import { StudentsTable } from './components/students-table'
+import { MahadDashboard } from './components/mahad-dashboard'
 import { Providers } from '../../../providers'
 
 function Loading() {
@@ -28,7 +24,7 @@ export const metadata: Metadata = {
 
 export default async function CohortsPage() {
   // Fetch data in parallel
-  const [batches, students, duplicates, studentsWithPayment] =
+  const [batches, students, duplicateGroups, studentsWithPayment] =
     await Promise.all([
       getBatches(),
       getStudentsWithBatch(),
@@ -36,34 +32,23 @@ export default async function CohortsPage() {
       getStudentsWithPaymentInfo(),
     ])
 
+  // Transform duplicates to match expected format
+  const duplicates = duplicateGroups.map(group => ({
+    name: group.email, // Using email field as the group name
+    students: [group.keepRecord, ...group.duplicateRecords] as any[]
+  }))
+
   return (
     <Providers>
-      <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
+      <main className="container mx-auto p-4 sm:p-6 lg:p-8">
         <BatchErrorBoundary>
           <Suspense fallback={<Loading />}>
-            <DuplicateDetector duplicates={duplicates} />
-          </Suspense>
-        </BatchErrorBoundary>
-
-        <BatchErrorBoundary>
-          <Suspense fallback={<Loading />}>
-            <BatchManagement batches={batches} students={students} />
-          </Suspense>
-        </BatchErrorBoundary>
-
-        <Separator className="my-4 sm:my-6 lg:my-8" />
-
-        <BatchErrorBoundary>
-          <Suspense fallback={<Loading />}>
-            <PaymentManagement students={studentsWithPayment} />
-          </Suspense>
-        </BatchErrorBoundary>
-
-        <Separator className="my-4 sm:my-6 lg:my-8" />
-
-        <BatchErrorBoundary>
-          <Suspense fallback={<Loading />}>
-            <StudentsTable students={students} batches={batches} />
+            <MahadDashboard
+              students={students}
+              studentsWithPayment={studentsWithPayment}
+              batches={batches}
+              duplicates={duplicates}
+            />
           </Suspense>
         </BatchErrorBoundary>
       </main>

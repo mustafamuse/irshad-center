@@ -9,6 +9,24 @@ import { Prisma, EducationLevel, GradeLevel } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
+// Re-export common types for convenience
+export type StudentWithBatch = Prisma.StudentGetPayload<{
+  include: {
+    Batch: true
+    Sibling: {
+      include: {
+        Student: {
+          select: {
+            id: true
+            name: true
+            status: true
+          }
+        }
+      }
+    }
+  }
+}>
+
 /**
  * Get all students with basic information
  */
@@ -55,6 +73,8 @@ export async function getStudentsWithBatch() {
           name: true,
           startDate: true,
           endDate: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
       Sibling: {
@@ -112,6 +132,8 @@ export async function getStudentById(id: string) {
           name: true,
           startDate: true,
           endDate: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
       Sibling: {
@@ -202,6 +224,8 @@ export async function getStudentsByBatch(batchId: string) {
           name: true,
           startDate: true,
           endDate: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
       Sibling: {
@@ -867,18 +891,6 @@ export async function getStudentsWithPaymentInfo() {
       status: {
         not: 'withdrawn',
       },
-    },
-    select: {
-      id: true,
-      name: true,
-      parentEmail: true,
-      stripeSubscriptionId: true,
-      stripeCustomerId: true,
-      paymentIntentIdMahad: true,
-      subscriptionStatus: true,
-      paidUntil: true,
-      currentPeriodStart: true,
-      currentPeriodEnd: true,
     },
     orderBy: {
       name: 'asc',

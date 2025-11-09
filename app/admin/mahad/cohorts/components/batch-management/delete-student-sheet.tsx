@@ -48,7 +48,7 @@ export function DeleteStudentSheet({ students }: DeleteStudentSheetProps) {
   const isDisabled = selectedCount === 0
 
   // Get selected students data
-  const selectedStudents = students.filter((s) => selectedStudentIds.has(s.id))
+  const selectedStudents = students?.filter((s) => selectedStudentIds.has(s.id)) || []
 
   // Fetch warnings when dialog opens
   useEffect(() => {

@@ -72,3 +72,4 @@ export function DugsiErrorBoundary({ children }: DugsiErrorBoundaryProps) {
     </ReactErrorBoundary>
   )
 }
+
