@@ -7,6 +7,7 @@ import { EducationLevel, GradeLevel } from '@prisma/client'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
+import { formatFullName } from '@/lib/registration/utils/name-formatting'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
@@ -747,7 +748,8 @@ export async function addSecondParent(params: {
  */
 export async function updateChildInfo(params: {
   studentId: string
-  name?: string
+  firstName?: string
+  lastName?: string
   gender?: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
   educationLevel?: EducationLevel
@@ -756,7 +758,7 @@ export async function updateChildInfo(params: {
   healthInfo?: string | null
 }): Promise<ActionResult> {
   try {
-    const { studentId, ...updateFields } = params
+    const { studentId, firstName, lastName, ...updateFields } = params
 
     // Verify student exists
     const student = await prisma.student.findUnique({
@@ -768,10 +770,20 @@ export async function updateChildInfo(params: {
       return { success: false, error: 'Student not found' }
     }
 
-    // Filter out undefined values to only update provided fields
-    const updateData = Object.fromEntries(
-      Object.entries(updateFields).filter(([_, value]) => value !== undefined)
-    )
+    // Build update data
+    const updateData: Record<string, unknown> = {}
+
+    // Combine firstName and lastName into name if both are provided
+    if (firstName !== undefined && lastName !== undefined) {
+      updateData.name = formatFullName(firstName, lastName)
+    }
+
+    // Add other fields that are defined
+    Object.entries(updateFields).forEach(([key, value]) => {
+      if (value !== undefined) {
+        updateData[key] = value
+      }
+    })
 
     // Update the student
     await prisma.student.update({
@@ -801,7 +813,8 @@ export async function updateChildInfo(params: {
  */
 export async function addChildToFamily(params: {
   existingStudentId: string
-  name: string
+  firstName: string
+  lastName: string
   gender: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
   educationLevel: EducationLevel
@@ -810,7 +823,7 @@ export async function addChildToFamily(params: {
   healthInfo?: string | null
 }): Promise<ActionResult<{ childId: string }>> {
   try {
-    const { existingStudentId, ...childData } = params
+    const { existingStudentId, firstName, lastName, ...childData } = params
 
     // Get the existing student to copy parent information
     const existingStudent = await prisma.student.findUnique({
@@ -833,9 +846,13 @@ export async function addChildToFamily(params: {
       return { success: false, error: 'Existing student not found' }
     }
 
+    // Combine firstName and lastName into full name
+    const fullName = formatFullName(firstName, lastName)
+
     // Create new student with parent info from existing sibling
     const newStudent = await prisma.student.create({
       data: {
+        name: fullName,
         ...childData,
         program: DUGSI_PROGRAM,
         familyReferenceId: existingStudent.familyReferenceId,

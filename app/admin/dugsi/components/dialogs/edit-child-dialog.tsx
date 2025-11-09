@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Pencil } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
+import { NameFields } from '@/components/registration/shared/NameFields'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -38,6 +39,7 @@ import {
   childFormSchema,
   type ChildFormValues,
 } from '../../_schemas/dialog-schemas'
+import { splitFullName } from '../../_utils/name-formatting'
 import { updateChildInfo } from '../../actions'
 
 interface EditChildDialogProps {
@@ -61,10 +63,14 @@ export function EditChildDialog({
   studentId,
   currentData,
 }: EditChildDialogProps) {
+  // Split full name into firstName and lastName
+  const { firstName, lastName } = splitFullName(currentData.name)
+
   const form = useForm<ChildFormValues>({
     resolver: zodResolver(childFormSchema),
     defaultValues: {
-      name: currentData.name,
+      firstName,
+      lastName,
       gender: currentData.gender,
       dateOfBirth: currentData.dateOfBirth
         ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
@@ -80,8 +86,12 @@ export function EditChildDialog({
   // Reset form when dialog opens with new data
   useEffect(() => {
     if (open && currentData) {
+      const { firstName: splitFirst, lastName: splitLast } = splitFullName(
+        currentData.name
+      )
       form.reset({
-        name: currentData.name,
+        firstName: splitFirst,
+        lastName: splitLast,
         gender: currentData.gender,
         dateOfBirth: currentData.dateOfBirth
           ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
@@ -110,7 +120,8 @@ export function EditChildDialog({
   const onSubmit = async (values: ChildFormValues) => {
     await executeUpdate({
       studentId,
-      name: values.name,
+      firstName: values.firstName,
+      lastName: values.lastName,
       gender: values.gender,
       dateOfBirth: values.dateOfBirth
         ? new Date(values.dateOfBirth)
@@ -144,22 +155,14 @@ export function EditChildDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
+            <NameFields
               control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Child's name"
-                      {...field}
-                      disabled={isUpdating}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              firstNameField="firstName"
+              lastNameField="lastName"
+              firstNameLabel="First Name"
+              lastNameLabel="Last Name"
+              firstNamePlaceholder="Child's first name"
+              lastNamePlaceholder="Child's last name"
             />
 
             <FormField

@@ -24,7 +24,8 @@ export type ParentFormValues = z.infer<typeof parentFormSchema>
 // ============================================================================
 
 export const childFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  firstName: nameSchema,
+  lastName: nameSchema,
   gender: z.enum(['MALE', 'FEMALE'], {
     required_error: 'Gender is required',
   }),

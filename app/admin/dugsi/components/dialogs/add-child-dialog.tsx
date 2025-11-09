@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, UserPlus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
+import { NameFields } from '@/components/registration/shared/NameFields'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -54,7 +55,8 @@ export function AddChildDialog({
   const form = useForm<ChildFormValues>({
     resolver: zodResolver(childFormSchema),
     defaultValues: {
-      name: '',
+      firstName: '',
+      lastName: '',
       gender: 'MALE',
       dateOfBirth: '',
       educationLevel: 'ELEMENTARY',
@@ -86,7 +88,8 @@ export function AddChildDialog({
   const onSubmit = async (values: ChildFormValues) => {
     await executeAdd({
       existingStudentId,
-      name: values.name,
+      firstName: values.firstName,
+      lastName: values.lastName,
       gender: values.gender,
       dateOfBirth: values.dateOfBirth
         ? new Date(values.dateOfBirth)
@@ -121,22 +124,14 @@ export function AddChildDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
+            <NameFields
               control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Child's name"
-                      {...field}
-                      disabled={isAdding}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              firstNameField="firstName"
+              lastNameField="lastName"
+              firstNameLabel="First Name"
+              lastNameLabel="Last Name"
+              firstNamePlaceholder="Child's first name"
+              lastNamePlaceholder="Child's last name"
             />
 
             <FormField

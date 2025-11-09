@@ -638,11 +638,6 @@ describe('Dugsi Server Actions', () => {
         parentEmail: 'old@example.com',
       }
 
-      const mockFamilyMembers = [
-        { id: '1', name: 'Child 1', parentEmail: 'old@example.com' },
-        { id: '2', name: 'Child 2', parentEmail: 'old@example.com' },
-      ]
-
       vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
       vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
 
@@ -953,7 +948,8 @@ describe('Dugsi Server Actions', () => {
 
       const result = await updateChildInfo({
         studentId: '1',
-        name: 'New Name',
+        firstName: 'New',
+        lastName: 'Name',
         gender: 'FEMALE',
         dateOfBirth: new Date('2015-05-15'),
         educationLevel: 'ELEMENTARY',
@@ -994,13 +990,14 @@ describe('Dugsi Server Actions', () => {
 
       const result = await updateChildInfo({
         studentId: '1',
-        name: 'Updated Name Only',
+        firstName: 'Updated',
+        lastName: 'Name',
       })
 
       expect(prisma.student.update).toHaveBeenCalledWith({
         where: { id: '1' },
         data: {
-          name: 'Updated Name Only',
+          name: 'Updated Name',
         },
       })
 
@@ -1012,7 +1009,8 @@ describe('Dugsi Server Actions', () => {
 
       const result = await updateChildInfo({
         studentId: 'nonexistent',
-        name: 'Test',
+        firstName: 'Test',
+        lastName: 'Name',
       })
 
       expect(result).toEqual({
@@ -1028,7 +1026,8 @@ describe('Dugsi Server Actions', () => {
 
       const result = await updateChildInfo({
         studentId: '1',
-        name: 'Test',
+        firstName: 'Test',
+        lastName: 'Name',
       })
 
       expect(result).toEqual({
@@ -1064,7 +1063,8 @@ describe('Dugsi Server Actions', () => {
 
       const result = await addChildToFamily({
         existingStudentId: '1',
-        name: 'New Child',
+        firstName: 'New',
+        lastName: 'Child',
         gender: 'MALE',
         dateOfBirth: new Date('2018-03-20'),
         educationLevel: 'ELEMENTARY',
@@ -1141,7 +1141,8 @@ describe('Dugsi Server Actions', () => {
 
       const result = await addChildToFamily({
         existingStudentId: '1',
-        name: 'New Child',
+        firstName: 'New',
+        lastName: 'Child',
         gender: 'FEMALE',
         educationLevel: 'ELEMENTARY',
         gradeLevel: 'KINDERGARTEN',
@@ -1164,7 +1165,8 @@ describe('Dugsi Server Actions', () => {
 
       const result = await addChildToFamily({
         existingStudentId: 'nonexistent',
-        name: 'New Child',
+        firstName: 'New',
+        lastName: 'Child',
         gender: 'MALE',
         educationLevel: 'ELEMENTARY',
         gradeLevel: 'GRADE_1',
@@ -1183,7 +1185,8 @@ describe('Dugsi Server Actions', () => {
 
       const result = await addChildToFamily({
         existingStudentId: '1',
-        name: 'New Child',
+        firstName: 'New',
+        lastName: 'Child',
         gender: 'MALE',
         educationLevel: 'ELEMENTARY',
         gradeLevel: 'GRADE_1',
