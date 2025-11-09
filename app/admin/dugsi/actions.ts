@@ -891,8 +891,14 @@ export async function addChildToFamily(params: {
 /**
  * Generate a payment link for a Dugsi family.
  * Uses the family's familyReferenceId to create a payment URL that can be matched via webhooks.
+ *
+ * @param studentId - Student ID to fetch family members (if familyMembers not provided)
+ * @param familyMembers - Optional: Pre-fetched family members to avoid redundant database query
  */
-export async function generatePaymentLink(studentId: string): Promise<
+export async function generatePaymentLink(
+  studentId: string,
+  familyMembers?: DugsiRegistration[]
+): Promise<
   ActionResult<{
     paymentUrl: string
     parentEmail: string
@@ -902,14 +908,20 @@ export async function generatePaymentLink(studentId: string): Promise<
   }>
 > {
   try {
-    // Get family members using existing logic
-    const familyMembers = await getFamilyMembers(studentId)
+    // Use provided family members or fetch them
+    let members: DugsiRegistration[]
+    if (familyMembers && familyMembers.length > 0) {
+      members = familyMembers
+    } else {
+      // Get family members using existing logic
+      members = await getFamilyMembers(studentId)
+    }
 
-    if (familyMembers.length === 0) {
+    if (members.length === 0) {
       return { success: false, error: 'Family not found' }
     }
 
-    const firstMember = familyMembers[0]
+    const firstMember = members[0]
 
     // Validate parent email exists
     if (!firstMember.parentEmail) {
@@ -947,7 +959,7 @@ export async function generatePaymentLink(studentId: string): Promise<
     const paymentUrl = constructDugsiPaymentUrl({
       parentEmail: firstMember.parentEmail,
       familyId: firstMember.familyReferenceId,
-      childCount: familyMembers.length,
+      childCount: members.length,
     })
 
     return {
@@ -956,7 +968,7 @@ export async function generatePaymentLink(studentId: string): Promise<
         paymentUrl,
         parentEmail: firstMember.parentEmail,
         parentPhone: firstMember.parentPhone,
-        childCount: familyMembers.length,
+        childCount: members.length,
         familyReferenceId: firstMember.familyReferenceId,
       },
     }

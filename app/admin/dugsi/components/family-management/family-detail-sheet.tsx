@@ -109,7 +109,8 @@ export function FamilyDetailSheet({
 
     startTransition(async () => {
       try {
-        const result = await generatePaymentLink(firstMember.id)
+        // Pass family members to avoid redundant database query
+        const result = await generatePaymentLink(firstMember.id, family.members)
 
         if (!result.success) {
           toast.error(result.error || 'Failed to generate payment link')

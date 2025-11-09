@@ -25,7 +25,7 @@ interface UseFamilyActionsProps {
 }
 
 export function useFamilyActions({ onViewDetails }: UseFamilyActionsProps) {
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
 
   // Swipe actions for mobile
   const getSwipeActions = (family: Family): SwipeAction[] => {
@@ -76,7 +76,8 @@ export function useFamilyActions({ onViewDetails }: UseFamilyActionsProps) {
 
     startTransition(async () => {
       try {
-        const result = await generatePaymentLink(firstMember.id)
+        // Pass family members to avoid redundant database query
+        const result = await generatePaymentLink(firstMember.id, family.members)
 
         if (!result.success) {
           toast.error(result.error || 'Failed to generate payment link')
@@ -185,5 +186,6 @@ export function useFamilyActions({ onViewDetails }: UseFamilyActionsProps) {
     handleSendPaymentLink,
     handleSendEmail,
     handleViewInStripe,
+    isPending, // Expose loading state for UI components
   }
 }
