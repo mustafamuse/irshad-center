@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { EducationLevel, GradeLevel } from '@prisma/client'
+
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
@@ -748,8 +750,8 @@ export async function updateChildInfo(params: {
   name?: string
   gender?: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
-  educationLevel?: string
-  gradeLevel?: string
+  educationLevel?: EducationLevel
+  gradeLevel?: GradeLevel
   schoolName?: string
   healthInfo?: string | null
 }): Promise<ActionResult> {
@@ -802,8 +804,8 @@ export async function addChildToFamily(params: {
   name: string
   gender: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
-  educationLevel: string
-  gradeLevel: string
+  educationLevel: EducationLevel
+  gradeLevel: GradeLevel
   schoolName?: string
   healthInfo?: string | null
 }): Promise<ActionResult<{ childId: string }>> {

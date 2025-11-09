@@ -84,11 +84,9 @@ export function EditParentDialog({
 
   // Hook for handling parent update
   const { execute: executeUpdate, isPending: isUpdating } = useActionHandler(
-    isAddingSecondParent ? addSecondParent : updateParentInfo,
+    updateParentInfo,
     {
-      successMessage: isAddingSecondParent
-        ? 'Second parent added successfully!'
-        : 'Parent information updated successfully!',
+      successMessage: 'Parent information updated successfully!',
       onSuccess: () => {
         onOpenChange(false)
         form.reset()
@@ -96,25 +94,41 @@ export function EditParentDialog({
     }
   )
 
+  // Hook for handling second parent addition
+  const { execute: executeAddSecond, isPending: isAddingSecond } =
+    useActionHandler(addSecondParent, {
+      successMessage: 'Second parent added successfully!',
+      onSuccess: () => {
+        onOpenChange(false)
+        form.reset()
+      },
+    })
+
   const onSubmit = async (values: ParentFormValues) => {
     if (isAddingSecondParent) {
-      // addSecondParent has different signature - doesn't need parentNumber
-      await executeUpdate({
+      await executeAddSecond({
         studentId,
-        ...values,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        phone: values.phone,
+      })
     } else {
       await executeUpdate({
         studentId,
         parentNumber,
-        ...values,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        email: values.email,
+        phone: values.phone,
       })
     }
   }
 
+  const isPending = isUpdating || isAddingSecond
+
   const handleClose = () => {
-    if (!isUpdating) {
+    if (!isPending) {
       form.reset()
       onOpenChange(false)
     }
@@ -149,11 +163,7 @@ export function EditParentDialog({
                 <FormItem>
                   <FormLabel>First Name</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="John"
-                      {...field}
-                      disabled={isUpdating}
-                    />
+                    <Input placeholder="John" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -167,7 +177,7 @@ export function EditParentDialog({
                 <FormItem>
                   <FormLabel>Last Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Doe" {...field} disabled={isUpdating} />
+                    <Input placeholder="Doe" {...field} disabled={isPending} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -185,7 +195,7 @@ export function EditParentDialog({
                       type="email"
                       placeholder="john@example.com"
                       {...field}
-                      disabled={isUpdating}
+                      disabled={isPending}
                     />
                   </FormControl>
                   <FormMessage />
@@ -204,7 +214,7 @@ export function EditParentDialog({
                       type="tel"
                       placeholder="+1234567890"
                       {...field}
-                      disabled={isUpdating}
+                      disabled={isPending}
                     />
                   </FormControl>
                   <FormMessage />
@@ -217,14 +227,12 @@ export function EditParentDialog({
                 type="button"
                 variant="outline"
                 onClick={handleClose}
-                disabled={isUpdating}
+                disabled={isPending}
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isUpdating}>
-                {isUpdating && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
+              <Button type="submit" disabled={isPending}>
+                {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isAddingSecondParent ? 'Add Parent' : 'Save Changes'}
               </Button>
             </DialogFooter>

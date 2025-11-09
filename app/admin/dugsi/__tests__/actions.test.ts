@@ -4,7 +4,7 @@
  * Test suite for Dugsi admin server actions
  */
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 
@@ -113,23 +113,25 @@ describe('Dugsi Server Actions', () => {
   })
 
   describe('getFamilyMembers', () => {
-    it('should find siblings by phone number', async () => {
+    it('should find siblings by familyReferenceId', async () => {
       const mockStudent = {
         id: '1',
-        parentPhone: '1234567890',
-        parent2Phone: '0987654321',
+        familyReferenceId: 'family-123',
+        parentEmail: 'parent@example.com',
       }
 
       const mockSiblings = [
         {
           id: '1',
           name: 'Child 1',
-          parentPhone: '1234567890',
+          familyReferenceId: 'family-123',
+          parentEmail: 'parent@example.com',
         },
         {
           id: '2',
           name: 'Child 2',
-          parentPhone: '1234567890',
+          familyReferenceId: 'family-123',
+          parentEmail: 'parent@example.com',
         },
       ]
 
@@ -141,6 +143,9 @@ describe('Dugsi Server Actions', () => {
       expect(prisma.student.findUnique).toHaveBeenCalledWith({
         where: { id: '1' },
         select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
           parentPhone: true,
           parent2Phone: true,
         },
@@ -149,20 +154,80 @@ describe('Dugsi Server Actions', () => {
       expect(prisma.student.findMany).toHaveBeenCalledWith({
         where: {
           program: 'DUGSI_PROGRAM',
-          OR: expect.arrayContaining([
-            expect.objectContaining({
-              OR: expect.arrayContaining([
-                { parentPhone: '1234567890' },
-                { parent2Phone: '1234567890' },
-              ]),
-            }),
-          ]),
+          familyReferenceId: 'family-123',
         },
         orderBy: { createdAt: 'asc' },
         select: expect.any(Object),
       })
 
       expect(result).toEqual(mockSiblings)
+    })
+
+    it('should find siblings by parentEmail fallback', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: null,
+        parentEmail: 'parent@example.com',
+      }
+
+      const mockSiblings = [
+        {
+          id: '1',
+          name: 'Child 1',
+          familyReferenceId: null,
+          parentEmail: 'parent@example.com',
+        },
+        {
+          id: '2',
+          name: 'Child 2',
+          familyReferenceId: null,
+          parentEmail: 'parent@example.com',
+        },
+      ]
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findMany).mockResolvedValue(mockSiblings as any)
+
+      const result = await getFamilyMembers('1')
+
+      expect(prisma.student.findMany).toHaveBeenCalledWith({
+        where: {
+          program: 'DUGSI_PROGRAM',
+          parentEmail: 'parent@example.com',
+          familyReferenceId: null,
+        },
+        orderBy: { createdAt: 'asc' },
+        select: expect.any(Object),
+      })
+
+      expect(result).toEqual(mockSiblings)
+    })
+
+    it('should return single student when no family grouping', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: null,
+        parentEmail: null,
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+
+      const result = await getFamilyMembers('1')
+
+      expect(prisma.student.findUnique).toHaveBeenCalledWith({
+        where: { id: '1' },
+        select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
+          parentPhone: true,
+          parent2Phone: true,
+        },
+      })
+
+      // Should return single student array (no findMany call)
+      expect(prisma.student.findMany).not.toHaveBeenCalled()
+      expect(result).toEqual([mockStudent])
     })
 
     it('should return empty array if student not found', async () => {
@@ -172,26 +237,14 @@ describe('Dugsi Server Actions', () => {
 
       expect(result).toEqual([])
     })
-
-    it('should return empty array if no phone numbers', async () => {
-      vi.mocked(prisma.student.findUnique).mockResolvedValue({
-        id: '1',
-        parentPhone: null,
-        parent2Phone: null,
-      } as any)
-
-      const result = await getFamilyMembers('1')
-
-      expect(result).toEqual([])
-    })
   })
 
   describe('deleteDugsiFamily', () => {
-    it('should delete entire family by phone numbers', async () => {
+    it('should delete entire family by familyReferenceId', async () => {
       const mockStudent = {
         id: '1',
-        parentPhone: '1234567890',
-        parent2Phone: null,
+        familyReferenceId: 'family-123',
+        parentEmail: 'parent@example.com',
       }
 
       vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
@@ -202,6 +255,9 @@ describe('Dugsi Server Actions', () => {
       expect(prisma.student.findUnique).toHaveBeenCalledWith({
         where: { id: '1' },
         select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
           parentPhone: true,
           parent2Phone: true,
         },
@@ -210,35 +266,71 @@ describe('Dugsi Server Actions', () => {
       expect(prisma.student.deleteMany).toHaveBeenCalledWith({
         where: {
           program: 'DUGSI_PROGRAM',
-          OR: expect.arrayContaining([
-            expect.objectContaining({
-              OR: [
-                { parentPhone: '1234567890' },
-                { parent2Phone: '1234567890' },
-              ],
-            }),
-          ]),
+          familyReferenceId: 'family-123',
         },
       })
 
-      expect(result).toEqual({ success: true })
+      expect(result).toEqual({
+        success: true,
+        message: 'Successfully deleted 2 students',
+      })
     })
 
-    it('should delete single student if no phone numbers', async () => {
+    it('should delete family by parentEmail fallback', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: null,
+        parentEmail: 'parent@example.com',
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.deleteMany).mockResolvedValue({ count: 3 })
+
+      const result = await deleteDugsiFamily('1')
+
+      expect(prisma.student.deleteMany).toHaveBeenCalledWith({
+        where: {
+          program: 'DUGSI_PROGRAM',
+          parentEmail: 'parent@example.com',
+          familyReferenceId: null,
+        },
+      })
+
+      expect(result).toEqual({
+        success: true,
+        message: 'Successfully deleted 3 students',
+      })
+    })
+
+    it('should delete single student when no family grouping', async () => {
       vi.mocked(prisma.student.findUnique).mockResolvedValue({
         id: '1',
-        parentPhone: null,
-        parent2Phone: null,
+        familyReferenceId: null,
+        parentEmail: null,
       } as any)
       vi.mocked(prisma.student.delete).mockResolvedValue({ id: '1' } as any)
 
       const result = await deleteDugsiFamily('1')
 
+      expect(prisma.student.findUnique).toHaveBeenCalledWith({
+        where: { id: '1' },
+        select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
+          parentPhone: true,
+          parent2Phone: true,
+        },
+      })
+
       expect(prisma.student.delete).toHaveBeenCalledWith({
         where: { id: '1' },
       })
 
-      expect(result).toEqual({ success: true })
+      expect(result).toEqual({
+        success: true,
+        message: 'Successfully deleted 1 student',
+      })
     })
 
     it('should handle deletion errors', async () => {
@@ -323,7 +415,9 @@ describe('Dugsi Server Actions', () => {
 
       expect(result).toEqual({
         success: true,
-        updated: 2,
+        data: {
+          updated: 2,
+        },
         message: 'Successfully linked subscription to 2 students',
       })
     })
