@@ -9,6 +9,8 @@
 
 'use client'
 
+import { useState } from 'react'
+
 import {
   CreditCard,
   ExternalLink,
@@ -16,6 +18,8 @@ import {
   Mail,
   Copy,
   ShieldCheck,
+  Edit,
+  UserPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -33,6 +37,9 @@ import { FamilyStatusBadge } from './family-status-badge'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { AddChildDialog } from '../dialogs/add-child-dialog'
+import { EditChildDialog } from '../dialogs/edit-child-dialog'
+import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { ChildInfoCard } from '../ui/child-info-card'
 import { ParentInfo } from '../ui/parent-info'
 
@@ -49,7 +56,30 @@ export function FamilyDetailSheet({
   onOpenChange,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
+  const [editParentDialog, setEditParentDialog] = useState<{
+    open: boolean
+    parentNumber: 1 | 2
+    isAdding: boolean
+  }>({
+    open: false,
+    parentNumber: 1,
+    isAdding: false,
+  })
+
+  const [editChildDialog, setEditChildDialog] = useState<{
+    open: boolean
+    studentId: string | null
+  }>({
+    open: false,
+    studentId: null,
+  })
+
+  const [addChildDialog, setAddChildDialog] = useState(false)
+
   if (!family) return null
+
+  const firstMember = family.members[0]
+  if (!firstMember) return null
 
   const handleVerifyBank = () => {
     const paymentIntentId = family.members[0]?.paymentIntentIdDugsi
@@ -72,6 +102,26 @@ export function FamilyDetailSheet({
     navigator.clipboard.writeText(text)
     toast.success(`${label} copied to clipboard`)
   }
+
+  const handleEditParent1 = () => {
+    setEditParentDialog({ open: true, parentNumber: 1, isAdding: false })
+  }
+
+  const handleEditParent2 = () => {
+    setEditParentDialog({ open: true, parentNumber: 2, isAdding: false })
+  }
+
+  const handleAddSecondParent = () => {
+    setEditParentDialog({ open: true, parentNumber: 2, isAdding: true })
+  }
+
+  const handleEditChild = (studentId: string) => {
+    setEditChildDialog({ open: true, studentId })
+  }
+
+  const currentEditChild = family.members.find(
+    (m) => m.id === editChildDialog.studentId
+  )
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -106,7 +156,41 @@ export function FamilyDetailSheet({
           {/* Contact Information */}
           {family.members[0] && (
             <div className="space-y-4 rounded-lg border p-4">
-              <h3 className="font-semibold">Contact Information</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Contact Information</h3>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleEditParent1}
+                    className="h-8 px-2"
+                  >
+                    <Edit className="mr-1 h-3 w-3" />
+                    Edit Parent 1
+                  </Button>
+                  {hasSecondParent(firstMember) ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleEditParent2}
+                      className="h-8 px-2"
+                    >
+                      <Edit className="mr-1 h-3 w-3" />
+                      Edit Parent 2
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleAddSecondParent}
+                      className="h-8 px-2"
+                    >
+                      <UserPlus className="mr-1 h-3 w-3" />
+                      Add Parent 2
+                    </Button>
+                  )}
+                </div>
+              </div>
               <ParentInfo
                 registration={family.members[0]}
                 showEmail={true}
@@ -118,12 +202,33 @@ export function FamilyDetailSheet({
 
           {/* Children Details */}
           <div className="space-y-4 rounded-lg border p-4">
-            <h3 className="font-semibold">
-              Children ({family.members.length})
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">
+                Children ({family.members.length})
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAddChildDialog(true)}
+                className="h-8 px-2"
+              >
+                <UserPlus className="mr-1 h-3 w-3" />
+                Add Child
+              </Button>
+            </div>
             <div className="space-y-3">
               {family.members.map((child, index) => (
-                <ChildInfoCard key={child.id} child={child} index={index} />
+                <div key={child.id} className="group relative">
+                  <ChildInfoCard child={child} index={index} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEditChild(child.id)}
+                    className="absolute right-2 top-2 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           </div>
@@ -238,6 +343,59 @@ export function FamilyDetailSheet({
           </div>
         </div>
       </SheetContent>
+
+      {/* Edit Parent Dialog */}
+      <EditParentDialog
+        open={editParentDialog.open}
+        onOpenChange={(open) =>
+          setEditParentDialog((prev) => ({ ...prev, open }))
+        }
+        studentId={firstMember.id}
+        parentNumber={editParentDialog.parentNumber}
+        currentData={
+          editParentDialog.parentNumber === 1
+            ? {
+                firstName: firstMember.parentFirstName,
+                lastName: firstMember.parentLastName,
+                email: firstMember.parentEmail,
+                phone: firstMember.parentPhone,
+              }
+            : {
+                firstName: firstMember.parent2FirstName,
+                lastName: firstMember.parent2LastName,
+                email: firstMember.parent2Email,
+                phone: firstMember.parent2Phone,
+              }
+        }
+        isAddingSecondParent={editParentDialog.isAdding}
+      />
+
+      {/* Edit Child Dialog */}
+      {currentEditChild && (
+        <EditChildDialog
+          open={editChildDialog.open}
+          onOpenChange={(open) =>
+            setEditChildDialog((prev) => ({ ...prev, open }))
+          }
+          studentId={currentEditChild.id}
+          currentData={{
+            name: currentEditChild.name,
+            gender: currentEditChild.gender,
+            dateOfBirth: currentEditChild.dateOfBirth,
+            educationLevel: currentEditChild.educationLevel,
+            gradeLevel: currentEditChild.gradeLevel,
+            schoolName: currentEditChild.schoolName,
+            healthInfo: currentEditChild.healthInfo,
+          }}
+        />
+      )}
+
+      {/* Add Child Dialog */}
+      <AddChildDialog
+        open={addChildDialog}
+        onOpenChange={setAddChildDialog}
+        existingStudentId={firstMember.id}
+      />
     </Sheet>
   )
 }

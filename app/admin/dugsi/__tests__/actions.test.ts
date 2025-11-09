@@ -4,6 +4,8 @@
  * Test suite for Dugsi admin server actions
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 
 import { prisma } from '@/lib/db'
@@ -15,6 +17,10 @@ import {
   deleteDugsiFamily,
   linkDugsiSubscription,
   getDugsiPaymentStatus,
+  updateParentInfo,
+  addSecondParent,
+  updateChildInfo,
+  addChildToFamily,
 } from '../actions'
 
 // Mock Next.js cache revalidation
@@ -32,6 +38,7 @@ vi.mock('@/lib/db', () => {
     updateMany: vi.fn(),
     delete: vi.fn(),
     deleteMany: vi.fn(),
+    create: vi.fn(),
   }
 
   return {
@@ -526,6 +533,573 @@ describe('Dugsi Server Actions', () => {
       expect(result.success).toBe(true)
       expect(result.data?.hasPaymentMethod).toBe(false)
       expect(result.data?.hasSubscription).toBe(false)
+    })
+  })
+
+  describe('updateParentInfo', () => {
+    it('should update parent 1 information for entire family', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: 'family-123',
+        parentEmail: 'old@example.com',
+      }
+
+      const mockFamilyMembers = [
+        { id: '1', name: 'Child 1', parentEmail: 'old@example.com' },
+        { id: '2', name: 'Child 2', parentEmail: 'old@example.com' },
+      ]
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
+
+      const result = await updateParentInfo({
+        studentId: '1',
+        parentNumber: 1,
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        phone: '+1234567890',
+      })
+
+      expect(prisma.student.findUnique).toHaveBeenCalledWith({
+        where: { id: '1' },
+        select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
+        },
+      })
+
+      expect(prisma.student.updateMany).toHaveBeenCalledWith({
+        where: {
+          program: 'DUGSI_PROGRAM',
+          familyReferenceId: 'family-123',
+        },
+        data: {
+          parentFirstName: 'John',
+          parentLastName: 'Doe',
+          parentEmail: 'john@example.com',
+          parentPhone: '+1234567890',
+        },
+      })
+
+      expect(result).toEqual({
+        success: true,
+        data: { updated: 2 },
+        message: 'Successfully updated parent information for 2 students',
+      })
+    })
+
+    it('should update parent 2 information for entire family', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: 'family-123',
+        parentEmail: 'parent@example.com',
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 3 })
+
+      const result = await updateParentInfo({
+        studentId: '1',
+        parentNumber: 2,
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'jane@example.com',
+        phone: '+9876543210',
+      })
+
+      expect(prisma.student.updateMany).toHaveBeenCalledWith({
+        where: {
+          program: 'DUGSI_PROGRAM',
+          familyReferenceId: 'family-123',
+        },
+        data: {
+          parent2FirstName: 'Jane',
+          parent2LastName: 'Doe',
+          parent2Email: 'jane@example.com',
+          parent2Phone: '+9876543210',
+        },
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.data?.updated).toBe(3)
+    })
+
+    it('should handle families grouped by parentEmail when no familyReferenceId', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: null,
+        parentEmail: 'parent@example.com',
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
+
+      const result = await updateParentInfo({
+        studentId: '1',
+        parentNumber: 1,
+        firstName: 'John',
+        lastName: 'Smith',
+        email: 'john.smith@example.com',
+        phone: '+1111111111',
+      })
+
+      expect(prisma.student.updateMany).toHaveBeenCalledWith({
+        where: {
+          program: 'DUGSI_PROGRAM',
+          parentEmail: 'parent@example.com',
+          familyReferenceId: null,
+        },
+        data: {
+          parentFirstName: 'John',
+          parentLastName: 'Smith',
+          parentEmail: 'john.smith@example.com',
+          parentPhone: '+1111111111',
+        },
+      })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('should update single student when no family grouping', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: null,
+        parentEmail: null,
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+
+      const result = await updateParentInfo({
+        studentId: '1',
+        parentNumber: 1,
+        firstName: 'Single',
+        lastName: 'Parent',
+        email: 'single@example.com',
+        phone: '+9999999999',
+      })
+
+      expect(prisma.student.update).toHaveBeenCalledWith({
+        where: { id: '1' },
+        data: {
+          parentFirstName: 'Single',
+          parentLastName: 'Parent',
+          parentEmail: 'single@example.com',
+          parentPhone: '+9999999999',
+        },
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.data?.updated).toBe(1)
+    })
+
+    it('should return error if student not found', async () => {
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(null)
+
+      const result = await updateParentInfo({
+        studentId: 'nonexistent',
+        parentNumber: 1,
+        firstName: 'Test',
+        lastName: 'User',
+        email: 'test@example.com',
+        phone: '+1234567890',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Student not found',
+      })
+    })
+
+    it('should handle database errors gracefully', async () => {
+      vi.mocked(prisma.student.findUnique).mockRejectedValue(
+        new Error('Database error')
+      )
+
+      const result = await updateParentInfo({
+        studentId: '1',
+        parentNumber: 1,
+        firstName: 'Test',
+        lastName: 'User',
+        email: 'test@example.com',
+        phone: '+1234567890',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to update parent information',
+      })
+      expect(console.error).toHaveBeenCalled()
+    })
+
+    it('should validate parentNumber is 1 or 2', async () => {
+      const result = await updateParentInfo({
+        studentId: '1',
+        parentNumber: 3 as any,
+        firstName: 'Test',
+        lastName: 'User',
+        email: 'test@example.com',
+        phone: '+1234567890',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Parent number must be 1 or 2',
+      })
+    })
+  })
+
+  describe('addSecondParent', () => {
+    it('should add second parent to entire family', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: 'family-123',
+        parentEmail: 'parent1@example.com',
+        parent2FirstName: null,
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
+
+      const result = await addSecondParent({
+        studentId: '1',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'jane@example.com',
+        phone: '+9876543210',
+      })
+
+      expect(prisma.student.findUnique).toHaveBeenCalledWith({
+        where: { id: '1' },
+        select: {
+          id: true,
+          familyReferenceId: true,
+          parentEmail: true,
+          parent2FirstName: true,
+        },
+      })
+
+      expect(prisma.student.updateMany).toHaveBeenCalledWith({
+        where: {
+          program: 'DUGSI_PROGRAM',
+          familyReferenceId: 'family-123',
+        },
+        data: {
+          parent2FirstName: 'Jane',
+          parent2LastName: 'Doe',
+          parent2Email: 'jane@example.com',
+          parent2Phone: '+9876543210',
+        },
+      })
+
+      expect(result).toEqual({
+        success: true,
+        data: { updated: 2 },
+        message: 'Successfully added second parent to 2 students',
+      })
+    })
+
+    it('should return error if second parent already exists', async () => {
+      const mockStudent = {
+        id: '1',
+        familyReferenceId: 'family-123',
+        parentEmail: 'parent1@example.com',
+        parent2FirstName: 'Existing',
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+
+      const result = await addSecondParent({
+        studentId: '1',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'jane@example.com',
+        phone: '+9876543210',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Second parent already exists',
+      })
+    })
+
+    it('should return error if student not found', async () => {
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(null)
+
+      const result = await addSecondParent({
+        studentId: 'nonexistent',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: 'jane@example.com',
+        phone: '+9876543210',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Student not found',
+      })
+    })
+  })
+
+  describe('updateChildInfo', () => {
+    it('should update child information', async () => {
+      const mockStudent = {
+        id: '1',
+        name: 'Old Name',
+        gender: 'MALE',
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.update).mockResolvedValue({
+        id: '1',
+        name: 'New Name',
+      } as any)
+
+      const result = await updateChildInfo({
+        studentId: '1',
+        name: 'New Name',
+        gender: 'FEMALE',
+        dateOfBirth: new Date('2015-05-15'),
+        educationLevel: 'ELEMENTARY',
+        gradeLevel: 'GRADE_3',
+        schoolName: 'Test School',
+        healthInfo: 'Allergies: None',
+      })
+
+      expect(prisma.student.findUnique).toHaveBeenCalledWith({
+        where: { id: '1' },
+        select: { id: true },
+      })
+
+      expect(prisma.student.update).toHaveBeenCalledWith({
+        where: { id: '1' },
+        data: {
+          name: 'New Name',
+          gender: 'FEMALE',
+          dateOfBirth: new Date('2015-05-15'),
+          educationLevel: 'ELEMENTARY',
+          gradeLevel: 'GRADE_3',
+          schoolName: 'Test School',
+          healthInfo: 'Allergies: None',
+        },
+      })
+
+      expect(result).toEqual({
+        success: true,
+        message: 'Successfully updated child information',
+      })
+    })
+
+    it('should allow partial updates', async () => {
+      const mockStudent = { id: '1' }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+
+      const result = await updateChildInfo({
+        studentId: '1',
+        name: 'Updated Name Only',
+      })
+
+      expect(prisma.student.update).toHaveBeenCalledWith({
+        where: { id: '1' },
+        data: {
+          name: 'Updated Name Only',
+        },
+      })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('should return error if student not found', async () => {
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(null)
+
+      const result = await updateChildInfo({
+        studentId: 'nonexistent',
+        name: 'Test',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Student not found',
+      })
+    })
+
+    it('should handle database errors', async () => {
+      vi.mocked(prisma.student.findUnique).mockRejectedValue(
+        new Error('Database error')
+      )
+
+      const result = await updateChildInfo({
+        studentId: '1',
+        name: 'Test',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to update child information',
+      })
+      expect(console.error).toHaveBeenCalled()
+    })
+  })
+
+  describe('addChildToFamily', () => {
+    it('should add child to family by copying parent info from existing sibling', async () => {
+      const mockExistingSibling = {
+        id: '1',
+        familyReferenceId: 'family-123',
+        parentFirstName: 'John',
+        parentLastName: 'Doe',
+        parentEmail: 'john@example.com',
+        parentPhone: '+1234567890',
+        parent2FirstName: 'Jane',
+        parent2LastName: 'Doe',
+        parent2Email: 'jane@example.com',
+        parent2Phone: '+9876543210',
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockExistingSibling as any
+      )
+      vi.mocked(prisma.student.create).mockResolvedValue({
+        id: 'new-child-id',
+        name: 'New Child',
+      } as any)
+
+      const result = await addChildToFamily({
+        existingStudentId: '1',
+        name: 'New Child',
+        gender: 'MALE',
+        dateOfBirth: new Date('2018-03-20'),
+        educationLevel: 'ELEMENTARY',
+        gradeLevel: 'GRADE_1',
+        schoolName: 'Test School',
+        healthInfo: null,
+      })
+
+      expect(prisma.student.findUnique).toHaveBeenCalledWith({
+        where: { id: '1' },
+        select: {
+          id: true,
+          familyReferenceId: true,
+          parentFirstName: true,
+          parentLastName: true,
+          parentEmail: true,
+          parentPhone: true,
+          parent2FirstName: true,
+          parent2LastName: true,
+          parent2Email: true,
+          parent2Phone: true,
+        },
+      })
+
+      expect(prisma.student.create).toHaveBeenCalledWith({
+        data: {
+          name: 'New Child',
+          gender: 'MALE',
+          dateOfBirth: new Date('2018-03-20'),
+          educationLevel: 'ELEMENTARY',
+          gradeLevel: 'GRADE_1',
+          schoolName: 'Test School',
+          healthInfo: null,
+          program: 'DUGSI_PROGRAM',
+          familyReferenceId: 'family-123',
+          parentFirstName: 'John',
+          parentLastName: 'Doe',
+          parentEmail: 'john@example.com',
+          parentPhone: '+1234567890',
+          parent2FirstName: 'Jane',
+          parent2LastName: 'Doe',
+          parent2Email: 'jane@example.com',
+          parent2Phone: '+9876543210',
+        },
+      })
+
+      expect(result).toEqual({
+        success: true,
+        data: { childId: 'new-child-id' },
+        message: 'Successfully added child to family',
+      })
+    })
+
+    it('should handle families without familyReferenceId', async () => {
+      const mockExistingSibling = {
+        id: '1',
+        familyReferenceId: null,
+        parentFirstName: 'John',
+        parentLastName: 'Doe',
+        parentEmail: 'john@example.com',
+        parentPhone: '+1234567890',
+        parent2FirstName: null,
+        parent2LastName: null,
+        parent2Email: null,
+        parent2Phone: null,
+      }
+
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockExistingSibling as any
+      )
+      vi.mocked(prisma.student.create).mockResolvedValue({
+        id: 'new-child-id',
+      } as any)
+
+      const result = await addChildToFamily({
+        existingStudentId: '1',
+        name: 'New Child',
+        gender: 'FEMALE',
+        educationLevel: 'ELEMENTARY',
+        gradeLevel: 'KINDERGARTEN',
+      })
+
+      expect(prisma.student.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          name: 'New Child',
+          gender: 'FEMALE',
+          familyReferenceId: null,
+          parentEmail: 'john@example.com',
+        }),
+      })
+
+      expect(result.success).toBe(true)
+    })
+
+    it('should return error if existing student not found', async () => {
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(null)
+
+      const result = await addChildToFamily({
+        existingStudentId: 'nonexistent',
+        name: 'New Child',
+        gender: 'MALE',
+        educationLevel: 'ELEMENTARY',
+        gradeLevel: 'GRADE_1',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Existing student not found',
+      })
+    })
+
+    it('should handle database errors', async () => {
+      vi.mocked(prisma.student.findUnique).mockRejectedValue(
+        new Error('Database error')
+      )
+
+      const result = await addChildToFamily({
+        existingStudentId: '1',
+        name: 'New Child',
+        gender: 'MALE',
+        educationLevel: 'ELEMENTARY',
+        gradeLevel: 'GRADE_1',
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Failed to add child to family',
+      })
+      expect(console.error).toHaveBeenCalled()
     })
   })
 })

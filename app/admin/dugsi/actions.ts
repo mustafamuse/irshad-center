@@ -545,3 +545,322 @@ export async function verifyDugsiBankAccount(
     }
   }
 }
+
+/**
+ * Update parent information for entire family.
+ * Updates all students in the family with the same parent information.
+ */
+export async function updateParentInfo(params: {
+  studentId: string
+  parentNumber: 1 | 2
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+}): Promise<ActionResult<{ updated: number }>> {
+  try {
+    const { studentId, parentNumber, firstName, lastName, email, phone } =
+      params
+
+    // Validate parentNumber
+    if (parentNumber !== 1 && parentNumber !== 2) {
+      return {
+        success: false,
+        error: 'Parent number must be 1 or 2',
+      }
+    }
+
+    // Get the student to find family members
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        familyReferenceId: true,
+        parentEmail: true,
+      },
+    })
+
+    if (!student) {
+      return { success: false, error: 'Student not found' }
+    }
+
+    // Determine which parent fields to update
+    const updateData =
+      parentNumber === 1
+        ? {
+            parentFirstName: firstName,
+            parentLastName: lastName,
+            parentEmail: email,
+            parentPhone: phone,
+          }
+        : {
+            parent2FirstName: firstName,
+            parent2LastName: lastName,
+            parent2Email: email,
+            parent2Phone: phone,
+          }
+
+    let updateResult
+
+    // Use same family matching logic as other operations
+    if (student.familyReferenceId) {
+      // Update all students with the same familyReferenceId
+      updateResult = await prisma.student.updateMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: student.familyReferenceId,
+        },
+        data: updateData,
+      })
+    } else if (student.parentEmail) {
+      // Update all students with the same parentEmail (fallback)
+      updateResult = await prisma.student.updateMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          parentEmail: student.parentEmail,
+          familyReferenceId: null,
+        },
+        data: updateData,
+      })
+    } else {
+      // No family grouping - update single student
+      await prisma.student.update({
+        where: { id: studentId },
+        data: updateData,
+      })
+      updateResult = { count: 1 }
+    }
+
+    // Revalidate the page
+    revalidatePath('/admin/dugsi')
+
+    const count = updateResult.count
+    return {
+      success: true,
+      data: { updated: count },
+      message: `Successfully updated parent information for ${count} ${count === 1 ? 'student' : 'students'}`,
+    }
+  } catch (error) {
+    console.error('Error updating parent information:', error)
+    return {
+      success: false,
+      error: 'Failed to update parent information',
+    }
+  }
+}
+
+/**
+ * Add a second parent to a family.
+ * Only adds if second parent doesn't already exist.
+ */
+export async function addSecondParent(params: {
+  studentId: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+}): Promise<ActionResult<{ updated: number }>> {
+  try {
+    const { studentId, firstName, lastName, email, phone } = params
+
+    // Get the student to check if second parent exists
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        familyReferenceId: true,
+        parentEmail: true,
+        parent2FirstName: true,
+      },
+    })
+
+    if (!student) {
+      return { success: false, error: 'Student not found' }
+    }
+
+    // Check if second parent already exists
+    if (student.parent2FirstName) {
+      return {
+        success: false,
+        error: 'Second parent already exists',
+      }
+    }
+
+    const updateData = {
+      parent2FirstName: firstName,
+      parent2LastName: lastName,
+      parent2Email: email,
+      parent2Phone: phone,
+    }
+
+    let updateResult
+
+    // Use same family matching logic
+    if (student.familyReferenceId) {
+      updateResult = await prisma.student.updateMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: student.familyReferenceId,
+        },
+        data: updateData,
+      })
+    } else if (student.parentEmail) {
+      updateResult = await prisma.student.updateMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          parentEmail: student.parentEmail,
+          familyReferenceId: null,
+        },
+        data: updateData,
+      })
+    } else {
+      await prisma.student.update({
+        where: { id: studentId },
+        data: updateData,
+      })
+      updateResult = { count: 1 }
+    }
+
+    // Revalidate the page
+    revalidatePath('/admin/dugsi')
+
+    const count = updateResult.count
+    return {
+      success: true,
+      data: { updated: count },
+      message: `Successfully added second parent to ${count} ${count === 1 ? 'student' : 'students'}`,
+    }
+  } catch (error) {
+    console.error('Error adding second parent:', error)
+    return {
+      success: false,
+      error: 'Failed to add second parent',
+    }
+  }
+}
+
+/**
+ * Update child information for a specific student.
+ * Only updates the individual child, not the whole family.
+ */
+export async function updateChildInfo(params: {
+  studentId: string
+  name?: string
+  gender?: 'MALE' | 'FEMALE'
+  dateOfBirth?: Date
+  educationLevel?: string
+  gradeLevel?: string
+  schoolName?: string
+  healthInfo?: string | null
+}): Promise<ActionResult> {
+  try {
+    const { studentId, ...updateFields } = params
+
+    // Verify student exists
+    const student = await prisma.student.findUnique({
+      where: { id: studentId },
+      select: { id: true },
+    })
+
+    if (!student) {
+      return { success: false, error: 'Student not found' }
+    }
+
+    // Filter out undefined values to only update provided fields
+    const updateData = Object.fromEntries(
+      Object.entries(updateFields).filter(([_, value]) => value !== undefined)
+    )
+
+    // Update the student
+    await prisma.student.update({
+      where: { id: studentId },
+      data: updateData,
+    })
+
+    // Revalidate the page
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+      message: 'Successfully updated child information',
+    }
+  } catch (error) {
+    console.error('Error updating child information:', error)
+    return {
+      success: false,
+      error: 'Failed to update child information',
+    }
+  }
+}
+
+/**
+ * Add a new child to an existing family.
+ * Copies parent information from an existing sibling.
+ */
+export async function addChildToFamily(params: {
+  existingStudentId: string
+  name: string
+  gender: 'MALE' | 'FEMALE'
+  dateOfBirth?: Date
+  educationLevel: string
+  gradeLevel: string
+  schoolName?: string
+  healthInfo?: string | null
+}): Promise<ActionResult<{ childId: string }>> {
+  try {
+    const { existingStudentId, ...childData } = params
+
+    // Get the existing student to copy parent information
+    const existingStudent = await prisma.student.findUnique({
+      where: { id: existingStudentId },
+      select: {
+        id: true,
+        familyReferenceId: true,
+        parentFirstName: true,
+        parentLastName: true,
+        parentEmail: true,
+        parentPhone: true,
+        parent2FirstName: true,
+        parent2LastName: true,
+        parent2Email: true,
+        parent2Phone: true,
+      },
+    })
+
+    if (!existingStudent) {
+      return { success: false, error: 'Existing student not found' }
+    }
+
+    // Create new student with parent info from existing sibling
+    const newStudent = await prisma.student.create({
+      data: {
+        ...childData,
+        program: DUGSI_PROGRAM,
+        familyReferenceId: existingStudent.familyReferenceId,
+        parentFirstName: existingStudent.parentFirstName,
+        parentLastName: existingStudent.parentLastName,
+        parentEmail: existingStudent.parentEmail,
+        parentPhone: existingStudent.parentPhone,
+        parent2FirstName: existingStudent.parent2FirstName,
+        parent2LastName: existingStudent.parent2LastName,
+        parent2Email: existingStudent.parent2Email,
+        parent2Phone: existingStudent.parent2Phone,
+      },
+    })
+
+    // Revalidate the page
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+      data: { childId: newStudent.id },
+      message: 'Successfully added child to family',
+    }
+  } catch (error) {
+    console.error('Error adding child to family:', error)
+    return {
+      success: false,
+      error: 'Failed to add child to family',
+    }
+  }
+}
