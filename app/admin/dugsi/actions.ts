@@ -553,18 +553,21 @@ export async function verifyDugsiBankAccount(
 /**
  * Update parent information for entire family.
  * Updates all students in the family with the same parent information.
+ *
+ * SECURITY: Parent emails (parentEmail and parent2Email) are immutable
+ * and cannot be changed via this function. They are used for family
+ * identification and security purposes. Changing them would allow
+ * hijacking of families, subscriptions, and payment data.
  */
 export async function updateParentInfo(params: {
   studentId: string
   parentNumber: 1 | 2
   firstName: string
   lastName: string
-  email: string
   phone: string
 }): Promise<ActionResult<{ updated: number }>> {
   try {
-    const { studentId, parentNumber, firstName, lastName, email, phone } =
-      params
+    const { studentId, parentNumber, firstName, lastName, phone } = params
 
     // Validate parentNumber
     if (parentNumber !== 1 && parentNumber !== 2) {
@@ -589,18 +592,18 @@ export async function updateParentInfo(params: {
     }
 
     // Determine which parent fields to update
+    // SECURITY: Email fields are intentionally excluded - they are immutable
+    // and used for family identification and security purposes
     const updateData =
       parentNumber === 1
         ? {
             parentFirstName: firstName,
             parentLastName: lastName,
-            parentEmail: email,
             parentPhone: phone,
           }
         : {
             parent2FirstName: firstName,
             parent2LastName: lastName,
-            parent2Email: email,
             parent2Phone: phone,
           }
 

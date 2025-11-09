@@ -646,7 +646,6 @@ describe('Dugsi Server Actions', () => {
         parentNumber: 1,
         firstName: 'John',
         lastName: 'Doe',
-        email: 'john@example.com',
         phone: '+1234567890',
       })
 
@@ -667,7 +666,6 @@ describe('Dugsi Server Actions', () => {
         data: {
           parentFirstName: 'John',
           parentLastName: 'Doe',
-          parentEmail: 'john@example.com',
           parentPhone: '+1234567890',
         },
       })
@@ -694,7 +692,6 @@ describe('Dugsi Server Actions', () => {
         parentNumber: 2,
         firstName: 'Jane',
         lastName: 'Doe',
-        email: 'jane@example.com',
         phone: '+9876543210',
       })
 
@@ -706,7 +703,6 @@ describe('Dugsi Server Actions', () => {
         data: {
           parent2FirstName: 'Jane',
           parent2LastName: 'Doe',
-          parent2Email: 'jane@example.com',
           parent2Phone: '+9876543210',
         },
       })
@@ -730,7 +726,6 @@ describe('Dugsi Server Actions', () => {
         parentNumber: 1,
         firstName: 'John',
         lastName: 'Smith',
-        email: 'john.smith@example.com',
         phone: '+1111111111',
       })
 
@@ -743,7 +738,6 @@ describe('Dugsi Server Actions', () => {
         data: {
           parentFirstName: 'John',
           parentLastName: 'Smith',
-          parentEmail: 'john.smith@example.com',
           parentPhone: '+1111111111',
         },
       })
@@ -766,7 +760,6 @@ describe('Dugsi Server Actions', () => {
         parentNumber: 1,
         firstName: 'Single',
         lastName: 'Parent',
-        email: 'single@example.com',
         phone: '+9999999999',
       })
 
@@ -775,7 +768,6 @@ describe('Dugsi Server Actions', () => {
         data: {
           parentFirstName: 'Single',
           parentLastName: 'Parent',
-          parentEmail: 'single@example.com',
           parentPhone: '+9999999999',
         },
       })
@@ -792,7 +784,6 @@ describe('Dugsi Server Actions', () => {
         parentNumber: 1,
         firstName: 'Test',
         lastName: 'User',
-        email: 'test@example.com',
         phone: '+1234567890',
       })
 
@@ -812,7 +803,6 @@ describe('Dugsi Server Actions', () => {
         parentNumber: 1,
         firstName: 'Test',
         lastName: 'User',
-        email: 'test@example.com',
         phone: '+1234567890',
       })
 
@@ -829,7 +819,6 @@ describe('Dugsi Server Actions', () => {
         parentNumber: 3 as any,
         firstName: 'Test',
         lastName: 'User',
-        email: 'test@example.com',
         phone: '+1234567890',
       })
 

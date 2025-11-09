@@ -102,6 +102,7 @@ export function EditParentDialog({
 
   const onSubmit = async (values: ParentFormValues) => {
     if (isAddingSecondParent) {
+      // Only allow email when adding new second parent
       await executeAddSecond({
         studentId,
         firstName: values.firstName,
@@ -110,12 +111,12 @@ export function EditParentDialog({
         phone: values.phone,
       })
     } else {
+      // Remove email when updating existing parents (emails are immutable)
       await executeUpdate({
         studentId,
         parentNumber,
         firstName: values.firstName,
         lastName: values.lastName,
-        email: values.email,
         phone: values.phone,
       })
     }
@@ -191,9 +192,15 @@ export function EditParentDialog({
                       type="email"
                       placeholder="john@example.com"
                       {...field}
-                      disabled={isPending}
+                      disabled={isPending || !isAddingSecondParent}
                     />
                   </FormControl>
+                  {!isAddingSecondParent && (
+                    <p className="text-xs text-muted-foreground">
+                      Email cannot be changed as it's used for family
+                      identification and security
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
