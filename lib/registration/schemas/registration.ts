@@ -81,20 +81,20 @@ export const GENDER_OPTIONS = [
 // REUSABLE FIELD SCHEMAS
 // ============================================================================
 
-const nameSchema = z
+export const nameSchema = z
   .string()
   .trim()
   .min(2, 'Name must be at least 2 characters')
   .max(50, 'Name must be less than 50 characters')
   .regex(/^[a-zA-Z\s-]+$/, 'Name can only contain letters, spaces, and hyphens')
 
-const emailSchema = z
+export const emailSchema = z
   .string()
   .email('Please enter a valid email address')
   .min(5, 'Email must be at least 5 characters')
   .max(100, 'Email must be less than 100 characters')
 
-const phoneSchema = z
+export const phoneSchema = z
   .string()
   .regex(/^\d{3}-\d{3}-\d{4}$/, 'Enter a valid phone number (XXX-XXX-XXXX)')
 

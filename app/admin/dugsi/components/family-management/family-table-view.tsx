@@ -84,16 +84,24 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
               onClick={() => handleRowClick(family)}
             >
               {/* Parent Name and Family Info */}
-              <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
                 <h3 className="font-semibold">{parentName}</h3>
-                <Badge variant="outline" className="text-xs">
-                  {hasSecond ? '2 Parents' : '1 Parent'}
-                </Badge>
-                <Badge variant="secondary" className="gap-1 text-xs">
-                  <Users className="h-3 w-3" />
-                  {family.members.length}{' '}
-                  {family.members.length === 1 ? 'Student' : 'Students'}
-                </Badge>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <Badge
+                    variant="outline"
+                    className="whitespace-nowrap px-1.5 text-xs"
+                  >
+                    {hasSecond ? '2 Parents' : '1 Parent'}
+                  </Badge>
+                  <Badge
+                    variant="secondary"
+                    className="gap-1 whitespace-nowrap px-1.5 text-xs"
+                  >
+                    <Users className="h-3 w-3 shrink-0" />
+                    {family.members.length}{' '}
+                    {family.members.length === 1 ? 'Kid' : 'Kids'}
+                  </Badge>
+                </div>
               </div>
 
               {/* Combined Status */}
@@ -136,7 +144,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
           <TableHeader>
             <TableRow>
               <TableHead>Parent Name</TableHead>
-              <TableHead># Students</TableHead>
+              <TableHead># Kids</TableHead>
               <TableHead>Bank Info</TableHead>
               <TableHead>Subscription</TableHead>
               <TableHead className="text-right">Actions</TableHead>

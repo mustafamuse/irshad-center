@@ -9,18 +9,24 @@
 
 'use client'
 
+import { useState, useTransition } from 'react'
+
 import {
   CreditCard,
   ExternalLink,
   Send,
   Mail,
+  Phone,
   Copy,
   ShieldCheck,
+  Edit,
+  UserPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
   SheetContent,
@@ -33,8 +39,11 @@ import { FamilyStatusBadge } from './family-status-badge'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { generatePaymentLink } from '../../actions'
+import { AddChildDialog } from '../dialogs/add-child-dialog'
+import { EditChildDialog } from '../dialogs/edit-child-dialog'
+import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { ChildInfoCard } from '../ui/child-info-card'
-import { ParentInfo } from '../ui/parent-info'
 
 interface FamilyDetailSheetProps {
   family: Family | null
@@ -49,7 +58,31 @@ export function FamilyDetailSheet({
   onOpenChange,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
+  const [isPending, startTransition] = useTransition()
+  const [editParentDialog, setEditParentDialog] = useState<{
+    open: boolean
+    parentNumber: 1 | 2
+    isAdding: boolean
+  }>({
+    open: false,
+    parentNumber: 1,
+    isAdding: false,
+  })
+
+  const [editChildDialog, setEditChildDialog] = useState<{
+    open: boolean
+    studentId: string | null
+  }>({
+    open: false,
+    studentId: null,
+  })
+
+  const [addChildDialog, setAddChildDialog] = useState(false)
+
   if (!family) return null
+
+  const firstMember = family.members[0]
+  if (!firstMember) return null
 
   const handleVerifyBank = () => {
     const paymentIntentId = family.members[0]?.paymentIntentIdDugsi
@@ -68,81 +101,421 @@ export function FamilyDetailSheet({
     }
   }
 
+  const handleSendPaymentLink = () => {
+    if (!firstMember) {
+      toast.error('Family member not found')
+      return
+    }
+
+    startTransition(async () => {
+      try {
+        // Pass family members to avoid redundant database query
+        const result = await generatePaymentLink(firstMember.id, family.members)
+
+        if (!result.success) {
+          toast.error(result.error || 'Failed to generate payment link')
+          return
+        }
+
+        if (!result.data) {
+          toast.error('No payment link data returned')
+          return
+        }
+
+        // Copy to clipboard
+        try {
+          await navigator.clipboard.writeText(result.data.paymentUrl)
+
+          // Get parent phone number
+          const parentPhone = family.parentPhone || firstMember.parentPhone
+
+          // Show success toast with WhatsApp option
+          if (parentPhone) {
+            let phoneNumber = parentPhone.replace(/\D/g, '')
+
+            // Add country code if missing (assume US +1 for 10-digit numbers)
+            if (phoneNumber.length === 10 && !phoneNumber.startsWith('1')) {
+              phoneNumber = `1${phoneNumber}`
+            }
+
+            if (phoneNumber) {
+              const message = encodeURIComponent(
+                `As-salāmu ʿalaykum wa raḥmatullāh.\n\nFrom Irshad Dugsi — please complete your registration by setting up autopay. It's only a $1 setup charge to activate, no full payment will be taken now in shāʾ Allāh.\n\n---\n\nAs-salāmu ʿalaykum wa raḥmatullāh.\n\nKa socota Irshad Dugsi — fadlan dhammaystir diiwaangelinta adigoo dejinaya autopay-ga. Waxaa jiri doona $1 kaliya oo lagu dejinayo nidaamka, lacagta buuxdana laguma soo dallaci doono hadda in shāʾ Allāh.\n\n${result.data.paymentUrl}`
+              )
+              const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`
+
+              // Open WhatsApp directly
+              try {
+                const link = document.createElement('a')
+                link.href = whatsappUrl
+                link.target = '_blank'
+                link.rel = 'noopener noreferrer'
+                document.body.appendChild(link)
+                link.click()
+                setTimeout(() => {
+                  document.body.removeChild(link)
+                }, 100)
+
+                toast.success('Payment link copied to clipboard!', {
+                  description: 'Opening WhatsApp...',
+                })
+              } catch (error) {
+                console.error('Error opening WhatsApp:', error)
+                // Fallback to window.open
+                window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+
+                toast.success('Payment link copied to clipboard!', {
+                  action: {
+                    label: 'Open WhatsApp',
+                    onClick: () => {
+                      window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+                    },
+                  },
+                })
+              }
+            } else {
+              toast.success('Payment link copied to clipboard!', {
+                description: 'Invalid phone number format',
+              })
+            }
+          } else {
+            toast.success('Payment link copied to clipboard!', {
+              description: 'Phone number not available for WhatsApp',
+            })
+          }
+        } catch (clipboardError) {
+          // If clipboard fails, still show the link
+          toast.error('Failed to copy to clipboard', {
+            description: 'Please copy the link manually',
+            action: {
+              label: 'Copy Link',
+              onClick: () => {
+                navigator.clipboard.writeText(result.data!.paymentUrl)
+              },
+            },
+          })
+        }
+      } catch (error) {
+        console.error('Error sending payment link:', error)
+        toast.error('Failed to generate payment link')
+      }
+    })
+  }
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text)
     toast.success(`${label} copied to clipboard`)
   }
 
+  const copyToClipboardAsync = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${label} copied to clipboard`)
+    } catch (err) {
+      toast.error('Failed to copy to clipboard')
+    }
+  }
+
+  const handleEditParent1 = () => {
+    setEditParentDialog({ open: true, parentNumber: 1, isAdding: false })
+  }
+
+  const handleEditParent2 = () => {
+    setEditParentDialog({ open: true, parentNumber: 2, isAdding: false })
+  }
+
+  const handleAddSecondParent = () => {
+    setEditParentDialog({ open: true, parentNumber: 2, isAdding: true })
+  }
+
+  const handleEditChild = (studentId: string) => {
+    setEditChildDialog({ open: true, studentId })
+  }
+
+  const currentEditChild = family.members.find(
+    (m) => m.id === editChildDialog.studentId
+  )
+
+  // Format sheet title with both parents if second parent exists
+  const getSheetTitle = () => {
+    const firstParentName = formatParentName(
+      family.members[0]?.parentFirstName,
+      family.members[0]?.parentLastName
+    )
+
+    if (family.members[0] && hasSecondParent(family.members[0])) {
+      const secondParentName = formatParentName(
+        family.members[0].parent2FirstName,
+        family.members[0].parent2LastName
+      )
+      return `${firstParentName} & ${secondParentName}`
+    }
+
+    return firstParentName
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>
-            {formatParentName(
-              family.members[0]?.parentFirstName,
-              family.members[0]?.parentLastName
-            )}
-          </SheetTitle>
+        <SheetHeader className="border-b pb-4">
+          <SheetTitle>{getSheetTitle()}</SheetTitle>
           <SheetDescription>Family details and information</SheetDescription>
-        </SheetHeader>
-
-        <div className="mt-6 space-y-6">
-          {/* Family Status */}
-          <div className="flex items-center gap-2">
+          {/* Family Status Badges */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-2">
             <FamilyStatusBadge status={getFamilyStatus(family)} />
             {family.members[0] && hasSecondParent(family.members[0]) && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="px-1.5 text-xs">
                 2 Parents
               </Badge>
             )}
             {family.members[0]?.stripeCustomerIdDugsi && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="px-1.5 text-xs">
                 <CreditCard className="mr-1 h-3 w-3" />
                 Customer
               </Badge>
             )}
           </div>
+        </SheetHeader>
 
+        <div className="mt-5 space-y-5">
           {/* Contact Information */}
           {family.members[0] && (
-            <div className="space-y-4 rounded-lg border p-4">
-              <h3 className="font-semibold">Contact Information</h3>
-              <ParentInfo
-                registration={family.members[0]}
-                showEmail={true}
-                showPhone={true}
-                showSecondParentBadge={true}
-              />
+            <div className="space-y-4 rounded-lg border bg-card p-5">
+              <h3 className="text-base font-semibold">Contact Information</h3>
+              <div className="space-y-4 pt-1">
+                {/* Parent 1 */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                        1
+                      </div>
+                      <span className="font-medium">
+                        {formatParentName(
+                          firstMember.parentFirstName,
+                          firstMember.parentLastName
+                        )}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleEditParent1}
+                      className="h-7 px-2"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                  {firstMember.parentEmail && (
+                    <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <a
+                        href={`mailto:${firstMember.parentEmail}`}
+                        className="truncate hover:text-[#007078] hover:underline"
+                      >
+                        {firstMember.parentEmail}
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={() =>
+                          firstMember.parentEmail &&
+                          copyToClipboardAsync(
+                            firstMember.parentEmail,
+                            'Email address'
+                          )
+                        }
+                        aria-label="Copy email address"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  {firstMember.parentPhone && (
+                    <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-3.5 w-3.5 shrink-0" />
+                      <a
+                        href={`https://wa.me/${firstMember.parentPhone.replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-[#007078] hover:underline"
+                      >
+                        {firstMember.parentPhone}
+                      </a>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={() =>
+                          firstMember.parentPhone &&
+                          copyToClipboardAsync(
+                            firstMember.parentPhone,
+                            'Phone number'
+                          )
+                        }
+                        aria-label="Copy phone number"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Parent 2 */}
+                {hasSecondParent(firstMember) ? (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                            2
+                          </div>
+                          <span className="font-medium">
+                            {formatParentName(
+                              firstMember.parent2FirstName,
+                              firstMember.parent2LastName
+                            )}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleEditParent2}
+                          className="h-7 px-2"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {firstMember.parent2Email && (
+                        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <a
+                            href={`mailto:${firstMember.parent2Email}`}
+                            className="truncate hover:text-[#007078] hover:underline"
+                          >
+                            {firstMember.parent2Email}
+                          </a>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 shrink-0"
+                            onClick={() =>
+                              firstMember.parent2Email &&
+                              copyToClipboardAsync(
+                                firstMember.parent2Email,
+                                'Email address'
+                              )
+                            }
+                            aria-label="Copy email address"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                      {firstMember.parent2Phone && (
+                        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5 shrink-0" />
+                          <a
+                            href={`https://wa.me/${firstMember.parent2Phone.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-[#007078] hover:underline"
+                          >
+                            {firstMember.parent2Phone}
+                          </a>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-5 w-5 shrink-0"
+                            onClick={() =>
+                              firstMember.parent2Phone &&
+                              copyToClipboardAsync(
+                                firstMember.parent2Phone,
+                                'Phone number'
+                              )
+                            }
+                            aria-label="Copy phone number"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Separator />
+                    <div className="flex items-center justify-center pt-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleAddSecondParent}
+                        className="h-8 px-3"
+                      >
+                        <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                        Add Parent 2
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Children Details */}
-          <div className="space-y-4 rounded-lg border p-4">
-            <h3 className="font-semibold">
-              Children ({family.members.length})
-            </h3>
-            <div className="space-y-3">
+          {/* Kids Details */}
+          <div className="space-y-4 rounded-lg border bg-card p-5">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold">
+                Kids ({family.members.length})
+              </h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAddChildDialog(true)}
+                className="h-8 px-2 sm:px-3"
+              >
+                <UserPlus className="h-3.5 w-3.5 sm:mr-1.5" />
+                <span className="hidden sm:inline">Add Child</span>
+              </Button>
+            </div>
+            <div className="space-y-2.5 pt-1">
               {family.members.map((child, index) => (
-                <ChildInfoCard key={child.id} child={child} index={index} />
+                <ChildInfoCard
+                  key={child.id}
+                  child={child}
+                  index={index}
+                  editButton={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditChild(child.id)}
+                      className="h-7 px-2"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                  }
+                />
               ))}
             </div>
           </div>
 
           {/* Payment Details */}
           {family.members[0]?.stripeCustomerIdDugsi && (
-            <div className="space-y-4 rounded-lg border p-4">
-              <h3 className="font-semibold">Payment Details</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center justify-between gap-2">
+            <div className="space-y-4 rounded-lg border bg-card p-5">
+              <h3 className="text-base font-semibold">Payment Details</h3>
+              <div className="space-y-3 pt-1 text-sm">
+                <div className="flex items-center justify-between gap-3">
                   <span className="text-muted-foreground">Customer ID:</span>
-                  <div className="flex items-center gap-1">
-                    <code className="rounded bg-muted px-2 py-0.5 text-xs">
-                      {family.members[0].stripeCustomerIdDugsi.slice(0, 14)}...
+                  <div className="flex items-center gap-1.5">
+                    <code className="rounded-md bg-muted/80 px-2.5 py-1 font-mono text-xs">
+                      {family.members[0].stripeCustomerIdDugsi.slice(0, 16)}...
                     </code>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6"
+                      className="h-7 w-7 shrink-0"
                       onClick={() =>
                         family.members[0]?.stripeCustomerIdDugsi &&
                         copyToClipboard(
@@ -152,25 +525,25 @@ export function FamilyDetailSheet({
                       }
                       aria-label="Copy customer ID"
                     >
-                      <Copy className="h-3 w-3" />
+                      <Copy className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 </div>
                 {family.members[0]?.stripeSubscriptionIdDugsi && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="text-muted-foreground">Subscription:</span>
-                    <div className="flex items-center gap-1">
-                      <code className="rounded bg-muted px-2 py-0.5 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <code className="rounded-md bg-muted/80 px-2.5 py-1 font-mono text-xs">
                         {family.members[0].stripeSubscriptionIdDugsi.slice(
                           0,
-                          14
+                          16
                         )}
                         ...
                       </code>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-6 w-6"
+                        className="h-7 w-7 shrink-0"
                         onClick={() =>
                           family.members[0]?.stripeSubscriptionIdDugsi &&
                           copyToClipboard(
@@ -180,18 +553,25 @@ export function FamilyDetailSheet({
                         }
                         aria-label="Copy subscription ID"
                       >
-                        <Copy className="h-3 w-3" />
+                        <Copy className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                   </div>
                 )}
                 {family.members[0]?.paidUntil && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Next Billing:</span>
-                    <span className="text-xs">
-                      {new Date(
-                        family.members[0].paidUntil
-                      ).toLocaleDateString()}
+                  <div className="flex items-center justify-between border-t pt-3">
+                    <span className="font-medium text-muted-foreground">
+                      Next Billing:
+                    </span>
+                    <span className="text-sm font-medium">
+                      {new Date(family.members[0].paidUntil).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )}
                     </span>
                   </div>
                 )}
@@ -200,8 +580,8 @@ export function FamilyDetailSheet({
           )}
 
           {/* Actions */}
-          <div className="space-y-2">
-            {/* Verify Bank Account - Show for families needing bank verification */}
+          <div className="space-y-3 border-t pt-5">
+            {/* Primary Actions */}
             {family.hasPayment &&
               (family.members[0]?.subscriptionStatus !== 'active' ||
                 !family.hasSubscription) &&
@@ -217,14 +597,24 @@ export function FamilyDetailSheet({
                 </Button>
               )}
 
-            <Button className="w-full" variant="outline">
-              <Send className="mr-2 h-4 w-4" />
-              Send Payment Link
-            </Button>
-            <Button className="w-full" variant="outline">
-              <Mail className="mr-2 h-4 w-4" />
-              Send Email
-            </Button>
+            {/* Communication Actions */}
+            <div className="space-y-2">
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={handleSendPaymentLink}
+                disabled={isPending}
+              >
+                <Send className="mr-2 h-4 w-4" />
+                {isPending ? 'Generating...' : 'Send Payment Link'}
+              </Button>
+              <Button className="w-full" variant="outline">
+                <Mail className="mr-2 h-4 w-4" />
+                Send Email
+              </Button>
+            </div>
+
+            {/* External Actions */}
             {family.members[0]?.stripeCustomerIdDugsi && (
               <Button
                 className="w-full"
@@ -238,6 +628,59 @@ export function FamilyDetailSheet({
           </div>
         </div>
       </SheetContent>
+
+      {/* Edit Parent Dialog */}
+      <EditParentDialog
+        open={editParentDialog.open}
+        onOpenChange={(open) =>
+          setEditParentDialog((prev) => ({ ...prev, open }))
+        }
+        studentId={firstMember.id}
+        parentNumber={editParentDialog.parentNumber}
+        currentData={
+          editParentDialog.parentNumber === 1
+            ? {
+                firstName: firstMember.parentFirstName,
+                lastName: firstMember.parentLastName,
+                email: firstMember.parentEmail,
+                phone: firstMember.parentPhone,
+              }
+            : {
+                firstName: firstMember.parent2FirstName,
+                lastName: firstMember.parent2LastName,
+                email: firstMember.parent2Email,
+                phone: firstMember.parent2Phone,
+              }
+        }
+        isAddingSecondParent={editParentDialog.isAdding}
+      />
+
+      {/* Edit Child Dialog */}
+      {currentEditChild && (
+        <EditChildDialog
+          open={editChildDialog.open}
+          onOpenChange={(open) =>
+            setEditChildDialog((prev) => ({ ...prev, open }))
+          }
+          studentId={currentEditChild.id}
+          currentData={{
+            name: currentEditChild.name,
+            gender: currentEditChild.gender || 'MALE',
+            dateOfBirth: currentEditChild.dateOfBirth,
+            educationLevel: currentEditChild.educationLevel || '',
+            gradeLevel: currentEditChild.gradeLevel || '',
+            schoolName: currentEditChild.schoolName,
+            healthInfo: currentEditChild.healthInfo,
+          }}
+        />
+      )}
+
+      {/* Add Child Dialog */}
+      <AddChildDialog
+        open={addChildDialog}
+        onOpenChange={setAddChildDialog}
+        existingStudentId={firstMember.id}
+      />
     </Sheet>
   )
 }

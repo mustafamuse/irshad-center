@@ -222,9 +222,12 @@ export function FamilyGridView({
                             onClick={() =>
                               familyActions.handleSendPaymentLink(family)
                             }
+                            disabled={familyActions.isPending}
                           >
                             <Send className="mr-2 h-4 w-4" />
-                            Send Payment Link
+                            {familyActions.isPending
+                              ? 'Generating...'
+                              : 'Send Payment Link'}
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem

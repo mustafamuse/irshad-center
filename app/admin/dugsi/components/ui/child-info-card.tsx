@@ -7,6 +7,8 @@
  * Used in both family card expansion and family detail sheet.
  */
 
+import React from 'react'
+
 import { AlertCircle } from 'lucide-react'
 
 import { GenderDisplay } from '@/components/ui/gender-display'
@@ -21,12 +23,14 @@ interface ChildInfoCardProps {
   child: DugsiRegistration
   index: number
   showSchool?: boolean
+  editButton?: React.ReactNode
 }
 
 export function ChildInfoCard({
   child,
   index,
   showSchool = true,
+  editButton,
 }: ChildInfoCardProps) {
   return (
     <div
@@ -38,11 +42,14 @@ export function ChildInfoCard({
         {index + 1}
       </div>
       <div className="flex-1 space-y-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">{child.name}</span>
-          {child.gender && (
-            <GenderDisplay gender={child.gender} size="sm" showLabel />
-          )}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold">{child.name}</span>
+            {child.gender && (
+              <GenderDisplay gender={child.gender} size="sm" showLabel />
+            )}
+          </div>
+          {editButton}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {child.gradeLevel && (

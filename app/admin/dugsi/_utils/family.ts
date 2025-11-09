@@ -3,6 +3,8 @@
  * Single source of truth for family identification logic
  */
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+
 import { DugsiRegistration, Family, FamilyStatus } from '../_types'
 
 /**
@@ -11,7 +13,6 @@ import { DugsiRegistration, Family, FamilyStatus } from '../_types'
  *
  * This function defines how families are grouped throughout the application:
  * - **UI grouping**: Groups students into families for display
- * - **Database operations**: Determines which students are affected by deletions/updates
  *
  * **How it works:**
  * 1. If `familyReferenceId` exists, all students with the same ID are one family
@@ -38,6 +39,73 @@ export function getFamilyKey(registration: DugsiRegistration): string {
     registration.parentEmail ||
     registration.id
   )
+}
+
+/**
+ * Get Prisma where clause for family-based database operations.
+ * Returns the appropriate where clause for updateMany/deleteMany operations,
+ * or indicates if it's a single-student operation.
+ *
+ * Priority: familyReferenceId > parentEmail > single student
+ *
+ * @param student - Student object with familyReferenceId and parentEmail
+ * @returns Object with where clause and isSingleStudent flag
+ *
+ * @example
+ * ```typescript
+ * const { where, isSingleStudent } = getFamilyWhereClause(student)
+ * if (isSingleStudent) {
+ *   await tx.student.update({ where: { id: studentId }, data })
+ * } else {
+ *   await tx.student.updateMany({ where, data })
+ * }
+ * ```
+ */
+export function getFamilyWhereClause(student: {
+  familyReferenceId: string | null
+  parentEmail: string | null
+}): {
+  where:
+    | {
+        program: typeof DUGSI_PROGRAM
+        familyReferenceId: string
+      }
+    | {
+        program: typeof DUGSI_PROGRAM
+        parentEmail: string
+        familyReferenceId: null
+      }
+    | null
+  isSingleStudent: boolean
+} {
+  if (student.familyReferenceId) {
+    // Match by familyReferenceId
+    return {
+      where: {
+        program: DUGSI_PROGRAM,
+        familyReferenceId: student.familyReferenceId,
+      },
+      isSingleStudent: false,
+    }
+  }
+
+  if (student.parentEmail) {
+    // Match by parentEmail (only students without familyReferenceId)
+    return {
+      where: {
+        program: DUGSI_PROGRAM,
+        parentEmail: student.parentEmail,
+        familyReferenceId: null,
+      },
+      isSingleStudent: false,
+    }
+  }
+
+  // Single student operation
+  return {
+    where: null,
+    isSingleStudent: true,
+  }
 }
 
 /**
