@@ -5,7 +5,6 @@ import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, UserPlus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -35,49 +34,11 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
+import {
+  childFormSchema,
+  type ChildFormValues,
+} from '../../_schemas/dialog-schemas'
 import { addChildToFamily } from '../../actions'
-
-const addChildFormSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  gender: z.enum(['MALE', 'FEMALE'], {
-    required_error: 'Gender is required',
-  }),
-  dateOfBirth: z.string().optional(),
-  educationLevel: z.enum(
-    ['ELEMENTARY', 'MIDDLE_SCHOOL', 'HIGH_SCHOOL', 'COLLEGE', 'POST_GRAD'],
-    {
-      required_error: 'Education level is required',
-    }
-  ),
-  gradeLevel: z.enum(
-    [
-      'KINDERGARTEN',
-      'GRADE_1',
-      'GRADE_2',
-      'GRADE_3',
-      'GRADE_4',
-      'GRADE_5',
-      'GRADE_6',
-      'GRADE_7',
-      'GRADE_8',
-      'GRADE_9',
-      'GRADE_10',
-      'GRADE_11',
-      'GRADE_12',
-      'FRESHMAN',
-      'SOPHOMORE',
-      'JUNIOR',
-      'SENIOR',
-    ],
-    {
-      required_error: 'Grade level is required',
-    }
-  ),
-  schoolName: z.string().optional(),
-  healthInfo: z.string().optional(),
-})
-
-type AddChildFormValues = z.infer<typeof addChildFormSchema>
 
 interface AddChildDialogProps {
   open: boolean
@@ -90,8 +51,8 @@ export function AddChildDialog({
   onOpenChange,
   existingStudentId,
 }: AddChildDialogProps) {
-  const form = useForm<AddChildFormValues>({
-    resolver: zodResolver(addChildFormSchema),
+  const form = useForm<ChildFormValues>({
+    resolver: zodResolver(childFormSchema),
     defaultValues: {
       name: '',
       gender: 'MALE',
@@ -122,7 +83,7 @@ export function AddChildDialog({
     }
   )
 
-  const onSubmit = async (values: AddChildFormValues) => {
+  const onSubmit = async (values: ChildFormValues) => {
     await executeAdd({
       existingStudentId,
       name: values.name,

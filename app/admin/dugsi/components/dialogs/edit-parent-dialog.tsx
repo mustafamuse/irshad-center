@@ -5,7 +5,6 @@ import { useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Pencil } from 'lucide-react'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -25,18 +24,15 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { formatPhoneNumber } from '@/lib/registration/utils/form-utils'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
+import {
+  parentFormSchema,
+  type ParentFormValues,
+} from '../../_schemas/dialog-schemas'
+import { formatPhoneForDisplay } from '../../_utils/phone-formatting'
 import { updateParentInfo, addSecondParent } from '../../actions'
-
-const parentFormSchema = z.object({
-  firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Invalid email address'),
-  phone: z.string().min(1, 'Phone number is required'),
-})
-
-type ParentFormValues = z.infer<typeof parentFormSchema>
 
 interface EditParentDialogProps {
   open: boolean
@@ -66,7 +62,7 @@ export function EditParentDialog({
       firstName: currentData?.firstName || '',
       lastName: currentData?.lastName || '',
       email: currentData?.email || '',
-      phone: currentData?.phone || '',
+      phone: formatPhoneForDisplay(currentData?.phone),
     },
   })
 
@@ -77,7 +73,7 @@ export function EditParentDialog({
         firstName: currentData.firstName || '',
         lastName: currentData.lastName || '',
         email: currentData.email || '',
-        phone: currentData.phone || '',
+        phone: formatPhoneForDisplay(currentData.phone),
       })
     }
   }, [open, currentData, form])
@@ -212,8 +208,12 @@ export function EditParentDialog({
                   <FormControl>
                     <Input
                       type="tel"
-                      placeholder="+1234567890"
+                      placeholder="XXX-XXX-XXXX"
                       {...field}
+                      onChange={(e) => {
+                        const formatted = formatPhoneNumber(e.target.value)
+                        field.onChange(formatted)
+                      }}
                       disabled={isPending}
                     />
                   </FormControl>
