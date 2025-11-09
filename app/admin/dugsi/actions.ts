@@ -8,9 +8,10 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { formatFullName } from '@/lib/registration/utils/name-formatting'
+import { constructDugsiPaymentUrl } from '@/lib/stripe-dugsi'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
-import { extractPeriodDates } from '@/lib/utils/type-guards'
+import { isValidEmail, extractPeriodDates } from '@/lib/utils/type-guards'
 
 import {
   DUGSI_REGISTRATION_SELECT,
@@ -880,6 +881,89 @@ export async function addChildToFamily(params: {
     return {
       success: false,
       error: 'Failed to add child to family',
+    }
+  }
+}
+
+/**
+ * Generate a payment link for a Dugsi family.
+ * Uses the family's familyReferenceId to create a payment URL that can be matched via webhooks.
+ */
+export async function generatePaymentLink(studentId: string): Promise<
+  ActionResult<{
+    paymentUrl: string
+    parentEmail: string
+    parentPhone: string | null
+    childCount: number
+    familyReferenceId: string
+  }>
+> {
+  try {
+    // Get family members using existing logic
+    const familyMembers = await getFamilyMembers(studentId)
+
+    if (familyMembers.length === 0) {
+      return { success: false, error: 'Family not found' }
+    }
+
+    const firstMember = familyMembers[0]
+
+    // Validate parent email exists
+    if (!firstMember.parentEmail) {
+      return {
+        success: false,
+        error: 'Parent email is required to generate payment link',
+      }
+    }
+
+    // Validate email format
+    if (!isValidEmail(firstMember.parentEmail)) {
+      return {
+        success: false,
+        error: 'Invalid parent email format',
+      }
+    }
+
+    if (!firstMember.familyReferenceId) {
+      return {
+        success: false,
+        error: 'Family reference ID not found',
+      }
+    }
+
+    // Check if payment link config exists
+    if (!process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI) {
+      return {
+        success: false,
+        error:
+          'Payment link not configured. Please set NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI in environment variables.',
+      }
+    }
+
+    // Generate payment URL
+    const paymentUrl = constructDugsiPaymentUrl({
+      parentEmail: firstMember.parentEmail,
+      familyId: firstMember.familyReferenceId,
+      childCount: familyMembers.length,
+    })
+
+    return {
+      success: true,
+      data: {
+        paymentUrl,
+        parentEmail: firstMember.parentEmail,
+        parentPhone: firstMember.parentPhone,
+        childCount: familyMembers.length,
+        familyReferenceId: firstMember.familyReferenceId,
+      },
+    }
+  } catch (error) {
+    console.error('Error generating payment link:', error)
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to generate payment link'
+    return {
+      success: false,
+      error: errorMessage,
     }
   }
 }
