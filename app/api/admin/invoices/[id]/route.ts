@@ -66,8 +66,8 @@ export async function GET(
           hosted_invoice_url: invoice.hosted_invoice_url,
           invoice_pdf: invoice.invoice_pdf,
           lines: invoice.lines?.data,
-          subscription: invoice.subscription,
-          charge: invoice.charge,
+          subscription: (invoice as any).subscription,
+          charge: (invoice as any).charge,
         },
         student: student ? {
           id: student.id,
