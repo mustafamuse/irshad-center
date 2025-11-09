@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
     })
 
     // Get subscription status from students
-    const studentIds = [...new Set(payments.map(p => p.studentId))]
+    const studentIds = Array.from(new Set(payments.map(p => p.studentId)))
     const studentsWithStatus = await prisma.student.findMany({
       where: {
         id: {
