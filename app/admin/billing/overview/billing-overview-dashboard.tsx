@@ -282,7 +282,7 @@ export function BillingOverviewDashboard({
             </div>
           </div>
           <div className="text-right space-y-2">
-            <Badge variant="success" className="gap-1">
+            <Badge variant="default" className="gap-1">
               <TrendingUp className="h-3 w-3" />
               +12% MoM
             </Badge>
