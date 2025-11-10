@@ -12,6 +12,7 @@ import {
   handleSubscriptionDeleted,
   handleSubscriptionUpdated,
   handleInvoicePaymentFailed,
+  handleInvoiceFinalized,
 } from './student-event-handlers'
 
 // Map event types to our new handler functions
@@ -19,6 +20,7 @@ const eventHandlers = {
   'checkout.session.completed': handleCheckoutSessionCompleted,
   'invoice.payment_succeeded': handleInvoicePaymentSucceeded,
   'invoice.payment_failed': handleInvoicePaymentFailed,
+  'invoice.finalized': handleInvoiceFinalized,
   'customer.subscription.updated': handleSubscriptionUpdated,
   'customer.subscription.deleted': handleSubscriptionDeleted,
 }

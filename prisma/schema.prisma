@@ -219,6 +219,7 @@ model Student {
   siblingGroupId               String?
   stripeCustomerId             String?
   stripeSubscriptionId         String?
+  paymentIntentIdMahad         String? // For bank account verification via microdeposits
   subscriptionStatus           SubscriptionStatus?
   paidUntil                    DateTime?
   currentPeriodStart           DateTime?

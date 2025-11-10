@@ -44,6 +44,14 @@
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
   .dark {
     /* Dark theme */
@@ -71,6 +79,14 @@
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -80,5 +96,116 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Data slot styles for semantic component identification */
+@layer components {
+  /* Card with data-slot patterns */
+  [data-slot="card"] {
+    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+    @apply transition-all duration-200 hover:shadow-lg;
+  }
+
+  [data-slot="card"][data-variant="gradient"] {
+    @apply bg-gradient-to-br from-card to-muted/20;
+  }
+
+  [data-slot="card"][data-variant="accent"] {
+    @apply border-l-4 border-l-primary;
+  }
+
+  /* Stat card specific patterns */
+  [data-slot="stat-card"] {
+    @apply relative overflow-hidden @container/stat;
+    @apply transition-all duration-200 hover:scale-[1.02] hover:shadow-lg;
+  }
+
+  /* Hero card patterns */
+  [data-slot="hero-card"] {
+    @apply relative overflow-hidden;
+    @apply bg-gradient-to-br from-primary/10 via-accent/5 to-secondary/10;
+  }
+
+  /* Card header and content slots */
+  [data-slot="header"] {
+    @apply flex items-center justify-between;
+  }
+
+  [data-slot="content"] {
+    @apply space-y-4;
+  }
+
+  /* Typography with strong/subtle modifiers */
+  [data-slot="label"] strong {
+    @apply font-medium text-foreground;
+  }
+
+  [data-slot="display"] strong {
+    @apply font-bold;
+  }
+
+  /* Gradient overlays for depth */
+  [data-slot="overlay"] {
+    @apply pointer-events-none absolute inset-0;
+    @apply bg-gradient-to-t from-background/10 to-transparent;
+  }
+
+  /* Container query responsive patterns */
+  @container stat (min-width: 280px) {
+    [data-slot="stat-card"] .stat-value {
+      @apply text-3xl;
+    }
+  }
+
+  @container card (min-width: 320px) {
+    [data-slot="card"] {
+      @apply p-6;
+    }
+  }
+
+  /* Badge patterns aligned with shadcn */
+  [data-slot="badge"] {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+
+  [data-slot="badge"][data-variant="indicator"] {
+    @apply border-transparent bg-accent/10 text-accent-foreground;
+  }
+
+  [data-slot="badge"][data-variant="trend"] {
+    @apply gap-1 border-transparent;
+  }
+}
+
+/* Utility classes for common patterns */
+@layer utilities {
+  /* Text balance for better readability */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Tabular nums for aligned numbers */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Gradient text effect */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
+  }
+
+  /* Subtle focus states */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2;
+  }
+
+  /* Animation utilities */
+  .animate-in {
+    animation: fade-in 0.5s ease-out;
+  }
+
+  .animate-number {
+    @apply transition-all duration-1000 ease-out;
   }
 }

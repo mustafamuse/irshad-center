@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 import { SubscriptionStatus } from '@prisma/client'
 import { ColumnDef } from '@tanstack/react-table'
-import { MoreHorizontal, Users } from 'lucide-react'
+import { MoreHorizontal, ShieldCheck, Users } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -22,11 +22,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { VerifyBankDialog } from '@/components/shared/verify-bank-dialog'
 import { BatchStudentData } from '@/lib/types/batch'
 import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
-import { getSubscriptionStatusDisplay } from '@/lib/utils/subscription-status'
+import {
+  getPaymentStatusBadge,
+  needsBankVerification,
+} from '@/lib/utils/payment-status'
 
+import { verifyMahadBankAccount } from '../../actions'
 import { StudentDetailsSheet } from './student-details-sheet'
 import { DeleteStudentDialog } from '../batch-management/delete-student-dialog'
 import { CopyableText } from '../ui/copyable-text'
@@ -45,6 +50,9 @@ function StudentActionsCell({
   const [detailsSheetMode, setDetailsSheetMode] = useState<'view' | 'edit'>(
     'view'
   )
+  const [verifyBankDialogOpen, setVerifyBankDialogOpen] = useState(false)
+
+  const showVerifyBank = needsBankVerification(student)
 
   return (
     <>
@@ -72,6 +80,19 @@ function StudentActionsCell({
           >
             Edit student
           </DropdownMenuItem>
+          {showVerifyBank && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setVerifyBankDialogOpen(true)
+                }}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Verify Bank Account
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-red-600"
@@ -99,6 +120,17 @@ function StudentActionsCell({
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
       />
+
+      {showVerifyBank && student.paymentIntentIdMahad && (
+        <VerifyBankDialog
+          open={verifyBankDialogOpen}
+          onOpenChange={setVerifyBankDialogOpen}
+          paymentIntentId={student.paymentIntentIdMahad}
+          contactEmail={student.parentEmail || 'Unknown'}
+          program="MAHAD"
+          onVerify={verifyMahadBankAccount}
+        />
+      )}
     </>
   )
 }
@@ -197,27 +229,13 @@ export function createStudentColumns(
     },
     {
       accessorKey: 'subscriptionStatus',
-      header: 'Subscription',
+      header: 'Payment Status',
       cell: ({ row }) => {
-        const status = row.getValue(
-          'subscriptionStatus'
-        ) as SubscriptionStatus | null
-        if (!status) {
-          return <span className="text-muted-foreground">-</span>
-        }
-        return (
-          <Badge
-            variant={
-              status === 'active'
-                ? 'default'
-                : status === 'past_due'
-                  ? 'destructive'
-                  : 'secondary'
-            }
-          >
-            {getSubscriptionStatusDisplay(status)}
-          </Badge>
-        )
+        const student = row.original
+        const status = student.subscriptionStatus
+        const hasSubscription = Boolean(student.stripeSubscriptionId)
+
+        return getPaymentStatusBadge(status, hasSubscription)
       },
     },
     {

@@ -14,6 +14,8 @@ import { revalidatePath } from 'next/cache'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
+import { getStripeClient } from '@/lib/stripe'
+
 import {
   createBatch,
   deleteBatch,
@@ -563,5 +565,114 @@ export async function updateStudentAction(
           'Invalid batch or related record reference',
       },
     })
+  }
+}
+
+// ============================================================================
+// BANK VERIFICATION ACTIONS (MAHAD ACH)
+// ============================================================================
+
+interface BankVerificationData {
+  paymentIntentId: string
+  status: string
+}
+
+/**
+ * Verify bank account using microdeposit descriptor code (Mahad).
+ * Admins input the 6-digit SM code that students see in their bank statements.
+ *
+ * @param paymentIntentId - The Stripe PaymentIntent ID (starts with "pi_")
+ * @param descriptorCode - The 6-digit code from bank statement (e.g., "SMT86W")
+ */
+export async function verifyMahadBankAccount(
+  paymentIntentId: string,
+  descriptorCode: string
+): Promise<ActionResult<BankVerificationData>> {
+  try {
+    // Validate inputs
+    if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
+      return {
+        success: false,
+        error: 'Invalid payment intent ID format. Must start with "pi_"',
+      }
+    }
+
+    // Validate descriptor code format (6 characters, starts with SM)
+    const cleanCode = descriptorCode.trim().toUpperCase()
+    if (!/^SM[A-Z0-9]{4}$/.test(cleanCode)) {
+      return {
+        success: false,
+        error:
+          'Invalid descriptor code format. Must be 6 characters starting with SM (e.g., SMT86W)',
+      }
+    }
+
+    // Call Stripe API to verify microdeposits
+    const stripe = getStripeClient()
+
+    console.log('🔍 Verifying Mahad bank account:', {
+      paymentIntentId,
+      descriptorCode: cleanCode,
+    })
+
+    const paymentIntent = await stripe.paymentIntents.verifyMicrodeposits(
+      paymentIntentId,
+      { descriptor_code: cleanCode }
+    )
+
+    console.log('✅ Mahad bank account verified successfully:', {
+      paymentIntentId,
+      status: paymentIntent.status,
+    })
+
+    // Revalidate the cohorts page to reflect updated payment status
+    revalidatePath('/admin/mahad/cohorts')
+
+    return {
+      success: true,
+      data: {
+        paymentIntentId,
+        status: paymentIntent.status,
+      },
+    }
+  } catch (error: unknown) {
+    console.error('❌ Error verifying Mahad bank account:', error)
+
+    // Handle specific Stripe errors
+    if (
+      error &&
+      typeof error === 'object' &&
+      'type' in error &&
+      error.type === 'StripeInvalidRequestError' &&
+      'code' in error
+    ) {
+      if (error.code === 'payment_intent_unexpected_state') {
+        return {
+          success: false,
+          error: 'This bank account has already been verified',
+        }
+      }
+      if (error.code === 'incorrect_code') {
+        return {
+          success: false,
+          error:
+            'Incorrect verification code. Please check the code in the bank statement and try again',
+        }
+      }
+      if (error.code === 'resource_missing') {
+        return {
+          success: false,
+          error: 'Payment intent not found. The verification may have expired',
+        }
+      }
+    }
+
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to verify bank account',
+    }
   }
 }

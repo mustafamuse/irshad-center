@@ -9,6 +9,24 @@ import { Prisma, EducationLevel, GradeLevel } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
+// Re-export common types for convenience
+export type StudentWithBatch = Prisma.StudentGetPayload<{
+  include: {
+    Batch: true
+    Sibling: {
+      include: {
+        Student: {
+          select: {
+            id: true
+            name: true
+            status: true
+          }
+        }
+      }
+    }
+  }
+}>
+
 /**
  * Get all students with basic information
  */
@@ -55,6 +73,8 @@ export async function getStudentsWithBatch() {
           name: true,
           startDate: true,
           endDate: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
       Sibling: {
@@ -112,6 +132,8 @@ export async function getStudentById(id: string) {
           name: true,
           startDate: true,
           endDate: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
       Sibling: {
@@ -202,6 +224,8 @@ export async function getStudentsByBatch(batchId: string) {
           name: true,
           startDate: true,
           endDate: true,
+          createdAt: true,
+          updatedAt: true,
         },
       },
       Sibling: {
@@ -854,4 +878,24 @@ function buildStudentWhereClause(
   }
 
   return where
+}
+
+/**
+ * Get students with payment information for Mahad payment management.
+ * Includes subscription status, payment intent IDs, and billing dates.
+ */
+export async function getStudentsWithPaymentInfo() {
+  const students = await prisma.student.findMany({
+    where: {
+      program: 'MAHAD_PROGRAM',
+      status: {
+        not: 'withdrawn',
+      },
+    },
+    orderBy: {
+      name: 'asc',
+    },
+  })
+
+  return students
 }

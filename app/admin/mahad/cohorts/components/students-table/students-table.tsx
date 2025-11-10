@@ -1,10 +1,13 @@
 'use client'
 
 import { memo, useMemo } from 'react'
+import { Download } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import { BatchWithCount, BatchStudentData } from '@/lib/types/batch'
+import { exportMahadStudentsToCSV } from '@/lib/mahad-csv-export'
 
 import { MobileStudentsList } from './mobile-students-list'
 import { createStudentColumns } from './student-columns'
@@ -68,20 +71,38 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
     selectAllStudents(selectedIds)
   }
 
+  // Handler for CSV export
+  const handleExportCSV = () => {
+    const tabName = hasActiveFilters ? 'filtered' : 'all'
+    const filename = `mahad-students-${tabName}-${new Date().toISOString().split('T')[0]}`
+    exportMahadStudentsToCSV(filteredStudents, filename)
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
           Students
         </h2>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          {hasActiveFilters ? (
-            <span>
-              Showing {filteredStudents.length} of {students.length} students
-            </span>
-          ) : (
-            <span>{students.length} students total</span>
-          )}
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-muted-foreground">
+            {hasActiveFilters ? (
+              <span>
+                Showing {filteredStudents.length} of {students.length} students
+              </span>
+            ) : (
+              <span>{students.length} students total</span>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCSV}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Export CSV</span>
+          </Button>
         </div>
       </div>
 

@@ -368,3 +368,76 @@ export async function handleSubscriptionDeleted(event: Stripe.Event) {
     }
   })
 }
+
+/**
+ * Handle invoice finalization to capture PaymentIntent IDs for Mahad.
+ * This is the reliable way to get PaymentIntent IDs for ACH bank verification.
+ *
+ * Only processes first subscription invoice (not renewals) to avoid overwrites.
+ */
+export async function handleInvoiceFinalized(event: Stripe.Event) {
+  const invoice = event.data.object as Stripe.Invoice
+
+  // Cast to any for webhook context where these properties exist but aren't in types
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const invoiceWithExtras = invoice as any
+
+  // Only process first subscription invoice (not renewals)
+  if (
+    !invoiceWithExtras.subscription ||
+    invoice.billing_reason !== 'subscription_create'
+  ) {
+    console.log(`⏭️ Skipping non-subscription-create invoice: ${invoice.id}`, {
+      billing_reason: invoice.billing_reason,
+    })
+    return
+  }
+
+  // Extract PaymentIntent ID from invoice
+  const paymentIntentId = invoiceWithExtras.payment_intent
+    ? typeof invoiceWithExtras.payment_intent === 'string'
+      ? invoiceWithExtras.payment_intent
+      : invoiceWithExtras.payment_intent?.id
+    : null
+
+  // Extract subscription ID
+  const subscriptionId =
+    typeof invoiceWithExtras.subscription === 'string'
+      ? invoiceWithExtras.subscription
+      : invoiceWithExtras.subscription?.id
+
+  if (!paymentIntentId || !subscriptionId) {
+    console.warn('⚠️ Invoice missing payment_intent or subscription:', invoice.id, {
+      paymentIntentId,
+      subscriptionId,
+    })
+    return
+  }
+
+  console.log('💳 Capturing PaymentIntent from Mahad invoice:', {
+    invoiceId: invoice.id,
+    subscriptionId,
+    paymentIntentId,
+    billing_reason: invoice.billing_reason,
+  })
+
+  try {
+    // Update student with this subscription ID
+    const updateResult = await prisma.student.updateMany({
+      where: {
+        program: 'MAHAD_PROGRAM',
+        stripeSubscriptionId: subscriptionId,
+      },
+      data: {
+        paymentIntentIdMahad: paymentIntentId,
+      },
+    })
+
+    console.log(
+      `✅ PaymentIntent ID captured for ${updateResult.count} Mahad student(s) (subscription: ${subscriptionId})`
+    )
+  } catch (error) {
+    console.error('❌ Error updating Mahad PaymentIntent IDs:', error)
+    throw error
+  }
+}
