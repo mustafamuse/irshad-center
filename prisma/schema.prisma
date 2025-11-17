@@ -265,6 +265,10 @@ model Student {
   @@index([updatedAt])
   @@index([familyReferenceId])
   @@index([stripeCustomerIdDugsi])
+  // Indexes for server-side filtering performance
+  @@index([subscriptionStatus])
+  @@index([educationLevel])
+  @@index([gradeLevel])
 }
 
 model StudentPayment {
