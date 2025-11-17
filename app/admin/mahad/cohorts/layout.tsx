@@ -50,10 +50,10 @@ export default function CohortsLayout({
 
         {/* Default children (page.tsx) - used for route-specific content */}
         {children}
-
-        {/* Modal for student details - renders on top when active */}
-        {modal}
       </main>
+
+      {/* Modal for student details - rendered outside container for proper overlay positioning */}
+      {modal}
     </Providers>
   )
 }
