@@ -3,7 +3,6 @@ import { Suspense } from 'react'
 import { EducationLevel, GradeLevel, SubscriptionStatus } from '@prisma/client'
 import { Metadata } from 'next'
 
-
 import { Separator } from '@/components/ui/separator'
 import { getBatches } from '@/lib/db/queries/batch'
 import {
@@ -56,23 +55,26 @@ function parseSearchParams(params: Awaited<SearchParams>) {
 
   return {
     search: params.search || undefined,
-    batchIds: toArray(params.batch),
-    // Filter out invalid status values from URL
-    statuses: toArray(params.status).filter((s) =>
-      validStatuses.includes(s as StudentStatus)
-    ),
-    // Filter out invalid subscription status values from URL
-    subscriptionStatuses: toArray(params.subscriptionStatus).filter((s) =>
-      validSubscriptionStatuses.includes(s as SubscriptionStatus)
-    ),
-    // Filter out invalid education level values from URL
-    educationLevels: toArray(params.educationLevel).filter((e) =>
-      validEducationLevels.includes(e as EducationLevel)
-    ) as EducationLevel[],
-    // Filter out invalid grade level values from URL
-    gradeLevels: toArray(params.gradeLevel).filter((g) =>
-      validGradeLevels.includes(g as GradeLevel)
-    ) as GradeLevel[],
+    // Cap at 50 to prevent URL abuse
+    batchIds: toArray(params.batch).slice(0, 50),
+    // Filter out invalid status values from URL and cap at 20
+    statuses: toArray(params.status)
+      .filter((s) => validStatuses.includes(s as StudentStatus))
+      .slice(0, 20),
+    // Filter out invalid subscription status values from URL and cap at 20
+    subscriptionStatuses: toArray(params.subscriptionStatus)
+      .filter((s) =>
+        validSubscriptionStatuses.includes(s as SubscriptionStatus)
+      )
+      .slice(0, 20),
+    // Filter out invalid education level values from URL and cap at 20
+    educationLevels: toArray(params.educationLevel)
+      .filter((e) => validEducationLevels.includes(e as EducationLevel))
+      .slice(0, 20) as EducationLevel[],
+    // Filter out invalid grade level values from URL and cap at 20
+    gradeLevels: toArray(params.gradeLevel)
+      .filter((g) => validGradeLevels.includes(g as GradeLevel))
+      .slice(0, 20) as GradeLevel[],
     page: params.page ? Math.max(1, parseInt(params.page, 10)) : 1,
     limit: params.limit
       ? Math.min(Math.max(1, parseInt(params.limit, 10)), 100)

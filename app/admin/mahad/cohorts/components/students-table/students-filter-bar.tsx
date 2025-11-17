@@ -49,6 +49,8 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
   useEffect(() => {
     setSearchInput(filters.search)
     debouncedSetSearch.cancel()
+    // Note: debouncedSetSearch is intentionally omitted from deps as it's a
+    // stable reference from useDebouncedCallback and doesn't need to trigger re-runs
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.search])
 
