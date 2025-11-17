@@ -237,4 +237,47 @@ describe('parseSearchParams', () => {
       })
     })
   })
+
+  describe('Edge Cases', () => {
+    it('should handle very long search strings', () => {
+      const result = parseSearchParams({
+        search: 'a'.repeat(10000),
+      })
+      expect(result.search).toBeDefined()
+      expect(result.search?.length).toBe(10000)
+    })
+
+    it('should pass through SQL-like input (queries use parameterized statements)', () => {
+      const result = parseSearchParams({
+        search: "'; DROP TABLE students; --",
+      })
+      expect(result.search).toBe("'; DROP TABLE students; --")
+    })
+
+    it('should handle special characters in search', () => {
+      const result = parseSearchParams({
+        search: '<script>alert("xss")</script>',
+      })
+      expect(result.search).toBe('<script>alert("xss")</script>')
+    })
+
+    it('should handle empty arrays gracefully', () => {
+      const result = parseSearchParams({
+        batch: [],
+        status: [],
+      })
+      expect(result.batchIds).toEqual([])
+      expect(result.statuses).toEqual([])
+    })
+
+    it('should handle null-like values', () => {
+      const result = parseSearchParams({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        search: null as any,
+        batch: undefined,
+      })
+      expect(result.search).toBeUndefined()
+      expect(result.batchIds).toEqual([])
+    })
+  })
 })

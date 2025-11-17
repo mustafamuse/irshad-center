@@ -8,7 +8,12 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export default function StudentsLoading() {
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading students table"
+    >
       {/* Filter bar skeleton */}
       <Card>
         <CardHeader>

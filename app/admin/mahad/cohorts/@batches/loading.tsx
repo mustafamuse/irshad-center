@@ -8,7 +8,12 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export default function BatchesLoading() {
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading batch management"
+    >
       <div className="flex items-center justify-between">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-10 w-32" />

@@ -8,7 +8,11 @@ import { Skeleton } from '@/components/ui/skeleton'
  */
 export default function DuplicatesLoading() {
   return (
-    <Card>
+    <Card
+      role="status"
+      aria-live="polite"
+      aria-label="Loading duplicate detection"
+    >
       <CardHeader>
         <Skeleton className="h-6 w-48" />
         <Skeleton className="mt-2 h-4 w-96" />

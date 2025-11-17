@@ -33,6 +33,11 @@ export function ParallelRouteError({
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription className="mt-2 space-y-2">
         <p className="text-sm">{error.message || defaultMessage}</p>
+        {error.digest && (
+          <p className="font-mono text-xs text-muted-foreground">
+            Error ID: {error.digest}
+          </p>
+        )}
         <Button onClick={reset} variant="outline" size="sm">
           Try Again
         </Button>

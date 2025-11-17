@@ -113,7 +113,9 @@ export function LinkSubscriptionDialog({
         <DialogHeader>
           <DialogTitle>Link Stripe Subscription</DialogTitle>
           <DialogDescription className="pt-2">
-            Link an existing Stripe subscription to this family.
+            Link an existing Stripe subscription to this family. This will
+            associate the subscription payment status with the family children
+            for automatic billing and enrollment tracking.
           </DialogDescription>
         </DialogHeader>
 
