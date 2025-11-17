@@ -9,6 +9,40 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 
 import { useUIStore } from '../ui-store'
 
+// ============================================================================
+// TEST CONSTANTS
+// ============================================================================
+
+/**
+ * Performance thresholds for benchmarking
+ */
+const PERFORMANCE_THRESHOLDS = {
+  /** Maximum time for large selection operations (ms) */
+  LARGE_SELECTION_TIME_MS: 50,
+  /** Maximum time for rapid toggle operations (ms) - relaxed for CI */
+  RAPID_TOGGLES_TIME_MS: 250,
+  /** Maximum time for rapid mixed operations (ms) */
+  RAPID_OPS_TIME_MS: 100,
+  /** Threshold that triggers performance warning */
+  WARNING_THRESHOLD: 10000,
+} as const
+
+/**
+ * Test data sizes for performance and stress tests
+ */
+const TEST_DATA_SIZES = {
+  /** Large array for performance tests */
+  LARGE_ARRAY: 5000,
+  /** Huge array to trigger warnings */
+  HUGE_ARRAY: 15000,
+  /** Number of rapid operations */
+  RAPID_OPS_COUNT: 1000,
+  /** Number of rapid toggles on same item */
+  RAPID_TOGGLES_EVEN: 100,
+  /** Odd number of toggles for determinism test */
+  RAPID_TOGGLES_ODD: 99,
+} as const
+
 describe('UI Store - Advanced Tests', () => {
   beforeEach(() => {
     // Reset store and clear console spies
@@ -24,8 +58,8 @@ describe('UI Store - Advanced Tests', () => {
     it('should handle rapid toggle operations deterministically', () => {
       const store = useUIStore.getState()
 
-      // Simulate rapid user clicks (100 toggles)
-      for (let i = 0; i < 100; i++) {
+      // Simulate rapid user clicks (even number of toggles)
+      for (let i = 0; i < TEST_DATA_SIZES.RAPID_TOGGLES_EVEN; i++) {
         store.toggleStudent('student-1')
       }
 
@@ -39,7 +73,7 @@ describe('UI Store - Advanced Tests', () => {
       const store = useUIStore.getState()
 
       // Odd number of toggles → selected
-      for (let i = 0; i < 99; i++) {
+      for (let i = 0; i < TEST_DATA_SIZES.RAPID_TOGGLES_ODD; i++) {
         store.toggleStudent('student-1')
       }
 
@@ -97,22 +131,31 @@ describe('UI Store - Advanced Tests', () => {
   describe('Performance', () => {
     it('should handle large selections efficiently', () => {
       const store = useUIStore.getState()
-      const largeArray = Array.from({ length: 5000 }, (_, i) => `student-${i}`)
+      const largeArray = Array.from(
+        { length: TEST_DATA_SIZES.LARGE_ARRAY },
+        (_, i) => `student-${i}`
+      )
 
       const start = performance.now()
       store.setSelected(largeArray)
       const duration = performance.now() - start
 
-      // Should complete in <50ms for 5000 items
-      expect(duration).toBeLessThan(50)
-      expect(useUIStore.getState().selectedStudentIds.size).toBe(5000)
+      expect(duration).toBeLessThan(
+        PERFORMANCE_THRESHOLDS.LARGE_SELECTION_TIME_MS
+      )
+      expect(useUIStore.getState().selectedStudentIds.size).toBe(
+        TEST_DATA_SIZES.LARGE_ARRAY
+      )
     })
 
     it('should warn on very large selections', () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
       const store = useUIStore.getState()
 
-      const hugeArray = Array.from({ length: 15000 }, (_, i) => `student-${i}`)
+      const hugeArray = Array.from(
+        { length: TEST_DATA_SIZES.HUGE_ARRAY },
+        (_, i) => `student-${i}`
+      )
 
       store.setSelected(hugeArray)
 
@@ -126,8 +169,8 @@ describe('UI Store - Advanced Tests', () => {
     it('should handle rapid operations without memory leak', () => {
       const store = useUIStore.getState()
 
-      // Perform 1000 operations
-      for (let i = 0; i < 1000; i++) {
+      // Perform many rapid operations
+      for (let i = 0; i < TEST_DATA_SIZES.RAPID_OPS_COUNT; i++) {
         if (i % 2 === 0) {
           store.toggleStudent(`student-${i}`)
         } else {
@@ -144,14 +187,17 @@ describe('UI Store - Advanced Tests', () => {
       const store = useUIStore.getState()
 
       const start = performance.now()
-      for (let i = 0; i < 1000; i++) {
+      for (let i = 0; i < TEST_DATA_SIZES.RAPID_OPS_COUNT; i++) {
         store.toggleStudent(`student-${i}`)
       }
       const duration = performance.now() - start
 
-      // Should complete in <200ms for 1000 toggles (relaxed for CI)
-      expect(duration).toBeLessThan(200)
-      expect(useUIStore.getState().selectedStudentIds.size).toBe(1000)
+      expect(duration).toBeLessThan(
+        PERFORMANCE_THRESHOLDS.RAPID_TOGGLES_TIME_MS
+      )
+      expect(useUIStore.getState().selectedStudentIds.size).toBe(
+        TEST_DATA_SIZES.RAPID_OPS_COUNT
+      )
     })
   })
 

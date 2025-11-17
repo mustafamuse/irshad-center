@@ -51,6 +51,11 @@ const STORE_VERSION = 1
  */
 const MAX_SAFE_SELECTION_SIZE = 10000
 
+/**
+ * Development mode flag for enhanced error logging
+ */
+const isDev = process.env.NODE_ENV === 'development'
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -58,8 +63,10 @@ const MAX_SAFE_SELECTION_SIZE = 10000
 /**
  * Dialog type discriminator
  * Only one dialog can be open at a time
+ *
+ * @public
  */
-type DialogType = 'createBatch' | 'assignStudents' | 'duplicates' | null
+export type DialogType = 'createBatch' | 'assignStudents' | 'duplicates' | null
 
 /**
  * UI Store Interface
@@ -245,6 +252,13 @@ export const useUIStore = create<UIStore>()(
             }
           } catch (error) {
             console.error('toggleStudent failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                studentId: id,
+                currentSetSize: state.selectedStudentIds?.size || 0,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
             // Recover by ensuring Set exists
             state.selectedStudentIds = new Set()
           }
@@ -264,6 +278,13 @@ export const useUIStore = create<UIStore>()(
             state.selectedStudentIds = new Set(ids)
           } catch (error) {
             console.error('setSelected failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                idsLength: ids?.length || 0,
+                idsType: typeof ids,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
             // Recover with empty selection
             state.selectedStudentIds = new Set()
           }
@@ -275,6 +296,11 @@ export const useUIStore = create<UIStore>()(
             state.selectedStudentIds = new Set()
           } catch (error) {
             console.error('clearSelected failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
             state.selectedStudentIds = new Set()
           }
         }),
@@ -289,6 +315,12 @@ export const useUIStore = create<UIStore>()(
             state.selectedBatchId = id
           } catch (error) {
             console.error('selectBatch failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                batchId: id,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
             state.selectedBatchId = null
           }
         }),
@@ -303,6 +335,13 @@ export const useUIStore = create<UIStore>()(
             state.openDialog = dialog
           } catch (error) {
             console.error('setDialogOpen failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                dialog,
+                previousDialog: state.openDialog,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
             state.openDialog = null
           }
         }),
@@ -319,6 +358,16 @@ export const useUIStore = create<UIStore>()(
             state.openDialog = null
           } catch (error) {
             console.error('Store reset failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                stateBeforeReset: {
+                  selectionSize: state.selectedStudentIds?.size || 0,
+                  batchId: state.selectedBatchId,
+                  dialog: state.openDialog,
+                },
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
             // Force full reset to known good state
             return {
               _version: STORE_VERSION,

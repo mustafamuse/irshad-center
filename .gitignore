@@ -44,10 +44,20 @@ next-env.d.ts
 prisma-backup.json
 transformed-data-for-seed.json
 seed-data.json
-*-OLD-BACKUP.*
-*-BACKUP.*
-*.backup
-*.bak
+
+# Code backup files (app-level only, prevents accidental exclusion of data backups)
+app/**/*-OLD-BACKUP.*
+app/**/*-BACKUP.*
+
+# Prisma backup files
+prisma/*-OLD-BACKUP.*
+prisma/*-BACKUP.*
+prisma/*.backup
+prisma/*.bak
+
+# Root-level backup files only
+/*.backup
+/*.bak
 
 # IDE-specific settings
 .claude/
