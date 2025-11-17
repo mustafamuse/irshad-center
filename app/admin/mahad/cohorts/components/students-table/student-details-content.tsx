@@ -2,6 +2,8 @@
 
 import { useTransition } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import { Edit, Eye, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -43,6 +45,7 @@ export function StudentDetailsContent({
   onModeChange,
   showModeToggle = true,
 }: StudentDetailsContentProps) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const { formData, updateField, toPayload, isValid, reset } = useStudentForm(
     student,
@@ -56,13 +59,12 @@ export function StudentDetailsContent({
     }
 
     startTransition(async () => {
-      const result = await updateStudentAction(
-        student.id,
-        toPayload() as Record<string, unknown>
-      )
+      const result = await updateStudentAction(student.id, toPayload())
 
       if (result.success) {
         toast.success('Student updated successfully')
+        // Refresh the current route to fetch updated data
+        router.refresh()
         onModeChange?.('view')
       } else {
         toast.error(result.error || 'Failed to update student')

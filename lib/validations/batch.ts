@@ -67,16 +67,30 @@ export const CreateStudentSchema = z.object({
     .string()
     .min(1, 'Student name is required')
     .max(100, 'Student name must be less than 100 characters')
-    .trim(),
-  email: z.string().email('Invalid email address').optional().or(z.literal('')),
-  phone: z
+    .trim()
+    .transform((val) =>
+      val.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    )
+    .refine((val) => !/[<>]/.test(val), 'Name cannot contain HTML tags'),
+  email: z
     .string()
     .optional()
     .or(z.literal(''))
     .refine(
-      (val) => !val || /^[+]?[\d\s\-()]+$/.test(val),
-      'Invalid phone number format'
-    ),
+      (val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+      'Invalid email address format'
+    )
+    .transform((val) => (val ? val.toLowerCase().trim() : val)),
+  phone: z
+    .string()
+    .optional()
+    .or(z.literal(''))
+    .refine((val) => {
+      if (!val) return true
+      const digits = val.replace(/\D/g, '')
+      return digits.length >= 10 && digits.length <= 15
+    }, 'Phone number must be between 10-15 digits')
+    .transform((val) => (val ? val.trim() : val)),
   dateOfBirth: z
     .date()
     .max(new Date(), 'Date of birth cannot be in the future')
@@ -87,7 +101,16 @@ export const CreateStudentSchema = z.object({
     .string()
     .max(200, 'School name must be less than 200 characters')
     .optional()
-    .or(z.literal('')),
+    .or(z.literal(''))
+    .transform((val) =>
+      val
+        ? val.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        : val
+    )
+    .refine(
+      (val) => !val || !/[<>]/.test(val),
+      'School name cannot contain HTML tags'
+    ),
   monthlyRate: z.number().min(0, 'Monthly rate cannot be negative').optional(),
   customRate: z.boolean().optional(),
   batchId: z.string().uuid('Invalid batch ID').optional(),

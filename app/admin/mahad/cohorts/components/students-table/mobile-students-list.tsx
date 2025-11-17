@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 import { BatchStudentData, BatchWithCount } from '@/lib/types/batch'
 
@@ -12,10 +12,8 @@ interface MobileStudentsListProps {
   batches: BatchWithCount[]
 }
 
-export function MobileStudentsList({
-  students,
-  batches,
-}: MobileStudentsListProps) {
+export function MobileStudentsList({ students }: MobileStudentsListProps) {
+  const router = useRouter()
   const { selectStudent, deselectStudent } = useLegacyActions()
   const selectedStudentIds = useSelectedStudents()
   const isStudentSelected = (id: string) => selectedStudentIds.has(id)
@@ -26,6 +24,10 @@ export function MobileStudentsList({
     } else {
       selectStudent(studentId)
     }
+  }
+
+  const handleViewDetails = (studentId: string) => {
+    router.push(`/admin/mahad/cohorts/students/${studentId}`)
   }
 
   if (students.length === 0) {
@@ -39,19 +41,15 @@ export function MobileStudentsList({
   return (
     <div className="grid gap-3">
       {students.map((student) => (
-        <Link
+        <StudentCard
           key={student.id}
-          href={`/admin/mahad/cohorts/students/${student.id}`}
-          className="block"
-        >
-          <StudentCard
-            student={student}
-            isSelected={isStudentSelected(student.id)}
-            onToggle={() => handleToggleStudent(student.id)}
-            selectable={true}
-            compact={false}
-          />
-        </Link>
+          student={student}
+          isSelected={isStudentSelected(student.id)}
+          onToggle={() => handleToggleStudent(student.id)}
+          onViewDetails={() => handleViewDetails(student.id)}
+          selectable={true}
+          compact={false}
+        />
       ))}
     </div>
   )

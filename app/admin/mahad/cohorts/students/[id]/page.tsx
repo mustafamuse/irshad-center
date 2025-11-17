@@ -55,17 +55,17 @@ export default async function StudentDetailPage({
 }: PageProps) {
   const { id } = await params
   const searchParamsResolved = await searchParams
+  const mode = searchParamsResolved?.mode === 'edit' ? 'edit' : 'view'
 
-  const [student, batches] = await Promise.all([
-    getStudentById(id),
-    getBatches(),
-  ])
+  // Optimize by only fetching batches in edit mode
+  const studentPromise = getStudentById(id)
+  const batchesPromise = mode === 'edit' ? getBatches() : Promise.resolve([])
+
+  const [student, batches] = await Promise.all([studentPromise, batchesPromise])
 
   if (!student) {
     notFound()
   }
-
-  const mode = searchParamsResolved?.mode === 'edit' ? 'edit' : 'view'
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 p-4 sm:p-6 lg:p-8">

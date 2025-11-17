@@ -27,17 +27,17 @@ export default async function StudentModalPage({
 }: PageProps) {
   const { id } = await params
   const searchParamsResolved = await searchParams
+  const mode = searchParamsResolved?.mode === 'edit' ? 'edit' : 'view'
 
-  const [student, batches] = await Promise.all([
-    getStudentById(id),
-    getBatches(),
-  ])
+  // Optimize by only fetching batches in edit mode
+  const studentPromise = getStudentById(id)
+  const batchesPromise = mode === 'edit' ? getBatches() : Promise.resolve([])
+
+  const [student, batches] = await Promise.all([studentPromise, batchesPromise])
 
   if (!student) {
     notFound()
   }
-
-  const mode = searchParamsResolved?.mode === 'edit' ? 'edit' : 'view'
 
   return (
     <StudentDetailModal
