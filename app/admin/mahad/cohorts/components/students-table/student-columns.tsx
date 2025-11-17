@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 import { SubscriptionStatus } from '@prisma/client'
 import { ColumnDef } from '@tanstack/react-table'
@@ -27,7 +28,6 @@ import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 import { getSubscriptionStatusDisplay } from '@/lib/utils/subscription-status'
 
-import { StudentDetailsSheet } from './student-details-sheet'
 import { DeleteStudentDialog } from '../batch-management/delete-student-dialog'
 import { CopyableText } from '../ui/copyable-text'
 import { PhoneContact } from '../ui/phone-contact'
@@ -41,10 +41,6 @@ function StudentActionsCell({
   batches: BatchWithCount[]
 }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false)
-  const [detailsSheetMode, setDetailsSheetMode] = useState<'view' | 'edit'>(
-    'view'
-  )
 
   return (
     <>
@@ -56,21 +52,15 @@ function StudentActionsCell({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onClick={() => {
-              setDetailsSheetMode('view')
-              setDetailsSheetOpen(true)
-            }}
-          >
-            View details
+          <DropdownMenuItem asChild>
+            <Link href={`/admin/mahad/cohorts/students/${student.id}`}>
+              View details
+            </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => {
-              setDetailsSheetMode('edit')
-              setDetailsSheetOpen(true)
-            }}
-          >
-            Edit student
+          <DropdownMenuItem asChild>
+            <Link href={`/admin/mahad/cohorts/students/${student.id}?mode=edit`}>
+              Edit student
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -83,15 +73,6 @@ function StudentActionsCell({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-
-      <StudentDetailsSheet
-        student={student}
-        batches={batches}
-        open={detailsSheetOpen}
-        mode={detailsSheetMode}
-        onOpenChange={setDetailsSheetOpen}
-        onModeChange={setDetailsSheetMode}
-      />
 
       <DeleteStudentDialog
         studentId={student.id}

@@ -35,6 +35,8 @@ import {
   UpdateStudentSchema,
 } from '@/lib/validations/batch'
 
+import type { UpdateStudentPayload } from './types/student-form'
+
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
@@ -501,7 +503,7 @@ export async function bulkDeleteStudentsAction(
  */
 export async function updateStudentAction(
   id: string,
-  data: Record<string, unknown>
+  data: UpdateStudentPayload
 ): Promise<ActionResult> {
   try {
     // Validate input data
@@ -544,7 +546,11 @@ export async function updateStudentAction(
       }),
     })
 
+    // Revalidate all relevant paths
     revalidatePath('/admin/mahad/cohorts')
+    // Revalidate the student detail page (both modal and full page)
+    revalidatePath(`/admin/mahad/cohorts/students/${id}`)
+
     if (currentStudent.batchId) {
       revalidatePath(`/admin/mahad/cohorts/${currentStudent.batchId}`)
     }

@@ -1,10 +1,10 @@
 import { Users } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import type { BatchStudentData } from '@/lib/types/batch'
+import type { BatchStudentData, StudentDetailData } from '@/lib/types/batch'
 
 interface SiblingsSectionProps {
-  student: BatchStudentData
+  student: BatchStudentData | StudentDetailData
 }
 
 function getStudentStatusDisplay(status: string | null): string {

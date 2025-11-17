@@ -38,36 +38,61 @@ export function StudentCard({
     }
   }
 
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    // Prevent link navigation when clicking checkbox
+    e.preventDefault()
+    e.stopPropagation()
+    onToggle()
+  }
+
   return (
     <Card
       className={cn(
         'transition-all',
-        selectable && 'cursor-pointer hover:bg-accent',
+        selectable && !onViewDetails && 'cursor-pointer hover:bg-accent',
         isSelected && 'border-primary bg-primary/5',
         compact ? 'p-2' : 'p-3'
       )}
-      onClick={handleClick}
+      onClick={!onViewDetails && selectable ? handleClick : undefined}
     >
       <div className="flex items-center gap-3">
         {selectable && (
-          <Checkbox
-            checked={isSelected}
-            onChange={onToggle}
-            className="shrink-0"
-          />
+          <div onClick={handleCheckboxClick} className="shrink-0">
+            <Checkbox
+              checked={isSelected}
+              className="shrink-0"
+              aria-label={`Select ${student.name}`}
+            />
+          </div>
         )}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <p
-                className={cn(
-                  'truncate font-medium',
-                  compact ? 'text-sm' : 'text-sm sm:text-base'
-                )}
-              >
-                {student.name}
-              </p>
+              {onViewDetails ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onViewDetails()
+                  }}
+                  className={cn(
+                    'truncate text-left font-medium hover:underline focus:underline focus:outline-none',
+                    compact ? 'text-sm' : 'text-sm sm:text-base'
+                  )}
+                  aria-label={`View details for ${student.name}`}
+                >
+                  {student.name}
+                </button>
+              ) : (
+                <p
+                  className={cn(
+                    'truncate font-medium',
+                    compact ? 'text-sm' : 'text-sm sm:text-base'
+                  )}
+                >
+                  {student.name}
+                </p>
+              )}
 
               {!compact && student.email && (
                 <div onClick={(e) => e.stopPropagation()}>

@@ -102,7 +102,7 @@ export type StudentWithBatch = Prisma.StudentGetPayload<{
 export { StudentStatusEnum as StudentStatus }
 export type { StudentStatusEnum }
 
-// Student with batch and related data for UI
+// Student with batch and related data for UI (full data - used in lists)
 export type BatchStudentData = Prisma.StudentGetPayload<{
   include: {
     Batch: {
@@ -115,6 +115,48 @@ export type BatchStudentData = Prisma.StudentGetPayload<{
     }
     Sibling: {
       include: {
+        Student: {
+          select: {
+            id: true
+            name: true
+            status: true
+          }
+        }
+      }
+    }
+  }
+}>
+
+// Student detail data - matches what getStudentById returns (subset of fields)
+export type StudentDetailData = Prisma.StudentGetPayload<{
+  select: {
+    id: true
+    name: true
+    email: true
+    phone: true
+    dateOfBirth: true
+    educationLevel: true
+    gradeLevel: true
+    schoolName: true
+    status: true
+    monthlyRate: true
+    customRate: true
+    batchId: true
+    createdAt: true
+    updatedAt: true
+    Batch: {
+      select: {
+        id: true
+        name: true
+        startDate: true
+        endDate: true
+      }
+    }
+    Sibling: {
+      select: {
+        id: true
+        createdAt: true
+        updatedAt: true
         Student: {
           select: {
             id: true

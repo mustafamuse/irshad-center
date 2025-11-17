@@ -1,6 +1,6 @@
 import { BookOpen, GraduationCap, School } from 'lucide-react'
 
-import type { BatchStudentData } from '@/lib/types/batch'
+import type { BatchStudentData, StudentDetailData } from '@/lib/types/batch'
 
 import {
   formatEducationLevel,
@@ -11,7 +11,7 @@ import { StudentSelectField } from '../fields/StudentSelectField'
 import { StudentTextField } from '../fields/StudentTextField'
 
 interface EducationSectionProps {
-  student: BatchStudentData
+  student: BatchStudentData | StudentDetailData
   formData: StudentFormData
   isEditing: boolean
   isPending: boolean
