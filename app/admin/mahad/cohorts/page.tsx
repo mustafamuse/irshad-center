@@ -75,9 +75,17 @@ function parseSearchParams(params: Awaited<SearchParams>) {
     gradeLevels: toArray(params.gradeLevel)
       .filter((g) => validGradeLevels.includes(g as GradeLevel))
       .slice(0, 20) as GradeLevel[],
-    page: params.page ? Math.max(1, parseInt(params.page, 10)) : 1,
+    page: params.page
+      ? (() => {
+          const parsed = parseInt(params.page, 10)
+          return isNaN(parsed) ? 1 : Math.max(1, parsed)
+        })()
+      : 1,
     limit: params.limit
-      ? Math.min(Math.max(1, parseInt(params.limit, 10)), 100)
+      ? (() => {
+          const parsed = parseInt(params.limit, 10)
+          return isNaN(parsed) ? 50 : Math.min(Math.max(1, parsed), 100)
+        })()
       : 50,
   }
 }
@@ -93,12 +101,27 @@ export default async function CohortsPage({
   const filters = parseSearchParams(resolvedParams)
 
   // Fetch data in parallel with server-side filtering
-  const [batches, studentsPage, allStudents, duplicates] = await Promise.all([
-    getBatches(),
-    getStudentsWithBatchFiltered(filters), // NEW: filtered query
-    getStudentsWithBatch(), // Keep for BatchManagement (needs all students)
-    findDuplicateStudents(),
-  ])
+  // Error boundary will catch and display any database errors
+  let batches, studentsPage, allStudents, duplicates
+
+  try {
+    ;[batches, studentsPage, allStudents, duplicates] = await Promise.all([
+      getBatches(),
+      getStudentsWithBatchFiltered(filters),
+      getStudentsWithBatch(),
+      findDuplicateStudents(),
+    ])
+  } catch (error) {
+    // Log error details for debugging
+    console.error('Failed to fetch cohorts data:', error)
+
+    // Re-throw to be caught by error boundary
+    throw new Error(
+      error instanceof Error
+        ? `Database error: ${error.message}`
+        : 'Failed to load cohorts data'
+    )
+  }
 
   return (
     <Providers>
