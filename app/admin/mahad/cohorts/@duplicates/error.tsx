@@ -1,15 +1,12 @@
 'use client'
 
-import { AlertCircle } from 'lucide-react'
-
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
+import { ParallelRouteError } from '../components/parallel-route-error'
 
 /**
- * Duplicates Error Boundary
+ * Duplicates Slot Error Boundary
  *
  * Isolated error handling - if duplicate detection fails,
- * students and batches still work fine.
+ * students and batches slots still work fine.
  */
 export default function DuplicatesError({
   error,
@@ -19,17 +16,11 @@ export default function DuplicatesError({
   reset: () => void
 }) {
   return (
-    <Alert variant="destructive">
-      <AlertCircle className="h-4 w-4" />
-      <AlertTitle>Failed to Load Duplicate Detection</AlertTitle>
-      <AlertDescription className="mt-2 space-y-2">
-        <p className="text-sm">
-          {error.message || 'An error occurred while checking for duplicates'}
-        </p>
-        <Button onClick={reset} variant="outline" size="sm">
-          Try Again
-        </Button>
-      </AlertDescription>
-    </Alert>
+    <ParallelRouteError
+      title="Failed to Load Duplicate Detection"
+      defaultMessage="An error occurred while checking for duplicates"
+      error={error}
+      reset={reset}
+    />
   )
 }
