@@ -67,10 +67,10 @@ export function VerifyBankDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <div className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-blue-600" />
-            <DialogTitle>Verify Bank Account</DialogTitle>
-          </div>
+            Verify Bank Account
+          </DialogTitle>
           <DialogDescription className="pt-2">
             Enter the 6-digit verification code that appears in the bank
             statement for <strong>{parentEmail}</strong>.

@@ -112,10 +112,10 @@ export function AddChildDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
         <DialogHeader>
-          <div className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-green-600" />
-            <DialogTitle>Add Child to Family</DialogTitle>
-          </div>
+            Add Child to Family
+          </DialogTitle>
           <DialogDescription className="pt-2">
             Add a new child to this family. Parent information will be copied
             from existing siblings.

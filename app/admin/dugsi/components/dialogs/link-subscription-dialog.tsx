@@ -112,20 +112,21 @@ export function LinkSubscriptionDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Link Stripe Subscription</DialogTitle>
-          <DialogDescription className="space-y-2 pt-2">
-            <span>Link an existing Stripe subscription to this family.</span>
-            <div className="rounded-lg bg-muted/50 p-3 text-sm">
-              <p className="font-medium">Family Details:</p>
-              <p className="mt-1 text-muted-foreground">
-                Parent Email: {parentEmail}
-              </p>
-              <p className="text-muted-foreground">
-                Children: {familyMembers.length} (
-                {familyMembers.map((m) => m.name).join(', ')})
-              </p>
-            </div>
+          <DialogDescription className="pt-2">
+            Link an existing Stripe subscription to this family.
           </DialogDescription>
         </DialogHeader>
+
+        <div className="rounded-lg bg-muted/50 p-3 text-sm">
+          <p className="font-medium">Family Details:</p>
+          <p className="mt-1 text-muted-foreground">
+            Parent Email: {parentEmail}
+          </p>
+          <p className="text-muted-foreground">
+            Children: {familyMembers.length} (
+            {familyMembers.map((m) => m.name).join(', ')})
+          </p>
+        </div>
 
         <div className="space-y-4 py-4">
           {isParentEmailMissing && (
