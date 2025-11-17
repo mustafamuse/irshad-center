@@ -39,9 +39,17 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
   // Local state for immediate UI feedback
   const [searchInput, setSearchInput] = useState(filters.search)
 
+  // Debounced search to avoid updating URL on every keystroke
+  const debouncedSetSearch = useDebouncedCallback((value: string) => {
+    setSearch(value)
+  }, 300)
+
   // Sync local search with URL when it changes externally
+  // Cancel pending debounced updates to prevent race conditions
   useEffect(() => {
     setSearchInput(filters.search)
+    debouncedSetSearch.cancel()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.search])
 
   // Local state for controlled Select components
@@ -49,11 +57,6 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
   const [statusSelectValue, setStatusSelectValue] = useState('')
   const [subscriptionStatusSelectValue, setSubscriptionStatusSelectValue] =
     useState('')
-
-  // Debounced search to avoid updating URL on every keystroke
-  const debouncedSetSearch = useDebouncedCallback((value: string) => {
-    setSearch(value)
-  }, 300)
 
   // Compute active filter count
   const activeFilterCount = useMemo(() => {

@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
@@ -29,7 +29,7 @@ export function StudentsTable({
   currentPage,
   totalPages,
 }: StudentsTableProps) {
-  const { filters, setPage, isPending } = useURLFilters()
+  const { filters, setPage, isPending, resetFilters } = useURLFilters()
   const setStudentSelection = useUIStore((s) => s.setStudentSelection)
 
   const columns = createStudentColumns(batches)
@@ -45,6 +45,13 @@ export function StudentsTable({
       filters.gradeLevels.length > 0
     )
   }, [filters])
+
+  // Auto-reset to page 1 if current page exceeds total pages
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setPage(1)
+    }
+  }, [currentPage, totalPages, setPage])
 
   // Handler to sync table selection with Zustand store
   const handleRowSelectionChange = (selectedRows: BatchStudentData[]) => {
@@ -73,19 +80,43 @@ export function StudentsTable({
       {/* Filters */}
       <StudentsFilterBar batches={batches} />
 
+      {/* Empty State */}
+      {students.length === 0 && hasFilters && !isPending && (
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
+          <p className="text-lg font-medium text-muted-foreground">
+            No students match your filters
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Try adjusting or clearing your filters to see more results.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetFilters}
+            className="mt-4"
+          >
+            Clear all filters
+          </Button>
+        </div>
+      )}
+
       {/* Mobile Card View */}
-      <div className="sm:hidden">
-        <MobileStudentsList students={students} batches={batches} />
-      </div>
+      {students.length > 0 && (
+        <div className="sm:hidden">
+          <MobileStudentsList students={students} batches={batches} />
+        </div>
+      )}
 
       {/* Desktop Table View */}
-      <div className="hidden sm:block">
-        <DataTable
-          columns={columns}
-          data={students}
-          onRowSelectionChange={handleRowSelectionChange}
-        />
-      </div>
+      {students.length > 0 && (
+        <div className="hidden sm:block">
+          <DataTable
+            columns={columns}
+            data={students}
+            onRowSelectionChange={handleRowSelectionChange}
+          />
+        </div>
+      )}
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
@@ -120,8 +151,11 @@ export function StudentsTable({
 
       {/* Loading indicator */}
       {isPending && (
-        <div className="text-center text-sm text-muted-foreground">
-          Loading...
+        <div className="flex items-center justify-center gap-2 py-4">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm text-muted-foreground">
+            Loading students...
+          </span>
         </div>
       )}
     </div>

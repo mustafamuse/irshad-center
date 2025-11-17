@@ -135,17 +135,16 @@ export async function getStudentsWithBatchFiltered(params: {
     ]
   }
 
-  // Batch filter
+  // Batch filter - use AND to combine with search properly
   if (batchIds && batchIds.length > 0) {
-    if (includeUnassigned) {
-      where.OR = [
-        ...(where.OR || []),
-        { batchId: { in: batchIds } },
-        { batchId: null },
-      ]
-    } else {
-      where.batchId = { in: batchIds }
-    }
+    const batchConditions = includeUnassigned
+      ? [{ batchId: { in: batchIds } }, { batchId: null }]
+      : [{ batchId: { in: batchIds } }]
+
+    // Add as AND condition so it combines properly with search
+    const existingAnd = where.AND
+    const andArray = Array.isArray(existingAnd) ? existingAnd : []
+    where.AND = [...andArray, { OR: batchConditions }]
   }
 
   // Status filter

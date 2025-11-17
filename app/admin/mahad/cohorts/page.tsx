@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, SubscriptionStatus } from '@prisma/client'
 import { Metadata } from 'next'
+
 
 import { Separator } from '@/components/ui/separator'
 import { getBatches } from '@/lib/db/queries/batch'
@@ -10,6 +11,7 @@ import {
   getStudentsWithBatchFiltered,
   findDuplicateStudents,
 } from '@/lib/db/queries/student'
+import { StudentStatus } from '@/lib/types/student'
 
 import { BatchManagement } from './components/batch-management'
 import { DuplicateDetector } from './components/duplicate-detection'
@@ -38,7 +40,7 @@ type SearchParams = Promise<{
   limit?: string
 }>
 
-// Parse and normalize search params
+// Parse and normalize search params with validation
 function parseSearchParams(params: Awaited<SearchParams>) {
   // Helper to ensure array
   const toArray = (val: string | string[] | undefined): string[] => {
@@ -46,15 +48,35 @@ function parseSearchParams(params: Awaited<SearchParams>) {
     return Array.isArray(val) ? val : [val]
   }
 
+  // Validate enum values against actual enum types
+  const validStatuses = Object.values(StudentStatus)
+  const validSubscriptionStatuses = Object.values(SubscriptionStatus)
+  const validEducationLevels = Object.values(EducationLevel)
+  const validGradeLevels = Object.values(GradeLevel)
+
   return {
     search: params.search || undefined,
     batchIds: toArray(params.batch),
-    statuses: toArray(params.status),
-    subscriptionStatuses: toArray(params.subscriptionStatus),
-    educationLevels: toArray(params.educationLevel) as EducationLevel[],
-    gradeLevels: toArray(params.gradeLevel) as GradeLevel[],
-    page: params.page ? parseInt(params.page, 10) : 1,
-    limit: params.limit ? parseInt(params.limit, 10) : 50,
+    // Filter out invalid status values from URL
+    statuses: toArray(params.status).filter((s) =>
+      validStatuses.includes(s as StudentStatus)
+    ),
+    // Filter out invalid subscription status values from URL
+    subscriptionStatuses: toArray(params.subscriptionStatus).filter((s) =>
+      validSubscriptionStatuses.includes(s as SubscriptionStatus)
+    ),
+    // Filter out invalid education level values from URL
+    educationLevels: toArray(params.educationLevel).filter((e) =>
+      validEducationLevels.includes(e as EducationLevel)
+    ) as EducationLevel[],
+    // Filter out invalid grade level values from URL
+    gradeLevels: toArray(params.gradeLevel).filter((g) =>
+      validGradeLevels.includes(g as GradeLevel)
+    ) as GradeLevel[],
+    page: params.page ? Math.max(1, parseInt(params.page, 10)) : 1,
+    limit: params.limit
+      ? Math.min(Math.max(1, parseInt(params.limit, 10)), 100)
+      : 50,
   }
 }
 
