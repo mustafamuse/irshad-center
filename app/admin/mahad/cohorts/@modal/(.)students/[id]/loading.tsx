@@ -26,9 +26,10 @@ export default function StudentDetailModalLoading() {
           <DialogTitle>
             <Skeleton className="h-8 w-48" />
           </DialogTitle>
-          <DialogDescription>
-            <Skeleton className="mt-2 h-4 w-64" />
+          <DialogDescription className="sr-only">
+            Loading student details
           </DialogDescription>
+          <Skeleton className="mt-2 h-4 w-64" />
         </DialogHeader>
 
         <div className="space-y-6 px-6 pb-6">
