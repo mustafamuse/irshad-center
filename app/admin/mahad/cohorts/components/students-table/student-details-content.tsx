@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useTransition, useEffect } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -26,6 +26,7 @@ interface StudentDetailsContentProps {
   batches: BatchWithCount[]
   mode?: 'view' | 'edit'
   onModeChange?: (mode: 'view' | 'edit') => void
+  onSubmitStateChange?: (isSubmitting: boolean) => void
   showModeToggle?: boolean
 }
 
@@ -43,6 +44,7 @@ export function StudentDetailsContent({
   batches,
   mode = 'view',
   onModeChange,
+  onSubmitStateChange,
   showModeToggle = true,
 }: StudentDetailsContentProps) {
   const router = useRouter()
@@ -51,6 +53,11 @@ export function StudentDetailsContent({
     student,
     true // Always initialize form
   )
+
+  // Notify parent of submission state changes
+  useEffect(() => {
+    onSubmitStateChange?.(isPending)
+  }, [isPending, onSubmitStateChange])
 
   const handleSave = () => {
     if (!isValid) {

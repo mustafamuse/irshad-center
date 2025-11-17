@@ -91,6 +91,7 @@ export function StudentDetailModal({
                   setIsSubmitting(false)
                 }
               }}
+              onSubmitStateChange={setIsSubmitting}
               showModeToggle={true}
             />
           </div>
