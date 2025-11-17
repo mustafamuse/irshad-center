@@ -1,10 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import Link from 'next/link'
 
 import { BatchStudentData, BatchWithCount } from '@/lib/types/batch'
 
-import { StudentDetailsSheet } from './student-details-sheet'
 import { useLegacyActions, useSelectedStudents } from '../../store/ui-store'
 import { StudentCard } from '../ui/student-card'
 
@@ -21,26 +20,12 @@ export function MobileStudentsList({
   const selectedStudentIds = useSelectedStudents()
   const isStudentSelected = (id: string) => selectedStudentIds.has(id)
 
-  // Sheet state
-  const [selectedStudent, setSelectedStudent] =
-    useState<BatchStudentData | null>(null)
-  const [detailsSheetOpen, setDetailsSheetOpen] = useState(false)
-  const [detailsSheetMode, setDetailsSheetMode] = useState<'view' | 'edit'>(
-    'view'
-  )
-
   const handleToggleStudent = (studentId: string) => {
     if (isStudentSelected(studentId)) {
       deselectStudent(studentId)
     } else {
       selectStudent(studentId)
     }
-  }
-
-  const handleViewDetails = (student: BatchStudentData) => {
-    setSelectedStudent(student)
-    setDetailsSheetMode('view')
-    setDetailsSheetOpen(true)
   }
 
   if (students.length === 0) {
@@ -52,31 +37,22 @@ export function MobileStudentsList({
   }
 
   return (
-    <>
-      <div className="grid gap-3">
-        {students.map((student) => (
+    <div className="grid gap-3">
+      {students.map((student) => (
+        <Link
+          key={student.id}
+          href={`/admin/mahad/cohorts/students/${student.id}`}
+          className="block"
+        >
           <StudentCard
-            key={student.id}
             student={student}
             isSelected={isStudentSelected(student.id)}
             onToggle={() => handleToggleStudent(student.id)}
-            onViewDetails={() => handleViewDetails(student)}
             selectable={true}
             compact={false}
           />
-        ))}
-      </div>
-
-      {selectedStudent && (
-        <StudentDetailsSheet
-          student={selectedStudent}
-          batches={batches}
-          open={detailsSheetOpen}
-          mode={detailsSheetMode}
-          onOpenChange={setDetailsSheetOpen}
-          onModeChange={setDetailsSheetMode}
-        />
-      )}
-    </>
+        </Link>
+      ))}
+    </div>
   )
 }

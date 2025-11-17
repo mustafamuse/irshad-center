@@ -38,6 +38,13 @@ export function StudentCard({
     }
   }
 
+  const handleCheckboxClick = (e: React.MouseEvent) => {
+    // Prevent link navigation when clicking checkbox
+    e.preventDefault()
+    e.stopPropagation()
+    onToggle()
+  }
+
   return (
     <Card
       className={cn(
@@ -46,15 +53,16 @@ export function StudentCard({
         isSelected && 'border-primary bg-primary/5',
         compact ? 'p-2' : 'p-3'
       )}
-      onClick={handleClick}
+      onClick={!onViewDetails ? handleClick : undefined}
     >
       <div className="flex items-center gap-3">
         {selectable && (
-          <Checkbox
-            checked={isSelected}
-            onChange={onToggle}
-            className="shrink-0"
-          />
+          <div onClick={handleCheckboxClick}>
+            <Checkbox
+              checked={isSelected}
+              className="shrink-0"
+            />
+          </div>
         )}
 
         <div className="min-w-0 flex-1">
