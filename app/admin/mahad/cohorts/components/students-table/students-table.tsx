@@ -30,7 +30,7 @@ export function StudentsTable({
   totalPages,
 }: StudentsTableProps) {
   const { filters, setPage, isPending, resetFilters } = useURLFilters()
-  const setStudentSelection = useUIStore((s) => s.setStudentSelection)
+  const setSelected = useUIStore((s) => s.setSelected)
 
   const columns = createStudentColumns(batches)
 
@@ -56,7 +56,7 @@ export function StudentsTable({
   // Handler to sync table selection with Zustand store
   const handleRowSelectionChange = (selectedRows: BatchStudentData[]) => {
     const selectedIds = selectedRows.map((row) => row.id)
-    setStudentSelection(selectedIds)
+    setSelected(selectedIds)
   }
 
   return (

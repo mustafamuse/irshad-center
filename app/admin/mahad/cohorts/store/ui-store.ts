@@ -1,230 +1,348 @@
 /**
- * UI-Only State Store for Batches
+ * Minimal UI-Only State Store for Cohorts Management
  *
- * Simplified store managing only UI state (filters, selections, dialog states).
- * Server data (batches, students) should be fetched in Server Components
- * and passed down as props to Client Components.
+ * @module ui-store
+ * @description
+ * This store ONLY manages transient UI state that doesn't need URL persistence:
+ * - Student selection for bulk operations (cleared on navigation)
+ * - Dialog visibility states
+ * - Batch selection for management operations
+ *
+ * **IMPORTANT**: Filter state is NOT managed here.
+ * All filters are managed via URL params using the {@link useURLFilters} hook.
+ *
+ * @example
+ * ```tsx
+ * // Toggle individual student selection
+ * const toggleStudent = useUIStore(s => s.toggleStudent)
+ * toggleStudent('student-123')
+ *
+ * // Bulk select all visible students
+ * const setSelected = useUIStore(s => s.setSelected)
+ * setSelected(['student-1', 'student-2', 'student-3'])
+ *
+ * // Open a dialog
+ * const setDialogOpen = useUIStore(s => s.setDialogOpen)
+ * setDialogOpen('createBatch')
+ * ```
+ *
+ * @see {@link useURLFilters} for filter state management
+ * @see MIGRATION.md for upgrading from old store
+ * @version 1.0.0
  */
 
-import { EducationLevel, GradeLevel, SubscriptionStatus } from '@prisma/client'
 import { enableMapSet } from 'immer'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
-import { BatchStudentData } from '@/lib/types/batch'
-import { StudentStatus } from '@/lib/types/student'
-
 // Enable Immer MapSet plugin for using Set in the store
 enableMapSet()
+
+/**
+ * Store version for future migrations
+ * Increment when making breaking changes to state structure
+ */
+const STORE_VERSION = 1
+
+/**
+ * Maximum safe selection size to prevent memory issues
+ * Warning logged if exceeded
+ */
+const MAX_SAFE_SELECTION_SIZE = 10000
+
+/**
+ * Development mode flag for enhanced error logging
+ */
+const isDev = process.env.NODE_ENV === 'development'
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-export interface StudentFilters {
-  search?: {
-    query: string
-    fields: ('name' | 'email' | 'phone')[]
-  }
-  batch?: {
-    selected: string[]
-    includeUnassigned: boolean
-  }
-  status?: {
-    selected: StudentStatus[]
-  }
-  educationLevel?: {
-    selected: EducationLevel[]
-  }
-  gradeLevel?: {
-    selected: GradeLevel[]
-  }
-  dateRange?: {
-    from: Date | null
-    to: Date | null
-    field: 'createdAt' | 'updatedAt' | 'dateOfBirth'
-  }
-  subscriptionStatus?: {
-    selected: SubscriptionStatus[]
-  }
-}
+/**
+ * Dialog type discriminator
+ * Only one dialog can be open at a time
+ *
+ * @public
+ */
+export type DialogType = 'createBatch' | 'assignStudents' | 'duplicates' | null
 
+/**
+ * UI Store Interface
+ *
+ * Manages all transient UI state for the cohorts management system.
+ * State is intentionally ephemeral and cleared on navigation/refresh.
+ *
+ * @interface UIStore
+ */
 interface UIStore {
   // ============================================================================
   // STATE
   // ============================================================================
+
+  /**
+   * Store version number for migration support
+   * @internal
+   */
+  _version: number
+
+  /**
+   * Set of selected student IDs for bulk operations
+   *
+   * Uses Set for O(1) lookup and modification performance.
+   * Cleared on navigation or manual reset.
+   *
+   * @example
+   * ```tsx
+   * const selectedIds = useUIStore(s => s.selectedStudentIds)
+   * const isSelected = selectedIds.has('student-123')
+   * ```
+   */
   selectedStudentIds: Set<string>
+
+  /**
+   * Currently selected batch ID for batch management
+   *
+   * Used when performing batch-level operations.
+   * Set to null when no batch is selected.
+   */
   selectedBatchId: string | null
-  filters: StudentFilters
-  isCreateBatchDialogOpen: boolean
-  isAssignStudentsDialogOpen: boolean
-  duplicatesExpanded: boolean
+
+  /**
+   * Currently open dialog (only one at a time)
+   *
+   * Enforces single dialog policy. Opening a new dialog
+   * automatically closes any currently open dialog.
+   */
+  openDialog: DialogType
 
   // ============================================================================
-  // CORE ACTIONS (Simplified from 30+ to 10)
+  // ACTIONS
   // ============================================================================
 
-  // Selection actions
-  toggleStudentSelection: (id: string) => void
-  setStudentSelection: (ids: string[]) => void
-  clearStudentSelection: () => void
+  /**
+   * Toggles selection state for a single student
+   *
+   * @param id - Student ID to toggle
+   * @complexity O(1)
+   * @mutates selectedStudentIds
+   *
+   * @example
+   * ```tsx
+   * const toggleStudent = useUIStore(s => s.toggleStudent)
+   * toggleStudent('student-123') // Adds if not selected, removes if selected
+   * ```
+   */
+  toggleStudent: (id: string) => void
+
+  /**
+   * Sets selection to specific student IDs (replaces current selection)
+   *
+   * @param ids - Array of student IDs to select
+   * @complexity O(n) where n is ids.length
+   * @mutates selectedStudentIds
+   * @throws Warning if ids.length > MAX_SAFE_SELECTION_SIZE
+   *
+   * @example
+   * ```tsx
+   * const setSelected = useUIStore(s => s.setSelected)
+   * setSelected(['student-1', 'student-2', 'student-3'])
+   * ```
+   */
+  setSelected: (ids: string[]) => void
+
+  /**
+   * Clears all student selections
+   *
+   * @complexity O(1)
+   * @mutates selectedStudentIds
+   *
+   * @example
+   * ```tsx
+   * const clearSelected = useUIStore(s => s.clearSelected)
+   * clearSelected()
+   * ```
+   */
+  clearSelected: () => void
+
+  /**
+   * Selects a batch for management operations
+   *
+   * @param id - Batch ID to select, or null to clear selection
+   * @mutates selectedBatchId
+   *
+   * @example
+   * ```tsx
+   * const selectBatch = useUIStore(s => s.selectBatch)
+   * selectBatch('batch-456')
+   * selectBatch(null) // Clear selection
+   * ```
+   */
   selectBatch: (id: string | null) => void
 
-  // Filter actions (unified)
-  updateFilters: (updates: Partial<StudentFilters>) => void
-  toggleFilter: (
-    filterType:
-      | 'batch'
-      | 'status'
-      | 'educationLevel'
-      | 'gradeLevel'
-      | 'subscriptionStatus',
-    value: string
-  ) => void
-  setSearchQuery: (query: string) => void
-  resetFilters: () => void
+  /**
+   * Opens a dialog (or closes all dialogs if null)
+   *
+   * Only one dialog can be open at a time. Opening a new dialog
+   * automatically closes any currently open dialog.
+   *
+   * @param dialog - Dialog to open, or null to close all
+   * @mutates openDialog
+   *
+   * @example
+   * ```tsx
+   * const setDialogOpen = useUIStore(s => s.setDialogOpen)
+   * setDialogOpen('assignStudents') // Closes create batch, opens assign students
+   * setDialogOpen(null)             // Closes all dialogs
+   * ```
+   */
+  setDialogOpen: (dialog: DialogType) => void
 
-  // Dialog actions
-  setDialogOpen: (
-    dialog: 'createBatch' | 'assignStudents' | 'duplicates',
-    open: boolean
-  ) => void
-
-  // Utility actions
+  /**
+   * Resets all UI state to initial values
+   *
+   * Clears all selections and closes all dialogs.
+   * Useful when navigating away or after completing operations.
+   *
+   * @mutates All state properties
+   * @throws Never - includes error recovery
+   *
+   * @example
+   * ```tsx
+   * const reset = useUIStore(s => s.reset)
+   * reset() // Clean slate
+   * ```
+   */
   reset: () => void
-}
-
-// ============================================================================
-// DEFAULT STATE
-// ============================================================================
-
-const defaultFilters: StudentFilters = {
-  search: {
-    query: '',
-    fields: ['name', 'email', 'phone'],
-  },
-  batch: {
-    selected: [],
-    includeUnassigned: true,
-  },
-  status: {
-    selected: [
-      StudentStatus.REGISTERED,
-      StudentStatus.ENROLLED,
-      StudentStatus.ON_LEAVE,
-    ],
-  },
-  educationLevel: {
-    selected: [],
-  },
-  gradeLevel: {
-    selected: [],
-  },
-  dateRange: {
-    from: null,
-    to: null,
-    field: 'createdAt',
-  },
-  subscriptionStatus: {
-    selected: [],
-  },
 }
 
 // ============================================================================
 // STORE IMPLEMENTATION
 // ============================================================================
 
+/**
+ * Cohorts UI Store
+ *
+ * Created with Zustand + Immer + DevTools for excellent DX.
+ * State updates use immutable patterns via Immer middleware.
+ *
+ * @see https://github.com/pmndrs/zustand
+ */
 export const useUIStore = create<UIStore>()(
   devtools(
     immer((set) => ({
       // Initial state
+      _version: STORE_VERSION,
       selectedStudentIds: new Set(),
       selectedBatchId: null,
-      filters: defaultFilters,
-      isCreateBatchDialogOpen: false,
-      isAssignStudentsDialogOpen: false,
-      duplicatesExpanded: false,
+      openDialog: null,
 
       // ========================================================================
       // SELECTION ACTIONS
       // ========================================================================
 
-      toggleStudentSelection: (id) =>
+      toggleStudent: (id) =>
         set((state) => {
-          if (state.selectedStudentIds.has(id)) {
-            state.selectedStudentIds.delete(id)
-          } else {
-            state.selectedStudentIds.add(id)
+          try {
+            if (state.selectedStudentIds.has(id)) {
+              state.selectedStudentIds.delete(id)
+            } else {
+              state.selectedStudentIds.add(id)
+            }
+          } catch (error) {
+            console.error('toggleStudent failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                studentId: id,
+                currentSetSize: state.selectedStudentIds?.size || 0,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+            // Recover by ensuring Set exists
+            state.selectedStudentIds = new Set()
           }
         }),
 
-      setStudentSelection: (ids) =>
+      setSelected: (ids) =>
         set((state) => {
-          state.selectedStudentIds = new Set(ids)
+          try {
+            // Safety check for large selections
+            if (ids.length > MAX_SAFE_SELECTION_SIZE) {
+              console.warn(
+                `Large selection detected: ${ids.length} students. ` +
+                  `This may impact performance. Consider pagination.`
+              )
+            }
+
+            state.selectedStudentIds = new Set(ids)
+          } catch (error) {
+            console.error('setSelected failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                idsLength: ids?.length || 0,
+                idsType: typeof ids,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+            // Recover with empty selection
+            state.selectedStudentIds = new Set()
+          }
         }),
 
-      clearStudentSelection: () =>
+      clearSelected: () =>
         set((state) => {
-          state.selectedStudentIds = new Set()
+          try {
+            state.selectedStudentIds = new Set()
+          } catch (error) {
+            console.error('clearSelected failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+            state.selectedStudentIds = new Set()
+          }
         }),
+
+      // ========================================================================
+      // BATCH SELECTION
+      // ========================================================================
 
       selectBatch: (id) =>
         set((state) => {
-          state.selectedBatchId = id
-        }),
-
-      // ========================================================================
-      // FILTER ACTIONS (Unified & Simplified)
-      // ========================================================================
-
-      updateFilters: (updates) =>
-        set((state) => {
-          state.filters = { ...state.filters, ...updates }
-        }),
-
-      toggleFilter: (filterType, value) =>
-        set((state) => {
-          const filter = state.filters[filterType]
-          if (!filter || !('selected' in filter)) return
-
-          const index = filter.selected.indexOf(value as never)
-          if (index > -1) {
-            filter.selected.splice(index, 1)
-          } else {
-            filter.selected.push(value as never)
-          }
-        }),
-
-      setSearchQuery: (query) =>
-        set((state) => {
-          if (!state.filters.search) {
-            state.filters.search = {
-              query: '',
-              fields: ['name', 'email', 'phone'],
+          try {
+            state.selectedBatchId = id
+          } catch (error) {
+            console.error('selectBatch failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                batchId: id,
+                error: error instanceof Error ? error.message : String(error),
+              })
             }
+            state.selectedBatchId = null
           }
-          state.filters.search.query = query
-        }),
-
-      resetFilters: () =>
-        set((state) => {
-          state.filters = { ...defaultFilters }
-          state.selectedStudentIds = new Set()
         }),
 
       // ========================================================================
-      // DIALOG ACTIONS (Unified)
+      // DIALOG ACTIONS
       // ========================================================================
 
-      setDialogOpen: (dialog, open) =>
+      setDialogOpen: (dialog) =>
         set((state) => {
-          if (dialog === 'createBatch') {
-            state.isCreateBatchDialogOpen = open
-          } else if (dialog === 'assignStudents') {
-            state.isAssignStudentsDialogOpen = open
-          } else if (dialog === 'duplicates') {
-            state.duplicatesExpanded = open
+          try {
+            state.openDialog = dialog
+          } catch (error) {
+            console.error('setDialogOpen failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                dialog,
+                previousDialog: state.openDialog,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+            state.openDialog = null
           }
         }),
 
@@ -234,230 +352,159 @@ export const useUIStore = create<UIStore>()(
 
       reset: () =>
         set((state) => {
-          state.selectedStudentIds = new Set()
-          state.selectedBatchId = null
-          state.filters = { ...defaultFilters }
-          state.isCreateBatchDialogOpen = false
-          state.isAssignStudentsDialogOpen = false
-          state.duplicatesExpanded = false
+          try {
+            state.selectedStudentIds = new Set()
+            state.selectedBatchId = null
+            state.openDialog = null
+          } catch (error) {
+            console.error('Store reset failed:', error)
+            if (isDev) {
+              console.error('Debug info:', {
+                stateBeforeReset: {
+                  selectionSize: state.selectedStudentIds?.size || 0,
+                  batchId: state.selectedBatchId,
+                  dialog: state.openDialog,
+                },
+                error: error instanceof Error ? error.message : String(error),
+              })
+            }
+            // Force full reset to known good state
+            return {
+              _version: STORE_VERSION,
+              selectedStudentIds: new Set(),
+              selectedBatchId: null,
+              openDialog: null,
+              // Re-bind all actions
+              toggleStudent: state.toggleStudent,
+              setSelected: state.setSelected,
+              clearSelected: state.clearSelected,
+              selectBatch: state.selectBatch,
+              setDialogOpen: state.setDialogOpen,
+              reset: state.reset,
+            }
+          }
         }),
     })),
     {
-      name: 'batch-ui-store',
+      name: 'cohorts-ui-store',
     }
   )
 )
 
 // ============================================================================
-// SELECTORS
+// SELECTORS (for convenience)
 // ============================================================================
 
+/**
+ * Hook to access selected student IDs
+ *
+ * @returns Set of selected student IDs
+ * @example
+ * ```tsx
+ * const selectedIds = useSelectedStudents()
+ * const count = selectedIds.size
+ * const isSelected = selectedIds.has('student-123')
+ * ```
+ */
 export const useSelectedStudents = () =>
   useUIStore((state) => state.selectedStudentIds)
+
+/**
+ * Hook to access selected batch ID
+ *
+ * @returns Currently selected batch ID or null
+ * @example
+ * ```tsx
+ * const batchId = useSelectedBatch()
+ * if (batchId) {
+ *   // Batch is selected
+ * }
+ * ```
+ */
 export const useSelectedBatch = () =>
   useUIStore((state) => state.selectedBatchId)
-export const useFilters = () => useUIStore((state) => state.filters)
-
-// Separate selectors for each dialog type (avoids conditional hooks)
-export const useCreateBatchDialogState = () =>
-  useUIStore((state) => state.isCreateBatchDialogOpen)
-export const useAssignStudentsDialogState = () =>
-  useUIStore((state) => state.isAssignStudentsDialogOpen)
-export const useDuplicatesExpandedState = () =>
-  useUIStore((state) => state.duplicatesExpanded)
-
-// ============================================================================
-// FILTER UTILITIES (Moved from filter-utils.ts)
-// ============================================================================
 
 /**
- * Filter students based on current filter state
+ * Hook to access current dialog state
+ *
+ * @returns Currently open dialog or null
+ * @example
+ * ```tsx
+ * const dialog = useDialogState()
+ * const isCreateBatchOpen = dialog === 'createBatch'
+ * ```
  */
-export function filterStudents(
-  students: BatchStudentData[],
-  filters: StudentFilters
-): BatchStudentData[] {
-  return students.filter((student) => {
-    // Search filter
-    if (filters.search?.query) {
-      const searchQuery = filters.search.query.toLowerCase().trim()
-      const matchesSearch =
-        filters.search.fields?.some((field) => {
-          const value = student[field]
-          if (!value) return false
-
-          // Special handling for phone field
-          if (field === 'phone') {
-            const phoneDigits = value.replace(/\D/g, '')
-            const searchDigits = searchQuery.replace(/\D/g, '')
-
-            // Skip phone search if query has no digits
-            if (searchDigits.length === 0) return false
-
-            // Support last 4 digits search OR full/partial number match
-            return (
-              phoneDigits.includes(searchDigits) ||
-              (searchDigits.length === 4 && phoneDigits.endsWith(searchDigits))
-            )
-          }
-
-          // Standard text search for name, email
-          return value.toLowerCase().includes(searchQuery)
-        }) ?? false
-      if (!matchesSearch) return false
-    }
-
-    // Batch filter
-    if ((filters.batch?.selected?.length ?? 0) > 0) {
-      const studentBatchId = student.Batch?.id
-      const isInSelectedBatch =
-        studentBatchId && filters.batch?.selected?.includes(studentBatchId)
-      const isUnassignedAndIncluded =
-        !studentBatchId && filters.batch?.includeUnassigned
-
-      if (!isInSelectedBatch && !isUnassignedAndIncluded) return false
-    }
-
-    // Status filter
-    if ((filters.status?.selected?.length ?? 0) > 0) {
-      const studentStatus = student.status as StudentStatus
-      if (!filters.status?.selected?.includes(studentStatus)) return false
-    }
-
-    // Subscription status filter
-    if ((filters.subscriptionStatus?.selected?.length ?? 0) > 0) {
-      const studentSubscriptionStatus = student.subscriptionStatus
-      if (
-        !studentSubscriptionStatus ||
-        !filters.subscriptionStatus?.selected?.includes(
-          studentSubscriptionStatus
-        )
-      ) {
-        return false
-      }
-    }
-
-    // Education level filter
-    if ((filters.educationLevel?.selected?.length ?? 0) > 0) {
-      if (
-        !student.educationLevel ||
-        !filters.educationLevel?.selected?.includes(student.educationLevel)
-      ) {
-        return false
-      }
-    }
-
-    // Grade level filter
-    if ((filters.gradeLevel?.selected?.length ?? 0) > 0) {
-      if (
-        !student.gradeLevel ||
-        !filters.gradeLevel?.selected?.includes(student.gradeLevel)
-      ) {
-        return false
-      }
-    }
-
-    // Date range filter
-    if (filters.dateRange?.from || filters.dateRange?.to) {
-      const field = filters.dateRange?.field ?? 'createdAt'
-      const fieldValue = student[field]
-      const studentDate = new Date(
-        fieldValue instanceof Date
-          ? fieldValue
-          : (fieldValue as string | number | null) || new Date()
-      )
-
-      if (filters.dateRange?.from && studentDate < filters.dateRange.from)
-        return false
-      if (filters.dateRange?.to && studentDate > filters.dateRange.to)
-        return false
-    }
-
-    return true
-  })
-}
-
-/**
- * Count active filters
- */
-export function countActiveFilters(filters: StudentFilters): number {
-  let count = 0
-
-  if ((filters.search?.query?.length ?? 0) > 0) count++
-  if ((filters.batch?.selected?.length ?? 0) > 0) count++
-  if ((filters.status?.selected?.length ?? 0) > 0) count++
-  if ((filters.subscriptionStatus?.selected?.length ?? 0) > 0) count++
-  if ((filters.educationLevel?.selected?.length ?? 0) > 0) count++
-  if ((filters.gradeLevel?.selected?.length ?? 0) > 0) count++
-  if (filters.dateRange?.from || filters.dateRange?.to) count++
-
-  return count
-}
-
-/**
- * Get selected students data
- */
-export function getSelectedStudentsData(
-  students: BatchStudentData[],
-  selectedIds: Set<string>
-): BatchStudentData[] {
-  return students.filter((s) => selectedIds.has(s.id))
-}
+export const useDialogState = () => useUIStore((state) => state.openDialog)
 
 // ============================================================================
-// LEGACY ACTION COMPATIBILITY (For gradual migration)
+// LEGACY COMPATIBILITY LAYER
 // ============================================================================
 
 /**
- * These provide backward compatibility with old action names.
- * Components can be migrated gradually to use the new simplified actions.
+ * Backward compatibility helpers for gradual migration from old store
+ *
+ * @deprecated Use direct store actions instead. This will be removed in v2.0.
+ * @see MIGRATION.md for migration guide
+ *
+ * Maps old action names to new minimal store actions:
+ * - `selectStudent` → `toggleStudent`
+ * - `selectAllStudents` → `setSelected`
+ * - `setCreateBatchDialogOpen` → `setDialogOpen('createBatch')`
+ *
+ * @example
+ * ```tsx
+ * // OLD (deprecated)
+ * const { selectStudent } = useLegacyActions()
+ * selectStudent('student-123')
+ *
+ * // NEW (recommended)
+ * const toggleStudent = useUIStore(s => s.toggleStudent)
+ * toggleStudent('student-123')
+ * ```
  */
 export const useLegacyActions = () => {
   const store = useUIStore()
   return {
-    // Old names -> New unified actions
-    selectStudent: (id: string) => store.toggleStudentSelection(id),
-    deselectStudent: (id: string) => store.toggleStudentSelection(id),
-    toggleStudent: (id: string) => store.toggleStudentSelection(id),
-    selectAllStudents: (ids: string[]) => store.setStudentSelection(ids),
-    clearSelection: () => store.clearStudentSelection(),
+    // Selection actions (old names → new names)
+    selectStudent: (id: string) => store.toggleStudent(id),
+    deselectStudent: (id: string) => store.toggleStudent(id),
+    toggleStudent: (id: string) => store.toggleStudent(id),
+    selectAllStudents: (ids: string[]) => store.setSelected(ids),
+    clearSelection: () => store.clearSelected(),
 
-    setSearchQuery: (query: string) => store.setSearchQuery(query),
-    resetFilters: () => store.resetFilters(),
-
-    setBatchFilter: (batchIds: string[]) =>
-      store.updateFilters({
-        batch: { selected: batchIds, includeUnassigned: true },
-      }),
-    toggleBatchFilter: (id: string) => store.toggleFilter('batch', id),
-    setIncludeUnassigned: (include: boolean) =>
-      store.updateFilters({
-        batch: { ...store.filters.batch, includeUnassigned: include } as never,
-      }),
-
-    setStatusFilter: (statuses: StudentStatus[]) =>
-      store.updateFilters({ status: { selected: statuses } }),
-    toggleStatusFilter: (status: StudentStatus) =>
-      store.toggleFilter('status', status),
-
-    toggleSubscriptionStatusFilter: (status: SubscriptionStatus) =>
-      store.toggleFilter('subscriptionStatus', status),
-
-    setEducationLevelFilter: (levels: EducationLevel[]) =>
-      store.updateFilters({ educationLevel: { selected: levels } }),
-    toggleEducationLevelFilter: (level: EducationLevel) =>
-      store.toggleFilter('educationLevel', level),
-
-    setGradeLevelFilter: (levels: GradeLevel[]) =>
-      store.updateFilters({ gradeLevel: { selected: levels } }),
-    toggleGradeLevelFilter: (level: GradeLevel) =>
-      store.toggleFilter('gradeLevel', level),
-
+    // Dialog actions (old API → new unified API)
     setCreateBatchDialogOpen: (open: boolean) =>
-      store.setDialogOpen('createBatch', open),
+      store.setDialogOpen(open ? 'createBatch' : null),
     setAssignStudentsDialogOpen: (open: boolean) =>
-      store.setDialogOpen('assignStudents', open),
+      store.setDialogOpen(open ? 'assignStudents' : null),
     setDuplicatesExpanded: (open: boolean) =>
-      store.setDialogOpen('duplicates', open),
+      store.setDialogOpen(open ? 'duplicates' : null),
   }
 }
+
+/**
+ * Checks if create batch dialog is open
+ *
+ * @deprecated Use `useDialogState() === 'createBatch'` instead
+ * @returns true if create batch dialog is open
+ */
+export const useCreateBatchDialogState = () =>
+  useUIStore((state) => state.openDialog === 'createBatch')
+
+/**
+ * Checks if assign students dialog is open
+ *
+ * @deprecated Use `useDialogState() === 'assignStudents'` instead
+ * @returns true if assign students dialog is open
+ */
+export const useAssignStudentsDialogState = () =>
+  useUIStore((state) => state.openDialog === 'assignStudents')
+
+/**
+ * Checks if duplicates detector is expanded
+ *
+ * @deprecated Use `useDialogState() === 'duplicates'` instead
+ * @returns true if duplicates detector is expanded
+ */
+export const useDuplicatesExpandedState = () =>
+  useUIStore((state) => state.openDialog === 'duplicates')
