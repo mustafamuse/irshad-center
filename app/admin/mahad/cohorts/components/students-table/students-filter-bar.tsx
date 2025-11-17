@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 
 import { SubscriptionStatus } from '@prisma/client'
 import { Search, X, Filter } from 'lucide-react'
@@ -20,28 +20,29 @@ import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 import { getSubscriptionStatusDisplay } from '@/lib/utils/subscription-status'
 
-import {
-  countActiveFilters,
-  useLegacyActions,
-  useFilters,
-} from '../../store/ui-store'
+import { useURLFilters } from '../../hooks/use-url-filters'
 
 interface StudentsFilterBarProps {
   batches: BatchWithCount[]
 }
 
 export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
-  const filters = useFilters()
   const {
-    setSearchQuery,
-    toggleBatchFilter,
-    toggleStatusFilter,
-    toggleSubscriptionStatusFilter,
+    filters,
+    setSearch,
+    toggleBatch,
+    toggleStatus,
+    toggleSubscriptionStatus,
     resetFilters,
-  } = useLegacyActions()
+  } = useURLFilters()
 
   // Local state for immediate UI feedback
-  const [searchInput, setSearchInput] = useState(filters.search?.query ?? '')
+  const [searchInput, setSearchInput] = useState(filters.search)
+
+  // Sync local search with URL when it changes externally
+  useEffect(() => {
+    setSearchInput(filters.search)
+  }, [filters.search])
 
   // Local state for controlled Select components
   const [batchSelectValue, setBatchSelectValue] = useState('')
@@ -49,19 +50,21 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
   const [subscriptionStatusSelectValue, setSubscriptionStatusSelectValue] =
     useState('')
 
-  // Debounced search to avoid filtering on every keystroke
-  const debouncedSetSearchQuery = useDebouncedCallback(
-    (value: string) => {
-      setSearchQuery(value)
-    },
-    300 // 300ms delay
-  )
+  // Debounced search to avoid updating URL on every keystroke
+  const debouncedSetSearch = useDebouncedCallback((value: string) => {
+    setSearch(value)
+  }, 300)
 
   // Compute active filter count
-  const activeFilterCount = useMemo(
-    () => countActiveFilters(filters),
-    [filters]
-  )
+  const activeFilterCount = useMemo(() => {
+    let count = 0
+    if (filters.search) count++
+    if (filters.batchIds.length > 0) count++
+    if (filters.statuses.length > 0) count++
+    if (filters.subscriptionStatuses.length > 0) count++
+    return count
+  }, [filters])
+
   const hasActiveFilters = activeFilterCount > 0
 
   const statusOptions: StudentStatus[] = [
@@ -92,7 +95,7 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
           value={searchInput}
           onChange={(e) => {
             setSearchInput(e.target.value)
-            debouncedSetSearchQuery(e.target.value)
+            debouncedSetSearch(e.target.value)
           }}
           className="h-11 pl-10 pr-10"
         />
@@ -103,7 +106,7 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 p-0"
             onClick={() => {
               setSearchInput('')
-              setSearchQuery('')
+              setSearch('')
             }}
           >
             <X className="h-4 w-4" />
@@ -129,8 +132,8 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             value={batchSelectValue}
             onValueChange={(value) => {
               if (value) {
-                toggleBatchFilter(value)
-                setBatchSelectValue('') // Reset to placeholder after selection
+                toggleBatch(value)
+                setBatchSelectValue('')
               }
             }}
           >
@@ -151,8 +154,8 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             value={statusSelectValue}
             onValueChange={(value) => {
               if (value) {
-                toggleStatusFilter(value as StudentStatus)
-                setStatusSelectValue('') // Reset to placeholder after selection
+                toggleStatus(value as StudentStatus)
+                setStatusSelectValue('')
               }
             }}
           >
@@ -173,8 +176,8 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             value={subscriptionStatusSelectValue}
             onValueChange={(value) => {
               if (value) {
-                toggleSubscriptionStatusFilter(value as SubscriptionStatus)
-                setSubscriptionStatusSelectValue('') // Reset to placeholder after selection
+                toggleSubscriptionStatus(value as SubscriptionStatus)
+                setSubscriptionStatusSelectValue('')
               }
             }}
           >
@@ -190,17 +193,17 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             </SelectContent>
           </Select>
 
-          {/* Active Filters Display */}
-          {filters.batch?.selected && filters.batch.selected.length > 0 && (
+          {/* Active Batch Filters */}
+          {filters.batchIds.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              {filters.batch.selected.map((batchId) => {
+              {filters.batchIds.map((batchId) => {
                 const batch = batches.find((b) => b.id === batchId)
                 return batch ? (
                   <Badge
                     key={batchId}
                     variant="secondary"
                     className="h-9 cursor-pointer px-3"
-                    onClick={() => toggleBatchFilter(batchId)}
+                    onClick={() => toggleBatch(batchId)}
                   >
                     {batch.name}
                     <X className="ml-1.5 h-3.5 w-3.5" />
@@ -210,38 +213,39 @@ export function StudentsFilterBar({ batches }: StudentsFilterBarProps) {
             </div>
           )}
 
-          {filters.status?.selected && filters.status.selected.length > 0 && (
+          {/* Active Status Filters */}
+          {filters.statuses.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
-              {filters.status.selected.map((status) => (
+              {filters.statuses.map((status) => (
                 <Badge
                   key={status}
                   variant="secondary"
                   className="h-9 cursor-pointer px-3"
-                  onClick={() => toggleStatusFilter(status)}
+                  onClick={() => toggleStatus(status)}
                 >
-                  {getStudentStatusDisplay(status)}
+                  {getStudentStatusDisplay(status as StudentStatus)}
                   <X className="ml-1.5 h-3.5 w-3.5" />
                 </Badge>
               ))}
             </div>
           )}
 
-          {filters.subscriptionStatus?.selected &&
-            filters.subscriptionStatus.selected.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                {filters.subscriptionStatus.selected.map((status) => (
-                  <Badge
-                    key={status}
-                    variant="secondary"
-                    className="h-9 cursor-pointer px-3"
-                    onClick={() => toggleSubscriptionStatusFilter(status)}
-                  >
-                    {getSubscriptionStatusDisplay(status)}
-                    <X className="ml-1.5 h-3.5 w-3.5" />
-                  </Badge>
-                ))}
-              </div>
-            )}
+          {/* Active Subscription Status Filters */}
+          {filters.subscriptionStatuses.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              {filters.subscriptionStatuses.map((status) => (
+                <Badge
+                  key={status}
+                  variant="secondary"
+                  className="h-9 cursor-pointer px-3"
+                  onClick={() => toggleSubscriptionStatus(status)}
+                >
+                  {getSubscriptionStatusDisplay(status as SubscriptionStatus)}
+                  <X className="ml-1.5 h-3.5 w-3.5" />
+                </Badge>
+              ))}
+            </div>
+          )}
 
           {/* Reset Filters */}
           {hasActiveFilters && (

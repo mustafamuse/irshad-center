@@ -5,7 +5,12 @@
  * These functions replace the Repository/Service pattern with simple, composable query functions.
  */
 
-import { Prisma, EducationLevel, GradeLevel } from '@prisma/client'
+import {
+  Prisma,
+  EducationLevel,
+  GradeLevel,
+  SubscriptionStatus,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
@@ -83,6 +88,138 @@ export async function getStudentsWithBatch() {
         }
       : null,
   }))
+}
+
+/**
+ * Get students with batch info, filtering, and pagination
+ * Server-side version to replace client-side filtering
+ */
+export async function getStudentsWithBatchFiltered(params: {
+  // Pagination
+  page?: number
+  limit?: number
+
+  // Filters from URL
+  search?: string
+  batchIds?: string[]
+  includeUnassigned?: boolean
+  statuses?: string[]
+  subscriptionStatuses?: string[]
+  educationLevels?: EducationLevel[]
+  gradeLevels?: GradeLevel[]
+}) {
+  const {
+    page = 1,
+    limit = 50,
+    search,
+    batchIds,
+    includeUnassigned = true,
+    statuses,
+    subscriptionStatuses,
+    educationLevels,
+    gradeLevels,
+  } = params
+
+  // Build where clause
+  const where: Prisma.StudentWhereInput = {
+    status: { not: 'withdrawn' },
+  }
+
+  // Search across name, email, phone
+  if (search && search.trim()) {
+    const searchTerm = search.trim()
+    where.OR = [
+      { name: { contains: searchTerm, mode: 'insensitive' } },
+      { email: { contains: searchTerm, mode: 'insensitive' } },
+      { phone: { contains: searchTerm, mode: 'insensitive' } },
+    ]
+  }
+
+  // Batch filter
+  if (batchIds && batchIds.length > 0) {
+    if (includeUnassigned) {
+      where.OR = [
+        ...(where.OR || []),
+        { batchId: { in: batchIds } },
+        { batchId: null },
+      ]
+    } else {
+      where.batchId = { in: batchIds }
+    }
+  }
+
+  // Status filter
+  if (statuses && statuses.length > 0) {
+    where.status = { in: statuses }
+  }
+
+  // Subscription status filter
+  if (subscriptionStatuses && subscriptionStatuses.length > 0) {
+    where.subscriptionStatus = {
+      in: subscriptionStatuses as SubscriptionStatus[],
+    }
+  }
+
+  // Education level filter
+  if (educationLevels && educationLevels.length > 0) {
+    where.educationLevel = { in: educationLevels }
+  }
+
+  // Grade level filter
+  if (gradeLevels && gradeLevels.length > 0) {
+    where.gradeLevel = { in: gradeLevels }
+  }
+
+  // Execute query with pagination
+  const [students, totalCount] = await Promise.all([
+    prisma.student.findMany({
+      where,
+      include: {
+        Batch: {
+          select: {
+            id: true,
+            name: true,
+            startDate: true,
+            endDate: true,
+          },
+        },
+        Sibling: {
+          include: {
+            Student: {
+              select: {
+                id: true,
+                name: true,
+                status: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { name: 'asc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    }),
+    prisma.student.count({ where }),
+  ])
+
+  // Map to remove self from siblings
+  const mappedStudents = students.map((student) => ({
+    ...student,
+    Sibling: student.Sibling
+      ? {
+          ...student.Sibling,
+          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
+        }
+      : null,
+  }))
+
+  return {
+    students: mappedStudents,
+    totalCount,
+    page,
+    limit,
+    totalPages: Math.ceil(totalCount / limit),
+  }
 }
 
 /**
