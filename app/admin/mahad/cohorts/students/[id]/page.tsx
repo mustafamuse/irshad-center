@@ -1,18 +1,18 @@
-import { Metadata } from 'next'
-import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 
 import { ArrowLeft } from 'lucide-react'
+import { Metadata } from 'next'
 
 import { Button } from '@/components/ui/button'
-import { getStudentById } from '@/lib/db/queries/student'
 import { getBatches } from '@/lib/db/queries/batch'
+import { getStudentById } from '@/lib/db/queries/student'
 
-import { StudentDetailsContent } from '../../components/students-table/student-details-content'
+import { StudentDetailPageClient } from './student-detail-page-client'
 
 type PageProps = {
-  params: { id: string }
-  searchParams: { mode?: 'view' | 'edit' }
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ mode?: 'view' | 'edit' }>
 }
 
 /**
@@ -27,8 +27,11 @@ type PageProps = {
  * (via intercepting route @modal/(..)students/[id]).
  */
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const student = await getStudentById(params.id)
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { id } = await params
+  const student = await getStudentById(id)
 
   if (!student) {
     return {
@@ -46,9 +49,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 }
 
-export default async function StudentDetailPage({ params, searchParams }: PageProps) {
+export default async function StudentDetailPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const { id } = await params
+  const searchParamsResolved = await searchParams
+
   const [student, batches] = await Promise.all([
-    getStudentById(params.id),
+    getStudentById(id),
     getBatches(),
   ])
 
@@ -56,7 +65,7 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
     notFound()
   }
 
-  const mode = searchParams.mode === 'edit' ? 'edit' : 'view'
+  const mode = searchParamsResolved?.mode === 'edit' ? 'edit' : 'view'
 
   return (
     <div className="container mx-auto max-w-4xl space-y-6 p-4 sm:p-6 lg:p-8">
@@ -79,11 +88,10 @@ export default async function StudentDetailPage({ params, searchParams }: PagePr
           </p>
         </div>
 
-        <StudentDetailsContent
+        <StudentDetailPageClient
           student={student}
           batches={batches}
-          mode={mode}
-          showModeToggle={true}
+          initialMode={mode}
         />
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { EducationLevel, GradeLevel } from '@prisma/client'
 
-import type { BatchStudentData } from '@/lib/types/batch'
+import type { BatchStudentData, StudentDetailData } from '@/lib/types/batch'
 import { formatEnumValue } from '@/lib/utils/formatters'
 
 import {
@@ -14,7 +14,9 @@ import {
  * Get default form data from student record
  * Converts null/undefined to appropriate form defaults
  */
-export function getDefaultFormData(student: BatchStudentData): StudentFormData {
+export function getDefaultFormData(
+  student: BatchStudentData | StudentDetailData
+): StudentFormData {
   return {
     name: student.name,
     email: student.email || FORM_DEFAULTS.EMPTY,
@@ -106,7 +108,7 @@ export function isFormValid(formData: StudentFormData): boolean {
  */
 export function hasFormChanges(
   formData: StudentFormData,
-  original: BatchStudentData
+  original: BatchStudentData | StudentDetailData
 ): boolean {
   const originalData = getDefaultFormData(original)
 

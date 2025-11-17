@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+
 import { useRouter } from 'next/navigation'
 
 import {
@@ -11,12 +12,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { BatchStudentData, BatchWithCount } from '@/lib/types/batch'
+import { StudentDetailData, BatchWithCount } from '@/lib/types/batch'
 
 import { StudentDetailsContent } from '../../../components/students-table/student-details-content'
 
 type Props = {
-  student: BatchStudentData
+  student: StudentDetailData
   batches: BatchWithCount[]
   initialMode?: 'view' | 'edit'
 }
@@ -27,7 +28,11 @@ type Props = {
  * Renders student details in a modal dialog.
  * Uses Next.js router to navigate back when closed.
  */
-export function StudentDetailModal({ student, batches, initialMode = 'view' }: Props) {
+export function StudentDetailModal({
+  student,
+  batches,
+  initialMode = 'view',
+}: Props) {
   const router = useRouter()
   const [mode, setMode] = useState<'view' | 'edit'>(initialMode)
 
@@ -42,7 +47,7 @@ export function StudentDetailModal({ student, batches, initialMode = 'view' }: P
 
   return (
     <Dialog open onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] p-0">
+      <DialogContent className="max-h-[90vh] max-w-3xl p-0">
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>{student.name}</DialogTitle>
           <DialogDescription>

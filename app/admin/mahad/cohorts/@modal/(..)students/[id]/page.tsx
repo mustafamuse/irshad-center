@@ -1,13 +1,13 @@
 import { notFound } from 'next/navigation'
 
-import { getStudentById } from '@/lib/db/queries/student'
 import { getBatches } from '@/lib/db/queries/batch'
+import { getStudentById } from '@/lib/db/queries/student'
 
 import { StudentDetailModal } from './student-detail-modal'
 
 type PageProps = {
-  params: { id: string }
-  searchParams: { mode?: 'view' | 'edit' }
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ mode?: 'view' | 'edit' }>
 }
 
 /**
@@ -21,9 +21,15 @@ type PageProps = {
  * - Refresh page → This modal persists (URL preserves state)
  * - Direct link → Shows full page version instead (see /students/[id]/page.tsx)
  */
-export default async function StudentModalPage({ params, searchParams }: PageProps) {
+export default async function StudentModalPage({
+  params,
+  searchParams,
+}: PageProps) {
+  const { id } = await params
+  const searchParamsResolved = await searchParams
+
   const [student, batches] = await Promise.all([
-    getStudentById(params.id),
+    getStudentById(id),
     getBatches(),
   ])
 
@@ -31,7 +37,13 @@ export default async function StudentModalPage({ params, searchParams }: PagePro
     notFound()
   }
 
-  const mode = searchParams.mode === 'edit' ? 'edit' : 'view'
+  const mode = searchParamsResolved?.mode === 'edit' ? 'edit' : 'view'
 
-  return <StudentDetailModal student={student} batches={batches} initialMode={mode} />
+  return (
+    <StudentDetailModal
+      student={student}
+      batches={batches}
+      initialMode={mode}
+    />
+  )
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { BatchStudentData } from '@/lib/types/batch'
+import type { BatchStudentData, StudentDetailData } from '@/lib/types/batch'
 
 import {
   convertFormDataToPayload,
@@ -34,7 +34,7 @@ export interface UseStudentFormReturn {
  * @returns Form state and helper functions
  */
 export function useStudentForm(
-  student: BatchStudentData,
+  student: BatchStudentData | StudentDetailData,
   open: boolean
 ): UseStudentFormReturn {
   // Initialize form data from student

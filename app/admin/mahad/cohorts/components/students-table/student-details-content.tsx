@@ -6,7 +6,11 @@ import { Edit, Eye, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { BatchStudentData, BatchWithCount } from '@/lib/types/batch'
+import {
+  BatchStudentData,
+  StudentDetailData,
+  BatchWithCount,
+} from '@/lib/types/batch'
 
 import { updateStudentAction } from '../../actions'
 import { BasicInfoSection } from './sections/BasicInfoSection'
@@ -16,7 +20,7 @@ import { SiblingsSection } from './sections/SiblingsSection'
 import { useStudentForm } from '../../hooks/use-student-form'
 
 interface StudentDetailsContentProps {
-  student: BatchStudentData
+  student: BatchStudentData | StudentDetailData
   batches: BatchWithCount[]
   mode?: 'view' | 'edit'
   onModeChange?: (mode: 'view' | 'edit') => void
@@ -140,11 +144,7 @@ export function StudentDetailsContent({
             <Save className="mr-2 h-4 w-4" />
             {isPending ? 'Saving...' : 'Save Changes'}
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            disabled={isPending}
-          >
+          <Button variant="outline" onClick={handleCancel} disabled={isPending}>
             <X className="mr-2 h-4 w-4" />
             Cancel
           </Button>

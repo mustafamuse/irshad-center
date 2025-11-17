@@ -1,13 +1,13 @@
 import { Mail, Phone as PhoneIcon, Users } from 'lucide-react'
 
-import type { BatchStudentData } from '@/lib/types/batch'
+import type { BatchStudentData, StudentDetailData } from '@/lib/types/batch'
 
 import type { StudentFormData } from '../../../types/student-form'
 import { StudentDateField } from '../fields/StudentDateField'
 import { StudentTextField } from '../fields/StudentTextField'
 
 interface BasicInfoSectionProps {
-  student: BatchStudentData
+  student: BatchStudentData | StudentDetailData
   formData: StudentFormData
   isEditing: boolean
   isPending: boolean
