@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { BatchStudentData } from '@/lib/types/batch'
 
-import { FORM_DEFAULTS, type StudentFormData } from '../../types/student-form'
+import { FORM_DEFAULTS, type StudentFormData } from '../../_types/student-form'
 import {
   convertFormDataToPayload,
   formatEducationLevel,
