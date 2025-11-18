@@ -1,6 +1,6 @@
 'use client'
 
-import { ParallelRouteError } from '../components/parallel-route-error'
+import { ParallelRouteError } from '../_features/shared'
 
 /**
  * Students Slot Error Boundary

@@ -1,7 +1,7 @@
 import { getBatches } from '@/lib/db/queries/batch'
 import { getStudentsWithBatchFiltered } from '@/lib/db/queries/student'
 
-import { StudentsTable } from '../components/students-table'
+import { StudentsTable } from '../_features/students'
 import {
   parseSearchParams,
   type CohortSearchParams,

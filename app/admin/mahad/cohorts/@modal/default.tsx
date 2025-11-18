@@ -1,1 +1,1 @@
-export { ParallelRouteDefault as default } from '../components/parallel-route-default'
+export { ParallelRouteDefault as default } from '../_features/shared'

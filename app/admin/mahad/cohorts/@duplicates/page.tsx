@@ -1,6 +1,6 @@
 import { findDuplicateStudents } from '@/lib/db/queries/student'
 
-import { DuplicateDetector } from '../components/duplicate-detection'
+import { DuplicateDetector } from '../_features/duplicates'
 
 /**
  * Duplicates Parallel Route Slot

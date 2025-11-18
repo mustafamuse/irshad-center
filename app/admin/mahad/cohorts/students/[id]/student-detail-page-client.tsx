@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 
 import { StudentDetailData, BatchWithCount } from '@/lib/types/batch'
 
-import { StudentDetailsContent } from '../../components/students-table/student-details-content'
+import { StudentDetailsContent } from '../../_features/students/components/student-details-content'
 
 interface StudentDetailPageClientProps {
   student: StudentDetailData
