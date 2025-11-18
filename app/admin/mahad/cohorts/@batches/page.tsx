@@ -1,7 +1,7 @@
 import { getBatches } from '@/lib/db/queries/batch'
 import { getStudentsWithBatch } from '@/lib/db/queries/student'
 
-import { BatchManagement } from '../components/batch-management'
+import { BatchManagement } from '../_components/batches'
 
 /**
  * Batches Parallel Route Slot

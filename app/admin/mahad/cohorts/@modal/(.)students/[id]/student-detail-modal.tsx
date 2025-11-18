@@ -14,7 +14,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StudentDetailData, BatchWithCount } from '@/lib/types/batch'
 
-import { StudentDetailsContent } from '../../../components/students-table/student-details-content'
+import { StudentDetailsContent } from '../../../_components/students/student-details-content'
 
 type Props = {
   student: StudentDetailData

@@ -1,6 +1,6 @@
 'use client'
 
-import { ParallelRouteError } from '../components/parallel-route-error'
+import { ParallelRouteError } from '../_components/shared'
 
 /**
  * Batches Slot Error Boundary
