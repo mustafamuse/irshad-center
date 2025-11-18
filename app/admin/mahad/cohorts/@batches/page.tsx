@@ -11,9 +11,8 @@ import { BatchManagement } from '../components/batch-management'
  */
 export default async function BatchesSlot() {
   // Fetch batches and all students for counts in parallel
-  // Note: getBatches() is also called in @students slot - this is intentional.
-  // Parallel routes prioritize isolation over deduplication. Each slot can fail
-  // independently. Consider React cache() if this becomes a performance issue.
+  // Note: getBatches() uses React cache() to deduplicate requests across slots.
+  // Both @batches and @students call it, but only one DB query executes per request.
   const [batches, students] = await Promise.all([
     getBatches(),
     getStudentsWithBatch(),

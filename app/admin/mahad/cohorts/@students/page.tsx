@@ -25,9 +25,8 @@ export default async function StudentsSlot({
   const filters = parseSearchParams(resolvedParams)
 
   // Fetch data in parallel
-  // Note: getBatches() is also called in @batches slot - this is intentional.
-  // Parallel routes prioritize isolation over deduplication. Each slot can fail
-  // independently. Consider React cache() if this becomes a performance issue.
+  // Note: getBatches() uses React cache() to deduplicate requests across slots.
+  // Both @batches and @students call it, but only one DB query executes per request.
   const [batches, studentsPage] = await Promise.all([
     getBatches(),
     getStudentsWithBatchFiltered(filters),

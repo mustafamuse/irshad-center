@@ -3,7 +3,11 @@
  *
  * Direct Prisma queries for batch operations following Next.js App Router best practices.
  * These functions replace the Repository/Service pattern with simple, composable query functions.
+ *
+ * Uses React cache() to deduplicate requests across parallel route slots.
  */
+
+import { cache } from 'react'
 
 import { Prisma } from '@prisma/client'
 
@@ -11,8 +15,12 @@ import { prisma } from '@/lib/db'
 
 /**
  * Get all batches with student count (excluding withdrawn students)
+ *
+ * Uses React cache() to deduplicate requests. When called multiple times
+ * in the same request (e.g., from different parallel route slots), only
+ * one database query executes.
  */
-export async function getBatches() {
+export const getBatches = cache(async function getBatches() {
   const batches = await prisma.batch.findMany({
     select: {
       id: true,
@@ -44,7 +52,7 @@ export async function getBatches() {
     updatedAt: batch.updatedAt,
     studentCount: batch.Student.length,
   }))
-}
+})
 
 /**
  * Get a single batch by ID (excluding withdrawn students from count)
