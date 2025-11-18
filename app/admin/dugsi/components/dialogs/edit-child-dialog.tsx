@@ -144,10 +144,10 @@ export function EditChildDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
         <DialogHeader>
-          <div className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5 text-blue-600" />
-            <DialogTitle>Edit Child Information</DialogTitle>
-          </div>
+            Edit Child Information
+          </DialogTitle>
           <DialogDescription className="pt-2">
             Update the child's information below.
           </DialogDescription>

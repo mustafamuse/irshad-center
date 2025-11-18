@@ -142,10 +142,10 @@ export function EditParentDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <div className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5 text-blue-600" />
-            <DialogTitle>{dialogTitle}</DialogTitle>
-          </div>
+            {dialogTitle}
+          </DialogTitle>
           <DialogDescription className="pt-2">
             {dialogDescription}
           </DialogDescription>

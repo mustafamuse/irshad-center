@@ -1,76 +1,16 @@
-import { EducationLevel, GradeLevel, SubscriptionStatus } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 
-import { StudentStatus } from '@/lib/types/student'
-
-// Import the parseSearchParams function by extracting it from the page component
-// Since it's not exported, we'll test it through integration or extract it to a util
+import { PAGINATION_LIMITS } from '../constants/pagination'
+import { parseSearchParams } from '../lib/parse-search-params'
 
 /**
- * Note: parseSearchParams is currently an internal function in page.tsx
- * For proper testing, it should be extracted to a utility file.
- * These tests document the expected behavior.
+ * Tests for parseSearchParams utility function
+ *
+ * Validates URL search parameter parsing, normalization, and validation
+ * for the cohorts students table filtering system.
  */
 
 describe('parseSearchParams', () => {
-  // Mock the function's expected behavior based on implementation
-  function parseSearchParams(params: {
-    search?: string
-    batch?: string | string[]
-    status?: string | string[]
-    subscriptionStatus?: string | string[]
-    educationLevel?: string | string[]
-    gradeLevel?: string | string[]
-    page?: string
-    limit?: string
-  }) {
-    const toArray = (val: string | string[] | undefined): string[] => {
-      if (!val) return []
-      return Array.isArray(val) ? val : [val]
-    }
-
-    const validStatuses = Object.values(StudentStatus)
-    const validSubscriptionStatuses = Object.values(SubscriptionStatus)
-    const validEducationLevels = Object.values(EducationLevel)
-    const validGradeLevels = Object.values(GradeLevel)
-
-    return {
-      search: params.search || undefined,
-      // Cap at 50 to prevent URL abuse
-      batchIds: toArray(params.batch).slice(0, 50),
-      // Filter out invalid status values from URL and cap at 20
-      statuses: toArray(params.status)
-        .filter((s) => validStatuses.includes(s as StudentStatus))
-        .slice(0, 20),
-      // Filter out invalid subscription status values from URL and cap at 20
-      subscriptionStatuses: toArray(params.subscriptionStatus)
-        .filter((s) =>
-          validSubscriptionStatuses.includes(s as SubscriptionStatus)
-        )
-        .slice(0, 20),
-      // Filter out invalid education level values from URL and cap at 20
-      educationLevels: toArray(params.educationLevel)
-        .filter((e) => validEducationLevels.includes(e as EducationLevel))
-        .slice(0, 20) as EducationLevel[],
-      // Filter out invalid grade level values from URL and cap at 20
-      gradeLevels: toArray(params.gradeLevel)
-        .filter((g) => validGradeLevels.includes(g as GradeLevel))
-        .slice(0, 20) as GradeLevel[],
-      page: params.page
-        ? (() => {
-            const parsed = parseInt(params.page, 10)
-            return isNaN(parsed) ? 1 : Math.max(1, parsed)
-          })()
-        : 1,
-      limit: params.limit
-        ? (() => {
-            const parsed = parseInt(params.limit, 10)
-            return isNaN(parsed) ? 50 : Math.min(Math.max(1, parsed), 100)
-          })()
-        : 50,
-    }
-  }
-
   describe('search param', () => {
     it('should return undefined when search is not provided', () => {
       const result = parseSearchParams({})
@@ -106,10 +46,10 @@ describe('parseSearchParams', () => {
       expect(result.batchIds).toEqual(['batch-1', 'batch-2', 'batch-3'])
     })
 
-    it('should cap batches at 50', () => {
+    it('should cap batches at MAX_BATCH_FILTERS', () => {
       const batches = Array.from({ length: 100 }, (_, i) => `batch-${i}`)
       const result = parseSearchParams({ batch: batches })
-      expect(result.batchIds).toHaveLength(50)
+      expect(result.batchIds).toHaveLength(PAGINATION_LIMITS.MAX_BATCH_FILTERS)
       expect(result.batchIds[0]).toBe('batch-0')
       expect(result.batchIds[49]).toBe('batch-49')
     })
@@ -130,10 +70,10 @@ describe('parseSearchParams', () => {
       expect(result.statuses).toEqual(['enrolled', 'registered'])
     })
 
-    it('should cap statuses at 20', () => {
+    it('should cap statuses at MAX_ENUM_FILTERS', () => {
       const statuses = Array.from({ length: 30 }, () => 'enrolled')
       const result = parseSearchParams({ status: statuses })
-      expect(result.statuses).toHaveLength(20)
+      expect(result.statuses).toHaveLength(PAGINATION_LIMITS.MAX_ENUM_FILTERS)
     })
 
     it('should return empty array for all invalid statuses', () => {
@@ -246,9 +186,9 @@ describe('parseSearchParams', () => {
   })
 
   describe('limit param validation', () => {
-    it('should default to 50 when not provided', () => {
+    it('should default to DEFAULT_PAGE_SIZE when not provided', () => {
       const result = parseSearchParams({})
-      expect(result.limit).toBe(50)
+      expect(result.limit).toBe(PAGINATION_LIMITS.DEFAULT_PAGE_SIZE)
     })
 
     it('should parse valid limit values', () => {
@@ -295,6 +235,49 @@ describe('parseSearchParams', () => {
         page: 3,
         limit: 75,
       })
+    })
+  })
+
+  describe('Edge Cases', () => {
+    it('should handle very long search strings', () => {
+      const result = parseSearchParams({
+        search: 'a'.repeat(10000),
+      })
+      expect(result.search).toBeDefined()
+      expect(result.search?.length).toBe(10000)
+    })
+
+    it('should pass through SQL-like input (queries use parameterized statements)', () => {
+      const result = parseSearchParams({
+        search: "'; DROP TABLE students; --",
+      })
+      expect(result.search).toBe("'; DROP TABLE students; --")
+    })
+
+    it('should handle special characters in search', () => {
+      const result = parseSearchParams({
+        search: '<script>alert("xss")</script>',
+      })
+      expect(result.search).toBe('<script>alert("xss")</script>')
+    })
+
+    it('should handle empty arrays gracefully', () => {
+      const result = parseSearchParams({
+        batch: [],
+        status: [],
+      })
+      expect(result.batchIds).toEqual([])
+      expect(result.statuses).toEqual([])
+    })
+
+    it('should handle null-like values', () => {
+      const result = parseSearchParams({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        search: null as any,
+        batch: undefined,
+      })
+      expect(result.search).toBeUndefined()
+      expect(result.batchIds).toEqual([])
     })
   })
 })
