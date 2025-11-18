@@ -7,31 +7,11 @@
  * Uses React cache() to deduplicate requests across parallel route slots.
  */
 
+import { cache } from 'react'
+
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-
-// Conditional cache import with proper typing
-// In production: uses React cache() for request deduplication
-// In tests: uses passthrough function (no caching needed)
-type CacheFunction = <T extends (...args: unknown[]) => unknown>(fn: T) => T
-
-const cacheWrapper: CacheFunction = (() => {
-  try {
-    // Dynamic import to handle environments where cache doesn't exist
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { cache } = require('react')
-    // Check if cache exists and is a function
-    if (typeof cache === 'function') {
-      return cache as CacheFunction
-    }
-  } catch {
-    // Ignore error and use fallback
-  }
-  // Fallback for test environment - passthrough function
-  return (<T extends (...args: unknown[]) => unknown>(fn: T): T =>
-    fn) as CacheFunction
-})()
 
 /**
  * Get all batches with student count (excluding withdrawn students)
@@ -40,7 +20,7 @@ const cacheWrapper: CacheFunction = (() => {
  * in the same request (e.g., from different parallel route slots), only
  * one database query executes.
  */
-export const getBatches = cacheWrapper(async function getBatches() {
+export const getBatches = cache(async function getBatches() {
   const batches = await prisma.batch.findMany({
     select: {
       id: true,

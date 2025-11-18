@@ -274,8 +274,6 @@ describe('useURLFilters', () => {
         result.current.setSearch('john')
       })
 
-      // Note: In test environment with mocked router, transitions complete instantly
-      // so isPending remains false. In production, this properly tracks transition state.
       await waitFor(() => {
         expect(result.current.isPending).toBe(false)
       })

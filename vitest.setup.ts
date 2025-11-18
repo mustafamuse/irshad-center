@@ -1,5 +1,12 @@
-// Test environment setup
 import * as React from 'react'
 
-// Make React globally available for JSX in test files that don't import it
+import { vi } from 'vitest'
 ;(global as typeof global & { React: typeof React }).React = React
+
+vi.mock('react', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('react')>()
+  return {
+    ...actual,
+    cache: <T extends (...args: unknown[]) => unknown>(fn: T): T => fn,
+  }
+})
