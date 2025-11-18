@@ -1,6 +1,6 @@
 'use client'
 
-import { ParallelRouteError } from '../_features/shared'
+import { ParallelRouteError } from '../_components/shared'
 
 /**
  * Duplicates Slot Error Boundary

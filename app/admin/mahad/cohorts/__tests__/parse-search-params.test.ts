@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { parseSearchParams } from '../_lib/parse-search-params'
 import { PAGINATION_LIMITS } from '../constants/pagination'
-import { parseSearchParams } from '../lib/parse-search-params'
 
 /**
  * Tests for parseSearchParams utility function

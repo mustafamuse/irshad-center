@@ -1,11 +1,11 @@
 import { getBatches } from '@/lib/db/queries/batch'
 import { getStudentsWithBatchFiltered } from '@/lib/db/queries/student'
 
-import { StudentsTable } from '../_features/students'
+import { StudentsTable } from '../_components/students'
 import {
   parseSearchParams,
   type CohortSearchParams,
-} from '../lib/parse-search-params'
+} from '../_lib/parse-search-params'
 
 /**
  * Students Parallel Route Slot
