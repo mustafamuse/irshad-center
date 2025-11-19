@@ -2,10 +2,10 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+import { ErrorBoundary } from '@/app/mahad/(registration)/register/_components/error-boundary'
 import { IntlProviderWrapper } from '@/components/intl-provider-wrapper'
 import { LanguageProvider } from '@/contexts/language-context'
 
-import { ErrorBoundary } from '../../mahad/register/components/error-boundary'
 
 const queryClient = new QueryClient()
 
