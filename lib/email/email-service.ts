@@ -26,7 +26,19 @@ export interface EmailResult {
 
 /**
  * Send an email using Resend
- * Reusable across the entire application
+ * Core email function reusable across the entire application
+ *
+ * @param options - Email configuration (to, subject, html/react, attachments, etc.)
+ * @returns Promise with success status and email ID if successful
+ * @throws Never throws - returns error in result object
+ *
+ * @example
+ * const result = await sendEmail({
+ *   to: 'user@example.com',
+ *   subject: 'Welcome',
+ *   html: '<p>Hello!</p>'
+ * })
+ * if (result.success) console.log('Sent:', result.id)
  */
 export async function sendEmail(
   options: SendEmailOptions

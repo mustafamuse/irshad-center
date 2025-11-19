@@ -3,11 +3,19 @@ import ReactPDF from '@react-pdf/renderer'
 import {
   ScholarshipPDFDocument,
   type ScholarshipPDFData,
-} from '../_templates/document'
+} from '../_templates/pdf/document'
 
 /**
  * Generate scholarship application PDF server-side
- * Returns a Buffer that can be attached to emails or saved
+ * Converts React PDF document to binary buffer for email attachments
+ *
+ * @param data - Formatted scholarship application data
+ * @returns Promise resolving to PDF as Buffer
+ * @throws Rejects promise if PDF generation fails
+ *
+ * @example
+ * const pdfBuffer = await generateScholarshipPDF(formattedData)
+ * // Use buffer in email attachment or save to file
  */
 export async function generateScholarshipPDF(
   data: ScholarshipPDFData

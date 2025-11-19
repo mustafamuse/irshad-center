@@ -1,6 +1,17 @@
 import type { ScholarshipApplicationOutput } from '../_schemas'
-import type { ScholarshipPDFData } from '../_templates/document'
+import type { ScholarshipPDFData } from '../_templates/pdf/document'
 
+/**
+ * Format validated scholarship data for PDF generation
+ * Transforms application data into PDF-friendly structure with conditional fields
+ *
+ * @param formData - Validated and transformed scholarship application data
+ * @returns Formatted data ready for PDF document generation
+ *
+ * @example
+ * const pdfData = formatPDFData(validatedData)
+ * const pdf = await generateScholarshipPDF(pdfData)
+ */
 export function formatPDFData(
   formData: ScholarshipApplicationOutput
 ): ScholarshipPDFData {

@@ -1,15 +1,19 @@
 import { Resend } from 'resend'
 
-if (!process.env.RESEND_API_KEY) {
-  throw new Error('RESEND_API_KEY environment variable is not set')
-}
+import { env } from '../env'
 
-// Singleton Resend client
-export const resend = new Resend(process.env.RESEND_API_KEY)
+/**
+ * Singleton Resend client
+ * Uses validated environment variables from lib/env.ts
+ */
+export const resend = new Resend(env.RESEND_API_KEY)
 
-// Email configuration
+/**
+ * Email configuration with validated environment variables
+ * Provides type-safe access to email settings
+ */
 export const EMAIL_CONFIG = {
-  from: process.env.EMAIL_FROM || 'Irshad Center <noreply@irshadcenter.com>',
-  adminEmail: process.env.ADMIN_EMAIL || 'umpp101@gmail.com',
-  replyTo: process.env.REPLY_TO_EMAIL,
+  from: env.EMAIL_FROM,
+  adminEmail: env.ADMIN_EMAIL,
+  replyTo: env.REPLY_TO_EMAIL,
 } as const

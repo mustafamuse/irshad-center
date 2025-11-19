@@ -4,15 +4,16 @@ import React from 'react'
 
 import { render } from '@react-email/components'
 
-import { sendEmail, EMAIL_CONFIG } from '@/lib/email/email-service'
+import {
+  sendEmail,
+  sendConfirmationEmail,
+  EMAIL_CONFIG,
+} from '@/lib/email/email-service'
 
 import { formatPDFData } from '../_lib/format-data'
 import { generateScholarshipPDF } from '../_lib/generate-pdf'
-import {
-  scholarshipApplicationSchema,
-  type ScholarshipApplicationData,
-} from '../_schemas'
-import { ScholarshipApplicationEmail } from '../_templates/email'
+import { scholarshipApplicationSchema } from '../_schemas'
+import { ScholarshipApplicationEmail } from '../_templates/email/scholarship'
 
 export interface SubmitScholarshipResult {
   success: boolean
@@ -23,13 +24,32 @@ export interface SubmitScholarshipResult {
 /**
  * Submit scholarship application
  * Server Action that validates, generates PDF, and sends email
+ *
+ * @param formData - Unvalidated form data from client (validated server-side)
+ * @returns Promise with success/error result
+ * @throws Never throws - always returns result object for safe error handling
+ *
+ * @example
+ * const result = await submitScholarshipApplication(formData)
+ * if (!result.success) {
+ *   console.error(result.error)
+ * }
  */
 export async function submitScholarshipApplication(
-  formData: ScholarshipApplicationData
+  formData: unknown
 ): Promise<SubmitScholarshipResult> {
   try {
-    // 1. Validate data server-side (never trust client)
-    const validatedData = scholarshipApplicationSchema.parse(formData)
+    // 1. Validate data server-side (never trust client - accept unknown, validate runtime)
+    const validation = scholarshipApplicationSchema.safeParse(formData)
+
+    if (!validation.success) {
+      return {
+        success: false,
+        error: 'Invalid form data. Please check all required fields.',
+      }
+    }
+
+    const validatedData = validation.data
 
     // 2. Format data for PDF
     const pdfData = formatPDFData(validatedData)
@@ -69,17 +89,18 @@ export async function submitScholarshipApplication(
       }
     }
 
-    // 6. Send confirmation email to student (optional but recommended)
-    await sendEmail({
+    // 6. Send confirmation email to student
+    await sendConfirmationEmail({
       to: validatedData.email,
+      studentName: validatedData.studentName,
       subject: 'Scholarship Application Received',
-      html: `
-        <h2>Application Received</h2>
-        <p>Dear ${validatedData.studentName},</p>
-        <p>Thank you for submitting your scholarship application. We have received your application and will review it shortly.</p>
-        <p>You will be notified of the decision via email or in person.</p>
-        <p>Best regards,<br/>Mahad Office</p>
-      `,
+      message:
+        'Thank you for submitting your scholarship application. We have received your application and will review it shortly.',
+      nextSteps: [
+        'Application review by the Mahad Office',
+        'Evaluation of financial need and circumstances',
+        'Decision notification via email or in person',
+      ],
     })
 
     return {
