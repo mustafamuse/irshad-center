@@ -101,19 +101,24 @@ export async function submitScholarshipApplication(
       )
     }
 
-    // 6. Send confirmation email to student
-    await sendConfirmationEmail({
-      to: validatedData.email,
-      studentName: validatedData.studentName,
-      subject: 'Scholarship Application Received',
-      message:
-        'Thank you for submitting your scholarship application. We have received your application and will review it shortly.',
-      nextSteps: [
-        'Application review by the Mahad Office',
-        'Evaluation of financial need and circumstances',
-        'Decision notification via email or in person',
-      ],
-    })
+    // 6. Send confirmation email to student (non-blocking - don't fail submission if this fails)
+    try {
+      await sendConfirmationEmail({
+        to: validatedData.email,
+        studentName: validatedData.studentName,
+        subject: 'Scholarship Application Received',
+        message:
+          'Thank you for submitting your scholarship application. We have received your application and will review it shortly.',
+        nextSteps: [
+          'Application review by the Mahad Office',
+          'Evaluation of financial need and circumstances',
+          'Decision notification via email or in person',
+        ],
+      })
+    } catch (error) {
+      // Log but don't fail - application was successfully submitted to admin
+      console.error('Failed to send confirmation email to student:', error)
+    }
 
     return {
       success: true,

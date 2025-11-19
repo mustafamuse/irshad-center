@@ -1,4 +1,5 @@
 import { resend, EMAIL_CONFIG as CONFIG } from './resend-client'
+import { escapeHtml } from '../utils/html-escape'
 
 // Re-export for convenience
 export { EMAIL_CONFIG } from './resend-client'
@@ -91,10 +92,10 @@ export async function sendAdminEmailWithPDF(options: {
   additionalInfo?: string
 }): Promise<EmailResult> {
   const html = `
-    <h2>${options.subject}</h2>
-    <p><strong>Student Name:</strong> ${options.studentName}</p>
-    <p><strong>Student Email:</strong> ${options.studentEmail}</p>
-    ${options.additionalInfo ? `<p>${options.additionalInfo}</p>` : ''}
+    <h2>${escapeHtml(options.subject)}</h2>
+    <p><strong>Student Name:</strong> ${escapeHtml(options.studentName)}</p>
+    <p><strong>Student Email:</strong> ${escapeHtml(options.studentEmail)}</p>
+    ${options.additionalInfo ? `<p>${escapeHtml(options.additionalInfo)}</p>` : ''}
     <p>Please see the attached PDF for complete details.</p>
   `
 
@@ -124,19 +125,19 @@ export async function sendConfirmationEmail(options: {
   nextSteps?: string[]
 }): Promise<EmailResult> {
   const html = `
-    <h2>Hello ${options.studentName},</h2>
-    <p>${options.message}</p>
+    <h2>Hello ${escapeHtml(options.studentName)},</h2>
+    <p>${escapeHtml(options.message)}</p>
     ${
       options.nextSteps
         ? `
       <h3>Next Steps:</h3>
       <ul>
-        ${options.nextSteps.map((step) => `<li>${step}</li>`).join('')}
+        ${options.nextSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}
       </ul>
     `
         : ''
     }
-    <p>If you have any questions, please contact us at ${CONFIG.adminEmail}</p>
+    <p>If you have any questions, please contact us at ${escapeHtml(CONFIG.adminEmail)}</p>
     <p>Best regards,<br/>Irshad Center</p>
   `
 
