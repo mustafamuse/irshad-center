@@ -132,16 +132,7 @@ export async function submitScholarshipApplication(
       return error.toJSON()
     }
 
-    // Handle validation errors
-    if (error instanceof Error && error.name === 'ZodError') {
-      return {
-        success: false,
-        error: 'Please check all required fields and try again.',
-        code: ERROR_CODES.VALIDATION_ERROR,
-      }
-    }
-
-    // Generic server error
+    // Generic server error (validation errors handled above via safeParse)
     return {
       success: false,
       error:

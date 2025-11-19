@@ -14,8 +14,7 @@ const envSchema = z.object({
   ADMIN_EMAIL: z
     .string()
     .email('ADMIN_EMAIL must be a valid email')
-    .optional()
-    .default('umpp101@gmail.com'),
+    .min(1, 'ADMIN_EMAIL is required'),
   REPLY_TO_EMAIL: z.string().email().optional(),
 
   // Node Environment
