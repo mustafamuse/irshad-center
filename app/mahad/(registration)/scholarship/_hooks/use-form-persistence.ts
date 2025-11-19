@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { UseFormReturn } from 'react-hook-form'
+import { toast } from 'sonner'
 import { ZodSchema } from 'zod'
 
 const STORAGE_KEY = 'scholarship-draft'
@@ -65,11 +66,13 @@ export function useFormPersistence<T extends Record<string, unknown>>(
           localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
         } catch (error) {
           console.error('Failed to save draft:', error)
-          // Handle quota exceeded specifically
+          // Handle quota exceeded - notify user
           if (error instanceof Error && error.name === 'QuotaExceededError') {
-            console.warn(
-              'Browser storage full. Draft auto-save disabled. Please submit soon or clear browser data.'
-            )
+            toast.warning('Auto-save disabled', {
+              description:
+                'Browser storage is full. Please submit soon or clear browser data.',
+              duration: 8000,
+            })
           }
         }
       }, AUTO_SAVE_DELAY)
