@@ -9,6 +9,8 @@ import {
   sendConfirmationEmail,
   EMAIL_CONFIG,
 } from '@/lib/email/email-service'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { sanitizeFilename } from '@/lib/utils/sanitize'
 
 import { formatPDFData } from '../_lib/format-data'
 import { generateScholarshipPDF } from '../_lib/generate-pdf'
@@ -19,6 +21,8 @@ export interface SubmitScholarshipResult {
   success: boolean
   error?: string
   message?: string
+  code?: string
+  field?: string
 }
 
 /**
@@ -54,8 +58,17 @@ export async function submitScholarshipApplication(
     // 2. Format data for PDF
     const pdfData = formatPDFData(validatedData)
 
-    // 3. Generate PDF server-side
-    const pdfBuffer = await generateScholarshipPDF(pdfData)
+    // 3. Generate PDF server-side with error handling
+    let pdfBuffer: Buffer
+    try {
+      pdfBuffer = await generateScholarshipPDF(pdfData)
+    } catch (error) {
+      console.error('PDF generation failed:', error)
+      throw new ActionError(
+        'Failed to generate application PDF. Please try again.',
+        ERROR_CODES.SERVER_ERROR
+      )
+    }
 
     // 4. Generate email HTML
     const emailHtml = await render(
@@ -74,7 +87,7 @@ export async function submitScholarshipApplication(
       html: emailHtml,
       attachments: [
         {
-          filename: `scholarship-application-${validatedData.studentName.toLowerCase().replace(/\s+/g, '-')}.pdf`,
+          filename: `scholarship-application-${sanitizeFilename(validatedData.studentName)}.pdf`,
           content: pdfBuffer,
         },
       ],
@@ -82,11 +95,10 @@ export async function submitScholarshipApplication(
     })
 
     if (!emailResult.success) {
-      return {
-        success: false,
-        error:
-          'Failed to send application email. Please try again or contact support.',
-      }
+      throw new ActionError(
+        'Failed to send application email. Please try again or contact support.',
+        ERROR_CODES.SERVER_ERROR
+      )
     }
 
     // 6. Send confirmation email to student
@@ -110,18 +122,26 @@ export async function submitScholarshipApplication(
   } catch (error) {
     console.error('Scholarship submission error:', error)
 
-    // Handle validation errors specifically
+    // Return ActionError in consistent format
+    if (error instanceof ActionError) {
+      return error.toJSON()
+    }
+
+    // Handle validation errors
     if (error instanceof Error && error.name === 'ZodError') {
       return {
         success: false,
         error: 'Please check all required fields and try again.',
+        code: ERROR_CODES.VALIDATION_ERROR,
       }
     }
 
+    // Generic server error
     return {
       success: false,
       error:
         'An error occurred while submitting your application. Please try again.',
+      code: ERROR_CODES.SERVER_ERROR,
     }
   }
 }

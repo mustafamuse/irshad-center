@@ -64,8 +64,12 @@ export function useFormPersistence<T extends Record<string, unknown>>(
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
         } catch (error) {
-          if (process.env.NODE_ENV === 'development') {
-            console.error('Failed to save draft:', error)
+          console.error('Failed to save draft:', error)
+          // Handle quota exceeded specifically
+          if (error instanceof Error && error.name === 'QuotaExceededError') {
+            console.warn(
+              'Browser storage full. Draft auto-save disabled. Please submit soon or clear browser data.'
+            )
           }
         }
       }, AUTO_SAVE_DELAY)

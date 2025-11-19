@@ -25,11 +25,8 @@ const envSchema = z.object({
     .default('development'),
 })
 
-/**
- * Validated and type-safe environment variables
- * Fails fast on app startup if required variables are missing
- */
-export const env = envSchema.parse({
+// Validate environment variables with helpful error messages
+const result = envSchema.safeParse({
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM,
   ADMIN_EMAIL: process.env.ADMIN_EMAIL,
@@ -37,8 +34,25 @@ export const env = envSchema.parse({
   NODE_ENV: process.env.NODE_ENV,
 })
 
+if (!result.success) {
+  console.error('❌ Environment validation failed:')
+  console.error(JSON.stringify(result.error.format(), null, 2))
+  throw new Error(
+    'Missing or invalid environment variables. Check the error above and your .env.local file.'
+  )
+}
+
 /**
- * Type-safe environment variable access
- * Use this instead of process.env for validated variables
+ * Validated and type-safe environment variables
+ * Safe to use throughout the application
+ *
+ * @example
+ * import { env } from '@/lib/env'
+ * const apiKey = env.RESEND_API_KEY // Type-safe!
+ */
+export const env = result.data
+
+/**
+ * Type for validated environment variables
  */
 export type Env = z.infer<typeof envSchema>
