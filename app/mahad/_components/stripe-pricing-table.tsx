@@ -37,7 +37,6 @@ export function StripePricingTable() {
 
       // Handle successful load
       scriptElement.onload = () => {
-        console.log('Stripe Pricing Table script loaded successfully')
         setIsLoading(false)
       }
 

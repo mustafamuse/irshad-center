@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { toast } from 'sonner'
 
-import { searchStudents } from '@/app/mahad/register/actions'
+import { searchStudents } from '@/app/mahad/(registration)/register/_actions'
 
 export interface SearchResult {
   id: string

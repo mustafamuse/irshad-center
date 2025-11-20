@@ -3,7 +3,7 @@ import { useCallback, useRef, useState } from 'react'
 import { Path, UseFormReturn } from 'react-hook-form'
 
 import { checkParentEmailExists } from '@/app/dugsi/register/actions'
-import { checkEmailExists } from '@/app/mahad/register/actions'
+import { checkEmailExists } from '@/app/mahad/(registration)/register/_actions'
 
 type RegistrationValues = {
   email?: string
