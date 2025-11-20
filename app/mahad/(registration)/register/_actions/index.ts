@@ -1,5 +1,8 @@
 'use server'
 
+// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
+// TODO: Migrate to ProgramProfile/Enrollment model
+
 /**
  * Mahad Registration Server Actions
  *
@@ -90,6 +93,13 @@ export async function registerStudent(input: {
   studentData: z.infer<typeof mahadRegistrationSchema>
   siblingIds: string[] | null
 }): Promise<ActionResult<{ id: string; name: string }>> {
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return {
+    success: false,
+    error: 'Migration needed: Student model has been removed. Please migrate to ProgramProfile/Enrollment model.',
+  }
+
+  /* Original implementation commented out - needs migration:
   try {
     const validated = mahadRegistrationSchema.parse(input.studentData)
 
@@ -207,6 +217,7 @@ export async function registerStudent(input: {
   } finally {
     revalidatePath('/mahad/register')
   }
+  */
 }
 
 // ============================================================================
@@ -217,44 +228,16 @@ export async function registerStudent(input: {
  * Check if email already exists
  */
 export async function checkEmailExists(email: string): Promise<boolean> {
-  try {
-    const student = await prisma.student.findFirst({
-      where: { email },
-      select: { id: true },
-    })
-    return !!student
-  } catch (error) {
-    console.error('[checkEmailExists] Error:', error)
-    return false
-  }
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return false // Temporary: always return false until migration complete
 }
 
 /**
  * Search students by name for sibling matching
  */
 export async function searchStudents(query: string, lastName: string) {
-  try {
-    const students = await prisma.student.findMany({
-      where: {
-        AND: [
-          { name: { contains: query, mode: 'insensitive' } },
-          { name: { endsWith: lastName, mode: 'insensitive' } },
-        ],
-      },
-      select: studentSelectors.basic,
-      orderBy: { name: 'asc' },
-      take: 20,
-    })
-
-    return students.map((s) => ({
-      id: s.id,
-      name: s.name,
-      lastName: s.name.split(' ').slice(-1)[0],
-    }))
-  } catch (error) {
-    console.error('[searchStudents] Error:', error)
-    return []
-  }
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return [] // Temporary: return empty array until migration complete
 }
 
 /**
@@ -264,6 +247,13 @@ export async function addSibling(
   studentId: string,
   siblingId: string
 ): Promise<ActionResult> {
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return {
+    success: false,
+    error: 'Migration needed: Student model has been removed.',
+  }
+
+  /* Original implementation commented out - needs migration:
   if (studentId === siblingId) {
     return { success: false, error: 'Cannot add student as their own sibling' }
   }
@@ -321,6 +311,7 @@ export async function addSibling(
   } finally {
     revalidatePath('/mahad/register')
   }
+  */
 }
 
 /**
@@ -330,6 +321,13 @@ export async function removeSibling(
   studentId: string,
   siblingId: string
 ): Promise<ActionResult> {
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return {
+    success: false,
+    error: 'Migration needed: Student model has been removed.',
+  }
+
+  /* Original implementation commented out - needs migration:
   try {
     return await prisma.$transaction(async (tx) => {
       const student = await tx.student.findUnique({
@@ -374,4 +372,5 @@ export async function removeSibling(
   } finally {
     revalidatePath('/mahad/register')
   }
+  */
 }

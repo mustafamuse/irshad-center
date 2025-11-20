@@ -1,14 +1,12 @@
-import { Student, Batch, StudentPayment } from '@prisma/client'
+// ⚠️ CRITICAL MIGRATION NEEDED: Student model has been removed
+// TODO: Migrate to ProgramProfile/Enrollment model
+
+import { Batch, StudentPayment } from '@prisma/client'
 
 export type SearchParams = {
   [key: string]: string | string[] | undefined
 }
 
-export type StudentWithDetails = Student & {
-  Batch: Batch | null
-  StudentPayment: StudentPayment[]
-  subscriptionMembers?: Array<{
-    id: string
-    name: string
-  }>
-}
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type StudentWithDetails = any

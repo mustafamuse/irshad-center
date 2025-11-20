@@ -29,7 +29,9 @@
     "export-data": "curl -o seed-data.json http://localhost:3000/api/admin/export",
     "seed-from-export": "tsx scripts/seed-from-export.ts",
     "pr-template": "node .github/scripts/suggest-pr-template.js",
-    "setup-hooks": "bash .github/scripts/setup-hooks.sh"
+    "setup-hooks": "bash .github/scripts/setup-hooks.sh",
+    "db:safety-check": "tsx scripts/db-safety-check.ts",
+    "db:reset-safe": "tsx scripts/safe-migrate-reset.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

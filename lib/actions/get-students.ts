@@ -1,5 +1,8 @@
 'use server'
 
+// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
+// TODO: Migrate to ProgramProfile/Enrollment model
+
 import { cache } from 'react'
 
 import { Prisma } from '@prisma/client'
@@ -16,28 +19,10 @@ export enum StudentStatus {
 
 const BASE_RATE = 150
 
-type StudentWithRelations = Prisma.StudentGetPayload<{
-  include: {
-    Batch: {
-      select: {
-        id: true
-        name: true
-      }
-    }
-    Sibling: {
-      select: {
-        id: true
-        Student: {
-          select: {
-            id: true
-            name: true
-            monthlyRate: true
-          }
-        }
-      }
-    }
-  }
-}>
+// TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+// type StudentWithRelations = Prisma.StudentGetPayload<{...}>
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type StudentWithRelations = any // Temporary stub
 
 // Our DTO for the frontend
 export interface StudentDTO {
@@ -119,6 +104,11 @@ async function mapToDTO(student: StudentWithRelations): Promise<StudentDTO> {
 
 // Main query function
 export const getStudents = cache(async (options: StudentQueryOptions = {}) => {
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  console.log('⚠️ getStudents called but Student model has been removed')
+  return [] // Temporary: return empty array until migration complete
+
+  /* Original implementation commented out - needs migration:
   console.log('🔍 Calling getStudents with options:', options)
 
   try {
@@ -169,6 +159,7 @@ export const getStudents = cache(async (options: StudentQueryOptions = {}) => {
     console.error('Error fetching students:', error)
     throw error
   }
+  */
 })
 
 // Helper functions

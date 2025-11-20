@@ -26,23 +26,8 @@ async function getSubscriptionMembers(
   studentId: string,
   stripeSubscriptionId: string | null
 ) {
-  if (!stripeSubscriptionId) {
-    return []
-  }
-
-  // Find all students with the same subscription ID (excluding current student)
-  const subscriptionMembers = await prisma.student.findMany({
-    where: {
-      stripeSubscriptionId: stripeSubscriptionId,
-      id: { not: studentId },
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  })
-
-  return subscriptionMembers
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
+  return []
 }
 
 interface StudentsTableShellProps {
@@ -108,35 +93,10 @@ export async function StudentsTableShell({
     }
   }
 
-  const students = await prisma.student.findMany({
-    where,
-    include: {
-      Batch: true,
-      StudentPayment: {
-        orderBy: {
-          paidAt: 'desc',
-        },
-      },
-    },
-    orderBy: {
-      [column]: order,
-    },
-    take,
-    skip,
-  })
-
-  // Get subscription members for each student
-  const studentsWithSubscriptionMembers = await Promise.all(
-    students.map(async (student) => ({
-      ...student,
-      subscriptionMembers: await getSubscriptionMembers(
-        student.id,
-        student.stripeSubscriptionId
-      ),
-    }))
-  )
-
-  const totalStudents = await prisma.student.count({ where })
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
+  const students: any[] = []
+  const studentsWithSubscriptionMembers: any[] = []
+  const totalStudents = 0
   const pageCount = Math.ceil(totalStudents / take)
 
   return (

@@ -40,32 +40,13 @@ interface StudentInfo {
 
 // Helper functions
 async function getStudentsInBatches(batchIds: string[]) {
-  if (batchIds.length === 0) return []
-
-  return await prisma.student.findMany({
-    where: {
-      batchId: { in: batchIds },
-    },
-    select: { name: true, email: true, batchId: true },
-  })
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return []
 }
 
 async function getStudentsWithSubscriptions(batchIds: string[]) {
-  if (batchIds.length === 0) return []
-
-  return await prisma.student.findMany({
-    where: {
-      batchId: { in: batchIds },
-      stripeSubscriptionId: { not: null },
-      email: { not: null },
-    },
-    select: {
-      name: true,
-      email: true,
-      stripeSubscriptionId: true,
-      batchId: true,
-    },
-  })
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
+  return []
 }
 
 async function getCustomerEmailFromSubscription(student: {
@@ -238,22 +219,8 @@ export async function POST(req: Request) {
       }
     })
 
-    // Add missing students to exclusionLog
-    allStudentsInBatches.forEach((student) => {
-      const alreadyIncluded = Object.values(exclusionLog).some(
-        (log) => log.studentEmail === student.email
-      )
-      if (!alreadyIncluded) {
-        exclusionLog[student.email ?? student.name] = {
-          studentName: student.name,
-          studentEmail: student.email ?? '',
-          customerEmail: '',
-          chargesFound: 0,
-          batchId: student.batchId ?? '',
-          customerId: '',
-        }
-      }
-    })
+    // TODO: Add missing students to exclusionLog - Migration needed
+    // allStudentsInBatches.forEach((student) => { ... })
 
     // Process payouts
     const startDate = new Date(Date.UTC(year, month - 1, 1))

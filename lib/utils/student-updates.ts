@@ -1,3 +1,6 @@
+// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
+// TODO: Migrate to ProgramProfile/Enrollment model
+
 /**
  * Student Update Utilities
  *
@@ -10,16 +13,14 @@ import type { Prisma } from '@prisma/client'
 /**
  * Type-safe update data for Mahad student subscription updates
  */
-type MahadStudentUpdateData = Prisma.StudentUpdateInput & {
-  previousSubscriptionIds?: { push: string }
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MahadStudentUpdateData = any
 
 /**
  * Type-safe update data for Dugsi student subscription updates
  */
-type DugsiStudentUpdateData = Prisma.StudentUpdateInput & {
-  previousSubscriptionIdsDugsi?: { push: string }
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DugsiStudentUpdateData = any
 
 /**
  * Configuration for building student update data
@@ -158,6 +159,10 @@ export function updateStudentsInTransaction<T extends StudentForUpdate>(
   config: StudentUpdateConfig,
   transactionClient: Prisma.TransactionClient
 ) {
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  throw new Error('Migration needed: Student model has been removed')
+
+  /* Original implementation commented out - needs migration:
   return students.map((student) => {
     const updateData = buildStudentUpdateData(student, config)
 
@@ -166,6 +171,7 @@ export function updateStudentsInTransaction<T extends StudentForUpdate>(
       data: updateData,
     })
   })
+  */
 }
 
 /**

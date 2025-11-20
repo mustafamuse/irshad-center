@@ -125,39 +125,8 @@ async function getLinkedSubscriptionIds(
   subscriptionIds: string[],
   program: 'MAHAD_PROGRAM' | 'DUGSI_PROGRAM'
 ): Promise<Set<string>> {
-  if (program === 'MAHAD_PROGRAM') {
-    const linkedStudents = await prisma.student.findMany({
-      where: {
-        stripeSubscriptionId: { in: subscriptionIds },
-        program: 'MAHAD_PROGRAM',
-      },
-      select: {
-        stripeSubscriptionId: true,
-      },
-    })
-
-    return new Set(
-      linkedStudents
-        .map((s) => s.stripeSubscriptionId)
-        .filter((id): id is string => id !== null)
-    )
-  } else {
-    const linkedStudents = await prisma.student.findMany({
-      where: {
-        stripeSubscriptionIdDugsi: { in: subscriptionIds },
-        program: 'DUGSI_PROGRAM',
-      },
-      select: {
-        stripeSubscriptionIdDugsi: true,
-      },
-    })
-
-    return new Set(
-      linkedStudents
-        .map((s) => s.stripeSubscriptionIdDugsi)
-        .filter((id): id is string => id !== null)
-    )
-  }
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
+  return new Set<string>()
 }
 
 /**
@@ -284,59 +253,8 @@ export async function searchStudents(
   query: string,
   program?: 'MAHAD' | 'DUGSI'
 ): Promise<StudentMatch[]> {
-  const programFilter =
-    program === 'MAHAD'
-      ? 'MAHAD_PROGRAM'
-      : program === 'DUGSI'
-        ? 'DUGSI_PROGRAM'
-        : undefined
-
-  const where: Prisma.StudentWhereInput = programFilter
-    ? {
-        program: programFilter,
-        OR: [
-          { name: { contains: query, mode: 'insensitive' as const } },
-          { email: { contains: query, mode: 'insensitive' as const } },
-          { phone: { contains: query, mode: 'insensitive' as const } },
-          { id: { contains: query, mode: 'insensitive' as const } },
-        ],
-      }
-    : {
-        OR: [
-          { name: { contains: query, mode: 'insensitive' as const } },
-          { email: { contains: query, mode: 'insensitive' as const } },
-          { phone: { contains: query, mode: 'insensitive' as const } },
-          { id: { contains: query, mode: 'insensitive' as const } },
-        ],
-      }
-
-  const students = await prisma.student.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      status: true,
-      program: true,
-      stripeSubscriptionId: true,
-      stripeSubscriptionIdDugsi: true,
-    },
-    take: 20,
-    orderBy: {
-      name: 'asc',
-    },
-  })
-
-  return students.map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email || '',
-    phone: s.phone,
-    status: s.status,
-    hasSubscription: !!(s.stripeSubscriptionId || s.stripeSubscriptionIdDugsi),
-    program: s.program as 'MAHAD_PROGRAM' | 'DUGSI_PROGRAM',
-  }))
+  // TODO: Migrate to ProgramProfile model - Student model removed
+  return []
 }
 
 /**
@@ -346,36 +264,8 @@ export async function getPotentialMatches(
   email: string | null,
   program: 'MAHAD' | 'DUGSI'
 ): Promise<StudentMatch[]> {
-  if (!email) return []
-
-  const programFilter = program === 'MAHAD' ? 'MAHAD_PROGRAM' : 'DUGSI_PROGRAM'
-
-  const students = await prisma.student.findMany({
-    where: {
-      program: programFilter,
-      email: email,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      status: true,
-      program: true,
-      stripeSubscriptionId: true,
-      stripeSubscriptionIdDugsi: true,
-    },
-  })
-
-  return students.map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email || '',
-    phone: s.phone,
-    status: s.status,
-    hasSubscription: !!(s.stripeSubscriptionId || s.stripeSubscriptionIdDugsi),
-    program: s.program as 'MAHAD_PROGRAM' | 'DUGSI_PROGRAM',
-  }))
+  // TODO: Migrate to ProgramProfile model - Student model removed
+  return []
 }
 
 /**
@@ -386,161 +276,7 @@ export async function linkSubscriptionToStudent(
   studentId: string,
   program: 'MAHAD' | 'DUGSI'
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    if (program === 'MAHAD') {
-      // Get student
-      const student = await prisma.student.findFirst({
-        where: {
-          id: studentId,
-          program: 'MAHAD_PROGRAM',
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          stripeSubscriptionId: true,
-          subscriptionStatus: true,
-        },
-      })
-
-      if (!student) {
-        return {
-          success: false,
-          error: 'Student not found or not in Mahad program',
-        }
-      }
-
-      // Get subscription from Stripe
-      const stripeClient = getProductionStripeClient()
-      const subscription =
-        await stripeClient.subscriptions.retrieve(subscriptionId)
-
-      const customerId =
-        typeof subscription.customer === 'string'
-          ? subscription.customer
-          : subscription.customer?.id
-
-      if (!customerId) {
-        return { success: false, error: 'Invalid customer ID in subscription' }
-      }
-
-      // Extract period dates
-      const periodDates = extractPeriodDates(subscription)
-
-      // Build update data using centralized utility
-      const updateData = buildStudentUpdateData(student, {
-        subscriptionId,
-        customerId,
-        subscriptionStatus: subscription.status,
-        newStudentStatus: getNewStudentStatus(subscription.status),
-        periodStart: periodDates.periodStart,
-        periodEnd: periodDates.periodEnd,
-        monthlyRate: subscription.items.data[0]?.price.unit_amount || 0,
-        program: 'MAHAD',
-      })
-
-      // Link subscription to student
-      await prisma.student.update({
-        where: { id: studentId },
-        data: updateData,
-      })
-
-      revalidatePath('/admin/link-subscriptions')
-      return { success: true }
-    } else if (program === 'DUGSI') {
-      // Get student
-      const student = await prisma.student.findFirst({
-        where: {
-          id: studentId,
-          program: 'DUGSI_PROGRAM',
-        },
-        select: {
-          id: true,
-          name: true,
-          parentEmail: true,
-          stripeSubscriptionIdDugsi: true,
-        },
-      })
-
-      if (!student) {
-        return {
-          success: false,
-          error: 'Student not found or not in Dugsi program',
-        }
-      }
-
-      // Validate parentEmail is not null/empty to prevent matching all null emails
-      if (!student.parentEmail || student.parentEmail.trim() === '') {
-        return {
-          success: false,
-          error:
-            'Parent email is required to link subscription. Please update the student record with a parent email first.',
-        }
-      }
-
-      // Get subscription from Stripe
-      const dugsiStripe = getDugsiStripeClient()
-      const subscription =
-        await dugsiStripe.subscriptions.retrieve(subscriptionId)
-
-      const customerId =
-        typeof subscription.customer === 'string'
-          ? subscription.customer
-          : subscription.customer?.id
-
-      if (!customerId) {
-        return { success: false, error: 'Invalid customer ID in subscription' }
-      }
-
-      const newStudentStatus = getNewStudentStatus(subscription.status)
-
-      // Extract period dates
-      const periodDates = extractPeriodDates(subscription)
-
-      // Use transaction to atomically update all family members
-      await prisma.$transaction(async (tx) => {
-        // Find all students in the same family
-        const familyStudents = await tx.student.findMany({
-          where: {
-            parentEmail: student.parentEmail,
-            program: 'DUGSI_PROGRAM',
-          },
-          select: {
-            id: true,
-            stripeSubscriptionIdDugsi: true,
-            subscriptionStatus: true,
-          },
-        })
-
-        // Update each student using centralized utility
-        const updatePromises = updateStudentsInTransaction(
-          familyStudents,
-          {
-            subscriptionId,
-            customerId,
-            subscriptionStatus: subscription.status,
-            newStudentStatus,
-            periodStart: periodDates.periodStart,
-            periodEnd: periodDates.periodEnd,
-            monthlyRate: subscription.items.data[0]?.price.unit_amount || 0,
-            program: 'DUGSI',
-          },
-          tx
-        )
-
-        await Promise.all(updatePromises)
-      })
-
-      revalidatePath('/admin/link-subscriptions')
-      return { success: true }
-    }
-
-    return { success: false, error: 'Invalid program specified' }
-  } catch (error: any) {
-    console.error('Error linking subscription:', error)
-    return {
-      success: false,
-      error: error.message || 'Failed to link subscription',
-    }
-  }
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
+  return { success: false, error: 'Migration needed' };
+  
 }

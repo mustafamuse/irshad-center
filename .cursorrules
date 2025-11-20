@@ -268,11 +268,19 @@ app/admin/dugsi/
 ## DATABASE SAFETY RULES (CRITICAL - NEVER VIOLATE)
 
 ⛔ NEVER RESET DATABASE
-- NEVER EVER run: prisma migrate reset
+- NEVER EVER run: prisma migrate reset (use scripts/safe-migrate-reset.ts instead)
 - NEVER EVER run: prisma db push --force-reset
 - NEVER EVER run: DROP DATABASE or DROP TABLE commands
 - NEVER EVER delete migration files
 - NEVER EVER suggest resetting the database
+- ALWAYS run scripts/db-safety-check.ts before ANY destructive operation
+
+✅ MANDATORY SAFETY CHECKS
+- ALWAYS call requireNonProductionEnvironment() before destructive operations
+- ALWAYS validate DATABASE_ENV environment variable
+- ALWAYS check database contains < 100 records before reset (indicates staging)
+- ALWAYS create backup before any destructive operation
+- ALWAYS use scripts/safe-migrate-reset.ts instead of direct prisma commands
 
 ✅ ONLY ALLOWED DATABASE OPERATIONS
 - prisma migrate dev (creates new migration)
@@ -280,6 +288,7 @@ app/admin/dugsi/
 - prisma migrate status (checks migration status)
 - prisma studio (view data safely)
 - prisma db pull (sync schema from database)
+- scripts/safe-migrate-reset.ts (with --confirm flag, only on staging)
 
 ⚠️ PRODUCTION DATA IS SACRED
 - Database contains real student registrations
@@ -287,24 +296,45 @@ app/admin/dugsi/
 - Database contains enrollment records
 - ANY data loss is unacceptable
 
+🛡️ ENVIRONMENT VALIDATION (MANDATORY)
+- ALWAYS set DATABASE_ENV environment variable:
+  - DATABASE_ENV=PRODUCTION (for .env.local - main/production database)
+  - DATABASE_ENV=STAGING (for .env.staging - test database)
+  - DATABASE_ENV=DEVELOPMENT (for localhost development)
+- IMPORTANT: .env.local = PRODUCTION (main database with real data)
+- IMPORTANT: .env.staging = STAGING (test database)
+- ALWAYS verify environment before destructive operations
+- NEVER proceed if environment is UNKNOWN
+- NEVER allow production operations without explicit override (emergency only)
+
 🛡️ MIGRATION SAFETY
 - Always create migrations, never reset
 - Always test migrations on dev database first
 - Always make migrations reversible when possible
 - Always backup before running migrations in production
+- Always use db-safety-check.ts before any operation
 
 ❌ FORBIDDEN COMMANDS
-- NEVER: npx prisma migrate reset
+- NEVER: npx prisma migrate reset (use safe-migrate-reset.ts instead)
 - NEVER: npx prisma db push --force-reset
 - NEVER: DROP TABLE or DROP DATABASE
 - NEVER: TRUNCATE TABLE
 - NEVER: DELETE FROM without WHERE clause on production data
+- NEVER: Skip environment validation checks
 
+🔒 SAFETY PROTOCOL FOR DATABASE RESETS
 If user asks to reset database:
-1. Ask WHY they want to reset
-2. Suggest alternative solutions (new migration, data cleanup script, etc.)
-3. Explain the risk of data loss
-4. Only proceed if user EXPLICITLY confirms understanding of data loss
+1. IMMEDIATELY run scripts/db-safety-check.ts
+2. Verify environment is NOT PRODUCTION
+3. Create backup using backupData() function
+4. Ask WHY they want to reset
+5. Suggest alternative solutions (new migration, data cleanup script, etc.)
+6. Explain the risk of data loss
+7. Only proceed if:
+   - Environment check passes (NOT PRODUCTION)
+   - Backup is created successfully
+   - User EXPLICITLY confirms understanding of data loss
+   - User provides --confirm flag
 
 ---
 

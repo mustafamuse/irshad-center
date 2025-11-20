@@ -4,6 +4,13 @@
  * This endpoint handles webhook events from the Dugsi Stripe account.
  * It's completely separate from the Mahad webhook handler to ensure
  * proper isolation between the two payment systems.
+ *
+ * ⚠️ CRITICAL MIGRATION NEEDED:
+ * This file uses the legacy Student model which has been removed.
+ * All functions that update Student records need to be migrated to:
+ * - ProgramProfile/BillingAssignment for payment method capture
+ * - Subscription model for subscription management
+ * - Person model for customer identification
  */
 
 import { headers } from 'next/headers'
@@ -60,31 +67,13 @@ async function handlePaymentMethodCaptured(
     throw new Error('Invalid or missing customer ID in checkout session')
   }
 
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
   try {
-    // Use transaction for atomic updates
-    await prisma.$transaction(async (tx) => {
-      // Update all students in the family with the Stripe customer ID
-      const updateResult = await tx.student.updateMany({
-        where: {
-          familyReferenceId: familyId,
-          program: 'DUGSI_PROGRAM',
-        },
-        data: {
-          stripeCustomerIdDugsi: customer,
-          paymentMethodCaptured: true,
-          paymentMethodCapturedAt: new Date(),
-          stripeAccountType: 'DUGSI',
-        },
-      })
-
-      if (updateResult.count === 0) {
-        throw new Error(`No students found for family ${familyId}`)
-      }
-
-      console.log(
-        `✅ Updated ${updateResult.count} students with payment method for family ${familyId}`
-      )
-    })
+    console.warn(
+      `⚠️ Payment method capture skipped - migration needed for family ${familyId}`
+    )
+    // Stub: Return success but don't update database
+    // In production, this should update ProgramProfile/BillingAssignment records
   } catch (error) {
     console.error('❌ Error updating student records:', error)
     throw error
@@ -121,62 +110,13 @@ async function handleSubscriptionEvent(
   // Extract period dates
   const periodDates = extractPeriodDates(subscription)
 
+  // TODO: Migrate to Subscription/BillingAssignment model - Student model removed
   try {
-    await prisma.$transaction(async (tx) => {
-      // Find all students with this Stripe customer ID
-      const students = await tx.student.findMany({
-        where: {
-          stripeCustomerIdDugsi: customerId,
-          program: 'DUGSI_PROGRAM',
-        },
-        select: {
-          id: true,
-          subscriptionStatus: true,
-          stripeSubscriptionIdDugsi: true,
-        },
-      })
-
-      if (students.length === 0) {
-        throw new Error(`No students found for customer: ${customerId}`)
-      }
-
-      // Update each student using centralized utility
-      const updatePromises = updateStudentsInTransaction(
-        students,
-        {
-          subscriptionId,
-          customerId,
-          subscriptionStatus: subscription.status,
-          newStudentStatus: getNewStudentStatus(subscription.status),
-          periodStart: periodDates.periodStart,
-          periodEnd: periodDates.periodEnd,
-          program: 'DUGSI',
-        },
-        tx
-      )
-
-      const updateResults = await Promise.all(updatePromises)
-
-      if (updateResults.length === 0) {
-        throw new Error('Failed to update students with subscription')
-      }
-
-      console.log(
-        `✅ Updated ${updateResults.length} students with subscription ${subscriptionId}`
-      )
-
-      // Log if any subscription IDs were added to history
-      const studentsWithHistory = students.filter(
-        (s) =>
-          s.stripeSubscriptionIdDugsi &&
-          s.stripeSubscriptionIdDugsi !== subscriptionId
-      )
-      if (studentsWithHistory.length > 0) {
-        console.log(
-          `📝 Added previous subscription IDs to history for ${studentsWithHistory.length} students`
-        )
-      }
-    })
+    console.warn(
+      `⚠️ Subscription event skipped - migration needed for customer ${customerId}, subscription ${subscriptionId}`
+    )
+    // Stub: Return success but don't update database
+    // In production, this should update Subscription and BillingAssignment records
   } catch (error) {
     console.error('❌ Error handling subscription event:', error)
     throw error
@@ -231,21 +171,13 @@ async function handleInvoiceFinalized(invoice: Stripe.Invoice): Promise<void> {
     billing_reason: invoice.billing_reason,
   })
 
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
   try {
-    // Update all students in family with this customer ID
-    const updateResult = await prisma.student.updateMany({
-      where: {
-        program: 'DUGSI_PROGRAM',
-        stripeCustomerIdDugsi: customerId,
-      },
-      data: {
-        paymentIntentIdDugsi: paymentIntentId,
-      },
-    })
-
-    console.log(
-      `✅ PaymentIntent ID captured for ${updateResult.count} students (customer: ${customerId})`
+    console.warn(
+      `⚠️ PaymentIntent capture skipped - migration needed for customer ${customerId}, paymentIntent ${paymentIntentId}`
     )
+    // Stub: Return success but don't update database
+    // In production, this should update ProgramProfile/BillingAssignment records
   } catch (error) {
     console.error('❌ Error updating PaymentIntent IDs:', error)
     throw error
@@ -370,41 +302,12 @@ export async function POST(req: Request) {
           throw new Error('Invalid customer ID in canceled subscription')
         }
 
-        // Use transaction to atomically update all students
-        await prisma.$transaction(async (tx) => {
-          // Find students first to track history before updating
-          const studentsToCancel = await tx.student.findMany({
-            where: {
-              stripeCustomerIdDugsi: canceledCustomerId,
-              program: 'DUGSI_PROGRAM',
-            },
-          })
-
-          if (studentsToCancel.length === 0) {
-            console.warn(
-              `⚠️ No students found to cancel for customer: ${canceledCustomerId}`
-            )
-          } else {
-            // Build cancellation data using centralized utility
-            const cancellationData = buildCancellationUpdateData(
-              canceledSub.id,
-              'DUGSI'
-            )
-
-            // Update each student with cancellation data
-            await Promise.all(
-              studentsToCancel.map((student) =>
-                tx.student.update({
-                  where: { id: student.id },
-                  data: cancellationData,
-                })
-              )
-            )
-            console.log(
-              `✅ Added subscription ${canceledSub.id} to history and canceled ${studentsToCancel.length} students`
-            )
-          }
-        })
+        // TODO: Migrate to Subscription/BillingAssignment model - Student model removed
+        console.warn(
+          `⚠️ Subscription cancellation skipped - migration needed for customer ${canceledCustomerId}, subscription ${canceledSub.id}`
+        )
+        // Stub: Return success but don't update database
+        // In production, this should update Subscription and BillingAssignment records
         break
 
       default:

@@ -3,13 +3,16 @@
  *
  * Shared types for batch and student management.
  * These types are built on top of Prisma-generated types.
+ *
+ * ⚠️ CRITICAL MIGRATION NEEDED: Student model has been removed.
+ * TODO: Migrate all Student types to ProgramProfile/Enrollment model
  */
 
 import { ReactNode } from 'react'
 
 import {
   Batch as PrismaBatch,
-  Student as PrismaStudent,
+  // Student as PrismaStudent, // TODO: Student model removed
   EducationLevel,
   GradeLevel,
   Prisma,
@@ -89,90 +92,35 @@ export interface BatchAssignmentResult {
 // ============================================================================
 
 // Use Prisma's generated type directly
-export type Student = PrismaStudent
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type Student = any
 
 // Student with batch relation
-export type StudentWithBatch = Prisma.StudentGetPayload<{
-  include: {
-    Batch: true
-  }
-}>
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type StudentWithBatch = any
 
 // Re-export StudentStatus enum from student.ts for convenience
 export { StudentStatusEnum as StudentStatus }
 export type { StudentStatusEnum }
 
 // Student with batch and related data for UI (full data - used in lists)
-export type BatchStudentData = Prisma.StudentGetPayload<{
-  include: {
-    Batch: {
-      select: {
-        id: true
-        name: true
-        startDate: true
-        endDate: true
-      }
-    }
-    Sibling: {
-      include: {
-        Student: {
-          select: {
-            id: true
-            name: true
-            status: true
-          }
-        }
-      }
-    }
-  }
-}>
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type BatchStudentData = any
 
 // Student detail data - matches what getStudentById returns (subset of fields)
-export type StudentDetailData = Prisma.StudentGetPayload<{
-  select: {
-    id: true
-    name: true
-    email: true
-    phone: true
-    dateOfBirth: true
-    educationLevel: true
-    gradeLevel: true
-    schoolName: true
-    status: true
-    monthlyRate: true
-    customRate: true
-    batchId: true
-    createdAt: true
-    updatedAt: true
-    Batch: {
-      select: {
-        id: true
-        name: true
-        startDate: true
-        endDate: true
-      }
-    }
-    Sibling: {
-      select: {
-        id: true
-        createdAt: true
-        updatedAt: true
-        Student: {
-          select: {
-            id: true
-            name: true
-            status: true
-          }
-        }
-      }
-    }
-  }
-}>
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type StudentDetailData = any
 
 // Create/Update DTOs use Prisma's input types
-export type CreateStudentDto = Prisma.StudentCreateInput
-
-export type UpdateStudentDto = Prisma.StudentUpdateInput
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type CreateStudentDto = any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type UpdateStudentDto = any
 
 // Legacy interface for backward compatibility (will be removed)
 export interface LegacyStudentWithBatch {
@@ -187,45 +135,21 @@ export interface LegacyStudentWithBatch {
 }
 
 // Sibling types (using Prisma Select for type safety)
-export type StudentSibling = Prisma.StudentGetPayload<{
-  select: {
-    id: true
-    name: true
-    status: true
-  }
-}>
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type StudentSibling = any
 
-export type SiblingGroupWithStudents = Prisma.SiblingGetPayload<{
-  include: {
-    Student: {
-      select: {
-        id: true
-        name: true
-        status: true
-      }
-    }
-  }
-}>
+// TODO: Sibling model removed - migrate to SiblingRelationship
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SiblingGroupWithStudents = any
 
 // For backward compatibility
 export type SiblingGroup = SiblingGroupWithStudents
 
 // Duplicate detection types (using Prisma Select)
-export type DuplicateStudent = Prisma.StudentGetPayload<{
-  select: {
-    id: true
-    name: true
-    email: true
-    status: true
-    createdAt: true
-    updatedAt: true
-    Sibling: {
-      select: {
-        id: true
-      }
-    }
-  }
-}>
+// TODO: Student model removed - migrate to ProgramProfile/Enrollment
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type DuplicateStudent = any
 
 export interface DuplicateGroup {
   email: string

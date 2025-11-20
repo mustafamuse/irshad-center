@@ -1,3 +1,6 @@
+// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
+// TODO: Migrate to ProgramProfile/Enrollment model
+
 /**
  * Family grouping and manipulation utilities
  * Single source of truth for family identification logic

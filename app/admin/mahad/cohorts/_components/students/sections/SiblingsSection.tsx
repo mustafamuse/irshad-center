@@ -24,7 +24,7 @@ export function SiblingsSection({ student }: SiblingsSectionProps) {
         Siblings ({student.Sibling.Student.length})
       </h3>
       <div className="space-y-2">
-        {student.Sibling.Student.map((sibling) => (
+        {student.Sibling.Student.map((sibling: { id: string; name: string; status: string | null }) => (
           <div
             key={sibling.id}
             className="flex items-center justify-between rounded-lg border bg-muted/30 p-3 transition-colors hover:bg-muted/50"

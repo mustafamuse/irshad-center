@@ -415,7 +415,7 @@ export async function getStudentDeleteWarningsAction(id: string) {
     console.error('Failed to fetch delete warnings:', error)
     return {
       success: false,
-      data: { hasSiblings: false, hasAttendanceRecords: false },
+      data: { hasSiblings: false, hasAttendanceRecords: false }, // Attendance feature removed
     } as const
   }
 }

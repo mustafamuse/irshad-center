@@ -51,12 +51,15 @@ function formatSchoolName(name: string | null): string | null {
 async function dropTables() {
   console.log('❌ Dropping all table data...')
 
+  // ⚠️ CRITICAL MIGRATION NEEDED: Student and Sibling models have been removed
+  // TODO: Migrate to ProgramProfile/Enrollment model
+
   // Drop tables in order based on foreign key relationships
   await prisma.$transaction([
     // prisma.$executeRaw`DELETE FROM "_ClassGroupToStudent"`, // many-to-many
     prisma.studentPayment.deleteMany(),
-    prisma.student.deleteMany(),
-    prisma.sibling.deleteMany(),
+    // prisma.student.deleteMany(), // TODO: Student model removed
+    // prisma.sibling.deleteMany(), // TODO: Sibling model removed
     prisma.batch.deleteMany(),
   ])
 
@@ -195,7 +198,9 @@ async function seedData() {
       }
 
       try {
-        // Create the student record in the database.
+        // ⚠️ CRITICAL MIGRATION NEEDED: Student model has been removed
+        // TODO: Migrate to ProgramProfile/Enrollment model
+        /* Original code commented out - needs migration:
         await prisma.student.create({
           data: {
             name: fullName,
@@ -213,6 +218,8 @@ async function seedData() {
 
         createdCount++
         console.log(`Created student record for ${fullName}`)
+        */
+        console.log(`Skipping student creation (model removed): ${fullName}`)
       } catch (createError: any) {
         console.error(
           `Error creating record for ${fullName}:`,

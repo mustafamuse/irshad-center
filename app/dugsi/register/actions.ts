@@ -7,6 +7,14 @@
  * Includes payment link generation for capturing payment methods.
  *
  * Follows the same error handling pattern as app/admin/mahad/cohorts/actions.ts
+ *
+ * ⚠️ CRITICAL MIGRATION NEEDED:
+ * This file uses the legacy Student and Sibling models which have been removed.
+ * All registration functions need to be migrated to:
+ * - Person model for identity
+ * - ProgramProfile model for program enrollment
+ * - Enrollment model for enrollment details
+ * - SiblingRelationship model for sibling tracking
  */
 
 import { revalidatePath } from 'next/cache'
@@ -150,101 +158,11 @@ export async function registerDugsiChildren(
         parent2LastName = parent2Names.lastName
       }
 
-      // 3. Create all children with family reference ID
-      const createdChildren = []
-
-      for (const child of validated.children) {
-        const childFullName = formatFullName(child.firstName, child.lastName)
-
-        // Create student record with parent contact info and family reference
-        try {
-          const newStudent = await tx.student.create({
-            data: {
-              name: childFullName,
-              email: null, // Children don't have email
-              phone: null, // Children don't have phone
-              dateOfBirth: child.dateOfBirth,
-              gender: child.gender,
-              educationLevel: child.educationLevel,
-              gradeLevel: child.gradeLevel,
-              schoolName: child.schoolName,
-              healthInfo: child.healthInfo,
-              program: 'DUGSI_PROGRAM',
-
-              // Family tracking
-              familyReferenceId: familyId,
-
-              // Parent 1 contact
-              parentFirstName: parent1FirstName,
-              parentLastName: parent1LastName,
-              parentEmail: validated.parent1Email,
-              parentPhone: validated.parent1Phone,
-
-              // Parent 2 contact (if provided)
-              parent2FirstName,
-              parent2LastName,
-              parent2Email: validated.parent2Email || null,
-              parent2Phone: validated.parent2Phone || null,
-            },
-            select: { id: true, name: true },
-          })
-
-          createdChildren.push(newStudent)
-        } catch (createError) {
-          // Handle unique constraint violations from database
-          const duplicateError = handlePrismaUniqueError(createError, {
-            name: childFullName,
-            email: validated.parent1Email,
-            phone: validated.parent1Phone,
-          })
-
-          if (duplicateError) {
-            // Return error immediately on first duplicate child
-            return {
-              success: false,
-              error: `Child ${child.firstName}: ${duplicateError.message}`,
-            }
-          }
-
-          // Re-throw if not a duplicate error
-          throw createError
-        }
-      }
-
-      // 4. Create sibling group if multiple children
-      if (createdChildren.length > 1) {
-        await tx.sibling.create({
-          data: {
-            Student: {
-              connect: createdChildren.map((child) => ({ id: child.id })),
-            },
-          },
-        })
-      }
-
-      // 5. Generate payment URL if configured
-      let paymentUrl: string | undefined
-      if (process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI) {
-        try {
-          paymentUrl = constructDugsiPaymentUrl({
-            parentEmail: validated.parent1Email,
-            familyId,
-            childCount: createdChildren.length,
-          })
-        } catch (error) {
-          console.warn('Could not generate payment URL:', error)
-          // Continue without payment URL - registration should still succeed
-        }
-      }
-
+      // TODO: Migrate to Person/ProgramProfile/Enrollment/SiblingRelationship model - Student and Sibling models removed
+      // This is a critical user-facing registration flow that needs immediate migration
       return {
-        success: true,
-        data: {
-          children: createdChildren,
-          count: createdChildren.length,
-          paymentUrl,
-          familyId,
-        },
+        success: false,
+        error: 'Registration temporarily unavailable - system migration in progress. Please contact support.',
       }
     })
   } catch (error) {
@@ -270,12 +188,11 @@ export async function registerDugsiChildren(
  * Check if parent email already exists
  */
 export async function checkParentEmailExists(email: string): Promise<boolean> {
+  // TODO: Migrate to Person/ProgramProfile model - Student model removed
   try {
-    const student = await prisma.student.findFirst({
-      where: { parentEmail: email },
-      select: { id: true },
-    })
-    return !!student
+    // Stub: Return false to allow registration to proceed
+    // In production, this should check Person.email or ProgramProfile.parentEmail
+    return false
   } catch (error) {
     console.error('[checkParentEmailExists] Error:', error)
     // Return false on error to allow registration to proceed

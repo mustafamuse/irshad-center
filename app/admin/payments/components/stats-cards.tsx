@@ -11,62 +11,13 @@ import { STUDENT_STATUS } from '@/lib/constants'
 import { prisma } from '@/lib/db'
 
 async function getStats() {
-  // Base filter to exclude "Test" batch students
-  const baseExcludeFilter = {
-    Batch: {
-      name: {
-        not: 'Test',
-      },
-    },
-  }
-
-  const [
-    totalStudents,
-    activeSubscriptions,
-    registeredStudents,
-    totalRevenue,
-    enrolledStudents,
-  ] = await Promise.all([
-    prisma.student.count({
-      where: {
-        AND: [baseExcludeFilter, { status: { not: 'withdrawn' } }],
-      },
-    }),
-    prisma.student.count({
-      where: {
-        AND: [
-          baseExcludeFilter,
-          {
-            subscriptionStatus: 'active',
-            status: { not: STUDENT_STATUS.WITHDRAWN },
-          },
-        ],
-      },
-    }),
-    prisma.student.count({
-      where: {
-        AND: [baseExcludeFilter, { status: STUDENT_STATUS.REGISTERED }],
-      },
-    }),
-    prisma.studentPayment.aggregate({
-      _sum: { amountPaid: true },
-      where: {
-        Student: baseExcludeFilter,
-      },
-    }),
-    prisma.student.count({
-      where: {
-        AND: [baseExcludeFilter, { status: STUDENT_STATUS.ENROLLED }],
-      },
-    }),
-  ])
-
+  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
   return {
-    totalStudents,
-    activeSubscriptions,
-    registeredStudents,
-    totalRevenue: totalRevenue._sum.amountPaid || 0,
-    enrolledStudents,
+    totalStudents: 0,
+    activeSubscriptions: 0,
+    registeredStudents: 0,
+    totalRevenue: 0,
+    enrolledStudents: 0,
   }
 }
 

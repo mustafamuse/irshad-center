@@ -4,40 +4,46 @@
  */
 
 // Base types from Prisma
-import { Student } from '@prisma/client'
+import {
+  Gender,
+  EducationLevel,
+  GradeLevel,
+  SubscriptionStatus,
+  StripeAccountType,
+} from '@prisma/client'
 
-// Full registration type (extends Prisma Student)
-export type DugsiRegistration = Pick<
-  Student,
-  | 'id'
-  | 'name'
-  | 'gender'
-  | 'dateOfBirth'
-  | 'educationLevel'
-  | 'gradeLevel'
-  | 'schoolName'
-  | 'healthInfo'
-  | 'createdAt'
-  | 'parentFirstName'
-  | 'parentLastName'
-  | 'parentEmail'
-  | 'parentPhone'
-  | 'parent2FirstName'
-  | 'parent2LastName'
-  | 'parent2Email'
-  | 'parent2Phone'
-  | 'paymentMethodCaptured'
-  | 'paymentMethodCapturedAt'
-  | 'stripeCustomerIdDugsi'
-  | 'stripeSubscriptionIdDugsi'
-  | 'paymentIntentIdDugsi'
-  | 'subscriptionStatus'
-  | 'paidUntil'
-  | 'currentPeriodStart'
-  | 'currentPeriodEnd'
-  | 'familyReferenceId'
-  | 'stripeAccountType'
->
+// Full registration type - manually defined since Student model was removed
+// TODO: Migrate to Person/ProgramProfile model
+export interface DugsiRegistration {
+  id: string
+  name: string
+  gender: Gender | null
+  dateOfBirth: Date | null
+  educationLevel: EducationLevel | null
+  gradeLevel: GradeLevel | null
+  schoolName: string | null
+  healthInfo: string | null
+  createdAt: Date
+  parentFirstName: string | null
+  parentLastName: string | null
+  parentEmail: string | null
+  parentPhone: string | null
+  parent2FirstName: string | null
+  parent2LastName: string | null
+  parent2Email: string | null
+  parent2Phone: string | null
+  paymentMethodCaptured: boolean
+  paymentMethodCapturedAt: Date | null
+  stripeCustomerIdDugsi: string | null
+  stripeSubscriptionIdDugsi: string | null
+  paymentIntentIdDugsi: string | null
+  subscriptionStatus: SubscriptionStatus | null
+  paidUntil: Date | null
+  currentPeriodStart: Date | null
+  currentPeriodEnd: Date | null
+  familyReferenceId: string | null
+  stripeAccountType: StripeAccountType | null
+}
 
 // Family type
 export interface Family {

@@ -1,3 +1,12 @@
+/**
+ * ⚠️ CRITICAL MIGRATION NEEDED:
+ * This file uses the legacy Student model which has been removed.
+ * All functions need to be migrated to:
+ * - Subscription/BillingAssignment model for subscription management
+ * - ProgramProfile/Enrollment model for student records
+ * - Person model for customer identification
+ */
+
 import type { Stripe } from 'stripe'
 
 import { prisma } from '@/lib/db'
@@ -15,66 +24,15 @@ import { extractPeriodDates } from '@/lib/utils/type-guards'
  * This function fetches the latest subscription data from Stripe and updates the
  * corresponding student records.
  * @param subscriptionId - The ID of the Stripe subscription to sync.
+ * 
+ * TODO: Migrate to Subscription/BillingAssignment model - Student model removed
  */
 export async function syncStudentSubscriptionState(subscriptionId: string) {
-  console.log(
-    `[WEBHOOK] syncStudentSubscriptionState: Starting sync for Subscription ID: ${subscriptionId}`
+  console.warn(
+    `[WEBHOOK] syncStudentSubscriptionState: Migration needed for Subscription ID: ${subscriptionId}`
   )
-  try {
-    const subscription: Stripe.Subscription =
-      await stripe.subscriptions.retrieve(subscriptionId)
-
-    // Extract period dates
-    const periodDates = extractPeriodDates(subscription)
-
-    // Use transaction to ensure atomic updates of all students
-    const updateResults = await prisma.$transaction(async (tx) => {
-      // Find all students linked to this subscription
-      const students = await tx.student.findMany({
-        where: {
-          stripeSubscriptionId: subscription.id,
-          program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
-        },
-        select: {
-          id: true,
-          subscriptionStatus: true,
-          stripeSubscriptionId: true,
-        },
-      })
-
-      if (students.length === 0) {
-        console.log(
-          `[WEBHOOK] syncStudentSubscriptionState: No students found for Subscription ID: ${subscription.id}. Skipping sync.`
-        )
-        return []
-      }
-
-      // Update each student using centralized utility
-      const updatePromises = updateStudentsInTransaction(
-        students,
-        {
-          subscriptionId: subscription.id,
-          subscriptionStatus: subscription.status,
-          newStudentStatus: getNewStudentStatus(subscription.status),
-          periodStart: periodDates.periodStart,
-          periodEnd: periodDates.periodEnd,
-          program: 'MAHAD',
-        },
-        tx
-      )
-
-      return await Promise.all(updatePromises)
-    })
-
-    console.log(
-      `[WEBHOOK] syncStudentSubscriptionState: Successfully synced Subscription ID: ${subscription.id}. Matched and updated ${updateResults.length} student(s) to status: ${subscription.status}.`
-    )
-  } catch (error) {
-    console.error(
-      `[WEBHOOK] syncStudentSubscriptionState: Error syncing Subscription ID: ${subscriptionId}.`,
-      error
-    )
-  }
+  // TODO: Migrate to Subscription/BillingAssignment model - Student model removed
+  // Stub: Return without updating database
 }
 
 /**
@@ -102,62 +60,11 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 
   const subscriptionId = session.subscription as string
 
-  // Idempotency Check: Prevent re-linking a subscription
-  const existingStudent = await prisma.student.findFirst({
-    where: { stripeSubscriptionId: subscriptionId },
-  })
-
-  if (existingStudent) {
-    console.log(
-      `[WEBHOOK] Student ${existingStudent.id} is already linked to subscription ${subscriptionId}. Skipping.`
-    )
-    return
-  }
-
-  // Use the StudentMatcher service to find the student
-  const matchResult = await studentMatcher.findByCheckoutSession(session)
-
-  if (matchResult.student) {
-    const oldSubscriptionId = matchResult.student.stripeSubscriptionId
-    const updateData: any = {
-      stripeCustomerId: session.customer as string,
-      stripeSubscriptionId: subscriptionId,
-      // Don't set status here - let syncStudentSubscriptionState handle it
-      // based on the actual Stripe subscription status (e.g., 'trialing' -> REGISTERED, 'active' -> ENROLLED)
-      // Only update email if we have a validated one and student doesn't have one
-      ...(matchResult.validatedEmail &&
-        !matchResult.student.email && { email: matchResult.validatedEmail }),
-    }
-
-    // Track subscription history: if student already has a subscription, add it to history
-    if (oldSubscriptionId && oldSubscriptionId !== subscriptionId) {
-      updateData.previousSubscriptionIds = {
-        push: oldSubscriptionId,
-      }
-    }
-
-    // Link the student to the subscription
-    await prisma.student.update({
-      where: { id: matchResult.student.id },
-      data: updateData,
-    })
-
-    console.log(
-      `[WEBHOOK] Successfully linked Subscription ID: ${subscriptionId} to Student: ${matchResult.student.name} (${matchResult.student.id}) via ${matchResult.matchMethod}`
-    )
-    if (oldSubscriptionId) {
-      console.log(
-        `[WEBHOOK] Added previous subscription ${oldSubscriptionId} to history`
-      )
-    }
-
-    // Sync the initial state. The subscription is now linked, and its status
-    // will be updated to reflect the true state from Stripe (e.g., 'trialing' -> REGISTERED, 'active' -> ENROLLED).
-    await syncStudentSubscriptionState(subscriptionId)
-  } else {
-    // Log detailed warning for manual review
-    studentMatcher.logNoMatchFound(session, subscriptionId)
-  }
+  // TODO: Migrate to Subscription/BillingAssignment/ProgramProfile model - Student model removed
+  console.warn(
+    `[WEBHOOK] Checkout session completed - Migration needed for Session ID: ${session.id}, Subscription ID: ${subscriptionId}`
+  )
+  // Stub: Return without updating database
 }
 
 /**
@@ -214,47 +121,11 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     return
   }
 
-  const students = await prisma.student.findMany({
-    where: {
-      stripeSubscriptionId: subscription.id,
-      program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
-    },
-  })
-
-  if (students.length === 0) {
-    console.log(
-      `[WEBHOOK] Invoice ${invoice.id} succeeded, but no students found for subscription ${subscription.id}.`
-    )
-    return
-  }
-
-  const periodStart = new Date(subscriptionLineItem.period.start * 1000)
-  const paidAt = invoice.status_transitions.paid_at
-    ? new Date(invoice.status_transitions.paid_at * 1000)
-    : new Date()
-
-  const amountPerStudent =
-    students.length > 0 ? Math.floor(invoice.amount_paid / students.length) : 0
-
-  const paymentData = students.map((student) => ({
-    studentId: student.id,
-    stripeInvoiceId: stripeInvoiceId,
-    amountPaid: amountPerStudent,
-    year: periodStart.getUTCFullYear(),
-    month: periodStart.getUTCMonth() + 1,
-    paidAt: paidAt,
-  }))
-
-  const { count: createdCount } = await prisma.studentPayment.createMany({
-    data: paymentData,
-    skipDuplicates: true,
-  })
-
-  if (createdCount > 0) {
-    console.log(
-      `[WEBHOOK] Successfully created ${createdCount} payment record(s) for Invoice ID: ${stripeInvoiceId}.`
-    )
-  }
+  // TODO: Migrate to StudentPayment/BillingAssignment/ProgramProfile model - Student model removed
+  console.warn(
+    `[WEBHOOK] Invoice payment succeeded - Migration needed for Invoice ID: ${stripeInvoiceId}, Subscription ID: ${subscription.id}`
+  )
+  // Stub: Return without creating payment records
   // --- End of Transactional Record Creation ---
 
   // After creating the historical record, sync the student's state from the subscription.
@@ -332,39 +203,9 @@ export async function handleSubscriptionDeleted(event: Stripe.Event) {
     `[WEBHOOK] Processing 'customer.subscription.deleted' for Subscription ID: ${subscription.id}`
   )
 
-  // Use transaction to atomically update all students
-  await prisma.$transaction(async (tx) => {
-    // First, find the students associated with the subscription before it's gone.
-    const students = await tx.student.findMany({
-      where: {
-        stripeSubscriptionId: subscription.id,
-        program: 'MAHAD_PROGRAM', // ✅ Prevent cross-contamination with Dugsi
-      },
-      select: {
-        id: true,
-      },
-    })
-
-    if (students.length > 0) {
-      // Build cancellation data using centralized utility
-      const cancellationData = buildCancellationUpdateData(
-        subscription.id,
-        'MAHAD'
-      )
-
-      // Update each student with cancellation data
-      await Promise.all(
-        students.map((student) =>
-          tx.student.update({
-            where: { id: student.id },
-            data: cancellationData,
-          })
-        )
-      )
-
-      console.log(
-        `[WEBHOOK] Subscription ${subscription.id} deleted. Added to history, unlinked and marked ${students.length} student(s) as canceled/withdrawn.`
-      )
-    }
-  })
+  // TODO: Migrate to Subscription/BillingAssignment model - Student model removed
+  console.warn(
+    `[WEBHOOK] Subscription deleted - Migration needed for Subscription ID: ${subscription.id}`
+  )
+  // Stub: Return without updating database
 }

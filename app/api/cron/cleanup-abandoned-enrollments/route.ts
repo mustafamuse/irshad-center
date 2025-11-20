@@ -57,12 +57,13 @@ export async function POST(req: Request) {
           continue
         }
 
+        // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
         // Check if this customer exists in our database
-        const student = await prisma.student.findFirst({
+        const subscription = await prisma.subscription.findFirst({
           where: { stripeCustomerId: customer.id },
         })
 
-        if (student) {
+        if (subscription) {
           // This customer exists in our database, so it's not abandoned
           continue
         }

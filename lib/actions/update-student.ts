@@ -1,22 +1,14 @@
 'use server'
 
+// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
+// TODO: Migrate to ProgramProfile/Enrollment model
+
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
-export async function updateStudent(
-  id: string,
-  data: Prisma.StudentUpdateInput
-) {
-  try {
-    return {
-      student: await prisma.student.update({
-        where: { id },
-        data,
-      }),
-    }
-  } catch (error) {
-    console.error('Failed to update student:', error)
-    throw new Error('Failed to update student information')
-  }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function updateStudent(id: string, data: any) {
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  throw new Error('Migration needed: Student model has been removed. Please migrate to ProgramProfile/Enrollment model.')
 }
