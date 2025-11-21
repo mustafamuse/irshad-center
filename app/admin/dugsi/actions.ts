@@ -2,12 +2,13 @@
 
 import { revalidatePath } from 'next/cache'
 
-import {
-  EducationLevel,
-  GradeLevel,
-  SubscriptionStatus,
-  StripeAccountType,
-} from '@prisma/client'
+import { $Enums, Prisma } from '@prisma/client'
+
+// Extract enum types for convenience
+type EducationLevel = $Enums.EducationLevel
+type GradeLevel = $Enums.GradeLevel
+type SubscriptionStatus = $Enums.SubscriptionStatus
+type StripeAccountType = $Enums.StripeAccountType
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'

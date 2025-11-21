@@ -2,7 +2,10 @@
 // TODO: Migrate to ProgramProfile/Enrollment model
 // All tests are skipped until migration is complete
 
-import type { Student } from '@prisma/client'
+// Student model no longer exists - using ProgramProfile instead
+// import type { Student } from '@prisma/client'
+import type { ProgramProfile } from '@prisma/client'
+type Student = ProgramProfile // Temporary type alias for migration
 import type { Stripe } from 'stripe'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 

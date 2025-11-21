@@ -3,14 +3,43 @@
  * Single source of truth for all types used across components
  */
 
-// Base types from Prisma
-import {
-  Gender,
-  EducationLevel,
-  GradeLevel,
-  SubscriptionStatus,
-  StripeAccountType,
-} from '@prisma/client'
+// Base types - defined locally to match Prisma schema (browser-safe)
+// These match the enums from Prisma schema to avoid importing Prisma Client in browser
+type Gender = 'MALE' | 'FEMALE'
+type EducationLevel =
+  | 'HIGH_SCHOOL'
+  | 'COLLEGE'
+  | 'POST_GRAD'
+  | 'ELEMENTARY'
+  | 'MIDDLE_SCHOOL'
+type GradeLevel =
+  | 'FRESHMAN'
+  | 'SOPHOMORE'
+  | 'JUNIOR'
+  | 'SENIOR'
+  | 'KINDERGARTEN'
+  | 'GRADE_1'
+  | 'GRADE_2'
+  | 'GRADE_3'
+  | 'GRADE_4'
+  | 'GRADE_5'
+  | 'GRADE_6'
+  | 'GRADE_7'
+  | 'GRADE_8'
+  | 'GRADE_9'
+  | 'GRADE_10'
+  | 'GRADE_11'
+  | 'GRADE_12'
+type SubscriptionStatus =
+  | 'incomplete'
+  | 'incomplete_expired'
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'unpaid'
+  | 'paused'
+type StripeAccountType = 'MAHAD' | 'DUGSI' | 'YOUTH_EVENTS' | 'GENERAL_DONATION'
 
 // Full registration type - manually defined since Student model was removed
 // Maps ProgramProfile + Person + BillingAssignment data to legacy format for UI compatibility

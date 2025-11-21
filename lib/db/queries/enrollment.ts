@@ -10,6 +10,10 @@ import { Prisma, EnrollmentStatus, Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import { validateEnrollment } from '@/lib/services/validation-service'
+import {
+  isValidStatusTransition,
+  ENROLLMENT_STATUS_TRANSITIONS,
+} from '@/lib/types/enrollment'
 
 /**
  * Get all enrollments for a program profile
@@ -195,6 +199,14 @@ export async function updateEnrollmentStatus(
 
   if (!enrollment) {
     throw new Error(`Enrollment not found: ${enrollmentId}`)
+  }
+
+  // Validate status transition
+  if (!isValidStatusTransition(enrollment.status, status)) {
+    throw new Error(
+      `Invalid status transition from ${enrollment.status} to ${status}. ` +
+        `This enrollment can only transition to: ${ENROLLMENT_STATUS_TRANSITIONS[enrollment.status]?.join(', ') || 'none'}`
+    )
   }
 
   // If withdrawing, set endDate

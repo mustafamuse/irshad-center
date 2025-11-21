@@ -328,28 +328,8 @@ export async function getEnrollmentsByBatch(
   })
 }
 
-/**
- * Get active enrollments for a program profile
- * @param client - Optional database client (for transaction support)
- */
-export async function getActiveEnrollment(
-  programProfileId: string,
-  client: DatabaseClient = prisma
-) {
-  return client.enrollment.findFirst({
-    where: {
-      programProfileId,
-      status: 'ENROLLED',
-      endDate: null,
-    },
-    include: {
-      batch: true,
-    },
-    orderBy: {
-      startDate: 'desc',
-    },
-  })
-}
+// Note: getActiveEnrollment moved to enrollment.ts to avoid duplication
+// Import from '@/lib/db/queries/enrollment' if needed
 
 /**
  * Create a new enrollment

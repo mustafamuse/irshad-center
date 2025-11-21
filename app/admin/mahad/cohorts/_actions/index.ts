@@ -11,7 +11,11 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma, EducationLevel, GradeLevel } from '@prisma/client'
+import { Prisma, $Enums } from '@prisma/client'
+
+// Extract enum types for convenience
+type EducationLevel = $Enums.EducationLevel
+type GradeLevel = $Enums.GradeLevel
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
@@ -458,6 +462,17 @@ export async function resolveDuplicatesAction(
           )
         }
       }
+
+      // Deactivate billing assignments to prevent orphaned subscriptions
+      await prisma.billingAssignment.updateMany({
+        where: {
+          programProfileId: deleteRecord.id,
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+        },
+      })
 
       // Update profile status
       await prisma.programProfile.update({
