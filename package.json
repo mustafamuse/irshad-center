@@ -29,11 +29,15 @@
     "export-data": "curl -o seed-data.json http://localhost:3000/api/admin/export",
     "seed-from-export": "tsx scripts/seed-from-export.ts",
     "pr-template": "node .github/scripts/suggest-pr-template.js",
-    "setup-hooks": "bash .github/scripts/setup-hooks.sh"
+    "setup-hooks": "bash .github/scripts/setup-hooks.sh",
+    "db:safety-check": "tsx scripts/db-safety-check.ts",
+    "db:reset-safe": "tsx scripts/safe-migrate-reset.ts",
+    "merge:duplicates": "tsx scripts/merge-duplicate-persons.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@internationalized/date": "^3.9.0",
+    "@prisma/adapter-pg": "^6.16.2",
     "@prisma/client": "^6.16.2",
     "@radix-ui/react-accordion": "^1.2.1",
     "@radix-ui/react-alert-dialog": "^1.0.5",
@@ -96,6 +100,7 @@
     "next-intl": "^4.3.12",
     "next-themes": "^0.2.1",
     "nuqs": "^2.4.3",
+    "pg": "^8.13.1",
     "praytime": "^3.2.0",
     "raw-body": "^3.0.0",
     "react": "^18",
@@ -125,6 +130,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/dotenv": "^6.1.1",
     "@types/node": "^20",
+    "@types/pg": "^8.11.10",
     "@types/prompts": "^2.4.9",
     "@types/react": "^18",
     "@types/react-dom": "^18",
@@ -162,7 +168,7 @@
     "ts-node": "^10.9.2",
     "tsc-files": "^1.1.4",
     "tsx": "^4.19.2",
-    "typescript": "^5.3.3",
+    "typescript": "^5.9.0",
     "vitest": "^3.2.4"
   },
   "lint-staged": {

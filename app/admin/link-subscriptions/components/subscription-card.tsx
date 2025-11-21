@@ -57,8 +57,8 @@ export function SubscriptionCard({
       } else {
         toast.error(result.error || 'Failed to link subscription')
       }
-    } catch (error: any) {
-      toast.error(error.message || 'An error occurred')
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'An error occurred')
     } finally {
       setIsLinking(false)
     }

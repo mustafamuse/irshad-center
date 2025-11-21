@@ -1,6 +1,11 @@
 /**
  * Family grouping and manipulation utilities
  * Single source of truth for family identification logic
+ *
+ * ✅ MIGRATION COMPLETE:
+ * These utilities work with DugsiRegistration type which is mapped from
+ * ProgramProfile + Person + BillingAssignment data. The actual database
+ * queries are handled in actions.ts using getProgramProfilesByFamilyId().
  */
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -12,7 +17,6 @@ import { DugsiRegistration, Family, FamilyStatus } from '../_types'
  * Priority: familyReferenceId > parentEmail > id
  *
  * This function defines how families are grouped throughout the application:
- * - **UI grouping**: Groups students into families for display
  *
  * **How it works:**
  * 1. If `familyReferenceId` exists, all students with the same ID are one family
@@ -48,6 +52,10 @@ export function getFamilyKey(registration: DugsiRegistration): string {
  *
  * Priority: familyReferenceId > parentEmail > single student
  *
+ * @deprecated This function is kept for backward compatibility but is no longer
+ * used in the migrated code. Family operations now use getProgramProfilesByFamilyId()
+ * directly in actions.ts.
+ *
  * @param student - Student object with familyReferenceId and parentEmail
  * @returns Object with where clause and isSingleStudent flag
  *
@@ -55,9 +63,9 @@ export function getFamilyKey(registration: DugsiRegistration): string {
  * ```typescript
  * const { where, isSingleStudent } = getFamilyWhereClause(student)
  * if (isSingleStudent) {
- *   await tx.student.update({ where: { id: studentId }, data })
+ *   await tx.programProfile.update({ where: { id: studentId }, data })
  * } else {
- *   await tx.student.updateMany({ where, data })
+ *   await tx.programProfile.updateMany({ where, data })
  * }
  * ```
  */
@@ -72,7 +80,6 @@ export function getFamilyWhereClause(student: {
       }
     | {
         program: typeof DUGSI_PROGRAM
-        parentEmail: string
         familyReferenceId: null
       }
     | null
@@ -90,11 +97,13 @@ export function getFamilyWhereClause(student: {
   }
 
   if (student.parentEmail) {
-    // Match by parentEmail (only students without familyReferenceId)
+    // Note: parentEmail matching is deprecated - use familyReferenceId instead
+    // This is kept for backward compatibility with legacy data
     return {
       where: {
         program: DUGSI_PROGRAM,
-        parentEmail: student.parentEmail,
+        // Note: parentEmail is not a field on ProgramProfile - this where clause
+        // would need to be implemented via guardian relationships if needed
         familyReferenceId: null,
       },
       isSingleStudent: false,

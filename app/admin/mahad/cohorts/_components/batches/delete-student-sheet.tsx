@@ -32,7 +32,6 @@ interface DeleteStudentSheetProps {
 
 interface AggregateWarnings {
   studentsWithSiblings: number
-  studentsWithAttendance: number
 }
 
 export function DeleteStudentSheet({ students }: DeleteStudentSheetProps) {
@@ -62,17 +61,14 @@ export function DeleteStudentSheet({ students }: DeleteStudentSheetProps) {
             (acc, result) => ({
               studentsWithSiblings:
                 acc.studentsWithSiblings + (result.data.hasSiblings ? 1 : 0),
-              studentsWithAttendance:
-                acc.studentsWithAttendance +
-                (result.data.hasAttendanceRecords ? 1 : 0),
             }),
-            { studentsWithSiblings: 0, studentsWithAttendance: 0 }
+            { studentsWithSiblings: 0 }
           )
           setWarnings(aggregate)
         })
         .catch((error) => {
           console.error('Failed to fetch delete warnings:', error)
-          setWarnings({ studentsWithSiblings: 0, studentsWithAttendance: 0 })
+          setWarnings({ studentsWithSiblings: 0 })
         })
         .finally(() => {
           setIsLoadingWarnings(false)
@@ -168,8 +164,7 @@ export function DeleteStudentSheet({ students }: DeleteStudentSheetProps) {
 
                 {!isLoadingWarnings &&
                   warnings &&
-                  (warnings.studentsWithSiblings > 0 ||
-                    warnings.studentsWithAttendance > 0) && (
+                  warnings.studentsWithSiblings > 0 && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-amber-800">
                         <AlertTriangle className="h-4 w-4" />
@@ -183,15 +178,6 @@ export function DeleteStudentSheet({ students }: DeleteStudentSheetProps) {
                           >
                             {warnings.studentsWithSiblings} with sibling
                             relationships
-                          </Badge>
-                        )}
-                        {warnings.studentsWithAttendance > 0 && (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-500 text-amber-700"
-                          >
-                            {warnings.studentsWithAttendance} with attendance
-                            records
                           </Badge>
                         )}
                       </div>

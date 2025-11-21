@@ -18,7 +18,7 @@ export interface LogEventData {
   eventId: string
   type: string
   message?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   error?: string
   timestamp: number
   customerId?: string

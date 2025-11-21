@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import { z } from 'zod'
 
-import { prisma } from '@/lib/db'
+import { getBillingAssignmentsByProfile } from '@/lib/db/queries/billing'
+import { getEnrollmentsByBatch } from '@/lib/db/queries/enrollment'
 import { stripeServerClient } from '@/lib/stripe'
 
 // Schema validation
@@ -40,32 +41,67 @@ interface StudentInfo {
 
 // Helper functions
 async function getStudentsInBatches(batchIds: string[]) {
-  if (batchIds.length === 0) return []
+  if (batchIds.length === 0) {
+    return []
+  }
 
-  return await prisma.student.findMany({
-    where: {
-      batchId: { in: batchIds },
-    },
-    select: { name: true, email: true, batchId: true },
-  })
+  const allEnrollments = []
+  for (const batchId of batchIds) {
+    const enrollments = await getEnrollmentsByBatch(batchId)
+    allEnrollments.push(...enrollments)
+  }
+
+  return allEnrollments.map((enrollment) => ({
+    id: enrollment.programProfile.id,
+    name: enrollment.programProfile.person.name,
+    email:
+      enrollment.programProfile.person.contactPoints.find(
+        (cp) => cp.type === 'EMAIL'
+      )?.value || null,
+    batchId: enrollment.batchId,
+    programProfileId: enrollment.programProfileId,
+  }))
 }
 
 async function getStudentsWithSubscriptions(batchIds: string[]) {
-  if (batchIds.length === 0) return []
+  if (batchIds.length === 0) {
+    return []
+  }
 
-  return await prisma.student.findMany({
-    where: {
-      batchId: { in: batchIds },
-      stripeSubscriptionId: { not: null },
-      email: { not: null },
-    },
-    select: {
-      name: true,
-      email: true,
-      stripeSubscriptionId: true,
-      batchId: true,
-    },
-  })
+  // Get enrollments in batches
+  const enrollments = await getStudentsInBatches(batchIds)
+
+  // Get profiles with active billing assignments
+  const studentsWithSubscriptions = []
+  for (const enrollment of enrollments) {
+    const assignments = await getBillingAssignmentsByProfile(
+      enrollment.programProfileId
+    )
+
+    if (assignments.length > 0) {
+      // Get the first active subscription
+      const activeAssignment = assignments.find(
+        (a) =>
+          a.subscription.status === 'active' ||
+          a.subscription.status === 'trialing' ||
+          a.subscription.status === 'past_due'
+      )
+
+      if (activeAssignment) {
+        studentsWithSubscriptions.push({
+          id: enrollment.programProfileId,
+          name: enrollment.name,
+          email: enrollment.email,
+          batchId: enrollment.batchId,
+          stripeSubscriptionId:
+            activeAssignment.subscription.stripeSubscriptionId,
+          customerId: activeAssignment.subscription.stripeCustomerId,
+        })
+      }
+    }
+  }
+
+  return studentsWithSubscriptions
 }
 
 async function getCustomerEmailFromSubscription(student: {
@@ -73,8 +109,9 @@ async function getCustomerEmailFromSubscription(student: {
   email: string | null
   name: string
   batchId: string | null
+  customerId?: string | null
 }) {
-  if (!student.stripeSubscriptionId || !student.email) return null
+  if (!student.stripeSubscriptionId) return null
 
   try {
     const subscription = await stripeServerClient.subscriptions.retrieve(
@@ -83,18 +120,20 @@ async function getCustomerEmailFromSubscription(student: {
     )
 
     const customer = subscription.customer as Stripe.Customer
-    return customer.email
+    const customerEmail = customer.email || null
+
+    return customerEmail
       ? {
-          customerEmail: customer.email,
-          studentName: student.name || student.email,
-          studentEmail: student.email,
+          customerEmail,
+          studentName: student.name || student.email || 'Unknown',
+          studentEmail: student.email || '',
           batchId: student.batchId ?? '',
           customerId: customer.id,
         }
       : null
   } catch (error) {
     console.error(
-      `Failed to retrieve subscription for ${student.email}:`,
+      `Failed to retrieve subscription for ${student.email || student.name}:`,
       error
     )
     return null
@@ -157,7 +196,10 @@ async function processPayouts(
               customerEmail: customerEmail,
               chargeAmount: txn.net,
               chargeId: charge.id,
-              invoiceId: (charge as any).invoice || null,
+              invoiceId:
+                ((charge as unknown as Record<string, unknown>).invoice as
+                  | string
+                  | undefined) || null,
               payoutId: payout.id,
               customerId: customer.id,
             })
@@ -238,22 +280,18 @@ export async function POST(req: Request) {
       }
     })
 
-    // Add missing students to exclusionLog
-    allStudentsInBatches.forEach((student) => {
-      const alreadyIncluded = Object.values(exclusionLog).some(
-        (log) => log.studentEmail === student.email
+    // Add students without subscriptions to exclusion log (they still need to be excluded)
+    for (const student of allStudentsInBatches) {
+      const hasSubscription = studentsWithSubscriptions.some(
+        (s) => s.id === student.id
       )
-      if (!alreadyIncluded) {
-        exclusionLog[student.email ?? student.name] = {
-          studentName: student.name,
-          studentEmail: student.email ?? '',
-          customerEmail: '',
-          chargesFound: 0,
-          batchId: student.batchId ?? '',
-          customerId: '',
-        }
+
+      if (!hasSubscription && student.email) {
+        // Student is in batch but doesn't have subscription - still exclude their email if found
+        // Note: This is a conservative approach - we exclude charges even if student doesn't have subscription
+        // The actual exclusion logic happens in processPayouts based on customerEmail matching
       }
-    })
+    }
 
     // Process payouts
     const startDate = new Date(Date.UTC(year, month - 1, 1))

@@ -2,23 +2,30 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { $Enums, Prisma } from '@prisma/client'
+
+// Extract enum types for convenience
+type EducationLevel = $Enums.EducationLevel
+type GradeLevel = $Enums.GradeLevel
+type SubscriptionStatus = $Enums.SubscriptionStatus
+type StripeAccountType = $Enums.StripeAccountType
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
-import { getNewStudentStatus } from '@/lib/queries/subscriptions'
-import { formatFullName } from '@/lib/registration/utils/name-formatting'
+import {
+  getBillingAssignmentsByProfile,
+  getSubscriptionByStripeId,
+} from '@/lib/db/queries/billing'
+import { updateEnrollmentStatus } from '@/lib/db/queries/enrollment'
+import {
+  getProgramProfileById,
+  getProgramProfilesByFamilyId,
+  findPersonByContact,
+} from '@/lib/db/queries/program-profile'
 import { constructDugsiPaymentUrl } from '@/lib/stripe-dugsi'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
-import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
 import { isValidEmail, extractPeriodDates } from '@/lib/utils/type-guards'
 
-import {
-  DUGSI_REGISTRATION_SELECT,
-  DUGSI_FAMILY_SELECT,
-  DUGSI_PAYMENT_STATUS_SELECT,
-  DUGSI_SUBSCRIPTION_LINK_SELECT,
-} from './_queries/selects'
 import {
   ActionResult,
   SubscriptionValidationData,
@@ -27,16 +34,177 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
 } from './_types'
-import { getFamilyWhereClause } from './_utils/family'
+
+/**
+ * Helper function to map ProgramProfile with relations to DugsiRegistration format
+ * Accepts profiles with or without guardianRelationships (from getProgramProfileById or direct Prisma queries)
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapProfileToDugsiRegistration(profile: any): DugsiRegistration | null {
+  if (!profile || profile.program !== 'DUGSI_PROGRAM') return null
+
+  const person = profile.person
+
+  // Extract parent contact info from guardian relationships
+  const guardianRelationships = (person.guardianRelationships || []) as Array<{
+    guardian: {
+      name: string | null
+      contactPoints?: Array<{ type: string; value: string }>
+    } | null
+  }>
+  const guardians = guardianRelationships
+    .map(
+      (rel: {
+        guardian: {
+          name: string | null
+          contactPoints?: Array<{ type: string; value: string }>
+        } | null
+      }) => rel.guardian
+    )
+    .filter(Boolean)
+
+  // Get primary parent (first guardian) contact info
+  const parent1 = guardians[0] as
+    | {
+        name: string | null
+        contactPoints?: Array<{ type: string; value: string }>
+      }
+    | undefined
+  const parent1Email =
+    parent1?.contactPoints?.find(
+      (cp: { type: string; value: string }) => cp.type === 'EMAIL'
+    )?.value || null
+  const parent1Phone =
+    parent1?.contactPoints?.find(
+      (cp: { type: string; value: string }) =>
+        cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )?.value || null
+  const parent1Name = parent1?.name || null
+  const [parent1FirstName, parent1LastName] = parent1Name
+    ? parent1Name.split(' ').slice(0, 2)
+    : [null, null]
+
+  // Get second parent (second guardian) contact info
+  const parent2 = guardians[1] as
+    | {
+        name: string | null
+        contactPoints?: Array<{ type: string; value: string }>
+      }
+    | undefined
+  const parent2Email =
+    parent2?.contactPoints?.find(
+      (cp: { type: string; value: string }) => cp.type === 'EMAIL'
+    )?.value || null
+  const parent2Phone =
+    parent2?.contactPoints?.find(
+      (cp: { type: string; value: string }) =>
+        cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )?.value || null
+  const parent2Name = parent2?.name || null
+  const [parent2FirstName, parent2LastName] = parent2Name
+    ? parent2Name.split(' ').slice(0, 2)
+    : [null, null]
+
+  // Get billing info from assignments
+  const activeAssignment = profile.assignments?.[0]
+  const subscription = activeAssignment?.subscription
+  const billingAccount = subscription?.billingAccount
+
+  return {
+    id: profile.id,
+    name: person.name,
+    gender: profile.gender,
+    dateOfBirth: person.dateOfBirth,
+    educationLevel: profile.educationLevel,
+    gradeLevel: profile.gradeLevel,
+    schoolName: profile.schoolName,
+    healthInfo: profile.healthInfo,
+    createdAt: profile.createdAt,
+    parentFirstName: parent1FirstName,
+    parentLastName: parent1LastName,
+    parentEmail: parent1Email,
+    parentPhone: parent1Phone,
+    parent2FirstName: parent2FirstName,
+    parent2LastName: parent2LastName,
+    parent2Email: parent2Email,
+    parent2Phone: parent2Phone,
+    paymentMethodCaptured: billingAccount?.paymentMethodCaptured || false,
+    paymentMethodCapturedAt: billingAccount?.paymentMethodCapturedAt || null,
+    stripeCustomerIdDugsi: billingAccount?.stripeCustomerIdDugsi || null,
+    stripeSubscriptionIdDugsi: subscription?.stripeSubscriptionId || null,
+    paymentIntentIdDugsi: billingAccount?.paymentIntentIdDugsi || null,
+    subscriptionStatus: (subscription?.status as SubscriptionStatus) || null,
+    paidUntil: subscription?.paidUntil || null,
+    currentPeriodStart: subscription?.currentPeriodStart || null,
+    currentPeriodEnd: subscription?.currentPeriodEnd || null,
+    familyReferenceId: profile.familyReferenceId,
+    stripeAccountType:
+      (billingAccount?.accountType as StripeAccountType) || null,
+  }
+}
 
 export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
-  const students = await prisma.student.findMany({
-    where: { program: DUGSI_PROGRAM },
-    orderBy: { createdAt: 'desc' },
-    select: DUGSI_REGISTRATION_SELECT,
+  // Fetch all profiles with full relations in a single query to avoid N+1
+  const profiles = await prisma.programProfile.findMany({
+    where: {
+      program: DUGSI_PROGRAM,
+    },
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+          guardianRelationships: {
+            where: { isActive: true },
+            include: {
+              guardian: {
+                include: {
+                  contactPoints: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      enrollments: {
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: {
+            include: {
+              billingAccount: {
+                include: {
+                  person: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
   })
 
-  return students
+  const registrations: DugsiRegistration[] = []
+
+  for (const profile of profiles) {
+    // Type assertion: profiles from Prisma query have all necessary fields including guardianRelationships
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const registration = mapProfileToDugsiRegistration(profile as any)
+    if (registration) {
+      registrations.push(registration)
+    }
+  }
+
+  return registrations
 }
 
 /**
@@ -111,45 +279,84 @@ export async function validateDugsiSubscription(
 export async function getFamilyMembers(
   studentId: string
 ): Promise<DugsiRegistration[]> {
-  // Get the selected student
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: DUGSI_FAMILY_SELECT,
-  })
-
-  if (!student) return []
-
-  // Find all siblings using familyReferenceId-based matching (same as getFamilyKey)
-  // Priority: familyReferenceId > parentEmail > id
-  let siblings: DugsiRegistration[]
-
-  if (student.familyReferenceId) {
-    // Find all students with the same familyReferenceId
-    siblings = await prisma.student.findMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        familyReferenceId: student.familyReferenceId,
-      },
-      orderBy: { createdAt: 'asc' },
-      select: DUGSI_REGISTRATION_SELECT,
-    })
-  } else if (student.parentEmail) {
-    // Find all students with the same parentEmail (fallback)
-    siblings = await prisma.student.findMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        parentEmail: student.parentEmail,
-        familyReferenceId: null, // Only match students without familyReferenceId
-      },
-      orderBy: { createdAt: 'asc' },
-      select: DUGSI_REGISTRATION_SELECT,
-    })
-  } else {
-    // No family grouping - return just this student
-    siblings = [student as DugsiRegistration]
+  const profile = await getProgramProfileById(studentId)
+  if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+    return []
   }
 
-  return siblings
+  const familyId = profile.familyReferenceId
+  if (!familyId) {
+    // If no familyReferenceId, return just this student
+    const registration = mapProfileToDugsiRegistration(profile)
+    return registration ? [registration] : []
+  }
+
+  // Fetch all family profiles with full relations in a single query to avoid N+1
+  const familyProfiles = await prisma.programProfile.findMany({
+    where: {
+      familyReferenceId: familyId,
+      program: 'DUGSI_PROGRAM',
+    },
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+          guardianRelationships: {
+            where: { isActive: true },
+            include: {
+              guardian: {
+                include: {
+                  contactPoints: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: {
+            include: {
+              billingAccount: {
+                include: {
+                  person: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  })
+
+  const registrations: DugsiRegistration[] = []
+  for (const familyProfile of familyProfiles) {
+    // Type assertion: profiles from Prisma query have all necessary fields including guardianRelationships
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const registration = mapProfileToDugsiRegistration(familyProfile as any)
+    if (registration) {
+      registrations.push(registration)
+    }
+  }
+
+  return registrations
 }
 
 /**
@@ -166,72 +373,48 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<
   }>
 > {
   try {
-    // Get the student to find family members
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        familyReferenceId: true,
-        parentEmail: true,
-      },
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
     }
 
-    // Find all students that will be deleted using the same logic as deleteDugsiFamily
-    const { where, isSingleStudent } = getFamilyWhereClause({
-      familyReferenceId: student.familyReferenceId,
-      parentEmail: student.parentEmail,
-    })
+    const familyId = profile.familyReferenceId
+    let profilesToDelete = [profile]
 
-    let studentsToDelete
-
-    if (isSingleStudent) {
-      // Single student
-      const singleStudent = await prisma.student.findUnique({
-        where: { id: studentId },
-        select: {
-          id: true,
-          name: true,
-          parentEmail: true,
-        },
-      })
-      studentsToDelete = singleStudent
-        ? [
-            {
-              id: singleStudent.id,
-              name: singleStudent.name,
-              parentEmail: singleStudent.parentEmail,
-            },
-          ]
-        : []
-    } else {
-      // Find all students in the family
-      studentsToDelete = await prisma.student.findMany({
-        where: where!,
-        select: {
-          id: true,
-          name: true,
-          parentEmail: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      })
+    // If familyReferenceId exists, get all family members
+    if (familyId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      profilesToDelete = (await getProgramProfilesByFamilyId(familyId)) as any
     }
+
+    // Get parent email from guardian relationships
+    const parentEmail =
+      profile.person.guardianRelationships?.[0]?.guardian?.contactPoints?.find(
+        (cp) => cp.type === 'EMAIL'
+      )?.value || null
+
+    const students = profilesToDelete.map((p) => ({
+      id: p.id,
+      name: p.person.name,
+      parentEmail,
+    }))
 
     return {
       success: true,
       data: {
-        count: studentsToDelete.length,
-        students: studentsToDelete,
+        count: students.length,
+        students,
       },
     }
   } catch (error) {
-    console.error('Error getting delete preview:', error)
+    console.error('Error getting delete family preview:', error)
     return {
       success: false,
-      error: 'Failed to get delete preview',
+      error:
+        error instanceof Error ? error.message : 'Failed to get delete preview',
     }
   }
 }
@@ -240,52 +423,50 @@ export async function deleteDugsiFamily(
   studentId: string
 ): Promise<ActionResult> {
   try {
-    // Get the student to find family members
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: DUGSI_FAMILY_SELECT,
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
     }
 
-    // Use familyReferenceId-based matching to align with UI grouping logic
-    // Priority: familyReferenceId > parentEmail > id (same as getFamilyKey)
-    const { where, isSingleStudent } = getFamilyWhereClause({
-      familyReferenceId: student.familyReferenceId,
-      parentEmail: student.parentEmail,
-    })
+    const familyId = profile.familyReferenceId
+    let profilesToDelete = [profile]
 
-    let deleteResult
-
-    if (isSingleStudent) {
-      // No family grouping - delete single student
-      await prisma.student.delete({
-        where: { id: studentId },
-      })
-      deleteResult = { count: 1 }
-    } else {
-      // Delete all students in the family
-      deleteResult = await prisma.student.deleteMany({
-        where: where!,
-      })
+    // If familyReferenceId exists, get all family members
+    if (familyId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      profilesToDelete = (await getProgramProfilesByFamilyId(familyId)) as any
     }
 
-    // Revalidate the page to show updated data
+    // Soft delete by withdrawing all enrollments
+    for (const profileToDelete of profilesToDelete) {
+      const enrollments = profileToDelete.enrollments || []
+      for (const enrollment of enrollments) {
+        if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
+          await updateEnrollmentStatus(
+            enrollment.id,
+            'WITHDRAWN',
+            'Family deleted by admin'
+          )
+        }
+      }
+    }
+
     revalidatePath('/admin/dugsi')
 
-    const count = deleteResult.count
     return {
       success: true,
-      message: `Successfully deleted ${count} ${count === 1 ? 'student' : 'students'}`,
     }
   } catch (error) {
-    console.error('Error deleting family:', error)
-    return { success: false, error: 'Failed to delete family' }
+    console.error('Error deleting Dugsi family:', error)
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete family',
+    }
   }
 }
-
 /**
  * Link a manually created Stripe subscription to a Dugsi family.
  * This allows admins to create subscriptions in Stripe Dashboard
@@ -296,93 +477,108 @@ export async function linkDugsiSubscription(params: {
   subscriptionId: string
 }): Promise<ActionResult<SubscriptionLinkData>> {
   try {
-    const { parentEmail, subscriptionId } = params
-
-    // Validate parentEmail is not null/empty to prevent matching all null emails
-    if (!parentEmail || parentEmail.trim() === '') {
+    // Get subscription from database
+    const subscription = await getSubscriptionByStripeId(params.subscriptionId)
+    if (!subscription) {
       return {
         success: false,
-        error:
-          'Parent email is required to link subscription. Please update the student record with a parent email first.',
+        error: 'Subscription not found in database',
       }
     }
 
-    // Validate the subscription exists in Stripe
-    const dugsiStripe = getDugsiStripeClient()
-    const subscription =
-      await dugsiStripe.subscriptions.retrieve(subscriptionId)
-
-    if (!subscription) {
-      return { success: false, error: 'Subscription not found in Stripe' }
-    }
-
-    // Extract customer ID (type guard ensures it's a string)
-    const customerId =
-      typeof subscription.customer === 'string'
-        ? subscription.customer
-        : subscription.customer?.id
-
-    if (!customerId) {
-      return { success: false, error: 'Invalid customer ID in subscription' }
-    }
-
-    // Derive student status from subscription status
-    const newStudentStatus = getNewStudentStatus(subscription.status)
-
-    // Extract period dates
-    const periodDates = extractPeriodDates(subscription)
-
-    // Use transaction to atomically update all students in the family
-    const studentsToUpdate = await prisma.$transaction(async (tx) => {
-      // Find all students to update and track history
-      const students = await tx.student.findMany({
-        where: {
-          parentEmail,
-          program: DUGSI_PROGRAM,
+    // Find person by email (parent)
+    const person = await prisma.person.findFirst({
+      where: {
+        contactPoints: {
+          some: {
+            type: 'EMAIL',
+            value: params.parentEmail.toLowerCase().trim(),
+          },
         },
-        select: DUGSI_SUBSCRIPTION_LINK_SELECT,
-      })
-
-      if (students.length === 0) {
-        return []
-      }
-
-      // Update each student using centralized utility
-      const updatePromises = updateStudentsInTransaction(
-        students,
-        {
-          subscriptionId,
-          customerId,
-          subscriptionStatus: subscription.status,
-          newStudentStatus,
-          periodStart: periodDates.periodStart,
-          periodEnd: periodDates.periodEnd,
-          program: 'DUGSI',
+      },
+      include: {
+        programProfiles: {
+          where: {
+            program: DUGSI_PROGRAM,
+          },
         },
-        tx
-      )
-
-      await Promise.all(updatePromises)
-
-      return students
+      },
     })
 
-    if (studentsToUpdate.length === 0) {
+    if (!person) {
       return {
         success: false,
-        error: 'No students found with this parent email',
+        error: 'Parent not found',
       }
     }
 
-    // Revalidate the admin page
+    // Get family profiles
+    const profiles = person.programProfiles || []
+    if (profiles.length === 0) {
+      return {
+        success: false,
+        error: 'No Dugsi registrations found for this email',
+      }
+    }
+
+    // Get family reference ID from first profile
+    const familyId = profiles[0].familyReferenceId
+    let familyProfiles = profiles
+
+    // If familyReferenceId exists, get all family members
+    if (familyId) {
+      familyProfiles = await getProgramProfilesByFamilyId(familyId)
+    }
+
+    // Link subscription to all family profiles
+    const { createBillingAssignment } = await import('@/lib/db/queries/billing')
+    let updatedCount = 0
+
+    // Calculate amounts to avoid rounding loss
+    // Split evenly, but assign remainder to last profile to ensure total equals subscription amount
+    const baseAmount = Math.floor(subscription.amount / familyProfiles.length)
+    const remainder = subscription.amount - baseAmount * familyProfiles.length
+
+    for (let i = 0; i < familyProfiles.length; i++) {
+      const profile = familyProfiles[i]
+
+      // Check if assignment already exists
+      const existingAssignments = await getBillingAssignmentsByProfile(
+        profile.id
+      )
+      const existingAssignment = existingAssignments.find(
+        (a) => a.subscriptionId === subscription.id && a.isActive
+      )
+
+      if (!existingAssignment) {
+        // Assign remainder to last profile to ensure total equals subscription amount
+        const amount =
+          i === familyProfiles.length - 1 ? baseAmount + remainder : baseAmount
+
+        // Calculate percentage ensuring it sums to 100%
+        const percentage =
+          familyProfiles.length > 1
+            ? (amount / subscription.amount) * 100
+            : null
+
+        await createBillingAssignment({
+          subscriptionId: subscription.id,
+          programProfileId: profile.id,
+          amount,
+          percentage,
+          notes: 'Linked manually by admin',
+        })
+        updatedCount++
+      }
+    }
+
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
       data: {
-        updated: studentsToUpdate.length,
+        updated: updatedCount,
       },
-      message: `Successfully linked subscription to ${studentsToUpdate.length} students`,
     }
   } catch (error) {
     console.error('Error linking Dugsi subscription:', error)
@@ -402,50 +598,109 @@ export async function getDugsiPaymentStatus(
   parentEmail: string
 ): Promise<ActionResult<PaymentStatusData>> {
   try {
-    const students = await prisma.student.findMany({
+    // Find person by email
+    const person = await prisma.person.findFirst({
       where: {
-        parentEmail,
-        program: DUGSI_PROGRAM,
+        contactPoints: {
+          some: {
+            type: 'EMAIL',
+            value: parentEmail.toLowerCase().trim(),
+          },
+        },
       },
-      select: DUGSI_PAYMENT_STATUS_SELECT,
+      include: {
+        contactPoints: true,
+        programProfiles: {
+          where: {
+            program: DUGSI_PROGRAM,
+          },
+          include: {
+            enrollments: {
+              where: {
+                status: { not: 'WITHDRAWN' },
+                endDate: null,
+              },
+            },
+            assignments: {
+              where: { isActive: true },
+              include: {
+                subscription: {
+                  include: {
+                    billingAccount: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     })
 
-    if (students.length === 0) {
-      return { success: false, error: 'No students found for this email' }
+    if (!person) {
+      return {
+        success: false,
+        error: 'Family not found',
+      }
     }
 
-    // Check if any student has payment method captured
-    const hasPaymentMethod = students.some((s) => s.paymentMethodCaptured)
-    const hasSubscription = students.some((s) => s.stripeSubscriptionIdDugsi)
+    const profiles = person.programProfiles || []
+    if (profiles.length === 0) {
+      return {
+        success: false,
+        error: 'No Dugsi registrations found for this email',
+      }
+    }
+
+    // Get family reference ID from first profile
+    const familyId = profiles[0].familyReferenceId
+
+    // Always fetch family profiles with person relation included
+    const familyProfiles = familyId
+      ? await getProgramProfilesByFamilyId(familyId)
+      : profiles.map((p) => ({
+          ...p,
+          person: person, // Use the parent person we already fetched
+        }))
+
+    // Get billing info from first profile's assignment
+    const firstProfile = familyProfiles[0]
+    const assignments = await getBillingAssignmentsByProfile(firstProfile.id)
+    const activeAssignment = assignments.find((a) => a.isActive)
+    const subscription = activeAssignment?.subscription
+
+    // Get billing account
+    const billingAccount = subscription?.billingAccount
+
+    const students = familyProfiles.map((p) => ({
+      id: p.id,
+      name: 'person' in p && p.person ? p.person.name : person.name,
+    }))
 
     return {
       success: true,
       data: {
         familyEmail: parentEmail,
-        studentCount: students.length,
-        hasPaymentMethod,
-        hasSubscription,
-        stripeCustomerId: students[0]?.stripeCustomerIdDugsi,
-        subscriptionId: students[0]?.stripeSubscriptionIdDugsi,
-        subscriptionStatus: students[0]?.subscriptionStatus,
-        paidUntil: students[0]?.paidUntil,
-        currentPeriodStart: students[0]?.currentPeriodStart,
-        currentPeriodEnd: students[0]?.currentPeriodEnd,
-        students: students.map((s) => ({
-          id: s.id,
-          name: s.name,
-        })),
+        studentCount: familyProfiles.length,
+        hasPaymentMethod: billingAccount?.paymentMethodCaptured || false,
+        hasSubscription: !!subscription,
+        stripeCustomerId: billingAccount?.stripeCustomerIdDugsi || null,
+        subscriptionId: subscription?.stripeSubscriptionId || null,
+        subscriptionStatus: subscription?.status || null,
+        paidUntil: subscription?.paidUntil || null,
+        currentPeriodStart: subscription?.currentPeriodStart || null,
+        currentPeriodEnd: subscription?.currentPeriodEnd || null,
+        students,
       },
     }
   } catch (error) {
-    console.error('Error getting payment status:', error)
+    console.error('Error getting Dugsi payment status:', error)
     return {
       success: false,
-      error: 'Failed to get payment status',
+      error:
+        error instanceof Error ? error.message : 'Failed to get payment status',
     }
   }
 }
-
 /**
  * Verify bank account using microdeposit descriptor code.
  * Admins input the 6-digit SM code that families see in their bank statements.
@@ -560,91 +815,78 @@ export async function updateParentInfo(params: {
   phone: string
 }): Promise<ActionResult<{ updated: number }>> {
   try {
-    const { studentId, parentNumber, firstName, lastName, phone } = params
-
-    // Validate parentNumber
-    if (parentNumber !== 1 && parentNumber !== 2) {
+    const profile = await getProgramProfileById(params.studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
       return {
         success: false,
-        error: 'Parent number must be 1 or 2',
+        error: 'Student not found',
       }
     }
 
-    // Use transaction to ensure atomic read-write
-    const count = await prisma.$transaction(async (tx) => {
-      // Get the student to find family members (within transaction)
-      const student = await tx.student.findUnique({
-        where: { id: studentId },
-        select: {
-          id: true,
-          familyReferenceId: true,
-          parentEmail: true,
-        },
-      })
+    // Get family members
+    const familyId = profile.familyReferenceId
+    if (familyId) {
+      // Fetch all family profiles (variable used implicitly for future operations)
+      await getProgramProfilesByFamilyId(familyId)
+    }
 
-      if (!student) {
-        throw new Error('Student not found')
+    // Get guardian relationships for the first profile
+    const person = profile.person
+    const guardianRelationships = person.guardianRelationships || []
+    const guardians = guardianRelationships
+      .map((rel) => rel.guardian)
+      .filter(Boolean)
+
+    // Get the guardian to update (parent1 or parent2)
+    const guardianIndex = params.parentNumber - 1
+    const guardian = guardians[guardianIndex]
+
+    if (!guardian) {
+      return {
+        success: false,
+        error: `Parent ${params.parentNumber} not found`,
       }
+    }
 
-      // Determine which parent fields to update
-      // SECURITY: Email fields are intentionally excluded - they are immutable
-      // and used for family identification and security purposes
-      const updateData =
-        parentNumber === 1
-          ? {
-              parentFirstName: firstName,
-              parentLastName: lastName,
-              parentPhone: phone,
-            }
-          : {
-              parent2FirstName: firstName,
-              parent2LastName: lastName,
-              parent2Phone: phone,
-            }
-
-      // Use shared utility for family matching logic
-      const { where, isSingleStudent } = getFamilyWhereClause({
-        familyReferenceId: student.familyReferenceId,
-        parentEmail: student.parentEmail,
-      })
-
-      let updateResult
-
-      if (isSingleStudent) {
-        // No family grouping - update single student
-        await tx.student.update({
-          where: { id: studentId },
-          data: updateData,
-        })
-        updateResult = { count: 1 }
-      } else {
-        // Update all students in the family
-        updateResult = await tx.student.updateMany({
-          where: where!,
-          data: updateData,
-        })
-      }
-
-      return updateResult.count
+    // Update guardian name
+    const fullName = `${params.firstName} ${params.lastName}`.trim()
+    await prisma.person.update({
+      where: { id: guardian.id },
+      data: { name: fullName },
     })
 
-    // Revalidate the page
+    // Update or create phone contact point
+    const existingPhone = guardian.contactPoints?.find(
+      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )
+
+    if (existingPhone) {
+      await prisma.contactPoint.update({
+        where: { id: existingPhone.id },
+        data: { value: params.phone },
+      })
+    } else {
+      await prisma.contactPoint.create({
+        data: {
+          personId: guardian.id,
+          type: 'PHONE',
+          value: params.phone,
+        },
+      })
+    }
+
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      data: { updated: count },
-      message: `Successfully updated parent information for ${count} ${count === 1 ? 'student' : 'students'}`,
+      data: { updated: 1 },
     }
   } catch (error) {
-    console.error('Error updating parent information:', error)
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Failed to update parent information'
+    console.error('Error updating parent info:', error)
     return {
       success: false,
-      error: errorMessage,
+      error:
+        error instanceof Error ? error.message : 'Failed to update parent info',
     }
   }
 }
@@ -661,86 +903,72 @@ export async function addSecondParent(params: {
   phone: string
 }): Promise<ActionResult<{ updated: number }>> {
   try {
-    const { studentId, firstName, lastName, email, phone } = params
-
-    // Validate email format (no database access, can be outside transaction)
-    if (!isValidEmail(email)) {
+    const profile = await getProgramProfileById(params.studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
       return {
         success: false,
-        error: 'Invalid email format',
+        error: 'Student not found',
       }
     }
 
-    // Use transaction to ensure atomic read-write
-    const count = await prisma.$transaction(async (tx) => {
-      // Get the student to check if second parent exists (within transaction)
-      const student = await tx.student.findUnique({
-        where: { id: studentId },
-        select: {
-          id: true,
-          familyReferenceId: true,
-          parentEmail: true,
-          parent2FirstName: true,
+    // Check if second parent already exists
+    const person = profile.person
+    const guardianRelationships = person.guardianRelationships || []
+    const guardians = guardianRelationships
+      .map((rel) => rel.guardian)
+      .filter(Boolean)
+
+    if (guardians.length >= 2) {
+      return {
+        success: false,
+        error: 'Second parent already exists',
+      }
+    }
+
+    // Check if person with this email already exists
+    const existingPerson = await findPersonByContact(params.email, null)
+    let parentPersonId: string
+
+    if (existingPerson) {
+      parentPersonId = existingPerson.id
+    } else {
+      // Create new person for second parent
+      const fullName = `${params.firstName} ${params.lastName}`.trim()
+      const newPerson = await prisma.person.create({
+        data: {
+          name: fullName,
+          contactPoints: {
+            create: [
+              { type: 'EMAIL', value: params.email.toLowerCase().trim() },
+              { type: 'PHONE', value: params.phone },
+            ],
+          },
         },
       })
+      parentPersonId = newPerson.id
+    }
 
-      if (!student) {
-        throw new Error('Student not found')
-      }
-
-      // Check if second parent already exists
-      if (student.parent2FirstName) {
-        throw new Error('Second parent already exists')
-      }
-
-      const updateData = {
-        parent2FirstName: firstName,
-        parent2LastName: lastName,
-        parent2Email: email,
-        parent2Phone: phone,
-      }
-
-      // Use shared utility for family matching logic
-      const { where, isSingleStudent } = getFamilyWhereClause({
-        familyReferenceId: student.familyReferenceId,
-        parentEmail: student.parentEmail,
-      })
-
-      let updateResult
-
-      if (isSingleStudent) {
-        // No family grouping - update single student
-        await tx.student.update({
-          where: { id: studentId },
-          data: updateData,
-        })
-        updateResult = { count: 1 }
-      } else {
-        // Update all students in the family
-        updateResult = await tx.student.updateMany({
-          where: where!,
-          data: updateData,
-        })
-      }
-
-      return updateResult.count
+    // Create guardian relationship
+    await prisma.guardianRelationship.create({
+      data: {
+        guardianId: parentPersonId,
+        dependentId: person.id,
+        isActive: true,
+      },
     })
 
-    // Revalidate the page
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      data: { updated: count },
-      message: `Successfully added second parent to ${count} ${count === 1 ? 'student' : 'students'}`,
+      data: { updated: 1 },
     }
   } catch (error) {
     console.error('Error adding second parent:', error)
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to add second parent'
     return {
       success: false,
-      error: errorMessage,
+      error:
+        error instanceof Error ? error.message : 'Failed to add second parent',
     }
   }
 }
@@ -753,63 +981,83 @@ export async function updateChildInfo(params: {
   studentId: string
   firstName?: string
   lastName?: string
-  gender?: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
+  gender?: 'MALE' | 'FEMALE'
   educationLevel?: EducationLevel
   gradeLevel?: GradeLevel
   schoolName?: string
   healthInfo?: string | null
 }): Promise<ActionResult> {
   try {
-    const { studentId, firstName, lastName, ...updateFields } = params
-
-    // Verify student exists
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: { id: true },
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
-    }
-
-    // Build update data
-    const updateData: Record<string, unknown> = {}
-
-    // Combine firstName and lastName into name if both are provided
-    if (firstName !== undefined && lastName !== undefined) {
-      updateData.name = formatFullName(firstName, lastName)
-    }
-
-    // Add other fields that are defined
-    Object.entries(updateFields).forEach(([key, value]) => {
-      if (value !== undefined) {
-        updateData[key] = value
+    const profile = await getProgramProfileById(params.studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
       }
-    })
+    }
 
-    // Update the student
-    await prisma.student.update({
-      where: { id: studentId },
-      data: updateData,
-    })
+    // Update person name if provided
+    if (params.firstName || params.lastName) {
+      const currentName = profile.person.name.split(' ')
+      const firstName = params.firstName || currentName[0] || ''
+      const lastName = params.lastName || currentName.slice(1).join(' ') || ''
+      const fullName = `${firstName} ${lastName}`.trim()
 
-    // Revalidate the page
+      await prisma.person.update({
+        where: { id: profile.personId },
+        data: { name: fullName },
+      })
+    }
+
+    // Update person date of birth if provided
+    if (params.dateOfBirth !== undefined) {
+      await prisma.person.update({
+        where: { id: profile.personId },
+        data: { dateOfBirth: params.dateOfBirth },
+      })
+    }
+
+    // Update program profile fields
+    const profileUpdates: Partial<{
+      gender: 'MALE' | 'FEMALE'
+      educationLevel: EducationLevel
+      gradeLevel: GradeLevel
+      schoolName: string | null
+      healthInfo: string | null
+    }> = {}
+
+    if (params.gender !== undefined) profileUpdates.gender = params.gender
+    if (params.educationLevel !== undefined)
+      profileUpdates.educationLevel = params.educationLevel
+    if (params.gradeLevel !== undefined)
+      profileUpdates.gradeLevel = params.gradeLevel
+    if (params.schoolName !== undefined)
+      profileUpdates.schoolName = params.schoolName || null
+    if (params.healthInfo !== undefined)
+      profileUpdates.healthInfo = params.healthInfo
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await prisma.programProfile.update({
+        where: { id: params.studentId },
+        data: profileUpdates,
+      })
+    }
+
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      message: 'Successfully updated child information',
     }
   } catch (error) {
-    console.error('Error updating child information:', error)
+    console.error('Error updating child info:', error)
     return {
       success: false,
-      error: 'Failed to update child information',
+      error:
+        error instanceof Error ? error.message : 'Failed to update child info',
     }
   }
 }
-
 /**
  * Add a new child to an existing family.
  * Copies parent information from an existing sibling.
@@ -826,63 +1074,225 @@ export async function addChildToFamily(params: {
   healthInfo?: string | null
 }): Promise<ActionResult<{ childId: string }>> {
   try {
-    const { existingStudentId, firstName, lastName, ...childData } = params
-
-    // Get the existing student to copy parent information
-    const existingStudent = await prisma.student.findUnique({
-      where: { id: existingStudentId },
-      select: {
-        id: true,
-        familyReferenceId: true,
-        parentFirstName: true,
-        parentLastName: true,
-        parentEmail: true,
-        parentPhone: true,
-        parent2FirstName: true,
-        parent2LastName: true,
-        parent2Email: true,
-        parent2Phone: true,
-      },
-    })
-
-    if (!existingStudent) {
-      return { success: false, error: 'Existing student not found' }
+    const existingProfile = await getProgramProfileById(
+      params.existingStudentId
+    )
+    if (!existingProfile || existingProfile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Existing student not found',
+      }
     }
 
-    // Combine firstName and lastName into full name
-    const fullName = formatFullName(firstName, lastName)
+    const familyId = existingProfile.familyReferenceId
+    if (!familyId) {
+      return {
+        success: false,
+        error: 'Family reference ID not found',
+      }
+    }
 
-    // Create new student with parent info from existing sibling
-    const newStudent = await prisma.student.create({
+    // Get guardian relationships from existing profile
+    const person = existingProfile.person
+    const guardianRelationships = person.guardianRelationships || []
+    const guardians = guardianRelationships
+      .map((rel) => rel.guardian)
+      .filter(Boolean)
+
+    if (guardians.length === 0) {
+      return {
+        success: false,
+        error: 'No guardians found for existing student',
+      }
+    }
+
+    // Create new person for child
+    const fullName = `${params.firstName} ${params.lastName}`.trim()
+    const newPerson = await prisma.person.create({
       data: {
         name: fullName,
-        ...childData,
-        program: DUGSI_PROGRAM,
-        familyReferenceId: existingStudent.familyReferenceId,
-        parentFirstName: existingStudent.parentFirstName,
-        parentLastName: existingStudent.parentLastName,
-        parentEmail: existingStudent.parentEmail,
-        parentPhone: existingStudent.parentPhone,
-        parent2FirstName: existingStudent.parent2FirstName,
-        parent2LastName: existingStudent.parent2LastName,
-        parent2Email: existingStudent.parent2Email,
-        parent2Phone: existingStudent.parent2Phone,
+        dateOfBirth: params.dateOfBirth || null,
       },
     })
 
-    // Revalidate the page
+    // Create guardian relationships for all guardians
+    for (const guardian of guardians) {
+      await prisma.guardianRelationship.create({
+        data: {
+          guardianId: guardian.id,
+          dependentId: newPerson.id,
+          isActive: true,
+        },
+      })
+    }
+
+    // Create program profile
+    const newProfile = await prisma.programProfile.create({
+      data: {
+        personId: newPerson.id,
+        program: 'DUGSI_PROGRAM',
+        familyReferenceId: familyId,
+        gender: params.gender,
+        educationLevel: params.educationLevel,
+        gradeLevel: params.gradeLevel,
+        schoolName: params.schoolName || null,
+        healthInfo: params.healthInfo || null,
+        status: 'REGISTERED',
+      },
+    })
+
+    // Create enrollment
+    await prisma.enrollment.create({
+      data: {
+        programProfileId: newProfile.id,
+        status: 'REGISTERED',
+        startDate: new Date(),
+      },
+    })
+
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      data: { childId: newStudent.id },
-      message: 'Successfully added child to family',
+      data: { childId: newProfile.id },
     }
   } catch (error) {
     console.error('Error adding child to family:', error)
     return {
       success: false,
-      error: 'Failed to add child to family',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to add child to family',
+    }
+  }
+}
+
+/**
+ * Update a Dugsi registration (ProgramProfile + Enrollment)
+ */
+export async function updateDugsiRegistration(
+  studentId: string,
+  updates: {
+    status?: 'REGISTERED' | 'ENROLLED' | 'WITHDRAWN'
+    educationLevel?: EducationLevel
+    gradeLevel?: GradeLevel
+    schoolName?: string
+    healthInfo?: string | null
+  }
+): Promise<ActionResult> {
+  try {
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
+    }
+
+    // Update ProgramProfile
+    const profileUpdates: Partial<{
+      educationLevel: EducationLevel
+      gradeLevel: GradeLevel
+      schoolName: string | null
+      healthInfo: string | null
+      status: 'REGISTERED' | 'ENROLLED' | 'WITHDRAWN'
+    }> = {}
+
+    if (updates.educationLevel !== undefined)
+      profileUpdates.educationLevel = updates.educationLevel
+    if (updates.gradeLevel !== undefined)
+      profileUpdates.gradeLevel = updates.gradeLevel
+    if (updates.schoolName !== undefined)
+      profileUpdates.schoolName = updates.schoolName || null
+    if (updates.healthInfo !== undefined)
+      profileUpdates.healthInfo = updates.healthInfo
+    if (updates.status !== undefined) profileUpdates.status = updates.status
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await prisma.programProfile.update({
+        where: { id: studentId },
+        data: profileUpdates,
+      })
+    }
+
+    // Update Enrollment status if provided
+    if (updates.status !== undefined) {
+      const activeEnrollment = profile.enrollments?.find(
+        (e) => e.status !== 'WITHDRAWN' && !e.endDate
+      )
+      if (activeEnrollment) {
+        await updateEnrollmentStatus(
+          activeEnrollment.id,
+          updates.status,
+          'Updated by admin'
+        )
+      }
+    }
+
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    console.error('Error updating Dugsi registration:', error)
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to update registration',
+    }
+  }
+}
+
+/**
+ * Delete a Dugsi registration (soft delete via Enrollment.status = 'WITHDRAWN')
+ */
+export async function deleteDugsiRegistration(
+  studentId: string
+): Promise<ActionResult> {
+  try {
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
+    }
+
+    // Soft delete by withdrawing all enrollments
+    const enrollments = profile.enrollments || []
+    for (const enrollment of enrollments) {
+      if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
+        await updateEnrollmentStatus(
+          enrollment.id,
+          'WITHDRAWN',
+          'Deleted by admin'
+        )
+      }
+    }
+
+    // Update profile status
+    await prisma.programProfile.update({
+      where: { id: studentId },
+      data: { status: 'WITHDRAWN' },
+    })
+
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    console.error('Error deleting Dugsi registration:', error)
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete registration',
     }
   }
 }

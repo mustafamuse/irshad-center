@@ -2,6 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 
+import type Stripe from 'stripe'
+
 import { prisma } from '@/lib/db'
 import { stripeServerClient } from '@/lib/stripe'
 
@@ -29,123 +31,146 @@ export async function getBatchesForFilter() {
 }
 
 export async function runPaymentsBackfill() {
-  'use server'
-  console.log('Starting Stripe payments backfill from Server Action...')
   try {
-    const allStudents = await prisma.student.findMany({
-      where: {
-        stripeSubscriptionId: { not: null },
-        Batch: {
-          name: { not: 'Test' },
-        },
-      },
-      select: { id: true, name: true, stripeSubscriptionId: true },
-    })
+    let processedCount = 0
+    let skippedCount = 0
+    let errorCount = 0
 
-    // Create array of valid subscription IDs
-    const subscriptionIds: string[] = []
-    const studentsBySubId: Record<
-      string,
-      Array<{ id: string; name: string; stripeSubscriptionId: string | null }>
-    > = {}
+    // Fetch all paid invoices from Stripe
+    const invoices: Stripe.Invoice[] = []
+    let hasMore = true
+    let startingAfter: string | undefined
 
-    for (const student of allStudents) {
-      const subId = student.stripeSubscriptionId
-      if (subId) {
-        if (!subscriptionIds.includes(subId)) {
-          subscriptionIds.push(subId)
-          studentsBySubId[subId] = []
-        }
-        studentsBySubId[subId].push(student)
-      }
+    while (hasMore) {
+      const response = await stripeServerClient.invoices.list({
+        limit: 100,
+        status: 'paid',
+        starting_after: startingAfter,
+        expand: ['data.subscription', 'data.customer'],
+      })
+
+      invoices.push(...response.data)
+      hasMore = response.has_more
+      startingAfter = response.data[response.data.length - 1]?.id
     }
 
-    let totalInvoicesProcessed = 0
+    console.log(`[PAYMENTS_BACKFILL] Found ${invoices.length} paid invoices`)
 
-    for (const subId of subscriptionIds) {
-      const studentsOnThisSub = studentsBySubId[subId]
-
-      let invoices
+    // Process each invoice
+    for (const invoice of invoices) {
       try {
-        invoices = await stripeServerClient.invoices.list({
-          subscription: subId,
-          status: 'paid',
-          limit: 100,
-          expand: ['data.lines.data'],
+        // Skip if no invoice ID
+        if (!invoice.id) {
+          skippedCount++
+          continue
+        }
+
+        // Skip if no subscription
+        // Invoice.subscription can be string ID, Subscription object, or null
+        // Type assertion needed due to Stripe API version differences
+        const stripeSubscription = (
+          invoice as unknown as {
+            subscription?: string | Stripe.Subscription | null
+          }
+        ).subscription as string | Stripe.Subscription | null | undefined
+        const subscriptionId =
+          typeof stripeSubscription === 'string'
+            ? stripeSubscription
+            : stripeSubscription?.id || null
+
+        if (!subscriptionId) {
+          skippedCount++
+          continue
+        }
+
+        // Find subscription in database
+        const subscription = await prisma.subscription.findUnique({
+          where: { stripeSubscriptionId: subscriptionId },
+          include: {
+            assignments: {
+              where: { isActive: true },
+              include: {
+                programProfile: true,
+              },
+            },
+          },
         })
-      } catch (err: any) {
-        if (err?.raw?.code === 'resource_missing') {
-          console.warn(
-            `Skipping subscription ${subId}: not found in this Stripe mode.`
-          )
-          continue
-        }
-        console.error(`Error fetching invoices for sub ${subId}:`, err)
-        continue
-      }
 
-      for (const invoice of invoices.data) {
-        const totalAmountPaid = invoice.amount_paid
-        const paidAt = invoice.status_transitions?.paid_at
-          ? new Date(invoice.status_transitions.paid_at * 1000)
-          : new Date(invoice.created * 1000)
-
-        const subLineItem = invoice.lines.data.find(
-          (line) =>
-            line.parent?.type === 'subscription_item_details' && line.period
-        )
-
-        if (!subLineItem) {
+        if (!subscription || subscription.assignments.length === 0) {
+          skippedCount++
           continue
         }
 
-        const periodStart = new Date(subLineItem.period.start * 1000)
-        const year = periodStart.getUTCFullYear()
-        const month = periodStart.getUTCMonth() + 1
+        // Extract period info from invoice
+        const period = invoice.period_end
+          ? new Date(invoice.period_end * 1000)
+          : invoice.created
+            ? new Date(invoice.created * 1000)
+            : new Date()
 
-        const amountPerStudent =
-          studentsOnThisSub.length > 0
-            ? Math.floor(totalAmountPaid / studentsOnThisSub.length)
-            : totalAmountPaid
+        const year = period.getFullYear()
+        const month = period.getMonth() + 1
 
-        for (const student of studentsOnThisSub) {
-          if (!invoice.id) continue // Skip if invoice ID is missing
-
-          await prisma.studentPayment.upsert({
+        // Create payment records for each active assignment
+        // Use assignment.amount (prorated amount) instead of full invoice amount
+        for (const assignment of subscription.assignments) {
+          // Check if payment already exists
+          const existingPayment = await prisma.studentPayment.findUnique({
             where: {
-              studentId_stripeInvoiceId: {
-                studentId: student.id,
+              programProfileId_stripeInvoiceId: {
+                programProfileId: assignment.programProfileId,
                 stripeInvoiceId: invoice.id,
               },
             },
-            update: { amountPaid: amountPerStudent, paidAt, year, month },
-            create: {
-              studentId: student.id,
+          })
+
+          if (existingPayment) {
+            continue // Skip if already exists
+          }
+
+          // Use assignment amount (prorated share) instead of full invoice amount
+          // This prevents double-counting revenue when multiple children share a subscription
+          const amountPaid = assignment.amount || 0
+
+          // Create payment record
+          await prisma.studentPayment.create({
+            data: {
+              programProfileId: assignment.programProfileId,
               stripeInvoiceId: invoice.id,
               year,
               month,
-              amountPaid: amountPerStudent,
-              paidAt,
+              amountPaid,
+              paidAt: invoice.created
+                ? new Date(invoice.created * 1000)
+                : new Date(),
             },
           })
+
+          processedCount++
         }
-        totalInvoicesProcessed++
+      } catch (error) {
+        console.error(
+          `[PAYMENTS_BACKFILL] Error processing invoice ${invoice.id}:`,
+          error
+        )
+        errorCount++
       }
     }
 
-    console.log(
-      `✅ Backfill complete. Processed ${totalInvoicesProcessed} invoices.`
-    )
     revalidatePath('/admin/payments')
+
     return {
       success: true,
-      message: `Successfully processed ${totalInvoicesProcessed} invoices across ${subscriptionIds.length} subscriptions.`,
+      message: `Backfill complete: ${processedCount} payments created, ${skippedCount} skipped, ${errorCount} errors`,
     }
-  } catch (error: any) {
-    console.error('Failed to execute backfill server action:', error)
+  } catch (error) {
+    console.error('[PAYMENTS_BACKFILL] Fatal error:', error)
     return {
       success: false,
-      message: `An error occurred: ${error.message}`,
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Unknown error during backfill',
     }
   }
 }

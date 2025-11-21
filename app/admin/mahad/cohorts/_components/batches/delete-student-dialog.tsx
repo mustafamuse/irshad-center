@@ -32,7 +32,6 @@ interface DeleteStudentDialogProps {
 
 interface DeleteWarnings {
   hasSiblings: boolean
-  hasAttendanceRecords: boolean
 }
 
 export function DeleteStudentDialog({
@@ -56,7 +55,7 @@ export function DeleteStudentDialog({
         })
         .catch((error) => {
           console.error('Failed to fetch delete warnings:', error)
-          setWarnings({ hasSiblings: false, hasAttendanceRecords: false })
+          setWarnings({ hasSiblings: false })
         })
         .finally(() => {
           setIsLoadingWarnings(false)
@@ -108,7 +107,7 @@ export function DeleteStudentDialog({
 
                 {!isLoadingWarnings &&
                   warnings &&
-                  (warnings.hasSiblings || warnings.hasAttendanceRecords) && (
+                  warnings.hasSiblings && (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm text-amber-800">
                         <AlertTriangle className="h-4 w-4" />
@@ -121,14 +120,6 @@ export function DeleteStudentDialog({
                             className="border-amber-500 text-amber-700"
                           >
                             Has sibling relationships
-                          </Badge>
-                        )}
-                        {warnings.hasAttendanceRecords && (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-500 text-amber-700"
-                          >
-                            Has attendance records
                           </Badge>
                         )}
                       </div>

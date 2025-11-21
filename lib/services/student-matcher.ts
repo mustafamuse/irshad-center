@@ -1,20 +1,15 @@
-import type { Student } from '@prisma/client'
-import { Prisma } from '@prisma/client'
-import type { Stripe } from 'stripe'
+// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
+// TODO: Migrate to ProgramProfile/Enrollment model
 
-import { prisma } from '@/lib/db'
-import {
-  webhookPhoneSchema,
-  webhookEmailSchema,
-  validateWebhookData,
-} from '@/lib/validations/webhook'
+import type { Stripe } from 'stripe'
 
 /**
  * Result of attempting to match a student from a Stripe checkout session
  */
 export interface StudentMatchResult {
   /** The matched student, or null if no unique match found */
-  student: Student | null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  student: any | null
   /** How the student was matched (phone or email) */
   matchMethod: 'phone' | 'email' | null
   /** Validated email address from the session (may be useful for updating student) */
@@ -39,8 +34,16 @@ export class StudentMatcher {
    * @returns Result containing the matched student (if any) and metadata
    */
   async findByCheckoutSession(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
+    // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+    return {
+      student: null,
+      matchMethod: null,
+      validatedEmail: null,
+    } // Temporary: return no match until migration complete
+
+    /* Original implementation commented out - needs migration:
     // Try matching strategies in order of preference
 
     // 1. Try by email from custom field (most reliable - unique identifier)
@@ -57,6 +60,7 @@ export class StudentMatcher {
 
     // 3. Try by payer email (fallback - might be parent's email)
     return this.findByEmail(session)
+    */
   }
 
   /**
@@ -64,8 +68,12 @@ export class StudentMatcher {
    * Only returns a match if exactly one unlinked student is found.
    */
   private async findByCustomEmail(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
+    // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+    return { student: null, matchMethod: null, validatedEmail: null }
+
+    /* Original implementation commented out - needs migration:
     const emailField = session.custom_fields?.find(
       (f) => f.key === 'studentsemailonethatyouusedtoregister'
     )
@@ -109,8 +117,7 @@ export class StudentMatcher {
         `[WEBHOOK] Multiple students found with email: ${validatedEmail}. Cannot determine unique match.`
       )
     }
-
-    return { student: null, matchMethod: null, validatedEmail }
+    */
   }
 
   /**
@@ -119,8 +126,12 @@ export class StudentMatcher {
    * Only returns a match if exactly one unlinked student is found.
    */
   private async findByPhone(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
+    // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+    return { student: null, matchMethod: null, validatedEmail: null }
+
+    /* Original implementation commented out - needs migration:
     const phoneField = session.custom_fields?.find(
       (f) => f.key === 'studentswhatsappthatyouuseforourgroup'
     )
@@ -168,6 +179,7 @@ export class StudentMatcher {
     }
 
     return { student: null, matchMethod: null, validatedEmail: null }
+    */
   }
 
   /**
@@ -176,8 +188,12 @@ export class StudentMatcher {
    * Only returns a match if exactly one unlinked student is found.
    */
   private async findByEmail(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
+    // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+    return { student: null, matchMethod: null, validatedEmail: null }
+
+    /* Original implementation commented out - needs migration:
     const rawEmail = session.customer_details?.email
 
     if (!rawEmail) {
@@ -226,6 +242,7 @@ export class StudentMatcher {
       matchMethod: null,
       validatedEmail,
     }
+    */
   }
 
   /**

@@ -5,6 +5,11 @@ import { backupData } from '@/lib/actions/backup-data'
 export async function GET() {
   try {
     const result = await backupData()
+
+    if (!result.success) {
+      return NextResponse.json(result, { status: 501 })
+    }
+
     return NextResponse.json({
       ...result,
       viewUrl: `/backups/${result.fileName}`,

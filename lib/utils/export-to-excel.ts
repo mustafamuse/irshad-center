@@ -2,7 +2,7 @@ import { saveAs } from 'file-saver'
 import * as XLSX from 'xlsx'
 
 export function exportToExcel(
-  data: any[],
+  data: unknown[],
   visibleColumns: string[],
   filename: string
 ) {
@@ -19,7 +19,7 @@ export function exportToExcel(
   // Create data rows with proper formatting
   const rows = data.map((item) =>
     visibleColumns.map((col) => {
-      const value = item[col]
+      const value = (item as unknown as Record<string, unknown>)[col]
 
       // Handle different value types
       if (value === null || value === undefined) return ''

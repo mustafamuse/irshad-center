@@ -3,41 +3,76 @@
  * Single source of truth for all types used across components
  */
 
-// Base types from Prisma
-import { Student } from '@prisma/client'
+// Base types - defined locally to match Prisma schema (browser-safe)
+// These match the enums from Prisma schema to avoid importing Prisma Client in browser
+type Gender = 'MALE' | 'FEMALE'
+type EducationLevel =
+  | 'HIGH_SCHOOL'
+  | 'COLLEGE'
+  | 'POST_GRAD'
+  | 'ELEMENTARY'
+  | 'MIDDLE_SCHOOL'
+type GradeLevel =
+  | 'FRESHMAN'
+  | 'SOPHOMORE'
+  | 'JUNIOR'
+  | 'SENIOR'
+  | 'KINDERGARTEN'
+  | 'GRADE_1'
+  | 'GRADE_2'
+  | 'GRADE_3'
+  | 'GRADE_4'
+  | 'GRADE_5'
+  | 'GRADE_6'
+  | 'GRADE_7'
+  | 'GRADE_8'
+  | 'GRADE_9'
+  | 'GRADE_10'
+  | 'GRADE_11'
+  | 'GRADE_12'
+type SubscriptionStatus =
+  | 'incomplete'
+  | 'incomplete_expired'
+  | 'trialing'
+  | 'active'
+  | 'past_due'
+  | 'canceled'
+  | 'unpaid'
+  | 'paused'
+type StripeAccountType = 'MAHAD' | 'DUGSI' | 'YOUTH_EVENTS' | 'GENERAL_DONATION'
 
-// Full registration type (extends Prisma Student)
-export type DugsiRegistration = Pick<
-  Student,
-  | 'id'
-  | 'name'
-  | 'gender'
-  | 'dateOfBirth'
-  | 'educationLevel'
-  | 'gradeLevel'
-  | 'schoolName'
-  | 'healthInfo'
-  | 'createdAt'
-  | 'parentFirstName'
-  | 'parentLastName'
-  | 'parentEmail'
-  | 'parentPhone'
-  | 'parent2FirstName'
-  | 'parent2LastName'
-  | 'parent2Email'
-  | 'parent2Phone'
-  | 'paymentMethodCaptured'
-  | 'paymentMethodCapturedAt'
-  | 'stripeCustomerIdDugsi'
-  | 'stripeSubscriptionIdDugsi'
-  | 'paymentIntentIdDugsi'
-  | 'subscriptionStatus'
-  | 'paidUntil'
-  | 'currentPeriodStart'
-  | 'currentPeriodEnd'
-  | 'familyReferenceId'
-  | 'stripeAccountType'
->
+// Full registration type - manually defined since Student model was removed
+// Maps ProgramProfile + Person + BillingAssignment data to legacy format for UI compatibility
+export interface DugsiRegistration {
+  id: string
+  name: string
+  gender: Gender | null
+  dateOfBirth: Date | null
+  educationLevel: EducationLevel | null
+  gradeLevel: GradeLevel | null
+  schoolName: string | null
+  healthInfo: string | null
+  createdAt: Date
+  parentFirstName: string | null
+  parentLastName: string | null
+  parentEmail: string | null
+  parentPhone: string | null
+  parent2FirstName: string | null
+  parent2LastName: string | null
+  parent2Email: string | null
+  parent2Phone: string | null
+  paymentMethodCaptured: boolean
+  paymentMethodCapturedAt: Date | null
+  stripeCustomerIdDugsi: string | null
+  stripeSubscriptionIdDugsi: string | null
+  paymentIntentIdDugsi: string | null
+  subscriptionStatus: SubscriptionStatus | null
+  paidUntil: Date | null
+  currentPeriodStart: Date | null
+  currentPeriodEnd: Date | null
+  familyReferenceId: string | null
+  stripeAccountType: StripeAccountType | null
+}
 
 // Family type
 export interface Family {

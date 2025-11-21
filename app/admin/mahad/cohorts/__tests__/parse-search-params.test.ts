@@ -273,7 +273,7 @@ describe('parseSearchParams', () => {
     it('should handle null-like values', () => {
       const result = parseSearchParams({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        search: null as any,
+        search: null as unknown,
         batch: undefined,
       })
       expect(result.search).toBeUndefined()

@@ -1,4 +1,17 @@
-import { SubscriptionStatus } from '@prisma/client'
+// Browser-safe enum definition (Prisma Client cannot be used in browser)
+// This matches the SubscriptionStatus enum from Prisma schema
+const SubscriptionStatus = {
+  incomplete: 'incomplete',
+  incomplete_expired: 'incomplete_expired',
+  trialing: 'trialing',
+  active: 'active',
+  past_due: 'past_due',
+  canceled: 'canceled',
+  unpaid: 'unpaid',
+  paused: 'paused',
+} as const
+
+type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus]
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 

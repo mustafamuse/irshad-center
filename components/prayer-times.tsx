@@ -169,6 +169,7 @@ export default function PrayerTimes() {
       clearInterval(timeInterval)
       clearTimeout(midnightTimer)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClient])
 
   if (!isClient) {

@@ -68,7 +68,7 @@ export function installTransaction(tx: {
   student: Partial<TransactionSpies['student']>
 }): () => void {
   const mock = vi.mocked(prisma.$transaction)
-  mock.mockImplementation(async (fn) => fn(tx as any))
+  mock.mockImplementation(async (fn) => fn(tx as unknown))
   return () => mock.mockReset()
 }
 

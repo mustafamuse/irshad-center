@@ -215,7 +215,7 @@ export function createStudentColumns(
         const student = row.original
         const activeSiblings =
           student.Sibling?.Student.filter(
-            (sibling) =>
+            (sibling: { id: string; name: string; status: string | null }) =>
               sibling.id !== student.id &&
               (sibling.status === 'enrolled' || sibling.status === 'registered')
           ) || []
@@ -243,7 +243,7 @@ export function createStudentColumns(
                 <TooltipContent>
                   <div className="space-y-1">
                     <p className="font-semibold">Active Siblings:</p>
-                    {activeSiblings.map((sibling) => (
+                    {activeSiblings.map((sibling: { id: string; name: string; status: string | null }) => (
                       <p key={sibling.id} className="text-sm">
                         {sibling.name}
                       </p>

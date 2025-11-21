@@ -1,6 +1,7 @@
 import { CreditCard, DollarSign, Users, UserCheck } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
 import { DugsiRegistration } from '../_types'
 import { groupRegistrationsByFamily } from '../_utils/family'
 
