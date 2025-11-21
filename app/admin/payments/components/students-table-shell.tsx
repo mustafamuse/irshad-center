@@ -1,3 +1,5 @@
+import { EnrollmentStatus } from '@prisma/client'
+
 import {
   Card,
   CardContent,
@@ -55,7 +57,9 @@ export async function StudentsTableShell({
     getProgramProfilesWithBilling({
       studentName: studentName as string | undefined,
       batchId: batchId as string | undefined,
-      status: statusValue ? (statusValue.toUpperCase() as unknown) : undefined,
+      status: statusValue
+        ? (statusValue.toUpperCase() as EnrollmentStatus)
+        : undefined,
       needsBilling: needsBilling === 'true',
       excludeTestBatch: true,
       skip,
@@ -68,7 +72,9 @@ export async function StudentsTableShell({
     getProgramProfilesWithBillingCount({
       studentName: studentName as string | undefined,
       batchId: batchId as string | undefined,
-      status: statusValue ? (statusValue.toUpperCase() as unknown) : undefined,
+      status: statusValue
+        ? (statusValue.toUpperCase() as EnrollmentStatus)
+        : undefined,
       needsBilling: needsBilling === 'true',
       excludeTestBatch: true,
     }),
