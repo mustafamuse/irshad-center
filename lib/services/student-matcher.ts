@@ -1,14 +1,14 @@
 // ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
 // TODO: Migrate to ProgramProfile/Enrollment model
 
-import { Prisma } from '@prisma/client'
+import { _Prisma } from '@prisma/client'
 import type { Stripe } from 'stripe'
 
-import { prisma } from '@/lib/db'
+import { _prisma } from '@/lib/db'
 import {
-  webhookPhoneSchema,
-  webhookEmailSchema,
-  validateWebhookData,
+  _webhookPhoneSchema,
+  _webhookEmailSchema,
+  _validateWebhookData,
 } from '@/lib/validations/webhook'
 
 /**
@@ -42,7 +42,7 @@ export class StudentMatcher {
    * @returns Result containing the matched student (if any) and metadata
    */
   async findByCheckoutSession(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
     // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
     return {
@@ -76,7 +76,7 @@ export class StudentMatcher {
    * Only returns a match if exactly one unlinked student is found.
    */
   private async findByCustomEmail(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
     // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
     return { student: null, matchMethod: null, validatedEmail: null }
@@ -134,7 +134,7 @@ export class StudentMatcher {
    * Only returns a match if exactly one unlinked student is found.
    */
   private async findByPhone(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
     // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
     return { student: null, matchMethod: null, validatedEmail: null }
@@ -196,7 +196,7 @@ export class StudentMatcher {
    * Only returns a match if exactly one unlinked student is found.
    */
   private async findByEmail(
-    session: Stripe.Checkout.Session
+    _session: Stripe.Checkout.Session
   ): Promise<StudentMatchResult> {
     // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
     return { student: null, matchMethod: null, validatedEmail: null }

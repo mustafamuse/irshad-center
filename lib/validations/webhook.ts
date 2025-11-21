@@ -59,13 +59,17 @@ export function validateWebhookData<T>(
       'Errors:',
       result.error.issues.map((i) => i.message).join(', ')
     )
-    return null as any
+    return null as unknown as T extends string | undefined
+      ? string | null
+      : T | null
   }
 
   // Handle optional schemas that might return undefined
   if (result.data === undefined) {
-    return null as any
+    return null as unknown as T extends string | undefined
+      ? string | null
+      : T | null
   }
 
-  return result.data as any
+  return result.data as T extends string | undefined ? string | null : T | null
 }

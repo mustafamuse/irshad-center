@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 
-import { prisma } from '@/lib/db'
-
 // Function to calculate Levenshtein distance between two strings
 function levenshteinDistance(a: string, b: string): number {
   const matrix: number[][] = []
@@ -33,13 +31,13 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 // Function to calculate similarity percentage
-function calculateSimilarity(a: string, b: string): number {
+function _calculateSimilarity(a: string, b: string): number {
   const distance = levenshteinDistance(a.toLowerCase(), b.toLowerCase())
   const maxLength = Math.max(a.length, b.length)
   return Math.round(((maxLength - distance) / maxLength) * 100)
 }
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   // TODO: Migrate to ProgramProfile model - Student model removed
   return NextResponse.json({
     exact: {

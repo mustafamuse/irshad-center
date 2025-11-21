@@ -1,7 +1,8 @@
 'use client'
 
-import { Users, Plus, ExternalLink } from 'lucide-react'
 import Link from 'next/link'
+
+import { Users, Plus, ExternalLink } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,7 +22,7 @@ interface SiblingSectionProps {
 }
 
 export function SiblingSection({
-  personId,
+  _personId,
   siblings,
   onAddSibling,
 }: SiblingSectionProps) {
@@ -36,7 +37,7 @@ export function SiblingSection({
             </div>
             {onAddSibling && (
               <Button variant="outline" size="sm" onClick={onAddSibling}>
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="mr-2 h-4 w-4" />
                 Add Sibling
               </Button>
             )}
@@ -54,7 +55,8 @@ export function SiblingSection({
     })
   })
 
-  const discountEligible = siblings.length >= 1 && programsAcrossSiblings.size >= 1
+  const discountEligible =
+    siblings.length >= 1 && programsAcrossSiblings.size >= 1
 
   return (
     <Card>
@@ -71,13 +73,14 @@ export function SiblingSection({
           </div>
           {onAddSibling && (
             <Button variant="outline" size="sm" onClick={onAddSibling}>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               Add Sibling
             </Button>
           )}
         </div>
         <CardDescription>
-          Siblings across all programs: {Array.from(programsAcrossSiblings).join(', ')}
+          Siblings across all programs:{' '}
+          {Array.from(programsAcrossSiblings).join(', ')}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -88,7 +91,7 @@ export function SiblingSection({
               className="flex items-start justify-between rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50"
             >
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="mb-2 flex items-center gap-2">
                   <span className="font-medium">{sibling.person.name}</span>
                   {sibling.confidence && sibling.confidence < 0.9 && (
                     <Badge variant="outline" className="text-xs">
@@ -105,7 +108,10 @@ export function SiblingSection({
                 {sibling.profiles.length > 0 ? (
                   <div className="space-y-1">
                     {sibling.profiles.map((profile) => (
-                      <div key={profile.id} className="text-sm text-muted-foreground">
+                      <div
+                        key={profile.id}
+                        className="text-sm text-muted-foreground"
+                      >
                         <Badge variant="outline" className="mr-2">
                           {profile.program.replace('_PROGRAM', '')}
                         </Badge>
@@ -118,7 +124,9 @@ export function SiblingSection({
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No active enrollments</p>
+                  <p className="text-sm text-muted-foreground">
+                    No active enrollments
+                  </p>
                 )}
               </div>
 
@@ -134,4 +142,3 @@ export function SiblingSection({
     </Card>
   )
 }
-

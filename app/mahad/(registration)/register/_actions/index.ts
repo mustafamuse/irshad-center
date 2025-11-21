@@ -1,29 +1,34 @@
 'use server'
 
-// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
-// TODO: Migrate to ProgramProfile/Enrollment model
-
 /**
  * Mahad Registration Server Actions
  *
  * Direct Server Actions for student self-registration (college-age).
  * Follows the same pattern as app/admin/mahad/cohorts/actions.ts
+ *
+ * ✅ MIGRATION COMPLETE:
+ * This file has been migrated to use the new unified identity model:
+ * - Person model for identity
+ * - ProgramProfile model for program enrollment
+ * - Enrollment model for enrollment details
  */
 
 import { revalidatePath } from 'next/cache'
 
+import { EducationLevel, GradeLevel } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
+import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { searchProgramProfilesByNameOrContact } from '@/lib/db/queries/program-profile'
+import { createSiblingRelationship } from '@/lib/db/queries/siblings'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { formatFullName } from '@/lib/registration/utils/name-formatting'
 import { handlePrismaUniqueError } from '@/lib/registration/utils/prisma-error-handler'
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-const MAX_SIBLING_GROUP_SIZE = 15
+import {
+  createPersonWithContact,
+  createProgramProfileWithEnrollment,
+} from '@/lib/services/registration-service'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -36,51 +41,12 @@ type ActionResult<T = void> = T extends void
       error?: string
       field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
     }
-  :
-      | {
-          success: true
-          data: T
-        }
-      | {
-          success: false
-          error: string
-          field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
-        }
-
-// ============================================================================
-// PRISMA SELECTORS (inline instead of separate file)
-// ============================================================================
-
-const studentSelectors = {
-  basic: {
-    id: true,
-    name: true,
-  },
-  withSiblings: {
-    id: true,
-    name: true,
-    email: true,
-    phone: true,
-    dateOfBirth: true,
-    educationLevel: true,
-    gradeLevel: true,
-    schoolName: true,
-    updatedAt: true,
-    Sibling: {
-      select: {
-        Student: {
-          select: { id: true, name: true },
-        },
-      },
-    },
-  },
-} as const
-
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-// Note: Duplicate checking is now handled by database constraints
-// See: prisma/migrations/20251011141141_add_unique_constraints_duplicates
+  : {
+      success: boolean
+      data?: T
+      error?: string
+      field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
+    }
 
 // ============================================================================
 // REGISTRATION ACTIONS
@@ -93,109 +59,103 @@ export async function registerStudent(input: {
   studentData: z.infer<typeof mahadRegistrationSchema>
   siblingIds: string[] | null
 }): Promise<ActionResult<{ id: string; name: string }>> {
-  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
-  return {
-    success: false,
-    error: 'Migration needed: Student model has been removed. Please migrate to ProgramProfile/Enrollment model.',
-  }
-
-  /* Original implementation commented out - needs migration:
   try {
     const validated = mahadRegistrationSchema.parse(input.studentData)
 
-    return await prisma.$transaction(async (tx) => {
-      // 1. Format and capitalize names
-      const fullName = formatFullName(validated.firstName, validated.lastName)
+    // 1. Format and capitalize names
+    const fullName = formatFullName(validated.firstName, validated.lastName)
 
-      // 2. Prepare sibling group logic (duplicates handled by database constraints)
-      let siblingGroupId: string | null = null
-      if (input.siblingIds && input.siblingIds.length > 0) {
-        // Find existing sibling group from provided IDs
-        const existingSibling = await tx.student.findFirst({
-          where: {
-            id: { in: input.siblingIds },
-            siblingGroupId: { not: null },
-          },
-          select: { siblingGroupId: true },
-        })
-
-        if (existingSibling?.siblingGroupId) {
-          // Use existing group
-          siblingGroupId = existingSibling.siblingGroupId
-
-          // Check group size
-          const groupSize = await tx.student.count({
-            where: { siblingGroupId },
-          })
-
-          if (groupSize >= MAX_SIBLING_GROUP_SIZE) {
-            throw new Error(
-              `Cannot add to sibling group: maximum size (${MAX_SIBLING_GROUP_SIZE}) reached`
-            )
-          }
-        }
-      }
-
-      // 3. Create student (database will enforce uniqueness)
-      let student
-      try {
-        student = await tx.student.create({
-          data: {
-            name: fullName,
-            email: validated.email,
-            phone: validated.phone,
-            dateOfBirth: validated.dateOfBirth,
-            educationLevel: validated.educationLevel,
-            gradeLevel: validated.gradeLevel,
-            schoolName: validated.schoolName,
-            siblingGroupId,
-            program: 'MAHAD_PROGRAM',
-          },
-          select: { id: true, name: true },
-        })
-      } catch (createError) {
-        // Handle unique constraint violations from database
-        const duplicateError = handlePrismaUniqueError(createError, {
-          name: fullName,
-          email: validated.email,
-          phone: validated.phone,
-        })
-
-        if (duplicateError) {
-          return {
-            success: false,
-            error: duplicateError.message,
-            field: duplicateError.field,
-          }
-        }
-
-        // Re-throw if not a duplicate error
-        throw createError
-      }
-
-      // 4. Create sibling group if needed
-      if (input.siblingIds && input.siblingIds.length > 0 && !siblingGroupId) {
-        const newGroup = await tx.sibling.create({
-          data: {
-            Student: {
-              connect: [
-                { id: student.id },
-                ...input.siblingIds.map((id) => ({ id })),
-              ],
-            },
-          },
-        })
-
-        await tx.student.update({
-          where: { id: student.id },
-          data: { siblingGroupId: newGroup.id },
-        })
-      }
-
-      return { success: true, data: student }
+    // 2. Create Person with contact points
+    const person = await createPersonWithContact({
+      name: fullName,
+      dateOfBirth: validated.dateOfBirth,
+      email: validated.email,
+      phone: validated.phone,
+      isPrimaryEmail: true,
+      isPrimaryPhone: true,
     })
+
+    // 3. Create ProgramProfile with Enrollment
+    // Note: batchId is not provided during registration, will be assigned later
+    const { profile } = await createProgramProfileWithEnrollment({
+      personId: person.id,
+      program: 'MAHAD_PROGRAM',
+      status: 'REGISTERED',
+      batchId: null, // Will be assigned later by admin
+      monthlyRate: 150, // Default rate
+      educationLevel: validated.educationLevel as EducationLevel,
+      gradeLevel: validated.gradeLevel as GradeLevel,
+      schoolName: validated.schoolName,
+    })
+
+    // 4. Handle sibling relationships if provided
+    // Create SiblingRelationship records for each selected sibling
+    if (input.siblingIds && input.siblingIds.length > 0) {
+      // Get Person IDs for all sibling ProgramProfiles
+      const siblingProfiles = await prisma.programProfile.findMany({
+        where: {
+          id: { in: input.siblingIds },
+          program: 'MAHAD_PROGRAM', // Ensure siblings are Mahad students
+        },
+        select: { personId: true },
+      })
+
+      // Create sibling relationships
+      for (const siblingProfile of siblingProfiles) {
+        try {
+          await createSiblingRelationship(
+            person.id,
+            siblingProfile.personId,
+            'manual',
+            null
+          )
+        } catch (error) {
+          // Log but don't fail registration if sibling relationship creation fails
+          // (e.g., relationship already exists)
+          console.warn(
+            `[registerStudent] Failed to create sibling relationship:`,
+            error
+          )
+        }
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        id: profile.id,
+        name: fullName,
+      },
+    }
   } catch (error) {
     console.error('[registerStudent] Error:', error)
+
+    // Try to extract validated data for duplicate error handling
+    let validated: z.infer<typeof mahadRegistrationSchema> | null = null
+    try {
+      validated = mahadRegistrationSchema.parse(input.studentData)
+    } catch {
+      // If validation fails, we'll handle it below
+    }
+
+    // Handle duplicate errors if we have validated data
+    if (validated) {
+      const duplicateError = handlePrismaUniqueError(error, {
+        name: formatFullName(validated.firstName, validated.lastName),
+        email: validated.email,
+        phone: validated.phone,
+      })
+
+      if (duplicateError) {
+        return {
+          success: false,
+          error: duplicateError.message,
+          field: duplicateError.field,
+        }
+      }
+    }
+
+    // Handle other errors
     const isDuplicateError =
       error && typeof error === 'object' && 'field' in error
     return {
@@ -217,7 +177,6 @@ export async function registerStudent(input: {
   } finally {
     revalidatePath('/mahad/register')
   }
-  */
 }
 
 // ============================================================================
@@ -225,143 +184,192 @@ export async function registerStudent(input: {
 // ============================================================================
 
 /**
- * Check if email already exists
+ * Check if email already exists for Mahad program
+ * Uses unified Person/ContactPoint model
  */
 export async function checkEmailExists(email: string): Promise<boolean> {
-  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
-  return false // Temporary: always return false until migration complete
+  if (!email || !email.trim()) {
+    return false
+  }
+
+  try {
+    // Find person by email using unified model
+    const person = await findPersonByContact(email.toLowerCase().trim(), null)
+
+    if (!person) {
+      return false
+    }
+
+    // Check if person has an active Mahad ProgramProfile
+    const hasMahadProfile = person.programProfiles.some(
+      (profile) =>
+        profile.program === 'MAHAD_PROGRAM' &&
+        profile.enrollments.some(
+          (enrollment) =>
+            enrollment.status !== 'WITHDRAWN' && enrollment.endDate === null
+        )
+    )
+
+    return hasMahadProfile
+  } catch (error) {
+    console.error('[checkEmailExists] Error:', error)
+    return false
+  }
 }
 
 /**
- * Search students by name for sibling matching
+ * Search Mahad students by name for sibling matching
+ * Uses unified Person/ProgramProfile model
+ * Returns results matching the SearchResult interface expected by the UI
  */
-export async function searchStudents(query: string, lastName: string) {
-  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
-  return [] // Temporary: return empty array until migration complete
+export async function searchStudents(
+  query: string,
+  lastName: string
+): Promise<Array<{ id: string; name: string; lastName: string }>> {
+  if (!query || query.trim().length < 2) {
+    return []
+  }
+
+  try {
+    // Search for Mahad ProgramProfiles matching the query
+    const profiles = await searchProgramProfilesByNameOrContact(
+      query.trim(),
+      'MAHAD_PROGRAM'
+    )
+
+    // Filter to only show students with matching lastName (for sibling matching)
+    const filtered = profiles.filter((profile) => {
+      const personLastName = profile.person.name.split(' ').pop() || ''
+      return (
+        personLastName.toLowerCase() === lastName.toLowerCase() &&
+        // Only show students with active enrollments
+        profile.enrollments.some(
+          (enrollment) =>
+            enrollment.status !== 'WITHDRAWN' && enrollment.endDate === null
+        )
+      )
+    })
+
+    // Map to expected format
+    return filtered.map((profile) => ({
+      id: profile.id,
+      name: profile.person.name,
+      lastName: profile.person.name.split(' ').pop() || '',
+    }))
+  } catch (error) {
+    console.error('[searchStudents] Error:', error)
+    return []
+  }
 }
 
 /**
- * Add sibling relationship
+ * Add sibling relationship between two Mahad students
+ * Uses unified Person/SiblingRelationship model
  */
 export async function addSibling(
   studentId: string,
   siblingId: string
 ): Promise<ActionResult> {
-  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
-  return {
-    success: false,
-    error: 'Migration needed: Student model has been removed.',
-  }
-
-  /* Original implementation commented out - needs migration:
   if (studentId === siblingId) {
     return { success: false, error: 'Cannot add student as their own sibling' }
   }
 
   try {
-    return await prisma.$transaction(async (tx) => {
-      const [student, sibling] = await Promise.all([
-        tx.student.findUnique({
-          where: { id: studentId },
-          select: { siblingGroupId: true },
-        }),
-        tx.student.findUnique({
-          where: { id: siblingId },
-          select: { siblingGroupId: true },
-        }),
-      ])
-
-      if (!student || !sibling) {
-        return { success: false, error: 'Student not found' }
-      }
-
-      // Neither has group - create new
-      if (!student.siblingGroupId && !sibling.siblingGroupId) {
-        await tx.sibling.create({
-          data: {
-            Student: {
-              connect: [{ id: studentId }, { id: siblingId }],
-            },
-          },
-        })
-      }
-      // Student has group - add sibling to it
-      else if (student.siblingGroupId) {
-        await tx.student.update({
-          where: { id: siblingId },
-          data: { siblingGroupId: student.siblingGroupId },
-        })
-      }
-      // Sibling has group - add student to it
-      else if (sibling.siblingGroupId) {
-        await tx.student.update({
-          where: { id: studentId },
-          data: { siblingGroupId: sibling.siblingGroupId },
-        })
-      }
-
-      return { success: true }
+    // Get profiles sequentially to avoid SWC parser issues with Promise.all
+    const studentProfile = await prisma.programProfile.findUnique({
+      where: { id: studentId },
+      select: { personId: true, program: true },
     })
+
+    const siblingProfile = await prisma.programProfile.findUnique({
+      where: { id: siblingId },
+      select: { personId: true, program: true },
+    })
+
+    if (!studentProfile || !siblingProfile) {
+      return { success: false, error: 'Student or sibling not found' }
+    }
+
+    // Verify both are Mahad profiles
+    if (
+      studentProfile.program !== 'MAHAD_PROGRAM' ||
+      siblingProfile.program !== 'MAHAD_PROGRAM'
+    ) {
+      return {
+        success: false,
+        error: 'Both students must be enrolled in Mahad program',
+      }
+    }
+
+    // Create sibling relationship using Person IDs
+    await createSiblingRelationship(
+      studentProfile.personId,
+      siblingProfile.personId,
+      'manual',
+      null
+    )
+
+    revalidatePath('/mahad/register')
+    return { success: true }
   } catch (error) {
     console.error('[addSibling] Error:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to add sibling',
     }
-  } finally {
-    revalidatePath('/mahad/register')
   }
-  */
 }
 
 /**
- * Remove sibling relationship
+ * Remove sibling relationship between two Mahad students
+ * Uses unified Person/SiblingRelationship model
  */
 export async function removeSibling(
-  studentId: string,
-  siblingId: string
+  studentProfileId: string,
+  siblingProfileId: string
 ): Promise<ActionResult> {
-  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
-  return {
-    success: false,
-    error: 'Migration needed: Student model has been removed.',
-  }
-
-  /* Original implementation commented out - needs migration:
   try {
-    return await prisma.$transaction(async (tx) => {
-      const student = await tx.student.findUnique({
-        where: { id: studentId },
-        select: { siblingGroupId: true },
-      })
-
-      if (!student?.siblingGroupId) {
-        return { success: false, error: 'Sibling group not found' }
-      }
-
-      const groupSize = await tx.student.count({
-        where: { siblingGroupId: student.siblingGroupId },
-      })
-
-      if (groupSize <= 2) {
-        // Delete entire group
-        await Promise.all([
-          tx.student.updateMany({
-            where: { siblingGroupId: student.siblingGroupId },
-            data: { siblingGroupId: null },
-          }),
-          tx.sibling.delete({ where: { id: student.siblingGroupId } }),
-        ])
-      } else {
-        // Just remove the one sibling
-        await tx.student.update({
-          where: { id: siblingId },
-          data: { siblingGroupId: null },
-        })
-      }
-
-      return { success: true }
+    // Get profiles sequentially to avoid SWC parser issues with Promise.all
+    const studentProfile = await prisma.programProfile.findUnique({
+      where: { id: studentProfileId },
+      select: { personId: true },
     })
+
+    const siblingProfile = await prisma.programProfile.findUnique({
+      where: { id: siblingProfileId },
+      select: { personId: true },
+    })
+
+    if (!studentProfile || !siblingProfile) {
+      return { success: false, error: 'Student or sibling not found' }
+    }
+
+    // Find the sibling relationship (ensure consistent ordering)
+    const personIds = [studentProfile.personId, siblingProfile.personId].sort()
+
+    const relationship = await prisma.siblingRelationship.findFirst({
+      where: {
+        person1Id: personIds[0],
+        person2Id: personIds[1],
+        isActive: true,
+      },
+    })
+
+    if (!relationship) {
+      return {
+        success: false,
+        error: 'Sibling relationship not found',
+      }
+    }
+
+    // Deactivate the relationship (soft delete)
+    await prisma.siblingRelationship.update({
+      where: { id: relationship.id },
+      data: { isActive: false },
+    })
+
+    revalidatePath('/mahad/register')
+    return { success: true }
   } catch (error) {
     console.error('[removeSibling] Error:', error)
     return {
@@ -369,8 +377,5 @@ export async function removeSibling(
       error:
         error instanceof Error ? error.message : 'Failed to remove sibling',
     }
-  } finally {
-    revalidatePath('/mahad/register')
   }
-  */
 }

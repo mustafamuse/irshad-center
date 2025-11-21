@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server'
 
-import { prisma } from '@/lib/db'
-
 export async function GET() {
   // TODO: Migrate to ProgramProfile model - Student model removed
   return NextResponse.json({

@@ -2,35 +2,177 @@ import { z } from 'zod'
 
 /**
  * Validates required environment variables at app startup
+ *
+ * This comprehensive schema ensures all critical configuration is present
+ * and correctly formatted before the application starts.
  */
 const envSchema = z.object({
-  // Resend Email Service
-  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
+  // ============================================================================
+  // Node Environment
+  // ============================================================================
+  NODE_ENV: z
+    .enum(['development', 'production', 'test'])
+    .default('development'),
+
+  // ============================================================================
+  // Database Configuration
+  // ============================================================================
+  DATABASE_URL: z
+    .string()
+    .url('DATABASE_URL must be a valid URL')
+    .startsWith(
+      'postgresql://',
+      'DATABASE_URL must be a PostgreSQL connection string'
+    ),
+
+  DIRECT_URL: z
+    .string()
+    .url('DIRECT_URL must be a valid URL')
+    .startsWith(
+      'postgresql://',
+      'DIRECT_URL must be a PostgreSQL connection string'
+    ),
+
+  DATABASE_ENV: z
+    .enum(['development', 'staging', 'production'])
+    .optional()
+    .default('development'),
+
+  // ============================================================================
+  // Stripe - Mahad Account
+  // ============================================================================
+  STRIPE_SECRET_KEY_PROD: z
+    .string()
+    .min(1, 'STRIPE_SECRET_KEY_PROD is required')
+    .startsWith('sk_', 'Stripe secret key must start with sk_'),
+
+  STRIPE_WEBHOOK_SECRET_PROD: z
+    .string()
+    .min(1, 'STRIPE_WEBHOOK_SECRET_PROD is required')
+    .startsWith('whsec_', 'Stripe webhook secret must start with whsec_'),
+
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z
+    .string()
+    .min(1, 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is required')
+    .startsWith('pk_', 'Stripe publishable key must start with pk_'),
+
+  // ============================================================================
+  // Stripe - Dugsi Account
+  // ============================================================================
+  STRIPE_SECRET_KEY_DUGSI: z
+    .string()
+    .min(1, 'STRIPE_SECRET_KEY_DUGSI is required')
+    .startsWith('sk_', 'Stripe secret key must start with sk_'),
+
+  STRIPE_WEBHOOK_SECRET_DUGSI: z
+    .string()
+    .min(1, 'STRIPE_WEBHOOK_SECRET_DUGSI is required')
+    .startsWith('whsec_', 'Stripe webhook secret must start with whsec_'),
+
+  NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI: z
+    .string()
+    .url('NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI must be a valid URL')
+    .optional(),
+
+  // ============================================================================
+  // Email Service (Resend)
+  // ============================================================================
+  RESEND_API_KEY: z
+    .string()
+    .min(1, 'RESEND_API_KEY is required')
+    .startsWith('re_', 'Resend API key must start with re_'),
+
   EMAIL_FROM: z
     .string()
     .min(1, 'EMAIL_FROM is required')
-    .optional()
     .default('Irshad Center <noreply@irshadcenter.com>'),
+
   ADMIN_EMAIL: z
     .string()
     .email('ADMIN_EMAIL must be a valid email')
     .min(1, 'ADMIN_EMAIL is required'),
-  REPLY_TO_EMAIL: z.string().email().optional(),
 
-  // Node Environment
-  NODE_ENV: z
-    .enum(['development', 'production', 'test'])
-    .optional()
-    .default('development'),
+  REPLY_TO_EMAIL: z
+    .string()
+    .email('REPLY_TO_EMAIL must be a valid email')
+    .optional(),
+
+  // ============================================================================
+  // Security & Authentication
+  // ============================================================================
+  ADMIN_PASSWORD: z
+    .string()
+    .min(12, 'ADMIN_PASSWORD must be at least 12 characters')
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      'ADMIN_PASSWORD must contain uppercase, lowercase, and numbers'
+    ),
+
+  CRON_SECRET_KEY: z
+    .string()
+    .min(32, 'CRON_SECRET_KEY must be at least 32 characters for security'),
+
+  // ============================================================================
+  // Redis / KV Storage (Optional - for rate limiting)
+  // ============================================================================
+  KV_REST_API_URL: z
+    .string()
+    .url('KV_REST_API_URL must be a valid URL')
+    .optional(),
+
+  KV_REST_API_TOKEN: z
+    .string()
+    .min(1, 'KV_REST_API_TOKEN is required if KV_REST_API_URL is set')
+    .optional(),
+
+  KV_REST_API_READ_ONLY_TOKEN: z.string().optional(),
+
+  KV_URL: z.string().url().optional(),
+
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 })
 
 // Validate environment variables with helpful error messages
 const result = envSchema.safeParse({
+  // Node
+  NODE_ENV: process.env.NODE_ENV,
+
+  // Database
+  DATABASE_URL: process.env.DATABASE_URL,
+  DIRECT_URL: process.env.DIRECT_URL,
+  DATABASE_ENV: process.env.DATABASE_ENV,
+
+  // Stripe - Mahad
+  STRIPE_SECRET_KEY_PROD: process.env.STRIPE_SECRET_KEY_PROD,
+  STRIPE_WEBHOOK_SECRET_PROD: process.env.STRIPE_WEBHOOK_SECRET_PROD,
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+
+  // Stripe - Dugsi
+  STRIPE_SECRET_KEY_DUGSI: process.env.STRIPE_SECRET_KEY_DUGSI,
+  STRIPE_WEBHOOK_SECRET_DUGSI: process.env.STRIPE_WEBHOOK_SECRET_DUGSI,
+  NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI:
+    process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI,
+
+  // Email
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM: process.env.EMAIL_FROM,
   ADMIN_EMAIL: process.env.ADMIN_EMAIL,
   REPLY_TO_EMAIL: process.env.REPLY_TO_EMAIL,
-  NODE_ENV: process.env.NODE_ENV,
+
+  // Security
+  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+  CRON_SECRET_KEY: process.env.CRON_SECRET_KEY,
+
+  // Redis / KV (Optional)
+  KV_REST_API_URL: process.env.KV_REST_API_URL,
+  KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
+  KV_REST_API_READ_ONLY_TOKEN: process.env.KV_REST_API_READ_ONLY_TOKEN,
+  KV_URL: process.env.KV_URL,
+  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
+  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
 })
 
 if (!result.success) {

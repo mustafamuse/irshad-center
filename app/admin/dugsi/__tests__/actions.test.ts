@@ -97,7 +97,9 @@ describe.skip('Dugsi Server Actions', () => {
         },
       ]
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as any)
+      vi.mocked(prisma.student.findMany).mockResolvedValue(
+        mockStudents as unknown
+      )
 
       const result = await getDugsiRegistrations()
 
@@ -139,8 +141,12 @@ describe.skip('Dugsi Server Actions', () => {
         },
       ]
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
-      vi.mocked(prisma.student.findMany).mockResolvedValue(mockSiblings as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
+      vi.mocked(prisma.student.findMany).mockResolvedValue(
+        mockSiblings as unknown
+      )
 
       const result = await getFamilyMembers('1')
 
@@ -189,8 +195,12 @@ describe.skip('Dugsi Server Actions', () => {
         },
       ]
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
-      vi.mocked(prisma.student.findMany).mockResolvedValue(mockSiblings as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
+      vi.mocked(prisma.student.findMany).mockResolvedValue(
+        mockSiblings as unknown
+      )
 
       const result = await getFamilyMembers('1')
 
@@ -214,7 +224,9 @@ describe.skip('Dugsi Server Actions', () => {
         parentEmail: null,
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
 
       const result = await getFamilyMembers('1')
 
@@ -251,7 +263,9 @@ describe.skip('Dugsi Server Actions', () => {
         parentEmail: 'parent@example.com',
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
       vi.mocked(prisma.student.deleteMany).mockResolvedValue({ count: 2 })
 
       const result = await deleteDugsiFamily('1')
@@ -287,7 +301,9 @@ describe.skip('Dugsi Server Actions', () => {
         parentEmail: 'parent@example.com',
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
       vi.mocked(prisma.student.deleteMany).mockResolvedValue({ count: 3 })
 
       const result = await deleteDugsiFamily('1')
@@ -311,8 +327,8 @@ describe.skip('Dugsi Server Actions', () => {
         id: '1',
         familyReferenceId: null,
         parentEmail: null,
-      } as any)
-      vi.mocked(prisma.student.delete).mockResolvedValue({ id: '1' } as any)
+      } as unknown)
+      vi.mocked(prisma.student.delete).mockResolvedValue({ id: '1' } as unknown)
 
       const result = await deleteDugsiFamily('1')
 
@@ -378,15 +394,15 @@ describe.skip('Dugsi Server Actions', () => {
 
       vi.mocked(getDugsiStripeClient).mockReturnValue({
         subscriptions: {
-          retrieve: vi.fn().mockResolvedValue(mockSubscription as any),
+          retrieve: vi.fn().mockResolvedValue(mockSubscription as unknown),
         },
-      } as any)
+      } as unknown)
 
       vi.mocked(prisma.student.findMany).mockResolvedValue([
         { id: '1', stripeSubscriptionIdDugsi: null, subscriptionStatus: null },
         { id: '2', stripeSubscriptionIdDugsi: null, subscriptionStatus: null },
-      ] as any)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+      ] as unknown)
+      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
       const result = await linkDugsiSubscription({
         parentEmail: 'parent@example.com',
@@ -433,7 +449,7 @@ describe.skip('Dugsi Server Actions', () => {
             .fn()
             .mockRejectedValue(new Error('Subscription not found')),
         },
-      } as any)
+      } as unknown)
 
       const result = await linkDugsiSubscription({
         parentEmail: 'parent@example.com',
@@ -460,9 +476,9 @@ describe.skip('Dugsi Server Actions', () => {
 
       vi.mocked(getDugsiStripeClient).mockReturnValue({
         subscriptions: {
-          retrieve: vi.fn().mockResolvedValue(mockSubscription as any),
+          retrieve: vi.fn().mockResolvedValue(mockSubscription as unknown),
         },
-      } as any)
+      } as unknown)
 
       vi.mocked(prisma.student.findMany).mockResolvedValue([])
 
@@ -482,7 +498,7 @@ describe.skip('Dugsi Server Actions', () => {
         subscriptions: {
           retrieve: vi.fn().mockRejectedValue(new Error('Stripe API error')),
         },
-      } as any)
+      } as unknown)
 
       const result = await linkDugsiSubscription({
         parentEmail: 'parent@example.com',
@@ -549,7 +565,9 @@ describe.skip('Dugsi Server Actions', () => {
         },
       ]
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as any)
+      vi.mocked(prisma.student.findMany).mockResolvedValue(
+        mockStudents as unknown
+      )
 
       const result = await getDugsiPaymentStatus('parent@example.com')
 
@@ -624,7 +642,9 @@ describe.skip('Dugsi Server Actions', () => {
         },
       ]
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as any)
+      vi.mocked(prisma.student.findMany).mockResolvedValue(
+        mockStudents as unknown
+      )
 
       const result = await getDugsiPaymentStatus('parent@example.com')
 
@@ -642,7 +662,9 @@ describe.skip('Dugsi Server Actions', () => {
         parentEmail: 'old@example.com',
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
       vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
 
       const result = await updateParentInfo({
@@ -688,7 +710,9 @@ describe.skip('Dugsi Server Actions', () => {
         parentEmail: 'parent@example.com',
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
       vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 3 })
 
       const result = await updateParentInfo({
@@ -722,7 +746,9 @@ describe.skip('Dugsi Server Actions', () => {
         parentEmail: 'parent@example.com',
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
       vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
 
       const result = await updateParentInfo({
@@ -756,8 +782,10 @@ describe.skip('Dugsi Server Actions', () => {
         parentEmail: null,
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
+      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
       const result = await updateParentInfo({
         studentId: '1',
@@ -820,7 +848,7 @@ describe.skip('Dugsi Server Actions', () => {
     it('should validate parentNumber is 1 or 2', async () => {
       const result = await updateParentInfo({
         studentId: '1',
-        parentNumber: 3 as any,
+        parentNumber: 3 as unknown,
         firstName: 'Test',
         lastName: 'User',
         phone: '+1234567890',
@@ -842,7 +870,9 @@ describe.skip('Dugsi Server Actions', () => {
         parent2FirstName: null,
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
       vi.mocked(prisma.student.updateMany).mockResolvedValue({ count: 2 })
 
       const result = await addSecondParent({
@@ -891,7 +921,9 @@ describe.skip('Dugsi Server Actions', () => {
         parent2FirstName: 'Existing',
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
 
       const result = await addSecondParent({
         studentId: '1',
@@ -951,11 +983,13 @@ describe.skip('Dugsi Server Actions', () => {
         gender: 'MALE',
       }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
       vi.mocked(prisma.student.update).mockResolvedValue({
         id: '1',
         name: 'New Name',
-      } as any)
+      } as unknown)
 
       const result = await updateChildInfo({
         studentId: '1',
@@ -996,8 +1030,10 @@ describe.skip('Dugsi Server Actions', () => {
     it('should allow partial updates', async () => {
       const mockStudent = { id: '1' }
 
-      vi.mocked(prisma.student.findUnique).mockResolvedValue(mockStudent as any)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+      vi.mocked(prisma.student.findUnique).mockResolvedValue(
+        mockStudent as unknown
+      )
+      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
       const result = await updateChildInfo({
         studentId: '1',
@@ -1065,12 +1101,12 @@ describe.skip('Dugsi Server Actions', () => {
       }
 
       vi.mocked(prisma.student.findUnique).mockResolvedValue(
-        mockExistingSibling as any
+        mockExistingSibling as unknown
       )
       vi.mocked(prisma.student.create).mockResolvedValue({
         id: 'new-child-id',
         name: 'New Child',
-      } as any)
+      } as unknown)
 
       const result = await addChildToFamily({
         existingStudentId: '1',
@@ -1144,11 +1180,11 @@ describe.skip('Dugsi Server Actions', () => {
       }
 
       vi.mocked(prisma.student.findUnique).mockResolvedValue(
-        mockExistingSibling as any
+        mockExistingSibling as unknown
       )
       vi.mocked(prisma.student.create).mockResolvedValue({
         id: 'new-child-id',
-      } as any)
+      } as unknown)
 
       const result = await addChildToFamily({
         existingStudentId: '1',

@@ -5,7 +5,7 @@
 
 import { EducationLevel, GradeLevel } from '@prisma/client'
 
-import { prisma } from '@/lib/db'
+import { _prisma } from '@/lib/db'
 
 export interface BatchStudentData {
   id: string
@@ -45,7 +45,7 @@ export async function getDuplicateStudents() {
   return [] // Temporary: return empty array until migration complete
 }
 
-export async function deleteDuplicateRecords(recordIds: string[]) {
+export async function deleteDuplicateRecords(_recordIds: string[]) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   throw new Error('Migration needed: Student model has been removed')
 }

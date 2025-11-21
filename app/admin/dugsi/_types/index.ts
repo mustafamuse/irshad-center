@@ -13,7 +13,7 @@ import {
 } from '@prisma/client'
 
 // Full registration type - manually defined since Student model was removed
-// TODO: Migrate to Person/ProgramProfile model
+// Maps ProgramProfile + Person + BillingAssignment data to legacy format for UI compatibility
 export interface DugsiRegistration {
   id: string
   name: string

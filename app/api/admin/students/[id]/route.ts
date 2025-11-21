@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server'
 
-import { prisma } from '@/lib/db'
-
 // Get a single student by ID
 export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  _props: { params: Promise<{ id: string }> }
 ) {
   // TODO: Migrate to ProgramProfile model - Student model removed
   return NextResponse.json(
@@ -16,8 +14,8 @@ export async function GET(
 
 // Update a student
 export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  _props: { params: Promise<{ id: string }> }
 ) {
   // TODO: Migrate to ProgramProfile model - Student model removed
   return NextResponse.json(
@@ -28,8 +26,8 @@ export async function PATCH(
 
 // Delete a student
 export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  _props: { params: Promise<{ id: string }> }
 ) {
   // TODO: Migrate to ProgramProfile model - Student model removed
   return NextResponse.json(

@@ -1,19 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Plus, Search, X } from 'lucide-react'
+
+import { Users, Plus, Search } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -22,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -30,7 +24,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { toast } from 'sonner'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 
 interface SiblingGroup {
   siblings: Array<{
@@ -65,14 +66,16 @@ export function SiblingManagementTable() {
 
   useEffect(() => {
     fetchGroups()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [programFilter])
 
   async function fetchGroups() {
     try {
       setLoading(true)
-      const url = programFilter === 'all'
-        ? '/api/admin/siblings/cross-program'
-        : `/api/admin/siblings/cross-program?program=${programFilter}`
+      const url =
+        programFilter === 'all'
+          ? '/api/admin/siblings/cross-program'
+          : `/api/admin/siblings/cross-program?program=${programFilter}`
       const response = await fetch(url)
       const data = await response.json()
 
@@ -151,7 +154,7 @@ export function SiblingManagementTable() {
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="mr-2 h-4 w-4" />
               Add Sibling Relationship
             </Button>
           </DialogTrigger>
@@ -195,7 +198,7 @@ export function SiblingManagementTable() {
       </div>
 
       {filteredGroups.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
+        <div className="py-8 text-center text-muted-foreground">
           No sibling groups found
         </div>
       ) : (
@@ -214,9 +217,14 @@ export function SiblingManagementTable() {
                 <TableCell>
                   <div className="space-y-1">
                     {group.siblings.map((sibling) => (
-                      <div key={sibling.person.id} className="flex items-center gap-2">
+                      <div
+                        key={sibling.person.id}
+                        className="flex items-center gap-2"
+                      >
                         <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{sibling.person.name}</span>
+                        <span className="font-medium">
+                          {sibling.person.name}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -250,4 +258,3 @@ export function SiblingManagementTable() {
     </div>
   )
 }
-

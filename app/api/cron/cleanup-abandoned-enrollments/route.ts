@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
+import { getBillingAccountByStripeCustomerId } from '@/lib/db/queries/billing'
+import { updateEnrollmentStatus } from '@/lib/db/queries/enrollment'
 import { stripeServerClient } from '@/lib/stripe'
 
 // This endpoint should be called by a cron job (e.g., daily)
@@ -34,7 +36,7 @@ export async function POST(req: Request) {
       abandoned: 0,
       cleaned: 0,
       errors: 0,
-      details: [] as any[],
+      details: [] as unknown[],
     }
 
     for (const customer of abandonedCustomers.data) {
@@ -57,22 +59,76 @@ export async function POST(req: Request) {
           continue
         }
 
-        // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
-        // Check if this customer exists in our database
-        const subscription = await prisma.subscription.findFirst({
-          where: { stripeCustomerId: customer.id },
-        })
+        // Check if this customer exists in our database (check both MAHAD and DUGSI accounts)
+        const mahadBillingAccount = await getBillingAccountByStripeCustomerId(
+          customer.id,
+          'MAHAD'
+        )
+        const dugsiBillingAccount = await getBillingAccountByStripeCustomerId(
+          customer.id,
+          'DUGSI'
+        )
 
-        if (subscription) {
-          // This customer exists in our database, so it's not abandoned
+        // Check if customer has any active subscriptions in our database
+        const hasActiveSubscription =
+          mahadBillingAccount?.subscriptions?.some(
+            (sub) => sub.status === 'active' || sub.status === 'trialing'
+          ) ||
+          dugsiBillingAccount?.subscriptions?.some(
+            (sub) => sub.status === 'active' || sub.status === 'trialing'
+          )
+
+        if (hasActiveSubscription) {
+          // This customer has active subscriptions, so it's not abandoned
           continue
         }
 
-        // This is an abandoned enrollment - log it
+        // This is an abandoned enrollment - mark enrollments as withdrawn
         results.abandoned++
         console.log(
           `Found abandoned customer: ${customer.id} (${customer.email})`
         )
+
+        // Mark enrollments as withdrawn for profiles linked to this customer
+        const billingAccount = mahadBillingAccount || dugsiBillingAccount
+        if (billingAccount?.personId) {
+          // Get all program profiles for this person
+          const profiles = await prisma.programProfile.findMany({
+            where: {
+              personId: billingAccount.personId,
+            },
+            include: {
+              enrollments: {
+                where: {
+                  status: { not: 'WITHDRAWN' },
+                  endDate: null,
+                },
+              },
+            },
+          })
+
+          // Update each active enrollment to WITHDRAWN
+          for (const profile of profiles) {
+            for (const enrollment of profile.enrollments) {
+              await updateEnrollmentStatus(
+                enrollment.id,
+                'WITHDRAWN',
+                'Abandoned enrollment - no payment after 24 hours',
+                new Date()
+              )
+
+              // Update ProgramProfile status
+              await prisma.programProfile.update({
+                where: { id: profile.id },
+                data: { status: 'WITHDRAWN' },
+              })
+            }
+          }
+
+          console.log(
+            `✅ Marked ${profiles.length} profile(s) as withdrawn for abandoned customer ${customer.id}`
+          )
+        }
 
         // Add to details
         results.details.push({

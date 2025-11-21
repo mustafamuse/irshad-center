@@ -1,4 +1,5 @@
 import type { Shift } from '@prisma/client'
+
 import type { Person, PersonWithRelations } from './person'
 import type { ProgramProfile } from './program-profile'
 
@@ -89,4 +90,3 @@ export function isDugsiProfile(programProfile: { program: string }): boolean {
 export function isValidShift(shift: string): shift is Shift {
   return shift === 'MORNING' || shift === 'EVENING'
 }
-

@@ -1,7 +1,10 @@
 import { Users, CheckCircle2, AlertCircle } from 'lucide-react'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getSiblingGroupsByProgram, getDiscountEligibleSiblings } from '@/lib/db/queries/siblings'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  getSiblingGroupsByProgram,
+  getDiscountEligibleSiblings,
+} from '@/lib/db/queries/siblings'
 
 export async function SiblingStats() {
   const [allGroups, discountEligible] = await Promise.all([
@@ -17,7 +20,9 @@ export async function SiblingStats() {
     <div className="grid gap-4 md:grid-cols-3">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Total Sibling Groups</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            Total Sibling Groups
+          </CardTitle>
           <Users className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
@@ -30,11 +35,15 @@ export async function SiblingStats() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Discount Eligible</CardTitle>
+          <CardTitle className="text-sm font-medium">
+            Discount Eligible
+          </CardTitle>
           <CheckCircle2 className="h-4 w-4 text-green-600" />
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold text-green-600">{eligibleCount}</div>
+          <div className="text-2xl font-bold text-green-600">
+            {eligibleCount}
+          </div>
           <p className="text-xs text-muted-foreground">
             Groups with 2+ enrolled siblings
           </p>
@@ -58,4 +67,3 @@ export async function SiblingStats() {
     </div>
   )
 }
-

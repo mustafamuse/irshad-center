@@ -8,27 +8,27 @@
  *
  * Follows the same error handling pattern as app/admin/mahad/cohorts/actions.ts
  *
- * ⚠️ CRITICAL MIGRATION NEEDED:
- * This file uses the legacy Student and Sibling models which have been removed.
- * All registration functions need to be migrated to:
+ * ✅ MIGRATION COMPLETE:
+ * This file has been migrated to use the new unified identity model:
  * - Person model for identity
  * - ProgramProfile model for program enrollment
  * - Enrollment model for enrollment details
  * - SiblingRelationship model for sibling tracking
+ * - GuardianRelationship model for parent-child relationships
  */
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma } from '@prisma/client'
+import { Prisma, Gender, EducationLevel, GradeLevel } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
+import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
-import {
-  capitalizeNames,
-  formatFullName,
-} from '@/lib/registration/utils/name-formatting'
+import { capitalizeNames } from '@/lib/registration/utils/name-formatting'
 import { handlePrismaUniqueError } from '@/lib/registration/utils/prisma-error-handler'
+import { createFamilyRegistration } from '@/lib/services/registration-service'
+import { normalizePhone } from '@/lib/types/person'
 import {
   constructDugsiPaymentUrl,
   generateFamilyId,
@@ -130,46 +130,134 @@ export async function registerDugsiChildren(
     count: number
     paymentUrl?: string
     familyId?: string
+    billingAccountId?: string
+    primaryContactPointId?: string | null
   }>
 > {
+  let validated: z.infer<typeof dugsiRegistrationSchema> | null = null
+
   try {
-    const validated = dugsiRegistrationSchema.parse(input)
+    validated = dugsiRegistrationSchema.parse(input)
 
-    return await prisma.$transaction(async (tx) => {
-      // 1. Generate family ID for tracking
-      const familyId = generateFamilyId(validated.parent1LastName)
+    // 1. Generate family ID for tracking
+    const familyId = generateFamilyId(validated.parent1LastName)
 
-      // 2. Capitalize parent names
-      const { firstName: parent1FirstName, lastName: parent1LastName } =
-        capitalizeNames(validated.parent1FirstName, validated.parent1LastName)
+    // 2. Capitalize parent names
+    const { firstName: parent1FirstName, lastName: parent1LastName } =
+      capitalizeNames(validated.parent1FirstName, validated.parent1LastName)
 
-      let parent2FirstName: string | null = null
-      let parent2LastName: string | null = null
-      if (
-        !validated.isSingleParent &&
-        validated.parent2FirstName &&
+    let parent2FirstName: string | null = null
+    let parent2LastName: string | null = null
+    let parent2Email: string | null = null
+    let parent2Phone: string | null = null
+
+    if (
+      !validated.isSingleParent &&
+      validated.parent2FirstName &&
+      validated.parent2LastName &&
+      validated.parent2Email &&
+      validated.parent2Phone
+    ) {
+      const parent2Names = capitalizeNames(
+        validated.parent2FirstName,
         validated.parent2LastName
-      ) {
-        const parent2Names = capitalizeNames(
-          validated.parent2FirstName,
-          validated.parent2LastName
-        )
-        parent2FirstName = parent2Names.firstName
-        parent2LastName = parent2Names.lastName
-      }
+      )
+      parent2FirstName = parent2Names.firstName
+      parent2LastName = parent2Names.lastName
+      parent2Email = validated.parent2Email
+      parent2Phone = validated.parent2Phone
+    }
 
-      // TODO: Migrate to Person/ProgramProfile/Enrollment/SiblingRelationship model - Student and Sibling models removed
-      // This is a critical user-facing registration flow that needs immediate migration
+    // 3. Prepare children data with proper enum type casts
+    const childrenData = validated.children.map((child) => {
+      const { firstName, lastName } = capitalizeNames(
+        child.firstName,
+        child.lastName
+      )
       return {
-        success: false,
-        error: 'Registration temporarily unavailable - system migration in progress. Please contact support.',
+        firstName,
+        lastName,
+        dateOfBirth: child.dateOfBirth,
+        gender: child.gender as Gender,
+        educationLevel: child.educationLevel as EducationLevel,
+        gradeLevel: child.gradeLevel as GradeLevel,
+        schoolName: child.schoolName,
+        healthInfo: child.healthInfo,
       }
     })
+
+    // 4. Create family registration using the service
+    const registrationResult = await createFamilyRegistration({
+      children: childrenData,
+      parent1Email: validated.parent1Email,
+      parent1Phone: validated.parent1Phone,
+      parent1FirstName,
+      parent1LastName,
+      parent2Email,
+      parent2Phone,
+      parent2FirstName,
+      parent2LastName,
+      familyReferenceId: familyId,
+      monthlyRate: 150, // Default rate
+    })
+
+    // 5. Generate payment URL
+    const paymentUrl = constructDugsiPaymentUrl({
+      parentEmail: validated.parent1Email,
+      familyId,
+      childCount: registrationResult.profiles.length,
+    })
+
+    // 6. Return response in expected format
+    return {
+      success: true,
+      data: {
+        children: registrationResult.profiles.map((p) => ({
+          id: p.id,
+          name: p.name,
+        })),
+        count: registrationResult.profiles.length,
+        paymentUrl,
+        familyId,
+        billingAccountId: registrationResult.billingAccount.id,
+        primaryContactPointId:
+          registrationResult.billingAccount.primaryContactPointId,
+      },
+    }
   } catch (error) {
+    // Handle validation errors (Zod parse failures)
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Invalid registration data',
+        errors: error.flatten().fieldErrors,
+      }
+    }
+
+    // Handle duplicate errors using handlePrismaUniqueError (only if validated exists)
+    if (validated) {
+      const duplicateError = handlePrismaUniqueError(error, {
+        name: validated.children
+          .map((c) => `${c.firstName} ${c.lastName}`)
+          .join(', '),
+        email: validated.parent1Email,
+        phone: validated.parent1Phone,
+      })
+
+      if (duplicateError) {
+        return {
+          success: false,
+          error: duplicateError.message,
+          errors: duplicateError.field
+            ? { [duplicateError.field]: [duplicateError.message] }
+            : undefined,
+        }
+      }
+    }
+
+    // Handle other errors
     return handleActionError(error, 'registerDugsiChildren', {
       handlers: {
-        [PRISMA_ERRORS.UNIQUE_CONSTRAINT]:
-          'A student with this information already exists',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Invalid reference in registration data',
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Required record not found',
@@ -185,14 +273,66 @@ export async function registerDugsiChildren(
 // ============================================================================
 
 /**
- * Check if parent email already exists
+ * Check if parent email or phone already exists in Dugsi program
+ * Checks both email and phone to catch duplicates via either contact method
  */
-export async function checkParentEmailExists(email: string): Promise<boolean> {
-  // TODO: Migrate to Person/ProgramProfile model - Student model removed
+export async function checkParentEmailExists(
+  email: string,
+  phone?: string | null
+): Promise<boolean> {
   try {
-    // Stub: Return false to allow registration to proceed
-    // In production, this should check Person.email or ProgramProfile.parentEmail
-    return false
+    if (!email || typeof email !== 'string') {
+      return false
+    }
+
+    // Normalize email (lowercase, trim)
+    const normalizedEmail = email.toLowerCase().trim()
+
+    // Normalize phone if provided
+    const normalizedPhone = phone ? normalizePhone(phone) : null
+
+    // Find person by email or phone using findPersonByContact
+    const person = await findPersonByContact(normalizedEmail, normalizedPhone)
+
+    if (!person) {
+      return false
+    }
+
+    // Check if person has a ProgramProfile with DUGSI_PROGRAM
+    // OR if person is a guardian of children with DUGSI_PROGRAM profiles
+    const hasDugsiProfile = person.programProfiles?.some(
+      (profile) => profile.program === 'DUGSI_PROGRAM'
+    )
+
+    if (hasDugsiProfile) {
+      return true
+    }
+
+    // Check if person is a guardian of Dugsi students
+    const guardianRelationships = await prisma.guardianRelationship.findMany({
+      where: {
+        guardianId: person.id,
+        isActive: true,
+        role: 'PARENT',
+      },
+      include: {
+        dependent: {
+          include: {
+            programProfiles: {
+              where: {
+                program: 'DUGSI_PROGRAM',
+              },
+            },
+          },
+        },
+      },
+    })
+
+    const hasDugsiDependents = guardianRelationships.some(
+      (rel) => rel.dependent.programProfiles.length > 0
+    )
+
+    return hasDugsiDependents
   } catch (error) {
     console.error('[checkParentEmailExists] Error:', error)
     // Return false on error to allow registration to proceed

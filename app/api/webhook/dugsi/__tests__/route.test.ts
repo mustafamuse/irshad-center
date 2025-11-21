@@ -288,7 +288,6 @@ function setupWebhookMocks(
       throw options.verificationError
     })
   } else {
-    // verifyDugsiWebhook takes (body: string, signature: string) and returns Stripe.Event
     vi.mocked(verifyDugsiWebhook).mockImplementation((_body, _signature) => {
       return event
     })
@@ -302,7 +301,7 @@ function setupWebhookMocks(
       source: 'dugsi',
       payload: {},
       createdAt: new Date(),
-    } as any)
+    } as unknown)
   } else {
     vi.mocked(prisma.webhookEvent.findUnique).mockResolvedValue(null)
   }
@@ -319,7 +318,7 @@ function setupDefaultWebhookMocks() {
     source: 'dugsi',
     payload: {},
     createdAt: new Date(),
-  } as any)
+  } as unknown)
 
   vi.mocked(prisma.webhookEvent.findUnique).mockResolvedValue(null)
 
@@ -330,7 +329,7 @@ function setupDefaultWebhookMocks() {
     source: 'dugsi',
     payload: {},
     createdAt: new Date(),
-  } as any)
+  } as unknown)
 }
 
 // ============================================================================
@@ -415,7 +414,7 @@ describe.skip('Dugsi Webhook Handler', () => {
     // This ensures tests can mock prisma.student and it will work inside transactions
     vi.mocked(prisma.$transaction).mockImplementation(async (callback) => {
       const tx = { student: prisma.student }
-      return callback(tx as any)
+      return callback(tx as unknown)
     })
 
     // Set default verification mock (tests can override via setupWebhookMocks)
@@ -719,7 +718,7 @@ describe.skip('Dugsi Webhook Handler', () => {
     it('should validate subscription status against enum', async () => {
       const mockEvent = createSubscriptionEvent(
         'customer.subscription.created',
-        { status: 'invalid_status' as any },
+        { status: 'invalid_status' as unknown },
         { id: TEST_CONSTANTS.EVENT_IDS.INVALID_STATUS }
       )
 
@@ -794,7 +793,7 @@ describe.skip('Dugsi Webhook Handler', () => {
           })
 
           // Verify the dates match the subscription period
-          const updateData = updateCall[0].data as any
+          const updateData = updateCall[0].data as unknown
           expect(updateData.currentPeriodStart?.getTime()).toBe(
             periodStartTimestamp * 1000
           )
@@ -953,10 +952,12 @@ describe.skip('Dugsi Webhook Handler', () => {
         setupMocks: () => {
           setupWebhookMocks(mockEvent)
           // Override transaction to throw error after executing
-          vi.mocked(prisma.$transaction).mockImplementation(async (fn: any) => {
-            await fn(tx)
-            throw new Error('No students found for family test_family_123')
-          })
+          vi.mocked(prisma.$transaction).mockImplementation(
+            async (fn: unknown) => {
+              await fn(tx)
+              throw new Error('No students found for family test_family_123')
+            }
+          )
         },
         expectedStatus: 200,
         customAssertions: (response) => {
@@ -998,7 +999,7 @@ describe.skip('Dugsi Webhook Handler', () => {
           customer: {
             id: TEST_CONSTANTS.CUSTOMER.ID,
             object: 'customer',
-          } as any,
+          } as unknown,
         },
         { id: TEST_CONSTANTS.EVENT_IDS.CUSTOMER_OBJECT }
       )

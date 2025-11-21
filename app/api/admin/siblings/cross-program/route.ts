@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { prisma } from '@/lib/db'
 import {
   getSiblingGroupsByProgram,
-  getDiscountEligibleSiblings,
   verifySiblingRelationship,
   removeSiblingRelationship,
 } from '@/lib/db/queries/siblings'
@@ -28,20 +26,24 @@ export async function GET(request: NextRequest) {
           name: member.person.name,
           dateOfBirth: member.person.dateOfBirth,
         },
-        profiles: member.profiles.map((profile: any) => ({
+        profiles: member.profiles.map((profile: unknown) => ({
           id: profile.id,
           program: profile.program,
           status: profile.status,
-          enrollments: (profile.enrollments || []).map((enrollment: any) => ({
-            id: enrollment.id,
-            status: enrollment.status,
-            startDate: enrollment.startDate,
-          })),
+          enrollments: (profile.enrollments || []).map(
+            (enrollment: unknown) => ({
+              id: enrollment.id,
+              status: enrollment.status,
+              startDate: enrollment.startDate,
+            })
+          ),
         })),
       })),
       totalSiblings: group.length,
       programs: Array.from(
-        new Set(group.flatMap((member) => member.profiles.map((p) => p.program)))
+        new Set(
+          group.flatMap((member) => member.profiles.map((p) => p.program))
+        )
       ),
     }))
 
@@ -61,7 +63,9 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error:
-          error instanceof Error ? error.message : 'Failed to fetch sibling relationships',
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch sibling relationships',
       },
       { status: 500 }
     )
@@ -86,7 +90,10 @@ export async function POST(request: NextRequest) {
 
     if (person1Id === person2Id) {
       return NextResponse.json(
-        { success: false, error: 'Cannot create sibling relationship with self' },
+        {
+          success: false,
+          error: 'Cannot create sibling relationship with self',
+        },
         { status: 400 }
       )
     }
@@ -228,4 +235,3 @@ export async function DELETE(request: NextRequest) {
 }
 
 export const dynamic = 'force-dynamic'
-

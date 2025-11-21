@@ -102,7 +102,7 @@ describe.skip('Mahad Flow Protection', () => {
           stripeCustomerId: 'cus_mahad123',
           stripeSubscriptionId: 'sub_mahad123',
           email: 'student@test.com',
-        } as any,
+        } as unknown,
       ])
     })
 

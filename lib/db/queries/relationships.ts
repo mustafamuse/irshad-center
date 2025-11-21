@@ -4,8 +4,9 @@
  * Query functions for GuardianRelationship and SiblingRelationship with validation.
  */
 
-import { prisma } from '@/lib/db'
 import type { GuardianRole } from '@prisma/client'
+
+import { prisma } from '@/lib/db'
 
 /**
  * Create guardian relationship with validation
@@ -18,15 +19,17 @@ export async function createGuardianRelationship(data: {
   notes?: string | null
 }) {
   // Import validation dynamically to avoid circular dependencies
-  const { validateGuardianRelationship } = await import('@/lib/services/validation-service')
-  
+  const { validateGuardianRelationship } = await import(
+    '@/lib/services/validation-service'
+  )
+
   // Validate before creating
   await validateGuardianRelationship({
     guardianId: data.guardianId,
     dependentId: data.dependentId,
     role: data.role,
   })
-  
+
   return prisma.guardianRelationship.create({
     data: {
       guardianId: data.guardianId,
@@ -55,24 +58,28 @@ export async function createSiblingRelationship(data: {
   notes?: string | null
 }) {
   // Import validation dynamically to avoid circular dependencies
-  const { validateSiblingRelationship } = await import('@/lib/services/validation-service')
-  
+  const { validateSiblingRelationship } = await import(
+    '@/lib/services/validation-service'
+  )
+
   // Ensure proper ordering (person1Id < person2Id)
   const orderedData = {
-    person1Id: data.person1Id < data.person2Id ? data.person1Id : data.person2Id,
-    person2Id: data.person1Id < data.person2Id ? data.person2Id : data.person1Id,
+    person1Id:
+      data.person1Id < data.person2Id ? data.person1Id : data.person2Id,
+    person2Id:
+      data.person1Id < data.person2Id ? data.person2Id : data.person1Id,
     detectionMethod: data.detectionMethod || 'MANUAL',
     confidence: data.confidence,
     verifiedBy: data.verifiedBy,
     notes: data.notes,
   }
-  
+
   // Validate before creating
   await validateSiblingRelationship({
     person1Id: orderedData.person1Id,
     person2Id: orderedData.person2Id,
   })
-  
+
   return prisma.siblingRelationship.create({
     data: {
       person1Id: orderedData.person1Id,
@@ -93,17 +100,17 @@ export async function createSiblingRelationship(data: {
 /**
  * Create teacher with validation
  */
-export async function createTeacher(data: {
-  personId: string
-}) {
+export async function createTeacher(data: { personId: string }) {
   // Import validation dynamically to avoid circular dependencies
-  const { validateTeacherCreation } = await import('@/lib/services/validation-service')
-  
+  const { validateTeacherCreation } = await import(
+    '@/lib/services/validation-service'
+  )
+
   // Validate before creating
   await validateTeacherCreation({
     personId: data.personId,
   })
-  
+
   return prisma.teacher.create({
     data: {
       personId: data.personId,
@@ -117,4 +124,3 @@ export async function createTeacher(data: {
     },
   })
 }
-

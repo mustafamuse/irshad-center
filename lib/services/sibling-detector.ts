@@ -1,7 +1,12 @@
-import { prisma } from '@/lib/db'
 import type { Person } from '@prisma/client'
 
-export type DetectionMethod = 'MANUAL' | 'GUARDIAN_MATCH' | 'NAME_MATCH' | 'CONTACT_MATCH'
+import { prisma } from '@/lib/db'
+
+export type DetectionMethod =
+  | 'MANUAL'
+  | 'GUARDIAN_MATCH'
+  | 'NAME_MATCH'
+  | 'CONTACT_MATCH'
 
 export interface PotentialSibling {
   person: Person
@@ -138,7 +143,9 @@ export async function detectPotentialSiblings(
   // Method 3: Contact Match
   // Match by shared contact points (phone, email)
   if (person.contactPoints.length > 0) {
-    const contactValues = person.contactPoints.map((cp) => cp.value.toLowerCase())
+    const contactValues = person.contactPoints.map((cp) =>
+      cp.value.toLowerCase()
+    )
 
     const contactMatches = await prisma.contactPoint.findMany({
       where: {
@@ -203,7 +210,10 @@ export function calculateConfidenceScore(
   switch (method) {
     case 'GUARDIAN_MATCH':
       score = 0.9
-      if (matchingCriteria.sharedGuardians && matchingCriteria.sharedGuardians > 1) {
+      if (
+        matchingCriteria.sharedGuardians &&
+        matchingCriteria.sharedGuardians > 1
+      ) {
         score = 0.95
       }
       break
@@ -216,7 +226,10 @@ export function calculateConfidenceScore(
       if (matchingCriteria.nameMatch) {
         score = 0.6
       }
-      if (matchingCriteria.ageSimilarity && matchingCriteria.ageSimilarity < 5) {
+      if (
+        matchingCriteria.ageSimilarity &&
+        matchingCriteria.ageSimilarity < 5
+      ) {
         score += 0.2
       }
       score = Math.min(score, 0.9)
@@ -262,4 +275,3 @@ export async function createSiblingRelationship(
     },
   })
 }
-

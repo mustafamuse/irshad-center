@@ -1,24 +1,28 @@
 /**
  * Helper Functions for Common Database Operations
- * 
+ *
  * Convenience functions that combine validation and common query patterns.
  */
 
-import { prisma } from '@/lib/db'
 import type { Program, EnrollmentStatus, Shift } from '@prisma/client'
-import { createEnrollment } from './program-profile'
+
+import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
+
 import { createBillingAssignment } from './billing'
-// import { createTeacherAssignment } from './teacher' // TODO: Function doesn't exist yet
+import { createEnrollment } from './program-profile'
 import { createGuardianRelationship } from './relationships'
 
 /**
  * Calculate total amount assigned for a subscription
+ * @param client - Optional database client (for transaction support)
  */
 export async function calculateBillingAssignmentTotal(
   subscriptionId: string,
-  excludeProfileId?: string
+  excludeProfileId?: string,
+  client: DatabaseClient = prisma
 ): Promise<number> {
-  const assignments = await prisma.billingAssignment.findMany({
+  const assignments = await client.billingAssignment.findMany({
     where: {
       subscriptionId,
       isActive: true,
@@ -144,16 +148,14 @@ export async function getAllTeacherAssignments(programProfileId: string) {
 /**
  * Create enrollment with automatic batch assignment for Mahad
  */
-export async function createEnrollmentWithBatch(
-  data: {
-    programProfileId: string
-    batchId?: string | null
-    status?: EnrollmentStatus
-    startDate?: Date
-    reason?: string | null
-    notes?: string | null
-  }
-) {
+export async function createEnrollmentWithBatch(data: {
+  programProfileId: string
+  batchId?: string | null
+  status?: EnrollmentStatus
+  startDate?: Date
+  reason?: string | null
+  notes?: string | null
+}) {
   // Get program to determine if batch is required
   const profile = await prisma.programProfile.findUnique({
     where: { id: data.programProfileId },
@@ -228,7 +230,7 @@ export async function createBillingAssignmentWithValidation(data: {
  * Create teacher assignment for Dugsi student
  * Convenience wrapper that validates program
  */
-export async function createDugsiTeacherAssignment(data: {
+export async function createDugsiTeacherAssignment(_data: {
   teacherId: string
   programProfileId: string
   shift: Shift
@@ -298,14 +300,20 @@ export async function getBillingAssignmentSummary(subscriptionId: string) {
     remaining,
     percentageUsed: Math.round(percentageUsed * 100) / 100,
     isOverAssigned: totalAssigned > subscription.amount,
-    overageAmount: totalAssigned > subscription.amount ? totalAssigned - subscription.amount : 0,
+    overageAmount:
+      totalAssigned > subscription.amount
+        ? totalAssigned - subscription.amount
+        : 0,
   }
 }
 
 /**
  * Get all program profiles for a person
  */
-export async function getPersonProgramProfiles(personId: string, program?: Program) {
+export async function getPersonProgramProfiles(
+  personId: string,
+  program?: Program
+) {
   return prisma.programProfile.findMany({
     where: {
       personId,
@@ -475,4 +483,3 @@ export async function getTeacherStudents(teacherId: string, shift?: Shift) {
     },
   })
 }
-

@@ -5,9 +5,9 @@
 
 import { cache } from 'react'
 
-import { Prisma } from '@prisma/client'
+import { _Prisma } from '@prisma/client'
 
-import { prisma } from '@/lib/db'
+import { _prisma } from '@/lib/db'
 
 // Enums and constants
 export enum StudentStatus {
@@ -56,7 +56,7 @@ interface StudentQueryOptions {
 }
 
 // Async mapper function for server components
-async function mapToDTO(student: StudentWithRelations): Promise<StudentDTO> {
+async function _mapToDTO(student: StudentWithRelations): Promise<StudentDTO> {
   const siblingCount = student.Sibling?.Student.length ?? 0
   const hasActiveSubscription =
     student.stripeSubscriptionId !== null &&
@@ -103,7 +103,7 @@ async function mapToDTO(student: StudentWithRelations): Promise<StudentDTO> {
 }
 
 // Main query function
-export const getStudents = cache(async (options: StudentQueryOptions = {}) => {
+export const getStudents = cache(async (_options: StudentQueryOptions = {}) => {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   console.log('⚠️ getStudents called but Student model has been removed')
   return [] // Temporary: return empty array until migration complete

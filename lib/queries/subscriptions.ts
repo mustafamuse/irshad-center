@@ -3,7 +3,7 @@
 
 import { SubscriptionStatus } from '@prisma/client'
 
-import { prisma } from '@/lib/db'
+import { _prisma } from '@/lib/db'
 import { StudentStatus } from '@/lib/types/student'
 
 // Constants for payment processing
@@ -33,7 +33,7 @@ export interface StudentSubscriptionInfo {
  * Get student subscription status from the simplified schema
  */
 export async function getStudentSubscriptionStatus(
-  studentId: string
+  _studentId: string
 ): Promise<StudentSubscriptionInfo> {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return {
@@ -56,9 +56,9 @@ export async function getActiveSubscriptions() {
  * Update student subscription status
  */
 export async function updateStudentSubscriptionStatus(
-  studentId: string,
-  newStatus: SubscriptionStatus,
-  options?: {
+  _studentId: string,
+  _newStatus: SubscriptionStatus,
+  _options?: {
     stripeSubscriptionId?: string
     lastPaymentDate?: Date
     nextPaymentDate?: Date
@@ -94,7 +94,7 @@ export function getNewStudentStatus(
 /**
  * Validate if a student can be enrolled
  */
-export async function validateStudentForEnrollment(studentId: string) {
+export async function validateStudentForEnrollment(_studentId: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   throw new Error('Migration needed: Student model has been removed')
 }

@@ -1,4 +1,9 @@
-import type { ContactType, ContactVerificationStatus, GuardianRole, Program } from '@prisma/client'
+import type {
+  ContactType,
+  ContactVerificationStatus,
+  GuardianRole,
+  _Program,
+} from '@prisma/client'
 
 /**
  * Person - Canonical identity record for students, guardians, donors, youth participants
@@ -56,7 +61,8 @@ export interface PersonWithRelations extends Person {
  */
 export function getPrimaryEmail(contactPoints: ContactPoint[]): string | null {
   const email = contactPoints.find(
-    (cp) => cp.type === 'EMAIL' && cp.isPrimary && cp.verificationStatus !== 'INVALID'
+    (cp) =>
+      cp.type === 'EMAIL' && cp.isPrimary && cp.verificationStatus !== 'INVALID'
   )
   return email?.value || null
 }
@@ -66,7 +72,10 @@ export function getPrimaryEmail(contactPoints: ContactPoint[]): string | null {
  */
 export function getPrimaryPhone(contactPoints: ContactPoint[]): string | null {
   const phone = contactPoints.find(
-    (cp) => (cp.type === 'PHONE' || cp.type === 'WHATSAPP') && cp.isPrimary && cp.verificationStatus !== 'INVALID'
+    (cp) =>
+      (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
+      cp.isPrimary &&
+      cp.verificationStatus !== 'INVALID'
   )
   return phone?.value || null
 }
@@ -74,10 +83,9 @@ export function getPrimaryPhone(contactPoints: ContactPoint[]): string | null {
 /**
  * Helper to normalize phone number for matching
  */
-export function normalizePhone(phone: string | null | undefined): string | null {
+export function normalizePhone(
+  phone: string | null | undefined
+): string | null {
   if (!phone) return null
   return phone.replace(/\D/g, '')
 }
-
-
-

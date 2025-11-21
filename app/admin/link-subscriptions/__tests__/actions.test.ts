@@ -104,19 +104,22 @@ vi.mock('@/lib/queries/subscriptions', () => ({
 }))
 
 vi.mock('@/lib/utils/type-guards', () => ({
-  extractCustomerId: vi.fn((customer: any) => {
+  extractCustomerId: vi.fn((customer: unknown) => {
     if (!customer) return ''
     if (typeof customer === 'string') return customer
-    return customer.id || ''
+    return (customer as Record<string, unknown>).id || ''
   }),
-  extractPeriodDates: vi.fn((subscription: any) => ({
-    periodStart: subscription.current_period_start
-      ? new Date(subscription.current_period_start * 1000)
-      : null,
-    periodEnd: subscription.current_period_end
-      ? new Date(subscription.current_period_end * 1000)
-      : null,
-  })),
+  extractPeriodDates: vi.fn((subscription: unknown) => {
+    const sub = subscription as Record<string, unknown>
+    return {
+      periodStart: sub.current_period_start
+        ? new Date((sub.current_period_start as number) * 1000)
+        : null,
+      periodEnd: sub.current_period_end
+        ? new Date((sub.current_period_end as number) * 1000)
+        : null,
+    }
+  }),
 }))
 
 // ============================================================================
@@ -185,7 +188,7 @@ function createMockStripeCustomer(
 
 function createMockStudent(
   program: 'MAHAD_PROGRAM' | 'DUGSI_PROGRAM',
-  overrides?: any
+  overrides?: unknown
 ) {
   if (program === 'MAHAD_PROGRAM') {
     return {
@@ -221,15 +224,15 @@ function createMockStudent(
 }
 
 function createPaginatedStripeResponse(
-  data: any[],
+  data: unknown[],
   hasMore: boolean = false
-): Stripe.ApiList<any> {
+): Stripe.ApiList<unknown> {
   return {
     object: 'list',
     data,
     has_more: hasMore,
     url: '/v1/subscriptions',
-  } as Stripe.ApiList<any>
+  } as Stripe.ApiList<unknown>
 }
 
 // ============================================================================
@@ -334,7 +337,7 @@ describe.skip('Link Subscriptions Actions', () => {
           createMockStudent('MAHAD_PROGRAM', {
             stripeSubscriptionId: MOCK_IDS.subscription,
           }),
-        ] as any)
+        ] as unknown)
 
         const result = await getOrphanedSubscriptions()
 
@@ -385,7 +388,7 @@ describe.skip('Link Subscriptions Actions', () => {
         ]
 
         vi.mocked(prisma.student.findMany).mockResolvedValue(
-          mockStudents as any
+          mockStudents as unknown
         )
 
         const result = await searchStudents('john')
@@ -398,7 +401,7 @@ describe.skip('Link Subscriptions Actions', () => {
         const mockStudents = [createMockStudent('MAHAD_PROGRAM')]
 
         vi.mocked(prisma.student.findMany).mockResolvedValue(
-          mockStudents as any
+          mockStudents as unknown
         )
 
         await searchStudents('test', 'MAHAD')
@@ -420,7 +423,7 @@ describe.skip('Link Subscriptions Actions', () => {
         ]
 
         vi.mocked(prisma.student.findMany).mockResolvedValue(
-          mockStudents as any
+          mockStudents as unknown
         )
 
         const result = await searchStudents('test', 'MAHAD')
@@ -448,7 +451,9 @@ describe.skip('Link Subscriptions Actions', () => {
         }),
       ]
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue(mockStudents as any)
+      vi.mocked(prisma.student.findMany).mockResolvedValue(
+        mockStudents as unknown
+      )
 
       const result = await getPotentialMatches('test@example.com', 'MAHAD')
 
@@ -472,12 +477,12 @@ describe.skip('Link Subscriptions Actions', () => {
         const mockSubscription = createMockStripeSubscription()
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
         mockMahadStripeClient.subscriptions.retrieve.mockResolvedValue(
           mockSubscription
         )
-        vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+        vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
         const result = await linkSubscriptionToStudent(
           MOCK_IDS.subscription,
@@ -494,12 +499,12 @@ describe.skip('Link Subscriptions Actions', () => {
         const mockSubscription = createMockStripeSubscription()
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
         mockMahadStripeClient.subscriptions.retrieve.mockResolvedValue(
           mockSubscription
         )
-        vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+        vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
         await linkSubscriptionToStudent(
           MOCK_IDS.subscription,
@@ -526,12 +531,12 @@ describe.skip('Link Subscriptions Actions', () => {
         })
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
         mockMahadStripeClient.subscriptions.retrieve.mockResolvedValue(
           mockSubscription
         )
-        vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+        vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
         await linkSubscriptionToStudent('sub_new123', MOCK_IDS.student, 'MAHAD')
 
@@ -565,11 +570,11 @@ describe.skip('Link Subscriptions Actions', () => {
       it('should return error when customer ID is invalid', async () => {
         const mockStudent = createMockStudent('MAHAD_PROGRAM')
         const mockSubscription = createMockStripeSubscription({
-          customer: null as any,
+          customer: null as unknown,
         })
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
         mockMahadStripeClient.subscriptions.retrieve.mockResolvedValue(
           mockSubscription
@@ -598,15 +603,15 @@ describe.skip('Link Subscriptions Actions', () => {
         const mockSubscription = createMockStripeSubscription()
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
         mockDugsiStripeClient.subscriptions.retrieve.mockResolvedValue(
           mockSubscription
         )
         vi.mocked(prisma.student.findMany).mockResolvedValue([
           mockStudent,
-        ] as any)
-        vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+        ] as unknown)
+        vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
         const result = await linkSubscriptionToStudent(
           MOCK_IDS.subscription,
@@ -633,13 +638,15 @@ describe.skip('Link Subscriptions Actions', () => {
         const mockSubscription = createMockStripeSubscription()
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockFamily[0] as any
+          mockFamily[0] as unknown
         )
         mockDugsiStripeClient.subscriptions.retrieve.mockResolvedValue(
           mockSubscription
         )
-        vi.mocked(prisma.student.findMany).mockResolvedValue(mockFamily as any)
-        vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+        vi.mocked(prisma.student.findMany).mockResolvedValue(
+          mockFamily as unknown
+        )
+        vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
         await linkSubscriptionToStudent(
           MOCK_IDS.subscription,
@@ -657,15 +664,15 @@ describe.skip('Link Subscriptions Actions', () => {
         const mockSubscription = createMockStripeSubscription()
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
         mockDugsiStripeClient.subscriptions.retrieve.mockResolvedValue(
           mockSubscription
         )
         vi.mocked(prisma.student.findMany).mockResolvedValue([
           mockStudent,
-        ] as any)
-        vi.mocked(prisma.student.update).mockResolvedValue({} as any)
+        ] as unknown)
+        vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
         await linkSubscriptionToStudent(
           MOCK_IDS.subscription,
@@ -687,7 +694,7 @@ describe.skip('Link Subscriptions Actions', () => {
         })
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
 
         const result = await linkSubscriptionToStudent(
@@ -712,7 +719,7 @@ describe.skip('Link Subscriptions Actions', () => {
         })
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
 
         const result = await linkSubscriptionToStudent(
@@ -731,7 +738,7 @@ describe.skip('Link Subscriptions Actions', () => {
         })
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
 
         const result = await linkSubscriptionToStudent(
@@ -767,7 +774,7 @@ describe.skip('Link Subscriptions Actions', () => {
         })
 
         vi.mocked(prisma.student.findFirst).mockResolvedValue(
-          mockStudent as any
+          mockStudent as unknown
         )
         mockDugsiStripeClient.subscriptions.retrieve.mockRejectedValue(
           new Error('No such subscription')
@@ -791,12 +798,14 @@ describe.skip('Link Subscriptions Actions', () => {
     it('should return error for invalid program', async () => {
       const mockStudent = createMockStudent('MAHAD_PROGRAM')
 
-      vi.mocked(prisma.student.findFirst).mockResolvedValue(mockStudent as any)
+      vi.mocked(prisma.student.findFirst).mockResolvedValue(
+        mockStudent as unknown
+      )
 
       const result = await linkSubscriptionToStudent(
         MOCK_IDS.subscription,
         MOCK_IDS.student,
-        'INVALID' as any
+        'INVALID' as unknown
       )
 
       expect(result).toEqual({

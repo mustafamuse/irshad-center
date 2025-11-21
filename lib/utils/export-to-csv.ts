@@ -1,7 +1,7 @@
 import { saveAs } from 'file-saver'
 
 export function exportToCSV(
-  data: any[],
+  data: unknown[],
   visibleColumns: string[],
   filename: string
 ) {

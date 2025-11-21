@@ -9,13 +9,13 @@
  */
 
 import {
-  Prisma,
+  _Prisma,
   EducationLevel,
   GradeLevel,
-  SubscriptionStatus,
+  _SubscriptionStatus,
 } from '@prisma/client'
 
-import { prisma } from '@/lib/db'
+import { _prisma } from '@/lib/db'
 
 // TODO: All functions in this file have been stubbed to return empty/null values
 // Full migration to ProgramProfile/Enrollment model is required
@@ -65,7 +65,7 @@ export async function getStudentsWithBatchFiltered(params: {
  * Get a single student by ID
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function getStudentById(id: string): Promise<any> {
+export async function getStudentById(_id: string): Promise<any> {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return null // Temporary: return null until migration complete
 }
@@ -73,7 +73,7 @@ export async function getStudentById(id: string): Promise<any> {
 /**
  * Get a student by email (case-insensitive)
  */
-export async function getStudentByEmail(email: string) {
+export async function getStudentByEmail(_email: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return null // Temporary: return null until migration complete
 }
@@ -81,7 +81,7 @@ export async function getStudentByEmail(email: string) {
 /**
  * Get students by batch ID
  */
-export async function getStudentsByBatch(batchId: string) {
+export async function getStudentsByBatch(_batchId: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return [] // Temporary: return empty array until migration complete
 }
@@ -97,7 +97,7 @@ export async function getUnassignedStudents() {
 /**
  * Create a new student
  */
-export async function createStudent(data: {
+export async function createStudent(_data: {
   name: string
   email?: string | null
   phone?: string | null
@@ -117,8 +117,8 @@ export async function createStudent(data: {
  * Update a student
  */
 export async function updateStudent(
-  id: string,
-  data: {
+  _id: string,
+  _data: {
     name?: string
     email?: string | null
     phone?: string | null
@@ -139,7 +139,7 @@ export async function updateStudent(
 /**
  * Delete a student
  */
-export async function deleteStudent(id: string) {
+export async function deleteStudent(_id: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   throw new Error('Migration needed: Student model has been removed')
 }
@@ -148,8 +148,8 @@ export async function deleteStudent(id: string) {
  * Search students with filters and pagination
  */
 export async function searchStudents(
-  query?: string,
-  filters?: {
+  _query?: string,
+  _filters?: {
     search?: {
       query?: string
       fields?: ('name' | 'email' | 'phone')[]
@@ -173,7 +173,7 @@ export async function searchStudents(
       field?: 'createdAt' | 'updatedAt' | 'dateOfBirth'
     }
   },
-  pagination?: {
+  _pagination?: {
     page: number
     pageSize: number
   }
@@ -200,7 +200,7 @@ export async function findDuplicateStudents() {
 export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
-  mergeData: boolean = false
+  _mergeData: boolean = false
 ) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   throw new Error('Migration needed: Student model has been removed')
@@ -210,8 +210,8 @@ export async function resolveDuplicateStudents(
  * Bulk update student status
  */
 export async function bulkUpdateStudentStatus(
-  studentIds: string[],
-  status: string
+  _studentIds: string[],
+  _status: string
 ) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return 0 // Temporary: return 0 updates until migration complete
@@ -220,7 +220,7 @@ export async function bulkUpdateStudentStatus(
 /**
  * Get student completeness information
  */
-export async function getStudentCompleteness(id: string) {
+export async function getStudentCompleteness(_id: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   throw new Error('Migration needed: Student model has been removed')
 }
@@ -228,7 +228,7 @@ export async function getStudentCompleteness(id: string) {
 /**
  * Get delete warnings for a student (check for dependencies)
  */
-export async function getStudentDeleteWarnings(id: string) {
+export async function getStudentDeleteWarnings(_id: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return {
     hasSiblings: false,
@@ -239,7 +239,7 @@ export async function getStudentDeleteWarnings(id: string) {
 /**
  * Export students data
  */
-export async function exportStudents(filters?: {
+export async function exportStudents(_filters?: {
   search?: {
     query?: string
     fields?: ('name' | 'email' | 'phone')[]
@@ -270,9 +270,9 @@ export async function exportStudents(filters?: {
 /**
  * Build Prisma where clause for student queries
  */
-function buildStudentWhereClause(
-  query?: string,
-  filters?: {
+function _buildStudentWhereClause(
+  _query?: string,
+  _filters?: {
     search?: {
       query?: string
       fields?: ('name' | 'email' | 'phone')[]

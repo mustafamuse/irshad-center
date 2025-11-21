@@ -3,11 +3,6 @@
 // ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
 // TODO: Migrate to ProgramProfile/Enrollment model
 
-import fs from 'fs'
-import path from 'path'
-
-import { prisma } from '@/lib/db'
-
 // Add validation types
 interface BackupValidation {
   students: {
@@ -27,14 +22,20 @@ export async function backupData(): Promise<
       success: true
       fileName: string
       validation: BackupValidation
-      stats: { students: number; batches: number; siblings: number; studentPayments: number }
+      stats: {
+        students: number
+        batches: number
+        siblings: number
+        studentPayments: number
+      }
     }
   | { success: false; error: string }
 > {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return {
     success: false,
-    error: 'Migration needed: Student model has been removed. Please migrate to ProgramProfile/Enrollment model before backing up data.',
+    error:
+      'Migration needed: Student model has been removed. Please migrate to ProgramProfile/Enrollment model before backing up data.',
   }
 
   /* Original implementation commented out - needs migration:

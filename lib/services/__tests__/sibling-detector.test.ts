@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { detectPotentialSiblings, calculateConfidenceScore } from '../sibling-detector'
-import type { DetectionMethod } from '../sibling-detector'
+
+import { calculateConfidenceScore } from '../sibling-detector'
+// import type { DetectionMethod } from '../sibling-detector'
 
 // Mock Prisma
 vi.mock('@/lib/db', () => ({
@@ -68,4 +69,3 @@ describe('sibling-detector', () => {
     })
   })
 })
-

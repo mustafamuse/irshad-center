@@ -7,17 +7,47 @@ import {
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { STUDENT_STATUS } from '@/lib/constants'
 import { prisma } from '@/lib/db'
+import { getProgramProfilesWithBilling } from '@/lib/db/queries/program-profile'
 
 async function getStats() {
-  // TODO: Migrate to ProgramProfile/BillingAssignment model - Student model removed
+  // Get all profiles with billing info
+  const profiles = await getProgramProfilesWithBilling({})
+
+  const totalStudents = profiles.length
+  const enrolledStudents = profiles.filter(
+    (p) =>
+      p.status === 'ENROLLED' &&
+      p.enrollments.some((e) => e.status === 'ENROLLED' && !e.endDate)
+  ).length
+  const registeredStudents = profiles.filter(
+    (p) => p.status === 'REGISTERED'
+  ).length
+
+  // Count active subscriptions
+  const activeSubscriptions = new Set(
+    profiles
+      .flatMap((p) => p.assignments)
+      .filter((a) => a.isActive && a.subscription?.status === 'active')
+      .map((a) => a.subscriptionId)
+  ).size
+
+  // Calculate total revenue from all subscriptions
+  const totalRevenue = await prisma.subscription.aggregate({
+    _sum: {
+      amount: true,
+    },
+    where: {
+      status: 'active',
+    },
+  })
+
   return {
-    totalStudents: 0,
-    activeSubscriptions: 0,
-    registeredStudents: 0,
-    totalRevenue: 0,
-    enrolledStudents: 0,
+    totalStudents,
+    activeSubscriptions,
+    registeredStudents,
+    totalRevenue: totalRevenue._sum.amount || 0,
+    enrolledStudents,
   }
 }
 

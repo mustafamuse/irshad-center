@@ -1,11 +1,12 @@
 /**
  * Validation Service
- * 
+ *
  * Centralized business rule validation for database operations.
  * These validations enforce rules that cannot be enforced at the database level.
  */
 
-import { Program, Prisma, Shift, GuardianRole } from '@prisma/client'
+import { Program, Shift, GuardianRole, EnrollmentStatus } from '@prisma/client'
+
 import { prisma } from '@/lib/db'
 
 /**
@@ -15,7 +16,7 @@ export class ValidationError extends Error {
   constructor(
     message: string,
     public code: string,
-    public details?: Record<string, any>
+    public details?: Record<string, unknown>
   ) {
     super(message)
     this.name = 'ValidationError'
@@ -34,7 +35,7 @@ export async function validateTeacherAssignment(data: {
   // Check if program profile exists and is Dugsi
   const programProfile = await prisma.programProfile.findUnique({
     where: { id: data.programProfileId },
-    select: { program: true, personId: true }
+    select: { program: true, personId: true },
   })
 
   if (!programProfile) {
@@ -49,9 +50,9 @@ export async function validateTeacherAssignment(data: {
     throw new ValidationError(
       'Teacher assignments are only allowed for Dugsi program students',
       'TEACHER_ASSIGNMENT_DUGSI_ONLY',
-      { 
+      {
         programProfileId: data.programProfileId,
-        actualProgram: programProfile.program 
+        actualProgram: programProfile.program,
       }
     )
   }
@@ -59,15 +60,13 @@ export async function validateTeacherAssignment(data: {
   // Check if teacher exists
   const teacher = await prisma.teacher.findUnique({
     where: { id: data.teacherId },
-    select: { id: true }
+    select: { id: true },
   })
 
   if (!teacher) {
-    throw new ValidationError(
-      'Teacher not found',
-      'TEACHER_NOT_FOUND',
-      { teacherId: data.teacherId }
-    )
+    throw new ValidationError('Teacher not found', 'TEACHER_NOT_FOUND', {
+      teacherId: data.teacherId,
+    })
   }
 
   // Check for existing active assignment for same shift
@@ -75,18 +74,18 @@ export async function validateTeacherAssignment(data: {
     where: {
       programProfileId: data.programProfileId,
       shift: data.shift,
-      isActive: true
-    }
+      isActive: true,
+    },
   })
 
   if (existingAssignment) {
     throw new ValidationError(
       `Student already has an active ${data.shift} shift assignment`,
       'DUPLICATE_SHIFT_ASSIGNMENT',
-      { 
+      {
         programProfileId: data.programProfileId,
         shift: data.shift,
-        existingAssignmentId: existingAssignment.id
+        existingAssignmentId: existingAssignment.id,
       }
     )
   }
@@ -97,57 +96,73 @@ export async function validateTeacherAssignment(data: {
  * Ensures Dugsi enrollments don't have batchId
  * Ensures Mahad enrollments have valid batchId
  */
-import { EnrollmentStatus } from '@prisma/client'
 
 export async function validateEnrollment(data: {
-  programProfileId: string
+  programProfileId?: string
+  program?: Program
   batchId?: string | null
   status: EnrollmentStatus
 }) {
-  // Check program profile
-  const programProfile = await prisma.programProfile.findUnique({
-    where: { id: data.programProfileId },
-    select: { program: true }
-  })
+  let program: Program | null = null
 
-  if (!programProfile) {
+  // If programProfileId is provided, fetch program from profile
+  if (data.programProfileId && data.programProfileId !== '') {
+    const programProfile = await prisma.programProfile.findUnique({
+      where: { id: data.programProfileId },
+      select: { program: true },
+    })
+
+    if (!programProfile) {
+      throw new ValidationError(
+        'Program profile not found',
+        'PROFILE_NOT_FOUND',
+        { programProfileId: data.programProfileId }
+      )
+    }
+
+    program = programProfile.program
+  } else if (data.program) {
+    // If program is provided directly (for new enrollments), use it
+    program = data.program
+  } else {
     throw new ValidationError(
-      'Program profile not found',
-      'PROFILE_NOT_FOUND',
-      { programProfileId: data.programProfileId }
+      'Either programProfileId or program must be provided',
+      'MISSING_PROGRAM_INFO',
+      { data }
     )
   }
 
   // Validate based on program
-  if (programProfile.program === 'DUGSI_PROGRAM' && data.batchId) {
+  if (program === 'DUGSI_PROGRAM' && data.batchId) {
     throw new ValidationError(
       'Dugsi enrollments cannot have batches. Dugsi uses teacher assignments instead.',
       'DUGSI_NO_BATCH',
-      { 
+      {
         programProfileId: data.programProfileId,
-        batchId: data.batchId 
+        program,
+        batchId: data.batchId,
       }
     )
   }
 
-  if (programProfile.program === 'MAHAD_PROGRAM' && !data.batchId) {
+  if (program === 'MAHAD_PROGRAM' && !data.batchId) {
     // Mahad typically requires batch, but allow null for special cases
-    console.warn(`Mahad enrollment without batch for profile ${data.programProfileId}`)
+    console.warn(
+      `Mahad enrollment without batch for profile ${data.programProfileId || 'new'}`
+    )
   }
 
   // Validate batch exists if provided
   if (data.batchId) {
     const batch = await prisma.batch.findUnique({
       where: { id: data.batchId },
-      select: { id: true }
+      select: { id: true },
     })
 
     if (!batch) {
-      throw new ValidationError(
-        'Batch not found',
-        'BATCH_NOT_FOUND',
-        { batchId: data.batchId }
-      )
+      throw new ValidationError('Batch not found', 'BATCH_NOT_FOUND', {
+        batchId: data.batchId,
+      })
     }
   }
 }
@@ -166,9 +181,9 @@ export async function validateGuardianRelationship(data: {
     throw new ValidationError(
       'A person cannot be their own guardian',
       'SELF_GUARDIAN',
-      { 
+      {
         guardianId: data.guardianId,
-        dependentId: data.dependentId 
+        dependentId: data.dependentId,
       }
     )
   }
@@ -177,12 +192,12 @@ export async function validateGuardianRelationship(data: {
   const [guardian, dependent] = await Promise.all([
     prisma.person.findUnique({
       where: { id: data.guardianId },
-      select: { id: true, name: true }
+      select: { id: true, name: true },
     }),
     prisma.person.findUnique({
       where: { id: data.dependentId },
-      select: { id: true, name: true }
-    })
+      select: { id: true, name: true },
+    }),
   ])
 
   if (!guardian) {
@@ -207,19 +222,19 @@ export async function validateGuardianRelationship(data: {
       guardianId: data.guardianId,
       dependentId: data.dependentId,
       role: data.role,
-      isActive: true
-    }
+      isActive: true,
+    },
   })
 
   if (existingRelationship) {
     throw new ValidationError(
       `Active ${data.role} relationship already exists between these persons`,
       'DUPLICATE_GUARDIAN_RELATIONSHIP',
-      { 
+      {
         guardianId: data.guardianId,
         dependentId: data.dependentId,
         role: data.role,
-        existingId: existingRelationship.id
+        existingId: existingRelationship.id,
       }
     )
   }
@@ -254,23 +269,23 @@ export async function validateSiblingRelationship(data: {
   const [person1, person2] = await Promise.all([
     prisma.person.findUnique({
       where: { id: data.person1Id },
-      select: { id: true }
+      select: { id: true },
     }),
     prisma.person.findUnique({
       where: { id: data.person2Id },
-      select: { id: true }
-    })
+      select: { id: true },
+    }),
   ])
 
   if (!person1 || !person2) {
     throw new ValidationError(
       'One or both persons not found',
       'PERSON_NOT_FOUND',
-      { 
+      {
         person1Id: data.person1Id,
         person1Exists: !!person1,
         person2Id: data.person2Id,
-        person2Exists: !!person2
+        person2Exists: !!person2,
       }
     )
   }
@@ -280,19 +295,19 @@ export async function validateSiblingRelationship(data: {
     where: {
       person1Id_person2Id: {
         person1Id: data.person1Id,
-        person2Id: data.person2Id
-      }
-    }
+        person2Id: data.person2Id,
+      },
+    },
   })
 
   if (existingRelationship && existingRelationship.isActive) {
     throw new ValidationError(
       'Active sibling relationship already exists',
       'DUPLICATE_SIBLING_RELATIONSHIP',
-      { 
+      {
         person1Id: data.person1Id,
         person2Id: data.person2Id,
-        existingId: existingRelationship.id
+        existingId: existingRelationship.id,
       }
     )
   }
@@ -311,11 +326,11 @@ export async function validateBillingAssignment(data: {
   // Get subscription details
   const subscription = await prisma.subscription.findUnique({
     where: { id: data.subscriptionId },
-    select: { 
-      id: true, 
+    select: {
+      id: true,
       amount: true,
-      status: true
-    }
+      status: true,
+    },
   })
 
   if (!subscription) {
@@ -330,18 +345,18 @@ export async function validateBillingAssignment(data: {
   const existingAssignments = await prisma.billingAssignment.findMany({
     where: {
       subscriptionId: data.subscriptionId,
-      isActive: true
+      isActive: true,
     },
-    select: { 
-      id: true, 
+    select: {
+      id: true,
       amount: true,
-      programProfileId: true
-    }
+      programProfileId: true,
+    },
   })
 
   // Calculate total assigned amount
   const totalAssigned = existingAssignments
-    .filter(a => a.programProfileId !== data.programProfileId) // Exclude current profile if updating
+    .filter((a) => a.programProfileId !== data.programProfileId) // Exclude current profile if updating
     .reduce((sum, a) => sum + a.amount, 0)
 
   const newTotal = totalAssigned + data.amount
@@ -357,15 +372,19 @@ export async function validateBillingAssignment(data: {
         newAmount: data.amount,
         newTotal: newTotal,
         overageAmount: newTotal - subscription.amount,
-        overagePercentage: ((newTotal - subscription.amount) / subscription.amount * 100).toFixed(2) + '%'
+        overagePercentage:
+          (
+            ((newTotal - subscription.amount) / subscription.amount) *
+            100
+          ).toFixed(2) + '%',
       }
     )
-    
+
     // Optional: Throw error for strict validation
     // throw new ValidationError(
     //   `Total assignments ($${newTotal / 100}) would exceed subscription amount ($${subscription.amount / 100})`,
     //   'ASSIGNMENT_EXCEEDS_SUBSCRIPTION',
-    //   { 
+    //   {
     //     subscriptionId: data.subscriptionId,
     //     subscriptionAmount: subscription.amount,
     //     totalAssigned: totalAssigned,
@@ -378,7 +397,7 @@ export async function validateBillingAssignment(data: {
   // Check if program profile exists
   const programProfile = await prisma.programProfile.findUnique({
     where: { id: data.programProfileId },
-    select: { id: true }
+    select: { id: true },
   })
 
   if (!programProfile) {
@@ -394,36 +413,32 @@ export async function validateBillingAssignment(data: {
  * Validate Teacher creation
  * Ensures one teacher per person
  */
-export async function validateTeacherCreation(data: {
-  personId: string
-}) {
+export async function validateTeacherCreation(data: { personId: string }) {
   // Check if person exists
   const person = await prisma.person.findUnique({
     where: { id: data.personId },
-    select: { id: true, name: true }
+    select: { id: true, name: true },
   })
 
   if (!person) {
-    throw new ValidationError(
-      'Person not found',
-      'PERSON_NOT_FOUND',
-      { personId: data.personId }
-    )
+    throw new ValidationError('Person not found', 'PERSON_NOT_FOUND', {
+      personId: data.personId,
+    })
   }
 
   // Check if teacher already exists for this person
   const existingTeacher = await prisma.teacher.findUnique({
     where: { personId: data.personId },
-    select: { id: true }
+    select: { id: true },
   })
 
   if (existingTeacher) {
     throw new ValidationError(
       `Person ${person.name} is already a teacher`,
       'TEACHER_ALREADY_EXISTS',
-      { 
+      {
         personId: data.personId,
-        existingTeacherId: existingTeacher.id
+        existingTeacherId: existingTeacher.id,
       }
     )
   }

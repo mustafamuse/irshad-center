@@ -31,7 +31,8 @@
     "pr-template": "node .github/scripts/suggest-pr-template.js",
     "setup-hooks": "bash .github/scripts/setup-hooks.sh",
     "db:safety-check": "tsx scripts/db-safety-check.ts",
-    "db:reset-safe": "tsx scripts/safe-migrate-reset.ts"
+    "db:reset-safe": "tsx scripts/safe-migrate-reset.ts",
+    "merge:duplicates": "tsx scripts/merge-duplicate-persons.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

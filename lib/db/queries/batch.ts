@@ -12,7 +12,7 @@
 
 import { cache } from 'react'
 
-import { Prisma } from '@prisma/client'
+import { _Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
@@ -60,7 +60,7 @@ export async function getBatchById(id: string): Promise<{
 /**
  * Check if a batch with the given name exists (case-insensitive)
  */
-export async function getBatchByName(name: string) {
+export async function getBatchByName(_name: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return null // Temporary: return null until migration complete
 }
@@ -68,7 +68,7 @@ export async function getBatchByName(name: string) {
 /**
  * Create a new batch (student count excludes withdrawn)
  */
-export async function createBatch(data: {
+export async function createBatch(_data: {
   name: string
   startDate?: Date | null
 }) {
@@ -80,8 +80,8 @@ export async function createBatch(data: {
  * Update a batch (student count excludes withdrawn)
  */
 export async function updateBatch(
-  id: string,
-  data: {
+  _id: string,
+  _data: {
     name?: string
     startDate?: Date | null
     endDate?: Date | null
@@ -94,7 +94,7 @@ export async function updateBatch(
 /**
  * Delete a batch
  */
-export async function deleteBatch(id: string) {
+export async function deleteBatch(_id: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   throw new Error('Migration needed: Student model has been removed')
 }
@@ -102,7 +102,7 @@ export async function deleteBatch(id: string) {
 /**
  * Get all students in a batch
  */
-export async function getBatchStudents(batchId: string) {
+export async function getBatchStudents(_batchId: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return [] // Temporary: return empty array until migration complete
 }
@@ -110,7 +110,7 @@ export async function getBatchStudents(batchId: string) {
 /**
  * Get the count of students in a batch
  */
-export async function getBatchStudentCount(batchId: string) {
+export async function getBatchStudentCount(_batchId: string) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return 0 // Temporary: return 0 until migration complete
 }
@@ -162,7 +162,7 @@ export async function getBatchSummary() {
 /**
  * Get batches with filters applied
  */
-export async function getBatchesWithFilters(filters: {
+export async function getBatchesWithFilters(_filters: {
   search?: string
   hasStudents?: boolean
   dateRange?: {

@@ -234,7 +234,8 @@ model ContactPoint {
   person          Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
   billingAccounts BillingAccount[] // Billing accounts using this contact point
 
-  @@unique([personId, type, value]) // One contact point per person per type/value combination
+  @@unique([type, value], name: "unique_contact_globally") // One email/phone globally (enforces one Person per human)
+  @@unique([personId, type, value], name: "unique_contact_per_person") // One contact point per person per type/value combination
   @@index([personId])
   @@index([value]) // Search by contact value (email/phone)
   @@index([type, value]) // Search by type and value

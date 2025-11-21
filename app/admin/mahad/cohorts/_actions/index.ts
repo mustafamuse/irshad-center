@@ -11,23 +11,17 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma } from '@prisma/client'
+import { Prisma, EducationLevel, GradeLevel } from '@prisma/client'
 import { z } from 'zod'
 
+import { prisma } from '@/lib/db'
+import { createBatch, deleteBatch, getBatchById } from '@/lib/db/queries/batch'
 import {
-  createBatch,
-  deleteBatch,
-  getBatchById,
-  assignStudentsToBatch,
-  transferStudents,
-} from '@/lib/db/queries/batch'
-import {
-  getStudentById,
-  resolveDuplicateStudents,
-  deleteStudent,
-  getStudentDeleteWarnings,
-  updateStudent,
-} from '@/lib/db/queries/student'
+  updateEnrollmentStatus,
+  createEnrollment,
+} from '@/lib/db/queries/enrollment'
+import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import {
   CreateBatchSchema,
   BatchAssignmentSchema,
@@ -225,10 +219,42 @@ export async function assignStudentsAction(
       }
     }
 
-    const result = await assignStudentsToBatch(
-      validated.batchId,
-      validated.studentIds
-    )
+    let assignedCount = 0
+    const failedAssignments: string[] = []
+
+    for (const profileId of validated.studentIds) {
+      try {
+        const profile = await getProgramProfileById(profileId)
+        if (!profile || profile.program !== 'MAHAD_PROGRAM') {
+          failedAssignments.push(profileId)
+          continue
+        }
+
+        // Get active enrollment or create new one
+        const activeEnrollment = profile.enrollments?.find(
+          (e) => e.status !== 'WITHDRAWN' && !e.endDate
+        )
+
+        if (activeEnrollment) {
+          // Update existing enrollment
+          await prisma.enrollment.update({
+            where: { id: activeEnrollment.id },
+            data: { batchId: validated.batchId },
+          })
+        } else {
+          // Create new enrollment
+          await createEnrollment({
+            programProfileId: profileId,
+            batchId: validated.batchId,
+            status: 'ENROLLED',
+          })
+        }
+        assignedCount++
+      } catch (error) {
+        console.error(`Failed to assign student ${profileId}:`, error)
+        failedAssignments.push(profileId)
+      }
+    }
 
     revalidatePath('/admin/mahad/cohorts')
     revalidatePath(`/admin/mahad/cohorts/${validated.batchId}`)
@@ -236,8 +262,8 @@ export async function assignStudentsAction(
     return {
       success: true,
       data: {
-        assignedCount: result.assignedCount,
-        failedAssignments: result.failedAssignments,
+        assignedCount,
+        failedAssignments,
       },
     }
   } catch (error) {
@@ -292,11 +318,40 @@ export async function transferStudentsAction(
       }
     }
 
-    const result = await transferStudents(
-      validated.fromBatchId,
-      validated.toBatchId,
-      validated.studentIds
-    )
+    let transferredCount = 0
+    const failedTransfers: string[] = []
+
+    for (const profileId of validated.studentIds) {
+      try {
+        const profile = await getProgramProfileById(profileId)
+        if (!profile || profile.program !== 'MAHAD_PROGRAM') {
+          failedTransfers.push(profileId)
+          continue
+        }
+
+        // Find enrollment in source batch
+        const enrollment = profile.enrollments?.find(
+          (e) =>
+            e.batchId === validated.fromBatchId &&
+            e.status !== 'WITHDRAWN' &&
+            !e.endDate
+        )
+
+        if (enrollment) {
+          // Update enrollment to new batch
+          await prisma.enrollment.update({
+            where: { id: enrollment.id },
+            data: { batchId: validated.toBatchId },
+          })
+          transferredCount++
+        } else {
+          failedTransfers.push(profileId)
+        }
+      } catch (error) {
+        console.error(`Failed to transfer student ${profileId}:`, error)
+        failedTransfers.push(profileId)
+      }
+    }
 
     revalidatePath('/admin/mahad/cohorts')
     revalidatePath(`/admin/mahad/cohorts/${validated.fromBatchId}`)
@@ -305,8 +360,8 @@ export async function transferStudentsAction(
     return {
       success: true,
       data: {
-        transferredCount: result.transferredCount,
-        failedTransfers: result.failedTransfers,
+        transferredCount,
+        failedTransfers,
       },
     }
   } catch (error) {
@@ -330,7 +385,7 @@ export async function transferStudentsAction(
 export async function resolveDuplicatesAction(
   keepId: string,
   deleteIds: string[],
-  mergeData: boolean = false
+  _mergeData: boolean = false
 ): Promise<ActionResult> {
   try {
     // Business logic validation only - Prisma handles UUID format
@@ -350,11 +405,11 @@ export async function resolveDuplicatesAction(
 
     // Fetch all records in parallel - more efficient
     const [keepRecord, ...deleteRecords] = await Promise.all([
-      getStudentById(keepId),
-      ...deleteIds.map((id) => getStudentById(id)),
+      getProgramProfileById(keepId),
+      ...deleteIds.map((id) => getProgramProfileById(id)),
     ])
 
-    if (!keepRecord) {
+    if (!keepRecord || keepRecord.program !== 'MAHAD_PROGRAM') {
       return {
         success: false,
         error: 'Student record to keep not found',
@@ -362,7 +417,9 @@ export async function resolveDuplicatesAction(
     }
 
     const missingRecords = deleteIds.filter(
-      (id, index) => !deleteRecords[index]
+      (id, index) =>
+        !deleteRecords[index] ||
+        deleteRecords[index]?.program !== 'MAHAD_PROGRAM'
     )
     if (missingRecords.length > 0) {
       return {
@@ -371,14 +428,43 @@ export async function resolveDuplicatesAction(
       }
     }
 
-    // Functional approach to collect batch IDs
-    const batchIdsToRevalidate = new Set(
-      [keepRecord.batchId, ...deleteRecords.map((r) => r?.batchId)].filter(
-        (id): id is string => Boolean(id)
-      )
+    // Collect batch IDs for revalidation
+    const batchIdsToRevalidate = new Set<string>()
+    const keepEnrollment = keepRecord.enrollments?.find(
+      (e) => e.status !== 'WITHDRAWN' && !e.endDate
     )
+    if (keepEnrollment?.batchId) {
+      batchIdsToRevalidate.add(keepEnrollment.batchId)
+    }
 
-    await resolveDuplicateStudents(keepId, deleteIds, mergeData)
+    // Soft delete duplicate profiles by withdrawing enrollments
+    for (const deleteRecord of deleteRecords) {
+      if (!deleteRecord || deleteRecord.program !== 'MAHAD_PROGRAM') continue
+
+      const deleteEnrollment = deleteRecord.enrollments?.find(
+        (e) => e.status !== 'WITHDRAWN' && !e.endDate
+      )
+      if (deleteEnrollment?.batchId) {
+        batchIdsToRevalidate.add(deleteEnrollment.batchId)
+      }
+
+      // Withdraw all enrollments
+      for (const enrollment of deleteRecord.enrollments || []) {
+        if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
+          await updateEnrollmentStatus(
+            enrollment.id,
+            'WITHDRAWN',
+            'Duplicate resolved'
+          )
+        }
+      }
+
+      // Update profile status
+      await prisma.programProfile.update({
+        where: { id: deleteRecord.id },
+        data: { status: 'WITHDRAWN' },
+      })
+    }
 
     revalidatePath('/admin/mahad/cohorts')
     Array.from(batchIdsToRevalidate).forEach((batchId) => {
@@ -409,8 +495,22 @@ export async function resolveDuplicatesAction(
  */
 export async function getStudentDeleteWarningsAction(id: string) {
   try {
-    const warnings = await getStudentDeleteWarnings(id)
-    return { success: true, data: warnings } as const
+    const profile = await getProgramProfileById(id)
+    if (!profile) {
+      return {
+        success: false,
+        data: { hasSiblings: false, hasAttendanceRecords: false },
+      } as const
+    }
+
+    // Check for siblings
+    const siblings = await getPersonSiblings(profile.personId)
+    const hasSiblings = siblings.length > 0
+
+    return {
+      success: true,
+      data: { hasSiblings, hasAttendanceRecords: false }, // Attendance feature removed
+    } as const
   } catch (error) {
     console.error('Failed to fetch delete warnings:', error)
     return {
@@ -425,21 +525,41 @@ export async function getStudentDeleteWarningsAction(id: string) {
  */
 export async function deleteStudentAction(id: string): Promise<ActionResult> {
   try {
-    const student = await getStudentById(id)
-    if (!student) {
+    const profile = await getProgramProfileById(id)
+    if (!profile || profile.program !== 'MAHAD_PROGRAM') {
       return {
         success: false,
         error: 'Student not found',
       }
     }
 
-    // Delete the student
-    await deleteStudent(id)
+    // Soft delete by withdrawing all enrollments
+    const enrollments = profile.enrollments || []
+    const batchIds = new Set<string>()
+
+    for (const enrollment of enrollments) {
+      if (enrollment.batchId) {
+        batchIds.add(enrollment.batchId)
+      }
+      if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
+        await updateEnrollmentStatus(
+          enrollment.id,
+          'WITHDRAWN',
+          'Deleted by admin'
+        )
+      }
+    }
+
+    // Update profile status
+    await prisma.programProfile.update({
+      where: { id },
+      data: { status: 'WITHDRAWN' },
+    })
 
     revalidatePath('/admin/mahad/cohorts')
-    if (student.batchId) {
-      revalidatePath(`/admin/mahad/cohorts/${student.batchId}`)
-    }
+    Array.from(batchIds).forEach((batchId) => {
+      revalidatePath(`/admin/mahad/cohorts/${batchId}`)
+    })
 
     return {
       success: true,
@@ -472,11 +592,33 @@ export async function bulkDeleteStudentsAction(
 
     for (const id of studentIds) {
       try {
-        const student = await getStudentById(id)
-        if (student?.batchId) {
-          batchIdsToRevalidate.add(student.batchId)
+        const profile = await getProgramProfileById(id)
+        if (!profile || profile.program !== 'MAHAD_PROGRAM') {
+          failedDeletes.push(id)
+          continue
         }
-        await deleteStudent(id)
+
+        // Collect batch IDs
+        const enrollments = profile.enrollments || []
+        for (const enrollment of enrollments) {
+          if (enrollment.batchId) {
+            batchIdsToRevalidate.add(enrollment.batchId)
+          }
+          if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
+            await updateEnrollmentStatus(
+              enrollment.id,
+              'WITHDRAWN',
+              'Bulk deleted by admin'
+            )
+          }
+        }
+
+        // Update profile status
+        await prisma.programProfile.update({
+          where: { id },
+          data: { status: 'WITHDRAWN' },
+        })
+
         deletedCount++
       } catch (error) {
         console.error(`Failed to delete student ${id}:`, error)
@@ -509,52 +651,131 @@ export async function updateStudentAction(
     // Validate input data
     const validated = UpdateStudentSchema.parse(data)
 
-    // Get current student to check if it exists
-    const currentStudent = await getStudentById(id)
-    if (!currentStudent) {
+    // Get current profile to check if it exists
+    const currentProfile = await getProgramProfileById(id)
+    if (!currentProfile || currentProfile.program !== 'MAHAD_PROGRAM') {
       return {
         success: false,
         error: 'Student not found',
       }
     }
 
-    // Update the student
-    await updateStudent(id, {
-      ...(validated.name !== undefined && { name: validated.name }),
-      ...(validated.email !== undefined && { email: validated.email || null }),
-      ...(validated.phone !== undefined && { phone: validated.phone || null }),
-      ...(validated.dateOfBirth !== undefined && {
-        dateOfBirth: validated.dateOfBirth || null,
-      }),
-      ...(validated.educationLevel !== undefined && {
-        educationLevel: validated.educationLevel || null,
-      }),
-      ...(validated.gradeLevel !== undefined && {
-        gradeLevel: validated.gradeLevel || null,
-      }),
-      ...(validated.schoolName !== undefined && {
-        schoolName: validated.schoolName || null,
-      }),
-      ...(validated.monthlyRate !== undefined && {
-        monthlyRate: validated.monthlyRate,
-      }),
-      ...(validated.customRate !== undefined && {
-        customRate: validated.customRate,
-      }),
-      ...(validated.batchId !== undefined && {
-        batchId: validated.batchId || null,
-      }),
-    })
+    // Update person name if provided
+    if (validated.name !== undefined) {
+      await prisma.person.update({
+        where: { id: currentProfile.personId },
+        data: { name: validated.name },
+      })
+    }
+
+    // Update person date of birth if provided
+    if (validated.dateOfBirth !== undefined) {
+      await prisma.person.update({
+        where: { id: currentProfile.personId },
+        data: { dateOfBirth: validated.dateOfBirth || null },
+      })
+    }
+
+    // Update contact points if provided
+    if (validated.email !== undefined || validated.phone !== undefined) {
+      const person = currentProfile.person
+      const contactPoints = person.contactPoints || []
+
+      if (validated.email !== undefined) {
+        const emailContact = contactPoints.find((cp) => cp.type === 'EMAIL')
+        if (emailContact) {
+          await prisma.contactPoint.update({
+            where: { id: emailContact.id },
+            data: { value: validated.email || '' },
+          })
+        } else if (validated.email) {
+          await prisma.contactPoint.create({
+            data: {
+              personId: currentProfile.personId,
+              type: 'EMAIL',
+              value: validated.email,
+            },
+          })
+        }
+      }
+
+      if (validated.phone !== undefined) {
+        const phoneContact = contactPoints.find(
+          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+        )
+        if (phoneContact) {
+          await prisma.contactPoint.update({
+            where: { id: phoneContact.id },
+            data: { value: validated.phone || '' },
+          })
+        } else if (validated.phone) {
+          await prisma.contactPoint.create({
+            data: {
+              personId: currentProfile.personId,
+              type: 'PHONE',
+              value: validated.phone,
+            },
+          })
+        }
+      }
+    }
+
+    // Update program profile fields
+    const profileUpdates: Partial<{
+      educationLevel: EducationLevel
+      gradeLevel: GradeLevel
+      schoolName: string | null
+    }> = {}
+
+    if (validated.educationLevel !== undefined) {
+      profileUpdates.educationLevel = validated.educationLevel || null
+    }
+    if (validated.gradeLevel !== undefined) {
+      profileUpdates.gradeLevel = validated.gradeLevel || null
+    }
+    if (validated.schoolName !== undefined) {
+      profileUpdates.schoolName = validated.schoolName || null
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await prisma.programProfile.update({
+        where: { id },
+        data: profileUpdates,
+      })
+    }
+
+    // Update batch assignment if provided
+    if (validated.batchId !== undefined) {
+      const activeEnrollment = currentProfile.enrollments?.find(
+        (e) => e.status !== 'WITHDRAWN' && !e.endDate
+      )
+
+      if (activeEnrollment) {
+        await prisma.enrollment.update({
+          where: { id: activeEnrollment.id },
+          data: { batchId: validated.batchId || null },
+        })
+      } else if (validated.batchId) {
+        // Create new enrollment if none exists
+        await createEnrollment({
+          programProfileId: id,
+          batchId: validated.batchId,
+          status: 'ENROLLED',
+        })
+      }
+    }
 
     // Revalidate all relevant paths
     revalidatePath('/admin/mahad/cohorts')
-    // Revalidate the student detail page (both modal and full page)
     revalidatePath(`/admin/mahad/cohorts/students/${id}`)
 
-    if (currentStudent.batchId) {
-      revalidatePath(`/admin/mahad/cohorts/${currentStudent.batchId}`)
+    const currentBatchId = currentProfile.enrollments?.find(
+      (e) => e.status !== 'WITHDRAWN' && !e.endDate
+    )?.batchId
+    if (currentBatchId) {
+      revalidatePath(`/admin/mahad/cohorts/${currentBatchId}`)
     }
-    if (validated.batchId && validated.batchId !== currentStudent.batchId) {
+    if (validated.batchId && validated.batchId !== currentBatchId) {
       revalidatePath(`/admin/mahad/cohorts/${validated.batchId}`)
     }
 

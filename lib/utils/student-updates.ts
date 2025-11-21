@@ -155,9 +155,9 @@ export function buildStudentUpdateData(
  * ```
  */
 export function updateStudentsInTransaction<T extends StudentForUpdate>(
-  students: T[],
-  config: StudentUpdateConfig,
-  transactionClient: Prisma.TransactionClient
+  _students: T[],
+  _config: StudentUpdateConfig,
+  _transactionClient: Prisma.TransactionClient
 ) {
   // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   throw new Error('Migration needed: Student model has been removed')

@@ -2,7 +2,7 @@ import { saveAs } from 'file-saver'
 import * as XLSX from 'xlsx'
 
 export function exportToExcel(
-  data: any[],
+  data: unknown[],
   visibleColumns: string[],
   filename: string
 ) {

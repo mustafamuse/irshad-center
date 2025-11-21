@@ -1,6 +1,6 @@
 /**
  * Validation Service Tests
- * 
+ *
  * Tests for all validation functions in the validation service.
  */
 
@@ -42,6 +42,8 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+import { prisma } from '@/lib/db'
+
 import { ValidationError } from '../validation-service'
 import {
   validateTeacherAssignment,
@@ -51,7 +53,6 @@ import {
   validateBillingAssignment,
   validateTeacherCreation,
 } from '../validation-service'
-import { prisma } from '@/lib/db'
 
 describe('validateTeacherAssignment', () => {
   beforeEach(() => {
@@ -63,11 +64,11 @@ describe('validateTeacherAssignment', () => {
       id: 'profile-1',
       program: 'DUGSI_PROGRAM',
       personId: 'person-1',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
       id: 'teacher-1',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.teacherAssignment.findFirst).mockResolvedValue(null)
 
@@ -85,7 +86,7 @@ describe('validateTeacherAssignment', () => {
       id: 'profile-1',
       program: 'MAHAD_PROGRAM',
       personId: 'person-1',
-    } as any)
+    } as unknown)
 
     await expect(
       validateTeacherAssignment({
@@ -113,7 +114,7 @@ describe('validateTeacherAssignment', () => {
       id: 'profile-1',
       program: 'DUGSI_PROGRAM',
       personId: 'person-1',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null)
 
@@ -131,16 +132,16 @@ describe('validateTeacherAssignment', () => {
       id: 'profile-1',
       program: 'DUGSI_PROGRAM',
       personId: 'person-1',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
       id: 'teacher-1',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.teacherAssignment.findFirst).mockResolvedValue({
       id: 'assignment-1',
       isActive: true,
-    } as any)
+    } as unknown)
 
     await expect(
       validateTeacherAssignment({
@@ -157,8 +158,8 @@ describe('validateEnrollment', () => {
     vi.clearAllMocks()
     // Re-initialize batch mock after clearAllMocks
     // This ensures the mock structure persists
-    if (!(prisma as any).batch) {
-      (prisma as any).batch = { findUnique: vi.fn() }
+    if (!(prisma as unknown).batch) {
+      ;(prisma as unknown).batch = { findUnique: vi.fn() }
     }
   })
 
@@ -166,7 +167,7 @@ describe('validateEnrollment', () => {
     vi.mocked(prisma.programProfile.findUnique).mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI_PROGRAM',
-    } as any)
+    } as unknown)
 
     await expect(
       validateEnrollment({
@@ -181,7 +182,7 @@ describe('validateEnrollment', () => {
     vi.mocked(prisma.programProfile.findUnique).mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI_PROGRAM',
-    } as any)
+    } as unknown)
 
     await expect(
       validateEnrollment({
@@ -196,11 +197,13 @@ describe('validateEnrollment', () => {
     vi.mocked(prisma.programProfile.findUnique).mockResolvedValue({
       id: 'profile-1',
       program: 'MAHAD_PROGRAM',
-    } as any)
+    } as unknown)
 
     // Access batch mock directly - it's defined in the vi.mock() call
-    const batchFindUnique = vi.fn().mockResolvedValue({ id: 'batch-1' } as any)
-    ;(prisma as any).batch = { findUnique: batchFindUnique }
+    const batchFindUnique = vi
+      .fn()
+      .mockResolvedValue({ id: 'batch-1' } as unknown)
+    ;(prisma as unknown).batch = { findUnique: batchFindUnique }
 
     await expect(
       validateEnrollment({
@@ -215,11 +218,11 @@ describe('validateEnrollment', () => {
     vi.mocked(prisma.programProfile.findUnique).mockResolvedValue({
       id: 'profile-1',
       program: 'MAHAD_PROGRAM',
-    } as any)
+    } as unknown)
 
     // Access batch mock directly - it's defined in the vi.mock() call
     const batchFindUnique = vi.fn().mockResolvedValue(null)
-    ;(prisma as any).batch = { findUnique: batchFindUnique }
+    ;(prisma as unknown).batch = { findUnique: batchFindUnique }
 
     await expect(
       validateEnrollment({
@@ -238,8 +241,8 @@ describe('validateGuardianRelationship', () => {
 
   it('should pass validation for valid guardian relationship', async () => {
     vi.mocked(prisma.person.findUnique)
-      .mockResolvedValueOnce({ id: 'person-1', name: 'Parent' } as any)
-      .mockResolvedValueOnce({ id: 'person-2', name: 'Child' } as any)
+      .mockResolvedValueOnce({ id: 'person-1', name: 'Parent' } as unknown)
+      .mockResolvedValueOnce({ id: 'person-2', name: 'Child' } as unknown)
 
     vi.mocked(prisma.guardianRelationship.findFirst).mockResolvedValue(null)
 
@@ -265,7 +268,7 @@ describe('validateGuardianRelationship', () => {
   it('should reject if guardian not found', async () => {
     vi.mocked(prisma.person.findUnique)
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ id: 'person-2', name: 'Child' } as any)
+      .mockResolvedValueOnce({ id: 'person-2', name: 'Child' } as unknown)
 
     await expect(
       validateGuardianRelationship({
@@ -278,13 +281,13 @@ describe('validateGuardianRelationship', () => {
 
   it('should reject duplicate active relationship', async () => {
     vi.mocked(prisma.person.findUnique)
-      .mockResolvedValueOnce({ id: 'person-1', name: 'Parent' } as any)
-      .mockResolvedValueOnce({ id: 'person-2', name: 'Child' } as any)
+      .mockResolvedValueOnce({ id: 'person-1', name: 'Parent' } as unknown)
+      .mockResolvedValueOnce({ id: 'person-2', name: 'Child' } as unknown)
 
     vi.mocked(prisma.guardianRelationship.findFirst).mockResolvedValue({
       id: 'relationship-1',
       isActive: true,
-    } as any)
+    } as unknown)
 
     await expect(
       validateGuardianRelationship({
@@ -303,8 +306,8 @@ describe('validateSiblingRelationship', () => {
 
   it('should pass validation for valid sibling relationship', async () => {
     vi.mocked(prisma.person.findUnique)
-      .mockResolvedValueOnce({ id: 'person-1' } as any)
-      .mockResolvedValueOnce({ id: 'person-2' } as any)
+      .mockResolvedValueOnce({ id: 'person-1' } as unknown)
+      .mockResolvedValueOnce({ id: 'person-2' } as unknown)
 
     vi.mocked(prisma.siblingRelationship.findUnique).mockResolvedValue(null)
 
@@ -318,8 +321,8 @@ describe('validateSiblingRelationship', () => {
 
   it('should auto-order person IDs (person1Id < person2Id)', async () => {
     vi.mocked(prisma.person.findUnique)
-      .mockResolvedValueOnce({ id: 'person-2' } as any)
-      .mockResolvedValueOnce({ id: 'person-1' } as any)
+      .mockResolvedValueOnce({ id: 'person-2' } as unknown)
+      .mockResolvedValueOnce({ id: 'person-1' } as unknown)
 
     vi.mocked(prisma.siblingRelationship.findUnique).mockResolvedValue(null)
 
@@ -346,7 +349,7 @@ describe('validateSiblingRelationship', () => {
 
   it('should reject if person not found', async () => {
     vi.mocked(prisma.person.findUnique)
-      .mockResolvedValueOnce({ id: 'person-1' } as any)
+      .mockResolvedValueOnce({ id: 'person-1' } as unknown)
       .mockResolvedValueOnce(null)
 
     await expect(
@@ -359,13 +362,13 @@ describe('validateSiblingRelationship', () => {
 
   it('should reject duplicate active relationship', async () => {
     vi.mocked(prisma.person.findUnique)
-      .mockResolvedValueOnce({ id: 'person-1' } as any)
-      .mockResolvedValueOnce({ id: 'person-2' } as any)
+      .mockResolvedValueOnce({ id: 'person-1' } as unknown)
+      .mockResolvedValueOnce({ id: 'person-2' } as unknown)
 
     vi.mocked(prisma.siblingRelationship.findUnique).mockResolvedValue({
       id: 'relationship-1',
       isActive: true,
-    } as any)
+    } as unknown)
 
     await expect(
       validateSiblingRelationship({
@@ -386,16 +389,16 @@ describe('validateBillingAssignment', () => {
       id: 'sub-1',
       amount: 30000, // $300
       status: 'active',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.billingAssignment.findMany).mockResolvedValue([
       { id: 'assign-1', amount: 15000, programProfileId: 'profile-1' },
       { id: 'assign-2', amount: 10000, programProfileId: 'profile-2' },
-    ] as any)
+    ] as unknown)
 
     vi.mocked(prisma.programProfile.findUnique).mockResolvedValue({
       id: 'profile-3',
-    } as any)
+    } as unknown)
 
     // Total: $250, new: $50, new total: $300 (within limit)
     await expect(
@@ -414,16 +417,16 @@ describe('validateBillingAssignment', () => {
       id: 'sub-1',
       amount: 30000, // $300
       status: 'active',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.billingAssignment.findMany).mockResolvedValue([
       { id: 'assign-1', amount: 15000, programProfileId: 'profile-1' },
       { id: 'assign-2', amount: 10000, programProfileId: 'profile-2' },
-    ] as any)
+    ] as unknown)
 
     vi.mocked(prisma.programProfile.findUnique).mockResolvedValue({
       id: 'profile-3',
-    } as any)
+    } as unknown)
 
     // Total: $250, new: $100, new total: $350 (exceeds by $50)
     await expect(
@@ -456,7 +459,7 @@ describe('validateBillingAssignment', () => {
       id: 'sub-1',
       amount: 30000,
       status: 'active',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.billingAssignment.findMany).mockResolvedValue([])
 
@@ -481,7 +484,7 @@ describe('validateTeacherCreation', () => {
     vi.mocked(prisma.person.findUnique).mockResolvedValue({
       id: 'person-1',
       name: 'Ustadh Ali',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue(null)
 
@@ -506,11 +509,11 @@ describe('validateTeacherCreation', () => {
     vi.mocked(prisma.person.findUnique).mockResolvedValue({
       id: 'person-1',
       name: 'Ustadh Ali',
-    } as any)
+    } as unknown)
 
     vi.mocked(prisma.teacher.findUnique).mockResolvedValue({
       id: 'teacher-1',
-    } as any)
+    } as unknown)
 
     await expect(
       validateTeacherCreation({
@@ -519,4 +522,3 @@ describe('validateTeacherCreation', () => {
     ).rejects.toThrow(ValidationError)
   })
 })
-
