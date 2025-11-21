@@ -8,14 +8,7 @@
  * These functions replace the Repository/Service pattern with simple, composable query functions.
  */
 
-import {
-  _Prisma,
-  EducationLevel,
-  GradeLevel,
-  _SubscriptionStatus,
-} from '@prisma/client'
-
-import { _prisma } from '@/lib/db'
+import { EducationLevel, GradeLevel } from '@prisma/client'
 
 // TODO: All functions in this file have been stubbed to return empty/null values
 // Full migration to ProgramProfile/Enrollment model is required

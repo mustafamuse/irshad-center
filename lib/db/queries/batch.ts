@@ -12,8 +12,6 @@
 
 import { cache } from 'react'
 
-import { _Prisma } from '@prisma/client'
-
 import { prisma } from '@/lib/db'
 
 // TODO: All functions in this file have been stubbed to return empty/null values

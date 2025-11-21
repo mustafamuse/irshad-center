@@ -7,7 +7,7 @@ import {
   FieldValues,
   Control,
   ControllerFieldState,
-  FieldMethod,
+  ControllerRenderProps,
 } from 'react-hook-form'
 
 import {
@@ -28,7 +28,7 @@ interface FormFieldWrapperProps<
   label: string
   required?: boolean
   children: (
-    field: FieldMethod<TFieldValues>,
+    field: ControllerRenderProps<TFieldValues, TName>,
     fieldState: ControllerFieldState
   ) => ReactNode
   className?: string

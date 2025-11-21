@@ -506,9 +506,9 @@ describe('Dugsi Payment Method Capture', () => {
       // Should only have parent1
       expect(parents.length).toBe(1)
       expect(
-        (parents[0] as { contactPoints: ContactPoint[] }).contactPoints.some(
-          (cp) => cp.value === 'parent@test.com'
-        )
+        (
+          parents[0] as unknown as { contactPoints: ContactPoint[] }
+        ).contactPoints.some((cp) => cp.value === 'parent@test.com')
       ).toBe(true)
     })
   })

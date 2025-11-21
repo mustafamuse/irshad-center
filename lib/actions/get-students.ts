@@ -5,10 +5,6 @@
 
 import { cache } from 'react'
 
-import { _Prisma } from '@prisma/client'
-
-import { _prisma } from '@/lib/db'
-
 // Enums and constants
 export enum StudentStatus {
   REGISTERED = 'registered',

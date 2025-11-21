@@ -3,7 +3,6 @@
 
 import { SubscriptionStatus } from '@prisma/client'
 
-import { _prisma } from '@/lib/db'
 import { StudentStatus } from '@/lib/types/student'
 
 // Constants for payment processing

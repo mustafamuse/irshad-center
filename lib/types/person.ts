@@ -2,7 +2,6 @@ import type {
   ContactType,
   ContactVerificationStatus,
   GuardianRole,
-  _Program,
 } from '@prisma/client'
 
 /**

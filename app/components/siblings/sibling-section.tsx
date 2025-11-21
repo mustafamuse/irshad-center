@@ -22,7 +22,7 @@ interface SiblingSectionProps {
 }
 
 export function SiblingSection({
-  _personId,
+  personId: _personId,
   siblings,
   onAddSibling,
 }: SiblingSectionProps) {

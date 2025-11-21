@@ -107,10 +107,10 @@ vi.mock('@/lib/utils/type-guards', () => ({
   extractCustomerId: vi.fn((customer: unknown) => {
     if (!customer) return ''
     if (typeof customer === 'string') return customer
-    return (customer as Record<string, unknown>).id || ''
+    return (customer as unknown as Record<string, unknown>).id || ''
   }),
   extractPeriodDates: vi.fn((subscription: unknown) => {
-    const sub = subscription as Record<string, unknown>
+    const sub = subscription as unknown as Record<string, unknown>
     return {
       periodStart: sub.current_period_start
         ? new Date((sub.current_period_start as number) * 1000)

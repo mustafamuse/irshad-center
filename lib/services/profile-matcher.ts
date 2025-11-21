@@ -14,10 +14,7 @@ import type { ProgramProfile } from '@prisma/client'
 import type { Stripe } from 'stripe'
 
 import { getBillingAssignmentsByProfile } from '@/lib/db/queries/billing'
-import {
-  findPersonByContact,
-  _searchProgramProfilesByNameOrContact,
-} from '@/lib/db/queries/program-profile'
+import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import {
   webhookPhoneSchema,
   webhookEmailSchema,

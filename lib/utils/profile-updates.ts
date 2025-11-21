@@ -63,13 +63,11 @@ export async function updateProfilesInTransaction<T extends ProfileForUpdate>(
 ) {
   const {
     subscriptionId,
-    _customerId,
     subscriptionStatus,
     newProfileStatus,
     periodStart,
     periodEnd,
     amount,
-    _program,
   } = config
 
   // Get subscription record

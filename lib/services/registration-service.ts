@@ -11,7 +11,6 @@ import {
   EnrollmentStatus,
   ContactType,
   GuardianRole,
-  _StripeAccountType,
   Gender,
   EducationLevel,
   GradeLevel,

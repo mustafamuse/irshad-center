@@ -234,7 +234,7 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     return
   }
 
-  const subscription = (invoice as Record<string, unknown>)
+  const subscription = (invoice as unknown as Record<string, unknown>)
     .subscription as Stripe.Subscription | null
 
   if (!subscription) {
@@ -249,8 +249,10 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
 
   const subscriptionLineItem = invoice.lines.data.find(
     (line: unknown) =>
-      (line as Record<string, unknown>).parent?.type ===
-      'subscription_item_details'
+      (
+        (line as unknown as Record<string, unknown>)
+          .parent as unknown as Record<string, unknown>
+      )?.type === 'subscription_item_details'
   )
 
   if (!subscriptionLineItem?.period) {
@@ -326,9 +328,8 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   console.log(
     `[WEBHOOK] Processing 'invoice.payment_failed' for Invoice ID: ${invoice.id}`
   )
-  const subscriptionId = (invoice as Record<string, unknown>).subscription as
-    | string
-    | null
+  const subscriptionId = (invoice as unknown as Record<string, unknown>)
+    .subscription as string | null
 
   if (subscriptionId) {
     // Update subscription status to past_due

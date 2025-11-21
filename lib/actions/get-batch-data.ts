@@ -5,8 +5,6 @@
 
 import { EducationLevel, GradeLevel } from '@prisma/client'
 
-import { _prisma } from '@/lib/db'
-
 export interface BatchStudentData {
   id: string
   name: string

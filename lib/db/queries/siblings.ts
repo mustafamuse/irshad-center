@@ -1,4 +1,10 @@
-import type { Person, Prisma, ProgramProfile, Enrollment } from '@prisma/client'
+import type {
+  Person,
+  Prisma,
+  ProgramProfile,
+  Enrollment,
+  Program,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -158,7 +164,7 @@ export async function getSiblingGroupsByProgram(
         include: {
           programProfiles: {
             ...(program
-              ? { where: { program: program as unknown as string } }
+              ? { where: { program: program as unknown as Program } }
               : {}),
             include: {
               enrollments: {
@@ -176,7 +182,7 @@ export async function getSiblingGroupsByProgram(
         include: {
           programProfiles: {
             ...(program
-              ? { where: { program: program as unknown as string } }
+              ? { where: { program: program as unknown as Program } }
               : {}),
             include: {
               enrollments: {

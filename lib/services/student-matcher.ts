@@ -1,15 +1,7 @@
 // ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
 // TODO: Migrate to ProgramProfile/Enrollment model
 
-import { _Prisma } from '@prisma/client'
 import type { Stripe } from 'stripe'
-
-import { _prisma } from '@/lib/db'
-import {
-  _webhookPhoneSchema,
-  _webhookEmailSchema,
-  _validateWebhookData,
-} from '@/lib/validations/webhook'
 
 /**
  * Result of attempting to match a student from a Stripe checkout session
