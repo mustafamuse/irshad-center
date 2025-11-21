@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { prisma } from '@/lib/db'
 import {
   getSiblingGroupsByProgram,
   verifySiblingRelationship,
@@ -26,17 +27,15 @@ export async function GET(request: NextRequest) {
           name: member.person.name,
           dateOfBirth: member.person.dateOfBirth,
         },
-        profiles: member.profiles.map((profile: unknown) => ({
+        profiles: member.profiles.map((profile) => ({
           id: profile.id,
           program: profile.program,
           status: profile.status,
-          enrollments: (profile.enrollments || []).map(
-            (enrollment: unknown) => ({
-              id: enrollment.id,
-              status: enrollment.status,
-              startDate: enrollment.startDate,
-            })
-          ),
+          enrollments: (profile.enrollments || []).map((enrollment) => ({
+            id: enrollment.id,
+            status: enrollment.status,
+            startDate: enrollment.startDate,
+          })),
         })),
       })),
       totalSiblings: group.length,

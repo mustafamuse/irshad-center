@@ -196,7 +196,10 @@ async function processPayouts(
               customerEmail: customerEmail,
               chargeAmount: txn.net,
               chargeId: charge.id,
-              invoiceId: (charge as Record<string, unknown>).invoice || null,
+              invoiceId:
+                ((charge as unknown as Record<string, unknown>).invoice as
+                  | string
+                  | undefined) || null,
               payoutId: payout.id,
               customerId: customer.id,
             })
