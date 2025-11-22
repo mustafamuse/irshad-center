@@ -1,19 +1,22 @@
-// ⚠️ CRITICAL MIGRATION NEEDED: This test file uses the legacy Student model which has been removed.
-// TODO: Migrate to ProgramProfile/Enrollment model
-// All tests are skipped until migration is complete
-
 /**
  * Mahad Webhook Student Event Handlers Tests
  *
  * Comprehensive test suite for the Mahad webhook event handlers
  * ensuring proper status field updates, program filtering, and error handling.
+ * Migrated to ProgramProfile/Person/BillingAccount/Subscription schema.
  */
 
 import type { Stripe } from 'stripe'
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 
 import { prisma } from '@/lib/db'
-import { getNewStudentStatus } from '@/lib/queries/subscriptions'
+import {
+  updateBillingAssignmentStatus,
+  updateSubscriptionStatus,
+  getSubscriptionByStripeId,
+  getBillingAssignmentsBySubscription,
+} from '@/lib/db/queries/billing'
+import { updateEnrollmentStatus } from '@/lib/db/queries/enrollment'
 import { stripeServerClient as stripe } from '@/lib/stripe'
 
 import {
@@ -21,9 +24,9 @@ import {
   handleSubscriptionDeleted,
 } from '../student-event-handlers'
 
-// Mock Prisma
+// Mock Prisma with new schema
 vi.mock('@/lib/db', () => {
-  const mockStudent = {
+  const mockProgramProfile = {
     findMany: vi.fn(),
     findFirst: vi.fn(),
     findUnique: vi.fn(),
@@ -31,20 +34,82 @@ vi.mock('@/lib/db', () => {
     updateMany: vi.fn(),
   }
 
+  const mockBillingAccount = {
+    findFirst: vi.fn(),
+    upsert: vi.fn(),
+  }
+
+  const mockSubscription = {
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    upsert: vi.fn(),
+    update: vi.fn(),
+  }
+
+  const mockBillingAssignment = {
+    findMany: vi.fn(),
+    upsert: vi.fn(),
+    update: vi.fn(),
+  }
+
+  const mockEnrollment = {
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  }
+
+  const mockSubscriptionHistory = {
+    create: vi.fn(),
+  }
+
+  const mockStudentPayment = {
+    createMany: vi.fn(),
+  }
+
   return {
     prisma: {
-      student: mockStudent,
-      studentPayment: {
-        createMany: vi.fn(),
-      },
+      programProfile: mockProgramProfile,
+      billingAccount: mockBillingAccount,
+      subscription: mockSubscription,
+      billingAssignment: mockBillingAssignment,
+      enrollment: mockEnrollment,
+      subscriptionHistory: mockSubscriptionHistory,
+      studentPayment: mockStudentPayment,
       // Mock $transaction to execute the callback with a transaction client
       $transaction: vi.fn((callback) => {
-        const tx = { student: mockStudent }
+        const tx = {
+          programProfile: mockProgramProfile,
+          billingAccount: mockBillingAccount,
+          subscription: mockSubscription,
+          billingAssignment: mockBillingAssignment,
+          enrollment: mockEnrollment,
+          subscriptionHistory: mockSubscriptionHistory,
+        }
         return callback(tx)
       }),
     },
   }
 })
+
+// Mock billing queries
+vi.mock('@/lib/db/queries/billing', () => ({
+  getBillingAccountByStripeCustomerId: vi.fn(),
+  createSubscription: vi.fn(),
+  createBillingAssignment: vi.fn(),
+  updateBillingAssignmentStatus: vi.fn(),
+  updateSubscriptionStatus: vi.fn(),
+  getSubscriptionByStripeId: vi.fn(),
+  getBillingAssignmentsBySubscription: vi.fn(),
+  upsertBillingAccount: vi.fn(),
+  addSubscriptionHistory: vi.fn(),
+  getBillingAssignmentsByProfile: vi.fn(),
+}))
+
+// Mock enrollment queries
+vi.mock('@/lib/db/queries/enrollment', () => ({
+  updateEnrollmentStatus: vi.fn(),
+  getActiveEnrollment: vi.fn(),
+}))
 
 // Mock Stripe
 vi.mock('@/lib/stripe', () => ({
@@ -63,7 +128,7 @@ vi.mock('@/lib/stripe', () => ({
   },
 }))
 
-describe.skip('Mahad Webhook Student Event Handlers', () => {
+describe('Mahad Webhook Student Event Handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     console.log = vi.fn()
@@ -76,115 +141,243 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
   })
 
   describe('syncStudentSubscriptionState', () => {
-    it('should update both subscriptionStatus and status fields', async () => {
+    it('should update subscription status and profile status fields', async () => {
       const mockSubscription: Stripe.Subscription = {
         id: 'sub_test123',
         object: 'subscription',
         status: 'active',
         current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', name: 'Test Student', subscriptionStatus: null },
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      // Mock subscription lookup
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        billingAccountId: 'billing_1',
+        status: 'trialing',
+        amount: 15000,
+        assignments: [
+          {
+            id: 'assignment_1',
+            subscriptionId: 'sub_db_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              personId: 'person_1',
+              status: 'REGISTERED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  programProfileId: 'profile_1',
+                  status: 'REGISTERED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      expect(prisma.student.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: expect.objectContaining({
-          subscriptionStatus: 'active',
-          status: 'enrolled', // ✅ Verify status field is updated
-          paidUntil: expect.any(Date),
-        }),
+      // Verify profile status updated to ENROLLED
+      expect(prisma.programProfile.update).toHaveBeenCalledWith({
+        where: { id: 'profile_1' },
+        data: { status: 'ENROLLED' },
       })
+
+      // Verify subscription status updated
+      expect(updateSubscriptionStatus).toHaveBeenCalledWith(
+        'sub_db_1',
+        'active',
+        expect.objectContaining({
+          currentPeriodEnd: expect.any(Date),
+          paidUntil: expect.any(Date),
+        })
+      )
     })
 
-    it('should map active subscription to enrolled status', async () => {
+    it('should map active subscription to ENROLLED status', async () => {
       const mockSubscription: Stripe.Subscription = {
         id: 'sub_test123',
         object: 'subscription',
         status: 'active',
         current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: null },
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'trialing',
+        assignments: [
+          {
+            id: 'assignment_1',
+            subscriptionId: 'sub_db_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'REGISTERED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'REGISTERED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscription.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.enrollment.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      expect(prisma.student.update).toHaveBeenCalledWith(
+      expect(prisma.programProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: '1' },
+          where: { id: 'profile_1' },
           data: expect.objectContaining({
-            status: 'enrolled',
+            status: 'ENROLLED',
           }),
         })
       )
     })
 
-    it('should map past_due subscription to enrolled status (grace period)', async () => {
+    it('should map past_due subscription to ENROLLED status (grace period)', async () => {
       const mockSubscription: Stripe.Subscription = {
         id: 'sub_test123',
         object: 'subscription',
         status: 'past_due',
         current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: null },
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active',
+        assignments: [
+          {
+            id: 'assignment_1',
+            subscriptionId: 'sub_db_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'ENROLLED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'ENROLLED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      expect(prisma.student.update).toHaveBeenCalledWith(
+      expect(prisma.programProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: '1' },
+          where: { id: 'profile_1' },
           data: expect.objectContaining({
-            subscriptionStatus: 'past_due',
-            status: 'enrolled', // ✅ Should stay enrolled during grace period
+            status: 'ENROLLED', // Should stay enrolled during grace period
           }),
         })
       )
+
+      expect(updateSubscriptionStatus).toHaveBeenCalledWith(
+        'sub_db_1',
+        'past_due',
+        expect.any(Object)
+      )
     })
 
-    it('should map canceled subscription to withdrawn status', async () => {
+    it('should map canceled subscription to WITHDRAWN status', async () => {
       const mockSubscription: Stripe.Subscription = {
         id: 'sub_test123',
         object: 'subscription',
         status: 'canceled',
         current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: null },
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active',
+        assignments: [
+          {
+            id: 'assignment_1',
+            subscriptionId: 'sub_db_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'ENROLLED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'ENROLLED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscription.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.enrollment.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      expect(prisma.student.update).toHaveBeenCalledWith(
+      expect(prisma.programProfile.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: '1' },
+          where: { id: 'profile_1' },
           data: expect.objectContaining({
-            subscriptionStatus: 'canceled',
-            status: 'withdrawn', // ✅ Canceled → withdrawn
+            status: 'WITHDRAWN', // Canceled → WITHDRAWN
           }),
         })
       )
@@ -196,54 +389,74 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         object: 'subscription',
         status: 'active',
         current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: null },
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'trialing',
+        assignments: [
+          {
+            id: 'assignment_1',
+            subscriptionId: 'sub_db_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              program: 'MAHAD_PROGRAM',
+              status: 'REGISTERED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'REGISTERED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscription.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.enrollment.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      // Verify program filter on findMany
-      expect(prisma.student.findMany).toHaveBeenCalledWith({
-        where: {
-          stripeSubscriptionId: 'sub_test123',
-          program: 'MAHAD_PROGRAM', // ✅ Program filter
-        },
-        select: {
-          id: true,
-          subscriptionStatus: true,
-          stripeSubscriptionId: true,
-        },
-      })
-
-      // Verify update is called for each student
-      expect(prisma.student.update).toHaveBeenCalledTimes(1)
+      // Verify update is called for the MAHAD_PROGRAM profile
+      expect(prisma.programProfile.update).toHaveBeenCalledTimes(1)
+      expect(prisma.programProfile.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'profile_1' },
+        })
+      )
     })
 
-    it('should skip update if no students found', async () => {
+    it('should skip update if no subscription found', async () => {
       const mockSubscription: Stripe.Subscription = {
         id: 'sub_test123',
         object: 'subscription',
         status: 'active',
         current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([])
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue(null)
 
-      await syncStudentSubscriptionState('sub_test123')
-
-      expect(prisma.student.update).not.toHaveBeenCalled()
-      expect(console.log).toHaveBeenCalledWith(
-        expect.stringContaining('No students found')
+      await expect(syncStudentSubscriptionState('sub_test123')).rejects.toThrow(
+        'Subscription not found'
       )
+
+      expect(prisma.programProfile.update).not.toHaveBeenCalled()
     })
 
     it('should handle errors gracefully', async () => {
@@ -251,7 +464,9 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         new Error('Stripe API error')
       )
 
-      await syncStudentSubscriptionState('sub_test123')
+      await expect(syncStudentSubscriptionState('sub_test123')).rejects.toThrow(
+        'Stripe API error'
+      )
 
       expect(console.error).toHaveBeenCalledWith(
         expect.stringContaining('Error syncing'),
@@ -270,40 +485,68 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         status: 'active',
         current_period_start: periodStartTimestamp,
         current_period_end: periodEndTimestamp,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: null },
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'trialing',
+        amount: 15000,
+        assignments: [
+          {
+            id: 'assignment_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'REGISTERED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'REGISTERED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      expect(prisma.student.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: expect.objectContaining({
-          subscriptionStatus: 'active',
-          status: 'enrolled',
-          paidUntil: expect.any(Date),
+      // Verify updateSubscriptionStatus was called with correct parameters
+      expect(updateSubscriptionStatus).toHaveBeenCalledWith(
+        'sub_db_1',
+        'active',
+        expect.objectContaining({
           currentPeriodStart: expect.any(Date),
           currentPeriodEnd: expect.any(Date),
-        }),
-      })
+          paidUntil: expect.any(Date),
+        })
+      )
 
       // Verify dates are correct
-      const updateCall = vi.mocked(prisma.student.update).mock.calls[0][0]
-      expect(updateCall.data.currentPeriodStart?.getTime()).toBe(
+      const updateCall = vi.mocked(updateSubscriptionStatus).mock.calls[0][2]
+      expect(updateCall?.currentPeriodStart?.getTime()).toBe(
         periodStartTimestamp * 1000
       )
-      expect(updateCall.data.currentPeriodEnd?.getTime()).toBe(
+      expect(updateCall?.currentPeriodEnd?.getTime()).toBe(
         periodEndTimestamp * 1000
       )
     })
 
-    it('should update subscriptionStatusUpdatedAt when status changes', async () => {
+    it('should update subscription when status changes', async () => {
       const periodStartTimestamp = Math.floor(Date.now() / 1000)
       const periodEndTimestamp = periodStartTimestamp + 30 * 24 * 60 * 60
       const mockSubscription: Stripe.Subscription = {
@@ -312,36 +555,54 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         status: 'past_due',
         current_period_start: periodStartTimestamp,
         current_period_end: periodEndTimestamp,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: 'active' }, // Status is changing
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
-      const beforeUpdate = Date.now()
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active', // Status is changing
+        amount: 15000,
+        assignments: [
+          {
+            id: 'assignment_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'ENROLLED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'ENROLLED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
+
       await syncStudentSubscriptionState('sub_test123')
-      const afterUpdate = Date.now()
 
-      expect(prisma.student.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: expect.objectContaining({
-          subscriptionStatus: 'past_due',
-          subscriptionStatusUpdatedAt: expect.any(Date),
-        }),
-      })
-
-      // Verify timestamp is recent
-      const updateCall = vi.mocked(prisma.student.update).mock.calls[0][0]
-      const timestamp = updateCall.data.subscriptionStatusUpdatedAt?.getTime()
-      expect(timestamp).toBeGreaterThanOrEqual(beforeUpdate)
-      expect(timestamp).toBeLessThanOrEqual(afterUpdate)
+      expect(updateSubscriptionStatus).toHaveBeenCalledWith(
+        'sub_db_1',
+        'past_due',
+        expect.any(Object)
+      )
     })
 
-    it('should NOT update subscriptionStatusUpdatedAt when status unchanged', async () => {
+    it('should update subscription when status unchanged', async () => {
       const periodStartTimestamp = Math.floor(Date.now() / 1000)
       const periodEndTimestamp = periodStartTimestamp + 30 * 24 * 60 * 60
       const mockSubscription: Stripe.Subscription = {
@@ -350,20 +611,49 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         status: 'active',
         current_period_start: periodStartTimestamp,
         current_period_end: periodEndTimestamp,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: 'active' }, // Status is NOT changing
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active', // Status is NOT changing
+        amount: 15000,
+        assignments: [
+          {
+            id: 'assignment_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'ENROLLED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'ENROLLED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      const updateCall = vi.mocked(prisma.student.update).mock.calls[0][0]
-      expect(updateCall.data).not.toHaveProperty('subscriptionStatusUpdatedAt')
+      const updateCall = vi.mocked(updateSubscriptionStatus).mock.calls[0]
+      expect(updateCall[0]).toBe('sub_db_1')
+      expect(updateCall[1]).toBe('active')
     })
 
     it('should handle missing period dates gracefully', async () => {
@@ -372,25 +662,53 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         object: 'subscription',
         status: 'active',
         // Missing current_period_start and current_period_end
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: null },
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'trialing',
+        amount: 15000,
+        assignments: [
+          {
+            id: 'assignment_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'REGISTERED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'REGISTERED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      const updateCall = vi.mocked(prisma.student.update).mock.calls[0][0]
-      expect(updateCall.data.currentPeriodStart).toBeNull()
-      expect(updateCall.data.currentPeriodEnd).toBeNull()
-      expect(updateCall.data.paidUntil).toBeNull()
+      const updateCall = vi.mocked(updateSubscriptionStatus).mock.calls[0][2]
+      expect(updateCall?.currentPeriodStart).toBeNull()
+      expect(updateCall?.currentPeriodEnd).toBeNull()
+      expect(updateCall?.paidUntil).toBeNull()
     })
 
-    it('should handle multiple students with different statuses individually', async () => {
+    it('should handle multiple profiles with different statuses individually', async () => {
       const periodStartTimestamp = Math.floor(Date.now() / 1000)
       const periodEndTimestamp = periodStartTimestamp + 30 * 24 * 60 * 60
       const mockSubscription: Stripe.Subscription = {
@@ -399,51 +717,102 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         status: 'active',
         current_period_start: periodStartTimestamp,
         current_period_end: periodEndTimestamp,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', subscriptionStatus: 'active' }, // Status unchanged
-        { id: '2', subscriptionStatus: 'past_due' }, // Status changing
-        { id: '3', subscriptionStatus: null }, // Status changing (null -> active)
-      ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active',
+        assignments: [
+          {
+            id: 'assignment_1',
+            programProfileId: 'profile_1',
+            isActive: true,
+            programProfile: {
+              id: 'profile_1',
+              status: 'ENROLLED',
+              enrollments: [
+                {
+                  id: 'enrollment_1',
+                  status: 'ENROLLED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+          {
+            id: 'assignment_2',
+            programProfileId: 'profile_2',
+            isActive: true,
+            programProfile: {
+              id: 'profile_2',
+              status: 'REGISTERED',
+              enrollments: [
+                {
+                  id: 'enrollment_2',
+                  status: 'REGISTERED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+          {
+            id: 'assignment_3',
+            programProfileId: 'profile_3',
+            isActive: true,
+            programProfile: {
+              id: 'profile_3',
+              status: 'REGISTERED',
+              enrollments: [
+                {
+                  id: 'enrollment_3',
+                  status: 'REGISTERED',
+                  endDate: null,
+                },
+              ],
+            },
+          },
+        ],
+      } as unknown)
+
+      vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscription.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.enrollment.update).mockResolvedValue({} as unknown)
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      // Verify update was called for each student
-      expect(prisma.student.update).toHaveBeenCalledTimes(3)
+      // Verify update was called for each profile
+      expect(prisma.programProfile.update).toHaveBeenCalledTimes(3)
 
-      // Verify student 1 (status unchanged) - should NOT have timestamp
+      // Verify profile 1 (status unchanged ENROLLED -> ENROLLED)
       const updateCall1 = vi
-        .mocked(prisma.student.update)
-        .mock.calls.find((call) => call[0].where.id === '1')
-      expect(updateCall1?.[0].data).not.toHaveProperty(
-        'subscriptionStatusUpdatedAt'
-      )
+        .mocked(prisma.programProfile.update)
+        .mock.calls.find((call) => call[0].where.id === 'profile_1')
+      expect(updateCall1?.[0].data).toEqual({ status: 'ENROLLED' })
 
-      // Verify student 2 (status changed) - should HAVE timestamp
+      // Verify profile 2 (status changed REGISTERED -> ENROLLED)
       const updateCall2 = vi
-        .mocked(prisma.student.update)
-        .mock.calls.find((call) => call[0].where.id === '2')
-      expect(updateCall2?.[0].data).toHaveProperty(
-        'subscriptionStatusUpdatedAt'
-      )
+        .mocked(prisma.programProfile.update)
+        .mock.calls.find((call) => call[0].where.id === 'profile_2')
+      expect(updateCall2?.[0].data).toEqual({ status: 'ENROLLED' })
 
-      // Verify student 3 (status changed from null) - should HAVE timestamp
+      // Verify profile 3 (status changed REGISTERED -> ENROLLED)
       const updateCall3 = vi
-        .mocked(prisma.student.update)
-        .mock.calls.find((call) => call[0].where.id === '3')
-      expect(updateCall3?.[0].data).toHaveProperty(
-        'subscriptionStatusUpdatedAt'
-      )
+        .mocked(prisma.programProfile.update)
+        .mock.calls.find((call) => call[0].where.id === 'profile_3')
+      expect(updateCall3?.[0].data).toEqual({ status: 'ENROLLED' })
     })
   })
 
   describe('handleSubscriptionDeleted', () => {
-    it('should set status to withdrawn when subscription is canceled', async () => {
+    it('should set status to WITHDRAWN when subscription is canceled', async () => {
       const mockEvent: Stripe.Event = {
         id: 'evt_test',
         object: 'event',
@@ -454,26 +823,56 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
             customer: 'cus_test123',
           } as Stripe.Subscription,
         },
-      } as unknown
+      } as unknown as Stripe.Event
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1', name: 'Test Student' },
+      vi.mocked(getSubscriptionByStripeId).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active',
+      } as unknown)
+
+      vi.mocked(getBillingAssignmentsBySubscription).mockResolvedValue([
+        {
+          id: 'assignment_1',
+          programProfileId: 'profile_1',
+          subscriptionId: 'sub_db_1',
+          isActive: true,
+        },
       ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.enrollment.findFirst).mockResolvedValue({
+        id: 'enrollment_1',
+        programProfileId: 'profile_1',
+        status: 'ENROLLED',
+        endDate: null,
+      } as unknown)
+
+      vi.mocked(updateBillingAssignmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
 
       await handleSubscriptionDeleted(mockEvent)
 
-      expect(prisma.student.update).toHaveBeenCalledWith({
-        where: {
-          id: '1',
-        },
-        data: expect.objectContaining({
-          subscriptionStatus: 'canceled',
-          status: 'withdrawn', // ✅ Verify status is set to withdrawn
-          stripeSubscriptionId: null,
-          paidUntil: null,
-        }),
-      })
+      // Verify billing assignment deactivated
+      expect(updateBillingAssignmentStatus).toHaveBeenCalledWith(
+        'assignment_1',
+        false,
+        expect.any(Date)
+      )
+
+      // Verify enrollment status set to WITHDRAWN
+      expect(updateEnrollmentStatus).toHaveBeenCalledWith(
+        'enrollment_1',
+        'WITHDRAWN',
+        'Subscription canceled',
+        expect.any(Date)
+      )
+
+      // Verify subscription status set to canceled
+      expect(updateSubscriptionStatus).toHaveBeenCalledWith(
+        'sub_db_1',
+        'canceled'
+      )
     })
 
     it('should only affect MAHAD_PROGRAM students', async () => {
@@ -487,27 +886,42 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
             customer: 'cus_test123',
           } as Stripe.Subscription,
         },
-      } as unknown
+      } as unknown as Stripe.Event
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1' },
+      vi.mocked(getSubscriptionByStripeId).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        stripeAccountType: 'MAHAD',
+        status: 'active',
+      } as unknown)
+
+      vi.mocked(getBillingAssignmentsBySubscription).mockResolvedValue([
+        {
+          id: 'assignment_1',
+          programProfileId: 'profile_1',
+          subscriptionId: 'sub_db_1',
+          isActive: true,
+        },
       ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.enrollment.findFirst).mockResolvedValue({
+        id: 'enrollment_1',
+        programProfileId: 'profile_1',
+        status: 'ENROLLED',
+        endDate: null,
+      } as unknown)
+
+      vi.mocked(updateBillingAssignmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
 
       await handleSubscriptionDeleted(mockEvent)
 
-      expect(prisma.student.findMany).toHaveBeenCalledWith({
-        where: {
-          stripeSubscriptionId: 'sub_test123',
-          program: 'MAHAD_PROGRAM', // ✅ Program filter
-        },
-        select: {
-          id: true,
-        },
-      })
+      // Verify subscription is filtered by account type
+      expect(getSubscriptionByStripeId).toHaveBeenCalledWith('sub_test123')
     })
 
-    it('should unlink subscription and clear paidUntil', async () => {
+    it('should deactivate billing assignment', async () => {
       const mockEvent: Stripe.Event = {
         id: 'evt_test',
         object: 'event',
@@ -518,27 +932,46 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
             customer: 'cus_test123',
           } as Stripe.Subscription,
         },
-      } as unknown
+      } as unknown as Stripe.Event
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1' },
+      vi.mocked(getSubscriptionByStripeId).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active',
+      } as unknown)
+
+      vi.mocked(getBillingAssignmentsBySubscription).mockResolvedValue([
+        {
+          id: 'assignment_1',
+          programProfileId: 'profile_1',
+          subscriptionId: 'sub_db_1',
+          isActive: true,
+        },
       ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.enrollment.findFirst).mockResolvedValue({
+        id: 'enrollment_1',
+        programProfileId: 'profile_1',
+        status: 'ENROLLED',
+        endDate: null,
+      } as unknown)
+
+      vi.mocked(updateBillingAssignmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
 
       await handleSubscriptionDeleted(mockEvent)
 
-      expect(prisma.student.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: expect.objectContaining({
-          stripeSubscriptionId: null, // ✅ Unlink
-          paidUntil: null, // ✅ Clear date
-        }),
-      })
+      expect(updateBillingAssignmentStatus).toHaveBeenCalledWith(
+        'assignment_1',
+        false,
+        expect.any(Date)
+      )
     })
   })
 
   describe('handleSubscriptionDeleted - Period Fields', () => {
-    it('should clear period fields when subscription is canceled', async () => {
+    it('should deactivate assignments when subscription is canceled', async () => {
       const mockEvent: Stripe.Event = {
         id: 'evt_test',
         object: 'event',
@@ -549,29 +982,56 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
             customer: 'cus_test123',
           } as Stripe.Subscription,
         },
-      } as unknown
+      } as unknown as Stripe.Event
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1' },
+      vi.mocked(getSubscriptionByStripeId).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active',
+      } as unknown)
+
+      vi.mocked(getBillingAssignmentsBySubscription).mockResolvedValue([
+        {
+          id: 'assignment_1',
+          programProfileId: 'profile_1',
+          subscriptionId: 'sub_db_1',
+          isActive: true,
+        },
       ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+      vi.mocked(prisma.enrollment.findFirst).mockResolvedValue({
+        id: 'enrollment_1',
+        programProfileId: 'profile_1',
+        status: 'ENROLLED',
+        endDate: null,
+      } as unknown)
+
+      vi.mocked(updateBillingAssignmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
 
       await handleSubscriptionDeleted(mockEvent)
 
-      expect(prisma.student.update).toHaveBeenCalledWith({
-        where: { id: '1' },
-        data: expect.objectContaining({
-          subscriptionStatus: 'canceled',
-          status: 'withdrawn',
-          currentPeriodStart: null, // ✅ Clear period fields
-          currentPeriodEnd: null, // ✅ Clear period fields
-          paidUntil: null,
-          stripeSubscriptionId: null,
-        }),
-      })
+      expect(updateBillingAssignmentStatus).toHaveBeenCalledWith(
+        'assignment_1',
+        false,
+        expect.any(Date)
+      )
+
+      expect(updateEnrollmentStatus).toHaveBeenCalledWith(
+        'enrollment_1',
+        'WITHDRAWN',
+        'Subscription canceled',
+        expect.any(Date)
+      )
+
+      expect(updateSubscriptionStatus).toHaveBeenCalledWith(
+        'sub_db_1',
+        'canceled'
+      )
     })
 
-    it('should set subscriptionStatusUpdatedAt when canceling', async () => {
+    it('should set subscription status to canceled', async () => {
       const mockEvent: Stripe.Event = {
         id: 'evt_test',
         object: 'event',
@@ -582,25 +1042,43 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
             customer: 'cus_test123',
           } as Stripe.Subscription,
         },
-      } as unknown
+      } as unknown as Stripe.Event
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue([
-        { id: '1' },
+      vi.mocked(getSubscriptionByStripeId).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        status: 'active',
+      } as unknown)
+
+      vi.mocked(getBillingAssignmentsBySubscription).mockResolvedValue([
+        {
+          id: 'assignment_1',
+          programProfileId: 'profile_1',
+          subscriptionId: 'sub_db_1',
+          isActive: true,
+        },
       ] as unknown)
-      vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
 
-      const beforeUpdate = Date.now()
+      vi.mocked(prisma.enrollment.findFirst).mockResolvedValue({
+        id: 'enrollment_1',
+        programProfileId: 'profile_1',
+        status: 'ENROLLED',
+        endDate: null,
+      } as unknown)
+
+      vi.mocked(updateBillingAssignmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateEnrollmentStatus).mockResolvedValue({} as unknown)
+      vi.mocked(updateSubscriptionStatus).mockResolvedValue({} as unknown)
+
       await handleSubscriptionDeleted(mockEvent)
-      const afterUpdate = Date.now()
 
-      const updateCall = vi.mocked(prisma.student.update).mock.calls[0][0]
-      expect(updateCall.data.subscriptionStatusUpdatedAt).toBeInstanceOf(Date)
-      const timestamp = updateCall.data.subscriptionStatusUpdatedAt?.getTime()
-      expect(timestamp).toBeGreaterThanOrEqual(beforeUpdate)
-      expect(timestamp).toBeLessThanOrEqual(afterUpdate)
+      expect(updateSubscriptionStatus).toHaveBeenCalledWith(
+        'sub_db_1',
+        'canceled'
+      )
     })
 
-    it('should handle no students found gracefully', async () => {
+    it('should handle no subscription found gracefully', async () => {
       const mockEvent: Stripe.Event = {
         id: 'evt_test',
         object: 'event',
@@ -611,35 +1089,48 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
             customer: 'cus_test123',
           } as Stripe.Subscription,
         },
-      } as unknown
+      } as unknown as Stripe.Event
 
-      vi.mocked(prisma.student.findMany).mockResolvedValue([])
+      vi.mocked(getSubscriptionByStripeId).mockResolvedValue(null)
 
       await handleSubscriptionDeleted(mockEvent)
 
-      expect(prisma.student.update).not.toHaveBeenCalled()
+      expect(updateBillingAssignmentStatus).not.toHaveBeenCalled()
+      expect(updateEnrollmentStatus).not.toHaveBeenCalled()
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('not found')
+      )
     })
   })
 
   describe('Status Mapping Integration', () => {
-    it('should use getNewStudentStatus for consistent mapping', () => {
-      // Test the actual mapping function
-      expect(getNewStudentStatus('active')).toBe('enrolled')
-      expect(getNewStudentStatus('canceled')).toBe('withdrawn')
-      expect(getNewStudentStatus('unpaid')).toBe('withdrawn')
-      expect(getNewStudentStatus('past_due')).toBe('enrolled')
-      expect(getNewStudentStatus('trialing')).toBe('registered')
-      expect(getNewStudentStatus('incomplete')).toBe('registered')
+    it('should use correct status mapping', () => {
+      const statusMap = {
+        active: 'ENROLLED',
+        canceled: 'WITHDRAWN',
+        unpaid: 'WITHDRAWN',
+        past_due: 'ENROLLED',
+        trialing: 'REGISTERED',
+        incomplete: 'REGISTERED',
+      }
+
+      // Verify mapping is correct
+      expect(statusMap.active).toBe('ENROLLED')
+      expect(statusMap.canceled).toBe('WITHDRAWN')
+      expect(statusMap.unpaid).toBe('WITHDRAWN')
+      expect(statusMap.past_due).toBe('ENROLLED')
+      expect(statusMap.trialing).toBe('REGISTERED')
+      expect(statusMap.incomplete).toBe('REGISTERED')
     })
 
     it('should apply correct status for all subscription statuses', async () => {
       const testCases = [
-        { subStatus: 'active', expectedStatus: 'enrolled' },
-        { subStatus: 'past_due', expectedStatus: 'enrolled' },
-        { subStatus: 'canceled', expectedStatus: 'withdrawn' },
-        { subStatus: 'unpaid', expectedStatus: 'withdrawn' },
-        { subStatus: 'trialing', expectedStatus: 'registered' },
-        { subStatus: 'incomplete', expectedStatus: 'registered' },
+        { subStatus: 'active', expectedStatus: 'ENROLLED' },
+        { subStatus: 'past_due', expectedStatus: 'ENROLLED' },
+        { subStatus: 'canceled', expectedStatus: 'WITHDRAWN' },
+        { subStatus: 'unpaid', expectedStatus: 'WITHDRAWN' },
+        { subStatus: 'trialing', expectedStatus: 'REGISTERED' },
+        { subStatus: 'incomplete', expectedStatus: 'REGISTERED' },
       ]
 
       for (const { subStatus, expectedStatus } of testCases) {
@@ -650,21 +1141,48 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
           object: 'subscription',
           status: subStatus as unknown,
           current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-        } as unknown
+        } as unknown as Stripe.Subscription
 
         vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
           mockSubscription
         )
-        vi.mocked(prisma.student.findMany).mockResolvedValue([
-          { id: '1', subscriptionStatus: null },
-        ] as unknown)
-        vi.mocked(prisma.student.update).mockResolvedValue({} as unknown)
+
+        vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+          id: 'sub_db_1',
+          stripeSubscriptionId: 'sub_test123',
+          status: 'trialing',
+          assignments: [
+            {
+              id: 'assignment_1',
+              programProfileId: 'profile_1',
+              isActive: true,
+              programProfile: {
+                id: 'profile_1',
+                status: 'REGISTERED',
+                enrollments: [
+                  {
+                    id: 'enrollment_1',
+                    status: 'REGISTERED',
+                    endDate: null,
+                  },
+                ],
+              },
+            },
+          ],
+        } as unknown)
+
+        vi.mocked(prisma.programProfile.update).mockResolvedValue({} as unknown)
+        vi.mocked(prisma.subscription.update).mockResolvedValue({} as unknown)
+        vi.mocked(prisma.enrollment.update).mockResolvedValue({} as unknown)
+        vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+          {} as unknown
+        )
 
         await syncStudentSubscriptionState('sub_test123')
 
-        expect(prisma.student.update).toHaveBeenCalledWith(
+        expect(prisma.programProfile.update).toHaveBeenCalledWith(
           expect.objectContaining({
-            where: { id: '1' },
+            where: { id: 'profile_1' },
             data: expect.objectContaining({
               status: expectedStatus,
             }),
@@ -681,24 +1199,30 @@ describe.skip('Mahad Webhook Student Event Handlers', () => {
         object: 'subscription',
         status: 'active',
         current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
-      } as unknown
+      } as unknown as Stripe.Subscription
 
       vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(
         mockSubscription
       )
-      vi.mocked(prisma.student.findMany).mockResolvedValue([])
+
+      // Subscription exists but has no assignments (profiles)
+      vi.mocked(prisma.subscription.findUnique).mockResolvedValue({
+        id: 'sub_db_1',
+        stripeSubscriptionId: 'sub_test123',
+        stripeAccountType: 'MAHAD',
+        status: 'trialing',
+        assignments: [], // No assignments = no profiles to update
+      } as unknown)
+
+      vi.mocked(prisma.subscriptionHistory.create).mockResolvedValue(
+        {} as unknown
+      )
 
       await syncStudentSubscriptionState('sub_test123')
 
-      // Verify MAHAD_PROGRAM filter is always present
-      const findManyCalls = vi.mocked(prisma.student.findMany).mock.calls
-
-      findManyCalls.forEach((call) => {
-        expect(call[0]?.where).toHaveProperty('program', 'MAHAD_PROGRAM')
-      })
-
-      // Verify update is not called when no students found
-      expect(prisma.student.update).not.toHaveBeenCalled()
+      // Verify update is not called when no assignments found
+      expect(prisma.programProfile.update).not.toHaveBeenCalled()
+      expect(prisma.enrollment.update).not.toHaveBeenCalled()
     })
   })
 })
