@@ -5,10 +5,7 @@
  * Migrated to use ProgramProfile/BillingAssignment model.
  */
 
-import { $Enums } from '@prisma/client'
-
-// Extract enum type for convenience
-type SubscriptionStatus = $Enums.SubscriptionStatus
+import { SubscriptionStatus } from '@prisma/client'
 import type { Stripe } from 'stripe'
 
 import { prisma } from '@/lib/db'

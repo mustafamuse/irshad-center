@@ -1,11 +1,4 @@
-import { $Enums } from '@prisma/client'
-
-// Import enum objects for use as values
-const { EducationLevel, GradeLevel } = $Enums
-
-// Extract enum types for convenience
-type EducationLevel = $Enums.EducationLevel
-type GradeLevel = $Enums.GradeLevel
+import { EducationLevel, GradeLevel } from '@prisma/client'
 import { describe, expect, it } from 'vitest'
 
 import type { BatchStudentData } from '@/lib/types/batch'

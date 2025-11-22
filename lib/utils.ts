@@ -11,20 +11,23 @@ const SubscriptionStatus = {
   paused: 'paused',
 } as const
 
-type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus]
+type SubscriptionStatus =
+  (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus]
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
 import { LogEventData } from '@/app/api/webhook/types'
-
-import { StudentDTO } from './actions/get-students'
+import { BatchStudentData } from '@/lib/types/batch'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function calculateTotal(students: StudentDTO[]): number {
-  return students.reduce((total, student) => total + student.monthlyRate, 0)
+export function calculateTotal(students: BatchStudentData[]): number {
+  return students.reduce(
+    (total, student) => total + (student.monthlyRate ?? 0),
+    0
+  )
 }
 
 export function formatCurrency(amount: number): string {

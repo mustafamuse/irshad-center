@@ -42,3 +42,4 @@ CREATE INDEX "TeacherAssignment_shift_idx" ON "public"."TeacherAssignment"("shif
 ALTER TABLE "public"."TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "public"."Teacher"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "public"."TeacherAssignment" ADD CONSTRAINT "TeacherAssignment_programProfileId_fkey" FOREIGN KEY ("programProfileId") REFERENCES "public"."ProgramProfile"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+

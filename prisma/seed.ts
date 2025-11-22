@@ -1,4 +1,4 @@
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, Program } from '@prisma/client'
 import csvParser from 'csv-parser'
 import * as fs from 'fs'
 
@@ -21,7 +21,7 @@ function formatPhoneNumber(phone: string | null): string | null {
 
   // Check if it's a 10-digit US number
   if (cleaned.length === 10) {
-    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+    return `+1${cleaned}` // E.164 format for US numbers
   }
 
   // If it's not a standard US number, return the original input
@@ -51,16 +51,30 @@ function formatSchoolName(name: string | null): string | null {
 async function dropTables() {
   console.log('❌ Dropping all table data...')
 
-  // ⚠️ CRITICAL MIGRATION NEEDED: Student and Sibling models have been removed
-  // TODO: Migrate to ProgramProfile/Enrollment model
-
   // Drop tables in order based on foreign key relationships
+  // Order matters: child tables first, then parent tables
   await prisma.$transaction([
-    // prisma.$executeRaw`DELETE FROM "_ClassGroupToStudent"`, // many-to-many
+    // Billing & Payments
     prisma.studentPayment.deleteMany(),
-    // prisma.student.deleteMany(), // TODO: Student model removed
-    // prisma.sibling.deleteMany(), // TODO: Sibling model removed
+    prisma.billingAssignment.deleteMany(),
+    prisma.subscription.deleteMany(),
+    prisma.billingAccount.deleteMany(),
+
+    // Enrollments & Profiles
+    prisma.enrollment.deleteMany(),
+    prisma.programProfile.deleteMany(),
+
+    // Relationships
+    prisma.siblingRelationship.deleteMany(),
+    prisma.guardianRelationship.deleteMany(),
+
+    // Contact & Person
+    prisma.contactPoint.deleteMany(),
+    prisma.person.deleteMany(),
+
+    // Batches & Teachers
     prisma.batch.deleteMany(),
+    prisma.teacher.deleteMany(),
   ])
 
   console.log('✅ All table data has been cleared.')
@@ -68,7 +82,9 @@ async function dropTables() {
 
 /**
  * Calculate age based on a given birth date.
+ * Currently unused but kept for future graduation logic.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function calculateAge(birthDate: Date): number {
   const today = new Date()
   let age = today.getFullYear() - birthDate.getFullYear()
@@ -85,7 +101,6 @@ function calculateAge(birthDate: Date): number {
 /**
  * Map the CSV "Current School level" value to the EducationLevel enum.
  * Returns:
- *  - EducationLevel.COLLEGE if the value is "College"
  *  - EducationLevel.HIGH_SCHOOL if the value is "Highschool" or "High school"
  *  - Otherwise (for example, "Currently not in school"), returns null so we can guess using age.
  */
@@ -118,8 +133,10 @@ function mapGradeLevel(grade: string): GradeLevel | null {
 /**
  * Parse a CSV file and return an array of row objects.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseCSV(filePath: string): Promise<any[]> {
   return new Promise((resolve, reject) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const results: any[] = []
     fs.createReadStream(filePath)
       .pipe(csvParser())
@@ -132,6 +149,7 @@ function parseCSV(filePath: string): Promise<any[]> {
 async function seedData() {
   let totalRecords = 0
   let createdCount = 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const errorRecords: { row: any; error: string }[] = []
 
   try {
@@ -165,64 +183,70 @@ async function seedData() {
         row['Phone Number: WhatsApp']?.trim() || null
       )
 
-      // Initialize graduation booleans to their defaults.
-      let highSchoolGraduated = false
-      let collegeGraduated = false
-      let postGradCompleted = false
-
-      // If the Grade/Year indicates graduation...
-      if (
-        gradeRaw.toLowerCase() === 'graduated' ||
-        gradeRaw.toLowerCase() === 'graduate'
-      ) {
-        // Use the mapped education level if available.
-        if (educationLevel === EducationLevel.COLLEGE) {
-          collegeGraduated = true
-        } else if (educationLevel === EducationLevel.HIGH_SCHOOL) {
-          highSchoolGraduated = true
-        } else {
-          // If educationLevel is null (e.g. "Currently not in school"), guess based on age.
-          if (
-            schoolLevelRaw.toLowerCase() === 'currently not in school' &&
-            dateOfBirth
-          ) {
-            const age = calculateAge(dateOfBirth)
-            // Heuristic: if age is less than 21, assume high school graduation; if 21 or older, assume college graduation.
-            if (age < 21) {
-              highSchoolGraduated = true
-            } else {
-              collegeGraduated = true
-            }
-          }
-        }
-      }
-
       try {
-        // ⚠️ CRITICAL MIGRATION NEEDED: Student model has been removed
-        // TODO: Migrate to ProgramProfile/Enrollment model
-        /* Original code commented out - needs migration:
-        await prisma.student.create({
+        // Create Person → ContactPoints → ProgramProfile → Enrollment chain
+
+        // Step 1: Create Person
+        const person = await prisma.person.create({
           data: {
             name: fullName,
-            email: email,
-            phone: phone,
             dateOfBirth: dateOfBirth,
+          },
+        })
+
+        // Step 2: Create ContactPoints (email and/or phone)
+        if (email) {
+          await prisma.contactPoint.create({
+            data: {
+              personId: person.id,
+              type: 'EMAIL',
+              value: email,
+              isPrimary: true,
+            },
+          })
+        }
+
+        if (phone) {
+          await prisma.contactPoint.create({
+            data: {
+              personId: person.id,
+              type: 'PHONE',
+              value: phone,
+              isPrimary: !email, // Primary if no email
+            },
+          })
+        }
+
+        // Step 3: Create ProgramProfile for Mahad program
+        const programProfile = await prisma.programProfile.create({
+          data: {
+            personId: person.id,
+            program: Program.MAHAD_PROGRAM,
             educationLevel: educationLevel,
             gradeLevel: gradeLevel,
             schoolName: schoolName,
-            highSchoolGraduated: highSchoolGraduated,
-            collegeGraduated: collegeGraduated,
-            postGradCompleted: postGradCompleted,
+            monthlyRate: 150, // Default Mahad rate ($1.50 in cents)
+            customRate: false,
+          },
+        })
+
+        // Step 4: Create Enrollment (registered status, no batch yet)
+        await prisma.enrollment.create({
+          data: {
+            programProfileId: programProfile.id,
+            status: 'REGISTERED',
+            startDate: new Date(),
           },
         })
 
         createdCount++
-        console.log(`Created student record for ${fullName}`)
-        */
-        console.log(`Skipping student creation (model removed): ${fullName}`)
+        console.log(
+          `✅ Created records for ${fullName} (Person → Profile → Enrollment)`
+        )
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (createError: any) {
         console.error(
-          `Error creating record for ${fullName}:`,
+          `❌ Error creating record for ${fullName}:`,
           createError.message
         )
         errorRecords.push({
@@ -246,6 +270,7 @@ async function seedData() {
       })
     }
     console.log('========== END OF SUMMARY ==========')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (err: any) {
     console.error('Fatal error during seeding:', err)
   } finally {

@@ -1,6 +1,10 @@
 import type { Person, ProgramProfile, Enrollment } from '@prisma/client'
 
-export type DetectionMethod = 'MANUAL' | 'GUARDIAN_MATCH' | 'NAME_MATCH' | 'CONTACT_MATCH'
+export type DetectionMethod =
+  | 'MANUAL'
+  | 'GUARDIAN_MATCH'
+  | 'NAME_MATCH'
+  | 'CONTACT_MATCH'
 
 export interface SiblingRelationship {
   id: string
@@ -57,4 +61,3 @@ export interface PotentialSibling {
   confidence: number
   reasons: string[]
 }
-

@@ -1,7 +1,4 @@
-import { $Enums } from '@prisma/client'
-
-// Extract enum type for convenience
-type EnrollmentStatus = $Enums.EnrollmentStatus
+import { EnrollmentStatus } from '@prisma/client'
 
 import {
   Card,

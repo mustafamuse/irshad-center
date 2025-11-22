@@ -5,10 +5,12 @@
 Migrate `Teacher` model from standalone identity to role-based model linked to `Person`.
 
 **Before**:
+
 - Teacher had `name`, `email`, `phone` fields
 - Teacher was a separate identity
 
 **After**:
+
 - Teacher linked to `Person` via `personId`
 - Contact info via `Person.contactPoints`
 - Teacher is a role, not separate identity
@@ -38,21 +40,21 @@ import { prisma } from '@/lib/db'
 
 async function migrateTeachersToPerson() {
   console.log('Starting teacher migration...')
-  
+
   // Get all teachers without personId
   const teachers = await prisma.teacher.findMany({
     where: { personId: null },
     // Note: email/phone fields removed, so we'll need to handle existing data
   })
-  
+
   console.log(`Found ${teachers.length} teachers to migrate`)
-  
+
   for (const teacher of teachers) {
     try {
       // Strategy 1: Find existing Person by email (if email was stored)
       // Note: This assumes you have a way to get email from old Teacher records
       // You may need to query from a backup or migration table
-      
+
       // Strategy 2: Create new Person
       const person = await prisma.person.create({
         data: {
@@ -63,23 +65,23 @@ async function migrateTeachersToPerson() {
               // { type: 'EMAIL', value: teacher.email, isPrimary: true },
               // Add phone if available
               // { type: 'PHONE', value: teacher.phone, isPrimary: true },
-            ]
-          }
-        }
+            ],
+          },
+        },
       })
-      
+
       // Link Teacher to Person
       await prisma.teacher.update({
         where: { id: teacher.id },
-        data: { personId: person.id }
+        data: { personId: person.id },
       })
-      
+
       console.log(`✓ Migrated teacher ${teacher.id} → person ${person.id}`)
     } catch (error) {
       console.error(`✗ Failed to migrate teacher ${teacher.id}:`, error)
     }
   }
-  
+
   console.log('Migration complete!')
 }
 
@@ -111,12 +113,14 @@ Remove `name`, `email`, `phone` from Teacher model (already done in schema).
 ### If You Have Existing Teacher Data
 
 **Option 1: Manual Migration**
+
 1. Export existing teacher data (name, email, phone)
 2. Create Person records for each teacher
 3. Create ContactPoint records from email/phone
 4. Link Teacher to Person via personId
 
 **Option 2: Automated Migration**
+
 1. Run migration script to create Person records
 2. Create ContactPoint records from email/phone
 3. Link Teacher records to Person records
@@ -133,16 +137,16 @@ const existingPerson = await prisma.person.findFirst({
       some: {
         type: 'EMAIL',
         value: teacherEmail,
-      }
-    }
-  }
+      },
+    },
+  },
 })
 
 if (existingPerson) {
   // Link Teacher to existing Person
   await prisma.teacher.update({
     where: { id: teacher.id },
-    data: { personId: existingPerson.id }
+    data: { personId: existingPerson.id },
   })
 } else {
   // Create new Person
@@ -158,11 +162,13 @@ if (existingPerson) {
 
 ```typescript
 const teachersWithoutPerson = await prisma.teacher.findMany({
-  where: { personId: null }
+  where: { personId: null },
 })
 
 if (teachersWithoutPerson.length > 0) {
-  console.error(`Found ${teachersWithoutPerson.length} teachers without personId`)
+  console.error(
+    `Found ${teachersWithoutPerson.length} teachers without personId`
+  )
 }
 ```
 
@@ -173,17 +179,17 @@ const teachers = await prisma.teacher.findMany({
   include: {
     person: {
       include: {
-        contactPoints: true
-      }
-    }
-  }
+        contactPoints: true,
+      },
+    },
+  },
 })
 
 for (const teacher of teachers) {
   const hasEmail = teacher.person.contactPoints.some(
-    cp => cp.type === 'EMAIL' && cp.verificationStatus !== 'INVALID'
+    (cp) => cp.type === 'EMAIL' && cp.verificationStatus !== 'INVALID'
   )
-  
+
   if (!hasEmail) {
     console.warn(`Teacher ${teacher.id} has no valid email`)
   }
@@ -220,31 +226,31 @@ If migration fails:
 // Test: Create teacher linked to person
 const person = await prisma.person.create({
   data: {
-    name: "Test Teacher",
+    name: 'Test Teacher',
     contactPoints: {
       create: [
-        { type: 'EMAIL', value: 'teacher@example.com', isPrimary: true }
-      ]
-    }
-  }
+        { type: 'EMAIL', value: 'teacher@example.com', isPrimary: true },
+      ],
+    },
+  },
 })
 
 const teacher = await prisma.teacher.create({
   data: {
-    personId: person.id
+    personId: person.id,
   },
   include: {
     person: {
       include: {
-        contactPoints: true
-      }
-    }
-  }
+        contactPoints: true,
+      },
+    },
+  },
 })
 
 // Verify teacher has person
 expect(teacher.personId).toBe(person.id)
-expect(teacher.person.name).toBe("Test Teacher")
+expect(teacher.person.name).toBe('Test Teacher')
 expect(teacher.person.contactPoints[0].value).toBe('teacher@example.com')
 ```
 
@@ -253,6 +259,7 @@ expect(teacher.person.contactPoints[0].value).toBe('teacher@example.com')
 ## Summary
 
 **Migration Path**:
+
 1. Make `personId` nullable temporarily
 2. Create Person records for existing teachers
 3. Create ContactPoint records from email/phone
@@ -261,8 +268,8 @@ expect(teacher.person.contactPoints[0].value).toBe('teacher@example.com')
 6. Remove old fields (already done)
 
 **Key Points**:
+
 - ✅ Teachers become roles on Person
 - ✅ Contact info moves to Person.contactPoints
 - ✅ Teachers can have multiple roles (parent, payer, student)
 - ✅ Single source of truth for identity
-

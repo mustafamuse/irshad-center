@@ -1,20 +1,19 @@
 #!/usr/bin/env node
 /**
  * Safe Migration Reset
- * 
+ *
  * This is a SAFE wrapper around prisma migrate reset that:
  * 1. Validates the environment is NOT production
  * 2. Creates a backup before resetting
  * 3. Requires explicit confirmation
  * 4. Logs all operations
- * 
+ *
  * Usage:
  *   npx tsx scripts/safe-migrate-reset.ts
  */
 
 import { execSync } from 'child_process'
-import { writeFileSync } from 'fs'
-import { join } from 'path'
+
 import { requireNonProductionEnvironment } from './db-safety-check'
 import { backupData } from '../lib/actions/backup-data'
 
@@ -28,13 +27,15 @@ async function safeMigrateReset() {
     // Step 2: Create backup
     console.log('📦 Creating backup before reset...')
     const backupResult = await backupData()
-    
+
     if (!backupResult.success) {
       throw new Error(`Backup failed: ${backupResult.error}`)
     }
 
     console.log(`✅ Backup created: ${backupResult.fileName}`)
-    console.log(`   Students: ${backupResult.stats?.students || 0}`)
+    console.log(`   Persons: ${backupResult.stats?.persons || 0}`)
+    console.log(`   Profiles: ${backupResult.stats?.profiles || 0}`)
+    console.log(`   Enrollments: ${backupResult.stats?.enrollments || 0}`)
     console.log(`   Batches: ${backupResult.stats?.batches || 0}`)
 
     // Step 3: Require explicit confirmation
@@ -61,7 +62,10 @@ async function safeMigrateReset() {
     console.log(`📦 Backup saved at: backups/${backupResult.fileName}`)
   } catch (error) {
     console.error('\n❌ Reset failed:', error)
-    if (error instanceof Error && error.message.includes('SAFETY CHECK FAILED')) {
+    if (
+      error instanceof Error &&
+      error.message.includes('SAFETY CHECK FAILED')
+    ) {
       console.error('\n🛡️  This operation was blocked for your safety.')
     }
     process.exit(1)
@@ -69,4 +73,3 @@ async function safeMigrateReset() {
 }
 
 safeMigrateReset()
-

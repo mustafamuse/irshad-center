@@ -77,6 +77,3 @@ export function getEnrollmentDuration(enrollment: Enrollment): number | null {
   const end = enrollment.endDate.getTime()
   return Math.floor((end - start) / (1000 * 60 * 60 * 24))
 }
-
-
-

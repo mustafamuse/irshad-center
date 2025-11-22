@@ -3,6 +3,7 @@
 ## 🎯 Overview
 
 **Teachers are now linked to `Person`**, not separate identities. This allows a single human to be:
+
 - ✅ **Teacher** (staff member)
 - ✅ **Parent/Guardian** (has children in programs)
 - ✅ **Payer** (pays for their children or others)
@@ -29,6 +30,7 @@ model Teacher {
 ```
 
 **Key Points**:
+
 - ✅ **One `Teacher` per `Person`** (unique `personId`)
 - ✅ **No email/phone on Teacher** - Use `Person.contactPoints` instead
 - ✅ **Teacher is a role**, not a separate identity
@@ -38,7 +40,7 @@ model Teacher {
 ```prisma
 model Person {
   // ... identity fields ...
-  
+
   // Relations - Person can have multiple roles
   teacher                Teacher?              // Optional: Staff role
   programProfiles        ProgramProfile[]      // Student roles
@@ -57,12 +59,13 @@ model Person {
 **Example**: Ustadh Ali teaches Dugsi students AND has his own children enrolled.
 
 **Database Structure**:
+
 ```typescript
 Person {
   id: "person-ali",
   name: "Ali Hassan",
   // ... other fields ...
-  
+
   // Role 1: Teacher
   teacher: {
     id: "teacher-ali",
@@ -72,18 +75,18 @@ Person {
       { programProfileId: "student-fatima", shift: "EVENING" },
     ]
   },
-  
+
   // Role 2: Parent
   guardianRelationships: [
     { dependentId: "person-ali-son", role: "PARENT" },
     { dependentId: "person-ali-daughter", role: "PARENT" },
   ],
-  
+
   // Role 3: Payer (pays for his children)
   billingAccounts: [
     { id: "billing-ali", subscriptions: [...] }
   ],
-  
+
   // Contact info
   contactPoints: [
     { type: "EMAIL", value: "ali@example.com", isPrimary: true },
@@ -93,22 +96,23 @@ Person {
 ```
 
 **Query Example**:
+
 ```typescript
 // Get Ustadh Ali with all roles
 const ali = await prisma.person.findUnique({
-  where: { id: "person-ali" },
+  where: { id: 'person-ali' },
   include: {
     teacher: {
-      include: { assignments: true }
+      include: { assignments: true },
     },
     guardianRelationships: true,
     billingAccounts: true,
     contactPoints: true,
-  }
+  },
 })
 
 // Check roles
-const roles = await getPersonRoles("person-ali")
+const roles = await getPersonRoles('person-ali')
 // Returns: {
 //   isTeacher: true,
 //   isStudent: false,
@@ -125,11 +129,12 @@ const roles = await getPersonRoles("person-ali")
 **Example**: Ustadh Maryam teaches Dugsi AND is enrolled in Mahad program.
 
 **Database Structure**:
+
 ```typescript
 Person {
   id: "person-maryam",
   name: "Maryam Ahmed",
-  
+
   // Role 1: Teacher
   teacher: {
     id: "teacher-maryam",
@@ -137,7 +142,7 @@ Person {
       { programProfileId: "student-hassan", shift: "MORNING" },
     ]
   },
-  
+
   // Role 2: Student (in Mahad)
   programProfiles: [
     {
@@ -146,24 +151,25 @@ Person {
       enrollments: [...]
     }
   ],
-  
+
   // Contact info
   contactPoints: [...]
 }
 ```
 
 **Query Example**:
+
 ```typescript
 // Get Maryam's teacher assignments
-const teacherAssignments = await getTeacherAssignments("teacher-maryam")
+const teacherAssignments = await getTeacherAssignments('teacher-maryam')
 
 // Get Maryam's student enrollments
 const studentProfile = await prisma.programProfile.findFirst({
   where: {
-    personId: "person-maryam",
-    program: "MAHAD_PROGRAM"
+    personId: 'person-maryam',
+    program: 'MAHAD_PROGRAM',
   },
-  include: { enrollments: true }
+  include: { enrollments: true },
 })
 ```
 
@@ -174,17 +180,18 @@ const studentProfile = await prisma.programProfile.findFirst({
 **Example**: Ustadh Omar teaches Dugsi AND sponsors/pays for multiple students.
 
 **Database Structure**:
+
 ```typescript
 Person {
   id: "person-omar",
   name: "Omar Ibrahim",
-  
+
   // Role 1: Teacher
   teacher: {
     id: "teacher-omar",
     assignments: [...]
   },
-  
+
   // Role 2: Payer/Sponsor
   billingAccounts: [
     {
@@ -199,7 +206,7 @@ Person {
       ]
     }
   ],
-  
+
   // Role 3: Guardian (if sponsoring includes guardianship)
   guardianRelationships: [
     { dependentId: "student-sponsored-1", role: "SPONSOR" },
@@ -214,29 +221,30 @@ Person {
 **Example**: Ustadh Fatima teaches Dugsi, has children in Dugsi, is enrolled in Mahad, AND pays for everything.
 
 **Database Structure**:
+
 ```typescript
 Person {
   id: "person-fatima",
   name: "Fatima Ali",
-  
+
   // Role 1: Teacher
   teacher: {
     assignments: [
       { programProfileId: "student-taught-1", shift: "MORNING" },
     ]
   },
-  
+
   // Role 2: Student (Mahad)
   programProfiles: [
     { program: "MAHAD_PROGRAM", enrollments: [...] }
   ],
-  
+
   // Role 3: Parent
   guardianRelationships: [
     { dependentId: "person-child-1", role: "PARENT" },
     { dependentId: "person-child-2", role: "PARENT" },
   ],
-  
+
   // Role 4: Payer
   billingAccounts: [
     {
@@ -255,9 +263,10 @@ Person {
 ```
 
 **Query Example**:
+
 ```typescript
 // Get all roles for Fatima
-const roles = await getPersonRoles("person-fatima")
+const roles = await getPersonRoles('person-fatima')
 // Returns: {
 //   isTeacher: true,
 //   isStudent: true,
@@ -277,17 +286,19 @@ const roles = await getPersonRoles("person-fatima")
 **One `Person` = One Human Being**
 
 **Multiple Role Models**:
+
 - `Teacher` → Staff role (optional)
 - `ProgramProfile` → Student role (can have multiple - one per program)
 - `GuardianRelationship` → Parent/Guardian role (can have multiple - one per child)
 - `BillingAccount` → Payer role (can have multiple - one per Stripe account)
 
 **All Linked to Same `Person`**:
+
 ```typescript
 Person {
   id: "person-123",
   name: "John Doe",
-  
+
   // Can have ALL of these simultaneously:
   teacher: Teacher?                    // Optional staff role
   programProfiles: ProgramProfile[]   // Student in programs
@@ -302,21 +313,25 @@ Person {
 ## Benefits of This Design
 
 ### ✅ Single Source of Truth
+
 - One `Person` record = one human
 - No duplicate identities across roles
 - Contact info managed in one place (`ContactPoint`)
 
 ### ✅ Flexible Role Assignment
+
 - Person can have multiple roles simultaneously
 - Roles can be added/removed independently
 - No schema changes needed for new role combinations
 
 ### ✅ Query Efficiency
+
 - Get all roles for a person in one query
 - Check if person is teacher/student/parent/payer easily
 - Cross-role queries (e.g., "teachers who are also parents")
 
 ### ✅ Data Consistency
+
 - Email/phone changes update once (`ContactPoint`)
 - Name changes update once (`Person`)
 - No sync issues between separate teacher/student/parent tables
@@ -328,30 +343,33 @@ Person {
 ### Application-Level Validations Required
 
 1. **TeacherAssignment Only for Dugsi**:
+
    ```typescript
    // When creating TeacherAssignment
    const profile = await prisma.programProfile.findUnique({
-     where: { id: programProfileId }
+     where: { id: programProfileId },
    })
-   
+
    if (profile?.program !== 'DUGSI_PROGRAM') {
      throw new Error('Teacher assignments are only for Dugsi program')
    }
    ```
 
 2. **One Teacher Per Person**:
+
    ```typescript
    // When creating Teacher
    const existing = await prisma.teacher.findUnique({
-     where: { personId }
+     where: { personId },
    })
-   
+
    if (existing) {
      throw new Error('Person is already a teacher')
    }
    ```
 
 3. **One Active Assignment Per Student/Shift**:
+
    ```typescript
    // When creating TeacherAssignment
    const existing = await prisma.teacherAssignment.findFirst({
@@ -359,9 +377,9 @@ Person {
        programProfileId,
        shift,
        isActive: true,
-     }
+     },
    })
-   
+
    if (existing) {
      throw new Error(`Student already has active ${shift} shift assignment`)
    }
@@ -385,7 +403,7 @@ If you have existing `Teacher` records with `email`/`phone`:
 ```typescript
 // Migration script example
 const teachers = await prisma.teacher.findMany({
-  where: { personId: null } // If nullable during migration
+  where: { personId: null }, // If nullable during migration
 })
 
 for (const teacher of teachers) {
@@ -396,11 +414,11 @@ for (const teacher of teachers) {
         some: {
           type: 'EMAIL',
           value: teacher.email,
-        }
-      }
-    }
+        },
+      },
+    },
   })
-  
+
   if (!person) {
     // Create Person
     person = await prisma.person.create({
@@ -409,17 +427,19 @@ for (const teacher of teachers) {
         contactPoints: {
           create: [
             { type: 'EMAIL', value: teacher.email, isPrimary: true },
-            ...(teacher.phone ? [{ type: 'PHONE', value: teacher.phone, isPrimary: true }] : []),
-          ]
-        }
-      }
+            ...(teacher.phone
+              ? [{ type: 'PHONE', value: teacher.phone, isPrimary: true }]
+              : []),
+          ],
+        },
+      },
     })
   }
-  
+
   // Link Teacher to Person
   await prisma.teacher.update({
     where: { id: teacher.id },
-    data: { personId: person.id }
+    data: { personId: person.id },
   })
 }
 ```
@@ -429,16 +449,17 @@ for (const teacher of teachers) {
 ## Summary
 
 **Teacher Design**:
+
 - ✅ Linked to `Person` (not separate identity)
 - ✅ One `Teacher` per `Person` (unique `personId`)
 - ✅ Contact info via `Person.contactPoints`
 - ✅ Can have multiple roles simultaneously
 
 **Role Combinations**:
+
 - Teacher + Parent ✅
 - Teacher + Student ✅
 - Teacher + Payer ✅
 - Teacher + Parent + Student + Payer ✅
 
 **All through one `Person` record** with multiple role relationships.
-

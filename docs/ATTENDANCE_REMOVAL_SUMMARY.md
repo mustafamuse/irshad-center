@@ -55,6 +55,7 @@ Attendance tracking was an incomplete feature and has been removed from the code
 ### Migration SQL Updated
 
 Updated `prisma/migrations/20251120000000_remove_legacy_student_references/migration.sql` to:
+
 - Drop `AttendanceRecord` table
 - Drop `AttendanceSession` table
 - Drop `AttendanceStatus` enum
@@ -90,4 +91,3 @@ grep -r "Attendance" prisma/schema.prisma
 # Check code (should return minimal results)
 grep -r "Attendance" --include="*.ts" --include="*.tsx" | grep -v "node_modules" | grep -v ".git"
 ```
-

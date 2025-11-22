@@ -265,3 +265,4 @@ ALTER TABLE "public"."BillingAssignment" ADD CONSTRAINT "BillingAssignment_progr
 -- AddForeignKey: SubscriptionHistory -> Subscription
 ALTER TABLE "public"."SubscriptionHistory" ADD CONSTRAINT "SubscriptionHistory_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "public"."Subscription"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+

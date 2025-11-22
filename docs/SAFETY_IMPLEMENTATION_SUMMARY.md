@@ -7,6 +7,7 @@
 **Purpose:** Automatically detects and validates database environment before any operation.
 
 **Features:**
+
 - Detects environment from `DATABASE_ENV`, `DATABASE_URL`, and `NODE_ENV`
 - Checks database record count (>100 records = likely production)
 - Validates environment is NOT production before destructive operations
@@ -14,6 +15,7 @@
 - Masks sensitive database URLs in logs
 
 **Usage:**
+
 ```typescript
 import { requireNonProductionEnvironment } from './scripts/db-safety-check'
 
@@ -26,6 +28,7 @@ await requireNonProductionEnvironment('Database Reset')
 **Purpose:** Safe replacement for `prisma migrate reset`.
 
 **Safety Features:**
+
 1. ✅ Validates environment (BLOCKS production)
 2. ✅ Creates automatic backup before reset
 3. ✅ Requires `--confirm` flag
@@ -33,6 +36,7 @@ await requireNonProductionEnvironment('Database Reset')
 5. ✅ Only then performs reset
 
 **Usage:**
+
 ```bash
 npm run db:reset-safe -- --confirm
 ```
@@ -42,6 +46,7 @@ npm run db:reset-safe -- --confirm
 ### 3. Updated Project Rules (`.cursorrules`)
 
 **Added:**
+
 - Mandatory safety checks before destructive operations
 - Environment validation requirements
 - Explicit `DATABASE_ENV` requirement
@@ -51,6 +56,7 @@ npm run db:reset-safe -- --confirm
 ### 4. Documentation
 
 **Created:**
+
 - `docs/DATABASE_SAFETY.md` - Complete safety protocol
 - `scripts/README.md` - Script usage guide
 - `docs/SAFETY_IMPLEMENTATION_SUMMARY.md` - This file
@@ -58,6 +64,7 @@ npm run db:reset-safe -- --confirm
 ### 5. NPM Scripts
 
 **Added to `package.json`:**
+
 - `npm run db:safety-check` - Check database environment
 - `npm run db:reset-safe` - Safe database reset
 - `npm run db:recover-stripe` - Recover from Stripe
@@ -67,7 +74,8 @@ npm run db:reset-safe -- --confirm
 ### 1. Environment Validation
 
 **Before:** No way to distinguish staging from production
-**Now:** 
+**Now:**
+
 - Must set `DATABASE_ENV` explicitly
 - Automatic detection from URL patterns
 - Database record count validation
@@ -77,6 +85,7 @@ npm run db:reset-safe -- --confirm
 
 **Before:** Could run `prisma migrate reset` directly
 **Now:**
+
 - Must use `safe-migrate-reset.ts` wrapper
 - Automatically runs safety check
 - Creates backup automatically
@@ -86,6 +95,7 @@ npm run db:reset-safe -- --confirm
 
 **Before:** Vague errors, easy to ignore
 **Now:**
+
 - Clear warnings about production database
 - Explicit error messages
 - Instructions on how to proceed safely
@@ -94,6 +104,7 @@ npm run db:reset-safe -- --confirm
 
 **Before:** No clear safety guidelines
 **Now:**
+
 - Complete safety documentation
 - Script usage guides
 - Environment setup instructions
@@ -108,7 +119,7 @@ npm run db:reset-safe -- --confirm
 # .env.production
 DATABASE_ENV=PRODUCTION
 
-# .env.staging  
+# .env.staging
 DATABASE_ENV=STAGING
 
 # .env.local
@@ -126,6 +137,7 @@ Should show your current environment and safety status.
 ### 3. Use Safe Scripts
 
 **Always use:**
+
 - `npm run db:reset-safe` instead of `prisma migrate reset`
 - `npm run db:safety-check` before any operation
 - Safety check imports in custom scripts
@@ -133,12 +145,14 @@ Should show your current environment and safety status.
 ## 🚫 What Is Now Blocked
 
 ### Automatic Blocks:
+
 - ✅ Production database resets
 - ✅ Unknown environment operations
 - ✅ Operations without safety checks
 - ✅ Direct `prisma migrate reset` usage (must use wrapper)
 
 ### Still Requires Caution:
+
 - ⚠️ Manual SQL operations (not covered by safety checks)
 - ⚠️ Direct Prisma operations (use safety checks)
 - ⚠️ Emergency overrides (only with `ALLOW_PRODUCTION_OPERATIONS`)
@@ -148,12 +162,14 @@ Should show your current environment and safety status.
 ### For Existing Scripts:
 
 **Before:**
+
 ```typescript
 // Dangerous - no safety check
 await prisma.$executeRaw`DROP TABLE ...`
 ```
 
 **After:**
+
 ```typescript
 import { requireNonProductionEnvironment } from './scripts/db-safety-check'
 
@@ -165,12 +181,14 @@ await prisma.$executeRaw`DROP TABLE ...`
 ### For Database Resets:
 
 **Before:**
+
 ```bash
 # Dangerous - no checks
 npx prisma migrate reset --force
 ```
 
 **After:**
+
 ```bash
 # Safe - validates, backs up, confirms
 npm run db:reset-safe -- --confirm
@@ -211,6 +229,7 @@ DATABASE_ENV=PRODUCTION npm run db:safety-check
 ## 🔮 Future Enhancements
 
 Potential improvements:
+
 - Git hooks to prevent dangerous commits
 - CI/CD integration for environment validation
 - Automated backup scheduling
@@ -220,4 +239,3 @@ Potential improvements:
 ---
 
 **Remember:** These safeguards are only effective if used consistently. Always use the safe wrappers and never bypass safety checks.
-

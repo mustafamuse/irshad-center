@@ -63,14 +63,6 @@ vi.mock('@/lib/stripe', () => ({
   },
 }))
 
-// Mock student matcher
-vi.mock('@/lib/services/student-matcher', () => ({
-  studentMatcher: {
-    findByCheckoutSession: vi.fn(),
-    logNoMatchFound: vi.fn(),
-  },
-}))
-
 describe.skip('Mahad Webhook Student Event Handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()

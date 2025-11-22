@@ -66,7 +66,7 @@ export function generateBatchVCards(
   const contacts: VCardContact[] = students.map((student) => {
     const fullName = batchName ? `${student.name} ${batchName}` : student.name
 
-    const phone = formatPhoneNumber(student.phone)
+    const phone = formatPhoneNumber(student.phone ?? null)
 
     const contact: VCardContact = {
       fullName,
@@ -94,7 +94,7 @@ export function getContactPreview(
   return {
     fullName: batchName ? `${student.name} ${batchName}` : student.name,
     email: student.email || undefined,
-    phone: formatPhoneNumber(student.phone),
+    phone: formatPhoneNumber(student.phone ?? null),
     hasMissingData: !student.email || !student.phone,
   }
 }

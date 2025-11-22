@@ -236,7 +236,10 @@ export async function deleteBatch(id: string, client: DatabaseClient = prisma) {
  * Get all students in a batch
  * Returns ProgramProfile data for students with active enrollments in the batch
  */
-export async function getBatchStudents(batchId: string, client: DatabaseClient = prisma) {
+export async function getBatchStudents(
+  batchId: string,
+  client: DatabaseClient = prisma
+) {
   const enrollments = await client.enrollment.findMany({
     where: {
       batchId,
@@ -277,7 +280,9 @@ export async function getBatchStudents(batchId: string, client: DatabaseClient =
   // Transform to student-like structure
   return enrollments.map((enrollment) => {
     const profile = enrollment.programProfile
-    const emailContact = profile.person.contactPoints?.find((cp) => cp.type === 'EMAIL')
+    const emailContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'EMAIL'
+    )
     const phoneContact = profile.person.contactPoints?.find(
       (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
     )
@@ -486,7 +491,7 @@ export async function getBatchSummary(client: DatabaseClient = prisma) {
     // Count batches that have at least one student
     client.batch.findMany({
       where: {
-        enrollments: {
+        Enrollment: {
           some: {
             status: { not: 'WITHDRAWN' },
             endDate: null,
@@ -547,7 +552,7 @@ export async function getBatchesWithFilters(
   if (filters.hasStudents !== undefined) {
     if (filters.hasStudents) {
       // Only batches with at least one active enrollment
-      where.enrollments = {
+      where.Enrollment = {
         some: {
           status: { not: 'WITHDRAWN' },
           endDate: null,
@@ -558,7 +563,7 @@ export async function getBatchesWithFilters(
       }
     } else {
       // Only batches with no active enrollments
-      where.enrollments = {
+      where.Enrollment = {
         none: {
           status: { not: 'WITHDRAWN' },
           endDate: null,
@@ -609,7 +614,7 @@ export async function getBatchWithEnrollments(
   const batch = await client.batch.findUnique({
     where: { id: batchId },
     include: {
-      enrollments: {
+      Enrollment: {
         where: {
           status: { not: 'WITHDRAWN' },
           endDate: null,
@@ -645,7 +650,7 @@ export async function getBatchWithEnrollments(
 
   return {
     ...batch,
-    studentCount: batch.enrollments.length,
+    studentCount: batch.Enrollment.length,
   }
 }
 
@@ -697,7 +702,9 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
   })
 
   return profiles.map((profile) => {
-    const emailContact = profile.person.contactPoints?.find((cp) => cp.type === 'EMAIL')
+    const emailContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'EMAIL'
+    )
     const phoneContact = profile.person.contactPoints?.find(
       (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
     )

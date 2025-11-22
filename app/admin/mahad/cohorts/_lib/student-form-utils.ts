@@ -52,12 +52,12 @@ export function getDefaultFormData(
     name: student.name,
     email: student.email || FORM_DEFAULTS.EMPTY,
     phone: student.phone || FORM_DEFAULTS.EMPTY,
-    dateOfBirth: student.dateOfBirth,
+    dateOfBirth: student.dateOfBirth ?? null,
     educationLevel: student.educationLevel || FORM_DEFAULTS.NONE,
     gradeLevel: student.gradeLevel || FORM_DEFAULTS.NONE,
     schoolName: student.schoolName || FORM_DEFAULTS.EMPTY,
-    monthlyRate: student.monthlyRate,
-    customRate: student.customRate,
+    monthlyRate: student.monthlyRate ?? 150,
+    customRate: student.customRate ?? false,
     batchId: student.batchId || FORM_DEFAULTS.NONE,
   }
 }
@@ -161,14 +161,14 @@ export function hasFormChanges(
  * Format education level for display
  * Uses shared formatEnumValue utility to convert UPPER_SNAKE_CASE to Title Case
  */
-export function formatEducationLevel(level: string | null): string {
-  return formatEnumValue(level)
+export function formatEducationLevel(level: string | null | undefined): string {
+  return formatEnumValue(level ?? null)
 }
 
 /**
  * Format grade level for display
  * Uses shared formatEnumValue utility to convert UPPER_SNAKE_CASE to Title Case
  */
-export function formatGradeLevel(grade: string | null): string {
-  return formatEnumValue(grade)
+export function formatGradeLevel(grade: string | null | undefined): string {
+  return formatEnumValue(grade ?? null)
 }

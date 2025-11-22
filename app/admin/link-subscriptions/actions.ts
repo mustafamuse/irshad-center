@@ -2,10 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { $Enums } from '@prisma/client'
-
-// Extract enum type for convenience
-type SubscriptionStatus = $Enums.SubscriptionStatus
+import { SubscriptionStatus } from '@prisma/client'
 import Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'

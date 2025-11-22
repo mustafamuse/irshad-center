@@ -11,11 +11,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma, $Enums } from '@prisma/client'
-
-// Extract enum types for convenience
-type EducationLevel = $Enums.EducationLevel
-type GradeLevel = $Enums.GradeLevel
+import { Prisma, EducationLevel, GradeLevel } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'

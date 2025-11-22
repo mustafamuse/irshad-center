@@ -11,7 +11,14 @@
  * - Maintains backward-compatible return types for UI components
  */
 
-import { EducationLevel, GradeLevel, EnrollmentStatus, Program, Prisma, SubscriptionStatus } from '@prisma/client'
+import {
+  EducationLevel,
+  GradeLevel,
+  EnrollmentStatus,
+  Prisma,
+  SubscriptionStatus,
+  ContactType,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -56,7 +63,9 @@ export interface StudentWithBatchData {
 /**
  * Helper: Convert EnrollmentStatus (uppercase) to StudentStatus (lowercase)
  */
-function enrollmentStatusToStudentStatus(enrollmentStatus: EnrollmentStatus): StudentStatus {
+function enrollmentStatusToStudentStatus(
+  enrollmentStatus: EnrollmentStatus
+): StudentStatus {
   const mapping: Record<EnrollmentStatus, StudentStatus> = {
     REGISTERED: StudentStatus.REGISTERED,
     ENROLLED: StudentStatus.ENROLLED,
@@ -72,7 +81,9 @@ function enrollmentStatusToStudentStatus(enrollmentStatus: EnrollmentStatus): St
 /**
  * Helper: Convert StudentStatus (lowercase) to EnrollmentStatus (uppercase)
  */
-function studentStatusToEnrollmentStatus(studentStatus: StudentStatus): EnrollmentStatus {
+function studentStatusToEnrollmentStatus(
+  studentStatus: StudentStatus
+): EnrollmentStatus {
   const mapping: Record<StudentStatus, EnrollmentStatus> = {
     [StudentStatus.REGISTERED]: 'REGISTERED',
     [StudentStatus.ENROLLED]: 'ENROLLED',
@@ -85,10 +96,15 @@ function studentStatusToEnrollmentStatus(studentStatus: StudentStatus): Enrollme
 /**
  * Helper: Transform ProgramProfile to StudentWithBatchData
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 function transformToStudent(profile: any): StudentWithBatchData {
   // Extract primary contact points
-  const emailContact = profile.person.contactPoints?.find((cp: any) => cp.type === 'EMAIL')
-  const phoneContact = profile.person.contactPoints?.find((cp: any) => cp.type === 'PHONE' || cp.type === 'WHATSAPP')
+  const emailContact = profile.person.contactPoints?.find(
+    (cp: any) => cp.type === 'EMAIL'
+  )
+  const phoneContact = profile.person.contactPoints?.find(
+    (cp: any) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )
 
   // Get the most recent active enrollment
   const enrollment = profile.enrollments?.[0]
@@ -108,25 +124,32 @@ function transformToStudent(profile: any): StudentWithBatchData {
     schoolName: profile.schoolName,
     monthlyRate: profile.monthlyRate,
     customRate: profile.customRate,
-    status: enrollment ? enrollmentStatusToStudentStatus(enrollment.status) : StudentStatus.REGISTERED,
+    status: enrollment
+      ? enrollmentStatusToStudentStatus(enrollment.status)
+      : StudentStatus.REGISTERED,
     batchId: enrollment?.batchId || null,
     createdAt: profile.createdAt,
     updatedAt: profile.updatedAt,
-    batch: enrollment?.batch ? {
-      id: enrollment.batch.id,
-      name: enrollment.batch.name,
-      startDate: enrollment.batch.startDate,
-      endDate: enrollment.batch.endDate,
-    } : null,
-    subscription: subscription ? {
-      id: subscription.id,
-      status: subscription.status,
-      stripeSubscriptionId: subscription.stripeSubscriptionId,
-      amount: subscription.amount,
-    } : null,
+    batch: enrollment?.batch
+      ? {
+          id: enrollment.batch.id,
+          name: enrollment.batch.name,
+          startDate: enrollment.batch.startDate,
+          endDate: enrollment.batch.endDate,
+        }
+      : null,
+    subscription: subscription
+      ? {
+          id: subscription.id,
+          status: subscription.status,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          amount: subscription.amount,
+        }
+      : null,
     siblingCount: 0, // Will be populated separately if needed
   }
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Get all students with basic information (Mahad only)
@@ -276,7 +299,7 @@ export async function getStudentsWithBatchFiltered(
                 ...(normalizedPhone
                   ? [
                       {
-                        type: { in: ['PHONE', 'WHATSAPP'] as const },
+                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
                         value: normalizedPhone,
                       },
                     ]
@@ -291,11 +314,13 @@ export async function getStudentsWithBatchFiltered(
 
   // Filter by batch IDs
   if (batchIds.length > 0) {
-    const batchConditions: Prisma.EnrollmentWhereInput[] = batchIds.map((batchId) => ({
-      batchId,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
-    }))
+    const batchConditions: Prisma.EnrollmentWhereInput[] = batchIds.map(
+      (batchId) => ({
+        batchId,
+        status: { not: 'WITHDRAWN' },
+        endDate: null,
+      })
+    )
 
     if (includeUnassigned) {
       batchConditions.push({
@@ -321,6 +346,7 @@ export async function getStudentsWithBatchFiltered(
     where.enrollments = {
       ...where.enrollments,
       some: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ...(where.enrollments?.some as any),
         status: { in: enrollmentStatuses },
         endDate: null,
@@ -404,14 +430,20 @@ export async function getStudentsWithBatchFiltered(
 /**
  * Get a single student by ID
  */
-export async function getStudentById(id: string, client: DatabaseClient = prisma) {
+export async function getStudentById(
+  id: string,
+  client: DatabaseClient = prisma
+) {
   const profile = await client.programProfile.findUnique({
     where: { id },
     include: {
       person: {
         include: {
           contactPoints: true,
-          siblingRelationships: {
+          siblingRelationships1: {
+            where: { isActive: true },
+          },
+          siblingRelationships2: {
             where: { isActive: true },
           },
         },
@@ -440,7 +472,7 @@ export async function getStudentById(id: string, client: DatabaseClient = prisma
       },
       payments: {
         orderBy: {
-          createdAt: 'desc',
+          paidAt: 'desc',
         },
         take: 10,
       },
@@ -455,7 +487,10 @@ export async function getStudentById(id: string, client: DatabaseClient = prisma
 /**
  * Get a student by email (case-insensitive)
  */
-export async function getStudentByEmail(email: string, client: DatabaseClient = prisma) {
+export async function getStudentByEmail(
+  email: string,
+  client: DatabaseClient = prisma
+) {
   const profile = await client.programProfile.findFirst({
     where: {
       program: 'MAHAD_PROGRAM',
@@ -505,7 +540,10 @@ export async function getStudentByEmail(email: string, client: DatabaseClient = 
 /**
  * Get students by batch ID
  */
-export async function getStudentsByBatch(batchId: string, client: DatabaseClient = prisma) {
+export async function getStudentsByBatch(
+  batchId: string,
+  client: DatabaseClient = prisma
+) {
   const profiles = await client.programProfile.findMany({
     where: {
       program: 'MAHAD_PROGRAM',
@@ -573,10 +611,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         {
           enrollments: {
             every: {
-              OR: [
-                { batchId: null },
-                { status: 'WITHDRAWN' },
-              ],
+              OR: [{ batchId: null }, { status: 'WITHDRAWN' }],
             },
           },
         },
@@ -744,7 +779,6 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
         contactPoints: {
           some: {
             type: { in: ['PHONE', 'WHATSAPP'] },
-            value: { not: null },
           },
         },
       },
@@ -796,10 +830,13 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
     .map(([phone, group]) => {
       const profiles = group.map(transformToStudent)
       const latestUpdate = Math.max(...group.map((p) => p.updatedAt.getTime()))
-      const hasRecentActivity = Date.now() - latestUpdate < 30 * 24 * 60 * 60 * 1000 // 30 days
+      const hasRecentActivity =
+        Date.now() - latestUpdate < 30 * 24 * 60 * 60 * 1000 // 30 days
 
       // Sort by most recent update - keep the most recently updated record
-      const sortedProfiles = [...profiles].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+      const sortedProfiles = [...profiles].sort(
+        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+      )
       const keepRecord = sortedProfiles[0]
       const duplicateRecords = sortedProfiles.slice(1)
 
@@ -842,7 +879,9 @@ export async function bulkUpdateStudentStatus(
   status: string,
   client: DatabaseClient = prisma
 ) {
-  const enrollmentStatus = studentStatusToEnrollmentStatus(status as StudentStatus)
+  const enrollmentStatus = studentStatusToEnrollmentStatus(
+    status as StudentStatus
+  )
 
   // Update all active enrollments for these profiles
   const result = await client.enrollment.updateMany({
@@ -862,7 +901,10 @@ export async function bulkUpdateStudentStatus(
 /**
  * Get student completeness information
  */
-export async function getStudentCompleteness(id: string, client: DatabaseClient = prisma) {
+export async function getStudentCompleteness(
+  id: string,
+  client: DatabaseClient = prisma
+) {
   const profile = await client.programProfile.findUnique({
     where: { id },
     include: {
@@ -895,8 +937,12 @@ export async function getStudentCompleteness(id: string, client: DatabaseClient 
     'monthlyRate',
   ]
 
-  const emailContact = profile.person.contactPoints.find((cp) => cp.type === 'EMAIL')
-  const phoneContact = profile.person.contactPoints.find((cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP')
+  const emailContact = profile.person.contactPoints.find(
+    (cp) => cp.type === 'EMAIL'
+  )
+  const phoneContact = profile.person.contactPoints.find(
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )
 
   const values = {
     name: profile.person.name,
@@ -908,9 +954,12 @@ export async function getStudentCompleteness(id: string, client: DatabaseClient 
     monthlyRate: profile.monthlyRate,
   }
 
-  const missingFields = requiredFields.filter((field) => !values[field as keyof typeof values])
+  const missingFields = requiredFields.filter(
+    (field) => !values[field as keyof typeof values]
+  )
   const completionPercentage = Math.round(
-    ((requiredFields.length - missingFields.length) / requiredFields.length) * 100
+    ((requiredFields.length - missingFields.length) / requiredFields.length) *
+      100
   )
 
   return {
@@ -923,13 +972,19 @@ export async function getStudentCompleteness(id: string, client: DatabaseClient 
 /**
  * Get delete warnings for a student (check for dependencies)
  */
-export async function getStudentDeleteWarnings(id: string, client: DatabaseClient = prisma) {
+export async function getStudentDeleteWarnings(
+  id: string,
+  client: DatabaseClient = prisma
+) {
   const profile = await client.programProfile.findUnique({
     where: { id },
     include: {
       person: {
         include: {
-          siblingRelationships: {
+          siblingRelationships1: {
+            where: { isActive: true },
+          },
+          siblingRelationships2: {
             where: { isActive: true },
           },
         },
@@ -949,7 +1004,9 @@ export async function getStudentDeleteWarnings(id: string, client: DatabaseClien
   }
 
   return {
-    hasSiblings: profile.person.siblingRelationships.length > 0,
+    hasSiblings:
+      profile.person.siblingRelationships1.length > 0 ||
+      profile.person.siblingRelationships2.length > 0,
     hasAttendanceRecords: false, // Attendance not implemented yet
     hasActiveSubscription: profile.assignments.length > 0,
     hasPaymentHistory: profile.payments.length > 0,

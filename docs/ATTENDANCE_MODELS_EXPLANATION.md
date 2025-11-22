@@ -13,6 +13,7 @@ Your codebase originally had **two separate attendance tracking systems**:
 **Linked To**: `ClassSession` (scheduled classes with subjects like "Quran", "Arabic", etc.)
 
 **Structure**:
+
 ```prisma
 model Attendance {
   id        String
@@ -25,7 +26,8 @@ model Attendance {
 }
 ```
 
-**Status**: 
+**Status**:
+
 - ❌ **Not currently used** in the codebase
 - ❌ References the dropped `Student` table
 - ❌ Part of legacy class scheduling system
@@ -37,6 +39,7 @@ model Attendance {
 **Linked To**: `AttendanceSession` (batch-based attendance sessions)
 
 **Structure**:
+
 ```prisma
 model AttendanceRecord {
   id            String
@@ -52,6 +55,7 @@ model AttendanceRecord {
 ```
 
 **Status**:
+
 - ✅ **Actively used** in `app/admin/shared/attendance/`
 - ✅ Uses the unified `Enrollment` model (not Student)
 - ✅ Has modern features (QR code check-ins)
@@ -60,31 +64,34 @@ model AttendanceRecord {
 ### Current Usage
 
 **Active Code Using AttendanceRecord**:
+
 - `app/admin/shared/attendance/actions.ts` - Creates sessions and marks attendance
 - `app/admin/shared/attendance/components/` - UI for attendance management
 - Uses `AttendanceSession` (batch-based) not `ClassSession` (subject-based)
 
 **No Active Code Using Attendance**:
+
 - No references to `prisma.attendance` in the codebase
 - The old `Attendance` model was for a different use case
 
 ### Migration Path
 
 Since `Attendance` was:
+
 1. Not being used
 2. Referenced the dropped `Student` table
 3. Part of a different (unused) system
 
 **Decision**: Remove it entirely. If you need subject-based class attendance in the future, you can:
+
 - Use `AttendanceRecord` with a different session type
 - Create a new model that uses `Enrollment` instead of `Student`
 
 ### Summary
 
-| Model | Purpose | Status | Action |
-|-------|---------|--------|--------|
-| `Attendance` | ClassSession attendance | ❌ Unused | ✅ Removed |
-| `AttendanceRecord` | Batch attendance | ✅ Active | ✅ Kept & Updated |
+| Model              | Purpose                 | Status    | Action            |
+| ------------------ | ----------------------- | --------- | ----------------- |
+| `Attendance`       | ClassSession attendance | ❌ Unused | ✅ Removed        |
+| `AttendanceRecord` | Batch attendance        | ✅ Active | ✅ Kept & Updated |
 
 The removal of `Attendance` doesn't affect your current attendance functionality because you're using `AttendanceRecord` for all attendance tracking.
-

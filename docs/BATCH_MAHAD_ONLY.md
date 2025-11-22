@@ -18,6 +18,7 @@ model Enrollment {
 ```
 
 **Rules:**
+
 - ✅ Mahad enrollments CAN have a `batchId`
 - ✅ Dugsi enrollments MUST have `batchId = null`
 - ✅ Donations/Youth enrollments MUST have `batchId = null`
@@ -41,6 +42,7 @@ model Batch {
 ### When Creating Enrollments
 
 **Mahad Enrollment:**
+
 ```typescript
 // ✅ Valid - Mahad can have batch
 await prisma.enrollment.create({
@@ -48,11 +50,12 @@ await prisma.enrollment.create({
     programProfileId: mahadProfile.id,
     batchId: batch.id, // Optional but valid
     status: 'ENROLLED',
-  }
+  },
 })
 ```
 
 **Dugsi Enrollment:**
+
 ```typescript
 // ✅ Valid - Dugsi must NOT have batch
 await prisma.enrollment.create({
@@ -60,7 +63,7 @@ await prisma.enrollment.create({
     programProfileId: dugsiProfile.id,
     batchId: null, // Must be null for Dugsi
     status: 'ENROLLED',
-  }
+  },
 })
 ```
 
@@ -95,6 +98,7 @@ await prisma.enrollment.create({
 ## Migration Notes
 
 When migrating from Student to Enrollment:
+
 - Mahad students with `batchId` → Create Enrollment with `batchId`
 - Dugsi students (no `batchId`) → Create Enrollment with `batchId = null`
 
@@ -103,4 +107,3 @@ When migrating from Student to Enrollment:
 - `docs/ROUTING.md` - Program isolation patterns
 - `docs/unified-student-platform.md` - Unified platform design
 - `app/admin/mahad/cohorts/DATABASE_SCHEMA.md` - Mahad schema details
-

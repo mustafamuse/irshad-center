@@ -17,10 +17,7 @@ import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 import type { Prisma } from '@prisma/client'
-import { $Enums } from '@prisma/client'
-
-// Extract enum type for convenience
-type SubscriptionStatus = $Enums.SubscriptionStatus
+import { SubscriptionStatus } from '@prisma/client'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'

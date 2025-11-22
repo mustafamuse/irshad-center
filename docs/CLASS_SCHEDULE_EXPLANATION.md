@@ -17,7 +17,7 @@ model ClassSchedule {
   endTime      String        // Class end time (e.g., "10:30")
   teacherId    String?       // Which teacher teaches this class
   isActive     Boolean       // Whether this schedule is currently active
-  
+
   ClassSession ClassSession[] // Individual class sessions (actual class meetings)
 }
 ```
@@ -25,6 +25,7 @@ model ClassSchedule {
 ## Example
 
 A ClassSchedule might be:
+
 - **Batch**: "Fall 2024 Cohort"
 - **Subject**: "Quran"
 - **Semester**: "Fall 2024"
@@ -37,11 +38,13 @@ This creates a **recurring schedule** that says: "Every Monday, Wednesday, and F
 ## ClassSession vs ClassSchedule
 
 ### ClassSchedule (Template)
+
 - **Recurring schedule** (every Monday/Wednesday/Friday)
 - Defines the pattern
 - Example: "Quran class every Mon/Wed/Fri at 9 AM"
 
 ### ClassSession (Individual Instance)
+
 - **Specific class meeting** (one actual class)
 - Created from ClassSchedule
 - Example: "Quran class on Monday, October 15, 2024 at 9 AM"
@@ -51,6 +54,7 @@ This creates a **recurring schedule** that says: "Every Monday, Wednesday, and F
 ## Why Mahad-Only?
 
 **ClassSchedule links to Batch:**
+
 ```prisma
 model ClassSchedule {
   batchId String  // Required - links to Batch
@@ -59,11 +63,13 @@ model ClassSchedule {
 ```
 
 **Since Batch is Mahad-only:**
+
 - Batch = Mahad cohorts only
 - ClassSchedule → Batch = Mahad only
 - Therefore: ClassSchedule is Mahad-only
 
 **Dugsi doesn't use:**
+
 - ❌ Batches (no cohorts)
 - ❌ ClassSchedule (no batch-based scheduling)
 - ❌ ClassSession (no scheduled class meetings)
@@ -71,11 +77,13 @@ model ClassSchedule {
 ## What Does Dugsi Use Instead?
 
 Dugsi (K-12) likely uses:
+
 - ✅ **Family-based grouping** (via `familyReferenceId`)
 - ✅ **Age/grade-based grouping** (via `gradeLevel`)
 - ✅ **Simple enrollment** (no batch assignment)
 
 But **NOT**:
+
 - ❌ Batch-based cohorts
 - ❌ Subject-based class schedules
 - ❌ Semester-based scheduling
@@ -83,12 +91,14 @@ But **NOT**:
 ## Current Status
 
 **ClassSchedule is:**
+
 - ✅ Used for Mahad class scheduling
 - ✅ Links to Batch (Mahad-only)
 - ✅ Has Subject, Semester, Teacher relationships
 - ✅ Creates ClassSession instances
 
 **Not used for:**
+
 - ❌ Dugsi (no batches)
 - ❌ Youth Events (no batches)
 - ❌ Donations (no classes)
@@ -96,7 +106,7 @@ But **NOT**:
 ## Summary
 
 **ClassSchedule** = The recurring class schedule template for Mahad batches
+
 - Defines: What subject, when (days/time), which teacher, which semester
 - Creates: Individual ClassSession instances for each actual class meeting
 - Scope: Mahad-only (because it requires Batch, which is Mahad-only)
-

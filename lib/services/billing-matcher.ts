@@ -22,9 +22,13 @@ import {
  */
 export interface BillingMatchResult {
   /** The matched billing account, or null if no match found */
-  billingAccount: Awaited<ReturnType<typeof prisma.billingAccount.findUnique>> | null
+  billingAccount: Awaited<
+    ReturnType<typeof prisma.billingAccount.findUnique>
+  > | null
   /** The matched program profile, or null if no match found */
-  programProfile: Awaited<ReturnType<typeof prisma.programProfile.findUnique>> | null
+  programProfile: Awaited<
+    ReturnType<typeof prisma.programProfile.findUnique>
+  > | null
   /** How the match was made (phone, email, or guardian) */
   matchMethod: 'phone' | 'email' | 'guardian' | null
   /** Validated email address from the session */
@@ -426,6 +430,3 @@ export class BillingMatcher {
 
 // Export singleton instance
 export const billingMatcher = new BillingMatcher()
-
-
-

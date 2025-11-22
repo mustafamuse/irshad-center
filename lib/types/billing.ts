@@ -11,21 +11,21 @@ export interface BillingAccount {
   id: string
   personId: string | null
   accountType: StripeAccountType
-  
+
   // Stripe customer IDs per account type
   stripeCustomerIdMahad: string | null
   stripeCustomerIdDugsi: string | null
   stripeCustomerIdYouth: string | null
   stripeCustomerIdDonation: string | null
-  
+
   // ACH/Bank account info (for Dugsi)
   paymentIntentIdDugsi: string | null
   paymentMethodCaptured: boolean
   paymentMethodCapturedAt: Date | null
-  
+
   // Primary contact preference
   primaryContactPointId: string | null
-  
+
   notes: string | null
   createdAt: Date
   updatedAt: Date
@@ -44,16 +44,16 @@ export interface Subscription {
   amount: number // Amount in cents
   currency: string
   interval: string
-  
+
   // Period tracking
   currentPeriodStart: Date | null
   currentPeriodEnd: Date | null
   paidUntil: Date | null
   lastPaymentDate: Date | null
-  
+
   // History tracking
   previousSubscriptionIds: string[]
-  
+
   createdAt: Date
   updatedAt: Date
 }
@@ -98,13 +98,15 @@ export interface BillingAccountWithRelations extends BillingAccount {
     name: string
   } | null
   subscriptions: Subscription[]
-  assignments: Array<BillingAssignment & {
-    programProfile: {
-      id: string
-      program: Program
-      personId: string
+  assignments: Array<
+    BillingAssignment & {
+      programProfile: {
+        id: string
+        program: Program
+        personId: string
+      }
     }
-  }>
+  >
 }
 
 /**
@@ -112,13 +114,15 @@ export interface BillingAccountWithRelations extends BillingAccount {
  */
 export interface SubscriptionWithRelations extends Subscription {
   billingAccount: BillingAccount
-  assignments: Array<BillingAssignment & {
-    programProfile: {
-      id: string
-      program: Program
-      personId: string
+  assignments: Array<
+    BillingAssignment & {
+      programProfile: {
+        id: string
+        program: Program
+        personId: string
+      }
     }
-  }>
+  >
 }
 
 /**
@@ -159,6 +163,3 @@ export function getTotalAllocatedAmount(
     .filter((a) => a.isActive)
     .reduce((sum, a) => sum + a.amount, 0)
 }
-
-
-
