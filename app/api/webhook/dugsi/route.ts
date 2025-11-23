@@ -13,6 +13,14 @@
 import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
+/**
+ * Extended Stripe Invoice type that includes payment_intent field.
+ * Stripe's Invoice type includes payment_intent but it's typed as string | PaymentIntent | null
+ */
+type StripeInvoiceWithPaymentIntent = Stripe.Invoice & {
+  payment_intent?: string | Stripe.PaymentIntent | null
+}
+
 import { prisma } from '@/lib/db'
 import { getBillingAccountByStripeCustomerId } from '@/lib/db/queries/billing'
 import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
@@ -366,12 +374,11 @@ async function handleInvoiceFinalizedEvent(
 
     // Dugsi-specific: Capture PaymentIntent ID for first subscription invoice
     if (invoice.billing_reason === 'subscription_create') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const invoiceWithExtras = invoice as any
-      const paymentIntentId = invoiceWithExtras.payment_intent
-        ? typeof invoiceWithExtras.payment_intent === 'string'
-          ? invoiceWithExtras.payment_intent
-          : invoiceWithExtras.payment_intent?.id
+      const invoiceWithPaymentIntent = invoice as StripeInvoiceWithPaymentIntent
+      const paymentIntentId = invoiceWithPaymentIntent.payment_intent
+        ? typeof invoiceWithPaymentIntent.payment_intent === 'string'
+          ? invoiceWithPaymentIntent.payment_intent
+          : invoiceWithPaymentIntent.payment_intent?.id
         : null
 
       if (paymentIntentId && billingAccount.personId) {

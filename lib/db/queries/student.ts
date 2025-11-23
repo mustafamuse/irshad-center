@@ -96,14 +96,35 @@ function studentStatusToEnrollmentStatus(
 /**
  * Helper: Transform ProgramProfile to StudentWithBatchData
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function transformToStudent(profile: any): StudentWithBatchData {
+type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
+  include: {
+    person: {
+      include: {
+        contactPoints: true
+      }
+    }
+    enrollments: {
+      include: {
+        batch: true
+      }
+    }
+    assignments: {
+      include: {
+        subscription: true
+      }
+    }
+  }
+}>
+
+function transformToStudent(
+  profile: ProfileWithRelations
+): StudentWithBatchData {
   // Extract primary contact points
   const emailContact = profile.person.contactPoints?.find(
-    (cp: any) => cp.type === 'EMAIL'
+    (cp) => cp.type === 'EMAIL'
   )
   const phoneContact = profile.person.contactPoints?.find(
-    (cp: any) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
   )
 
   // Get the most recent active enrollment
@@ -343,11 +364,16 @@ export async function getStudentsWithBatchFiltered(
       studentStatusToEnrollmentStatus(status as StudentStatus)
     )
 
+    // Type-safe merge of enrollment conditions
+    const existingSome =
+      where.enrollments && 'some' in where.enrollments
+        ? where.enrollments.some
+        : {}
+
     where.enrollments = {
       ...where.enrollments,
       some: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ...(where.enrollments?.some as any),
+        ...(typeof existingSome === 'object' ? existingSome : {}),
         status: { in: enrollmentStatuses },
         endDate: null,
       },
@@ -803,6 +829,15 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
         },
         orderBy: {
           startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: {
+          isActive: true,
+        },
+        include: {
+          subscription: true,
         },
         take: 1,
       },

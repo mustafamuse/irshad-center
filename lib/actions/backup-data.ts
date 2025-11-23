@@ -4,6 +4,9 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { prisma } from '@/lib/db'
+import { createActionLogger, logError } from '@/lib/logger'
+
+const logger = createActionLogger('backupData')
 
 // Add validation types
 interface BackupValidation {
@@ -37,7 +40,7 @@ export async function backupData(): Promise<
 > {
   try {
     // First validate the data
-    console.log('🔍 Starting data validation...')
+    logger.info('Starting data validation')
 
     // Get all data with complete relationships
     const persons = await prisma.person.findMany({
@@ -138,7 +141,7 @@ export async function backupData(): Promise<
       },
     }
 
-    console.log('✅ Data validation complete:', validation)
+    logger.info({ validation }, 'Data validation complete')
 
     // Continue with backup if validation passes
     if (!Object.values(validation.relationships).every(Boolean)) {
@@ -185,11 +188,14 @@ export async function backupData(): Promise<
     )
 
     // Log backup stats
-    console.log('✅ Backup completed:', {
-      fileName,
-      counts: backup.metadata.totalCounts,
-      size: `${(JSON.stringify(backup).length / 1024 / 1024).toFixed(2)}MB`,
-    })
+    logger.info(
+      {
+        fileName,
+        counts: backup.metadata.totalCounts,
+        size: `${(JSON.stringify(backup).length / 1024 / 1024).toFixed(2)}MB`,
+      },
+      'Backup completed'
+    )
 
     return {
       success: true,
@@ -198,7 +204,7 @@ export async function backupData(): Promise<
       stats: backup.metadata.totalCounts,
     }
   } catch (error) {
-    console.error('❌ Backup failed:', error)
+    await logError(logger, error, 'Backup failed')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

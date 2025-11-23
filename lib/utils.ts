@@ -74,6 +74,7 @@ export function getBillingCycleAnchor(dayOfMonth: number = 1): number {
  * @param message - The log message
  * @param eventId - The ID of the event (e.g. Stripe event ID)
  * @param data - Structured data about the event
+ * @deprecated Use createWebhookLogger() directly instead - keeping console for backward compatibility
  */
 export function logEvent(
   message: string,
@@ -87,6 +88,9 @@ export function logEvent(
 }
 
 // Utility: Handle errors gracefully
+/**
+ * @deprecated Use logError() from logger instead - keeping console for backward compatibility
+ */
 export function handleError(action: string, eventId: string, error: unknown) {
   const errorMessage = error instanceof Error ? error.message : String(error)
   console.error(`[${action}] Error: ${eventId}`, {

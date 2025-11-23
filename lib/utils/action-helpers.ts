@@ -5,6 +5,10 @@
  * and standardize error handling patterns.
  */
 
+import { createActionLogger, logError } from '@/lib/logger'
+
+const logger = createActionLogger('action-helpers')
+
 /**
  * Generic action result type for consistent response structure
  */
@@ -49,7 +53,7 @@ export async function withActionError<T>(
       data,
     }
   } catch (error) {
-    console.error(`[Action Error] ${errorMessage}:`, error)
+    await logError(logger, error, errorMessage)
     return {
       success: false,
       error: error instanceof Error ? error.message : errorMessage,

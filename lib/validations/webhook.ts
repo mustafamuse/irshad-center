@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 
 /**
@@ -53,12 +54,17 @@ export function validateWebhookData<T>(
   const result = schema.safeParse(data)
 
   if (!result.success) {
-    console.warn(
-      `[WEBHOOK] Invalid ${fieldName} received:`,
-      data,
-      'Errors:',
-      result.error.issues.map((i) => i.message).join(', ')
-    )
+    // Add Sentry breadcrumb for webhook validation warnings
+    Sentry.addBreadcrumb({
+      message: `Invalid ${fieldName} received`,
+      level: 'warning',
+      category: 'webhook.validation',
+      data: {
+        fieldName,
+        value: data,
+        errors: result.error.issues.map((i) => i.message).join(', '),
+      },
+    })
     return null as unknown as T extends string | undefined
       ? string | null
       : T | null
