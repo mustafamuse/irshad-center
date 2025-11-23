@@ -132,6 +132,22 @@ export const billingAccountFactory = (
 })
 
 /**
+ * Billing Assignment factory
+ */
+export const billingAssignmentFactory = (
+  overrides: Partial<any> = {}
+) => ({
+  id: generateId(),
+  programProfileId: generateId(),
+  subscriptionId: generateId(),
+  amount: 15000,
+  isActive: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+})
+
+/**
  * Guardian Relationship factory
  */
 export const guardianRelationshipFactory = (
