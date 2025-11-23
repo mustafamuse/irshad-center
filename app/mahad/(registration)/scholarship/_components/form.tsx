@@ -9,6 +9,9 @@ import { FormProvider, useForm } from 'react-hook-form'
 import { toasts } from '@/components/toast/toast-utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('ScholarshipForm')
 
 import {
   applicantDetailsSchema,
@@ -213,7 +216,7 @@ export function ScholarshipForm() {
       clearDraft() // Clear saved draft on successful submission
       setIsSubmitted(true)
     } catch (error) {
-      console.error('Form submission failed:', error)
+      logger.error('Form submission failed', error)
       toasts.apiError({
         title: 'Submission Failed',
         error: new Error('An unexpected error occurred. Please try again.'),

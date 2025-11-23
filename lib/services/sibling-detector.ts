@@ -44,6 +44,22 @@ export async function detectPotentialSiblings(
 
   const potentialSiblings: PotentialSibling[] = []
 
+  // Batch fetch all existing sibling relationships for this person to avoid N+1
+  const existingSiblingRelationships =
+    await prisma.siblingRelationship.findMany({
+      where: {
+        OR: [{ person1Id: personId }, { person2Id: personId }],
+      },
+    })
+
+  // Create a Set of person IDs that already have sibling relationships
+  const existingSiblingIds = new Set(
+    existingSiblingRelationships.flatMap((rel) => [
+      rel.person1Id,
+      rel.person2Id,
+    ])
+  )
+
   // Method 1: Guardian Match (for children)
   // Find other dependents of the same guardians
   if (person.guardianRelationships.length > 0) {
@@ -65,17 +81,8 @@ export async function detectPotentialSiblings(
       })
 
       for (const rel of siblingsViaGuardians) {
-        // Check if relationship already exists
-        const existing = await prisma.siblingRelationship.findFirst({
-          where: {
-            OR: [
-              { person1Id: personId, person2Id: rel.dependentId },
-              { person1Id: rel.dependentId, person2Id: personId },
-            ],
-          },
-        })
-
-        if (!existing) {
+        // Check if relationship already exists using the Set
+        if (!existingSiblingIds.has(rel.dependentId)) {
           potentialSiblings.push({
             person: rel.dependent,
             method: 'GUARDIAN_MATCH',
@@ -104,17 +111,8 @@ export async function detectPotentialSiblings(
     })
 
     for (const match of nameMatches) {
-      // Check if relationship already exists
-      const existing = await prisma.siblingRelationship.findFirst({
-        where: {
-          OR: [
-            { person1Id: personId, person2Id: match.id },
-            { person1Id: match.id, person2Id: personId },
-          ],
-        },
-      })
-
-      if (!existing) {
+      // Check if relationship already exists using the Set
+      if (!existingSiblingIds.has(match.id)) {
         let confidence = 0.5
         const reasons: string[] = [`Shared last name: ${lastName}`]
 
@@ -161,17 +159,8 @@ export async function detectPotentialSiblings(
     })
 
     for (const match of contactMatches) {
-      // Check if relationship already exists
-      const existing = await prisma.siblingRelationship.findFirst({
-        where: {
-          OR: [
-            { person1Id: personId, person2Id: match.personId },
-            { person1Id: match.personId, person2Id: personId },
-          ],
-        },
-      })
-
-      if (!existing) {
+      // Check if relationship already exists using the Set
+      if (!existingSiblingIds.has(match.personId)) {
         // Check if this person is already in potentialSiblings
         const alreadyAdded = potentialSiblings.some(
           (ps) => ps.person.id === match.personId

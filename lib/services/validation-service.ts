@@ -8,6 +8,9 @@
 import { Program, Shift, GuardianRole, EnrollmentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { createServiceLogger } from '@/lib/logger'
+
+const logger = createServiceLogger('validation')
 
 /**
  * Validation errors with detailed context
@@ -147,8 +150,9 @@ export async function validateEnrollment(data: {
 
   if (program === 'MAHAD_PROGRAM' && !data.batchId) {
     // Mahad typically requires batch, but allow null for special cases
-    console.warn(
-      `Mahad enrollment without batch for profile ${data.programProfileId || 'new'}`
+    logger.warn(
+      { programProfileId: data.programProfileId || 'new' },
+      'Mahad enrollment without batch'
     )
   }
 
@@ -363,8 +367,7 @@ export async function validateBillingAssignment(data: {
 
   // Allow over-assignment but warn
   if (newTotal > subscription.amount) {
-    console.warn(
-      `WARNING: BillingAssignment total (${newTotal}) exceeds subscription amount (${subscription.amount})`,
+    logger.warn(
       {
         subscriptionId: data.subscriptionId,
         subscriptionAmount: subscription.amount,
@@ -377,7 +380,8 @@ export async function validateBillingAssignment(data: {
             ((newTotal - subscription.amount) / subscription.amount) *
             100
           ).toFixed(2) + '%',
-      }
+      },
+      'BillingAssignment total exceeds subscription amount'
     )
 
     // Optional: Throw error for strict validation

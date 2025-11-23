@@ -20,8 +20,11 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { createServiceLogger } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
+
+const logger = createServiceLogger('registration')
 
 // ============================================================================
 // Zod Validation Schemas
@@ -727,8 +730,12 @@ async function findOrCreatePersonWithContact(
       (error.meta.target.includes('type') ||
         error.meta.target.includes('value'))
     ) {
-      console.log(
-        '🔄 Unique constraint violation caught - Person with this contact already exists, fetching...'
+      logger.info(
+        {
+          email: email?.toLowerCase().trim() || null,
+          phone: phone ? normalizePhone(phone) || null : null,
+        },
+        'Unique constraint violation caught - Person with this contact already exists, fetching'
       )
 
       // Another process created the person, find and return it
@@ -739,7 +746,7 @@ async function findOrCreatePersonWithContact(
       )
 
       if (existingPerson) {
-        console.log(`✅ Found existing Person ${existingPerson.id}`)
+        logger.info({ personId: existingPerson.id }, 'Found existing Person')
         return existingPerson
       }
     }

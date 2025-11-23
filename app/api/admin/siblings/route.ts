@@ -5,6 +5,9 @@ import {
   getSiblingGroupsByProgram,
   createSiblingRelationship,
 } from '@/lib/db/queries/siblings'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/siblings')
 
 export async function GET() {
   try {
@@ -59,7 +62,10 @@ export async function GET() {
       totalStudentsWithoutSiblings: studentsWithoutSiblings.length,
     })
   } catch (error) {
-    console.error('Error fetching sibling groups:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching sibling groups'
+    )
     return NextResponse.json(
       {
         error:
@@ -103,7 +109,10 @@ export async function POST(request: Request) {
       data: relationship,
     })
   } catch (error) {
-    console.error('Error creating sibling relationship:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error creating sibling relationship'
+    )
     return NextResponse.json(
       {
         error:

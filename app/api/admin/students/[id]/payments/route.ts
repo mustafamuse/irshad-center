@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/students/[id]/payments')
 
 // GET /api/admin/students/[id]/payments
 export async function GET(
@@ -29,7 +32,10 @@ export async function GET(
 
     return NextResponse.json(payments)
   } catch (error) {
-    console.error('[GET_PAYMENTS] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching student payments'
+    )
     return NextResponse.json(
       {
         error:

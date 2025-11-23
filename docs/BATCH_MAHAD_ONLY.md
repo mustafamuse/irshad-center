@@ -1,6 +1,6 @@
 # Batch is Mahad-Only
 
-## 🎯 Important Constraint
+## Important Constraint
 
 **Batch (Cohort) is exclusive to the MAHAD_PROGRAM (college program).**
 
@@ -83,13 +83,13 @@ await prisma.enrollment.create({
 
 ## Current Implementation
 
-### ✅ Correct Usage
+### Correct Usage
 
 - `app/admin/mahad/cohorts/` - Batch management (Mahad only)
 - `lib/db/queries/batch.ts` - Batch queries (no Dugsi references)
 - Enrollment queries filter by program before batch operations
 
-### ⚠️ Areas to Verify
+### Areas to Verify
 
 - Registration flows should not assign batches to Dugsi enrollments
 - Dugsi admin UI should not show batch selectors

@@ -23,8 +23,8 @@ import {
   getBatchesWithFilters,
 } from '@/lib/db/queries/batch'
 import {
-  mapEnrollmentToMahadStudent,
-  mapEnrollmentsToMahadStudents,
+  mapEnrollmentToMahadStudent as _mapEnrollmentToMahadStudent,
+  mapEnrollmentsToMahadStudents as _mapEnrollmentsToMahadStudents,
   type MahadStudent,
 } from '@/lib/mappers/mahad-mapper'
 
@@ -132,7 +132,6 @@ export async function getMahadBatchesWithFilters(filters: BatchFilterOptions) {
 export async function getMahadBatchStudents(
   batchId: string
 ): Promise<MahadStudent[]> {
-  // getBatchStudents already returns mapped MahadStudent objects
   return await getBatchStudents(batchId)
 }
 

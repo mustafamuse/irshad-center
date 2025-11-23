@@ -16,6 +16,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('DeleteStudentDialog')
 
 import {
   deleteStudentAction,
@@ -54,7 +57,7 @@ export function DeleteStudentDialog({
           setWarnings(result.data)
         })
         .catch((error) => {
-          console.error('Failed to fetch delete warnings:', error)
+          logger.error('Failed to fetch delete warnings', error)
           setWarnings({ hasSiblings: false })
         })
         .finally(() => {
@@ -105,26 +108,24 @@ export function DeleteStudentDialog({
                   </p>
                 )}
 
-                {!isLoadingWarnings &&
-                  warnings &&
-                  warnings.hasSiblings && (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-amber-800">
-                        <AlertTriangle className="h-4 w-4" />
-                        <span className="font-medium">Warning:</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {warnings.hasSiblings && (
-                          <Badge
-                            variant="outline"
-                            className="border-amber-500 text-amber-700"
-                          >
-                            Has sibling relationships
-                          </Badge>
-                        )}
-                      </div>
+                {!isLoadingWarnings && warnings && warnings.hasSiblings && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm text-amber-800">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="font-medium">Warning:</span>
                     </div>
-                  )}
+                    <div className="flex flex-wrap gap-2">
+                      {warnings.hasSiblings && (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500 text-amber-700"
+                        >
+                          Has sibling relationships
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <p className="text-sm font-medium text-red-600">

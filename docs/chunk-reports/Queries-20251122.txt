@@ -1,0 +1,1 @@
+lib/db/queries/batch.ts(14,10): error TS2305: Module '"react"' has no exported member 'cache'.

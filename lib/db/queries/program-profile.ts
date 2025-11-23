@@ -5,7 +5,14 @@
  * These functions work alongside legacy Student queries during migration.
  */
 
-import { Prisma, Program, EnrollmentStatus, ContactType } from '@prisma/client'
+import {
+  Prisma,
+  Program,
+  EnrollmentStatus,
+  ContactType,
+  EducationLevel,
+  GradeLevel,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -297,6 +304,43 @@ export async function findPersonByContact(
 }
 
 /**
+ * Create a new program profile
+ * @param client - Optional database client (for transaction support)
+ */
+export async function createProgramProfile(
+  data: {
+    personId: string
+    program: Program
+    status?: EnrollmentStatus
+    educationLevel?: EducationLevel | null
+    gradeLevel?: GradeLevel | null
+    schoolName?: string | null
+    familyReferenceId?: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.create({
+    data: {
+      personId: data.personId,
+      program: data.program,
+      status: data.status || 'REGISTERED',
+      educationLevel: data.educationLevel,
+      gradeLevel: data.gradeLevel,
+      schoolName: data.schoolName,
+      familyReferenceId: data.familyReferenceId,
+    },
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+        },
+      },
+      enrollments: true,
+    },
+  })
+}
+
+/**
  * Get enrollments for a batch
  * @param client - Optional database client (for transaction support)
  */
@@ -412,6 +456,15 @@ export async function getProgramProfilesByFamilyId(
       person: {
         include: {
           contactPoints: true,
+          guardianRelationships: {
+            include: {
+              guardian: {
+                include: {
+                  contactPoints: true,
+                },
+              },
+            },
+          },
         },
       },
       enrollments: {

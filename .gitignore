@@ -61,3 +61,6 @@ prisma/*.bak
 
 # IDE-specific settings
 .claude/
+
+# Sentry Config File
+.env.sentry-build-plugin

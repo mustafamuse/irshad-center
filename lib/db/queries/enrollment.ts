@@ -121,6 +121,40 @@ export async function getEnrollmentsByBatch(
 }
 
 /**
+ * Get enrollment by ID with full relations
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getEnrollmentById(
+  enrollmentId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.findUnique({
+    where: {
+      id: enrollmentId,
+    },
+    include: {
+      batch: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+      programProfile: {
+        include: {
+          person: {
+            include: {
+              contactPoints: true,
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
  * Create a new enrollment with validation
  * Validates that Dugsi enrollments cannot have batchId
  *

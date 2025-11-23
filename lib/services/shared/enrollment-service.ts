@@ -12,14 +12,11 @@
  * - Provide consistent enrollment status management
  */
 
-import * as Sentry from '@sentry/nextjs'
-
-import { prisma } from '@/lib/db'
-import { getSubscriptionAssignments } from '@/lib/services/webhooks/webhook-service'
 import {
   getActiveEnrollment,
   updateEnrollmentStatus,
 } from '@/lib/db/queries/enrollment'
+import { getSubscriptionAssignments } from '@/lib/services/webhooks/webhook-service'
 
 /**
  * Result of enrollment status updates

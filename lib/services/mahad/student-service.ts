@@ -20,7 +20,7 @@ import {
   createProgramProfile,
 } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
-import { mapEnrollmentToMahadStudent } from '@/lib/mappers/mahad-mapper'
+import { mapEnrollmentToMahadStudent as _mapEnrollmentToMahadStudent } from '@/lib/mappers/mahad-mapper'
 
 /**
  * Student creation input

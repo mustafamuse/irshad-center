@@ -11,7 +11,8 @@ const SubscriptionStatus = {
   paused: 'paused',
 } as const
 
-type SubscriptionStatus = (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus]
+type SubscriptionStatus =
+  (typeof SubscriptionStatus)[keyof typeof SubscriptionStatus]
 
 import { formatDate } from './formatters'
 

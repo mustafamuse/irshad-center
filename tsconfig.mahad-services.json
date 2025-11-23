@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "lib/services/mahad/**/*",
+    "lib/db/**/*",
+    "lib/types/**/*",
+    "lib/services/shared/**/*",
+    "lib/utils/**/*"
+  ],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
+}

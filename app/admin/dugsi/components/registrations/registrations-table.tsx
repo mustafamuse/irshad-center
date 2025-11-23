@@ -19,6 +19,9 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+
+const logger = createClientLogger('RegistrationsTable')
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +51,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { createClientLogger } from '@/lib/logger-client'
 import {
   formatEducationLevel,
   formatGradeLevel,
@@ -126,7 +130,7 @@ export function DugsiRegistrationsTable({
           }
         })
         .catch((error) => {
-          console.error('Error loading delete preview:', error)
+          logger.error('Error loading delete preview', error)
           toast.error('Failed to load delete preview')
           setShowDeleteDialog(false)
         })

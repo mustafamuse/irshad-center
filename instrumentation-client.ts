@@ -1,14 +1,13 @@
 // This file configures the initialization of Sentry on the client.
 // The added config here will be used whenever a users loads a page in their browser.
-// https://docs.sentry.io/platforms/javascript/guides/nextjs/
 //
 // NOTE: This is the new recommended approach for Next.js with Turbopack.
 // Eventually sentry.client.config.ts will be deprecated.
 
-import * as Sentry from "@sentry/nextjs";
+import * as Sentry from '@sentry/nextjs'
 
 Sentry.init({
-  dsn: "https://9cba80b767e4e764822647e933dc5eca@o4510412627968000.ingest.us.sentry.io/4510412629082112",
+  dsn: 'https://9cba80b767e4e764822647e933dc5eca@o4510412627968000.ingest.us.sentry.io/4510412629082112',
 
   // Adjust this value in production, or use tracesSampler for greater control
   tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
@@ -46,7 +45,7 @@ Sentry.init({
   ],
 
   // Filter out transactions we don't care about
-  beforeSend(event, hint) {
+  beforeSend(event, _hint) {
     // Don't send events in development unless explicitly enabled
     if (
       process.env.NODE_ENV === 'development' &&
@@ -65,7 +64,6 @@ Sentry.init({
     return event
   },
 
-  // Environment
   environment: process.env.NODE_ENV || 'development',
 
   // Release tracking (set by CI/CD)
@@ -73,6 +71,6 @@ Sentry.init({
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
-});
+})
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart

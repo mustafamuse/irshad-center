@@ -36,6 +36,10 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('useUIStore')
+
 // Enable Immer MapSet plugin for using Set in the store
 enableMapSet()
 
@@ -251,9 +255,9 @@ export const useUIStore = create<UIStore>()(
               state.selectedStudentIds.add(id)
             }
           } catch (error) {
-            console.error('toggleStudent failed:', error)
+            logger.error('toggleStudent failed', error)
             if (isDev) {
-              console.error('Debug info:', {
+              logger.error('Debug info', {
                 studentId: id,
                 currentSetSize: state.selectedStudentIds?.size || 0,
                 error: error instanceof Error ? error.message : String(error),
@@ -269,7 +273,7 @@ export const useUIStore = create<UIStore>()(
           try {
             // Safety check for large selections
             if (ids.length > MAX_SAFE_SELECTION_SIZE) {
-              console.warn(
+              logger.warn(
                 `Large selection detected: ${ids.length} students. ` +
                   `This may impact performance. Consider pagination.`
               )
@@ -277,9 +281,9 @@ export const useUIStore = create<UIStore>()(
 
             state.selectedStudentIds = new Set(ids)
           } catch (error) {
-            console.error('setSelected failed:', error)
+            logger.error('setSelected failed', error)
             if (isDev) {
-              console.error('Debug info:', {
+              logger.error('Debug info', {
                 idsLength: ids?.length || 0,
                 idsType: typeof ids,
                 error: error instanceof Error ? error.message : String(error),
@@ -295,9 +299,9 @@ export const useUIStore = create<UIStore>()(
           try {
             state.selectedStudentIds = new Set()
           } catch (error) {
-            console.error('clearSelected failed:', error)
+            logger.error('clearSelected failed', error)
             if (isDev) {
-              console.error('Debug info:', {
+              logger.error('Debug info', {
                 error: error instanceof Error ? error.message : String(error),
               })
             }
@@ -314,9 +318,9 @@ export const useUIStore = create<UIStore>()(
           try {
             state.selectedBatchId = id
           } catch (error) {
-            console.error('selectBatch failed:', error)
+            logger.error('selectBatch failed', error)
             if (isDev) {
-              console.error('Debug info:', {
+              logger.error('Debug info', {
                 batchId: id,
                 error: error instanceof Error ? error.message : String(error),
               })
@@ -334,9 +338,9 @@ export const useUIStore = create<UIStore>()(
           try {
             state.openDialog = dialog
           } catch (error) {
-            console.error('setDialogOpen failed:', error)
+            logger.error('setDialogOpen failed', error)
             if (isDev) {
-              console.error('Debug info:', {
+              logger.error('Debug info', {
                 dialog,
                 previousDialog: state.openDialog,
                 error: error instanceof Error ? error.message : String(error),
@@ -357,9 +361,9 @@ export const useUIStore = create<UIStore>()(
             state.selectedBatchId = null
             state.openDialog = null
           } catch (error) {
-            console.error('Store reset failed:', error)
+            logger.error('Store reset failed', error)
             if (isDev) {
-              console.error('Debug info:', {
+              logger.error('Debug info', {
                 stateBeforeReset: {
                   selectionSize: state.selectedStudentIds?.size || 0,
                   batchId: state.selectedBatchId,

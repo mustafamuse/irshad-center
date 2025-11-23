@@ -4,6 +4,9 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/students/[id]/manual-payment')
 
 const manualPaymentSchema = z.object({
   year: z
@@ -77,7 +80,10 @@ export async function POST(
 
     return NextResponse.json(payment, { status: 201 })
   } catch (error) {
-    console.error('[CREATE_MANUAL_PAYMENT] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error creating manual payment'
+    )
     return NextResponse.json(
       {
         error:

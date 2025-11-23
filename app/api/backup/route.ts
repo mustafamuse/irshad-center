@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { backupData } from '@/lib/actions/backup-data'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/backup')
 
 export async function GET() {
   try {
@@ -15,7 +18,10 @@ export async function GET() {
       viewUrl: `/backups/${result.fileName}`,
     })
   } catch (error: unknown) {
-    console.error('Backup failed:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Backup failed'
+    )
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'Backup failed',

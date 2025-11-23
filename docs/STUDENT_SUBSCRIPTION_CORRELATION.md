@@ -2,6 +2,15 @@
 
 Comprehensive documentation of the student-subscription management system for Irshad Center's dual educational programs (Mahad and Dugsi).
 
+> **MIGRATION NOTE (Updated November 22, 2024):** This document references the legacy `Student` model which has been migrated to the unified `Person → ProgramProfile → Enrollment` architecture. The core concepts and Stripe correlation patterns remain valid, but model references should be updated to `ProgramProfile` where `Student` is mentioned. See `docs/unified-student-platform.md` for the current architecture.
+>
+> **Key Changes:**
+>
+> - `Student` model → `ProgramProfile` model
+> - `StudentStatus` enum → `EnrollmentStatus` enum (on ProgramProfile.status)
+> - `StudentPayment` → Still valid (references ProgramProfile via programProfileId)
+> - Subscription correlation logic → Same patterns apply to ProgramProfile
+
 ---
 
 ## Table of Contents

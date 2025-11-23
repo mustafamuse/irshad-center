@@ -5,7 +5,10 @@ import { z } from 'zod'
 
 import { getBillingAssignmentsByProfile } from '@/lib/db/queries/billing'
 import { getEnrollmentsByBatch } from '@/lib/db/queries/enrollment'
-import { stripeServerClient } from '@/lib/stripe'
+import { createAPILogger } from '@/lib/logger'
+import { getMahadStripeClient } from '@/lib/stripe-mahad'
+
+const logger = createAPILogger('/api/admin/profit-share')
 
 // Schema validation
 const requestSchema = z.object({
@@ -114,7 +117,7 @@ async function getCustomerEmailFromSubscription(student: {
   if (!student.stripeSubscriptionId) return null
 
   try {
-    const subscription = await stripeServerClient.subscriptions.retrieve(
+    const subscription = await getMahadStripeClient().subscriptions.retrieve(
       student.stripeSubscriptionId,
       { expand: ['customer'] }
     )
@@ -132,9 +135,13 @@ async function getCustomerEmailFromSubscription(student: {
         }
       : null
   } catch (error) {
-    console.error(
-      `Failed to retrieve subscription for ${student.email || student.name}:`,
-      error
+    logger.error(
+      {
+        err: error instanceof Error ? error : new Error(String(error)),
+        studentEmail: student.email,
+        studentName: student.name,
+      },
+      'Failed to retrieve subscription for student'
     )
     return null
   }
@@ -168,12 +175,14 @@ async function processPayouts(
     limit: 100,
   }
 
-  for await (const payout of stripeServerClient.payouts.list(payoutParams)) {
+  for await (const payout of getMahadStripeClient().payouts.list(
+    payoutParams
+  )) {
     payoutsFoundCount++
     totalPayoutAmount += payout.amount
 
     const balanceTransactions =
-      await stripeServerClient.balanceTransactions.list({
+      await getMahadStripeClient().balanceTransactions.list({
         payout: payout.id,
         limit: 100,
         expand: ['data.source.customer'],
@@ -327,7 +336,10 @@ export async function POST(req: Request) {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'An unknown error occurred'
-    console.error(`[PROFIT_SHARE_API_ERROR]`, errorMessage)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Profit share API error'
+    )
     return NextResponse.json({ error: errorMessage }, { status: 500 })
   }
 }

@@ -1,6 +1,6 @@
 # Environment Guide: Production vs Staging
 
-## 🎯 Quick Reference
+## Quick Reference
 
 |                  | PRODUCTION         | STAGING                   |
 | ---------------- | ------------------ | ------------------------- |
@@ -54,7 +54,7 @@ NODE_ENV=production
 
 **Important:** This is your **STAGING** database. Always set `DATABASE_ENV=STAGING`.
 
-## 🔄 Switching Environments
+## Switching Environments
 
 ### Method 1: Load specific .env file
 
@@ -78,7 +78,7 @@ DATABASE_ENV=PRODUCTION npm run db:safety-check
 DATABASE_ENV=STAGING npm run db:safety-check
 ```
 
-## ✅ Verification
+## Verification
 
 **Always verify which environment you're using:**
 
@@ -132,7 +132,7 @@ This will show:
 4. **Never reset production** - it's protected by safety checks
 5. **Create backups** before major changes (even on staging)
 
-## 🔍 How to Know Which Environment You're Using
+## How to Know Which Environment You're Using
 
 1. **Check your current `.env` file:**
 

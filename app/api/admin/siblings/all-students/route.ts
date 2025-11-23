@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 
 import { getProgramProfiles } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/siblings/all-students')
 
 export async function GET() {
   try {
@@ -37,7 +40,10 @@ export async function GET() {
       totalWithoutSiblings: studentsWithoutSiblings.length,
     })
   } catch (error) {
-    console.error('Error fetching all students:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching all students'
+    )
     return NextResponse.json(
       {
         error:

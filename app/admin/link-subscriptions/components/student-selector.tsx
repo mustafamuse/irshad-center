@@ -18,10 +18,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { createClientLogger } from '@/lib/logger-client'
 import { cn } from '@/lib/utils'
 
 import type { StudentMatch } from '../actions'
 import { searchStudents, getPotentialMatches } from '../actions'
+
+const logger = createClientLogger('StudentSelector')
 
 interface StudentSelectorProps {
   program: 'MAHAD' | 'DUGSI'
@@ -63,7 +66,7 @@ export function StudentSelector({
         const results = await searchStudents(searchQuery, program)
         setSearchResults(results)
       } catch (error) {
-        console.error('Search error:', error)
+        logger.error('Search error', error)
       } finally {
         setIsSearching(false)
       }
@@ -77,7 +80,9 @@ export function StudentSelector({
     if (customerEmail && potentialMatches.length === 0) {
       getPotentialMatches(customerEmail, program)
         .then(setSearchResults)
-        .catch(console.error)
+        .catch((error) =>
+          logger.error('Failed to get potential matches', error)
+        )
     }
   }, [customerEmail, program, potentialMatches.length])
 

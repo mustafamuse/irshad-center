@@ -11,8 +11,6 @@
  * - Maintains backward-compatible return types for UI components
  */
 
-import { cache } from 'react'
-
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
@@ -33,12 +31,8 @@ export interface BatchWithCount {
 
 /**
  * Get all batches with student count (excluding withdrawn students)
- *
- * Uses React cache() to deduplicate requests. When called multiple times
- * in the same request (e.g., from different parallel route slots), only
- * one database query executes.
  */
-export const getBatches = cache(async function getBatches(
+export async function getBatches(
   client: DatabaseClient = prisma
 ): Promise<BatchWithCount[]> {
   // Get all batches
@@ -71,7 +65,7 @@ export const getBatches = cache(async function getBatches(
   )
 
   return batchesWithCounts
-})
+}
 
 /**
  * Get a single batch by ID (excluding withdrawn students from count)

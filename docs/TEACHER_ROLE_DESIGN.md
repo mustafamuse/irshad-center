@@ -1,6 +1,6 @@
 # Teacher Role Design - Person-Based Identity
 
-## 🎯 Overview
+## Overview
 
 **Teachers are now linked to `Person`**, not separate identities. This allows a single human to be:
 
@@ -312,25 +312,25 @@ Person {
 
 ## Benefits of This Design
 
-### ✅ Single Source of Truth
+### Single Source of Truth
 
 - One `Person` record = one human
 - No duplicate identities across roles
 - Contact info managed in one place (`ContactPoint`)
 
-### ✅ Flexible Role Assignment
+### Flexible Role Assignment
 
 - Person can have multiple roles simultaneously
 - Roles can be added/removed independently
 - No schema changes needed for new role combinations
 
-### ✅ Query Efficiency
+### Query Efficiency
 
 - Get all roles for a person in one query
 - Check if person is teacher/student/parent/payer easily
 - Cross-role queries (e.g., "teachers who are also parents")
 
-### ✅ Data Consistency
+### Data Consistency
 
 - Email/phone changes update once (`ContactPoint`)
 - Name changes update once (`Person`)

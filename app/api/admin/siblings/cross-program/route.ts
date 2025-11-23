@@ -6,7 +6,10 @@ import {
   verifySiblingRelationship,
   removeSiblingRelationship,
 } from '@/lib/db/queries/siblings'
+import { createAPILogger } from '@/lib/logger'
 import { createSiblingRelationship } from '@/lib/services/sibling-detector'
+
+const logger = createAPILogger('/api/admin/siblings/cross-program')
 
 /**
  * GET /api/admin/siblings/cross-program
@@ -57,7 +60,10 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Failed to fetch sibling relationships:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Failed to fetch sibling relationships'
+    )
     return NextResponse.json(
       {
         success: false,
@@ -134,7 +140,10 @@ export async function POST(request: NextRequest) {
       data: relationship,
     })
   } catch (error) {
-    console.error('Failed to create sibling relationship:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Failed to create sibling relationship'
+    )
     return NextResponse.json(
       {
         success: false,
@@ -183,7 +192,10 @@ export async function PATCH(request: NextRequest) {
       success: true,
     })
   } catch (error) {
-    console.error('Failed to update sibling relationship:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Failed to update sibling relationship'
+    )
     return NextResponse.json(
       {
         success: false,
@@ -219,7 +231,10 @@ export async function DELETE(request: NextRequest) {
       success: true,
     })
   } catch (error) {
-    console.error('Failed to delete sibling relationship:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Failed to delete sibling relationship'
+    )
     return NextResponse.json(
       {
         success: false,

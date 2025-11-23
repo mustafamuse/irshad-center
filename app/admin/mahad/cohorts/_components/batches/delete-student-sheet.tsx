@@ -18,7 +18,10 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { createClientLogger } from '@/lib/logger-client'
 import { BatchStudentData } from '@/lib/types/batch'
+
+const logger = createClientLogger('DeleteStudentSheet')
 
 import {
   bulkDeleteStudentsAction,
@@ -67,7 +70,7 @@ export function DeleteStudentSheet({ students }: DeleteStudentSheetProps) {
           setWarnings(aggregate)
         })
         .catch((error) => {
-          console.error('Failed to fetch delete warnings:', error)
+          logger.error('Failed to fetch delete warnings', error)
           setWarnings({ studentsWithSiblings: 0 })
         })
         .finally(() => {

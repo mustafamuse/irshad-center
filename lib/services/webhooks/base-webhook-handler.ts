@@ -22,8 +22,8 @@ import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 import type { Prisma } from '@prisma/client'
-import type Stripe from 'stripe'
 import * as Sentry from '@sentry/nextjs'
+import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
 import { createWebhookLogger } from '@/lib/logger'
@@ -129,10 +129,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
           verificationError instanceof Error
             ? verificationError.message
             : 'Unknown verification error'
-        logger.error(
-          { error: errorMessage },
-          'Webhook verification failed'
-        )
+        logger.error({ error: errorMessage }, 'Webhook verification failed')
         return NextResponse.json(
           { message: 'Invalid webhook signature' },
           { status: 401 }
@@ -166,10 +163,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       )
 
       if (existingEvent) {
-        logger.info(
-          { eventId: event.id },
-          'Event already processed, skipping'
-        )
+        logger.info({ eventId: event.id }, 'Event already processed, skipping')
         return NextResponse.json(
           { received: true, skipped: true },
           { status: 200 }
@@ -236,7 +230,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       return NextResponse.json({ received: true }, { status: 200 })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      const errorStack = err instanceof Error ? err.stack : undefined
+      const _errorStack = err instanceof Error ? err.stack : undefined
 
       logger.error(
         {
@@ -259,16 +253,10 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
               },
             },
           })
-          logger.info(
-            { eventId },
-            'Cleaned up webhook event for retry'
-          )
+          logger.info({ eventId }, 'Cleaned up webhook event for retry')
         } catch (deleteErr) {
           // Ignore delete errors - event may not have been created yet
-          logger.warn(
-            { err: deleteErr },
-            'Failed to cleanup webhook event'
-          )
+          logger.warn({ err: deleteErr }, 'Failed to cleanup webhook event')
         }
       }
 

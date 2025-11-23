@@ -19,7 +19,11 @@ import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
 
-export type DatabaseEnvironment = 'PRODUCTION' | 'STAGING' | 'DEVELOPMENT' | 'UNKNOWN'
+export type DatabaseEnvironment =
+  | 'PRODUCTION'
+  | 'STAGING'
+  | 'DEVELOPMENT'
+  | 'UNKNOWN'
 
 interface EnvironmentCheck {
   environment: DatabaseEnvironment
@@ -33,7 +37,9 @@ interface EnvironmentCheck {
 /**
  * Detects the database environment based on URL patterns and environment variables
  */
-export function detectEnvironmentFromUrl(databaseUrl: string): DatabaseEnvironment {
+export function detectEnvironmentFromUrl(
+  databaseUrl: string
+): DatabaseEnvironment {
   const url = databaseUrl.toLowerCase()
 
   // Check for explicit staging indicators
@@ -121,7 +127,9 @@ export async function validateDatabaseEnvironment(): Promise<EnvironmentCheck> {
   let projectName: string | null = null
   try {
     // Try to get project info from Supabase project ref if available
-    const projectRef = process.env.SUPABASE_PROJECT_REF || process.env.NEXT_PUBLIC_SUPABASE_PROJECT_REF
+    const projectRef =
+      process.env.SUPABASE_PROJECT_REF ||
+      process.env.NEXT_PUBLIC_SUPABASE_PROJECT_REF
     if (projectRef) {
       projectName = `supabase-${projectRef}`
     }
@@ -130,21 +138,31 @@ export async function validateDatabaseEnvironment(): Promise<EnvironmentCheck> {
     // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
     const studentCount = 0 // Temporary: return 0 until migration complete
     // const studentCount = await prisma.student.count().catch(() => 0)
-    
+
     // If significant data exists and environment is not explicitly set, warn
     if (studentCount > 100) {
       if (finalEnvironment === 'UNKNOWN' || finalEnvironment === 'STAGING') {
-        warnings.push(`Database contains ${studentCount} students - this appears to be PRODUCTION`)
+        warnings.push(
+          `Database contains ${studentCount} students - this appears to be PRODUCTION`
+        )
         warnings.push('⚠️  If this is production, set DATABASE_ENV=PRODUCTION')
         if (finalEnvironment === 'UNKNOWN') {
-          errors.push('Database contains significant data but environment is UNKNOWN - set DATABASE_ENV explicitly')
+          errors.push(
+            'Database contains significant data but environment is UNKNOWN - set DATABASE_ENV explicitly'
+          )
         }
       }
     }
-    
+
     // If using .env.local (which is production), ensure it's marked as PRODUCTION
-    if (process.env.NODE_ENV !== 'production' && studentCount > 50 && !explicitEnv) {
-      warnings.push('⚠️  Using .env.local with data - ensure DATABASE_ENV=PRODUCTION is set')
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      studentCount > 50 &&
+      !explicitEnv
+    ) {
+      warnings.push(
+        '⚠️  Using .env.local with data - ensure DATABASE_ENV=PRODUCTION is set'
+      )
     }
   } catch (error) {
     warnings.push('Could not verify database contents')
@@ -154,17 +172,25 @@ export async function validateDatabaseEnvironment(): Promise<EnvironmentCheck> {
   const isSafe = finalEnvironment !== 'PRODUCTION' && errors.length === 0
 
   if (finalEnvironment === 'PRODUCTION') {
-    errors.push('⚠️ PRODUCTION DATABASE DETECTED - Destructive operations are BLOCKED')
+    errors.push(
+      '⚠️ PRODUCTION DATABASE DETECTED - Destructive operations are BLOCKED'
+    )
   }
 
   if (finalEnvironment === 'UNKNOWN') {
-    warnings.push('⚠️ Could not determine database environment - proceeding with caution')
-    errors.push('Environment is UNKNOWN - cannot proceed with destructive operations')
+    warnings.push(
+      '⚠️ Could not determine database environment - proceeding with caution'
+    )
+    errors.push(
+      'Environment is UNKNOWN - cannot proceed with destructive operations'
+    )
   }
 
   // Check for safety override (should only be used in emergencies)
   if (process.env.ALLOW_PRODUCTION_OPERATIONS === 'true') {
-    errors.push('⚠️ PRODUCTION OPERATIONS OVERRIDE IS ENABLED - This is DANGEROUS')
+    errors.push(
+      '⚠️ PRODUCTION OPERATIONS OVERRIDE IS ENABLED - This is DANGEROUS'
+    )
   }
 
   return {
@@ -258,4 +284,3 @@ if (require.main === module) {
       prisma.$disconnect()
     })
 }
-

@@ -3,7 +3,10 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getBillingAccountByStripeCustomerId } from '@/lib/db/queries/billing'
 import { updateEnrollmentStatus } from '@/lib/db/queries/enrollment'
-import { stripeServerClient } from '@/lib/stripe'
+import { createCronLogger } from '@/lib/logger'
+import { getMahadStripeClient } from '@/lib/stripe-mahad'
+
+const logger = createCronLogger('cleanup-abandoned-enrollments')
 
 // This endpoint should be called by a cron job (e.g., daily)
 export async function POST(req: Request) {
@@ -22,13 +25,14 @@ export async function POST(req: Request) {
     const oneDayAgo = Math.floor(Date.now() / 1000) - 24 * 60 * 60
 
     // Find customers with enrollmentPending=true created more than 24 hours ago
-    const abandonedCustomers = await stripeServerClient.customers.list({
+    const abandonedCustomers = await getMahadStripeClient().customers.list({
       created: { lt: oneDayAgo },
       limit: 100,
     })
 
-    console.log(
-      `Found ${abandonedCustomers.data.length} customers to check for abandonment`
+    logger.info(
+      { count: abandonedCustomers.data.length },
+      'Found customers to check for abandonment'
     )
 
     const results = {
@@ -49,7 +53,7 @@ export async function POST(req: Request) {
         }
 
         // Check if this customer has any subscriptions
-        const subscriptions = await stripeServerClient.subscriptions.list({
+        const subscriptions = await getMahadStripeClient().subscriptions.list({
           customer: customer.id,
           limit: 1,
         })
@@ -85,8 +89,9 @@ export async function POST(req: Request) {
 
         // This is an abandoned enrollment - mark enrollments as withdrawn
         results.abandoned++
-        console.log(
-          `Found abandoned customer: ${customer.id} (${customer.email})`
+        logger.info(
+          { customerId: customer.id, email: customer.email },
+          'Found abandoned customer'
         )
 
         // Mark enrollments as withdrawn for profiles linked to this customer
@@ -125,8 +130,9 @@ export async function POST(req: Request) {
             }
           }
 
-          console.log(
-            `✅ Marked ${profiles.length} profile(s) as withdrawn for abandoned customer ${customer.id}`
+          logger.info(
+            { profileCount: profiles.length, customerId: customer.id },
+            'Marked profiles as withdrawn for abandoned customer'
           )
         }
 
@@ -140,7 +146,7 @@ export async function POST(req: Request) {
         })
 
         // Update the customer metadata to mark it as abandoned
-        await stripeServerClient.customers.update(customer.id, {
+        await getMahadStripeClient().customers.update(customer.id, {
           metadata: {
             ...customer.metadata,
             enrollmentPending: 'false',
@@ -151,7 +157,10 @@ export async function POST(req: Request) {
 
         results.cleaned++
       } catch (error) {
-        console.error(`Error processing customer ${customer.id}:`, error)
+        logger.error(
+          { err: error, customerId: customer.id },
+          'Error processing customer'
+        )
         results.errors++
       }
     }
@@ -162,7 +171,7 @@ export async function POST(req: Request) {
       results,
     })
   } catch (error) {
-    console.error('Error in cleanup-abandoned-enrollments:', error)
+    logger.error({ err: error }, 'Error in cleanup-abandoned-enrollments')
     return NextResponse.json(
       { error: 'Failed to clean up abandoned enrollments' },
       { status: 500 }

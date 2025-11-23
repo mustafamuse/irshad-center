@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react'
 import { AlertCircle } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('StripePricingTable')
 
 // Get environment variables
 const pricingTableId = process.env.NEXT_PUBLIC_STRIPE_PRICING_TABLE_ID
@@ -43,7 +46,7 @@ export function StripePricingTable() {
       // Handle load error
       scriptElement.onerror = () => {
         const errorMsg = `Failed to load Stripe Pricing Table script (attempt ${retryCount + 1}/${MAX_RETRIES})`
-        console.error(errorMsg)
+        logger.error(errorMsg)
         setError(errorMsg)
         setIsLoading(false)
 

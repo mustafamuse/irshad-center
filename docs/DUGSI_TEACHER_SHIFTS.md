@@ -1,10 +1,11 @@
 # Dugsi Teacher Assignments & Shifts
 
-## 🎯 Overview
+## Overview
 
 Dugsi (K-12 program) uses **teacher assignments** with **shifts** instead of batches.
 
 **Key Differences from Mahad:**
+
 - ❌ **No batches** (Mahad uses batches/cohorts)
 - ✅ **Assigned teachers** (each student has a teacher)
 - ✅ **Shifts** (morning or evening)
@@ -25,6 +26,7 @@ model Teacher {
 ```
 
 **Key Points**:
+
 - ✅ **Linked to `Person`** - Teacher is a role, not a separate identity
 - ✅ **One Teacher per Person** (unique `personId`)
 - ✅ **Contact info via `Person.contactPoints`** - No email/phone on Teacher
@@ -44,15 +46,16 @@ model TeacherAssignment {
   endDate          DateTime? // Null if currently active
   isActive         Boolean @default(true)
   notes            String?
-  
+
   teacher       Teacher @relation(...)
   programProfile ProgramProfile @relation(...)
-  
+
   @@unique([teacherId, programProfileId, shift])
 }
 ```
 
 **Key Features**:
+
 - One teacher per student per shift (unique constraint)
 - Tracks assignment history (startDate/endDate)
 - Supports active/inactive assignments
@@ -81,7 +84,7 @@ await prisma.teacherAssignment.create({
     programProfileId: dugsiProfile.id, // Must be DUGSI_PROGRAM
     shift: 'MORNING',
     isActive: true,
-  }
+  },
 })
 ```
 
@@ -120,6 +123,89 @@ const assignments = await prisma.teacherAssignment.findMany({
 })
 ```
 
+### Changing Teacher Assignment
+
+```typescript
+// End current assignment
+await prisma.teacherAssignment.update({
+  where: { id: 'assignment-id' },
+  data: {
+    endDate: new Date(),
+    isActive: false,
+  },
+})
+
+// Create new assignment
+await prisma.teacherAssignment.create({
+  data: {
+    teacherId: 'new-teacher-id',
+    programProfileId: 'student-profile-id',
+    shift: 'MORNING',
+    isActive: true,
+  },
+})
+```
+
+---
+
+## Real-World Example
+
+**Scenario**: Dugsi school with morning and evening shifts
+
+**Morning Shift:**
+
+- Ahmed → Ustadh Ali (Morning)
+- Hassan → Ustadh Ali (Morning)
+- Aisha → Ustadh Maryam (Morning)
+
+**Evening Shift:**
+
+- Fatima → Ustadh Ali (Evening)
+- Omar → Ustadh Maryam (Evening)
+
+**Database Records**:
+
+```typescript
+;[
+  {
+    teacherId: 'ali',
+    programProfileId: 'ahmed',
+    shift: 'MORNING',
+    isActive: true,
+  },
+  {
+    teacherId: 'ali',
+    programProfileId: 'hassan',
+    shift: 'MORNING',
+    isActive: true,
+  },
+  {
+    teacherId: 'ali',
+    programProfileId: 'fatima',
+    shift: 'EVENING',
+    isActive: true,
+  },
+  {
+    teacherId: 'maryam',
+    programProfileId: 'aisha',
+    shift: 'MORNING',
+    isActive: true,
+  },
+  {
+    teacherId: 'maryam',
+    programProfileId: 'omar',
+    shift: 'EVENING',
+    isActive: true,
+  },
+]
+```
+
+**Key Insights**:
+
+- One teacher can have students in both morning and evening shifts
+- Different students in the same shift can have different teachers
+- Assignments track history with startDate/endDate for reassignments
+
 ---
 
 ## Validation Rules
@@ -127,6 +213,7 @@ const assignments = await prisma.teacherAssignment.findMany({
 ### Application-Level Validations Required
 
 1. **Program Validation**:
+
    ```typescript
    // TeacherAssignment can only be created for Dugsi profiles
    if (programProfile.program !== 'DUGSI_PROGRAM') {
@@ -135,6 +222,7 @@ const assignments = await prisma.teacherAssignment.findMany({
    ```
 
 2. **Shift Validation**:
+
    ```typescript
    // Ensure shift is valid enum value
    if (!['MORNING', 'EVENING'].includes(shift)) {
@@ -143,6 +231,7 @@ const assignments = await prisma.teacherAssignment.findMany({
    ```
 
 3. **Active Assignment Check**:
+
    ```typescript
    // Check if student already has active assignment for this shift
    const existing = await prisma.teacherAssignment.findFirst({
@@ -152,7 +241,7 @@ const assignments = await prisma.teacherAssignment.findMany({
        isActive: true,
      },
    })
-   
+
    if (existing) {
      throw new Error(`Student already has active ${shift} shift assignment`)
    }
@@ -175,6 +264,7 @@ If there was a previous teacher assignment system:
 ### If Mahad Needs Teachers
 
 If Mahad later needs teacher assignments:
+
 - Could extend `TeacherAssignment` to support Mahad
 - Or create separate `MahadTeacherAssignment` model
 - Or add `program` field to `TeacherAssignment` and validate
@@ -182,6 +272,7 @@ If Mahad later needs teacher assignments:
 ### If More Shifts Needed
 
 If additional shifts are needed (e.g., "AFTERNOON"):
+
 - Add to `Shift` enum: `AFTERNOON`
 - Update validation logic
 - Migrate existing data if needed
@@ -199,15 +290,16 @@ If additional shifts are needed (e.g., "AFTERNOON"):
 ## Summary
 
 **Dugsi Structure**:
+
 - ✅ **Teachers** assigned to students
 - ✅ **Shifts** (morning/evening)
 - ❌ **No batches**
 - ❌ **No class schedules** (removed)
 
 **Mahad Structure**:
+
 - ✅ **Batches** (cohorts)
 - ❌ **No teacher assignments** (for now)
 - ❌ **No class schedules** (removed)
 
 Each program has its own structure optimized for its needs.
-

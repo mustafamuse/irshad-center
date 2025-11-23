@@ -134,19 +134,3 @@ export function verifyDugsiWebhook(
     throw new Error(`Webhook verification failed: ${error.message}`)
   }
 }
-
-/**
- * Test Dugsi Stripe client initialization.
- * This can be called during app startup to verify configuration.
- */
-export async function testDugsiStripeClientInitialization(): Promise<void> {
-  try {
-    const client = getDugsiStripeClient()
-    // Try to list a single customer to verify the API key works
-    await client.customers.list({ limit: 1 })
-    console.log('✅ Dugsi Stripe client initialized successfully.')
-  } catch (error) {
-    console.error('❌ Dugsi Stripe client initialization failed:', error)
-    throw error
-  }
-}

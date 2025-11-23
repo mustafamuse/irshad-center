@@ -24,6 +24,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { createActionLogger } from '@/lib/logger'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { capitalizeNames } from '@/lib/registration/utils/name-formatting'
 import { handlePrismaUniqueError } from '@/lib/registration/utils/prisma-error-handler'
@@ -33,6 +34,8 @@ import {
   constructDugsiPaymentUrl,
   generateFamilyId,
 } from '@/lib/utils/dugsi-payment'
+
+const logger = createActionLogger('dugsi-register-actions')
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -91,7 +94,13 @@ function handleActionError<T = void>(
   }
 
   // Log error with context for debugging
-  console.error(`[${action}] Error:`, error)
+  logger.error(
+    {
+      err: error instanceof Error ? error : new Error(String(error)),
+      action,
+    },
+    'Action error'
+  )
 
   // Handle Prisma-specific errors with custom messages
   if (isPrismaError(error) && context?.handlers?.[error.code]) {
@@ -334,7 +343,10 @@ export async function checkParentEmailExists(
 
     return hasDugsiDependents
   } catch (error) {
-    console.error('[checkParentEmailExists] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error checking if parent email exists'
+    )
     // Return false on error to allow registration to proceed
     // The database constraint will catch duplicates anyway
     return false

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/subscriptions')
 
 export async function GET() {
   try {
@@ -117,7 +120,10 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('[GET_SUBSCRIPTIONS] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching subscriptions'
+    )
     return NextResponse.json(
       {
         error:

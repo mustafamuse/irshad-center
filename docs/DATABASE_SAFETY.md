@@ -1,6 +1,6 @@
 # Database Safety Protocol
 
-## 🛡️ Critical Safety Rules
+## Critical Safety Rules
 
 **NEVER run destructive database operations without proper safeguards.**
 
@@ -24,6 +24,7 @@ DATABASE_ENV=DEVELOPMENT
 ### Environment Detection
 
 The system automatically detects environment from:
+
 1. `DATABASE_ENV` environment variable (highest priority)
 2. `DATABASE_URL` patterns (staging, dev, production keywords)
 3. `NODE_ENV` environment variable
@@ -49,6 +50,7 @@ npx tsx scripts/db-safety-check.ts
 ```
 
 This will:
+
 - Detect the database environment
 - Check for production indicators
 - Verify database contents
@@ -73,6 +75,7 @@ npx tsx scripts/safe-migrate-reset.ts --confirm
 ## Environment Setup
 
 ### Production (.env.local) - MAIN DATABASE
+
 **This is your live, production database with real student data.**
 
 ```bash
@@ -84,6 +87,7 @@ NODE_ENV=production
 **Important:** `.env.local` contains your **PRODUCTION** database. Always set `DATABASE_ENV=PRODUCTION`.
 
 ### Staging (.env.staging) - TEST DATABASE
+
 **This is your test database for trying changes before production.**
 
 ```bash
@@ -95,6 +99,7 @@ NODE_ENV=production
 **Important:** `.env.staging` contains your **STAGING** database. Always set `DATABASE_ENV=STAGING`.
 
 ### Development (localhost)
+
 **For local development with a local database.**
 
 ```bash
@@ -143,6 +148,7 @@ ALLOW_PRODUCTION_OPERATIONS=true npx tsx scripts/safe-migrate-reset.ts --confirm
 ```
 
 **This will:**
+
 - Still create a backup
 - Still log the operation
 - Still require confirmation
@@ -183,6 +189,7 @@ Add safety checks to your deployment pipeline:
 ## Monitoring
 
 The safety check script logs:
+
 - Environment detection
 - Database URL (masked)
 - Record counts
@@ -190,4 +197,3 @@ The safety check script logs:
 - Safety status
 
 Review these logs regularly to ensure proper environment configuration.
-

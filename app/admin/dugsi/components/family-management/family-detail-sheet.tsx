@@ -34,6 +34,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { createClientLogger } from '@/lib/logger-client'
 
 import { FamilyStatusBadge } from './family-status-badge'
 import { Family } from '../../_types'
@@ -44,6 +45,8 @@ import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { ChildInfoCard } from '../ui/child-info-card'
+
+const logger = createClientLogger('FamilyDetailSheet')
 
 interface FamilyDetailSheetProps {
   family: Family | null
@@ -160,7 +163,7 @@ export function FamilyDetailSheet({
                   description: 'Opening WhatsApp...',
                 })
               } catch (error) {
-                console.error('Error opening WhatsApp:', error)
+                logger.error('Error opening WhatsApp', error)
                 // Fallback to window.open
                 window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
 
@@ -196,7 +199,7 @@ export function FamilyDetailSheet({
           })
         }
       } catch (error) {
-        console.error('Error sending payment link:', error)
+        logger.error('Error sending payment link', error)
         toast.error('Failed to generate payment link')
       }
     })

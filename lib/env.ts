@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+import { createLogger } from './logger'
+
+const envLogger = createLogger({ source: 'env-validation' })
+
 /**
  * Validates required environment variables at app startup
  *
@@ -176,8 +180,10 @@ const result = envSchema.safeParse({
 })
 
 if (!result.success) {
-  console.error('❌ Environment validation failed:')
-  console.error(JSON.stringify(result.error.format(), null, 2))
+  envLogger.fatal(
+    { errors: result.error.format() },
+    'Environment validation failed'
+  )
   throw new Error(
     'Missing or invalid environment variables. Check the error above and your .env.local file.'
   )

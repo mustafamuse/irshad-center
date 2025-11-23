@@ -1,20 +1,23 @@
 import { NextResponse } from 'next/server'
 
-import { stripeServerClient } from '@/lib/stripe'
+import { createAPILogger } from '@/lib/logger'
+import { getMahadStripeClient } from '@/lib/stripe-mahad'
+
+const logger = createAPILogger('/api/admin/retry-payment')
 
 export async function POST(request: Request) {
   try {
     const { subscriptionId } = await request.json()
 
     const subscription =
-      await stripeServerClient.subscriptions.retrieve(subscriptionId)
-    const invoice = await stripeServerClient.invoices.retrieve(
+      await getMahadStripeClient().subscriptions.retrieve(subscriptionId)
+    const invoice = await getMahadStripeClient().invoices.retrieve(
       subscription.latest_invoice as string
     )
 
     if (invoice.status !== 'paid') {
       // Create a new PaymentIntent for the failed invoice
-      const paymentIntent = await stripeServerClient.paymentIntents.create({
+      const paymentIntent = await getMahadStripeClient().paymentIntents.create({
         amount: invoice.amount_due,
         currency: invoice.currency,
         customer: invoice.customer as string,
@@ -37,7 +40,7 @@ export async function POST(request: Request) {
       })
 
       // Update invoice with payment method
-      await stripeServerClient.invoices.pay(invoice.id as string, {
+      await getMahadStripeClient().invoices.pay(invoice.id as string, {
         payment_method: subscription.default_payment_method as string,
       })
 
@@ -49,7 +52,10 @@ export async function POST(request: Request) {
       { status: 400 }
     )
   } catch (error) {
-    console.error('Error retrying payment:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error retrying payment'
+    )
     return NextResponse.json(
       { error: 'Failed to retry payment' },
       { status: 500 }

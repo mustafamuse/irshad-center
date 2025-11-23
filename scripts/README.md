@@ -9,6 +9,7 @@
 ### Safety Checks
 
 #### `db-safety-check.ts`
+
 Validates database environment before any operation.
 
 ```bash
@@ -18,6 +19,7 @@ npx tsx scripts/db-safety-check.ts
 ```
 
 **What it does:**
+
 - Detects database environment (PRODUCTION/STAGING/DEVELOPMENT)
 - Checks for production indicators
 - Validates environment variables
@@ -28,6 +30,7 @@ npx tsx scripts/db-safety-check.ts
 ### Safe Database Reset
 
 #### `safe-migrate-reset.ts`
+
 **SAFE wrapper around `prisma migrate reset`**
 
 ```bash
@@ -37,6 +40,7 @@ npx tsx scripts/safe-migrate-reset.ts --confirm
 ```
 
 **What it does:**
+
 1. ✅ Validates environment (BLOCKS production)
 2. ✅ Creates automatic backup
 3. ✅ Requires `--confirm` flag
@@ -61,6 +65,7 @@ export DATABASE_ENV=DEVELOPMENT
 ```
 
 Add to your `.env` files:
+
 - `.env.production` → `DATABASE_ENV=PRODUCTION`
 - `.env.staging` → `DATABASE_ENV=STAGING`
 - `.env.local` → `DATABASE_ENV=DEVELOPMENT`
@@ -112,7 +117,7 @@ import { requireNonProductionEnvironment } from './db-safety-check'
 async function myDestructiveOperation() {
   // This will throw if production
   await requireNonProductionEnvironment('My Operation')
-  
+
   // Safe to proceed...
 }
 ```

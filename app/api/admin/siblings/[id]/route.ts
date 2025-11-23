@@ -7,6 +7,9 @@ import {
   removeSiblingRelationship,
   verifySiblingRelationship,
 } from '@/lib/db/queries/siblings'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/siblings/[id]')
 
 // Get a single sibling group by profile ID
 export async function GET(
@@ -50,7 +53,10 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error fetching sibling group:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching sibling group'
+    )
     return NextResponse.json(
       {
         error:
@@ -99,7 +105,10 @@ export async function PATCH(
       success: true,
     })
   } catch (error) {
-    console.error('Error updating sibling relationship:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error updating sibling relationship'
+    )
     return NextResponse.json(
       {
         error:
@@ -133,7 +142,10 @@ export async function DELETE(
       success: true,
     })
   } catch (error) {
-    console.error('Error deleting sibling relationship:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error deleting sibling relationship'
+    )
     return NextResponse.json(
       {
         error:

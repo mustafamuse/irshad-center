@@ -4,24 +4,38 @@
  * Batch Management Server Actions
  *
  * Server-side mutations for batch and student operations.
- * Only includes actively used actions - dead code removed.
+ * Refactored to use Mahad services for DRY architecture.
  *
  * Uses Prisma-generated types and error codes for better type safety.
  */
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma, EducationLevel, GradeLevel } from '@prisma/client'
+import {
+  Prisma,
+  EducationLevel as _EducationLevel,
+  GradeLevel as _GradeLevel,
+} from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
-import { createBatch, deleteBatch, getBatchById } from '@/lib/db/queries/batch'
-import {
-  updateEnrollmentStatus,
-  createEnrollment,
-} from '@/lib/db/queries/enrollment'
+import { getBatchById } from '@/lib/db/queries/batch'
+import { updateEnrollmentStatus } from '@/lib/db/queries/enrollment'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
-import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import { createActionLogger } from '@/lib/logger'
+import {
+  createMahadBatch,
+  deleteMahadBatch,
+} from '@/lib/services/mahad/cohort-service'
+import {
+  assignStudentsToBatch,
+  transferStudentsToBatch,
+} from '@/lib/services/mahad/enrollment-service'
+import {
+  updateMahadStudent,
+  getMahadStudentSiblings,
+  deleteMahadStudent,
+} from '@/lib/services/mahad/student-service'
 import {
   CreateBatchSchema,
   BatchAssignmentSchema,
@@ -30,6 +44,8 @@ import {
 } from '@/lib/validations/batch'
 
 import type { UpdateStudentPayload } from '../_types/student-form'
+
+const logger = createActionLogger('cohorts-actions')
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -48,7 +64,7 @@ type ActionResult<T = void> = {
 /**
  * Type aliases for cleaner function signatures
  */
-type BatchData = Awaited<ReturnType<typeof createBatch>>
+type BatchData = Awaited<ReturnType<typeof createMahadBatch>>
 type AssignmentResult = {
   assignedCount: number
   failedAssignments: string[]
@@ -101,7 +117,13 @@ function handleActionError<T = void>(
   }
 
   // Log error with context for debugging
-  console.error(`[${action}] Error:`, error)
+  logger.error(
+    {
+      err: error instanceof Error ? error : new Error(String(error)),
+      action,
+    },
+    'Action error'
+  )
 
   // Handle Prisma-specific errors with custom messages
   if (isPrismaError(error) && context?.handlers?.[error.code]) {
@@ -123,7 +145,7 @@ function handleActionError<T = void>(
 // ============================================================================
 
 /**
- * Create a new batch
+ * Create a new batch using Mahad service
  */
 export async function createBatchAction(
   formData: FormData
@@ -138,10 +160,10 @@ export async function createBatchAction(
   try {
     const validated = CreateBatchSchema.parse(rawData)
 
-    // Let Prisma handle uniqueness constraint - no race condition
-    const batch = await createBatch({
+    const batch = await createMahadBatch({
       name: validated.name,
-      startDate: validated.startDate ?? null,
+      startDate: validated.startDate ?? new Date(),
+      isActive: true,
     })
 
     revalidatePath('/admin/mahad/cohorts')
@@ -160,27 +182,11 @@ export async function createBatchAction(
 }
 
 /**
- * Delete a batch with safety checks
+ * Delete a batch using Mahad service (with safety checks)
  */
 export async function deleteBatchAction(id: string): Promise<ActionResult> {
   try {
-    const batch = await getBatchById(id)
-    if (!batch) {
-      return {
-        success: false,
-        error: 'Cohort not found',
-      }
-    }
-
-    // Use studentCount from existing batch query - no extra query needed
-    if (batch.studentCount > 0) {
-      return {
-        success: false,
-        error: `Cannot delete cohort "${batch.name}": ${batch.studentCount} student${batch.studentCount > 1 ? 's' : ''} enrolled. Transfer them first.`,
-      }
-    }
-
-    await deleteBatch(id)
+    await deleteMahadBatch(id)
     revalidatePath('/admin/mahad/cohorts')
 
     return {
@@ -202,7 +208,7 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
 // ============================================================================
 
 /**
- * Assign students to a batch
+ * Assign students to a batch using Mahad service
  */
 export async function assignStudentsAction(
   batchId: string,
@@ -219,52 +225,17 @@ export async function assignStudentsAction(
       }
     }
 
-    let assignedCount = 0
-    const failedAssignments: string[] = []
-
-    for (const profileId of validated.studentIds) {
-      try {
-        const profile = await getProgramProfileById(profileId)
-        if (!profile || profile.program !== 'MAHAD_PROGRAM') {
-          failedAssignments.push(profileId)
-          continue
-        }
-
-        // Get active enrollment or create new one
-        const activeEnrollment = profile.enrollments?.find(
-          (e) => e.status !== 'WITHDRAWN' && !e.endDate
-        )
-
-        if (activeEnrollment) {
-          // Update existing enrollment
-          await prisma.enrollment.update({
-            where: { id: activeEnrollment.id },
-            data: { batchId: validated.batchId },
-          })
-        } else {
-          // Create new enrollment
-          await createEnrollment({
-            programProfileId: profileId,
-            batchId: validated.batchId,
-            status: 'ENROLLED',
-          })
-        }
-        assignedCount++
-      } catch (error) {
-        console.error(`Failed to assign student ${profileId}:`, error)
-        failedAssignments.push(profileId)
-      }
-    }
+    const result = await assignStudentsToBatch(
+      validated.batchId,
+      validated.studentIds
+    )
 
     revalidatePath('/admin/mahad/cohorts')
     revalidatePath(`/admin/mahad/cohorts/${validated.batchId}`)
 
     return {
       success: true,
-      data: {
-        assignedCount,
-        failedAssignments,
-      },
+      data: result,
     }
   } catch (error) {
     return handleActionError(error, 'assignStudentsAction', {
@@ -278,7 +249,7 @@ export async function assignStudentsAction(
 }
 
 /**
- * Transfer students between batches
+ * Transfer students between batches using Mahad service
  */
 export async function transferStudentsAction(
   fromBatchId: string,
@@ -318,40 +289,10 @@ export async function transferStudentsAction(
       }
     }
 
-    let transferredCount = 0
-    const failedTransfers: string[] = []
-
-    for (const profileId of validated.studentIds) {
-      try {
-        const profile = await getProgramProfileById(profileId)
-        if (!profile || profile.program !== 'MAHAD_PROGRAM') {
-          failedTransfers.push(profileId)
-          continue
-        }
-
-        // Find enrollment in source batch
-        const enrollment = profile.enrollments?.find(
-          (e) =>
-            e.batchId === validated.fromBatchId &&
-            e.status !== 'WITHDRAWN' &&
-            !e.endDate
-        )
-
-        if (enrollment) {
-          // Update enrollment to new batch
-          await prisma.enrollment.update({
-            where: { id: enrollment.id },
-            data: { batchId: validated.toBatchId },
-          })
-          transferredCount++
-        } else {
-          failedTransfers.push(profileId)
-        }
-      } catch (error) {
-        console.error(`Failed to transfer student ${profileId}:`, error)
-        failedTransfers.push(profileId)
-      }
-    }
+    const result = await transferStudentsToBatch(
+      validated.studentIds,
+      validated.toBatchId
+    )
 
     revalidatePath('/admin/mahad/cohorts')
     revalidatePath(`/admin/mahad/cohorts/${validated.fromBatchId}`)
@@ -359,10 +300,7 @@ export async function transferStudentsAction(
 
     return {
       success: true,
-      data: {
-        transferredCount,
-        failedTransfers,
-      },
+      data: result,
     }
   } catch (error) {
     return handleActionError(error, 'transferStudentsAction', {
@@ -502,40 +440,35 @@ export async function resolveDuplicatesAction(
 // ============================================================================
 
 /**
- * Get delete warnings for a student
+ * Get delete warnings for a student using Mahad service
  */
 export async function getStudentDeleteWarningsAction(id: string) {
   try {
-    const profile = await getProgramProfileById(id)
-    if (!profile) {
-      return {
-        success: false,
-        data: { hasSiblings: false, hasAttendanceRecords: false },
-      } as const
-    }
-
-    // Check for siblings
-    const siblings = await getPersonSiblings(profile.personId)
+    const siblings = await getMahadStudentSiblings(id)
     const hasSiblings = siblings.length > 0
 
     return {
       success: true,
-      data: { hasSiblings, hasAttendanceRecords: false }, // Attendance feature removed
+      data: { hasSiblings, hasAttendanceRecords: false },
     } as const
   } catch (error) {
-    console.error('Failed to fetch delete warnings:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Failed to fetch delete warnings'
+    )
     return {
       success: false,
-      data: { hasSiblings: false, hasAttendanceRecords: false }, // Attendance feature removed
+      data: { hasSiblings: false, hasAttendanceRecords: false },
     } as const
   }
 }
 
 /**
- * Delete a single student
+ * Delete a single student using Mahad service
  */
 export async function deleteStudentAction(id: string): Promise<ActionResult> {
   try {
+    // Get profile to determine which batches to revalidate
     const profile = await getProgramProfileById(id)
     if (!profile || profile.program !== 'MAHAD_PROGRAM') {
       return {
@@ -544,28 +477,16 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
-    // Soft delete by withdrawing all enrollments
-    const enrollments = profile.enrollments || []
     const batchIds = new Set<string>()
-
+    const enrollments = profile.enrollments || []
     for (const enrollment of enrollments) {
       if (enrollment.batchId) {
         batchIds.add(enrollment.batchId)
       }
-      if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
-        await updateEnrollmentStatus(
-          enrollment.id,
-          'WITHDRAWN',
-          'Deleted by admin'
-        )
-      }
     }
 
-    // Update profile status
-    await prisma.programProfile.update({
-      where: { id },
-      data: { status: 'WITHDRAWN' },
-    })
+    // Use service to delete student
+    await deleteMahadStudent(id)
 
     revalidatePath('/admin/mahad/cohorts')
     Array.from(batchIds).forEach((batchId) => {
@@ -587,7 +508,7 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 }
 
 /**
- * Bulk delete students
+ * Bulk delete students using Mahad service
  */
 export async function bulkDeleteStudentsAction(
   studentIds: string[]
@@ -609,30 +530,25 @@ export async function bulkDeleteStudentsAction(
           continue
         }
 
-        // Collect batch IDs
+        // Collect batch IDs for revalidation
         const enrollments = profile.enrollments || []
         for (const enrollment of enrollments) {
           if (enrollment.batchId) {
             batchIdsToRevalidate.add(enrollment.batchId)
           }
-          if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
-            await updateEnrollmentStatus(
-              enrollment.id,
-              'WITHDRAWN',
-              'Bulk deleted by admin'
-            )
-          }
         }
 
-        // Update profile status
-        await prisma.programProfile.update({
-          where: { id },
-          data: { status: 'WITHDRAWN' },
-        })
-
+        // Use service to delete student
+        await deleteMahadStudent(id)
         deletedCount++
       } catch (error) {
-        console.error(`Failed to delete student ${id}:`, error)
+        logger.error(
+          {
+            err: error instanceof Error ? error : new Error(String(error)),
+            studentId: id,
+          },
+          'Failed to delete student'
+        )
         failedDeletes.push(id)
       }
     }
@@ -652,7 +568,7 @@ export async function bulkDeleteStudentsAction(
 }
 
 /**
- * Update a student
+ * Update a student using Mahad service
  */
 export async function updateStudentAction(
   id: string,
@@ -662,7 +578,7 @@ export async function updateStudentAction(
     // Validate input data
     const validated = UpdateStudentSchema.parse(data)
 
-    // Get current profile to check if it exists
+    // Get current profile to check batch changes
     const currentProfile = await getProgramProfileById(id)
     if (!currentProfile || currentProfile.program !== 'MAHAD_PROGRAM') {
       return {
@@ -671,91 +587,18 @@ export async function updateStudentAction(
       }
     }
 
-    // Update person name if provided
-    if (validated.name !== undefined) {
-      await prisma.person.update({
-        where: { id: currentProfile.personId },
-        data: { name: validated.name },
-      })
-    }
+    // Use service to update student (handles person, contact points, and profile)
+    await updateMahadStudent(id, {
+      name: validated.name,
+      email: validated.email,
+      phone: validated.phone,
+      dateOfBirth: validated.dateOfBirth,
+      educationLevel: validated.educationLevel,
+      gradeLevel: validated.gradeLevel,
+      schoolName: validated.schoolName,
+    })
 
-    // Update person date of birth if provided
-    if (validated.dateOfBirth !== undefined) {
-      await prisma.person.update({
-        where: { id: currentProfile.personId },
-        data: { dateOfBirth: validated.dateOfBirth || null },
-      })
-    }
-
-    // Update contact points if provided
-    if (validated.email !== undefined || validated.phone !== undefined) {
-      const person = currentProfile.person
-      const contactPoints = person.contactPoints || []
-
-      if (validated.email !== undefined) {
-        const emailContact = contactPoints.find((cp) => cp.type === 'EMAIL')
-        if (emailContact) {
-          await prisma.contactPoint.update({
-            where: { id: emailContact.id },
-            data: { value: validated.email || '' },
-          })
-        } else if (validated.email) {
-          await prisma.contactPoint.create({
-            data: {
-              personId: currentProfile.personId,
-              type: 'EMAIL',
-              value: validated.email,
-            },
-          })
-        }
-      }
-
-      if (validated.phone !== undefined) {
-        const phoneContact = contactPoints.find(
-          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-        )
-        if (phoneContact) {
-          await prisma.contactPoint.update({
-            where: { id: phoneContact.id },
-            data: { value: validated.phone || '' },
-          })
-        } else if (validated.phone) {
-          await prisma.contactPoint.create({
-            data: {
-              personId: currentProfile.personId,
-              type: 'PHONE',
-              value: validated.phone,
-            },
-          })
-        }
-      }
-    }
-
-    // Update program profile fields
-    const profileUpdates: Partial<{
-      educationLevel: EducationLevel
-      gradeLevel: GradeLevel
-      schoolName: string | null
-    }> = {}
-
-    if (validated.educationLevel !== undefined) {
-      profileUpdates.educationLevel = validated.educationLevel || null
-    }
-    if (validated.gradeLevel !== undefined) {
-      profileUpdates.gradeLevel = validated.gradeLevel || null
-    }
-    if (validated.schoolName !== undefined) {
-      profileUpdates.schoolName = validated.schoolName || null
-    }
-
-    if (Object.keys(profileUpdates).length > 0) {
-      await prisma.programProfile.update({
-        where: { id },
-        data: profileUpdates,
-      })
-    }
-
-    // Update batch assignment if provided
+    // Handle batch assignment separately (enrollment management)
     if (validated.batchId !== undefined) {
       const activeEnrollment = currentProfile.enrollments?.find(
         (e) => e.status !== 'WITHDRAWN' && !e.endDate
@@ -767,11 +610,13 @@ export async function updateStudentAction(
           data: { batchId: validated.batchId || null },
         })
       } else if (validated.batchId) {
-        // Create new enrollment if none exists
-        await createEnrollment({
-          programProfileId: id,
-          batchId: validated.batchId,
-          status: 'ENROLLED',
+        await prisma.enrollment.create({
+          data: {
+            programProfileId: id,
+            batchId: validated.batchId,
+            status: 'ENROLLED',
+            startDate: new Date(),
+          },
         })
       }
     }

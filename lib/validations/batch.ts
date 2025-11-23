@@ -203,8 +203,8 @@ export const SearchSchema = z.object({
 // ============================================================================
 
 export const ExportStudentsSchema = z.object({
-  format: z.enum(['csv', 'xlsx', 'json'], {
-    errorMap: () => ({ message: 'Format must be csv, xlsx, or json' }),
+  format: z.enum(['csv', 'json'], {
+    errorMap: () => ({ message: 'Format must be csv or json' }),
   }),
   batchIds: z.array(z.string().uuid()).optional(),
   studentIds: z.array(z.string().uuid()).optional(),

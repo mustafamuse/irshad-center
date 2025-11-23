@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import { createAPILogger } from '@/lib/logger'
 import { detectPotentialSiblings } from '@/lib/services/sibling-detector'
+
+const logger = createAPILogger('/api/admin/siblings/detect')
 
 /**
  * POST /api/admin/siblings/detect
@@ -37,7 +40,10 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Failed to detect potential siblings:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Failed to detect potential siblings'
+    )
     return NextResponse.json(
       {
         success: false,
@@ -89,7 +95,10 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Failed to get unverified siblings:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Failed to get unverified siblings'
+    )
     return NextResponse.json(
       {
         success: false,

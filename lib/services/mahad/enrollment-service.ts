@@ -12,7 +12,6 @@
  */
 
 import { EnrollmentStatus } from '@prisma/client'
-import * as Sentry from '@sentry/nextjs'
 
 import { prisma } from '@/lib/db'
 import {
@@ -21,7 +20,6 @@ import {
   getEnrollmentById,
 } from '@/lib/db/queries/enrollment'
 import { createServiceLogger } from '@/lib/logger'
-import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 
 const logger = createServiceLogger('mahad-enrollment')
 
