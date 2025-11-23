@@ -40,6 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE files
+.cursor/
+.vscode/
 # Backup and temporary files
 prisma-backup.json
 transformed-data-for-seed.json
