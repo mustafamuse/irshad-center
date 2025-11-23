@@ -17,6 +17,11 @@ import { revalidatePath } from 'next/cache'
 
 import { EducationLevel, GradeLevel } from '@prisma/client'
 import { z } from 'zod'
+import * as Sentry from '@sentry/nextjs'
+
+import { createActionLogger } from '@/lib/logger'
+
+const logger = createActionLogger('mahad-register-actions')
 
 import { prisma } from '@/lib/db'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
@@ -66,27 +71,48 @@ export async function registerStudent(input: {
     const fullName = formatFullName(validated.firstName, validated.lastName)
 
     // 2. Create Person with contact points
-    const person = await createPersonWithContact({
-      name: fullName,
-      dateOfBirth: validated.dateOfBirth,
-      email: validated.email,
-      phone: validated.phone,
-      isPrimaryEmail: true,
-      isPrimaryPhone: true,
-    })
+    const person = await Sentry.startSpan(
+      {
+        name: 'mahad.create_person_with_contact',
+        op: 'db.transaction',
+        attributes: {
+          email: validated.email,
+        },
+      },
+      async () =>
+        await createPersonWithContact({
+          name: fullName,
+          dateOfBirth: validated.dateOfBirth,
+          email: validated.email,
+          phone: validated.phone,
+          isPrimaryEmail: true,
+          isPrimaryPhone: true,
+        })
+    )
 
     // 3. Create ProgramProfile with Enrollment
     // Note: batchId is not provided during registration, will be assigned later
-    const { profile } = await createProgramProfileWithEnrollment({
-      personId: person.id,
-      program: 'MAHAD_PROGRAM',
-      status: 'REGISTERED',
-      batchId: null, // Will be assigned later by admin
-      monthlyRate: 150, // Default rate
-      educationLevel: validated.educationLevel as EducationLevel,
-      gradeLevel: validated.gradeLevel as GradeLevel,
-      schoolName: validated.schoolName,
-    })
+    const { profile } = await Sentry.startSpan(
+      {
+        name: 'mahad.create_profile_with_enrollment',
+        op: 'db.transaction',
+        attributes: {
+          person_id: person.id,
+          program: 'MAHAD_PROGRAM',
+        },
+      },
+      async () =>
+        await createProgramProfileWithEnrollment({
+          personId: person.id,
+          program: 'MAHAD_PROGRAM',
+          status: 'REGISTERED',
+          batchId: null, // Will be assigned later by admin
+          monthlyRate: 150, // Default rate
+          educationLevel: validated.educationLevel as EducationLevel,
+          gradeLevel: validated.gradeLevel as GradeLevel,
+          schoolName: validated.schoolName,
+        })
+    )
 
     // 4. Handle sibling relationships if provided
     // Create SiblingRelationship records for each selected sibling
@@ -101,23 +127,37 @@ export async function registerStudent(input: {
       })
 
       // Create sibling relationships
-      for (const siblingProfile of siblingProfiles) {
-        try {
-          await createSiblingRelationship(
-            person.id,
-            siblingProfile.personId,
-            'manual',
-            null
-          )
-        } catch (error) {
-          // Log but don't fail registration if sibling relationship creation fails
-          // (e.g., relationship already exists)
-          console.warn(
-            `[registerStudent] Failed to create sibling relationship:`,
-            error
-          )
+      await Sentry.startSpan(
+        {
+          name: 'mahad.create_sibling_relationships',
+          op: 'db.transaction',
+          attributes: {
+            person_id: person.id,
+            num_siblings: siblingProfiles.length,
+          },
+        },
+        async () => {
+          for (const siblingProfile of siblingProfiles) {
+            try {
+              await createSiblingRelationship(
+                person.id,
+                siblingProfile.personId,
+                'manual',
+                null
+              )
+            } catch (error) {
+              // Log but don't fail registration if sibling relationship creation fails
+              // (e.g., relationship already exists)
+              logger.warn(
+                {
+                  err: error instanceof Error ? error : new Error(String(error))
+                },
+                'Failed to create sibling relationship during registration'
+              )
+            }
+          }
         }
-      }
+      )
     }
 
     return {
@@ -128,7 +168,10 @@ export async function registerStudent(input: {
       },
     }
   } catch (error) {
-    console.error('[registerStudent] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error registering student'
+    )
 
     // Try to extract validated data for duplicate error handling
     let validated: z.infer<typeof mahadRegistrationSchema> | null = null
@@ -212,7 +255,10 @@ export async function checkEmailExists(email: string): Promise<boolean> {
 
     return hasMahadProfile
   } catch (error) {
-    console.error('[checkEmailExists] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error checking if email exists'
+    )
     return false
   }
 }
@@ -257,7 +303,10 @@ export async function searchStudents(
       lastName: profile.person.name.split(' ').pop() || '',
     }))
   } catch (error) {
-    console.error('[searchStudents] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error searching students'
+    )
     return []
   }
 }
@@ -312,7 +361,10 @@ export async function addSibling(
     revalidatePath('/mahad/register')
     return { success: true }
   } catch (error) {
-    console.error('[addSibling] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error adding sibling'
+    )
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to add sibling',
@@ -371,7 +423,10 @@ export async function removeSibling(
     revalidatePath('/mahad/register')
     return { success: true }
   } catch (error) {
-    console.error('[removeSibling] Error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error removing sibling'
+    )
     return {
       success: false,
       error:

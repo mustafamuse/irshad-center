@@ -1,29 +1,38 @@
 /**
  * Student Event Handlers (Mahad)
  *
+ * Refactored to use webhook service for DRY architecture.
  * Handles Stripe webhook events for Mahad subscriptions.
- * Migrated to use ProgramProfile/BillingAssignment model.
+ *
+ * Responsibilities:
+ * - Route webhook events to appropriate handlers
+ * - Handle Mahad-specific logic (StudentPayment records, profile status updates)
+ * - Delegate common operations to webhook service
  */
 
 import { SubscriptionStatus } from '@prisma/client'
 import type { Stripe } from 'stripe'
+import * as Sentry from '@sentry/nextjs'
 
 import { prisma } from '@/lib/db'
 import {
-  getBillingAccountByStripeCustomerId,
-  createSubscription,
-  createBillingAssignment,
-  updateBillingAssignmentStatus,
-  updateSubscriptionStatus,
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
-  upsertBillingAccount,
+  updateSubscriptionStatus,
 } from '@/lib/db/queries/billing'
-import { updateEnrollmentStatus } from '@/lib/db/queries/enrollment'
-import { profileMatcher } from '@/lib/services/profile-matcher'
-import { stripeServerClient as stripe } from '@/lib/stripe'
+import { createWebhookLogger } from '@/lib/logger'
+import { handleSubscriptionCancellationEnrollments } from '@/lib/services/shared/enrollment-service'
+import { unifiedMatcher } from '@/lib/services/shared/unified-matcher'
+import {
+  handleSubscriptionCreated,
+  handleSubscriptionUpdated as handleSubscriptionUpdatedService,
+  handleSubscriptionDeleted as handleSubscriptionDeletedService,
+} from '@/lib/services/webhooks/webhook-service'
+import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import { syncProfileSubscriptionState as syncProfileState } from '@/lib/utils/profile-updates'
 import { extractPeriodDates, extractCustomerId } from '@/lib/utils/type-guards'
+
+const logger = createWebhookLogger('mahad')
 
 /**
  * The single source of truth for syncing a subscription from Stripe to our database.
@@ -32,12 +41,14 @@ import { extractPeriodDates, extractCustomerId } from '@/lib/utils/type-guards'
  * @param subscriptionId - The ID of the Stripe subscription to sync.
  */
 export async function syncProfileSubscriptionState(subscriptionId: string) {
-  console.log(
-    `[WEBHOOK] Syncing subscription state for Subscription ID: ${subscriptionId}`
+  logger.info(
+    { subscriptionId },
+    'Syncing subscription state'
   )
 
   try {
     // Retrieve subscription from Stripe to get latest status
+    const stripe = getMahadStripeClient()
     const stripeSubscription = await stripe.subscriptions.retrieve(
       subscriptionId,
       {
@@ -56,14 +67,17 @@ export async function syncProfileSubscriptionState(subscriptionId: string) {
       periodDates.periodEnd
     )
 
-    console.log('✅ Subscription state synced successfully:', {
-      subscriptionId,
-      status: subscriptionStatus,
-    })
+    logger.info(
+      {
+        subscriptionId,
+        status: subscriptionStatus,
+      },
+      'Subscription state synced successfully'
+    )
   } catch (error) {
-    console.error(
-      `[WEBHOOK] Error syncing subscription state for ${subscriptionId}:`,
-      error
+    logger.error(
+      { err: error, subscriptionId },
+      'Error syncing subscription state'
     )
     throw error
   }
@@ -74,13 +88,17 @@ export const syncStudentSubscriptionState = syncProfileSubscriptionState
 
 /**
  * Handles 'checkout.session.completed'
- * Finds a pre-registered profile and links them to their new Stripe subscription.
- * This is the primary mechanism for onboarding a new paying student.
+ *
+ * Mahad-specific logic:
+ * - Use profile matcher to find pre-registered profile
+ * - Delegate subscription creation to service
+ * - Sync profile state (Mahad-specific)
  */
 export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
   const session = event.data.object as Stripe.Checkout.Session
-  console.log(
-    `[WEBHOOK] Processing 'checkout.session.completed' for Session ID: ${session.id}`
+  logger.info(
+    { sessionId: session.id, eventType: 'checkout.session.completed' },
+    'Processing checkout session completed'
   )
 
   // Exit if this checkout session didn't create a subscription
@@ -89,8 +107,9 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
     !session.subscription ||
     !session.customer
   ) {
-    console.log(
-      `[WEBHOOK] Checkout session ${session.id} is not a subscription creation event. Skipping.`
+    logger.info(
+      { sessionId: session.id },
+      'Checkout session is not a subscription creation event, skipping'
     )
     return
   }
@@ -99,106 +118,101 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
   const customerId = extractCustomerId(session.customer)
 
   if (!customerId) {
-    console.error(
-      `[WEBHOOK] Invalid customer ID in checkout session ${session.id}`
+    logger.error(
+      { sessionId: session.id },
+      'Invalid customer ID in checkout session'
     )
     return
   }
 
   try {
-    // Use profile matcher to find the profile
-    const matchResult = await profileMatcher.findByCheckoutSession(
-      session,
-      'MAHAD_PROGRAM'
+    const stripe = getMahadStripeClient()
+
+    // Use unified matcher to find the profile (Mahad-specific)
+    const matchResult = await Sentry.startSpan(
+      {
+        name: 'matcher.find_by_checkout_session',
+        op: 'matcher.search',
+        attributes: {
+          session_id: session.id,
+          program: 'MAHAD',
+        },
+      },
+      async () =>
+        await unifiedMatcher.findByCheckoutSession(session, 'MAHAD')
     )
 
-    if (!matchResult.profile) {
-      console.warn(
-        `[WEBHOOK] No profile found for checkout session ${session.id} - manual review required`
+    if (!matchResult.programProfile) {
+      logger.warn(
+        { sessionId: session.id },
+        'No profile found for checkout session - manual review required'
       )
       return
     }
 
-    const profile = matchResult.profile
+    const profile = matchResult.programProfile
 
-    // Find or create billing account
-    let billingAccount = await getBillingAccountByStripeCustomerId(
-      customerId,
-      'MAHAD'
+    // Retrieve subscription from Stripe
+    const stripeSubscription = await Sentry.startSpan(
+      {
+        name: 'stripe.retrieve_subscription',
+        op: 'stripe.api',
+        attributes: {
+          subscription_id: subscriptionId,
+        },
+      },
+      async () => await stripe.subscriptions.retrieve(subscriptionId)
     )
 
-    if (!billingAccount) {
-      // Create billing account if it doesn't exist
-      billingAccount = await upsertBillingAccount({
-        personId: profile.personId,
-        accountType: 'MAHAD',
-        stripeCustomerIdMahad: customerId,
-      })
-    }
-
-    // Retrieve subscription from Stripe to get details
-    const stripeSubscription =
-      await stripe.subscriptions.retrieve(subscriptionId)
-
-    const periodDates = extractPeriodDates(stripeSubscription)
-    const subscriptionStatus = stripeSubscription.status as SubscriptionStatus
-    const amount = stripeSubscription.items.data[0]?.price?.unit_amount || 0
-
-    // Check if subscription already exists
-    let subscriptionRecord = await getSubscriptionByStripeId(subscriptionId)
-
-    if (!subscriptionRecord) {
-      // Create new subscription
-      subscriptionRecord = await createSubscription({
-        billingAccountId: billingAccount.id,
-        stripeAccountType: 'MAHAD',
-        stripeSubscriptionId: subscriptionId,
-        stripeCustomerId: customerId,
-        status: subscriptionStatus,
-        amount,
-        currency: stripeSubscription.currency || 'usd',
-        interval:
-          stripeSubscription.items.data[0]?.price?.recurring?.interval ||
-          'month',
-        currentPeriodStart: periodDates.periodStart,
-        currentPeriodEnd: periodDates.periodEnd,
-        paidUntil: periodDates.periodEnd,
-      })
-    }
-
-    // Create billing assignment linking subscription to profile
-    const existingAssignments = await getBillingAssignmentsBySubscription(
-      subscriptionRecord.id
-    )
-    const existingAssignment = existingAssignments.find(
-      (a) => a.programProfileId === profile.id && a.isActive
+    // Delegate to webhook service for subscription creation
+    const result = await Sentry.startSpan(
+      {
+        name: 'webhook.create_subscription',
+        op: 'webhook.processing',
+        attributes: {
+          program: 'MAHAD',
+          profile_id: profile.id,
+          subscription_id: subscriptionId,
+        },
+      },
+      async () =>
+        await handleSubscriptionCreated(stripeSubscription, 'MAHAD', [
+          profile.id,
+        ])
     )
 
-    if (!existingAssignment) {
-      await createBillingAssignment({
-        subscriptionId: subscriptionRecord.id,
-        programProfileId: profile.id,
-        amount,
-      })
-
-      console.log('✅ Created billing assignment:', {
+    logger.info(
+      {
         profileId: profile.id,
-        subscriptionId: subscriptionRecord.id,
+        subscriptionId: result.subscriptionId,
         sessionId: session.id,
-      })
-    }
+      },
+      'Subscription created via checkout session'
+    )
 
-    // Sync subscription state
-    await syncProfileState(
-      subscriptionId,
-      subscriptionStatus,
-      periodDates.periodStart,
-      periodDates.periodEnd
+    // Sync profile state (Mahad-specific utility)
+    const periodDates = extractPeriodDates(stripeSubscription)
+    await Sentry.startSpan(
+      {
+        name: 'profile.sync_subscription_state',
+        op: 'db.transaction',
+        attributes: {
+          subscription_id: subscriptionId,
+          status: stripeSubscription.status,
+        },
+      },
+      async () =>
+        await syncProfileState(
+          subscriptionId,
+          stripeSubscription.status as SubscriptionStatus,
+          periodDates.periodStart,
+          periodDates.periodEnd
+        )
     )
   } catch (error) {
-    console.error(
-      `[WEBHOOK] Error handling checkout session ${session.id}:`,
-      error
+    logger.error(
+      { err: error, sessionId: session.id },
+      'Error handling checkout session'
     )
     throw error
   }
@@ -211,25 +225,37 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
 export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   const invoicePayload = event.data.object as Stripe.Invoice
   const stripeInvoiceId = invoicePayload.id
-  console.log(
-    `[WEBHOOK] Processing 'invoice.payment_succeeded' for Invoice ID: ${stripeInvoiceId}`
+  logger.info(
+    { invoiceId: stripeInvoiceId, eventType: 'invoice.payment_succeeded' },
+    'Processing invoice payment succeeded'
   )
 
   if (!stripeInvoiceId) {
-    console.error('[WEBHOOK] Received an invoice event with no ID. Skipping.')
+    logger.error('Received an invoice event with no ID, skipping')
     return
   }
 
   // Retrieve the full invoice from Stripe first to get all necessary data.
+  const stripe = getMahadStripeClient()
   let invoice: Stripe.Invoice
   try {
-    invoice = await stripe.invoices.retrieve(stripeInvoiceId, {
-      expand: ['lines.data', 'subscription'],
-    })
+    invoice = await Sentry.startSpan(
+      {
+        name: 'stripe.retrieve_invoice',
+        op: 'stripe.api',
+        attributes: {
+          invoice_id: stripeInvoiceId,
+        },
+      },
+      async () =>
+        await stripe.invoices.retrieve(stripeInvoiceId, {
+          expand: ['lines.data', 'subscription'],
+        })
+    )
   } catch (error) {
-    console.error(
-      `[WEBHOOK] Failed to retrieve invoice ${stripeInvoiceId} from Stripe:`,
-      error
+    logger.error(
+      { err: error, invoiceId: stripeInvoiceId },
+      'Failed to retrieve invoice from Stripe'
     )
     return
   }
@@ -238,8 +264,9 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     .subscription as Stripe.Subscription | null
 
   if (!subscription) {
-    console.log(
-      `[WEBHOOK] Invoice ${invoice.id} succeeded but is not tied to a subscription. Skipping payment record creation.`
+    logger.info(
+      { invoiceId: invoice.id },
+      'Invoice succeeded but is not tied to a subscription, skipping payment record creation'
     )
     return
   }
@@ -256,8 +283,9 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   )
 
   if (!subscriptionLineItem?.period) {
-    console.error(
-      `[WEBHOOK] Error: Invoice ${invoice.id} is missing a subscription line item with period info. Check 'expand' and line item type.`
+    logger.error(
+      { invoiceId: invoice.id },
+      'Invoice is missing a subscription line item with period info'
     )
     return
   }
@@ -280,36 +308,52 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
     )
 
     // Create payment record for each active assignment
-    for (const assignment of assignments.filter((a) => a.isActive)) {
-      // Check if payment record already exists
-      const existingPayment = await prisma.studentPayment.findUnique({
-        where: {
-          programProfileId_stripeInvoiceId: {
-            programProfileId: assignment.programProfileId,
-            stripeInvoiceId: stripeInvoiceId,
-          },
+    await Sentry.startSpan(
+      {
+        name: 'payment.create_records',
+        op: 'db.transaction',
+        attributes: {
+          invoice_id: stripeInvoiceId,
+          subscription_id: subscription.id,
+          num_assignments: assignments.filter((a) => a.isActive).length,
         },
-      })
+      },
+      async () => {
+        for (const assignment of assignments.filter((a) => a.isActive)) {
+          // Check if payment record already exists
+          const existingPayment = await prisma.studentPayment.findUnique({
+            where: {
+              programProfileId_stripeInvoiceId: {
+                programProfileId: assignment.programProfileId,
+                stripeInvoiceId: stripeInvoiceId,
+              },
+            },
+          })
 
-      if (!existingPayment) {
-        await prisma.studentPayment.create({
-          data: {
-            programProfileId: assignment.programProfileId,
-            year,
-            month,
-            amountPaid: assignment.amount,
-            paidAt,
-            stripeInvoiceId: stripeInvoiceId,
-          },
-        })
+          if (!existingPayment) {
+            await prisma.studentPayment.create({
+              data: {
+                programProfileId: assignment.programProfileId,
+                year,
+                month,
+                amountPaid: assignment.amount,
+                paidAt,
+                stripeInvoiceId: stripeInvoiceId,
+              },
+            })
 
-        console.log('✅ Created payment record:', {
-          profileId: assignment.programProfileId,
-          invoiceId: stripeInvoiceId,
-          amount: assignment.amount,
-        })
+            logger.info(
+              {
+                profileId: assignment.programProfileId,
+                invoiceId: stripeInvoiceId,
+                amount: assignment.amount,
+              },
+              'Created payment record'
+            )
+          }
+        }
       }
-    }
+    )
   }
 
   // --- End of Transactional Record Creation ---
@@ -325,8 +369,9 @@ export async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
  */
 export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   const invoice = event.data.object as Stripe.Invoice
-  console.log(
-    `[WEBHOOK] Processing 'invoice.payment_failed' for Invoice ID: ${invoice.id}`
+  logger.info(
+    { invoiceId: invoice.id, eventType: 'invoice.payment_failed' },
+    'Processing invoice payment failed'
   )
   const subscriptionId = (invoice as unknown as Record<string, unknown>)
     .subscription as string | null
@@ -343,6 +388,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
   }
 
   // --- Optional: Late Fee Logic ---
+  const stripe = getMahadStripeClient()
   const customerId = invoice.customer
   if (typeof customerId !== 'string') {
     return
@@ -369,111 +415,105 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       currency: 'usd',
       description: dynamicDescription,
     })
-    console.log(
-      `[WEBHOOK] Successfully created a pending late fee for Customer ID: ${customerId}.`
+    logger.info(
+      { customerId },
+      'Successfully created a pending late fee'
     )
   }
 }
 
 /**
  * Handles 'customer.subscription.updated' events.
- * This is now a simple wrapper around our sync function.
+ *
+ * Delegates to service for status update, then syncs profile state (Mahad-specific).
  */
 export async function handleSubscriptionUpdated(event: Stripe.Event) {
   const subscription = event.data.object as Stripe.Subscription
-  console.log(
-    `[WEBHOOK] Processing 'customer.subscription.updated' for Subscription ID: ${subscription.id}`
+  logger.info(
+    { subscriptionId: subscription.id, eventType: 'customer.subscription.updated' },
+    'Processing subscription updated'
   )
 
-  const periodDates = extractPeriodDates(subscription)
-  const subscriptionStatus = subscription.status as SubscriptionStatus
+  try {
+    // Delegate to webhook service for subscription update
+    const result = await handleSubscriptionUpdatedService(subscription)
 
-  // Update subscription record
-  const subscriptionRecord = await getSubscriptionByStripeId(subscription.id)
-  if (subscriptionRecord) {
-    await updateSubscriptionStatus(subscriptionRecord.id, subscriptionStatus, {
-      currentPeriodStart: periodDates.periodStart,
-      currentPeriodEnd: periodDates.periodEnd,
-      paidUntil: periodDates.periodEnd,
-    })
+    logger.info(
+      {
+        subscriptionId: result.subscriptionId,
+        status: result.status,
+      },
+      'Subscription updated'
+    )
+
+    // Sync profile state (Mahad-specific utility)
+    const periodDates = extractPeriodDates(subscription)
+    await syncProfileState(
+      subscription.id,
+      subscription.status as SubscriptionStatus,
+      periodDates.periodStart,
+      periodDates.periodEnd
+    )
+  } catch (error) {
+    logger.error(
+      { err: error, subscriptionId: subscription.id },
+      'Error handling subscription update'
+    )
+    throw error
   }
-
-  // Sync profile state
-  await syncProfileState(
-    subscription.id,
-    subscriptionStatus,
-    periodDates.periodStart,
-    periodDates.periodEnd
-  )
 }
 
 /**
  * Handles 'customer.subscription.deleted' events.
- * Marks the subscription as canceled and unlinks it from the profiles.
+ *
+ * Delegates to service for deactivation, then updates Mahad-specific enrollment status.
  */
 export async function handleSubscriptionDeleted(event: Stripe.Event) {
   const subscription = event.data.object as Stripe.Subscription
-  console.log(
-    `[WEBHOOK] Processing 'customer.subscription.deleted' for Subscription ID: ${subscription.id}`
+  logger.info(
+    { subscriptionId: subscription.id, eventType: 'customer.subscription.deleted' },
+    'Processing subscription deleted'
   )
 
   try {
-    // Find subscription record
-    const subscriptionRecord = await getSubscriptionByStripeId(subscription.id)
-
-    if (!subscriptionRecord) {
-      console.warn(
-        `[WEBHOOK] Subscription ${subscription.id} not found in database - skipping deletion`
-      )
-      return
-    }
-
-    // Get all active billing assignments for this subscription
-    const assignments = await getBillingAssignmentsBySubscription(
-      subscriptionRecord.id
+    // Update enrollment status to WITHDRAWN BEFORE deleting subscription
+    const enrollmentResult = await Sentry.startSpan(
+      {
+        name: 'enrollment.withdraw_for_subscription',
+        op: 'db.transaction',
+        attributes: {
+          subscription_id: subscription.id,
+        },
+      },
+      async () =>
+        await handleSubscriptionCancellationEnrollments(
+          subscription.id,
+          'Subscription canceled'
+        )
     )
 
-    // Deactivate all billing assignments and update enrollment status
-    for (const assignment of assignments) {
-      if (assignment.isActive) {
-        await updateBillingAssignmentStatus(assignment.id, false, new Date())
+    logger.info(
+      {
+        withdrawn: enrollmentResult.withdrawn,
+        errors: enrollmentResult.errors.length,
+      },
+      'Updated enrollments to WITHDRAWN'
+    )
 
-        // Update enrollment status to WITHDRAWN
-        const activeEnrollment = await prisma.enrollment.findFirst({
-          where: {
-            programProfileId: assignment.programProfileId,
-            status: { not: 'WITHDRAWN' },
-            endDate: null,
-          },
-        })
+    // Delegate to webhook service for subscription deletion
+    const result = await handleSubscriptionDeletedService(subscription)
 
-        if (activeEnrollment) {
-          await updateEnrollmentStatus(
-            activeEnrollment.id,
-            'WITHDRAWN',
-            'Subscription canceled',
-            new Date()
-          )
-        }
-
-        console.log('✅ Deactivated billing assignment:', {
-          assignmentId: assignment.id,
-          profileId: assignment.programProfileId,
-        })
-      }
-    }
-
-    // Update subscription status to canceled
-    await updateSubscriptionStatus(subscriptionRecord.id, 'canceled')
-
-    console.log('✅ Subscription deleted successfully:', {
-      subscriptionId: subscriptionRecord.id,
-      assignmentsDeactivated: assignments.length,
-    })
+    logger.info(
+      {
+        subscriptionId: result.subscriptionId,
+        enrollmentsWithdrawn: enrollmentResult.withdrawn,
+      },
+      'Subscription deleted successfully'
+    )
   } catch (error) {
-    console.error(
-      `[WEBHOOK] Error handling subscription deletion ${subscription.id}:`,
-      error
+    logger.error(
+      { err: error, subscriptionId: subscription.id },
+      'Error handling subscription deletion'
     )
     throw error
   }
