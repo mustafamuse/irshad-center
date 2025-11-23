@@ -60,46 +60,53 @@ export async function assignStudentsToBatch(
 
   for (const studentId of studentIds) {
     try {
-      // Check if student already enrolled in this batch
-      const existingEnrollment = await prisma.enrollment.findFirst({
-        where: {
-          programProfileId: studentId,
-          batchId,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
-      })
+      // Wrap each student's assignment in a transaction for atomicity
+      await prisma.$transaction(async (tx) => {
+        // Check if student already enrolled in this batch
+        const existingEnrollment = await tx.enrollment.findFirst({
+          where: {
+            programProfileId: studentId,
+            batchId,
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+          },
+        })
 
-      if (existingEnrollment) {
-        // Skip if already enrolled
-        continue
-      }
+        if (existingEnrollment) {
+          // Skip if already enrolled
+          return
+        }
 
-      // Check if student has active enrollment in another batch
-      const activeEnrollment = await prisma.enrollment.findFirst({
-        where: {
-          programProfileId: studentId,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
-      })
+        // Check if student has active enrollment in another batch
+        const activeEnrollment = await tx.enrollment.findFirst({
+          where: {
+            programProfileId: studentId,
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+          },
+        })
 
-      if (activeEnrollment) {
-        // Withdraw from current batch first
-        await updateEnrollmentStatus(
-          activeEnrollment.id,
-          'WITHDRAWN',
-          null,
-          new Date()
+        if (activeEnrollment) {
+          // Withdraw from current batch first
+          await updateEnrollmentStatus(
+            activeEnrollment.id,
+            'WITHDRAWN',
+            null,
+            new Date(),
+            tx
+          )
+        }
+
+        // Create new enrollment
+        await createEnrollment(
+          {
+            programProfileId: studentId,
+            batchId,
+            status: 'ENROLLED',
+            startDate: new Date(),
+          },
+          tx
         )
-      }
-
-      // Create new enrollment
-      await createEnrollment({
-        programProfileId: studentId,
-        batchId,
-        status: 'ENROLLED',
-        startDate: new Date(),
       })
 
       result.assignedCount++
@@ -132,34 +139,40 @@ export async function transferStudentsToBatch(
 
   for (const studentId of studentIds) {
     try {
-      // Get current active enrollment
-      const currentEnrollment = await prisma.enrollment.findFirst({
-        where: {
-          programProfileId: studentId,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
-      })
+      // Wrap each student's transfer in a transaction for atomicity
+      await prisma.$transaction(async (tx) => {
+        // Get current active enrollment
+        const currentEnrollment = await tx.enrollment.findFirst({
+          where: {
+            programProfileId: studentId,
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+          },
+        })
 
-      if (!currentEnrollment) {
-        result.failedTransfers.push(studentId)
-        continue
-      }
+        if (!currentEnrollment) {
+          throw new Error('No active enrollment found')
+        }
 
-      // Withdraw from current batch
-      await updateEnrollmentStatus(
-        currentEnrollment.id,
-        'WITHDRAWN',
-        null,
-        new Date()
-      )
+        // Withdraw from current batch
+        await updateEnrollmentStatus(
+          currentEnrollment.id,
+          'WITHDRAWN',
+          null,
+          new Date(),
+          tx
+        )
 
-      // Enroll in new batch
-      await createEnrollment({
-        programProfileId: studentId,
-        batchId: targetBatchId,
-        status: 'ENROLLED',
-        startDate: new Date(),
+        // Enroll in new batch
+        await createEnrollment(
+          {
+            programProfileId: studentId,
+            batchId: targetBatchId,
+            status: 'ENROLLED',
+            startDate: new Date(),
+          },
+          tx
+        )
       })
 
       result.transferredCount++

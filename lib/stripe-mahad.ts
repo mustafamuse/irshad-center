@@ -7,6 +7,10 @@
 
 import Stripe from 'stripe'
 
+import { createServiceLogger } from '@/lib/logger'
+
+const logger = createServiceLogger('stripe-mahad')
+
 let mahadStripeClient: Stripe | null = null
 
 /**
@@ -28,7 +32,7 @@ export function getMahadStripeClient(): Stripe {
   }
 
   if (!mahadStripeClient) {
-    console.log('Initializing Mahad Stripe client...')
+    logger.info('Initializing Mahad Stripe client')
     mahadStripeClient = new Stripe(stripeKey, {
       apiVersion: '2025-08-27.basil',
       typescript: true,
@@ -75,7 +79,13 @@ export function verifyMahadWebhook(
     return mahadClient.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err) {
     const error = err as Error
-    console.error('❌ Mahad webhook verification failed:', error.message)
+    logger.error(
+      {
+        err: error,
+        signaturePreview: signature.substring(0, 20) + '...',
+      },
+      'Mahad webhook verification failed'
+    )
     throw new Error(`Webhook verification failed: ${error.message}`)
   }
 }

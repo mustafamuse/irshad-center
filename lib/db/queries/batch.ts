@@ -35,36 +35,38 @@ export interface BatchWithCount {
 export async function getBatches(
   client: DatabaseClient = prisma
 ): Promise<BatchWithCount[]> {
-  // Get all batches
+  // Get all batches with counts in a single query using Prisma's _count API
   const batches = await client.batch.findMany({
     orderBy: {
       startDate: 'desc',
     },
-  })
-
-  // Get student counts for all batches in parallel
-  const batchesWithCounts = await Promise.all(
-    batches.map(async (batch) => {
-      // Count active enrollments (not withdrawn) for Mahad students
-      const studentCount = await client.enrollment.count({
-        where: {
-          batchId: batch.id,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-          programProfile: {
-            program: 'MAHAD_PROGRAM',
+    include: {
+      _count: {
+        select: {
+          Enrollment: {
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+              programProfile: {
+                program: 'MAHAD_PROGRAM',
+              },
+            },
           },
         },
-      })
+      },
+    },
+  })
 
-      return {
-        ...batch,
-        studentCount,
-      }
-    })
-  )
-
-  return batchesWithCounts
+  // Map to BatchWithCount interface
+  return batches.map((batch) => ({
+    id: batch.id,
+    name: batch.name,
+    startDate: batch.startDate,
+    endDate: batch.endDate,
+    createdAt: batch.createdAt,
+    updatedAt: batch.updatedAt,
+    studentCount: batch._count.Enrollment,
+  }))
 }
 
 /**
@@ -566,35 +568,39 @@ export async function getBatchesWithFilters(
     }
   }
 
+  // Get batches with counts in a single query using Prisma's _count API
   const batches = await client.batch.findMany({
     where,
     orderBy: {
       startDate: 'desc',
     },
-  })
-
-  // Get student counts for all batches in parallel
-  const batchesWithCounts = await Promise.all(
-    batches.map(async (batch) => {
-      const studentCount = await client.enrollment.count({
-        where: {
-          batchId: batch.id,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-          programProfile: {
-            program: 'MAHAD_PROGRAM',
+    include: {
+      _count: {
+        select: {
+          Enrollment: {
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+              programProfile: {
+                program: 'MAHAD_PROGRAM',
+              },
+            },
           },
         },
-      })
+      },
+    },
+  })
 
-      return {
-        ...batch,
-        studentCount,
-      }
-    })
-  )
-
-  return batchesWithCounts
+  // Map to BatchWithCount interface
+  return batches.map((batch) => ({
+    id: batch.id,
+    name: batch.name,
+    startDate: batch.startDate,
+    endDate: batch.endDate,
+    createdAt: batch.createdAt,
+    updatedAt: batch.updatedAt,
+    studentCount: batch._count.Enrollment,
+  }))
 }
 
 /**
