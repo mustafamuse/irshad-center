@@ -2,13 +2,13 @@
 
 ## Overview
 
-Comprehensive unit testing implementation for the Irshad Center application, focusing on service layer business logic with **243 tests** across **11 test files**.
+Comprehensive unit testing implementation for the Irshad Center application, focusing on service layer business logic with **329 tests** across **14 test files**.
 
 ## Test Statistics
 
-- **Total Tests**: 243 passing ✅
-- **Test Files**: 11
-- **Execution Time**: ~130ms
+- **Total Tests**: 329 passing ✅
+- **Test Files**: 14
+- **Execution Time**: ~162ms
 - **Test Framework**: Vitest
 - **Mocking**: vitest-mock-extended for type-safe Prisma mocks
 
@@ -120,6 +120,36 @@ Comprehensive unit testing implementation for the Irshad Center application, foc
   - Contact-based search (email and phone)
   - Parent and student contact point handling
 
+### Phase 6: Advanced Services
+**Files**: 3 | **Tests**: 86
+
+- ✅ `mahad/cohort-service.ts` (25 tests)
+  - Batch creation with date validation (start/end date rules)
+  - Batch deletion with student count prevention
+  - Batch retrieval by ID and filtered queries
+  - Student listing and counting for batches
+  - Batch updates with validation
+  - Batch activation and deactivation
+
+- ✅ `shared/billing-service.ts` (31 tests)
+  - Billing account creation by account type (MAHAD, DUGSI, YOUTH_EVENTS, GENERAL_DONATION)
+  - Stripe customer ID mapping by account type
+  - Subscription-to-profile linking with amount splitting
+  - Split amount calculation with remainder handling
+  - Billing assignment management and deactivation
+  - Billing status retrieval by email
+  - Profile billing status aggregation
+
+- ✅ `sibling-detector.ts` (30 tests)
+  - Guardian match detection (shared guardians)
+  - Name match detection with last name comparison
+  - Age similarity scoring for name matches
+  - Contact point matching (email/phone)
+  - Duplicate sibling prevention
+  - Confidence score calculation by detection method
+  - Sibling relationship creation with validation
+  - Sorted results by confidence (highest first)
+
 ## Test Organization
 
 ```
@@ -131,13 +161,16 @@ __tests__/
 ├── services/
 │   ├── validation-service.test.ts      # 33 tests
 │   ├── registration-service.test.ts    # 26 tests
+│   ├── sibling-detector.test.ts        # 30 tests
 │   ├── shared/
 │   │   ├── parent-service.test.ts      # 26 tests
 │   │   ├── enrollment-service.test.ts  # 8 tests
 │   │   ├── payment-service.test.ts     # 24 tests
-│   │   └── subscription-service.test.ts # 28 tests
+│   │   ├── subscription-service.test.ts # 28 tests
+│   │   └── billing-service.test.ts     # 31 tests
 │   ├── mahad/
-│   │   └── student-service.test.ts     # 22 tests
+│   │   ├── student-service.test.ts     # 22 tests
+│   │   └── cohort-service.test.ts      # 25 tests
 │   └── dugsi/
 │       ├── child-service.test.ts       # 15 tests
 │       ├── family-service.test.ts      # 22 tests
@@ -212,21 +245,23 @@ npm test -- --ui
 ## Next Steps
 
 ### To Continue Testing (Optional)
-1. **Remaining Services**:
+1. **Remaining Services** (All Core Services Complete! ✅):
    - ~~`dugsi/family-service.ts`~~ ✅ Complete (22 tests)
    - ~~`dugsi/payment-service.ts`~~ ✅ Complete (17 tests)
    - ~~`dugsi/registration-service.ts`~~ ✅ Complete (22 tests)
-   - `mahad/cohort-service.ts`
-   - `shared/billing-service.ts`
-   - `sibling-detector.ts`
+   - ~~`mahad/cohort-service.ts`~~ ✅ Complete (25 tests)
+   - ~~`shared/billing-service.ts`~~ ✅ Complete (31 tests)
+   - ~~`sibling-detector.ts`~~ ✅ Complete (30 tests)
 
-2. **Server Actions**:
+2. **Server Actions** (Future):
    - `app/mahad/(registration)/register/_actions/index.ts`
    - `app/admin/mahad/cohorts/_actions/index.ts`
+   - Other server action files as needed
 
 3. **Integration Tests** (Future):
    - Test with real database (separate phase)
    - E2E tests with Playwright
+   - API endpoint testing
 
 ### To Merge This Work
 ```bash
@@ -271,12 +306,12 @@ git merge mm-testing-implementation
 
 ## Conclusion
 
-This testing implementation provides **comprehensive coverage** of the service layer's business logic, focusing on **validation**, **normalization**, **status management**, and **error handling** without database dependencies. The tests are **extremely fast** (130ms for 243 tests), **maintainable**, and **provide excellent regression protection** for ongoing development.
+This testing implementation provides **comprehensive coverage** of the service layer's business logic, focusing on **validation**, **normalization**, **status management**, and **error handling** without database dependencies. The tests are **extremely fast** (162ms for 329 tests, ~0.5ms per test), **maintainable**, and **provide excellent regression protection** for ongoing development.
 
 ### Summary Statistics
-- **Total Tests**: 243 passing ✅
-- **Test Files**: 11
-- **Execution Speed**: ~130ms (< 1 millisecond per test)
+- **Total Tests**: 329 passing ✅
+- **Test Files**: 14
+- **Execution Speed**: ~162ms (~0.5ms per test)
 - **Coverage**: 90%+ on core business logic services
 - **Zero Database Dependencies**: All tests use mocked Prisma
 
@@ -285,17 +320,20 @@ This testing implementation provides **comprehensive coverage** of the service l
 2. ✅ Registration flows (26 tests)
 3. ✅ Payment processing (24 tests)
 4. ✅ Subscription management (28 tests)
-5. ✅ Parent/guardian management (26 tests)
-6. ✅ Mahad student management (22 tests)
-7. ✅ Dugsi child management (15 tests)
-8. ✅ Dugsi family operations (22 tests)
-9. ✅ Dugsi payment operations (17 tests)
-10. ✅ Dugsi registration management (22 tests)
-11. ✅ Enrollment lifecycle (8 tests)
+5. ✅ Billing operations (31 tests)
+6. ✅ Parent/guardian management (26 tests)
+7. ✅ Mahad student management (22 tests)
+8. ✅ Mahad cohort/batch management (25 tests)
+9. ✅ Dugsi child management (15 tests)
+10. ✅ Dugsi family operations (22 tests)
+11. ✅ Dugsi payment operations (17 tests)
+12. ✅ Dugsi registration management (22 tests)
+13. ✅ Sibling detection (30 tests)
+14. ✅ Enrollment lifecycle (8 tests)
 
 ---
 
 **Branch**: `mm-testing-implementation`
 **Status**: Ready for review/merge
-**Commits**: 6 phases documented (Phases 1-5 complete)
+**Commits**: 7 commits across 6 phases
 **Last Updated**: 2024-11
