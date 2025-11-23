@@ -200,8 +200,13 @@ const familyRegistrationSchema = z.object({
 
 /**
  * Create a Person with contact points
+ * @param data - Person data including name, dateOfBirth, email, phone
+ * @param tx - Optional Prisma transaction client for atomic operations
  */
-export async function createPersonWithContact(data: unknown) {
+export async function createPersonWithContact(
+  data: unknown,
+  tx?: Prisma.TransactionClient
+) {
   // Validate at service boundary
   const validated = personDataSchema.parse(data)
 
@@ -214,7 +219,10 @@ export async function createPersonWithContact(data: unknown) {
     isPrimaryPhone = true,
   } = validated
 
-  return prisma.person.create({
+  // Use transaction client if provided, otherwise use prisma
+  const client = tx || prisma
+
+  return client.person.create({
     data: {
       name,
       dateOfBirth,
@@ -249,8 +257,13 @@ export async function createPersonWithContact(data: unknown) {
 
 /**
  * Create a ProgramProfile with initial Enrollment
+ * @param data - Program profile data including personId, program, status, etc.
+ * @param tx - Optional Prisma transaction client for atomic operations
  */
-export async function createProgramProfileWithEnrollment(data: unknown) {
+export async function createProgramProfileWithEnrollment(
+  data: unknown,
+  tx?: Prisma.TransactionClient
+) {
   // Validate at service boundary
   const validated = programProfileDataSchema.parse(data)
 
@@ -286,9 +299,12 @@ export async function createProgramProfileWithEnrollment(data: unknown) {
     status,
   })
 
-  return prisma.$transaction(async (tx) => {
+  // Define the operation that creates profile and enrollment
+  const createProfileAndEnrollment = async (
+    client: Prisma.TransactionClient
+  ) => {
     // Create ProgramProfile
-    const profile = await tx.programProfile.create({
+    const profile = await client.programProfile.create({
       data: {
         personId,
         program,
@@ -320,14 +336,23 @@ export async function createProgramProfileWithEnrollment(data: unknown) {
         reason: enrollmentReason,
         notes: enrollmentNotes,
       },
-      tx // Pass transaction client
+      client // Pass transaction client
     )
 
     return {
       profile,
       enrollment,
     }
-  })
+  }
+
+  // If transaction client is provided, we're already in a transaction
+  // Don't create a nested transaction
+  if (tx) {
+    return createProfileAndEnrollment(tx)
+  }
+
+  // Otherwise, create a new transaction
+  return prisma.$transaction(createProfileAndEnrollment)
 }
 
 /**

@@ -15,11 +15,9 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
-import { z } from 'zod'
+import { EducationLevel, GradeLevel, Program } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
-
-import { createActionLogger } from '@/lib/logger'
+import { z } from 'zod'
 
 const logger = createActionLogger('mahad-register-actions')
 
@@ -27,6 +25,7 @@ import { prisma } from '@/lib/db'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import { searchProgramProfilesByNameOrContact } from '@/lib/db/queries/program-profile'
 import { createSiblingRelationship } from '@/lib/db/queries/siblings'
+import { createActionLogger } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { formatFullName } from '@/lib/registration/utils/name-formatting'
 import { handlePrismaUniqueError } from '@/lib/registration/utils/prisma-error-handler'
@@ -34,6 +33,7 @@ import {
   createPersonWithContact,
   createProgramProfileWithEnrollment,
 } from '@/lib/services/registration-service'
+import { ValidationError } from '@/lib/services/validation-service'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -67,111 +67,289 @@ export async function registerStudent(input: {
   try {
     const validated = mahadRegistrationSchema.parse(input.studentData)
 
+    // Validate program enum value
+    const program: Program = 'MAHAD_PROGRAM'
+    if (!Object.values(Program).includes(program)) {
+      logger.error(
+        { program, validPrograms: Object.values(Program) },
+        'Invalid program value provided'
+      )
+      return {
+        success: false,
+        error: 'Invalid program configuration. Please contact support.',
+      }
+    }
+
     // 1. Format and capitalize names
     const fullName = formatFullName(validated.firstName, validated.lastName)
 
-    // 2. Create Person with contact points
-    const person = await Sentry.startSpan(
-      {
-        name: 'mahad.create_person_with_contact',
-        op: 'db.transaction',
-        attributes: {
-          email: validated.email,
-        },
-      },
-      async () =>
-        await createPersonWithContact({
-          name: fullName,
-          dateOfBirth: validated.dateOfBirth,
-          email: validated.email,
-          phone: validated.phone,
-          isPrimaryEmail: true,
-          isPrimaryPhone: true,
-        })
+    // 2. Check for existing Person with same contact information (idempotency)
+    const existingPerson = await findPersonByContact(
+      validated.email,
+      validated.phone
     )
 
-    // 3. Create ProgramProfile with Enrollment
-    // Note: batchId is not provided during registration, will be assigned later
-    const { profile } = await Sentry.startSpan(
-      {
-        name: 'mahad.create_profile_with_enrollment',
-        op: 'db.transaction',
-        attributes: {
-          person_id: person.id,
-          program: 'MAHAD_PROGRAM',
-        },
-      },
-      async () =>
-        await createProgramProfileWithEnrollment({
-          personId: person.id,
-          program: 'MAHAD_PROGRAM',
+    if (existingPerson) {
+      // Check if they already have a Mahad profile
+      const mahadProfile = existingPerson.programProfiles.find(
+        (p) => p.program === 'MAHAD_PROGRAM'
+      )
+
+      if (mahadProfile) {
+        // Already fully registered in Mahad program
+        logger.info(
+          {
+            personId: existingPerson.id,
+            profileId: mahadProfile.id,
+            email: validated.email,
+          },
+          'Attempted to register person who is already registered for Mahad program'
+        )
+        return {
+          success: false,
+          error:
+            'You are already registered for the Mahad program. Please contact us if you need to update your information.',
+          field: 'email',
+        }
+      } else {
+        // Person exists but no Mahad profile - resume registration
+        logger.info(
+          {
+            personId: existingPerson.id,
+            email: validated.email,
+          },
+          'Resuming incomplete Mahad registration for existing person'
+        )
+
+        // Create only the ProgramProfile + Enrollment
+        const { profile } = await createProgramProfileWithEnrollment({
+          personId: existingPerson.id,
+          program,
           status: 'REGISTERED',
-          batchId: null, // Will be assigned later by admin
-          monthlyRate: 150, // Default rate
+          batchId: null,
+          monthlyRate: 150,
           educationLevel: validated.educationLevel as EducationLevel,
           gradeLevel: validated.gradeLevel as GradeLevel,
           schoolName: validated.schoolName,
         })
-    )
 
-    // 4. Handle sibling relationships if provided
-    // Create SiblingRelationship records for each selected sibling
-    if (input.siblingIds && input.siblingIds.length > 0) {
-      // Get Person IDs for all sibling ProgramProfiles
-      const siblingProfiles = await prisma.programProfile.findMany({
-        where: {
-          id: { in: input.siblingIds },
-          program: 'MAHAD_PROGRAM', // Ensure siblings are Mahad students
-        },
-        select: { personId: true },
-      })
+        // Handle sibling relationships if provided
+        if (input.siblingIds && input.siblingIds.length > 0) {
+          const siblingProfiles = await prisma.programProfile.findMany({
+            where: {
+              id: { in: input.siblingIds },
+              program: 'MAHAD_PROGRAM',
+            },
+            select: { personId: true },
+          })
 
-      // Create sibling relationships
-      await Sentry.startSpan(
-        {
-          name: 'mahad.create_sibling_relationships',
-          op: 'db.transaction',
-          attributes: {
-            person_id: person.id,
-            num_siblings: siblingProfiles.length,
-          },
-        },
-        async () => {
           for (const siblingProfile of siblingProfiles) {
             try {
               await createSiblingRelationship(
-                person.id,
+                existingPerson.id,
                 siblingProfile.personId,
                 'manual',
                 null
               )
             } catch (error) {
-              // Log but don't fail registration if sibling relationship creation fails
-              // (e.g., relationship already exists)
               logger.warn(
                 {
-                  err: error instanceof Error ? error : new Error(String(error))
+                  err:
+                    error instanceof Error ? error : new Error(String(error)),
                 },
-                'Failed to create sibling relationship during registration'
+                'Failed to create sibling relationship during resumed registration'
               )
             }
           }
         }
-      )
+
+        return {
+          success: true,
+          data: {
+            id: profile.id,
+            name: existingPerson.name,
+          },
+        }
+      }
     }
+
+    // 3. No existing person - proceed with full registration in transaction
+    // Wrap entire registration in a transaction to ensure atomicity
+    // If any step fails, everything will be rolled back
+    const result = await prisma.$transaction(async (tx) => {
+      // 2a. Create Person with contact points
+      const person = await Sentry.startSpan(
+        {
+          name: 'mahad.create_person_with_contact',
+          op: 'db.transaction',
+          attributes: {
+            email: validated.email,
+          },
+        },
+        async () =>
+          await createPersonWithContact(
+            {
+              name: fullName,
+              dateOfBirth: validated.dateOfBirth,
+              email: validated.email,
+              phone: validated.phone,
+              isPrimaryEmail: true,
+              isPrimaryPhone: true,
+            },
+            tx // Pass transaction client
+          )
+      )
+
+      // 2b. Create ProgramProfile with Enrollment
+      // Note: batchId is not provided during registration, will be assigned later
+      const { profile } = await Sentry.startSpan(
+        {
+          name: 'mahad.create_profile_with_enrollment',
+          op: 'db.transaction',
+          attributes: {
+            person_id: person.id,
+            program: 'MAHAD_PROGRAM',
+          },
+        },
+        async () =>
+          await createProgramProfileWithEnrollment(
+            {
+              personId: person.id,
+              program, // Use validated program enum value
+              status: 'REGISTERED',
+              batchId: null, // Will be assigned later by admin
+              monthlyRate: 150, // Default rate
+              educationLevel: validated.educationLevel as EducationLevel,
+              gradeLevel: validated.gradeLevel as GradeLevel,
+              schoolName: validated.schoolName,
+            },
+            tx // Pass transaction client
+          )
+      )
+
+      // 2c. Handle sibling relationships if provided
+      // Create SiblingRelationship records for each selected sibling
+      if (input.siblingIds && input.siblingIds.length > 0) {
+        // Get Person IDs for all sibling ProgramProfiles
+        const siblingProfiles = await tx.programProfile.findMany({
+          where: {
+            id: { in: input.siblingIds },
+            program: 'MAHAD_PROGRAM', // Ensure siblings are Mahad students
+          },
+          select: { personId: true },
+        })
+
+        // Create sibling relationships
+        await Sentry.startSpan(
+          {
+            name: 'mahad.create_sibling_relationships',
+            op: 'db.transaction',
+            attributes: {
+              person_id: person.id,
+              num_siblings: siblingProfiles.length,
+            },
+          },
+          async () => {
+            for (const siblingProfile of siblingProfiles) {
+              try {
+                await createSiblingRelationship(
+                  person.id,
+                  siblingProfile.personId,
+                  'manual',
+                  null,
+                  tx // Pass transaction client
+                )
+              } catch (error) {
+                // Log but don't fail registration if sibling relationship creation fails
+                // (e.g., relationship already exists)
+                logger.warn(
+                  {
+                    err:
+                      error instanceof Error ? error : new Error(String(error)),
+                  },
+                  'Failed to create sibling relationship during registration'
+                )
+              }
+            }
+          }
+        )
+      }
+
+      return { person, profile }
+    })
 
     return {
       success: true,
       data: {
-        id: profile.id,
+        id: result.profile.id,
         name: fullName,
       },
     }
   } catch (error) {
+    // Log error with full context for debugging
     logger.error(
-      { err: error instanceof Error ? error : new Error(String(error)) },
+      {
+        err: error instanceof Error ? error : new Error(String(error)),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorCode: error instanceof ValidationError ? error.code : undefined,
+        errorDetails:
+          error instanceof ValidationError ? error.details : undefined,
+      },
       'Error registering student'
     )
+
+    // Handle ValidationError specifically
+    if (error instanceof ValidationError) {
+      // Map ValidationError codes to user-friendly messages
+      const errorMessages: Record<string, string> = {
+        PROFILE_NOT_FOUND: 'Student profile not found. Please try again.',
+        MISSING_PROGRAM_INFO:
+          'Registration information is incomplete. Please try again.',
+        BATCH_NOT_FOUND:
+          'The selected program batch is not available. Please contact support.',
+        DUGSI_NO_BATCH:
+          'Invalid program configuration. Please contact support.',
+        PERSON_NOT_FOUND: 'Student information not found. Please try again.',
+        GUARDIAN_NOT_FOUND: 'Guardian information not found. Please try again.',
+        DEPENDENT_NOT_FOUND: 'Student information not found. Please try again.',
+        DUPLICATE_GUARDIAN_RELATIONSHIP:
+          'This relationship already exists. Please contact support.',
+        DUPLICATE_SIBLING_RELATIONSHIP: 'Sibling relationship already exists.',
+        SELF_GUARDIAN:
+          'Invalid relationship configuration. Please contact support.',
+        SELF_SIBLING: 'Invalid sibling relationship. Please contact support.',
+        SUBSCRIPTION_NOT_FOUND:
+          'Payment information not found. Please contact support.',
+        TEACHER_NOT_FOUND:
+          'Teacher information not found. Please contact support.',
+        TEACHER_ASSIGNMENT_DUGSI_ONLY:
+          'Invalid program assignment. Please contact support.',
+        DUPLICATE_SHIFT_ASSIGNMENT:
+          'Student already has an assignment for this shift.',
+        TEACHER_ALREADY_EXISTS:
+          'This person is already registered as a teacher.',
+      }
+
+      const userMessage =
+        errorMessages[error.code] ||
+        error.message ||
+        'Registration validation failed. Please check your information and try again.'
+
+      return {
+        success: false,
+        error: userMessage,
+      }
+    }
+
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return {
+        success: false,
+        error: 'Please check all fields and try again.',
+        errors: error.flatten().fieldErrors,
+      }
+    }
 
     // Try to extract validated data for duplicate error handling
     let validated: z.infer<typeof mahadRegistrationSchema> | null = null
@@ -203,7 +381,10 @@ export async function registerStudent(input: {
       error && typeof error === 'object' && 'field' in error
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Registration failed',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Registration failed. Please try again or contact support if the problem persists.',
       field: isDuplicateError
         ? (
             error as {
