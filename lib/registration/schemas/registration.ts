@@ -155,10 +155,6 @@ export const mahadRegistrationSchema = z.object({
   phone: phoneSchema,
   dateOfBirth: z
     .date()
-    .refine((date) => {
-      const age = Math.floor((Date.now() - date.getTime()) / 31536000000)
-      return age >= 15 && age <= 100
-    }, 'Student must be between 15 and 100 years old')
     .refine(
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
@@ -203,10 +199,6 @@ export const childInfoSchema = z.object({
   }),
   dateOfBirth: z
     .date()
-    .refine((date) => {
-      const age = Math.floor((Date.now() - date.getTime()) / 31536000000)
-      return age >= 5 && age <= 18
-    }, 'Child must be between 5 and 18 years old')
     .refine(
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'

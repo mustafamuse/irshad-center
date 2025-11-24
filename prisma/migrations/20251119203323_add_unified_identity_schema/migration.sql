@@ -1,3 +1,11 @@
+-- CreateEnum: Gender (new enum not in earlier migrations)
+CREATE TYPE "public"."Gender" AS ENUM ('MALE', 'FEMALE');
+
+-- CreateEnum: StripeAccountType (new enum not in earlier migrations)
+CREATE TYPE "public"."StripeAccountType" AS ENUM ('MAHAD', 'DUGSI', 'YOUTH_EVENTS', 'GENERAL_DONATION');
+
+-- NOTE: EducationLevel, GradeLevel, Program, and SubscriptionStatus were already created by earlier migrations
+
 -- CreateEnum: ContactType
 CREATE TYPE "public"."ContactType" AS ENUM ('EMAIL', 'PHONE', 'WHATSAPP', 'OTHER');
 

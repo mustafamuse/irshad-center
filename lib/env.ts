@@ -115,27 +115,6 @@ const envSchema = z.object({
   CRON_SECRET_KEY: z
     .string()
     .min(32, 'CRON_SECRET_KEY must be at least 32 characters for security'),
-
-  // ============================================================================
-  // Redis / KV Storage (Optional - for rate limiting)
-  // ============================================================================
-  KV_REST_API_URL: z
-    .string()
-    .url('KV_REST_API_URL must be a valid URL')
-    .optional(),
-
-  KV_REST_API_TOKEN: z
-    .string()
-    .min(1, 'KV_REST_API_TOKEN is required if KV_REST_API_URL is set')
-    .optional(),
-
-  KV_REST_API_READ_ONLY_TOKEN: z.string().optional(),
-
-  KV_URL: z.string().url().optional(),
-
-  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
-
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 })
 
 // Validate environment variables with helpful error messages
@@ -169,14 +148,6 @@ const result = envSchema.safeParse({
   // Security
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
   CRON_SECRET_KEY: process.env.CRON_SECRET_KEY,
-
-  // Redis / KV (Optional)
-  KV_REST_API_URL: process.env.KV_REST_API_URL,
-  KV_REST_API_TOKEN: process.env.KV_REST_API_TOKEN,
-  KV_REST_API_READ_ONLY_TOKEN: process.env.KV_REST_API_READ_ONLY_TOKEN,
-  KV_URL: process.env.KV_URL,
-  UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL,
-  UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN,
 })
 
 if (!result.success) {

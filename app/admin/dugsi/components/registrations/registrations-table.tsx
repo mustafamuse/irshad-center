@@ -19,7 +19,6 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
-
 const logger = createClientLogger('RegistrationsTable')
 
 import {

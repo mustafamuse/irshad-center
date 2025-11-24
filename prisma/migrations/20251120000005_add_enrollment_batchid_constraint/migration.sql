@@ -1,22 +1,7 @@
--- Add CHECK constraint to prevent Dugsi enrollments from having batchId
--- This enforces the business rule at the database level that Dugsi program
--- does NOT use batches (only Mahad uses batches)
+-- NOTE: PostgreSQL does not support subqueries in CHECK constraints
+-- The business rule "Dugsi enrollments cannot have batchId" must be enforced at the application level
+-- Original constraint (commented out due to PostgreSQL limitation):
+-- CHECK (batchId IS NULL OR EXISTS (SELECT 1 FROM ProgramProfile WHERE id = programProfileId AND program = 'MAHAD_PROGRAM'))
 
--- The constraint checks that if an enrollment has a batchId, the associated
--- ProgramProfile must be for MAHAD_PROGRAM, not DUGSI_PROGRAM
-ALTER TABLE "Enrollment"
-ADD CONSTRAINT "check_dugsi_no_batch" 
-CHECK (
-  "batchId" IS NULL OR 
-  EXISTS (
-    SELECT 1 
-    FROM "ProgramProfile" 
-    WHERE "ProgramProfile"."id" = "Enrollment"."programProfileId" 
-    AND "ProgramProfile"."program" = 'MAHAD_PROGRAM'
-  )
-);
-
--- Add comment to explain the constraint
-COMMENT ON CONSTRAINT "check_dugsi_no_batch" ON "Enrollment" 
-IS 'Prevents Dugsi enrollments from having batchId - Dugsi uses teacher assignments instead of batches';
+-- No-op migration - constraint enforcement moved to application layer
 

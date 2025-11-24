@@ -5,7 +5,13 @@
  * These validations enforce rules that cannot be enforced at the database level.
  */
 
-import { Program, Shift, GuardianRole, EnrollmentStatus } from '@prisma/client'
+import {
+  Program,
+  Shift,
+  GuardianRole,
+  EnrollmentStatus,
+  Prisma,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { createServiceLogger } from '@/lib/logger'
@@ -100,22 +106,48 @@ export async function validateTeacherAssignment(data: {
  * Ensures Mahad enrollments have valid batchId
  */
 
-export async function validateEnrollment(data: {
-  programProfileId?: string
-  program?: Program
-  batchId?: string | null
-  status: EnrollmentStatus
-}) {
+export async function validateEnrollment(
+  data: {
+    programProfileId?: string
+    program?: Program
+    batchId?: string | null
+    status: EnrollmentStatus
+  },
+  client: Prisma.TransactionClient | typeof prisma = prisma
+) {
+  logger.info(
+    {
+      programProfileId: data.programProfileId,
+      program: data.program,
+      batchId: data.batchId,
+      status: data.status,
+      usingTransactionClient: client !== prisma,
+    },
+    'Validating enrollment'
+  )
+
   let program: Program | null = null
 
   // If programProfileId is provided, fetch program from profile
   if (data.programProfileId && data.programProfileId !== '') {
-    const programProfile = await prisma.programProfile.findUnique({
+    logger.info(
+      { programProfileId: data.programProfileId },
+      'Fetching program profile to validate enrollment'
+    )
+
+    const programProfile = await client.programProfile.findUnique({
       where: { id: data.programProfileId },
       select: { program: true },
     })
 
     if (!programProfile) {
+      logger.error(
+        {
+          programProfileId: data.programProfileId,
+          usingTransactionClient: client !== prisma,
+        },
+        'Program profile not found during validation - may be transaction isolation issue'
+      )
       throw new ValidationError(
         'Program profile not found',
         'PROFILE_NOT_FOUND',
@@ -124,10 +156,16 @@ export async function validateEnrollment(data: {
     }
 
     program = programProfile.program
+    logger.info(
+      { programProfileId: data.programProfileId, program },
+      'Program profile found during validation'
+    )
   } else if (data.program) {
     // If program is provided directly (for new enrollments), use it
     program = data.program
+    logger.info({ program }, 'Using program provided directly')
   } else {
+    logger.error({ data }, 'Neither programProfileId nor program provided')
     throw new ValidationError(
       'Either programProfileId or program must be provided',
       'MISSING_PROGRAM_INFO',
@@ -158,7 +196,7 @@ export async function validateEnrollment(data: {
 
   // Validate batch exists if provided
   if (data.batchId) {
-    const batch = await prisma.batch.findUnique({
+    const batch = await client.batch.findUnique({
       where: { id: data.batchId },
       select: { id: true },
     })

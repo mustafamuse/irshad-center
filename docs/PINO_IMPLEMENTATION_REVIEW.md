@@ -663,6 +663,7 @@ export const logger = pino(
    - ~50 lines of code eliminated
 
 2. **Add Contextual Data to All Logs**
+
    ```typescript
    logger.error({ err, studentId, batchId }, 'Message')
    ```
@@ -683,6 +684,7 @@ export const logger = pino(
    - Essential for debugging complex flows
 
 4. **Upgrade Client-Side Logging**
+
    ```typescript
    // Option: Integrate Sentry
    // Option: Use pino-browser

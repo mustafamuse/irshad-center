@@ -11,8 +11,8 @@
  */
 
 import { SubscriptionStatus } from '@prisma/client'
-import type { Stripe } from 'stripe'
 import * as Sentry from '@sentry/nextjs'
+import type { Stripe } from 'stripe'
 
 import { prisma } from '@/lib/db'
 import {
@@ -41,10 +41,7 @@ const logger = createWebhookLogger('mahad')
  * @param subscriptionId - The ID of the Stripe subscription to sync.
  */
 export async function syncProfileSubscriptionState(subscriptionId: string) {
-  logger.info(
-    { subscriptionId },
-    'Syncing subscription state'
-  )
+  logger.info({ subscriptionId }, 'Syncing subscription state')
 
   try {
     // Retrieve subscription from Stripe to get latest status
@@ -138,8 +135,7 @@ export async function handleCheckoutSessionCompleted(event: Stripe.Event) {
           program: 'MAHAD',
         },
       },
-      async () =>
-        await unifiedMatcher.findByCheckoutSession(session, 'MAHAD')
+      async () => await unifiedMatcher.findByCheckoutSession(session, 'MAHAD')
     )
 
     if (!matchResult.programProfile) {
@@ -415,10 +411,7 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
       currency: 'usd',
       description: dynamicDescription,
     })
-    logger.info(
-      { customerId },
-      'Successfully created a pending late fee'
-    )
+    logger.info({ customerId }, 'Successfully created a pending late fee')
   }
 }
 
@@ -430,7 +423,10 @@ export async function handleInvoicePaymentFailed(event: Stripe.Event) {
 export async function handleSubscriptionUpdated(event: Stripe.Event) {
   const subscription = event.data.object as Stripe.Subscription
   logger.info(
-    { subscriptionId: subscription.id, eventType: 'customer.subscription.updated' },
+    {
+      subscriptionId: subscription.id,
+      eventType: 'customer.subscription.updated',
+    },
     'Processing subscription updated'
   )
 
@@ -471,7 +467,10 @@ export async function handleSubscriptionUpdated(event: Stripe.Event) {
 export async function handleSubscriptionDeleted(event: Stripe.Event) {
   const subscription = event.data.object as Stripe.Subscription
   logger.info(
-    { subscriptionId: subscription.id, eventType: 'customer.subscription.deleted' },
+    {
+      subscriptionId: subscription.id,
+      eventType: 'customer.subscription.deleted',
+    },
     'Processing subscription deleted'
   )
 

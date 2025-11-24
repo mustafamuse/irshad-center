@@ -15,7 +15,6 @@ import { headers } from 'next/headers'
 import * as Sentry from '@sentry/nextjs'
 import pino from 'pino'
 
-
 // Determine log level from environment
 const logLevel =
   process.env.PINO_LOG_LEVEL ||

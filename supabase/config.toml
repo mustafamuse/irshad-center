@@ -1,0 +1,7 @@
+[db]
+major_version = 17
+
+[storage]
+# Storage API version - auto-detected from linked project
+# Version v1.31.1 detected in .temp/storage-version
+

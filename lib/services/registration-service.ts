@@ -219,10 +219,20 @@ export async function createPersonWithContact(
     isPrimaryPhone = true,
   } = validated
 
+  logger.info(
+    {
+      name,
+      hasEmail: !!email,
+      hasPhone: !!phone,
+      usingTransactionClient: !!tx,
+    },
+    'Creating person with contact points'
+  )
+
   // Use transaction client if provided, otherwise use prisma
   const client = tx || prisma
 
-  return client.person.create({
+  const person = await client.person.create({
     data: {
       name,
       dateOfBirth,
@@ -253,6 +263,17 @@ export async function createPersonWithContact(
       contactPoints: true,
     },
   })
+
+  logger.info(
+    {
+      personId: person.id,
+      name: person.name,
+      contactPointCount: person.contactPoints.length,
+    },
+    'Person created successfully with contact points'
+  )
+
+  return person
 }
 
 /**
@@ -291,18 +312,46 @@ export async function createProgramProfileWithEnrollment(
     enrollmentNotes,
   } = validated
 
-  // Validate enrollment data (checks Dugsi batchId constraint)
+  logger.info(
+    {
+      personId,
+      program,
+      status,
+      batchId,
+      usingTransactionClient: !!tx,
+    },
+    'Starting ProgramProfile creation with enrollment'
+  )
+
+  // Preliminary validation (checks Dugsi batchId constraint)
   // Pass program directly since profile doesn't exist yet
+  // This is a quick fail check before starting transaction
+  // The real validation with transaction client happens inside createEnrollment
   await validateEnrollment({
     program,
     batchId,
     status,
   })
 
+  logger.info(
+    { personId, program },
+    'Preliminary validation passed, proceeding with profile creation'
+  )
+
   // Define the operation that creates profile and enrollment
   const createProfileAndEnrollment = async (
     client: Prisma.TransactionClient
   ) => {
+    logger.info(
+      {
+        personId,
+        program,
+        status,
+        batchId,
+      },
+      'Creating program profile within transaction'
+    )
+
     // Create ProgramProfile
     const profile = await client.programProfile.create({
       data: {
@@ -327,6 +376,15 @@ export async function createProgramProfileWithEnrollment(
       },
     })
 
+    logger.info(
+      {
+        profileId: profile.id,
+        personId: profile.personId,
+        program: profile.program,
+      },
+      'Program profile created successfully, creating enrollment'
+    )
+
     // Create initial Enrollment
     const enrollment = await createEnrollment(
       {
@@ -337,6 +395,15 @@ export async function createProgramProfileWithEnrollment(
         notes: enrollmentNotes,
       },
       client // Pass transaction client
+    )
+
+    logger.info(
+      {
+        enrollmentId: enrollment.id,
+        profileId: profile.id,
+        status: enrollment.status,
+      },
+      'Enrollment created successfully'
     )
 
     return {

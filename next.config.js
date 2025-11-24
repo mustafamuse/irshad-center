@@ -29,7 +29,7 @@ const nextConfig = {
           {
             key: 'Permissions-Policy',
             value:
-              'payment=(self "https://js.stripe.com" "https://checkout.stripe.com" "https://merchant-ui-api.stripe.com"), camera=(), microphone=()',
+              'payment=(self https://js.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com); camera=(); microphone=()',
           },
         ],
       },
@@ -51,6 +51,18 @@ const nextConfig = {
     config.externals.push({
       canvas: 'canvas',
     })
+
+    // Suppress webpack cache warnings for large strings
+    // These warnings occur when webpack caches large JSON/data files
+    // The files are already loaded dynamically, so this is just a performance notice
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      {
+        module: /\.json$/,
+        message: /Serializing big strings.*PackFileCacheStrategy/,
+      },
+    ]
+
     return config
   },
 }
@@ -60,8 +72,8 @@ const sentryWebpackPluginOptions = {
   // For all available options, see:
   // https://github.com/getsentry/sentry-webpack-plugin#options
 
-  org: "irshad-35",
-  project: "javascript-nextjs",
+  org: 'irshad-35',
+  project: 'javascript-nextjs',
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 
-import type Stripe from 'stripe'
 import * as Sentry from '@sentry/nextjs'
+import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
 import { createActionLogger } from '@/lib/logger'
@@ -69,7 +69,10 @@ export async function runPaymentsBackfill() {
       }
     )
 
-    logger.info({ invoiceCount: invoices.length }, 'Payments backfill: found paid invoices')
+    logger.info(
+      { invoiceCount: invoices.length },
+      'Payments backfill: found paid invoices'
+    )
 
     // Process each invoice
     for (const invoice of invoices) {
@@ -180,7 +183,7 @@ export async function runPaymentsBackfill() {
         logger.error(
           {
             err: error instanceof Error ? error : new Error(String(error)),
-            invoiceId: invoice.id
+            invoiceId: invoice.id,
           },
           'Error processing invoice during backfill'
         )

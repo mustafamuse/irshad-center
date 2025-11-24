@@ -1,10 +1,5 @@
-/**
- * Subscription Events Tests
- */
-
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-// Import mocks FIRST to ensure they're hoisted by Vitest
 import './mocks'
 
 import { setupBeforeEach } from './before-each-setup'
@@ -58,6 +53,7 @@ describe('Dugsi Webhook Handler > Subscription Events', () => {
       expectedStatus: 200,
       customAssertions: async () => {
         const { createSubscription } = await import('@/lib/db/queries/billing')
+        // eslint-disable-next-line no-console
         expect(console.log).toHaveBeenCalledWith(
           expect.stringContaining('✅ Created new subscription')
         )
@@ -167,6 +163,7 @@ describe('Dugsi Webhook Handler > Subscription Events', () => {
       },
       expectedStatus: 500,
       customAssertions: () => {
+        // eslint-disable-next-line no-console
         expect(console.error).toHaveBeenCalledWith(
           expect.stringContaining('Dugsi Webhook Error')
         )

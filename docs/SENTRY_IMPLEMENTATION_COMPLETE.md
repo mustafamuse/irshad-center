@@ -273,6 +273,7 @@ Recommended alerts in Sentry:
 ✅ **Source Maps**: Configuration complete
 
 **Final Build Output**:
+
 - Middleware: 95.1 kB
 - All routes compiled successfully
 - No blocking errors or warnings
@@ -301,6 +302,7 @@ Recommended alerts in Sentry:
 ### Short Term
 
 4. **User identification**
+
    ```typescript
    Sentry.setUser({ id: userId, email: userEmail })
    ```
@@ -393,15 +395,15 @@ Recommended alerts in Sentry:
 
 ### Before vs After
 
-| Feature | Before | After |
-|---------|--------|-------|
-| Error tracking | Console logs | Sentry dashboard |
-| Error alerts | None | Email + Slack |
-| Session replay | None | Video-like replay |
-| Stack traces | Minified | Original TypeScript |
-| Request tracing | Manual | Automatic (requestId) |
-| Error correlation | Impossible | Search by requestId |
-| Performance monitoring | None | Automatic APM |
+| Feature                | Before       | After                 |
+| ---------------------- | ------------ | --------------------- |
+| Error tracking         | Console logs | Sentry dashboard      |
+| Error alerts           | None         | Email + Slack         |
+| Session replay         | None         | Video-like replay     |
+| Stack traces           | Minified     | Original TypeScript   |
+| Request tracing        | Manual       | Automatic (requestId) |
+| Error correlation      | Impossible   | Search by requestId   |
+| Performance monitoring | None         | Automatic APM         |
 
 ---
 
@@ -410,6 +412,7 @@ Recommended alerts in Sentry:
 🎉 **Complete observability solution is now production-ready!**
 
 **What you get**:
+
 - Pino structured logging (existing, enhanced)
 - Sentry error tracking (new)
 - Request correlation (new)
@@ -418,6 +421,7 @@ Recommended alerts in Sentry:
 - Source maps (new)
 
 **What's required**:
+
 - Set up Sentry account
 - Configure environment variables
 - Deploy to production

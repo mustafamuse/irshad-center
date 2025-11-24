@@ -8,13 +8,13 @@ Complete guide to logging, error tracking, and monitoring in the Irshad Center a
 
 ### Implementation Status
 
-| Document | Status | Purpose |
-|----------|--------|---------|
-| `LOGGING_MIGRATION_COMPLETE.md` | ✅ Complete | Console.log → Pino migration (91 calls, 40 files) |
-| `PINO_IMPLEMENTATION_REVIEW.md` | ✅ Complete | Pino best practices review (Grade: 8.5/10) |
-| `SENTRY_IMPLEMENTATION_COMPLETE.md` | ✅ Complete | Sentry integration summary (Quick reference) |
-| `SENTRY_PINO_OBSERVABILITY.md` | ✅ Complete | Complete observability guide (Full documentation) |
-| `OBSERVABILITY_ARCHITECTURE.md` | ℹ️ Research | PostHog research (superseded by Sentry) |
+| Document                            | Status      | Purpose                                           |
+| ----------------------------------- | ----------- | ------------------------------------------------- |
+| `LOGGING_MIGRATION_COMPLETE.md`     | ✅ Complete | Console.log → Pino migration (91 calls, 40 files) |
+| `PINO_IMPLEMENTATION_REVIEW.md`     | ✅ Complete | Pino best practices review (Grade: 8.5/10)        |
+| `SENTRY_IMPLEMENTATION_COMPLETE.md` | ✅ Complete | Sentry integration summary (Quick reference)      |
+| `SENTRY_PINO_OBSERVABILITY.md`      | ✅ Complete | Complete observability guide (Full documentation) |
+| `OBSERVABILITY_ARCHITECTURE.md`     | ℹ️ Research | PostHog research (superseded by Sentry)           |
 
 ---
 
@@ -23,6 +23,7 @@ Complete guide to logging, error tracking, and monitoring in the Irshad Center a
 ### For Developers
 
 **Import the logger**:
+
 ```typescript
 // Server-side (actions, API routes, services)
 import { createActionLogger, logError } from '@/lib/logger'
@@ -39,10 +40,11 @@ try {
 import { createClientLogger } from '@/lib/logger-client'
 
 const logger = createClientLogger('MyComponent')
-logger.error('Something went wrong', error)  // Sends to Sentry
+logger.error('Something went wrong', error) // Sends to Sentry
 ```
 
 **Key helper functions**:
+
 - `serializeError(error)` - Clean error serialization
 - `getRequestContext()` - Get requestId and userId
 - `logError(logger, error, message, context)` - Log to Pino AND Sentry
@@ -121,6 +123,7 @@ logger.error('Something went wrong', error)  // Sends to Sentry
 ```
 
 **Key Components**:
+
 - **Middleware** (`middleware.ts`) - Request ID injection
 - **Server Logger** (`lib/logger.ts`) - Pino + Sentry integration
 - **Client Logger** (`lib/logger-client.ts`) - Browser console + Sentry
@@ -164,12 +167,14 @@ logger.error('Something went wrong', error)  // Sends to Sentry
 ### "How do I log an error?"
 
 **Server-side**:
+
 ```typescript
 import { logError } from '@/lib/logger'
 await logError(logger, error, 'Operation failed', { context })
 ```
 
 **Client-side**:
+
 ```typescript
 import { createClientLogger } from '@/lib/logger-client'
 const logger = createClientLogger('Component')
@@ -210,12 +215,14 @@ See: `SENTRY_IMPLEMENTATION_COMPLETE.md` → "Production Deployment"
 ### "What helper functions are available?"
 
 **Server-side (`lib/logger.ts`)**:
+
 - `serializeError(error)` - Convert unknown error to Pino format
 - `getRequestContext()` - Get requestId and userId from headers
 - `logError(logger, error, msg, ctx)` - Log to Pino + Sentry
 - `logWarning(logger, msg, ctx)` - Log warning + breadcrumb
 
 **Client-side (`lib/logger-client.ts`)**:
+
 - `createClientLogger(context)` - Create logger with context
 - `logger.error(msg, ...args)` - Log error + send to Sentry
 - `logger.warn(msg, ...args)` - Log warning + breadcrumb
@@ -248,6 +255,7 @@ See: `SENTRY_PINO_OBSERVABILITY.md` → "Debugging Workflow"
 - **Business**: $80/month - 100K errors, 1K replays
 
 **Optimization tips**:
+
 - Lower replay sampling to 5%
 - Filter ignored errors (network errors, bots)
 - Adjust trace sampling to 5%
@@ -263,7 +271,10 @@ See: `SENTRY_PINO_OBSERVABILITY.md` → "Cost Optimization"
 ```typescript
 import { createActionLogger, logError } from '@/lib/logger'
 
-export async function updateStudentAction(studentId: string, data: StudentData) {
+export async function updateStudentAction(
+  studentId: string,
+  data: StudentData
+) {
   const logger = createActionLogger('updateStudent')
 
   try {
@@ -392,6 +403,7 @@ See: `SENTRY_PINO_OBSERVABILITY.md` → "Troubleshooting"
 ## 📂 File Locations
 
 ### Documentation
+
 - `/docs/LOGGING_MIGRATION_COMPLETE.md` - Pino migration summary
 - `/docs/PINO_IMPLEMENTATION_REVIEW.md` - Pino audit
 - `/docs/SENTRY_IMPLEMENTATION_COMPLETE.md` - Sentry quick reference
@@ -399,6 +411,7 @@ See: `SENTRY_PINO_OBSERVABILITY.md` → "Troubleshooting"
 - `/docs/OBSERVABILITY_ARCHITECTURE.md` - PostHog research
 
 ### Code
+
 - `/lib/logger.ts` - Server logging
 - `/lib/logger-client.ts` - Client logging
 - `/middleware.ts` - Request ID injection
@@ -410,6 +423,7 @@ See: `SENTRY_PINO_OBSERVABILITY.md` → "Troubleshooting"
 - `/next.config.js` - Sentry webpack plugin
 
 ### Configuration
+
 - `/.env.local.example` - Environment variables template
 - `/.eslintrc.json` - ESLint rules (no-console warning)
 

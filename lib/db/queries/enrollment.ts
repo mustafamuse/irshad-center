@@ -9,11 +9,14 @@ import { Prisma, EnrollmentStatus, Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import {
   isValidStatusTransition,
   ENROLLMENT_STATUS_TRANSITIONS,
 } from '@/lib/types/enrollment'
+
+const logger = createServiceLogger('enrollment')
 
 /**
  * Get all enrollments for a program profile
@@ -172,6 +175,15 @@ export async function createEnrollment(
   },
   client: DatabaseClient = prisma
 ) {
+  logger.info(
+    {
+      programProfileId: data.programProfileId,
+      batchId: data.batchId,
+      status: data.status,
+    },
+    'Creating enrollment - fetching program profile'
+  )
+
   // Get program profile to check program type
   const profile = await client.programProfile.findUnique({
     where: { id: data.programProfileId },
@@ -179,16 +191,41 @@ export async function createEnrollment(
   })
 
   if (!profile) {
+    logger.error(
+      { programProfileId: data.programProfileId },
+      'ProgramProfile not found in createEnrollment'
+    )
     throw new Error(`ProgramProfile not found: ${data.programProfileId}`)
   }
 
+  logger.info(
+    {
+      programProfileId: data.programProfileId,
+      program: profile.program,
+      batchId: data.batchId,
+    },
+    'Program profile found, validating enrollment'
+  )
+
   // Validate enrollment data (checks Dugsi batchId constraint)
-  await validateEnrollment({
-    programProfileId: data.programProfileId,
-    program: profile.program,
-    batchId: data.batchId,
-    status: data.status || 'REGISTERED',
-  })
+  // CRITICAL: Pass transaction client so validation can see uncommitted data
+  await validateEnrollment(
+    {
+      programProfileId: data.programProfileId,
+      program: profile.program,
+      batchId: data.batchId,
+      status: data.status || 'REGISTERED',
+    },
+    client // Pass transaction client for visibility into uncommitted data
+  )
+
+  logger.info(
+    {
+      programProfileId: data.programProfileId,
+      program: profile.program,
+    },
+    'Validation passed, creating enrollment record'
+  )
 
   return client.enrollment.create({
     data: {

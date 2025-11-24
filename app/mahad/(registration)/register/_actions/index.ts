@@ -22,18 +22,22 @@ import { z } from 'zod'
 const logger = createActionLogger('mahad-register-actions')
 
 import { prisma } from '@/lib/db'
-import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import { searchProgramProfilesByNameOrContact } from '@/lib/db/queries/program-profile'
-import { createSiblingRelationship } from '@/lib/db/queries/siblings'
 import { createActionLogger } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { formatFullName } from '@/lib/registration/utils/name-formatting'
 import { handlePrismaUniqueError } from '@/lib/registration/utils/prisma-error-handler'
+import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import {
   createPersonWithContact,
   createProgramProfileWithEnrollment,
 } from '@/lib/services/registration-service'
+import { SiblingRelationshipService } from '@/lib/services/sibling-relationship-service'
 import { ValidationError } from '@/lib/services/validation-service'
+import {
+  createDuplicateError,
+  ExistingPersonData,
+} from '@/lib/types/registration-errors'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -45,12 +49,24 @@ type ActionResult<T = void> = T extends void
       data?: never
       error?: string
       field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
+      fields?: Array<
+        'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
+      >
+      existingPerson?: ExistingPersonData
+      siblingsAdded?: number
+      siblingsFailed?: number
     }
   : {
       success: boolean
       data?: T
       error?: string
       field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
+      fields?: Array<
+        'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
+      >
+      existingPerson?: ExistingPersonData
+      siblingsAdded?: number
+      siblingsFailed?: number
     }
 
 // ============================================================================
@@ -65,7 +81,25 @@ export async function registerStudent(input: {
   siblingIds: string[] | null
 }): Promise<ActionResult<{ id: string; name: string }>> {
   try {
+    logger.info(
+      {
+        hasSiblingIds: !!input.siblingIds,
+        siblingCount: input.siblingIds?.length || 0,
+      },
+      'Starting Mahad student registration'
+    )
+
     const validated = mahadRegistrationSchema.parse(input.studentData)
+
+    logger.info(
+      {
+        email: validated.email,
+        phone: validated.phone,
+        educationLevel: validated.educationLevel,
+        gradeLevel: validated.gradeLevel,
+      },
+      'Registration data validated successfully'
+    )
 
     // Validate program enum value
     const program: Program = 'MAHAD_PROGRAM'
@@ -83,100 +117,216 @@ export async function registerStudent(input: {
     // 1. Format and capitalize names
     const fullName = formatFullName(validated.firstName, validated.lastName)
 
-    // 2. Check for existing Person with same contact information (idempotency)
-    const existingPerson = await findPersonByContact(
-      validated.email,
-      validated.phone
+    logger.info(
+      { fullName, email: validated.email, phone: validated.phone },
+      'Formatted name, checking for existing person'
     )
 
-    if (existingPerson) {
-      // Check if they already have a Mahad profile
-      const mahadProfile = existingPerson.programProfiles.find(
-        (p) => p.program === 'MAHAD_PROGRAM'
+    // 2. Check for duplicate registration using DuplicateDetectionService
+    const duplicateCheck = await DuplicateDetectionService.checkDuplicate({
+      email: validated.email,
+      phone: validated.phone,
+      program: 'MAHAD_PROGRAM',
+    })
+
+    logger.info(
+      {
+        isDuplicate: duplicateCheck.isDuplicate,
+        hasActiveProfile: duplicateCheck.hasActiveProfile,
+        duplicateField: duplicateCheck.duplicateField,
+      },
+      'Completed duplicate check'
+    )
+
+    // If duplicate with active profile, return error with CORRECT field mapping
+    if (duplicateCheck.isDuplicate && duplicateCheck.hasActiveProfile) {
+      const person = duplicateCheck.existingPerson!
+      const activeProfile = duplicateCheck.activeProfile
+
+      // Format person data for dialog display
+      const primaryEmail =
+        person.contactPoints.find((cp) => cp.type === 'EMAIL' && cp.isPrimary)
+          ?.value ||
+        person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
+        ''
+
+      const primaryPhone =
+        person.contactPoints.find((cp) => cp.type === 'PHONE' && cp.isPrimary)
+          ?.value ||
+        person.contactPoints.find((cp) => cp.type === 'PHONE')?.value
+
+      const registeredDate = activeProfile?.createdAt
+        ? new Date(activeProfile.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        : new Date(person.createdAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+
+      const enrollmentStatus =
+        activeProfile?.enrollmentCount && activeProfile.enrollmentCount > 0
+          ? 'Active'
+          : 'Registered'
+
+      const error = createDuplicateError({
+        field: duplicateCheck.duplicateField!,
+        existingPersonId: person.id,
+        program: 'MAHAD_PROGRAM',
+        existingPerson: {
+          name: person.name,
+          email: primaryEmail,
+          phone: primaryPhone,
+          registeredDate,
+          enrollmentStatus,
+          program: 'Mahad',
+        },
+      })
+
+      logger.info(
+        {
+          personId: person.id,
+          duplicateField: duplicateCheck.duplicateField,
+          personName: person.name,
+        },
+        'Duplicate registration detected with person data'
       )
 
-      if (mahadProfile) {
-        // Already fully registered in Mahad program
-        logger.info(
-          {
-            personId: existingPerson.id,
-            profileId: mahadProfile.id,
-            email: validated.email,
-          },
-          'Attempted to register person who is already registered for Mahad program'
-        )
+      // When both email and phone are duplicates, show errors on both fields
+      if (duplicateCheck.duplicateField === 'both') {
         return {
           success: false,
-          error:
-            'You are already registered for the Mahad program. Please contact us if you need to update your information.',
-          field: 'email',
+          error: error.message,
+          fields: ['email', 'phone'],
+          existingPerson: error.existingPerson,
         }
-      } else {
-        // Person exists but no Mahad profile - resume registration
+      }
+
+      return {
+        success: false,
+        error: error.message,
+        field: duplicateCheck.duplicateField ?? undefined,
+        existingPerson: error.existingPerson,
+      }
+    }
+
+    // Extract existing person if found (without active Mahad profile)
+    const existingPerson = duplicateCheck.existingPerson
+
+    if (existingPerson) {
+      // Person exists but no Mahad profile - resume registration with transaction
+      logger.info(
+        {
+          personId: existingPerson.id,
+          email: validated.email,
+        },
+        'Resuming incomplete Mahad registration for existing person (with transaction)'
+      )
+
+      // Wrap in transaction to ensure atomicity of ProgramProfile + Enrollment + Siblings
+      const result = await prisma.$transaction(async (tx) => {
         logger.info(
-          {
-            personId: existingPerson.id,
-            email: validated.email,
-          },
-          'Resuming incomplete Mahad registration for existing person'
+          { personId: existingPerson.id, program: 'MAHAD_PROGRAM' },
+          'Creating ProgramProfile for existing person inside transaction'
         )
 
-        // Create only the ProgramProfile + Enrollment
-        const { profile } = await createProgramProfileWithEnrollment({
-          personId: existingPerson.id,
-          program,
-          status: 'REGISTERED',
-          batchId: null,
-          monthlyRate: 150,
-          educationLevel: validated.educationLevel as EducationLevel,
-          gradeLevel: validated.gradeLevel as GradeLevel,
-          schoolName: validated.schoolName,
-        })
+        const { profile, enrollment } =
+          await createProgramProfileWithEnrollment(
+            {
+              personId: existingPerson.id,
+              program,
+              status: 'REGISTERED',
+              batchId: null,
+              monthlyRate: 150,
+              educationLevel: validated.educationLevel as EducationLevel,
+              gradeLevel: validated.gradeLevel as GradeLevel,
+              schoolName: validated.schoolName,
+            },
+            tx
+          )
 
-        // Handle sibling relationships if provided
+        logger.info(
+          {
+            profileId: profile.id,
+            personId: existingPerson.id,
+            enrollmentId: enrollment.id,
+          },
+          'ProgramProfile created successfully for existing person'
+        )
+
+        // Handle sibling relationships using SiblingRelationshipService
+        // Convert ProgramProfile IDs to Person IDs
+        let siblingPersonIds: string[] | null = null
         if (input.siblingIds && input.siblingIds.length > 0) {
-          const siblingProfiles = await prisma.programProfile.findMany({
+          const siblingProfiles = await tx.programProfile.findMany({
             where: {
               id: { in: input.siblingIds },
               program: 'MAHAD_PROGRAM',
             },
             select: { personId: true },
           })
-
-          for (const siblingProfile of siblingProfiles) {
-            try {
-              await createSiblingRelationship(
-                existingPerson.id,
-                siblingProfile.personId,
-                'manual',
-                null
-              )
-            } catch (error) {
-              logger.warn(
-                {
-                  err:
-                    error instanceof Error ? error : new Error(String(error)),
-                },
-                'Failed to create sibling relationship during resumed registration'
-              )
-            }
-          }
+          siblingPersonIds = siblingProfiles.map((p) => p.personId)
         }
+
+        // Link siblings using centralized service
+        const siblingResult = await SiblingRelationshipService.linkSiblings(
+          existingPerson.id,
+          siblingPersonIds,
+          tx
+        )
 
         return {
-          success: true,
-          data: {
-            id: profile.id,
-            name: existingPerson.name,
-          },
+          profile,
+          enrollment,
+          siblingsAdded: siblingResult.added,
+          siblingsFailed: siblingResult.failed,
         }
+      })
+
+      logger.info(
+        {
+          profileId: result.profile.id,
+          personId: existingPerson.id,
+          enrollmentId: result.enrollment.id,
+          siblingsAdded: result.siblingsAdded,
+          siblingsFailed: result.siblingsFailed,
+        },
+        'Resumed registration completed successfully - transaction committed'
+      )
+
+      return {
+        success: true,
+        data: {
+          id: result.profile.id,
+          name: existingPerson.name,
+        },
+        siblingsAdded: result.siblingsAdded,
+        siblingsFailed: result.siblingsFailed,
       }
     }
 
     // 3. No existing person - proceed with full registration in transaction
     // Wrap entire registration in a transaction to ensure atomicity
     // If any step fails, everything will be rolled back
+    logger.info(
+      {
+        fullName,
+        email: validated.email,
+        phone: validated.phone,
+        hasSiblingIds: !!input.siblingIds,
+      },
+      'Starting transaction for new person registration'
+    )
+
     const result = await prisma.$transaction(async (tx) => {
+      logger.info(
+        { email: validated.email },
+        'Inside transaction - creating person with contact points'
+      )
+
       // 2a. Create Person with contact points
       const person = await Sentry.startSpan(
         {
@@ -200,9 +350,19 @@ export async function registerStudent(input: {
           )
       )
 
+      logger.info(
+        { personId: person.id, personName: person.name },
+        'Person created successfully inside transaction'
+      )
+
       // 2b. Create ProgramProfile with Enrollment
       // Note: batchId is not provided during registration, will be assigned later
-      const { profile } = await Sentry.startSpan(
+      logger.info(
+        { personId: person.id, program: 'MAHAD_PROGRAM' },
+        'Creating ProgramProfile with Enrollment inside transaction'
+      )
+
+      const { profile, enrollment } = await Sentry.startSpan(
         {
           name: 'mahad.create_profile_with_enrollment',
           op: 'db.transaction',
@@ -227,56 +387,78 @@ export async function registerStudent(input: {
           )
       )
 
-      // 2c. Handle sibling relationships if provided
-      // Create SiblingRelationship records for each selected sibling
+      logger.info(
+        {
+          profileId: profile.id,
+          personId: person.id,
+          program: 'MAHAD_PROGRAM',
+          enrollmentId: enrollment.id,
+        },
+        'ProgramProfile and Enrollment created successfully inside transaction'
+      )
+
+      // 2c. Handle sibling relationships using SiblingRelationshipService
+      // Convert ProgramProfile IDs to Person IDs
+      let siblingPersonIds: string[] | null = null
       if (input.siblingIds && input.siblingIds.length > 0) {
-        // Get Person IDs for all sibling ProgramProfiles
         const siblingProfiles = await tx.programProfile.findMany({
           where: {
             id: { in: input.siblingIds },
-            program: 'MAHAD_PROGRAM', // Ensure siblings are Mahad students
+            program: 'MAHAD_PROGRAM',
           },
           select: { personId: true },
         })
-
-        // Create sibling relationships
-        await Sentry.startSpan(
-          {
-            name: 'mahad.create_sibling_relationships',
-            op: 'db.transaction',
-            attributes: {
-              person_id: person.id,
-              num_siblings: siblingProfiles.length,
-            },
-          },
-          async () => {
-            for (const siblingProfile of siblingProfiles) {
-              try {
-                await createSiblingRelationship(
-                  person.id,
-                  siblingProfile.personId,
-                  'manual',
-                  null,
-                  tx // Pass transaction client
-                )
-              } catch (error) {
-                // Log but don't fail registration if sibling relationship creation fails
-                // (e.g., relationship already exists)
-                logger.warn(
-                  {
-                    err:
-                      error instanceof Error ? error : new Error(String(error)),
-                  },
-                  'Failed to create sibling relationship during registration'
-                )
-              }
-            }
-          }
-        )
+        siblingPersonIds = siblingProfiles.map((p) => p.personId)
       }
 
-      return { person, profile }
+      // Link siblings using centralized service
+      const siblingResult = await Sentry.startSpan(
+        {
+          name: 'mahad.create_sibling_relationships',
+          op: 'db.transaction',
+          attributes: {
+            person_id: person.id,
+            num_siblings: siblingPersonIds?.length ?? 0,
+          },
+        },
+        async () =>
+          await SiblingRelationshipService.linkSiblings(
+            person.id,
+            siblingPersonIds,
+            tx
+          )
+      )
+
+      logger.info(
+        {
+          personId: person.id,
+          profileId: profile.id,
+          enrollmentId: enrollment.id,
+          siblingsAdded: siblingResult.added,
+          siblingsFailed: siblingResult.failed,
+        },
+        'Transaction completed successfully - returning results'
+      )
+
+      return {
+        person,
+        profile,
+        enrollment,
+        siblingsAdded: siblingResult.added,
+        siblingsFailed: siblingResult.failed,
+      }
     })
+
+    logger.info(
+      {
+        personId: result.person.id,
+        profileId: result.profile.id,
+        enrollmentId: result.enrollment.id,
+        siblingsAdded: result.siblingsAdded,
+        siblingsFailed: result.siblingsFailed,
+      },
+      'Registration completed successfully - transaction committed'
+    )
 
     return {
       success: true,
@@ -284,6 +466,8 @@ export async function registerStudent(input: {
         id: result.profile.id,
         name: fullName,
       },
+      siblingsAdded: result.siblingsAdded,
+      siblingsFailed: result.siblingsFailed,
     }
   } catch (error) {
     // Log error with full context for debugging
@@ -347,7 +531,6 @@ export async function registerStudent(input: {
       return {
         success: false,
         error: 'Please check all fields and try again.',
-        errors: error.flatten().fieldErrors,
       }
     }
 
@@ -408,40 +591,124 @@ export async function registerStudent(input: {
 // ============================================================================
 
 /**
- * Check if email already exists for Mahad program
- * Uses unified Person/ContactPoint model
+ * Check for duplicate registration and return person data for display
+ *
+ * This is a server action wrapper for DuplicateDetectionService.checkDuplicate()
+ * that can be safely called from client-side validation hooks.
+ *
+ * @returns Object with validation result and person data if duplicate found
  */
-export async function checkEmailExists(email: string): Promise<boolean> {
-  if (!email || !email.trim()) {
-    return false
-  }
-
+export async function checkDuplicateWithPersonData(params: {
+  email?: string | null
+  phone?: string | null
+  program: Program
+}): Promise<{
+  isDuplicate: boolean
+  personData?: ExistingPersonData
+}> {
   try {
-    // Find person by email using unified model
-    const person = await findPersonByContact(email.toLowerCase().trim(), null)
+    const duplicateCheck =
+      await DuplicateDetectionService.checkDuplicate(params)
 
-    if (!person) {
-      return false
+    if (!duplicateCheck.isDuplicate || !duplicateCheck.hasActiveProfile) {
+      return { isDuplicate: false }
     }
 
-    // Check if person has an active Mahad ProgramProfile
-    const hasMahadProfile = person.programProfiles.some(
-      (profile) =>
-        profile.program === 'MAHAD_PROGRAM' &&
-        profile.enrollments.some(
-          (enrollment) =>
-            enrollment.status !== 'WITHDRAWN' && enrollment.endDate === null
-        )
+    // Extract and format person data
+    const person = duplicateCheck.existingPerson
+    const activeProfile = duplicateCheck.activeProfile
+
+    if (!person || !activeProfile) {
+      return { isDuplicate: false }
+    }
+
+    const primaryEmail =
+      person.contactPoints.find((cp) => cp.type === 'EMAIL' && cp.isPrimary)
+        ?.value ||
+      person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
+      ''
+
+    const primaryPhone =
+      person.contactPoints.find((cp) => cp.type === 'PHONE' && cp.isPrimary)
+        ?.value || person.contactPoints.find((cp) => cp.type === 'PHONE')?.value
+
+    const registeredDate = new Date(activeProfile.createdAt).toLocaleDateString(
+      'en-US',
+      {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }
     )
 
-    return hasMahadProfile
+    const enrollmentStatus =
+      activeProfile.enrollmentCount > 0 ? 'Active' : 'Registered'
+
+    const personData: ExistingPersonData = {
+      name: person.name,
+      email: primaryEmail,
+      phone: primaryPhone,
+      registeredDate,
+      enrollmentStatus,
+      program: params.program === 'MAHAD_PROGRAM' ? 'Mahad' : 'Dugsi',
+    }
+
+    return {
+      isDuplicate: true,
+      personData,
+    }
   } catch (error) {
     logger.error(
       { err: error instanceof Error ? error : new Error(String(error)) },
-      'Error checking if email exists'
+      'Error checking duplicate with person data'
     )
-    return false
+    // On error, return false to allow form submission (server-side will catch it)
+    return { isDuplicate: false }
   }
+}
+
+/**
+ * @deprecated NO LONGER USED - Migrated to DuplicateDetectionService.checkDuplicate()
+ *
+ * Use DuplicateDetectionService.checkDuplicate() instead, which returns both
+ * validation result AND person data for personalized duplicate dialogs.
+ *
+ * This function only returns a boolean and doesn't provide person data needed
+ * for showing user information in duplicate registration dialogs.
+ *
+ * Migration complete: All Mahad registration validation now uses DuplicateDetectionService.
+ * This function is only kept for Dugsi parent email validation compatibility.
+ *
+ * @see DuplicateDetectionService.checkDuplicate() for the new approach
+ * @see lib/registration/hooks/use-email-validation.ts for migration example
+ */
+export async function checkEmailExists(email: string): Promise<boolean> {
+  return await DuplicateDetectionService.isEmailRegistered(
+    email,
+    'MAHAD_PROGRAM'
+  )
+}
+
+/**
+ * @deprecated NO LONGER USED - Migrated to DuplicateDetectionService.checkDuplicate()
+ *
+ * Use DuplicateDetectionService.checkDuplicate() instead, which returns both
+ * validation result AND person data for personalized duplicate dialogs.
+ *
+ * This function only returns a boolean and doesn't provide person data needed
+ * for showing user information in duplicate registration dialogs.
+ *
+ * Migration complete: All Mahad registration validation now uses DuplicateDetectionService.
+ * Can be safely removed after verifying no other code paths use it.
+ *
+ * @see DuplicateDetectionService.checkDuplicate() for the new approach
+ * @see lib/registration/hooks/use-email-validation.ts for migration example
+ */
+export async function checkPhoneExists(phone: string): Promise<boolean> {
+  return await DuplicateDetectionService.isPhoneRegistered(
+    phone,
+    'MAHAD_PROGRAM'
+  )
 }
 
 /**
@@ -532,12 +799,13 @@ export async function addSibling(
     }
 
     // Create sibling relationship using Person IDs
-    await createSiblingRelationship(
-      studentProfile.personId,
-      siblingProfile.personId,
-      'manual',
-      null
-    )
+    await prisma.$transaction(async (tx) => {
+      await SiblingRelationshipService.linkSiblings(
+        studentProfile.personId,
+        [siblingProfile.personId],
+        tx
+      )
+    })
 
     revalidatePath('/mahad/register')
     return { success: true }
@@ -577,28 +845,27 @@ export async function removeSibling(
       return { success: false, error: 'Student or sibling not found' }
     }
 
-    // Find the sibling relationship (ensure consistent ordering)
-    const personIds = [studentProfile.personId, siblingProfile.personId].sort()
+    // Check if sibling relationship exists
+    const areSiblings = await SiblingRelationshipService.areSiblings(
+      studentProfile.personId,
+      siblingProfile.personId,
+      prisma
+    )
 
-    const relationship = await prisma.siblingRelationship.findFirst({
-      where: {
-        person1Id: personIds[0],
-        person2Id: personIds[1],
-        isActive: true,
-      },
-    })
-
-    if (!relationship) {
+    if (!areSiblings) {
       return {
         success: false,
         error: 'Sibling relationship not found',
       }
     }
 
-    // Deactivate the relationship (soft delete)
-    await prisma.siblingRelationship.update({
-      where: { id: relationship.id },
-      data: { isActive: false },
+    // Remove sibling relationship using service
+    await prisma.$transaction(async (tx) => {
+      await SiblingRelationshipService.unlinkSiblings(
+        studentProfile.personId,
+        siblingProfile.personId,
+        tx
+      )
     })
 
     revalidatePath('/mahad/register')

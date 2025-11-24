@@ -87,20 +87,21 @@ posthog.capture('payment_submitted', { amount: 100 })
 
 ## Tool Comparison: When to Use What
 
-| Capability | Pino | PostHog | Sentry |
-|------------|------|---------|--------|
-| **Server Logs** | ✅ Best | ❌ No | ⚠️ Limited |
-| **User Analytics** | ❌ No | ✅ Best | ❌ No |
-| **Error Tracking** | ⚠️ Basic | ⚠️ Good | ✅ Best |
-| **Session Replay** | ❌ No | ✅ Yes | ✅ Yes |
-| **Feature Flags** | ❌ No | ✅ Yes | ❌ No |
-| **Performance APM** | ❌ No | ⚠️ Basic | ✅ Best |
-| **A/B Testing** | ❌ No | ✅ Yes | ❌ No |
-| **Cost (Open Source)** | ✅ Free | ✅ Free | ⚠️ Paid |
+| Capability             | Pino     | PostHog  | Sentry     |
+| ---------------------- | -------- | -------- | ---------- |
+| **Server Logs**        | ✅ Best  | ❌ No    | ⚠️ Limited |
+| **User Analytics**     | ❌ No    | ✅ Best  | ❌ No      |
+| **Error Tracking**     | ⚠️ Basic | ⚠️ Good  | ✅ Best    |
+| **Session Replay**     | ❌ No    | ✅ Yes   | ✅ Yes     |
+| **Feature Flags**      | ❌ No    | ✅ Yes   | ❌ No      |
+| **Performance APM**    | ❌ No    | ⚠️ Basic | ✅ Best    |
+| **A/B Testing**        | ❌ No    | ✅ Yes   | ❌ No      |
+| **Cost (Open Source)** | ✅ Free  | ✅ Free  | ⚠️ Paid    |
 
 ### Decision Matrix
 
 **Use Pino When:**
+
 - Debugging server-side logic
 - Tracking database queries
 - Monitoring API performance
@@ -108,6 +109,7 @@ posthog.capture('payment_submitted', { amount: 100 })
 - Compliance/audit logging
 
 **Use PostHog When:**
+
 - Understanding user behavior
 - Tracking feature adoption
 - Running A/B tests
@@ -115,6 +117,7 @@ posthog.capture('payment_submitted', { amount: 100 })
 - Product analytics
 
 **Use Sentry When:** (Optional)
+
 - Need deep stack traces
 - Complex performance monitoring
 - Release health tracking
@@ -155,10 +158,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/api/:path*',
-    '/admin/:path*',
-  ],
+  matcher: ['/api/:path*', '/admin/:path*'],
 }
 ```
 
@@ -323,14 +323,11 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 ```typescript
 import { PostHog } from 'posthog-node'
 
-export const posthogServer = new PostHog(
-  process.env.NEXT_PUBLIC_POSTHOG_KEY!,
-  {
-    host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
-    flushAt: 20, // Send events in batches
-    flushInterval: 10000, // Send every 10s
-  }
-)
+export const posthogServer = new PostHog(process.env.NEXT_PUBLIC_POSTHOG_KEY!, {
+  host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+  flushAt: 20, // Send events in batches
+  flushInterval: 10000, // Send every 10s
+})
 
 // Graceful shutdown
 if (process.env.NODE_ENV === 'production') {
@@ -351,16 +348,19 @@ import { useCallback } from 'react'
 import posthog from 'posthog-js'
 
 export function usePostHog() {
-  const identify = useCallback((userId: string, traits?: Record<string, any>) => {
-    posthog.identify(userId, traits)
-  }, [])
+  const identify = useCallback(
+    (userId: string, traits?: Record<string, any>) => {
+      posthog.identify(userId, traits)
+    },
+    []
+  )
 
-  const capture = useCallback((
-    eventName: string,
-    properties?: Record<string, any>
-  ) => {
-    posthog.capture(eventName, properties)
-  }, [])
+  const capture = useCallback(
+    (eventName: string, properties?: Record<string, any>) => {
+      posthog.capture(eventName, properties)
+    },
+    []
+  )
 
   const setPersonProperties = useCallback((properties: Record<string, any>) => {
     posthog.setPersonProperties(properties)
@@ -389,20 +389,26 @@ const logger = createActionLogger('registerStudent')
 export async function registerStudent(data: StudentData) {
   const requestId = getRequestContext().requestId
 
-  logger.info({
-    requestId,
-    studentEmail: data.email,
-  }, 'Starting student registration')
+  logger.info(
+    {
+      requestId,
+      studentEmail: data.email,
+    },
+    'Starting student registration'
+  )
 
   try {
     const student = await prisma.student.create({ data })
 
     // Log to Pino (debugging)
-    logger.info({
-      requestId,
-      studentId: student.id,
-      studentEmail: data.email,
-    }, 'Student created successfully')
+    logger.info(
+      {
+        requestId,
+        studentId: student.id,
+        studentEmail: data.email,
+      },
+      'Student created successfully'
+    )
 
     // Track in PostHog (analytics)
     await posthogServer.capture({
@@ -418,11 +424,14 @@ export async function registerStudent(data: StudentData) {
     return { success: true, student }
   } catch (error) {
     // Log error to Pino
-    logger.error({
-      ...serializeError(error),
-      requestId,
-      studentEmail: data.email,
-    }, 'Student registration failed')
+    logger.error(
+      {
+        ...serializeError(error),
+        requestId,
+        studentEmail: data.email,
+      },
+      'Student registration failed'
+    )
 
     // Track error in PostHog
     await posthogServer.capture({
@@ -440,6 +449,7 @@ export async function registerStudent(data: StudentData) {
 ```
 
 **Benefits**:
+
 - Search Pino logs by `requestId` to see server details
 - Search PostHog by `requestId` to see user journey
 - Watch session replay of the exact request
@@ -462,10 +472,10 @@ export async function registerStudent(data: StudentData) {
 'error_occurred'
 
 // Group events by category
-'funnel_*'      // Conversion events
-'feature_*'     // Feature usage
-'error_*'       // Error events
-'engagement_*'  // User engagement
+'funnel_*' // Conversion events
+'feature_*' // Feature usage
+'error_*' // Error events
+'engagement_*' // User engagement
 ```
 
 #### 3.2 Centralized Event Tracking
@@ -504,11 +514,14 @@ export async function trackStudentRegistered(
   properties: StudentRegisteredProperties
 ) {
   // Log to Pino
-  logger.info({
-    userId,
-    event: 'student_registered',
-    ...properties,
-  }, 'Student registered')
+  logger.info(
+    {
+      userId,
+      event: 'student_registered',
+      ...properties,
+    },
+    'Student registered'
+  )
 
   // Track in PostHog
   await posthogServer.capture({
@@ -525,11 +538,14 @@ export async function trackPaymentSubmitted(
   userId: string,
   properties: PaymentSubmittedProperties
 ) {
-  logger.info({
-    userId,
-    event: 'payment_submitted',
-    ...properties,
-  }, 'Payment submitted')
+  logger.info(
+    {
+      userId,
+      event: 'payment_submitted',
+      ...properties,
+    },
+    'Payment submitted'
+  )
 
   await posthogServer.capture({
     distinctId: userId,
@@ -551,11 +567,14 @@ export async function trackFeatureFlagEvaluated(
   flagKey: string,
   flagValue: boolean | string
 ) {
-  logger.debug({
-    userId,
-    flagKey,
-    flagValue,
-  }, 'Feature flag evaluated')
+  logger.debug(
+    {
+      userId,
+      flagKey,
+      flagValue,
+    },
+    'Feature flag evaluated'
+  )
 
   // PostHog auto-tracks this, but you can capture custom properties
   await posthogServer.capture({
@@ -581,11 +600,14 @@ export async function trackError(
   }
 ) {
   // Log to Pino (includes stack trace)
-  logger.error({
-    ...serializeError(error),
-    userId,
-    ...context,
-  }, 'Error occurred')
+  logger.error(
+    {
+      ...serializeError(error),
+      userId,
+      ...context,
+    },
+    'Error occurred'
+  )
 
   // Track in PostHog (for analytics)
   if (userId) {
@@ -733,6 +755,7 @@ posthog.capture('error_occurred', {
 ```
 
 **Debug Workflow**:
+
 1. User reports: "Payment failed"
 2. Search Pino logs for `requestId`
 3. Search PostHog events for same `requestId`
@@ -744,6 +767,7 @@ posthog.capture('error_occurred', {
 ## Implementation Roadmap
 
 ### Week 1: Pino Improvements
+
 - [x] ~~Migration complete~~
 - [ ] Add request ID middleware
 - [ ] Create `serializeError()` helper
@@ -751,6 +775,7 @@ posthog.capture('error_occurred', {
 - [ ] Update all logger calls to include context
 
 ### Week 2: PostHog Setup
+
 - [ ] Install PostHog packages
 - [ ] Create PostHog provider
 - [ ] Configure environment variables
@@ -758,12 +783,14 @@ posthog.capture('error_occurred', {
 - [ ] Test basic event tracking
 
 ### Week 3: Event Taxonomy
+
 - [ ] Define standard event names
 - [ ] Create centralized event tracking functions
 - [ ] Implement correlation with `requestId`
 - [ ] Add feature flag infrastructure
 
 ### Week 4: Integration & Testing
+
 - [ ] Test Pino + PostHog correlation
 - [ ] Set up session replay
 - [ ] Create PostHog dashboards
@@ -788,13 +815,14 @@ PINO_LOG_LEVEL=info  # debug in dev, info in prod
 
 ## Cost Analysis
 
-| Service | Free Tier | Paid Tier | Recommendation |
-|---------|-----------|-----------|----------------|
-| **Pino** | ✅ Free | - | Use forever |
+| Service     | Free Tier       | Paid Tier       | Recommendation              |
+| ----------- | --------------- | --------------- | --------------------------- |
+| **Pino**    | ✅ Free         | -               | Use forever                 |
 | **PostHog** | 1M events/month | $0.000225/event | Start free, scale as needed |
-| **Sentry** | 5K events/month | $26/month | Optional - add if needed |
+| **Sentry**  | 5K events/month | $26/month       | Optional - add if needed    |
 
 **For Irshad Center** (estimated traffic):
+
 - **Free tier is plenty** for MVP
 - PostHog: ~100K events/month (well under 1M limit)
 - Upgrade to paid when scaling
@@ -804,6 +832,7 @@ PINO_LOG_LEVEL=info  # debug in dev, info in prod
 ## Best Practices
 
 ### 1. Always Include Request ID
+
 ```typescript
 const requestId = getRequestContext().requestId
 logger.info({ requestId }, 'Action started')
@@ -811,6 +840,7 @@ posthog.capture('action_completed', { requestId })
 ```
 
 ### 2. Use Structured Properties
+
 ```typescript
 // ❌ Bad
 logger.info(`User ${userId} paid $${amount}`)
@@ -822,6 +852,7 @@ posthog.capture('payment_processed', { userId, amount, currency })
 ```
 
 ### 3. Don't Log PII to PostHog
+
 ```typescript
 // ❌ Bad
 posthog.capture('user_registered', {
@@ -837,6 +868,7 @@ posthog.capture('user_registered', {
 ```
 
 ### 4. Centralize Event Tracking
+
 ```typescript
 // ❌ Bad - scattered throughout codebase
 posthog.capture('user_thing')
@@ -853,15 +885,18 @@ trackUserRegistered(userId, { program: 'mahad' })
 This architecture is based on industry best practices and official documentation:
 
 **PostHog Integration:**
+
 - [PostHog Next.js Docs](https://posthog.com/docs/libraries/next-js)
 - [PostHog Error Tracking](https://posthog.com/docs/error-tracking/installation/nextjs)
 - [Vercel + PostHog Guide](https://vercel.com/guides/posthog-nextjs-vercel-feature-flags-analytics)
 
 **PostHog vs Sentry:**
+
 - [PostHog vs Sentry Comparison](https://posthog.com/blog/posthog-vs-sentry)
 - [Best Error Tracking Tools](https://posthog.com/blog/best-error-tracking-tools)
 
 **Structured Logging:**
+
 - [PostHog Internal Logging](https://posthog.com/handbook/engineering/conventions/backend-coding)
 - [PostHog Correlation Analysis](https://posthog.com/docs/product-analytics/correlation)
 

@@ -67,6 +67,7 @@ Complete observability solution combining **Pino** (structured logging) with **S
 ### 1. Server-Side Logging (`lib/logger.ts`)
 
 **Enhanced Features**:
+
 - ✅ PCI-compliant redaction (payment cards, API keys, secrets)
 - ✅ Request ID correlation
 - ✅ Sentry error integration
@@ -139,6 +140,7 @@ try {
 ### 2. Client-Side Logging (`lib/logger-client.ts`)
 
 **Enhanced Features**:
+
 - ✅ Automatic Sentry error capture
 - ✅ Breadcrumb tracking for debugging
 - ✅ Conditional logging (dev-only for debug/info)
@@ -319,7 +321,10 @@ try {
 ```typescript
 import { createActionLogger, logError } from '@/lib/logger'
 
-export async function updateStudentAction(studentId: string, data: StudentData) {
+export async function updateStudentAction(
+  studentId: string,
+  data: StudentData
+) {
   const logger = createActionLogger('updateStudent')
 
   try {
@@ -328,7 +333,10 @@ export async function updateStudentAction(studentId: string, data: StudentData) 
     logger.info({ studentId }, 'Student updated successfully')
     return { success: true, result }
   } catch (error) {
-    await logError(logger, error, 'Failed to update student', { studentId, data })
+    await logError(logger, error, 'Failed to update student', {
+      studentId,
+      data,
+    })
     return { success: false, error: 'Update failed' }
   }
 }
@@ -403,7 +411,10 @@ export async function POST(request: Request) {
     const signature = request.headers.get('stripe-signature')
     const event = stripe.webhooks.constructEvent(body, signature, secret)
 
-    logger.info({ eventType: event.type, eventId: event.id }, 'Webhook received')
+    logger.info(
+      { eventType: event.type, eventId: event.id },
+      'Webhook received'
+    )
 
     await handleStripeEvent(event)
 
@@ -425,12 +436,14 @@ export async function POST(request: Request) {
 **What It Does**: Captures all errors with full stack traces, context, and user information.
 
 **When It Triggers**:
+
 - Unhandled exceptions (server & client)
 - Manual captures via `logError()`
 - React rendering errors (via global-error.tsx)
 - Server component errors (via onRequestError hook)
 
 **Benefits**:
+
 - Alerts when new errors occur
 - Group similar errors automatically
 - Track error frequency and affected users
@@ -441,17 +454,20 @@ export async function POST(request: Request) {
 **What It Does**: Records user sessions as video-like replays showing exactly what users see and do.
 
 **Configuration**:
+
 - 100% of sessions with errors (replaysOnErrorSampleRate: 1.0)
 - 10% of normal sessions in production (replaysSessionSampleRate: 0.1)
 - All text and media masked for privacy
 
 **Benefits**:
+
 - See exactly what user did before error
 - Reproduce bugs easily
 - Understand user behavior
 - Debug visual issues
 
 **Accessing Replays**:
+
 1. Go to Sentry error
 2. Click "Replays" tab
 3. Watch session leading up to error
@@ -461,6 +477,7 @@ export async function POST(request: Request) {
 **What It Does**: Tracks transaction performance, slow database queries, and API response times.
 
 **Configuration**:
+
 - 10% of transactions sampled in production
 - 100% in development
 - Automatic instrumentation of:
@@ -469,6 +486,7 @@ export async function POST(request: Request) {
   - External API calls
 
 **Benefits**:
+
 - Identify slow endpoints
 - Track performance regressions
 - Optimize database queries
@@ -479,6 +497,7 @@ export async function POST(request: Request) {
 **What It Does**: Uploads source maps so stack traces show original TypeScript code, not minified JavaScript.
 
 **Configuration** (in `next.config.js`):
+
 ```javascript
 {
   widenClientFileUpload: true,  // Upload more source maps
@@ -488,6 +507,7 @@ export async function POST(request: Request) {
 ```
 
 **Benefits**:
+
 - Readable stack traces
 - Click to exact line in source code
 - Debug minified production errors
@@ -497,22 +517,25 @@ export async function POST(request: Request) {
 **What It Does**: Tracks user actions, network requests, console logs leading up to errors.
 
 **Automatic Breadcrumbs**:
+
 - All client-side logger calls (info, debug, warn)
 - Navigation events
 - Network requests
 - Console logs
 
 **Manual Breadcrumbs**:
+
 ```typescript
 Sentry.addBreadcrumb({
   message: 'User started checkout',
   category: 'navigation',
   level: 'info',
-  data: { cartTotal: 50 }
+  data: { cartTotal: 50 },
 })
 ```
 
 **Benefits**:
+
 - Understand error context
 - See what led to failure
 - Debug complex user flows
@@ -572,6 +595,7 @@ try {
    - Copy DSN
 
 2. **Set environment variables**:
+
    ```bash
    # Production
    SENTRY_DSN=https://xxxxx@xxxxx.ingest.us.sentry.io/xxxxx
@@ -597,6 +621,7 @@ try {
 ### Vercel Configuration
 
 Add environment variables in Vercel dashboard:
+
 - `SENTRY_DSN`
 - `NEXT_PUBLIC_SENTRY_DSN`
 - `SENTRY_ORG`
@@ -625,6 +650,7 @@ Sentry.captureMessage('Test error from production', 'error')
 ### Finding Errors
 
 **In Sentry**:
+
 1. Go to Sentry dashboard → Issues
 2. Filter by:
    - Environment (production, staging, development)
@@ -637,6 +663,7 @@ Sentry.captureMessage('Test error from production', 'error')
    - Similar issues
 
 **In Logs (CloudWatch/Datadog)**:
+
 1. Search by requestId
 2. Filter by level=error
 3. See full request flow:
@@ -703,20 +730,20 @@ Sentry.captureMessage('Test error from production', 'error')
 ### Reducing Costs
 
 1. **Lower replay sampling**:
+
    ```typescript
    // sentry.client.config.ts
-   replaysSessionSampleRate: 0.05  // 5% instead of 10%
+   replaysSessionSampleRate: 0.05 // 5% instead of 10%
    ```
 
 2. **Filter ignored errors**:
+
    ```typescript
-   ignoreErrors: [
-     /network error/i,
-     /failed to fetch/i,
-   ]
+   ignoreErrors: [/network error/i, /failed to fetch/i]
    ```
 
 3. **Rate limiting**:
+
    ```typescript
    beforeSend(event) {
      // Skip events from bots
@@ -729,7 +756,7 @@ Sentry.captureMessage('Test error from production', 'error')
 
 4. **Sampling adjustments**:
    ```typescript
-   tracesSampleRate: 0.05  // 5% of transactions
+   tracesSampleRate: 0.05 // 5% of transactions
    ```
 
 ---
@@ -741,6 +768,7 @@ Sentry.captureMessage('Test error from production', 'error')
 **Symptom**: Stack traces show minified code in Sentry.
 
 **Solution**:
+
 1. Check `SENTRY_AUTH_TOKEN` is set
 2. Verify auth token has `project:releases` scope
 3. Check build logs for upload errors
@@ -751,6 +779,7 @@ Sentry.captureMessage('Test error from production', 'error')
 **Symptom**: Errors logged but not in Sentry dashboard.
 
 **Solution**:
+
 1. Check `SENTRY_DSN` environment variable is set
 2. Verify DSN is correct (copy from Sentry dashboard)
 3. Check `beforeSend` hook isn't filtering errors
@@ -762,6 +791,7 @@ Sentry.captureMessage('Test error from production', 'error')
 **Symptom**: Logs missing requestId field.
 
 **Solution**:
+
 1. Verify middleware is running (check headers in browser DevTools)
 2. Ensure `await getRequestContext()` is called
 3. Check middleware matcher includes the route
@@ -770,6 +800,7 @@ Sentry.captureMessage('Test error from production', 'error')
 ### High Sentry Bill
 
 **Solution**:
+
 1. Lower sampling rates (traces, replays)
 2. Add more filters to `ignoreErrors`
 3. Filter in `beforeSend` hook
@@ -799,6 +830,7 @@ Sentry.captureMessage('Test error from production', 'error')
 ### Medium Term (Optional)
 
 4. **User identification**:
+
    ```typescript
    Sentry.setUser({
      id: userId,
@@ -835,11 +867,13 @@ Sentry.captureMessage('Test error from production', 'error')
 ### For Developers
 
 **Quick Start**:
+
 - Import logger: `import { createActionLogger } from '@/lib/logger'`
 - Use `logError()` for errors: `await logError(logger, error, 'Failed', { context })`
 - Add context to logs: `const context = await getRequestContext()`
 
 **Key Files**:
+
 - `lib/logger.ts` - Server logging
 - `lib/logger-client.ts` - Client logging
 - `middleware.ts` - Request ID injection
@@ -848,11 +882,13 @@ Sentry.captureMessage('Test error from production', 'error')
 ### For Operations
 
 **Accessing Logs**:
+
 - Pino logs → CloudWatch Logs / Datadog
 - Sentry errors → https://sentry.io
 - Search by requestId to trace requests
 
 **Common Queries**:
+
 ```
 # Find all errors for a request
 requestId="550e8400-e29b-41d4-a716-446655440000"

@@ -1,7 +1,7 @@
 /**
  * Edge Cases Tests
  */
-
+import type Stripe from 'stripe'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 // Import mocks FIRST to ensure they're hoisted by Vitest
@@ -83,7 +83,7 @@ describe('Dugsi Webhook Handler > Edge Cases', () => {
         vi.mocked(createSubscription).mockResolvedValue({
           id: 'sub_1',
           status: 'trialing',
-        } as unknown)
+        } as Stripe.Subscription)
 
         await setupSubscriptionCreatedScenario({
           profileCount: 1,

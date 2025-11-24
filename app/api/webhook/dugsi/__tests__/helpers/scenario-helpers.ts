@@ -2,8 +2,6 @@
  * Scenario-specific setup helpers
  */
 
-import { vi } from 'vitest'
-
 import { prisma } from '@/lib/db'
 
 import {
@@ -59,7 +57,11 @@ export async function setupCheckoutScenario(
       typeof findFirstGuardianFn === 'function' &&
       'mockResolvedValue' in findFirstGuardianFn
     ) {
-      findFirstGuardianFn.mockResolvedValue(
+      ;(
+        findFirstGuardianFn as unknown as {
+          mockResolvedValue: (value: unknown) => void
+        }
+      ).mockResolvedValue(
         guardianRelationship as unknown as Awaited<
           ReturnType<typeof prisma.guardianRelationship.findFirst>
         >
@@ -120,9 +122,14 @@ export async function setupSubscriptionCreatedScenario(
     .findMany as unknown as { mockResolvedValue: (value: unknown) => void }
   if (
     typeof findManyGuardianFn === 'function' &&
-    'mockResolvedValue' in findManyGuardianFn
+    'mockResolvedValue' in findManyGuardianFn &&
+    typeof findManyGuardianFn.mockResolvedValue === 'function'
   ) {
-    findManyGuardianFn.mockResolvedValue(
+    ;(
+      findManyGuardianFn as unknown as {
+        mockResolvedValue: (value: unknown) => void
+      }
+    ).mockResolvedValue(
       guardianRelationships as unknown as Awaited<
         ReturnType<typeof prisma.guardianRelationship.findMany>
       >
@@ -136,7 +143,11 @@ export async function setupSubscriptionCreatedScenario(
     typeof findManyProfileFn === 'function' &&
     'mockResolvedValue' in findManyProfileFn
   ) {
-    findManyProfileFn.mockResolvedValue(
+    ;(
+      findManyProfileFn as unknown as {
+        mockResolvedValue: (value: unknown) => void
+      }
+    ).mockResolvedValue(
       profiles.map((p) =>
         createFullProgramProfile({
           ...p,
@@ -223,7 +234,11 @@ export async function setupSubscriptionDeletedScenario(
     typeof findFirstEnrollmentFn === 'function' &&
     'mockResolvedValue' in findFirstEnrollmentFn
   ) {
-    findFirstEnrollmentFn.mockResolvedValue({
+    ;(
+      findFirstEnrollmentFn as unknown as {
+        mockResolvedValue: (value: unknown) => void
+      }
+    ).mockResolvedValue({
       id: 'enrollment_1',
       status: 'ENROLLED',
     } as unknown as Awaited<ReturnType<typeof prisma.enrollment.findFirst>>)

@@ -209,18 +209,18 @@ export async function linkSubscriptionToProfiles(
 
             await createBillingAssignmentQuery(
               {
-            subscriptionId,
-            programProfileId: profileId,
-            amount,
-            percentage,
-            notes,
-          },
-          tx
-        )
+                subscriptionId,
+                programProfileId: profileId,
+                amount,
+                percentage,
+                notes,
+              },
+              tx
+            )
 
-        count++
-      }
-    }
+            count++
+          }
+        }
 
         return count
       })
@@ -275,7 +275,6 @@ export async function unlinkSubscription(
  * @returns Array of amounts for each split
  *
  * @example
- * calculateSplitAmounts(1000, 3) // [333, 333, 334]
  * calculateSplitAmounts(500, 2)  // [250, 250]
  */
 export function calculateSplitAmounts(
