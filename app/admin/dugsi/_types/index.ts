@@ -3,41 +3,60 @@
  * Single source of truth for all types used across components
  */
 
-// Base types from Prisma
-import { Student } from '@prisma/client'
+import {
+  Gender,
+  EducationLevel,
+  SubscriptionStatus,
+  StripeAccountType,
+} from '@prisma/client'
 
-// Full registration type (extends Prisma Student)
-export type DugsiRegistration = Pick<
-  Student,
-  | 'id'
-  | 'name'
-  | 'gender'
-  | 'dateOfBirth'
-  | 'educationLevel'
-  | 'gradeLevel'
-  | 'schoolName'
-  | 'healthInfo'
-  | 'createdAt'
-  | 'parentFirstName'
-  | 'parentLastName'
-  | 'parentEmail'
-  | 'parentPhone'
-  | 'parent2FirstName'
-  | 'parent2LastName'
-  | 'parent2Email'
-  | 'parent2Phone'
-  | 'paymentMethodCaptured'
-  | 'paymentMethodCapturedAt'
-  | 'stripeCustomerIdDugsi'
-  | 'stripeSubscriptionIdDugsi'
-  | 'paymentIntentIdDugsi'
-  | 'subscriptionStatus'
-  | 'paidUntil'
-  | 'currentPeriodStart'
-  | 'currentPeriodEnd'
-  | 'familyReferenceId'
-  | 'stripeAccountType'
->
+/**
+ * DugsiRegistration - DTO for Dugsi student data displayed in admin UI
+ *
+ * This is a view model that flattens the normalized Person/ProgramProfile/Guardian
+ * structure into a flat object for easier UI consumption.
+ *
+ * Data flows: ProgramProfile -> mapProfileToDugsiRegistration() -> DugsiRegistration
+ */
+export interface DugsiRegistration {
+  // Student info (from Person + ProgramProfile)
+  id: string
+  name: string
+  gender: Gender | null
+  dateOfBirth: Date | null
+  educationLevel: EducationLevel | null
+  gradeLevel: string | null
+  schoolName: string | null
+  healthInfo: string | null
+  createdAt: Date
+
+  // Parent 1 info (from GuardianRelationship -> Person -> ContactPoints)
+  parentFirstName: string | null
+  parentLastName: string | null
+  parentEmail: string | null
+  parentPhone: string | null
+
+  // Parent 2 info (optional second guardian)
+  parent2FirstName: string | null
+  parent2LastName: string | null
+  parent2Email: string | null
+  parent2Phone: string | null
+
+  // Billing info (from BillingAccount + Subscription)
+  paymentMethodCaptured: boolean
+  paymentMethodCapturedAt: Date | null
+  stripeCustomerIdDugsi: string | null
+  stripeSubscriptionIdDugsi: string | null
+  paymentIntentIdDugsi: string | null
+  subscriptionStatus: SubscriptionStatus | null
+  paidUntil: Date | null
+  currentPeriodStart: Date | null
+  currentPeriodEnd: Date | null
+
+  // Family tracking
+  familyReferenceId: string | null
+  stripeAccountType: StripeAccountType | null
+}
 
 // Family type
 export interface Family {
