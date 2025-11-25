@@ -56,7 +56,7 @@ export class SiblingRelationshipService {
    * })
    *
    * if (result.failed > 0) {
-   *   console.log(`Warning: ${result.failed} siblings failed to link`)
+   *   logger.warn({ failed: result.failed }, 'Some siblings failed to link')
    * }
    */
   static async linkSiblings(

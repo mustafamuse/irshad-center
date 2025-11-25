@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 
 import type { Prisma } from '@prisma/client'
 
+import { STRIPE_WEBHOOK_EVENTS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
 import { stripeServerClient } from '@/lib/stripe'
 
@@ -16,11 +17,11 @@ import {
 
 // Map event types to our new handler functions
 const eventHandlers = {
-  'checkout.session.completed': handleCheckoutSessionCompleted,
-  'invoice.payment_succeeded': handleInvoicePaymentSucceeded,
-  'invoice.payment_failed': handleInvoicePaymentFailed,
-  'customer.subscription.updated': handleSubscriptionUpdated,
-  'customer.subscription.deleted': handleSubscriptionDeleted,
+  [STRIPE_WEBHOOK_EVENTS.CHECKOUT_COMPLETED]: handleCheckoutSessionCompleted,
+  [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_SUCCEEDED]: handleInvoicePaymentSucceeded,
+  [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_FAILED]: handleInvoicePaymentFailed,
+  [STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_UPDATED]: handleSubscriptionUpdated,
+  [STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_DELETED]: handleSubscriptionDeleted,
 }
 
 export async function POST(req: Request) {

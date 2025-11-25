@@ -34,7 +34,11 @@ export const redis = mockRedis
  * @deprecated Redis has been removed. This function is a no-op.
  */
 export async function getRedisClient() {
-  console.warn('Redis has been removed. getRedisClient() is a no-op.')
+  // Intentionally using console.warn for deprecation notice
+  // This ensures the warning is visible even if no logger is configured
+  if (process.env.NODE_ENV === 'development') {
+    console.warn('[DEPRECATED] Redis has been removed. getRedisClient() is a no-op.')
+  }
   return null
 }
 
