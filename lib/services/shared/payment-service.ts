@@ -52,9 +52,17 @@ export async function verifyBankAccount(
   descriptorCode: string,
   accountType: StripeAccountType
 ): Promise<BankVerificationResult> {
-  // Validate payment intent ID format
-  if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
-    throw new Error('Invalid payment intent ID format. Must start with "pi_"')
+  // Validate payment intent ID format (must be pi_ followed by alphanumeric)
+  // Stripe payment intent IDs are typically 27 chars: pi_ (3) + 24 alphanumeric
+  if (
+    !paymentIntentId ||
+    !paymentIntentId.startsWith('pi_') ||
+    paymentIntentId.length < 20 ||
+    !/^pi_[A-Za-z0-9]+$/.test(paymentIntentId)
+  ) {
+    throw new Error(
+      'Invalid payment intent ID format. Must start with "pi_" followed by alphanumeric characters (min 20 chars total)'
+    )
   }
 
   // Validate descriptor code format (6 characters, starts with SM)

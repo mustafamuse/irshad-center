@@ -37,10 +37,31 @@ const logger = createServiceLogger('registration')
 const phoneRegex = /^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/
 
 /**
+ * Sanitized name schema - prevents XSS by rejecting HTML tags
+ * Trims whitespace and validates length
+ *
+ * @note Allows apostrophes, hyphens, accented characters, and math symbols
+ * @note Rejects HTML-like patterns: <script>, <div>, <!-- -->
+ * @note Allows single < or > when not forming HTML tags (e.g., "Name < Smith")
+ *
+ * @example
+ * sanitizedNameSchema('Name').parse("<script>")      // Throws
+ */
+const sanitizedNameSchema = (fieldName: string) =>
+  z
+    .string()
+    .min(1, `${fieldName} is required`)
+    .max(255, `${fieldName} is too long`)
+    .transform((str) => str.trim())
+    .refine((str) => !/<[^>]+>/.test(str), {
+      message: `${fieldName} cannot contain HTML tags`,
+    })
+
+/**
  * Schema for Person creation data
  */
 const personDataSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255, 'Name is too long'),
+  name: sanitizedNameSchema('Name'),
   dateOfBirth: z
     .date()
     .max(new Date(), 'Date of birth must be in the past')
@@ -68,14 +89,8 @@ const personDataSchema = z.object({
  * Schema for child in family registration
  */
 const childDataSchema = z.object({
-  firstName: z
-    .string()
-    .min(1, 'First name is required')
-    .max(255, 'First name is too long'),
-  lastName: z
-    .string()
-    .min(1, 'Last name is required')
-    .max(255, 'Last name is too long'),
+  firstName: sanitizedNameSchema('First name'),
+  lastName: sanitizedNameSchema('Last name'),
   dateOfBirth: z
     .date()
     .max(new Date(), 'Date of birth must be in the past')
@@ -143,7 +158,7 @@ const programProfileDataSchema = z.object({
     .nullable()
     .optional(),
   postGradCompleted: z.boolean().nullable().optional(),
-  metadata: z.any().nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   enrollmentReason: z.string().nullable().optional(),
   enrollmentNotes: z.string().nullable().optional(),
 })
@@ -163,14 +178,8 @@ const familyRegistrationSchema = z.object({
     .refine((phone) => normalizePhone(phone) !== null, {
       message: 'Parent 1 phone is invalid - cannot be normalized',
     }),
-  parent1FirstName: z
-    .string()
-    .min(1, 'Parent 1 first name is required')
-    .max(255, 'Parent 1 first name is too long'),
-  parent1LastName: z
-    .string()
-    .min(1, 'Parent 1 last name is required')
-    .max(255, 'Parent 1 last name is too long'),
+  parent1FirstName: sanitizedNameSchema('Parent 1 first name'),
+  parent1LastName: sanitizedNameSchema('Parent 1 last name'),
   parent2Email: z
     .string()
     .email('Parent 2 email must be valid')
@@ -185,16 +194,10 @@ const familyRegistrationSchema = z.object({
     })
     .nullable()
     .optional(),
-  parent2FirstName: z
-    .string()
-    .min(1, 'Parent 2 first name is required')
-    .max(255, 'Parent 2 first name is too long')
+  parent2FirstName: sanitizedNameSchema('Parent 2 first name')
     .nullable()
     .optional(),
-  parent2LastName: z
-    .string()
-    .min(1, 'Parent 2 last name is required')
-    .max(255, 'Parent 2 last name is too long')
+  parent2LastName: sanitizedNameSchema('Parent 2 last name')
     .nullable()
     .optional(),
   familyReferenceId: z
@@ -264,7 +267,11 @@ export async function createPersonWithContact(
                   value: (() => {
                     const normalized = normalizePhone(phone)
                     if (!normalized) {
-                      throw new Error(`Invalid phone number format: ${phone}`)
+                      const digits = phone.replace(/\D/g, '')
+                      throw new Error(
+                        `Invalid phone number for "${name}": "${phone}" ` +
+                          `(${digits.length} digits found, expected 10-15 for E.164 format)`
+                      )
                     }
                     return normalized
                   })(),
@@ -339,25 +346,25 @@ export async function createProgramProfileWithEnrollment(
     'Starting ProgramProfile creation with enrollment'
   )
 
-  // Preliminary validation (checks Dugsi batchId constraint)
-  // Pass program directly since profile doesn't exist yet
-  // This is a quick fail check before starting transaction
-  // The real validation with transaction client happens inside createEnrollment
-  await validateEnrollment({
-    program,
-    batchId,
-    status,
-  })
-
-  logger.info(
-    { personId, program },
-    'Preliminary validation passed, proceeding with profile creation'
-  )
+  // Note: Full validation happens inside the transaction to prevent TOCTOU issues
+  // The validateEnrollment call is made with the transaction client to ensure
+  // batch existence is checked atomically with profile creation
 
   // Define the operation that creates profile and enrollment
   const createProfileAndEnrollment = async (
     client: Prisma.TransactionClient
   ) => {
+    // Validate enrollment inside transaction to prevent TOCTOU race conditions
+    // This ensures batch existence check is atomic with profile creation
+    await validateEnrollment(
+      {
+        program,
+        batchId,
+        status,
+      },
+      client
+    )
+
     logger.info(
       {
         personId,
@@ -365,8 +372,38 @@ export async function createProgramProfileWithEnrollment(
         status,
         batchId,
       },
-      'Creating program profile within transaction'
+      'Validation passed, creating program profile within transaction'
     )
+
+    // Check for existing profile with active enrollments to prevent duplicates
+    // Allows re-registration if all previous enrollments were withdrawn
+    const existingProfile = await client.programProfile.findFirst({
+      where: { personId, program },
+      include: {
+        enrollments: {
+          where: {
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+          },
+        },
+      },
+    })
+
+    if (existingProfile && existingProfile.enrollments.length > 0) {
+      logger.warn(
+        {
+          personId,
+          program,
+          existingProfileId: existingProfile.id,
+          activeEnrollments: existingProfile.enrollments.length,
+        },
+        'Person already has an active enrollment for this program'
+      )
+      throw new Error(
+        `Person already has an active ${program} enrollment (Profile ID: ${existingProfile.id}). ` +
+          'Withdraw the existing enrollment first before re-registering.'
+      )
+    }
 
     // Create ProgramProfile
     const profile = await client.programProfile.create({
@@ -388,7 +425,10 @@ export async function createProgramProfileWithEnrollment(
         collegeGraduated,
         postGradYear,
         postGradCompleted,
-        metadata: metadata === null ? Prisma.JsonNull : metadata,
+        metadata:
+          metadata === null
+            ? Prisma.JsonNull
+            : (metadata as Prisma.InputJsonValue),
       },
     })
 
@@ -842,7 +882,11 @@ async function findOrCreatePersonWithContact(
                     value: (() => {
                       const normalized = normalizePhone(phone)
                       if (!normalized) {
-                        throw new Error(`Invalid phone number format: ${phone}`)
+                        const digits = phone.replace(/\D/g, '')
+                        throw new Error(
+                          `Invalid phone number for "${name}": "${phone}" ` +
+                            `(${digits.length} digits found, expected 10-15 for E.164 format)`
+                        )
                       }
                       return normalized
                     })(),
