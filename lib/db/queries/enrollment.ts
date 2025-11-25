@@ -8,6 +8,10 @@
 import { Prisma, EnrollmentStatus, Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import {
+  ACTIVE_ENROLLMENT_WHERE,
+  ENROLLMENT_WITH_PROFILE_INCLUDE,
+} from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import {
@@ -57,25 +61,7 @@ export async function getEnrollmentsByProgramProfile(
     where: {
       programProfileId: profileId,
     },
-    include: {
-      batch: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
-        },
-      },
-      programProfile: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-    },
+    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
     orderBy: {
       startDate: 'desc',
     },
@@ -93,8 +79,7 @@ export async function getActiveEnrollment(
   return client.enrollment.findFirst({
     where: {
       programProfileId: profileId,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
+      ...ACTIVE_ENROLLMENT_WHERE,
     },
     include: {
       batch: true,
@@ -125,25 +110,7 @@ export async function getEnrollmentsByBatch(
       status: status || { not: 'WITHDRAWN' },
       endDate: null,
     },
-    include: {
-      programProfile: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-      batch: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
-        },
-      },
-    },
+    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
     orderBy: {
       startDate: 'desc',
     },
@@ -162,25 +129,7 @@ export async function getEnrollmentById(
     where: {
       id: enrollmentId,
     },
-    include: {
-      batch: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
-        },
-      },
-      programProfile: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-    },
+    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
   })
 }
 
@@ -399,18 +348,7 @@ export async function getEnrollmentsByProgram(
 
   return client.enrollment.findMany({
     where,
-    include: {
-      programProfile: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-      batch: true,
-    },
+    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
     orderBy: {
       startDate: 'desc',
     },

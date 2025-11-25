@@ -14,6 +14,11 @@
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import {
+  ACTIVE_MAHAD_ENROLLMENT_WHERE,
+  ACTIVE_ENROLLMENT_WHERE,
+  extractContactInfo,
+} from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 
 /**
@@ -44,13 +49,7 @@ export async function getBatches(
       _count: {
         select: {
           Enrollment: {
-            where: {
-              status: { not: 'WITHDRAWN' },
-              endDate: null,
-              programProfile: {
-                program: 'MAHAD_PROGRAM',
-              },
-            },
+            where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
           },
         },
       },
@@ -86,11 +85,7 @@ export async function getBatchById(
   const studentCount = await client.enrollment.count({
     where: {
       batchId: id,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
-      programProfile: {
-        program: 'MAHAD_PROGRAM',
-      },
+      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
   })
 
@@ -122,11 +117,7 @@ export async function getBatchByName(
   const studentCount = await client.enrollment.count({
     where: {
       batchId: batch.id,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
-      programProfile: {
-        program: 'MAHAD_PROGRAM',
-      },
+      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
   })
 
@@ -205,11 +196,7 @@ export async function updateBatch(
   const studentCount = await client.enrollment.count({
     where: {
       batchId: id,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
-      programProfile: {
-        program: 'MAHAD_PROGRAM',
-      },
+      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
   })
 
@@ -229,8 +216,7 @@ export async function deleteBatch(id: string, client: DatabaseClient = prisma) {
   const studentCount = await client.enrollment.count({
     where: {
       batchId: id,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
+      ...ACTIVE_ENROLLMENT_WHERE,
     },
   })
 
@@ -256,11 +242,7 @@ export async function getBatchStudents(
   const enrollments = await client.enrollment.findMany({
     where: {
       batchId,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
-      programProfile: {
-        program: 'MAHAD_PROGRAM',
-      },
+      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
     include: {
       programProfile: {
@@ -293,18 +275,13 @@ export async function getBatchStudents(
   // Transform to student-like structure
   return enrollments.map((enrollment) => {
     const profile = enrollment.programProfile
-    const emailContact = profile.person.contactPoints?.find(
-      (cp) => cp.type === 'EMAIL'
-    )
-    const phoneContact = profile.person.contactPoints?.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )
+    const { email, phone } = extractContactInfo(profile.person.contactPoints)
 
     return {
       id: profile.id,
       name: profile.person.name,
-      email: emailContact?.value || null,
-      phone: phoneContact?.value || null,
+      email,
+      phone,
       dateOfBirth: profile.person.dateOfBirth,
       educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,
@@ -330,11 +307,7 @@ export async function getBatchStudentCount(
   return await client.enrollment.count({
     where: {
       batchId,
-      status: { not: 'WITHDRAWN' },
-      endDate: null,
-      programProfile: {
-        program: 'MAHAD_PROGRAM',
-      },
+      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
   })
 }
@@ -376,8 +349,7 @@ export async function assignStudentsToBatch(
       let enrollment = await client.enrollment.findFirst({
         where: {
           programProfileId: studentId,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
+          ...ACTIVE_ENROLLMENT_WHERE,
         },
       })
 
@@ -452,8 +424,7 @@ export async function transferStudents(
         where: {
           programProfileId: studentId,
           batchId: fromBatchId,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
+          ...ACTIVE_ENROLLMENT_WHERE,
         },
       })
 
@@ -494,8 +465,7 @@ export async function getBatchSummary(client: DatabaseClient = prisma) {
         program: 'MAHAD_PROGRAM',
         enrollments: {
           some: {
-            status: { not: 'WITHDRAWN' },
-            endDate: null,
+            ...ACTIVE_ENROLLMENT_WHERE,
             batchId: { not: null }, // Only count students assigned to batches
           },
         },
@@ -505,13 +475,7 @@ export async function getBatchSummary(client: DatabaseClient = prisma) {
     client.batch.findMany({
       where: {
         Enrollment: {
-          some: {
-            status: { not: 'WITHDRAWN' },
-            endDate: null,
-            programProfile: {
-              program: 'MAHAD_PROGRAM',
-            },
-          },
+          some: ACTIVE_MAHAD_ENROLLMENT_WHERE,
         },
       },
     }),
@@ -566,21 +530,12 @@ export async function getBatchesWithFilters(
     if (filters.hasStudents) {
       // Only batches with at least one active enrollment
       where.Enrollment = {
-        some: {
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-          programProfile: {
-            program: 'MAHAD_PROGRAM',
-          },
-        },
+        some: ACTIVE_MAHAD_ENROLLMENT_WHERE,
       }
     } else {
       // Only batches with no active enrollments
       where.Enrollment = {
-        none: {
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
+        none: ACTIVE_ENROLLMENT_WHERE,
       }
     }
   }
@@ -595,13 +550,7 @@ export async function getBatchesWithFilters(
       _count: {
         select: {
           Enrollment: {
-            where: {
-              status: { not: 'WITHDRAWN' },
-              endDate: null,
-              programProfile: {
-                program: 'MAHAD_PROGRAM',
-              },
-            },
+            where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
           },
         },
       },
@@ -632,13 +581,7 @@ export async function getBatchWithEnrollments(
     where: { id: batchId },
     include: {
       Enrollment: {
-        where: {
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-          programProfile: {
-            program: 'MAHAD_PROGRAM',
-          },
-        },
+        where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
         include: {
           programProfile: {
             include: {
@@ -703,10 +646,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       },
       enrollments: {
-        where: {
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
+        where: ACTIVE_ENROLLMENT_WHERE,
         orderBy: {
           startDate: 'desc',
         },
@@ -719,18 +659,13 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
   })
 
   return profiles.map((profile) => {
-    const emailContact = profile.person.contactPoints?.find(
-      (cp) => cp.type === 'EMAIL'
-    )
-    const phoneContact = profile.person.contactPoints?.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )
+    const { email, phone } = extractContactInfo(profile.person.contactPoints)
 
     return {
       id: profile.id,
       name: profile.person.name,
-      email: emailContact?.value || null,
-      phone: phoneContact?.value || null,
+      email,
+      phone,
       educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,
       createdAt: profile.createdAt,
