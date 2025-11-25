@@ -22,6 +22,7 @@ import {
   getBatchStudentCount,
   getBatchesWithFilters,
 } from '@/lib/db/queries/batch'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import {
   mapEnrollmentToMahadStudent as _mapEnrollmentToMahadStudent,
   mapEnrollmentsToMahadStudents as _mapEnrollmentsToMahadStudents,
@@ -59,7 +60,12 @@ export interface BatchFilterOptions {
 export async function createMahadBatch(input: BatchCreateInput) {
   // Validate dates
   if (input.endDate && input.startDate >= input.endDate) {
-    throw new Error('End date must be after start date')
+    throw new ActionError(
+      'End date must be after start date',
+      ERROR_CODES.VALIDATION_ERROR,
+      'endDate',
+      400
+    )
   }
 
   return await createBatch({
@@ -83,8 +89,11 @@ export async function deleteMahadBatch(batchId: string) {
   const studentCount = await getBatchStudentCount(batchId)
 
   if (studentCount > 0) {
-    throw new Error(
-      `Cannot delete batch with ${studentCount} enrolled student(s). Withdraw students first.`
+    throw new ActionError(
+      `Cannot delete batch with ${studentCount} enrolled student(s). Withdraw students first.`,
+      ERROR_CODES.VALIDATION_ERROR,
+      undefined,
+      400
     )
   }
 
@@ -163,7 +172,12 @@ export async function updateMahadBatch(
 ) {
   // Validate dates if provided
   if (data.startDate && data.endDate && data.startDate >= data.endDate) {
-    throw new Error('End date must be after start date')
+    throw new ActionError(
+      'End date must be after start date',
+      ERROR_CODES.VALIDATION_ERROR,
+      'endDate',
+      400
+    )
   }
 
   return await prisma.batch.update({

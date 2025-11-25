@@ -13,6 +13,7 @@
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { programProfileFullInclude } from '@/lib/types/prisma-helpers'
 
 /**
@@ -44,12 +45,22 @@ export async function getDugsiStudent(studentId: string) {
   })
 
   if (!person) {
-    throw new Error('Student not found')
+    throw new ActionError(
+      'Student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const dugsiProfile = person.programProfiles[0]
   if (!dugsiProfile) {
-    throw new Error('Student does not have a Dugsi profile')
+    throw new ActionError(
+      'Student does not have a Dugsi profile',
+      ERROR_CODES.PROFILE_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   return {
@@ -137,7 +148,12 @@ export async function getDugsiStudentBillingStatus(studentId: string) {
   })
 
   if (!profile) {
-    throw new Error('Dugsi profile not found for student')
+    throw new ActionError(
+      'Dugsi profile not found for student',
+      ERROR_CODES.PROFILE_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const activeAssignment = profile.assignments[0]
@@ -181,7 +197,12 @@ export async function getDugsiEnrollmentStatus(studentId: string) {
   })
 
   if (!profile) {
-    throw new Error('Dugsi profile not found for student')
+    throw new ActionError(
+      'Dugsi profile not found for student',
+      ERROR_CODES.PROFILE_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const activeEnrollment = profile.enrollments[0]

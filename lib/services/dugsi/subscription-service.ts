@@ -15,6 +15,7 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
 import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import {
   validateStripeSubscription,
   linkSubscriptionToProfiles,
@@ -86,7 +87,12 @@ export async function linkDugsiSubscription(
   // Get subscription from database
   const subscription = await getSubscriptionByStripeId(subscriptionId)
   if (!subscription) {
-    throw new Error('Subscription not found in database')
+    throw new ActionError(
+      'Subscription not found in database',
+      ERROR_CODES.SUBSCRIPTION_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Find person by email (parent)
@@ -109,13 +115,23 @@ export async function linkDugsiSubscription(
   })
 
   if (!person) {
-    throw new Error('Parent not found with this email address')
+    throw new ActionError(
+      'Parent not found with this email address',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Get family profiles
   const profiles = person.programProfiles || []
   if (profiles.length === 0) {
-    throw new Error('No Dugsi registrations found for this email')
+    throw new ActionError(
+      'No Dugsi registrations found for this email',
+      ERROR_CODES.PROFILE_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Get family reference ID from first profile
@@ -192,7 +208,12 @@ export async function getDugsiPaymentStatus(
   })
 
   if (!person) {
-    throw new Error('Parent not found with this email address')
+    throw new ActionError(
+      'Parent not found with this email address',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Get billing account

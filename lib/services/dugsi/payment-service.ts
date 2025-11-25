@@ -20,6 +20,7 @@ import {
   getProgramProfilesByFamilyId,
   getProgramProfileById,
 } from '@/lib/db/queries/program-profile'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { constructDugsiPaymentUrl } from '@/lib/utils/dugsi-payment'
@@ -175,12 +176,22 @@ export async function getPaymentStatus(
   )
 
   if (!person) {
-    throw new Error('Family not found')
+    throw new ActionError(
+      'Family not found',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const profiles = person.programProfiles || []
   if (profiles.length === 0) {
-    throw new Error('No Dugsi registrations found for this email')
+    throw new ActionError(
+      'No Dugsi registrations found for this email',
+      ERROR_CODES.PROFILE_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Get family reference ID from first profile
@@ -246,12 +257,22 @@ export async function generatePaymentLink(
     // Get family members via profile
     const profile = await getProgramProfileById(studentId)
     if (!profile || profile.program !== DUGSI_PROGRAM) {
-      throw new Error('Student not found')
+      throw new ActionError(
+        'Student not found',
+        ERROR_CODES.STUDENT_NOT_FOUND,
+        undefined,
+        404
+      )
     }
 
     const familyId = profile.familyReferenceId
     if (!familyId) {
-      throw new Error('Family reference ID not found')
+      throw new ActionError(
+        'Family reference ID not found',
+        ERROR_CODES.FAMILY_NOT_FOUND,
+        undefined,
+        404
+      )
     }
 
     const familyProfiles = await getProgramProfilesByFamilyId(familyId)
@@ -276,24 +297,42 @@ export async function generatePaymentLink(
   }
 
   if (members.length === 0) {
-    throw new Error('Family not found')
+    throw new ActionError(
+      'Family not found',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const firstMember = members[0]
 
   // Validate parent email exists
   if (!firstMember.parentEmail) {
-    throw new Error('Parent email is required to generate payment link')
+    throw new ActionError(
+      'Parent email is required to generate payment link',
+      ERROR_CODES.VALIDATION_ERROR,
+      'parentEmail',
+      400
+    )
   }
 
   if (!firstMember.familyReferenceId) {
-    throw new Error('Family reference ID not found')
+    throw new ActionError(
+      'Family reference ID not found',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Check if payment link config exists
   if (!process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI) {
-    throw new Error(
-      'Payment link not configured. Please set NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI in environment variables.'
+    throw new ActionError(
+      'Payment link not configured. Please set NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI in environment variables.',
+      ERROR_CODES.SERVER_ERROR,
+      undefined,
+      500
     )
   }
 

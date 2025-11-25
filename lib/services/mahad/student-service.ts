@@ -20,6 +20,7 @@ import {
   createProgramProfile,
 } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { mapEnrollmentToMahadStudent as _mapEnrollmentToMahadStudent } from '@/lib/mappers/mahad-mapper'
 
 /**
@@ -170,7 +171,12 @@ export async function updateMahadStudent(
   const profile = await getProgramProfileById(studentId)
 
   if (!profile || profile.program !== MAHAD_PROGRAM) {
-    throw new Error('Mahad student profile not found')
+    throw new ActionError(
+      'Mahad student profile not found',
+      ERROR_CODES.PROFILE_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Update person if name or dateOfBirth changed
@@ -331,7 +337,12 @@ export async function getMahadStudent(studentId: string) {
   })
 
   if (!profile || profile.program !== MAHAD_PROGRAM) {
-    throw new Error('Mahad student not found')
+    throw new ActionError(
+      'Mahad student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   return profile
@@ -349,7 +360,12 @@ export async function getMahadStudentSiblings(studentId: string) {
   const profile = await getProgramProfileById(studentId)
 
   if (!profile) {
-    throw new Error('Student not found')
+    throw new ActionError(
+      'Student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   return await getPersonSiblings(profile.personId)

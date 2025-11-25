@@ -19,6 +19,7 @@ import {
   updateEnrollmentStatus,
   getEnrollmentById,
 } from '@/lib/db/queries/enrollment'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 
 const logger = createServiceLogger('mahad-enrollment')
@@ -151,7 +152,12 @@ export async function transferStudentsToBatch(
         })
 
         if (!currentEnrollment) {
-          throw new Error('No active enrollment found')
+          throw new ActionError(
+            'No active enrollment found',
+            ERROR_CODES.ENROLLMENT_NOT_FOUND,
+            undefined,
+            404
+          )
         }
 
         // Withdraw from current batch
@@ -204,7 +210,12 @@ export async function withdrawStudentFromBatch(studentId: string) {
   })
 
   if (!enrollment) {
-    throw new Error('No active enrollment found for student')
+    throw new ActionError(
+      'No active enrollment found for student',
+      ERROR_CODES.ENROLLMENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   return await updateEnrollmentStatus(

@@ -18,9 +18,9 @@ import {
   getProgramProfileById,
   getProgramProfilesByFamilyId,
 } from '@/lib/db/queries/program-profile'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { programProfileFullInclude } from '@/lib/types/prisma-helpers'
-
 
 /**
  * Fetch all Dugsi registrations with full relations.
@@ -123,7 +123,12 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
   const profile = await getProgramProfileById(studentId)
 
   if (!profile || profile.program !== 'DUGSI_PROGRAM') {
-    throw new Error('Student not found or not in Dugsi program')
+    throw new ActionError(
+      'Student not found or not in Dugsi program',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const familyId = profile.familyReferenceId
@@ -172,7 +177,12 @@ export async function deleteDugsiFamily(studentId: string): Promise<number> {
   const profile = await getProgramProfileById(studentId)
 
   if (!profile || profile.program !== 'DUGSI_PROGRAM') {
-    throw new Error('Student not found or not in Dugsi program')
+    throw new ActionError(
+      'Student not found or not in Dugsi program',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const familyId = profile.familyReferenceId

@@ -19,6 +19,7 @@ import {
   getProgramProfileById,
   findPersonByContact,
 } from '@/lib/db/queries/program-profile'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
 /**
  * Parent update input
@@ -87,7 +88,12 @@ export async function updateParentInfo(
 ): Promise<{ updated: number }> {
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
-    throw new Error('Student not found')
+    throw new ActionError(
+      'Student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Get guardian relationships for the profile
@@ -102,7 +108,12 @@ export async function updateParentInfo(
   const guardian = guardians[guardianIndex]
 
   if (!guardian) {
-    throw new Error(`Parent ${input.parentNumber} not found`)
+    throw new ActionError(
+      `Parent ${input.parentNumber} not found`,
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Update guardian name and phone in a transaction
@@ -173,7 +184,12 @@ export async function addSecondParent(
 ): Promise<{ updated: number }> {
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
-    throw new Error('Student not found')
+    throw new ActionError(
+      'Student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Check if second parent already exists
@@ -184,7 +200,12 @@ export async function addSecondParent(
     .filter(Boolean)
 
   if (guardians.length >= 2) {
-    throw new Error('Second parent already exists')
+    throw new ActionError(
+      'Second parent already exists',
+      ERROR_CODES.DUPLICATE_PARENT,
+      undefined,
+      400
+    )
   }
 
   // Check if person with this email already exists
@@ -237,27 +258,33 @@ export async function addSecondParent(
 export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
-    throw new Error('Student not found')
+    throw new ActionError(
+      'Student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
-  // Update person name if provided
+  // Build Person update data (consolidated into single query)
+  const personUpdateData: { name?: string; dateOfBirth?: Date } = {}
+
   if (input.firstName || input.lastName) {
     const currentName = profile.person.name.split(' ')
     const firstName = input.firstName || currentName[0] || ''
     const lastName = input.lastName || currentName.slice(1).join(' ') || ''
-    const fullName = `${firstName} ${lastName}`.trim()
-
-    await prisma.person.update({
-      where: { id: profile.personId },
-      data: { name: fullName },
-    })
+    personUpdateData.name = `${firstName} ${lastName}`.trim()
   }
 
-  // Update person date of birth if provided
   if (input.dateOfBirth !== undefined) {
+    personUpdateData.dateOfBirth = input.dateOfBirth
+  }
+
+  // Update person record (single query for name and DOB)
+  if (Object.keys(personUpdateData).length > 0) {
     await prisma.person.update({
       where: { id: profile.personId },
-      data: { dateOfBirth: input.dateOfBirth },
+      data: personUpdateData,
     })
   }
 
@@ -303,12 +330,22 @@ export async function addChildToFamily(
 ): Promise<{ childId: string }> {
   const existingProfile = await getProgramProfileById(input.existingStudentId)
   if (!existingProfile || existingProfile.program !== DUGSI_PROGRAM) {
-    throw new Error('Existing student not found')
+    throw new ActionError(
+      'Existing student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   const familyId = existingProfile.familyReferenceId
   if (!familyId) {
-    throw new Error('Family reference ID not found')
+    throw new ActionError(
+      'Family reference ID not found',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Get guardian relationships from existing profile
@@ -319,7 +356,12 @@ export async function addChildToFamily(
     .filter(Boolean)
 
   if (guardians.length === 0) {
-    throw new Error('No guardians found for existing student')
+    throw new ActionError(
+      'No guardians found for existing student',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
   }
 
   // Create new child with all related records in a transaction
