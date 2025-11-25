@@ -1,0 +1,314 @@
+/**
+ * Dugsi Payment Service
+ *
+ * Business logic for Dugsi payment operations.
+ * Handles bank verification, payment status, and payment link generation.
+ *
+ * Responsibilities:
+ * - Verify bank accounts via microdeposits
+ * - Get payment status for families
+ * - Generate payment links for registration
+ */
+
+import * as Sentry from '@sentry/nextjs'
+
+import type { DugsiRegistration } from '@/app/admin/dugsi/_types'
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+import { prisma } from '@/lib/db'
+import { getBillingAssignmentsByProfile } from '@/lib/db/queries/billing'
+import {
+  getProgramProfilesByFamilyId,
+  getProgramProfileById,
+} from '@/lib/db/queries/program-profile'
+import { createServiceLogger } from '@/lib/logger'
+import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { constructDugsiPaymentUrl } from '@/lib/utils/dugsi-payment'
+
+const logger = createServiceLogger('dugsi-payment')
+
+/**
+ * Payment status data returned by service
+ */
+export interface PaymentStatusData {
+  familyEmail: string
+  studentCount: number
+  hasPaymentMethod: boolean
+  hasSubscription: boolean
+  stripeCustomerId: string | null
+  subscriptionId: string | null
+  subscriptionStatus: string | null
+  paidUntil: Date | null
+  currentPeriodStart: Date | null
+  currentPeriodEnd: Date | null
+  students: Array<{ id: string; name: string }>
+}
+
+/**
+ * Bank verification result data
+ */
+export interface BankVerificationData {
+  paymentIntentId: string
+  status: string
+}
+
+/**
+ * Payment link generation data
+ */
+export interface PaymentLinkData {
+  paymentUrl: string
+  parentEmail: string
+  parentPhone: string | null
+  childCount: number
+  familyReferenceId: string
+}
+
+/**
+ * Verify bank account using microdeposit descriptor code.
+ *
+ * Calls Stripe API to verify the 6-digit SM code from bank statement.
+ *
+ * @param paymentIntentId - Stripe payment intent ID
+ * @param descriptorCode - 6-character code starting with SM
+ * @returns Verification result
+ * @throws Error if verification fails
+ */
+export async function verifyBankAccount(
+  paymentIntentId: string,
+  descriptorCode: string
+): Promise<BankVerificationData> {
+  const dugsiStripe = getDugsiStripeClient()
+
+  logger.info(
+    {
+      paymentIntentId,
+      descriptorCode,
+    },
+    'Verifying bank account'
+  )
+
+  const paymentIntent = await Sentry.startSpan(
+    {
+      name: 'stripe.verify_microdeposits',
+      op: 'stripe.api',
+      attributes: {
+        payment_intent_id: paymentIntentId,
+      },
+    },
+    async () =>
+      await dugsiStripe.paymentIntents.verifyMicrodeposits(paymentIntentId, {
+        descriptor_code: descriptorCode,
+      })
+  )
+
+  logger.info(
+    {
+      paymentIntentId,
+      status: paymentIntent.status,
+    },
+    'Bank account verified successfully'
+  )
+
+  return {
+    paymentIntentId,
+    status: paymentIntent.status,
+  }
+}
+
+/**
+ * Get payment status for a Dugsi family by parent email.
+ *
+ * Returns payment method status, subscription details, and family info.
+ *
+ * @param parentEmail - Parent's email address
+ * @returns Payment status data
+ * @throws Error if family not found
+ */
+export async function getPaymentStatus(
+  parentEmail: string
+): Promise<PaymentStatusData> {
+  // Find person by email
+  const person = await Sentry.startSpan(
+    {
+      name: 'dugsi.find_person_with_profiles',
+      op: 'db.query',
+      attributes: {
+        parent_email: parentEmail,
+      },
+    },
+    async () =>
+      await prisma.person.findFirst({
+        where: {
+          contactPoints: {
+            some: {
+              type: 'EMAIL',
+              value: parentEmail.toLowerCase().trim(),
+            },
+          },
+        },
+        include: {
+          contactPoints: true,
+          programProfiles: {
+            where: {
+              program: DUGSI_PROGRAM,
+            },
+            include: {
+              enrollments: {
+                where: {
+                  status: { not: 'WITHDRAWN' },
+                  endDate: null,
+                },
+              },
+              assignments: {
+                where: { isActive: true },
+                include: {
+                  subscription: {
+                    include: {
+                      billingAccount: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      })
+  )
+
+  if (!person) {
+    throw new Error('Family not found')
+  }
+
+  const profiles = person.programProfiles || []
+  if (profiles.length === 0) {
+    throw new Error('No Dugsi registrations found for this email')
+  }
+
+  // Get family reference ID from first profile
+  const familyId = profiles[0].familyReferenceId
+
+  // Always fetch family profiles with person relation included
+  const familyProfiles = familyId
+    ? await getProgramProfilesByFamilyId(familyId)
+    : profiles.map((p) => ({
+        ...p,
+        person: person, // Use the parent person we already fetched
+      }))
+
+  // Get billing info from first profile's assignment
+  const firstProfile = familyProfiles[0]
+  const assignments = await getBillingAssignmentsByProfile(firstProfile.id)
+  const activeAssignment = assignments.find((a) => a.isActive)
+  const subscription = activeAssignment?.subscription
+
+  // Get billing account
+  const billingAccount = subscription?.billingAccount
+
+  const students = familyProfiles.map((p) => ({
+    id: p.id,
+    name: 'person' in p && p.person ? p.person.name : person.name,
+  }))
+
+  return {
+    familyEmail: parentEmail,
+    studentCount: familyProfiles.length,
+    hasPaymentMethod: billingAccount?.paymentMethodCaptured || false,
+    hasSubscription: !!subscription,
+    stripeCustomerId: billingAccount?.stripeCustomerIdDugsi || null,
+    subscriptionId: subscription?.stripeSubscriptionId || null,
+    subscriptionStatus: subscription?.status || null,
+    paidUntil: subscription?.paidUntil || null,
+    currentPeriodStart: subscription?.currentPeriodStart || null,
+    currentPeriodEnd: subscription?.currentPeriodEnd || null,
+    students,
+  }
+}
+
+/**
+ * Generate a payment link for a Dugsi family.
+ *
+ * Creates a Stripe payment link URL with pre-filled family information.
+ * Uses familyReferenceId for webhook matching.
+ *
+ * @param studentId - Any student ID in the family
+ * @param familyMembers - Optional pre-fetched family members
+ * @returns Payment link data
+ * @throws Error if family not found or missing required data
+ */
+export async function generatePaymentLink(
+  studentId: string,
+  familyMembers?: DugsiRegistration[]
+): Promise<PaymentLinkData> {
+  // Use provided family members or fetch them
+  let members: DugsiRegistration[]
+  if (familyMembers && familyMembers.length > 0) {
+    members = familyMembers
+  } else {
+    // Get family members via profile
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== DUGSI_PROGRAM) {
+      throw new Error('Student not found')
+    }
+
+    const familyId = profile.familyReferenceId
+    if (!familyId) {
+      throw new Error('Family reference ID not found')
+    }
+
+    const familyProfiles = await getProgramProfilesByFamilyId(familyId)
+
+    // Map to DugsiRegistration format
+    members = familyProfiles.map((fp) => {
+      const emailContact = fp.person.contactPoints?.find(
+        (cp) => cp.type === 'EMAIL'
+      )
+      const phoneContact = fp.person.contactPoints?.find(
+        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+      )
+
+      return {
+        id: fp.id,
+        name: fp.person.name,
+        parentEmail: emailContact?.value || null,
+        parentPhone: phoneContact?.value || null,
+        familyReferenceId: fp.familyReferenceId,
+      } as DugsiRegistration
+    })
+  }
+
+  if (members.length === 0) {
+    throw new Error('Family not found')
+  }
+
+  const firstMember = members[0]
+
+  // Validate parent email exists
+  if (!firstMember.parentEmail) {
+    throw new Error('Parent email is required to generate payment link')
+  }
+
+  if (!firstMember.familyReferenceId) {
+    throw new Error('Family reference ID not found')
+  }
+
+  // Check if payment link config exists
+  if (!process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI) {
+    throw new Error(
+      'Payment link not configured. Please set NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI in environment variables.'
+    )
+  }
+
+  // Generate payment URL
+  const paymentUrl = constructDugsiPaymentUrl({
+    parentEmail: firstMember.parentEmail,
+    familyId: firstMember.familyReferenceId,
+    childCount: members.length,
+  })
+
+  return {
+    paymentUrl,
+    parentEmail: firstMember.parentEmail,
+    parentPhone: firstMember.parentPhone,
+    childCount: members.length,
+    familyReferenceId: firstMember.familyReferenceId,
+  }
+}
