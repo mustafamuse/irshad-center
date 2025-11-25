@@ -5,6 +5,8 @@
  * Eliminates 42 lines of duplicate code between new registration and resume registration paths.
  */
 
+import { Prisma } from '@prisma/client'
+
 import type { DatabaseClient } from '@/lib/db/types'
 import { createClientLogger } from '@/lib/logger-client'
 
@@ -156,6 +158,21 @@ export class SiblingRelationshipService {
         siblingsAdded++
         logger.info('Successfully linked sibling', { personId, siblingId })
       } catch (error) {
+        // Handle race condition: P2002 means another thread created the relationship
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          // Relationship was created by concurrent process - this is success, not failure
+          logger.info(
+            'Sibling relationship already exists (race condition handled)',
+            { personId, siblingId }
+          )
+          siblingsAdded++
+          continue
+        }
+
+        // All other errors are actual failures
         siblingsFailed++
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error'

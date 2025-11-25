@@ -1,4 +1,5 @@
 import type { Person } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
@@ -233,6 +234,7 @@ export function calculateConfidenceScore(
 
 /**
  * Create a sibling relationship
+ * Handles P2002 race condition gracefully by returning existing relationship
  */
 export async function createSiblingRelationship(
   person1Id: string,
@@ -251,16 +253,36 @@ export async function createSiblingRelationship(
   // Ensure person1Id < person2Id for consistency (or use a different ordering)
   const [p1, p2] = [person1Id, person2Id].sort()
 
-  return await prisma.siblingRelationship.create({
-    data: {
-      person1Id: p1,
-      person2Id: p2,
-      detectionMethod: method,
-      confidence: options?.confidence ?? (method === 'MANUAL' ? 1.0 : null),
-      verifiedBy: options?.verifiedBy,
-      verifiedAt: options?.verifiedBy ? new Date() : null,
-      notes: options?.notes,
-      isActive: true,
-    },
-  })
+  try {
+    return await prisma.siblingRelationship.create({
+      data: {
+        person1Id: p1,
+        person2Id: p2,
+        detectionMethod: method,
+        confidence: options?.confidence ?? (method === 'MANUAL' ? 1.0 : null),
+        verifiedBy: options?.verifiedBy,
+        verifiedAt: options?.verifiedBy ? new Date() : null,
+        notes: options?.notes,
+        isActive: true,
+      },
+    })
+  } catch (error) {
+    // Handle race condition: P2002 means another thread created the relationship
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      // Return the existing relationship instead of throwing
+      const existing = await prisma.siblingRelationship.findFirst({
+        where: {
+          person1Id: p1,
+          person2Id: p2,
+        },
+      })
+      if (existing) {
+        return existing
+      }
+    }
+    throw error
+  }
 }

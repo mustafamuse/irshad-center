@@ -1,10 +1,10 @@
 import type {
   Person,
-  Prisma,
   ProgramProfile,
   Enrollment,
   Program,
 } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -494,13 +494,33 @@ export async function createSiblingRelationship(
     return existing
   }
 
-  return client.siblingRelationship.create({
-    data: {
-      person1Id: p1,
-      person2Id: p2,
-      detectionMethod,
-      confidence,
-      isActive: true,
-    },
-  })
+  try {
+    return await client.siblingRelationship.create({
+      data: {
+        person1Id: p1,
+        person2Id: p2,
+        detectionMethod,
+        confidence,
+        isActive: true,
+      },
+    })
+  } catch (error) {
+    // Handle race condition: P2002 means another thread created the relationship
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      // Return the existing relationship instead of throwing
+      const existingFromRace = await client.siblingRelationship.findFirst({
+        where: {
+          person1Id: p1,
+          person2Id: p2,
+        },
+      })
+      if (existingFromRace) {
+        return existingFromRace
+      }
+    }
+    throw error
+  }
 }

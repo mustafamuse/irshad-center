@@ -16,6 +16,7 @@
 import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
+import { STRIPE_SUBSCRIPTION_STATUS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
 import {
   getBillingAccountByStripeCustomerId as getBillingAccountByCustomerIdQuery,
@@ -333,7 +334,10 @@ export async function getBillingStatusByEmail(
           subscriptions: {
             where: {
               status: {
-                in: ['active', 'trialing'],
+                in: [
+                  STRIPE_SUBSCRIPTION_STATUS.ACTIVE,
+                  STRIPE_SUBSCRIPTION_STATUS.TRIALING,
+                ],
               },
             },
             orderBy: {
