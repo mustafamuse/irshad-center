@@ -627,54 +627,77 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     }
 
     // Create sibling relationships if multiple children (within transaction)
+    // Optimized to batch check existing relationships first
     if (createdProfiles.length > 1) {
+      // Build all sibling pairs with consistent ordering (p1 < p2)
+      const siblingPairs: Array<{ p1: string; p2: string }> = []
       for (let i = 0; i < createdProfiles.length; i++) {
         for (let j = i + 1; j < createdProfiles.length; j++) {
-          // Use transaction-aware sibling creation
           const [p1, p2] = [
             createdProfiles[i].personId,
             createdProfiles[j].personId,
           ].sort()
-
-          // Check if relationship already exists
-          const existingSibling = await tx.siblingRelationship.findFirst({
-            where: {
-              person1Id: p1,
-              person2Id: p2,
-            },
-          })
-
-          if (!existingSibling) {
-            // Import validation dynamically
-            const { validateSiblingRelationship } = await import(
-              '@/lib/services/validation-service'
-            )
-
-            await validateSiblingRelationship({
-              person1Id: p1,
-              person2Id: p2,
-            })
-
-            await tx.siblingRelationship.create({
-              data: {
-                person1Id: p1,
-                person2Id: p2,
-                detectionMethod: 'manual',
-                confidence: null,
-                isActive: true,
-              },
-            })
-          } else if (!existingSibling.isActive) {
-            // Reactivate if inactive
-            await tx.siblingRelationship.update({
-              where: { id: existingSibling.id },
-              data: {
-                isActive: true,
-                detectionMethod: 'manual',
-              },
-            })
-          }
+          siblingPairs.push({ p1, p2 })
         }
+      }
+
+      // Batch fetch all existing sibling relationships
+      const existingRelationships = await tx.siblingRelationship.findMany({
+        where: {
+          OR: siblingPairs.map(({ p1, p2 }) => ({
+            person1Id: p1,
+            person2Id: p2,
+          })),
+        },
+      })
+
+      // Create a map for quick lookup
+      const existingMap = new Map(
+        existingRelationships.map((r) => [`${r.person1Id}-${r.person2Id}`, r])
+      )
+
+      // Prepare batch operations
+      const toCreate: Array<{
+        person1Id: string
+        person2Id: string
+        detectionMethod: string
+        confidence: null
+        isActive: boolean
+      }> = []
+      const toReactivate: string[] = []
+
+      for (const { p1, p2 } of siblingPairs) {
+        const existing = existingMap.get(`${p1}-${p2}`)
+        if (!existing) {
+          toCreate.push({
+            person1Id: p1,
+            person2Id: p2,
+            detectionMethod: 'manual',
+            confidence: null,
+            isActive: true,
+          })
+        } else if (!existing.isActive) {
+          toReactivate.push(existing.id)
+        }
+      }
+
+      // Batch create new relationships
+      if (toCreate.length > 0) {
+        await tx.siblingRelationship.createMany({
+          data: toCreate,
+          skipDuplicates: true,
+        })
+      }
+
+      // Batch reactivate inactive relationships
+      if (toReactivate.length > 0) {
+        await tx.siblingRelationship.updateMany({
+          where: { id: { in: toReactivate } },
+          data: {
+            isActive: true,
+            detectionMethod: 'manual',
+          },
+        })
       }
     }
 

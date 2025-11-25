@@ -16,6 +16,7 @@ import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import type { Stripe } from 'stripe'
 
+import { STRIPE_CUSTOM_FIELDS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import { createServiceLogger } from '@/lib/logger'
@@ -94,7 +95,7 @@ export class UnifiedMatcher {
     accountType: StripeAccountType
   ): Promise<UnifiedMatchResult> {
     const emailField = session.custom_fields?.find(
-      (f) => f.key === 'studentsemailonethatyouusedtoregister'
+      (f) => f.key === STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL
     )
     const rawEmail = emailField?.text?.value
 
@@ -240,7 +241,7 @@ export class UnifiedMatcher {
     accountType: StripeAccountType
   ): Promise<UnifiedMatchResult> {
     const phoneField = session.custom_fields?.find(
-      (f) => f.key === 'studentswhatsappthatyouuseforourgroup'
+      (f) => f.key === STRIPE_CUSTOM_FIELDS.STUDENT_PHONE
     )
     const rawPhone = phoneField?.numeric?.value
 
@@ -511,10 +512,10 @@ export class UnifiedMatcher {
     accountType: StripeAccountType
   ): void {
     const emailField = session.custom_fields?.find(
-      (f) => f.key === 'studentsemailonethatyouusedtoregister'
+      (f) => f.key === STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL
     )
     const phoneField = session.custom_fields?.find(
-      (f) => f.key === 'studentswhatsappthatyouuseforourgroup'
+      (f) => f.key === STRIPE_CUSTOM_FIELDS.STUDENT_PHONE
     )
 
     logger.warn(
