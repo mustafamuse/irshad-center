@@ -17,7 +17,7 @@
 import { ContactType, GuardianRole } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { normalizePhone } from '@/lib/types/person'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 /**
  * Guardian update input

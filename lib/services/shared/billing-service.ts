@@ -22,7 +22,6 @@ import {
   upsertBillingAccount as upsertBillingAccountQuery,
   createBillingAssignment as createBillingAssignmentQuery,
   updateBillingAssignmentStatus,
-  getBillingAssignmentsByProfile,
   getBillingAssignmentsBySubscription,
 } from '@/lib/db/queries/billing'
 
@@ -387,6 +386,7 @@ export async function getBillingStatusByEmail(
  * Get billing status for program profiles.
  *
  * Checks if profiles have active billing assignments.
+ * Uses a single batch query to avoid N+1 performance issues.
  *
  * @param programProfileIds - Array of profile IDs
  * @returns Map of profile ID to billing status
@@ -399,13 +399,31 @@ export async function getBillingStatusForProfiles(
     { hasSubscription: boolean; amount: number | null }
   >()
 
+  // Initialize all profiles as having no subscription
   for (const profileId of programProfileIds) {
-    const assignments = await getBillingAssignmentsByProfile(profileId)
-    const activeAssignment = assignments.find((a) => a.isActive)
-
     statusMap.set(profileId, {
-      hasSubscription: !!activeAssignment,
-      amount: activeAssignment?.amount ?? null,
+      hasSubscription: false,
+      amount: null,
+    })
+  }
+
+  // Batch fetch all active assignments for all profiles in a single query
+  const allAssignments = await prisma.billingAssignment.findMany({
+    where: {
+      programProfileId: { in: programProfileIds },
+      isActive: true,
+    },
+    select: {
+      programProfileId: true,
+      amount: true,
+    },
+  })
+
+  // Update status map with found assignments
+  for (const assignment of allAssignments) {
+    statusMap.set(assignment.programProfileId, {
+      hasSubscription: true,
+      amount: assignment.amount,
     })
   }
 

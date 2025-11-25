@@ -243,6 +243,14 @@ export async function syncProfileSubscriptionState(
   })
 }
 
-// Legacy exports for backward compatibility during migration
+/**
+ * @deprecated Use `updateProfilesInTransaction` instead.
+ * This alias exists for backward compatibility and will be removed in a future release.
+ */
 export const updateStudentsInTransaction = updateProfilesInTransaction
+
+/**
+ * @deprecated Use `buildCancellationUpdateData` instead.
+ * This alias exists for backward compatibility and will be removed in a future release.
+ */
 export const buildStudentUpdateData = buildCancellationUpdateData

@@ -22,7 +22,7 @@ import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import { createServiceLogger } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
-import { normalizePhone } from '@/lib/types/person'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('registration')
 

@@ -28,7 +28,10 @@ export function getStripeClient(accountType: StripeAccountType): Stripe {
       // Default to Mahad Stripe for now
       // Can be extended when these programs get separate accounts
       return getMahadStripeClient()
-    default:
-      throw new Error(`Unsupported account type: ${accountType}`)
+    default: {
+      // Exhaustive check - if new StripeAccountType is added, TypeScript will error here
+      const _exhaustiveCheck: never = accountType
+      throw new Error(`Unsupported account type: ${_exhaustiveCheck}`)
+    }
   }
 }

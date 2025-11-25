@@ -12,8 +12,8 @@ import { prisma } from '@/lib/db'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createClientLogger } from '@/lib/logger-client'
-import { normalizePhone } from '@/lib/types/person'
 import type { DuplicateField } from '@/lib/types/registration-errors'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 const logger = createClientLogger('DuplicateDetectionService')
 
