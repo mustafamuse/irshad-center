@@ -11,13 +11,12 @@
  * - Add child to family
  */
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, Prisma } from '@prisma/client'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   getProgramProfileById,
-  getProgramProfilesByFamilyId,
   findPersonByContact,
 } from '@/lib/db/queries/program-profile'
 
@@ -91,14 +90,7 @@ export async function updateParentInfo(
     throw new Error('Student not found')
   }
 
-  // Get family members
-  const familyId = profile.familyReferenceId
-  if (familyId) {
-    // Fetch all family profiles (variable used implicitly for future operations)
-    await getProgramProfilesByFamilyId(familyId)
-  }
-
-  // Get guardian relationships for the first profile
+  // Get guardian relationships for the profile
   const person = profile.person
   const guardianRelationships = person.guardianRelationships || []
   const guardians = guardianRelationships
@@ -126,20 +118,40 @@ export async function updateParentInfo(
       data: { name: fullName },
     })
 
-    // Update or create phone contact point
+    // Update or create phone contact point with P2002 race condition handling
     if (existingPhone) {
       await tx.contactPoint.update({
         where: { id: existingPhone.id },
         data: { value: input.phone },
       })
     } else {
-      await tx.contactPoint.create({
-        data: {
-          personId: guardian.id,
-          type: 'PHONE',
-          value: input.phone,
-        },
-      })
+      try {
+        await tx.contactPoint.create({
+          data: {
+            personId: guardian.id,
+            type: 'PHONE',
+            value: input.phone,
+          },
+        })
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          // Race condition - contact point was created by another transaction
+          const existing = await tx.contactPoint.findFirst({
+            where: { personId: guardian.id, type: 'PHONE' },
+          })
+          if (existing) {
+            await tx.contactPoint.update({
+              where: { id: existing.id },
+              data: { value: input.phone },
+            })
+          }
+        } else {
+          throw error
+        }
+      }
     }
   })
 

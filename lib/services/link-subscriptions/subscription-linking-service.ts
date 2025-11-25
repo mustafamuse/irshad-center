@@ -17,10 +17,7 @@ import { StripeAccountType } from '@prisma/client'
 import Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
-import {
-  getBillingAssignmentsByProfile,
-  getSubscriptionByStripeId,
-} from '@/lib/db/queries/billing'
+import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
 import {
   getProgramProfileById,
   getProgramProfiles,
@@ -288,9 +285,25 @@ export async function searchStudentsForLinking(
     limit: 50,
   })
 
+  // Batch fetch all assignments to avoid N+1 queries
+  const profileIds = profiles.map((p) => p.id)
+  const allAssignments = await prisma.billingAssignment.findMany({
+    where: {
+      programProfileId: { in: profileIds },
+      isActive: true,
+    },
+    include: { subscription: true },
+  })
+  const assignmentsByProfile = new Map<string, typeof allAssignments>()
+  for (const assignment of allAssignments) {
+    const existing = assignmentsByProfile.get(assignment.programProfileId) || []
+    existing.push(assignment)
+    assignmentsByProfile.set(assignment.programProfileId, existing)
+  }
+
   const matches: StudentMatch[] = []
   for (const profile of profiles) {
-    const assignments = await getBillingAssignmentsByProfile(profile.id)
+    const assignments = assignmentsByProfile.get(profile.id) || []
     const hasSubscription = assignments.some(
       (a) =>
         a.subscription.status === 'active' ||
@@ -345,9 +358,25 @@ export async function getPotentialStudentMatches(
     prismaProgram
   )
 
+  // Batch fetch all assignments to avoid N+1 queries
+  const profileIds = profiles.map((p) => p.id)
+  const allAssignments = await prisma.billingAssignment.findMany({
+    where: {
+      programProfileId: { in: profileIds },
+      isActive: true,
+    },
+    include: { subscription: true },
+  })
+  const assignmentsByProfile = new Map<string, typeof allAssignments>()
+  for (const assignment of allAssignments) {
+    const existing = assignmentsByProfile.get(assignment.programProfileId) || []
+    existing.push(assignment)
+    assignmentsByProfile.set(assignment.programProfileId, existing)
+  }
+
   const matches: StudentMatch[] = []
   for (const profile of profiles) {
-    const assignments = await getBillingAssignmentsByProfile(profile.id)
+    const assignments = assignmentsByProfile.get(profile.id) || []
     const hasSubscription = assignments.some(
       (a) =>
         a.subscription.status === 'active' ||

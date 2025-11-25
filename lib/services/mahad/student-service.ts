@@ -11,7 +11,7 @@
  * - Manage student contact information
  */
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, Prisma } from '@prisma/client'
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
@@ -184,7 +184,7 @@ export async function updateMahadStudent(
     })
   }
 
-  // Update email if provided
+  // Update email if provided (with P2002 race condition handling)
   if (input.email !== undefined) {
     const normalizedEmail = input.email?.toLowerCase().trim() ?? null
 
@@ -203,19 +203,39 @@ export async function updateMahadStudent(
           data: { value: normalizedEmail },
         })
       } else {
-        await prisma.contactPoint.create({
-          data: {
-            personId: profile.personId,
-            type: 'EMAIL',
-            value: normalizedEmail,
-            isPrimary: true,
-          },
-        })
+        try {
+          await prisma.contactPoint.create({
+            data: {
+              personId: profile.personId,
+              type: 'EMAIL',
+              value: normalizedEmail,
+              isPrimary: true,
+            },
+          })
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Race condition - contact point was created by another transaction
+            const existing = await prisma.contactPoint.findFirst({
+              where: { personId: profile.personId, type: 'EMAIL' },
+            })
+            if (existing) {
+              await prisma.contactPoint.update({
+                where: { id: existing.id },
+                data: { value: normalizedEmail },
+              })
+            }
+          } else {
+            throw error
+          }
+        }
       }
     }
   }
 
-  // Update phone if provided
+  // Update phone if provided (with P2002 race condition handling)
   if (input.phone !== undefined) {
     const normalizedPhone = input.phone?.trim() ?? null
 
@@ -233,13 +253,33 @@ export async function updateMahadStudent(
           data: { value: normalizedPhone },
         })
       } else {
-        await prisma.contactPoint.create({
-          data: {
-            personId: profile.personId,
-            type: 'PHONE',
-            value: normalizedPhone,
-          },
-        })
+        try {
+          await prisma.contactPoint.create({
+            data: {
+              personId: profile.personId,
+              type: 'PHONE',
+              value: normalizedPhone,
+            },
+          })
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Race condition - contact point was created by another transaction
+            const existing = await prisma.contactPoint.findFirst({
+              where: { personId: profile.personId, type: 'PHONE' },
+            })
+            if (existing) {
+              await prisma.contactPoint.update({
+                where: { id: existing.id },
+                data: { value: normalizedPhone },
+              })
+            }
+          } else {
+            throw error
+          }
+        }
       }
     }
   }
