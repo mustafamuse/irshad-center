@@ -8,325 +8,104 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model ArchivedBatch {
-  id              String            @id
-  originalBatchId String            @unique
-  name            String
-  description     String?
-  isActive        Boolean
-  createdAt       DateTime
-  updatedAt       DateTime
-  archivedAt      DateTime          @default(now())
-  archiveReason   String            @default("Batch cleanup")
-  ArchivedStudent ArchivedStudent[]
+// Archive tables removed - legacy data retention no longer needed
+// ArchivedBatch and ArchivedStudent models have been removed
 
-  @@index([archivedAt])
-  @@index([originalBatchId])
-}
+// Attendance models removed - incomplete feature
 
-model ArchivedStudent {
-  id                   String              @id
-  originalStudentId    String              @unique
-  name                 String
-  email                String?
-  monthlyRate          Int
-  customRate           Boolean
-  status               String
-  lastPaymentDate      DateTime?
-  nextPaymentDue       DateTime?
-  dateOfBirth          DateTime?
-  educationLevel       EducationLevel?
-  gradeLevel           GradeLevel?
-  highSchoolGradYear   Int?
-  highSchoolGraduated  Boolean
-  phone                String?
-  postGradCompleted    Boolean
-  postGradYear         Int?
-  schoolName           String?
-  collegeGradYear      Int?
-  collegeGraduated     Boolean
-  originalBatchId      String
-  siblingGroupId       String?
-  stripeCustomerId     String?
-  stripeSubscriptionId String?
-  subscriptionStatus   SubscriptionStatus?
-  paidUntil            DateTime?
-  createdAt            DateTime
-  updatedAt            DateTime
-  archivedAt           DateTime            @default(now())
-  archiveReason        String              @default("Batch cleanup")
-  archivedBatchId      String
-  ArchivedBatch        ArchivedBatch       @relation(fields: [archivedBatchId], references: [id])
-
-  @@index([archivedAt])
-  @@index([email])
-  @@index([name])
-  @@index([originalBatchId])
-  @@index([originalStudentId])
-}
-
-model Attendance {
-  id           String           @id
-  studentId    String
-  sessionId    String
-  status       AttendanceStatus
-  notes        String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime
-  ClassSession ClassSession     @relation(fields: [sessionId], references: [id])
-  Student      Student          @relation(fields: [studentId], references: [id])
-
-  @@unique([studentId, sessionId])
-  @@index([sessionId])
-  @@index([studentId])
-}
-
-model AttendanceRecord {
-  id                String            @id @default(uuid())
-  sessionId         String
-  studentId         String
-  status            AttendanceStatus
-  notes             String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  checkInMethod     CheckInMethod     @default(MANUAL)
-  checkedInAt       DateTime?
-  AttendanceSession AttendanceSession @relation(fields: [sessionId], references: [id])
-  Student           Student           @relation(fields: [studentId], references: [id])
-
-  @@unique([sessionId, studentId])
-  @@index([sessionId])
-  @@index([studentId])
-}
-
-model AttendanceSession {
-  id               String             @id @default(uuid())
-  date             DateTime
-  batchId          String
-  notes            String?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  allowSelfCheckIn Boolean            @default(false)
-  qrTokens         Json?
-  AttendanceRecord AttendanceRecord[]
-  Batch            Batch              @relation(fields: [batchId], references: [id])
-
-  @@index([batchId])
-  @@index([date])
-}
-
+// Batch (Cohort) - MAHAD ONLY
+// Groups Mahad students into cohorts for scheduling and management
+// Dugsi program does NOT use batches
 model Batch {
-  id                String              @id @default(uuid())
-  name              String              @unique
-  startDate         DateTime?
-  endDate           DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  AttendanceSession AttendanceSession[]
-  ClassSchedule     ClassSchedule[]
-  Student           Student[]
+  id         String       @id @default(uuid())
+  name       String       @unique
+  startDate  DateTime?
+  endDate    DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  Enrollment Enrollment[] // Enrollment relation (MAHAD_PROGRAM only)
 
   @@index([createdAt])
   @@index([endDate])
   @@index([startDate])
 }
 
-model ClassSchedule {
-  id           String         @id
-  batchId      String
-  subjectId    String
-  semesterId   String
-  isActive     Boolean        @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime
-  daysOfWeek   DayOfWeek[]
-  endTime      String
-  startTime    String
-  teacherId    String?
-  Batch        Batch          @relation(fields: [batchId], references: [id])
-  Semester     Semester       @relation(fields: [semesterId], references: [id])
-  Subject      Subject        @relation(fields: [subjectId], references: [id])
-  Teacher      Teacher?       @relation(fields: [teacherId], references: [id])
-  ClassSession ClassSession[]
+// ClassSchedule, ClassSession, Subject, Semester removed - incomplete attendance feature
+// Each program will have different class and frequency schedules
+// Will be redesigned when attendance feature is ready
 
-  @@unique([batchId, subjectId])
-  @@index([semesterId])
-  @@index([teacherId])
-}
-
-model ClassSession {
-  id              String        @id
-  classScheduleId String
-  date            DateTime
-  startTime       DateTime
-  endTime         DateTime
-  status          String        @default("SCHEDULED")
-  notes           String?
-  isActive        Boolean       @default(true)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime
-  Attendance      Attendance[]
-  ClassSchedule   ClassSchedule @relation(fields: [classScheduleId], references: [id])
-
-  @@index([classScheduleId])
-  @@index([createdAt, status])
-  @@index([date])
-}
-
-model Semester {
-  id            String          @id
-  name          String          @unique
-  startDate     DateTime
-  endDate       DateTime
-  isActive      Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime
-  ClassSchedule ClassSchedule[]
-}
-
-model Sibling {
-  id        String    @id @default(uuid())
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  Student   Student[]
-
-  @@index([updatedAt])
-}
-
-model Student {
-  id                           String              @id @default(uuid())
-  name                         String
-  email                        String?             @unique
-  monthlyRate                  Int                 @default(150)
-  customRate                   Boolean             @default(false)
-  status                       String              @default("registered")
-  lastPaymentDate              DateTime?
-  nextPaymentDue               DateTime?
-  createdAt                    DateTime            @default(now())
-  updatedAt                    DateTime            @updatedAt
-  batchId                      String?
-  collegeGradYear              Int?
-  collegeGraduated             Boolean             @default(false)
-  dateOfBirth                  DateTime?
-  educationLevel               EducationLevel?
-  gradeLevel                   GradeLevel?
-  highSchoolGradYear           Int?
-  highSchoolGraduated          Boolean             @default(false)
-  phone                        String?
-  postGradCompleted            Boolean             @default(false)
-  postGradYear                 Int?
-  schoolName                   String?
-  siblingGroupId               String?
-  stripeCustomerId             String?
-  stripeSubscriptionId         String?
-  subscriptionStatus           SubscriptionStatus?
-  paidUntil                    DateTime?
-  currentPeriodStart           DateTime?
-  currentPeriodEnd             DateTime?
-  subscriptionStatusUpdatedAt  DateTime?
-  previousSubscriptionIds      String[]            @default([]) // History of Mahad subscription IDs
-  previousSubscriptionIdsDugsi String[]            @default([]) // History of Dugsi subscription IDs
-  healthInfo                   String?
-  parent2Email                 String?
-  parent2FirstName             String?
-  parent2LastName              String?
-  parent2Phone                 String?
-  parentEmail                  String?
-  parentFirstName              String?
-  parentLastName               String?
-  parentPhone                  String?
-  program                      Program             @default(MAHAD_PROGRAM)
-  gender                       Gender?
-
-  // Dugsi-specific payment fields
-  stripeCustomerIdDugsi     String? // Separate from mahad stripeCustomerId
-  stripeSubscriptionIdDugsi String? // For manually created dugsi subscriptions
-  paymentIntentIdDugsi      String? // For bank account verification via microdeposits
-  paymentMethodCaptured     Boolean            @default(false)
-  paymentMethodCapturedAt   DateTime?
-  familyReferenceId         String? // Links children in same family
-  stripeAccountType         StripeAccountType? // Tracks which Stripe account
-
-  Attendance       Attendance[]
-  AttendanceRecord AttendanceRecord[]
-  Batch            Batch?             @relation(fields: [batchId], references: [id])
-  Sibling          Sibling?           @relation(fields: [siblingGroupId], references: [id])
-  StudentPayment   StudentPayment[]
-
-  @@unique([name, dateOfBirth])
-  @@index([batchId])
-  @@index([createdAt, status])
-  @@index([email])
-  @@index([name])
-  @@index([parentEmail])
-  @@index([parentPhone])
-  @@index([siblingGroupId])
-  @@index([status])
-  @@index([updatedAt])
-  @@index([familyReferenceId])
-  @@index([stripeCustomerIdDugsi])
-  // Indexes for server-side filtering performance
-  @@index([subscriptionStatus])
-  @@index([educationLevel])
-  @@index([gradeLevel])
-}
+// Legacy Sibling model removed - use SiblingRelationship instead
+// Legacy Student model removed - use Person + ProgramProfile + Enrollment instead
 
 model StudentPayment {
-  id              String   @id @default(dbgenerated("gen_random_uuid()"))
-  studentId       String
-  year            Int
-  month           Int
-  amountPaid      Int
-  paidAt          DateTime @db.Timestamp(6)
-  stripeInvoiceId String?
-  Student         Student  @relation(fields: [studentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id               String         @id @default(dbgenerated("gen_random_uuid()"))
+  programProfileId String // References ProgramProfile
+  year             Int
+  month            Int
+  amountPaid       Int
+  paidAt           DateTime       @db.Timestamp(6)
+  stripeInvoiceId  String?
+  ProgramProfile   ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId, stripeInvoiceId])
-  @@index([studentId, year, month])
+  @@unique([programProfileId, stripeInvoiceId])
+  @@index([programProfileId, year, month])
 }
 
-model Subject {
-  id            String          @id
-  name          String          @unique
-  description   String?
-  isActive      Boolean         @default(true)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime
-  ClassSchedule ClassSchedule[]
-}
-
+// Teacher - Used for Dugsi program assignments
+// Dugsi students are assigned to teachers (not batches)
+// Teacher - Staff role linked to Person
+// A Person can be a teacher (staff member) while also being a parent, payer, or student
+// Teachers can teach in multiple programs (Dugsi, Mahad, etc.) via assignments
+// Contact information (email, phone) comes from Person.contactPoints, not stored here
 model Teacher {
-  id            String          @id
-  name          String
-  email         String          @unique
-  phone         String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime
-  ClassSchedule ClassSchedule[]
+  id        String   @id @default(uuid())
+  personId  String   @unique // One Teacher record per Person
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  person      Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
+  assignments TeacherAssignment[] // Assignments to Dugsi students (and future Mahad assignments)
+
+  @@index([personId])
 }
 
-enum AttendanceStatus {
-  PRESENT
-  UNEXCUSED
-  LATE
-  EXCUSED
-  ABSENT
+// TeacherAssignment - Links teachers to Dugsi students with shift information
+// Dugsi students can have assigned teachers with morning/evening shifts
+// IMPORTANT: TeacherAssignment is currently Dugsi-only (programProfile.program must be DUGSI_PROGRAM)
+// Application-level validation required: Only create assignments for Dugsi ProgramProfiles
+// Future: May extend to support Mahad or other programs via program field or separate models
+model TeacherAssignment {
+  id               String    @id @default(uuid())
+  teacherId        String
+  programProfileId String // References Dugsi ProgramProfile (must be DUGSI_PROGRAM)
+  shift            Shift // Morning or Evening shift
+  startDate        DateTime  @default(now())
+  endDate          DateTime? // Null if currently active
+  isActive         Boolean   @default(true)
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  teacher        Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  programProfile ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, programProfileId, shift]) // One teacher per student per shift
+  @@index([teacherId])
+  @@index([programProfileId])
+  @@index([isActive])
+  @@index([shift])
 }
 
-enum CheckInMethod {
-  MANUAL
-  QR_CODE
+enum Shift {
+  MORNING
+  EVENING
 }
 
-enum DayOfWeek {
-  MONDAY
-  TUESDAY
-  WEDNESDAY
-  THURSDAY
-  FRIDAY
-  SATURDAY
-  SUNDAY
-}
+// AttendanceStatus and CheckInMethod enums removed - incomplete feature
+
+// DayOfWeek enum removed - was only used by ClassSchedule (removed)
 
 enum EducationLevel {
   HIGH_SCHOOL
@@ -370,6 +149,8 @@ enum SubscriptionStatus {
 enum Program {
   MAHAD_PROGRAM
   DUGSI_PROGRAM
+  YOUTH_EVENTS
+  GENERAL_DONATION
 }
 
 enum Gender {
@@ -380,6 +161,332 @@ enum Gender {
 enum StripeAccountType {
   MAHAD
   DUGSI
+  YOUTH_EVENTS
+  GENERAL_DONATION
+}
+
+enum ContactType {
+  EMAIL
+  PHONE
+  WHATSAPP
+  OTHER
+}
+
+enum ContactVerificationStatus {
+  UNVERIFIED
+  VERIFIED
+  INVALID
+}
+
+enum GuardianRole {
+  PARENT
+  GUARDIAN
+  SPONSOR
+  DONOR
+}
+
+enum EnrollmentStatus {
+  REGISTERED
+  ENROLLED
+  ON_LEAVE
+  WITHDRAWN
+  COMPLETED
+  SUSPENDED
+}
+
+// ============================================================================
+// NEW UNIFIED IDENTITY & ENROLLMENT MODELS
+// ============================================================================
+
+model Person {
+  id          String    @id @default(uuid())
+  name        String
+  dateOfBirth DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  contactPoints          ContactPoint[]
+  guardianRelationships  GuardianRelationship[] @relation("GuardianRelationships")
+  dependentRelationships GuardianRelationship[] @relation("DependentRelationships")
+  siblingRelationships1  SiblingRelationship[]  @relation("SiblingRelationships1")
+  siblingRelationships2  SiblingRelationship[]  @relation("SiblingRelationships2")
+  programProfiles        ProgramProfile[]
+  billingAccounts        BillingAccount[]
+  teacher                Teacher? // Optional: Person can be a teacher (staff role)
+
+  @@index([name])
+  @@index([createdAt])
+}
+
+model ContactPoint {
+  id                 String                    @id @default(uuid())
+  personId           String
+  type               ContactType // EMAIL, PHONE, WHATSAPP, or OTHER
+  value              String // Email address or phone number (normalized)
+  isPrimary          Boolean                   @default(false) // Primary contact method for the person
+  verificationStatus ContactVerificationStatus @default(UNVERIFIED) // Verification status of contact
+  verifiedAt         DateTime? // Timestamp when contact was verified
+  isActive           Boolean                   @default(true) // Soft-delete: allows email/phone reuse after deactivation
+  deactivatedAt      DateTime? // When contact was deactivated (null if active)
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  // Relations
+  person          Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
+  billingAccounts BillingAccount[] // Billing accounts using this contact point
+
+  // Unique constraint includes isActive to allow reuse of deactivated contacts
+  // Only active contacts enforce global uniqueness per type+value
+  @@unique([type, value, isActive], name: "unique_active_contact_globally")
+  @@unique([personId, type, value], name: "unique_contact_per_person") // One contact point per person per type/value combination
+  @@index([personId])
+  @@index([personId, isPrimary]) // Find primary contact faster
+  @@index([value]) // Search by contact value (email/phone)
+  @@index([type, value]) // Search by type and value
+  @@index([isActive]) // Filter active contacts
+}
+
+model GuardianRelationship {
+  id          String       @id @default(uuid())
+  guardianId  String // Person ID of the guardian (parent, sponsor, etc.)
+  dependentId String // Person ID of the dependent (child/student)
+  role        GuardianRole @default(PARENT) // PARENT, GUARDIAN, SPONSOR, or DONOR
+  startDate   DateTime     @default(now()) // When relationship started
+  endDate     DateTime? // When relationship ended (null if active)
+  isActive    Boolean      @default(true) // Currently active relationship
+  notes       String? // Optional notes about the relationship
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  // IMPORTANT: guardianId !== dependentId (enforced by database CHECK constraint)
+  // A person cannot be their own guardian - logical impossibility
+  guardian  Person @relation("GuardianRelationships", fields: [guardianId], references: [id], onDelete: Cascade)
+  dependent Person @relation("DependentRelationships", fields: [dependentId], references: [id], onDelete: Cascade)
+
+  @@unique([guardianId, dependentId, role]) // One relationship per guardian-dependent-role combo
+  @@index([guardianId]) // Find all dependents for a guardian
+  @@index([dependentId]) // Find all guardians for a dependent
+  @@index([isActive]) // Filter active relationships
+}
+
+model SiblingRelationship {
+  id              String    @id @default(uuid())
+  person1Id       String
+  person2Id       String
+  detectionMethod String // 'MANUAL' | 'GUARDIAN_MATCH' | 'NAME_MATCH' | 'CONTACT_MATCH'
+  confidence      Float? // 0-1 for automatic detection
+  verifiedBy      String? // Admin who verified/created
+  verifiedAt      DateTime?
+  isActive        Boolean   @default(true)
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  person1 Person @relation("SiblingRelationships1", fields: [person1Id], references: [id], onDelete: Cascade)
+  person2 Person @relation("SiblingRelationships2", fields: [person2Id], references: [id], onDelete: Cascade)
+
+  // IMPORTANT: person1Id must be < person2Id (enforced in application code)
+  // This ensures (A, B) and (B, A) don't both exist, preventing duplicate relationships
+  @@unique([person1Id, person2Id])
+  @@index([person1Id])
+  @@index([person2Id])
+  @@index([isActive])
+}
+
+model ProgramProfile {
+  id          String           @id @default(uuid())
+  personId    String // Foreign key to Person - one person can have multiple profiles (one per program)
+  program     Program // MAHAD_PROGRAM, DUGSI_PROGRAM, YOUTH_EVENTS, or GENERAL_DONATION
+  status      EnrollmentStatus @default(REGISTERED) // Enrollment status - normalized from legacy string field
+  monthlyRate Int              @default(150) // Monthly rate in cents (default $1.50)
+  customRate  Boolean          @default(false) // Flag indicating if rate is custom (non-standard)
+
+  // Program-specific typed fields (used across programs)
+  gender         Gender? // MALE or FEMALE
+  educationLevel EducationLevel? // HIGH_SCHOOL, COLLEGE, POST_GRAD, ELEMENTARY, MIDDLE_SCHOOL
+  gradeLevel     GradeLevel? // FRESHMAN through GRADE_12
+  schoolName     String? // Name of current school
+
+  // Mahad-specific fields (college program)
+  highSchoolGradYear  Int? // High school graduation year
+  highSchoolGraduated Boolean? // High school graduation status
+  collegeGradYear     Int? // College graduation year
+  collegeGraduated    Boolean? // College graduation status
+  postGradYear        Int? // Post-graduate year
+  postGradCompleted   Boolean? // Post-graduate completion status
+
+  // Dugsi-specific fields (K-12 program)
+  healthInfo        String? // Health information for student
+  familyReferenceId String? // Family tracking ID for Dugsi families
+
+  // Metadata for initiative-specific fields (JSONB)
+  // Flexible JSONB column for program-specific fields without requiring schema migrations
+  // See lib/types/program-profile.ts for TypeScript types
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  person             Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
+  enrollments        Enrollment[]
+  assignments        BillingAssignment[]
+  payments           StudentPayment[]
+  teacherAssignments TeacherAssignment[] // Dugsi teacher assignments with shifts
+
+  @@unique([personId, program])
+  @@index([personId])
+  @@index([program])
+  @@index([status])
+  @@index([program, status])
+  @@index([personId, program, status]) // Composite: Find profiles by person, program, status
+  @@index([program, status, createdAt]) // Composite: Program-specific lists sorted by date
+}
+
+model Enrollment {
+  id               String           @id @default(uuid())
+  programProfileId String
+  batchId          String? // MAHAD ONLY - Can be null for Dugsi, donations, or non-batch Mahad enrollments
+  // Database CHECK constraint: Dugsi enrollments cannot have batchId (enforced via check_dugsi_no_batch)
+  status           EnrollmentStatus @default(REGISTERED)
+  startDate        DateTime         @default(now())
+  endDate          DateTime? // Null if enrollment is currently active
+  reason           String? // Reason for withdrawal, leave, etc.
+  notes            String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  programProfile ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+  batch          Batch?         @relation(fields: [batchId], references: [id]) // MAHAD ONLY
+
+  @@index([programProfileId])
+  @@index([batchId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate]) // Index for filtering active enrollments (endDate IS NULL)
+  @@index([programProfileId, status])
+  @@index([programProfileId, status, endDate]) // Composite: Find active enrollments
+  @@index([batchId, status, startDate]) // Composite: Batch enrollments by status and start date
+}
+
+model BillingAccount {
+  id          String            @id @default(uuid())
+  personId    String? // Null for organization/entity accounts (not linked to a Person)
+  accountType StripeAccountType // MAHAD, DUGSI, YOUTH_EVENTS, or GENERAL_DONATION
+
+  // Stripe customer IDs per account type
+  // Separate customer IDs allow different billing setups per program
+  stripeCustomerIdMahad    String? // Stripe customer ID for Mahad program
+  stripeCustomerIdDugsi    String? // Stripe customer ID for Dugsi program
+  stripeCustomerIdYouth    String? // Stripe customer ID for Youth Events
+  stripeCustomerIdDonation String? // Stripe customer ID for General Donations
+
+  // ACH/Bank account info (for Dugsi)
+  // Dugsi supports ACH/bank account payments in addition to card payments
+  paymentIntentIdDugsi    String? // Payment intent ID for Dugsi ACH payments
+  paymentMethodCaptured   Boolean   @default(false) // Whether payment method has been captured
+  paymentMethodCapturedAt DateTime? // Timestamp when payment method was captured
+
+  // Primary contact preference
+  primaryContactPointId String? // Preferred contact point for billing communications
+
+  notes     String? // Optional notes about the billing account
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  person              Person?        @relation(fields: [personId], references: [id], onDelete: SetNull) // SetNull allows organization accounts
+  primaryContactPoint ContactPoint?  @relation(fields: [primaryContactPointId], references: [id], onDelete: SetNull)
+  subscriptions       Subscription[] // All subscriptions for this billing account
+
+  @@index([personId]) // Find accounts for a person
+  @@index([accountType]) // Filter by account type
+  @@index([stripeCustomerIdMahad]) // Find by Mahad Stripe customer ID
+  @@index([stripeCustomerIdDugsi]) // Find by Dugsi Stripe customer ID
+}
+
+model Subscription {
+  id                   String             @id @default(uuid())
+  billingAccountId     String
+  stripeAccountType    StripeAccountType
+  stripeSubscriptionId String             @unique
+  stripeCustomerId     String
+  status               SubscriptionStatus @default(incomplete)
+  amount               Int // Amount in cents
+  currency             String             @default("usd")
+  interval             String             @default("month") // month, year, etc.
+
+  // Period tracking
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  paidUntil          DateTime?
+  lastPaymentDate    DateTime?
+
+  // History tracking
+  previousSubscriptionIds String[] @default([])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  billingAccount BillingAccount        @relation(fields: [billingAccountId], references: [id], onDelete: Cascade)
+  assignments    BillingAssignment[]
+  history        SubscriptionHistory[]
+
+  @@index([billingAccountId])
+  @@index([stripeSubscriptionId])
+  @@index([stripeCustomerId])
+  @@index([status])
+  @@index([stripeAccountType, status])
+}
+
+model BillingAssignment {
+  id               String    @id @default(uuid())
+  subscriptionId   String // Foreign key to Subscription
+  programProfileId String // Foreign key to ProgramProfile
+  amount           Int // Amount allocated to this profile (in cents)
+  percentage       Float? // Percentage of subscription allocated (if applicable, for split payments)
+  isActive         Boolean   @default(true) // Currently active assignment
+  startDate        DateTime  @default(now()) // When assignment started
+  endDate          DateTime? // When assignment ended (null if active)
+  notes            String? // Optional notes about the assignment
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  // Supports split payments: one subscription can be allocated to multiple profiles
+  subscription   Subscription   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  programProfile ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([programProfileId])
+  @@index([isActive])
+  @@index([subscriptionId, programProfileId])
+  @@index([subscriptionId, isActive]) // Composite: Active assignments per subscription
+  @@index([programProfileId, isActive]) // Composite: Active assignments per profile
+  @@index([subscriptionId, isActive, amount]) // Composite: Calculate totals faster for validation
+}
+
+model SubscriptionHistory {
+  id             String             @id @default(uuid())
+  subscriptionId String
+  eventType      String // Stripe event type (e.g., "invoice.payment_succeeded")
+  eventId        String // Stripe event ID
+  status         SubscriptionStatus
+  amount         Int?
+  metadata       Json? // Additional event data
+  processedAt    DateTime           @default(now())
+
+  // Relations
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([eventType])
+  @@index([processedAt])
 }
 
 model WebhookEvent {

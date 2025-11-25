@@ -1,8 +1,40 @@
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { EducationLevel, GradeLevel, Program } from '@prisma/client'
 import csvParser from 'csv-parser'
 import * as fs from 'fs'
 
 import { prisma } from '@/lib/db'
+
+// ============================================================================
+// CSV Row Type Definition
+// ============================================================================
+
+/**
+ * Type definition for Mahad batch CSV import rows
+ * Matches the expected columns from the CSV file
+ */
+interface MahadCSVRow {
+  'First Name:': string
+  'Last Name:': string
+  'Date of Birth': string
+  'Current School level': string
+  'Grade/Year': string
+  'Name of School/College/University': string
+  'Email Address:': string
+  'Phone Number: WhatsApp': string
+}
+
+/**
+ * Processed student data ready for database insertion
+ */
+interface ProcessedStudent {
+  fullName: string
+  dateOfBirth: Date | null
+  educationLevel: EducationLevel | null
+  gradeLevel: GradeLevel | null
+  schoolName: string | null
+  email: string | null
+  phone: string | null
+}
 
 // Formatting functions
 function capitalizeWords(str: string): string {
@@ -21,7 +53,7 @@ function formatPhoneNumber(phone: string | null): string | null {
 
   // Check if it's a 10-digit US number
   if (cleaned.length === 10) {
-    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`
+    return `+1${cleaned}` // E.164 format for US numbers
   }
 
   // If it's not a standard US number, return the original input
@@ -52,12 +84,29 @@ async function dropTables() {
   console.log('❌ Dropping all table data...')
 
   // Drop tables in order based on foreign key relationships
+  // Order matters: child tables first, then parent tables
   await prisma.$transaction([
-    // prisma.$executeRaw`DELETE FROM "_ClassGroupToStudent"`, // many-to-many
+    // Billing & Payments
     prisma.studentPayment.deleteMany(),
-    prisma.student.deleteMany(),
-    prisma.sibling.deleteMany(),
+    prisma.billingAssignment.deleteMany(),
+    prisma.subscription.deleteMany(),
+    prisma.billingAccount.deleteMany(),
+
+    // Enrollments & Profiles
+    prisma.enrollment.deleteMany(),
+    prisma.programProfile.deleteMany(),
+
+    // Relationships
+    prisma.siblingRelationship.deleteMany(),
+    prisma.guardianRelationship.deleteMany(),
+
+    // Contact & Person
+    prisma.contactPoint.deleteMany(),
+    prisma.person.deleteMany(),
+
+    // Batches & Teachers
     prisma.batch.deleteMany(),
+    prisma.teacher.deleteMany(),
   ])
 
   console.log('✅ All table data has been cleared.')
@@ -65,7 +114,9 @@ async function dropTables() {
 
 /**
  * Calculate age based on a given birth date.
+ * Currently unused but kept for future graduation logic.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function calculateAge(birthDate: Date): number {
   const today = new Date()
   let age = today.getFullYear() - birthDate.getFullYear()
@@ -82,7 +133,6 @@ function calculateAge(birthDate: Date): number {
 /**
  * Map the CSV "Current School level" value to the EducationLevel enum.
  * Returns:
- *  - EducationLevel.COLLEGE if the value is "College"
  *  - EducationLevel.HIGH_SCHOOL if the value is "Highschool" or "High school"
  *  - Otherwise (for example, "Currently not in school"), returns null so we can guess using age.
  */
@@ -113,23 +163,126 @@ function mapGradeLevel(grade: string): GradeLevel | null {
 }
 
 /**
- * Parse a CSV file and return an array of row objects.
+ * Parse a CSV file and return an array of typed row objects.
  */
-function parseCSV(filePath: string): Promise<any[]> {
+function parseCSV(filePath: string): Promise<MahadCSVRow[]> {
   return new Promise((resolve, reject) => {
-    const results: any[] = []
+    const results: MahadCSVRow[] = []
     fs.createReadStream(filePath)
       .pipe(csvParser())
-      .on('data', (data) => results.push(data))
+      .on('data', (data: MahadCSVRow) => results.push(data))
       .on('end', () => resolve(results))
       .on('error', (err) => reject(err))
+  })
+}
+
+/**
+ * Process a CSV row into a structured student object
+ */
+function processCSVRow(row: MahadCSVRow): ProcessedStudent {
+  const firstName = capitalizeWords(row['First Name:']?.trim() || '')
+  const lastName = capitalizeWords(row['Last Name:']?.trim() || '')
+  const fullName = `${firstName} ${lastName}`
+
+  const dobValue = row['Date of Birth']?.trim()
+  const dateOfBirth = dobValue ? new Date(dobValue) : null
+
+  const schoolLevelRaw = row['Current School level']?.trim() || ''
+  const educationLevel = mapEducationLevel(schoolLevelRaw)
+
+  const gradeRaw = row['Grade/Year']?.trim() || ''
+  const gradeLevel = mapGradeLevel(gradeRaw)
+
+  const schoolName = formatSchoolName(
+    row['Name of School/College/University']?.trim() || null
+  )
+  const email = row['Email Address:']?.trim()?.toLowerCase() || null
+  const phone = formatPhoneNumber(row['Phone Number: WhatsApp']?.trim() || null)
+
+  return {
+    fullName,
+    dateOfBirth,
+    educationLevel,
+    gradeLevel,
+    schoolName,
+    email,
+    phone,
+  }
+}
+
+/**
+ * Create a single student record with all related entities in a transaction
+ * This prevents N+1 queries and ensures data consistency
+ */
+async function createStudentRecord(student: ProcessedStudent): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    // Step 1: Create Person
+    const person = await tx.person.create({
+      data: {
+        name: student.fullName,
+        dateOfBirth: student.dateOfBirth,
+      },
+    })
+
+    // Step 2: Create ContactPoints (email and/or phone) in parallel
+    const contactPointPromises: Promise<unknown>[] = []
+
+    if (student.email) {
+      contactPointPromises.push(
+        tx.contactPoint.create({
+          data: {
+            personId: person.id,
+            type: 'EMAIL',
+            value: student.email,
+            isPrimary: true,
+          },
+        })
+      )
+    }
+
+    if (student.phone) {
+      contactPointPromises.push(
+        tx.contactPoint.create({
+          data: {
+            personId: person.id,
+            type: 'PHONE',
+            value: student.phone,
+            isPrimary: !student.email, // Primary if no email
+          },
+        })
+      )
+    }
+
+    await Promise.all(contactPointPromises)
+
+    // Step 3: Create ProgramProfile for Mahad program
+    const programProfile = await tx.programProfile.create({
+      data: {
+        personId: person.id,
+        program: Program.MAHAD_PROGRAM,
+        educationLevel: student.educationLevel,
+        gradeLevel: student.gradeLevel,
+        schoolName: student.schoolName,
+        monthlyRate: 150, // Default Mahad rate ($1.50 in cents)
+        customRate: false,
+      },
+    })
+
+    // Step 4: Create Enrollment (registered status, no batch yet)
+    await tx.enrollment.create({
+      data: {
+        programProfileId: programProfile.id,
+        status: 'REGISTERED',
+        startDate: new Date(),
+      },
+    })
   })
 }
 
 async function seedData() {
   let totalRecords = 0
   let createdCount = 0
-  const errorRecords: { row: any; error: string }[] = []
+  const errorRecords: { row: ProcessedStudent; error: string }[] = []
 
   try {
     // Adjust the path if needed (assumes the CSV is at the project root)
@@ -138,89 +291,28 @@ async function seedData() {
 
     for (const row of rows) {
       totalRecords++
-      // Format names properly
-      const firstName = capitalizeWords(row['First Name:']?.trim() || '')
-      const lastName = capitalizeWords(row['Last Name:']?.trim() || '')
-      const fullName = `${firstName} ${lastName}`
-
-      const dobValue = row['Date of Birth']?.trim()
-      const dateOfBirth = dobValue ? new Date(dobValue) : null
-
-      const schoolLevelRaw = row['Current School level']?.trim() || ''
-      const educationLevel = mapEducationLevel(schoolLevelRaw)
-
-      const gradeRaw = row['Grade/Year']?.trim() || ''
-      const gradeLevel = mapGradeLevel(gradeRaw)
-
-      // Format school name
-      const schoolName = formatSchoolName(
-        row['Name of School/College/University']?.trim() || null
-      )
-      const email = row['Email Address:']?.trim()?.toLowerCase() || null
-      // Format phone number
-      const phone = formatPhoneNumber(
-        row['Phone Number: WhatsApp']?.trim() || null
-      )
-
-      // Initialize graduation booleans to their defaults.
-      let highSchoolGraduated = false
-      let collegeGraduated = false
-      let postGradCompleted = false
-
-      // If the Grade/Year indicates graduation...
-      if (
-        gradeRaw.toLowerCase() === 'graduated' ||
-        gradeRaw.toLowerCase() === 'graduate'
-      ) {
-        // Use the mapped education level if available.
-        if (educationLevel === EducationLevel.COLLEGE) {
-          collegeGraduated = true
-        } else if (educationLevel === EducationLevel.HIGH_SCHOOL) {
-          highSchoolGraduated = true
-        } else {
-          // If educationLevel is null (e.g. "Currently not in school"), guess based on age.
-          if (
-            schoolLevelRaw.toLowerCase() === 'currently not in school' &&
-            dateOfBirth
-          ) {
-            const age = calculateAge(dateOfBirth)
-            // Heuristic: if age is less than 21, assume high school graduation; if 21 or older, assume college graduation.
-            if (age < 21) {
-              highSchoolGraduated = true
-            } else {
-              collegeGraduated = true
-            }
-          }
-        }
-      }
+      const student = processCSVRow(row)
 
       try {
-        // Create the student record in the database.
-        await prisma.student.create({
-          data: {
-            name: fullName,
-            email: email,
-            phone: phone,
-            dateOfBirth: dateOfBirth,
-            educationLevel: educationLevel,
-            gradeLevel: gradeLevel,
-            schoolName: schoolName,
-            highSchoolGraduated: highSchoolGraduated,
-            collegeGraduated: collegeGraduated,
-            postGradCompleted: postGradCompleted,
-          },
-        })
+        // Create all records in a single transaction (prevents N+1)
+        await createStudentRecord(student)
 
         createdCount++
-        console.log(`Created student record for ${fullName}`)
-      } catch (createError: any) {
+        console.log(
+          `✅ Created records for ${student.fullName} (Person → Profile → Enrollment)`
+        )
+      } catch (createError: unknown) {
+        const errorMessage =
+          createError instanceof Error
+            ? createError.message
+            : String(createError)
         console.error(
-          `Error creating record for ${fullName}:`,
-          createError.message
+          `❌ Error creating record for ${student.fullName}:`,
+          errorMessage
         )
         errorRecords.push({
-          row: { fullName, email },
-          error: createError.message,
+          row: student,
+          error: errorMessage,
         })
       }
     }
@@ -239,8 +331,9 @@ async function seedData() {
       })
     }
     console.log('========== END OF SUMMARY ==========')
-  } catch (err: any) {
-    console.error('Fatal error during seeding:', err)
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err)
+    console.error('Fatal error during seeding:', errorMessage)
   } finally {
     await prisma.$disconnect()
   }
