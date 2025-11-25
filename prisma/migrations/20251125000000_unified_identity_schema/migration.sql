@@ -102,6 +102,8 @@ CREATE TABLE "ContactPoint" (
     "isPrimary" BOOLEAN NOT NULL DEFAULT false,
     "verificationStatus" "ContactVerificationStatus" NOT NULL DEFAULT 'UNVERIFIED',
     "verifiedAt" TIMESTAMP(3),
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "deactivatedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -318,13 +320,19 @@ CREATE INDEX "Person_createdAt_idx" ON "Person"("createdAt");
 CREATE INDEX "ContactPoint_personId_idx" ON "ContactPoint"("personId");
 
 -- CreateIndex
+CREATE INDEX "ContactPoint_personId_isPrimary_idx" ON "ContactPoint"("personId", "isPrimary");
+
+-- CreateIndex
 CREATE INDEX "ContactPoint_value_idx" ON "ContactPoint"("value");
 
 -- CreateIndex
 CREATE INDEX "ContactPoint_type_value_idx" ON "ContactPoint"("type", "value");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ContactPoint_type_value_key" ON "ContactPoint"("type", "value");
+CREATE INDEX "ContactPoint_isActive_idx" ON "ContactPoint"("isActive");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ContactPoint_type_value_isActive_key" ON "ContactPoint"("type", "value", "isActive");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ContactPoint_personId_type_value_key" ON "ContactPoint"("personId", "type", "value");
@@ -520,3 +528,4 @@ ALTER TABLE "BillingAssignment" ADD CONSTRAINT "BillingAssignment_programProfile
 
 -- AddForeignKey
 ALTER TABLE "SubscriptionHistory" ADD CONSTRAINT "SubscriptionHistory_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "Subscription"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+

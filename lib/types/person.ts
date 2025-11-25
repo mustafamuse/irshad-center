@@ -26,6 +26,8 @@ export interface ContactPoint {
   isPrimary: boolean
   verificationStatus: ContactVerificationStatus
   verifiedAt: Date | null
+  isActive: boolean // Soft-delete: allows email/phone reuse after deactivation
+  deactivatedAt: Date | null // When contact was deactivated (null if active)
   createdAt: Date
   updatedAt: Date
 }

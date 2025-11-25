@@ -17,7 +17,7 @@ import { DugsiRegistration } from '@/app/admin/dugsi/_types'
 import {
   ProgramProfileWithGuardians,
   ProgramProfileFull,
-} from '@/lib/types/prisma-helpers'
+} from '@/lib/db/prisma-helpers'
 
 /**
  * Maps a ProgramProfile with full relations to a DugsiRegistration DTO.

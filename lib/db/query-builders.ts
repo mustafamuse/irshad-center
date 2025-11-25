@@ -80,6 +80,20 @@ export const ACTIVE_GUARDIAN_WHERE = {
   isActive: true,
 } satisfies Prisma.GuardianRelationshipWhereInput
 
+/**
+ * Filter for active contact points (soft-delete support)
+ *
+ * Usage:
+ * ```typescript
+ * await client.contactPoint.findMany({
+ *   where: { personId, ...ACTIVE_CONTACT_WHERE },
+ * })
+ * ```
+ */
+export const ACTIVE_CONTACT_WHERE = {
+  isActive: true,
+} satisfies Prisma.ContactPointWhereInput
+
 // ============================================================================
 // Common Include Patterns (using Prisma.validator for type safety)
 // ============================================================================

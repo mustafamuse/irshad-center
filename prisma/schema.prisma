@@ -227,6 +227,8 @@ model ContactPoint {
   isPrimary          Boolean                   @default(false) // Primary contact method for the person
   verificationStatus ContactVerificationStatus @default(UNVERIFIED) // Verification status of contact
   verifiedAt         DateTime? // Timestamp when contact was verified
+  isActive           Boolean                   @default(true) // Soft-delete: allows email/phone reuse after deactivation
+  deactivatedAt      DateTime? // When contact was deactivated (null if active)
   createdAt          DateTime                  @default(now())
   updatedAt          DateTime                  @updatedAt
 
@@ -234,11 +236,15 @@ model ContactPoint {
   person          Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
   billingAccounts BillingAccount[] // Billing accounts using this contact point
 
-  @@unique([type, value], name: "unique_contact_globally") // One email/phone globally (enforces one Person per human)
+  // Unique constraint includes isActive to allow reuse of deactivated contacts
+  // Only active contacts enforce global uniqueness per type+value
+  @@unique([type, value, isActive], name: "unique_active_contact_globally")
   @@unique([personId, type, value], name: "unique_contact_per_person") // One contact point per person per type/value combination
   @@index([personId])
+  @@index([personId, isPrimary]) // Find primary contact faster
   @@index([value]) // Search by contact value (email/phone)
   @@index([type, value]) // Search by type and value
+  @@index([isActive]) // Filter active contacts
 }
 
 model GuardianRelationship {
