@@ -17,6 +17,7 @@ import {
 } from '@prisma/client'
 import { z } from 'zod'
 
+import { DEFAULT_MONTHLY_RATE } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
@@ -54,6 +55,9 @@ const personDataSchema = z.object({
   phone: z
     .string()
     .regex(phoneRegex, 'Phone must be in format XXX-XXX-XXXX')
+    .refine((phone) => !phone || normalizePhone(phone) !== null, {
+      message: 'Invalid phone number - cannot be normalized',
+    })
     .nullable()
     .optional(),
   isPrimaryEmail: z.boolean().optional(),
@@ -155,7 +159,10 @@ const familyRegistrationSchema = z.object({
   parent1Email: z.string().email('Parent 1 email must be valid').toLowerCase(),
   parent1Phone: z
     .string()
-    .regex(phoneRegex, 'Parent 1 phone must be in format XXX-XXX-XXXX'),
+    .regex(phoneRegex, 'Parent 1 phone must be in format XXX-XXX-XXXX')
+    .refine((phone) => normalizePhone(phone) !== null, {
+      message: 'Parent 1 phone is invalid - cannot be normalized',
+    }),
   parent1FirstName: z
     .string()
     .min(1, 'Parent 1 first name is required')
@@ -173,6 +180,9 @@ const familyRegistrationSchema = z.object({
   parent2Phone: z
     .string()
     .regex(phoneRegex, 'Parent 2 phone must be in format XXX-XXX-XXXX')
+    .refine((phone) => !phone || normalizePhone(phone) !== null, {
+      message: 'Parent 2 phone is invalid - cannot be normalized',
+    })
     .nullable()
     .optional(),
   parent2FirstName: z
@@ -251,7 +261,13 @@ export async function createPersonWithContact(
             ? [
                 {
                   type: 'PHONE' as ContactType,
-                  value: normalizePhone(phone) || phone,
+                  value: (() => {
+                    const normalized = normalizePhone(phone)
+                    if (!normalized) {
+                      throw new Error(`Invalid phone number format: ${phone}`)
+                    }
+                    return normalized
+                  })(),
                   isPrimary: isPrimaryPhone,
                 },
               ]
@@ -293,7 +309,7 @@ export async function createProgramProfileWithEnrollment(
     program,
     status = 'REGISTERED' as EnrollmentStatus,
     batchId,
-    monthlyRate = 150,
+    monthlyRate = DEFAULT_MONTHLY_RATE,
     customRate = false,
     gender,
     educationLevel,
@@ -445,7 +461,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     parent2FirstName,
     parent2LastName,
     familyReferenceId,
-    monthlyRate = 150,
+    monthlyRate = DEFAULT_MONTHLY_RATE,
   } = validated
 
   return prisma.$transaction(async (tx) => {
@@ -823,7 +839,13 @@ async function findOrCreatePersonWithContact(
               ? [
                   {
                     type: 'PHONE' as ContactType,
-                    value: normalizePhone(phone) || phone,
+                    value: (() => {
+                      const normalized = normalizePhone(phone)
+                      if (!normalized) {
+                        throw new Error(`Invalid phone number format: ${phone}`)
+                      }
+                      return normalized
+                    })(),
                     isPrimary: isPrimaryPhone,
                   },
                 ]
