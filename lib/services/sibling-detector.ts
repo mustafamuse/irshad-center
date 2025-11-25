@@ -2,6 +2,7 @@ import type { Person } from '@prisma/client'
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { ValidationError } from '@/lib/services/validation-service'
 
 export type DetectionMethod =
   | 'MANUAL'
@@ -40,12 +41,15 @@ export async function detectPotentialSiblings(
   })
 
   if (!person) {
-    throw new Error(`Person not found: ${personId}`)
+    throw new ValidationError('Person not found', 'PERSON_NOT_FOUND', {
+      personId,
+    })
   }
 
   const potentialSiblings: PotentialSibling[] = []
 
-  // Batch fetch all existing sibling relationships for this person to avoid N+1
+  // Batch fetch all existing sibling relationships for this person
+  // This prevents N+1 queries when checking each potential sibling
   const existingSiblingRelationships =
     await prisma.siblingRelationship.findMany({
       where: {
@@ -63,6 +67,7 @@ export async function detectPotentialSiblings(
 
   // Method 1: Guardian Match (for children)
   // Find other dependents of the same guardians
+  // Note: Uses batch query with `in: guardianIds` and `include` to prevent N+1
   if (person.guardianRelationships.length > 0) {
     const guardianIds = person.guardianRelationships
       .filter((rel) => rel.isActive)

@@ -4,6 +4,35 @@
  * Centralized service for checking duplicate registrations across all programs.
  * This eliminates the need for separate checkEmailExists/checkPhoneExists functions
  * and provides a single source of truth for duplicate detection logic.
+ *
+ * ## TOCTOU Race Condition Warning
+ *
+ * This service checks for existing persons but does NOT create them. To prevent
+ * Time-of-Check-Time-of-Use (TOCTOU) race conditions, callers MUST:
+ *
+ * 1. Pass the same transaction client to both checkDuplicate() and createPersonWithContact()
+ * 2. Perform both operations within the same database transaction
+ * 3. Rely on database unique constraints as the ultimate safeguard
+ *
+ * The database has unique constraints on ContactPoint(type, value) which will
+ * reject duplicate contact points even if a race condition occurs.
+ *
+ * @example
+ * ```typescript
+ * // CORRECT: Same transaction for check and create
+ * await prisma.$transaction(async (tx) => {
+ *   const result = await DuplicateDetectionService.checkDuplicate({ email, phone, program }, tx)
+ *   if (!result.isDuplicate) {
+ *     await createPersonWithContact({ name, email, phone }, tx)
+ *   }
+ * })
+ *
+ * // INCORRECT: Separate transactions (race condition possible!)
+ * const result = await DuplicateDetectionService.checkDuplicate({ email, phone, program })
+ * if (!result.isDuplicate) {
+ *   await createPersonWithContact({ name, email, phone }) // Another thread could have created!
+ * }
+ * ```
  */
 
 import { Program } from '@prisma/client'
@@ -59,17 +88,23 @@ export class DuplicateDetectionService {
    * @returns Detailed duplicate check result
    *
    * @example
-   * // Check for Mahad duplicate
-   * const result = await DuplicateDetectionService.checkDuplicate({
-   *   email: 'test@example.com',
-   *   phone: '+1234567890',
-   *   program: 'MAHAD_PROGRAM'
-   * })
+   * // Check for Mahad duplicate (within a transaction to prevent TOCTOU)
+   * await prisma.$transaction(async (tx) => {
+   *   const result = await DuplicateDetectionService.checkDuplicate({
+   *     email: 'test@example.com',
+   *     phone: '+1234567890',
+   *     program: 'MAHAD_PROGRAM'
+   *   }, tx)
    *
-   * if (result.isDuplicate && result.hasActiveProfile) {
-   *   // Handle duplicate registration error
-   *   console.log(`Duplicate ${result.duplicateField} found`)
-   * }
+   *   if (result.isDuplicate && result.hasActiveProfile) {
+   *     // Handle duplicate registration error
+   *     logger.warn({ duplicateField: result.duplicateField }, 'Duplicate found')
+   *     throw new Error('Already registered for this program')
+   *   }
+   *
+   *   // Safe to create - same transaction prevents race condition
+   *   await createPersonWithContact({ name, email, phone }, tx)
+   * })
    */
   static async checkDuplicate(
     params: {

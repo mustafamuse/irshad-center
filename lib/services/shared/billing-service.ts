@@ -80,9 +80,28 @@ export async function getBillingAccountByCustomerId(
  * Create or update a billing account.
  *
  * Uses upsert logic - creates if doesn't exist, updates if exists.
+ * Maps Stripe customer IDs to the appropriate account type field.
  *
- * @param input - Billing account data
- * @returns Created or updated billing account
+ * @param input - Billing account data including personId, accountType, and Stripe IDs
+ * @returns Created or updated billing account record
+ *
+ * @example
+ * ```typescript
+ * // Create a Mahad billing account
+ * const account = await createOrUpdateBillingAccount({
+ *   personId: 'person-uuid',
+ *   accountType: 'MAHAD',
+ *   stripeCustomerId: 'cus_xxxxx',
+ * })
+ *
+ * // Create a Dugsi billing account with payment intent
+ * const dugsiAccount = await createOrUpdateBillingAccount({
+ *   personId: 'person-uuid',
+ *   accountType: 'DUGSI',
+ *   stripeCustomerId: 'cus_yyyyy',
+ *   paymentIntentId: 'pi_zzzzz',
+ * })
+ * ```
  */
 export async function createOrUpdateBillingAccount(input: BillingAccountInput) {
   // Map input to the format expected by the query function

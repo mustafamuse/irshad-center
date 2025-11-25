@@ -32,7 +32,16 @@ const logger = createServiceLogger('registration')
 // ============================================================================
 
 /**
- * Phone format: XXX-XXX-XXXX or variations with optional +1 prefix
+ * US Phone format validation regex.
+ *
+ * Accepts: XXX-XXX-XXXX or variations with optional +1 prefix
+ * Examples: 612-555-1234, (612) 555-1234, +1-612-555-1234
+ *
+ * @note This regex is intentionally US-focused as the organization
+ *       primarily serves a US-based community. International phone
+ *       support may be added in the future if needed.
+ *
+ * @see normalizePhone() in utils/contact-normalization.ts for E.164 conversion
  */
 const phoneRegex = /^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/
 
@@ -104,7 +113,11 @@ const childDataSchema = z.object({
     .max(255, 'School name is too long')
     .nullable()
     .optional(),
-  healthInfo: z.string().nullable().optional(),
+  healthInfo: z
+    .string()
+    .max(5000, 'Health information is too long (max 5000 characters)')
+    .nullable()
+    .optional(),
 })
 
 /**
@@ -119,11 +132,12 @@ const programProfileDataSchema = z.object({
     .uuid('Batch ID must be a valid UUID')
     .nullable()
     .optional(),
+  // Max $100,000/month - reasonable upper bound to prevent data entry errors
   monthlyRate: z
     .number()
     .int('Monthly rate must be an integer')
     .min(0, 'Monthly rate must be non-negative')
-    .max(100000, 'Monthly rate is too large')
+    .max(100000, 'Monthly rate exceeds maximum ($100,000)')
     .optional(),
   customRate: z.boolean().optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
@@ -134,7 +148,11 @@ const programProfileDataSchema = z.object({
     .max(255, 'School name is too long')
     .nullable()
     .optional(),
-  healthInfo: z.string().nullable().optional(),
+  healthInfo: z
+    .string()
+    .max(5000, 'Health information is too long (max 5000 characters)')
+    .nullable()
+    .optional(),
   familyReferenceId: z
     .string()
     .uuid('Family reference ID must be a valid UUID')
@@ -159,8 +177,16 @@ const programProfileDataSchema = z.object({
     .optional(),
   postGradCompleted: z.boolean().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
-  enrollmentReason: z.string().nullable().optional(),
-  enrollmentNotes: z.string().nullable().optional(),
+  enrollmentReason: z
+    .string()
+    .max(2000, 'Enrollment reason is too long (max 2000 characters)')
+    .nullable()
+    .optional(),
+  enrollmentNotes: z
+    .string()
+    .max(2000, 'Enrollment notes is too long (max 2000 characters)')
+    .nullable()
+    .optional(),
 })
 
 /**
@@ -203,11 +229,12 @@ const familyRegistrationSchema = z.object({
   familyReferenceId: z
     .string()
     .uuid('Family reference ID must be a valid UUID'),
+  // Max $100,000/month - reasonable upper bound to prevent data entry errors
   monthlyRate: z
     .number()
     .int('Monthly rate must be an integer')
     .min(0, 'Monthly rate must be non-negative')
-    .max(100000, 'Monthly rate is too large')
+    .max(100000, 'Monthly rate exceeds maximum ($100,000)')
     .optional(),
 })
 
@@ -268,9 +295,19 @@ export async function createPersonWithContact(
                     const normalized = normalizePhone(phone)
                     if (!normalized) {
                       const digits = phone.replace(/\D/g, '')
+                      // Log detailed error for debugging (server-side only)
+                      logger.error(
+                        {
+                          name,
+                          phone,
+                          digitCount: digits.length,
+                          expectedDigits: '10-15',
+                        },
+                        'Phone normalization failed during person creation'
+                      )
+                      // Throw sanitized error message (safe for client)
                       throw new Error(
-                        `Invalid phone number for "${name}": "${phone}" ` +
-                          `(${digits.length} digits found, expected 10-15 for E.164 format)`
+                        `Invalid phone number format (${digits.length} digits found, expected 10-15 for E.164 format)`
                       )
                     }
                     return normalized
@@ -480,8 +517,32 @@ export async function createProgramProfileWithEnrollment(
 
 /**
  * Create a family registration (Dugsi multi-child registration)
- * Creates Person + ContactPoint for parents and links via GuardianRelationship
- * Creates or reuses BillingAccount for primary parent
+ *
+ * Creates Person + ContactPoint for parents and links via GuardianRelationship.
+ * Creates or reuses BillingAccount for primary parent.
+ * Also creates sibling relationships between children.
+ *
+ * @param data - Family registration data (validated against familyRegistrationSchema)
+ * @returns Object with created profiles and billing account
+ *
+ * @example
+ * ```typescript
+ * const result = await createFamilyRegistration({
+ *   children: [
+ *     { firstName: 'Ahmed', lastName: 'Ali', dateOfBirth: new Date('2015-01-15') },
+ *     { firstName: 'Fatima', lastName: 'Ali', dateOfBirth: new Date('2017-03-20') }
+ *   ],
+ *   parent1Email: 'parent@example.com',
+ *   parent1Phone: '612-555-1234',
+ *   parent1FirstName: 'Mohammed',
+ *   parent1LastName: 'Ali',
+ *   familyReferenceId: crypto.randomUUID(),
+ * })
+ * // Returns: { profiles: [...], billingAccount: { id, primaryContactPointId } }
+ * ```
+ *
+ * @throws {ZodError} If data validation fails
+ * @throws {Error} If phone normalization fails
  */
 export async function createFamilyRegistration(data: unknown): Promise<{
   profiles: Array<{ id: string; name: string; personId: string }>
@@ -883,9 +944,19 @@ async function findOrCreatePersonWithContact(
                       const normalized = normalizePhone(phone)
                       if (!normalized) {
                         const digits = phone.replace(/\D/g, '')
+                        // Log detailed error for debugging (server-side only)
+                        logger.error(
+                          {
+                            name,
+                            phone,
+                            digitCount: digits.length,
+                            expectedDigits: '10-15',
+                          },
+                          'Phone normalization failed during findOrCreate'
+                        )
+                        // Throw sanitized error message (safe for client)
                         throw new Error(
-                          `Invalid phone number for "${name}": "${phone}" ` +
-                            `(${digits.length} digits found, expected 10-15 for E.164 format)`
+                          `Invalid phone number format (${digits.length} digits found, expected 10-15 for E.164 format)`
                         )
                       }
                       return normalized

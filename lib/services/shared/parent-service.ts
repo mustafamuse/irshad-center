@@ -17,6 +17,7 @@
 import { ContactType, GuardianRole } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 /**
@@ -72,7 +73,9 @@ export async function updateGuardianInfo(
   })
 
   if (!guardian) {
-    throw new Error('Guardian not found')
+    throw new ValidationError('Guardian not found', 'GUARDIAN_NOT_FOUND', {
+      guardianId,
+    })
   }
 
   // Update email if provided
@@ -256,7 +259,11 @@ export async function removeGuardianRelationship(
   })
 
   if (!relationship) {
-    throw new Error('Active guardian relationship not found')
+    throw new ValidationError(
+      'Active guardian relationship not found',
+      'RELATIONSHIP_NOT_FOUND',
+      { guardianId, dependentId, role }
+    )
   }
 
   return await prisma.guardianRelationship.update({
