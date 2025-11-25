@@ -15,10 +15,14 @@ import { useTransition } from 'react'
 import { Mail, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { createClientLogger } from '@/lib/logger-client'
+
 import { Family } from '../_types'
 import { formatParentName } from '../_utils/format'
 import { generatePaymentLink } from '../actions'
 import { SwipeAction } from '../components/ui/swipeable-card'
+
+const logger = createClientLogger('useFamilyActions')
 
 interface UseFamilyActionsProps {
   onViewDetails: (family: Family) => void
@@ -127,7 +131,7 @@ export function useFamilyActions({ onViewDetails }: UseFamilyActionsProps) {
                   description: 'Opening WhatsApp...',
                 })
               } catch (error) {
-                console.error('Error opening WhatsApp:', error)
+                logger.error('Error opening WhatsApp', error)
                 // Fallback to window.open
                 window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
 
@@ -163,7 +167,7 @@ export function useFamilyActions({ onViewDetails }: UseFamilyActionsProps) {
           })
         }
       } catch (error) {
-        console.error('Error sending payment link:', error)
+        logger.error('Error sending payment link', error)
         toast.error('Failed to generate payment link')
       }
     })

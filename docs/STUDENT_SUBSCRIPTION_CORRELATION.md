@@ -2,6 +2,15 @@
 
 Comprehensive documentation of the student-subscription management system for Irshad Center's dual educational programs (Mahad and Dugsi).
 
+> **MIGRATION NOTE (Updated November 22, 2024):** This document references the legacy `Student` model which has been migrated to the unified `Person → ProgramProfile → Enrollment` architecture. The core concepts and Stripe correlation patterns remain valid, but model references should be updated to `ProgramProfile` where `Student` is mentioned. See `docs/unified-student-platform.md` for the current architecture.
+>
+> **Key Changes:**
+>
+> - `Student` model → `ProgramProfile` model
+> - `StudentStatus` enum → `EnrollmentStatus` enum (on ProgramProfile.status)
+> - `StudentPayment` → Still valid (references ProgramProfile via programProfileId)
+> - Subscription correlation logic → Same patterns apply to ProgramProfile
+
 ---
 
 ## Table of Contents
@@ -110,7 +119,6 @@ The system tracks both **student status** (registered, enrolled, withdrawn, on_l
 ├── lib/
 │   ├── stripe.ts                           # Mahad Stripe client
 │   ├── stripe-dugsi.ts                     # Dugsi Stripe client
-│   ├── services/student-matcher.ts         # Student matching logic
 │   └── queries/subscriptions.ts            # Subscription queries
 └── prisma/
     └── schema.prisma                       # Database schema
@@ -316,7 +324,7 @@ sequenceDiagram
 
 ### Student Matching Logic
 
-**File**: `/lib/services/student-matcher.ts`
+**File**: `/lib/services/profile-matcher.ts` (migrated from student-matcher.ts)
 
 **Three Strategies** (in priority order):
 
@@ -507,7 +515,7 @@ await prisma.student.updateMany({
 | `/app/api/webhook/route.ts`                  | Mahad webhook entry point             |
 | `/app/api/webhook/dugsi/route.ts`            | Dugsi webhook entry point             |
 | `/app/api/webhook/student-event-handlers.ts` | Mahad event processing                |
-| `/lib/services/student-matcher.ts`           | Student matching logic                |
+| `/lib/services/profile-matcher.ts`           | Student matching logic (migrated)     |
 | `/lib/queries/subscriptions.ts`              | Subscription queries & status mapping |
 | `/app/admin/dugsi/actions.ts`                | Dugsi admin operations                |
 | `/app/admin/link-subscriptions/`             | Orphaned subscription recovery tool   |

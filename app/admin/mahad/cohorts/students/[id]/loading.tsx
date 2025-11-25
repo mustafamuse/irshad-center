@@ -1,7 +1,9 @@
-import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+
+import { ArrowLeft } from 'lucide-react'
+
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function StudentDetailLoading() {
   return (

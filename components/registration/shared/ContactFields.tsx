@@ -19,7 +19,9 @@ interface ContactFieldsProps<T extends FieldValues> {
   phoneHelperText?: string
   required?: boolean
   isCheckingEmail?: boolean
+  isCheckingPhone?: boolean
   onEmailBlur?: (email: string) => Promise<void>
+  onPhoneBlur?: (phone: string) => Promise<void>
   onPhoneChange?: (value: string) => void
 }
 
@@ -34,7 +36,9 @@ export function ContactFields<T extends FieldValues>({
   phoneHelperText,
   required = true,
   isCheckingEmail = false,
+  isCheckingPhone = false,
   onEmailBlur,
+  onPhoneBlur,
   onPhoneChange,
 }: ContactFieldsProps<T>) {
   return (
@@ -81,20 +85,36 @@ export function ContactFields<T extends FieldValues>({
       >
         {(field, fieldState) => (
           <div className="space-y-1.5">
-            <Input
-              type="tel"
-              placeholder={phonePlaceholder}
-              {...field}
-              onChange={(e) => {
-                const formatted = formatPhoneNumber(e.target.value)
-                field.onChange(formatted)
-                if (onPhoneChange) {
-                  onPhoneChange(formatted)
-                }
-              }}
-              aria-invalid={!!fieldState.error}
-              className={getInputClassNames(!!fieldState.error)}
-            />
+            <div className="relative">
+              <Input
+                type="tel"
+                placeholder={phonePlaceholder}
+                {...field}
+                onChange={(e) => {
+                  const formatted = formatPhoneNumber(e.target.value)
+                  field.onChange(formatted)
+                  if (onPhoneChange) {
+                    onPhoneChange(formatted)
+                  }
+                }}
+                onBlur={async (e) => {
+                  field.onBlur()
+                  if (onPhoneBlur) {
+                    await onPhoneBlur(e.target.value)
+                  }
+                }}
+                aria-invalid={!!fieldState.error}
+                className={getInputClassNames(
+                  !!fieldState.error,
+                  isCheckingPhone
+                )}
+              />
+              {isCheckingPhone && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </div>
             {phoneHelperText && (
               <p className="text-xs text-muted-foreground">{phoneHelperText}</p>
             )}

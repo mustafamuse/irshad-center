@@ -1,80 +1,147 @@
 'use server'
 
-import fs from 'fs'
-import path from 'path'
+import * as fs from 'fs'
+import * as path from 'path'
 
 import { prisma } from '@/lib/db'
+import { createActionLogger, logError } from '@/lib/logger'
+
+const logger = createActionLogger('backupData')
 
 // Add validation types
 interface BackupValidation {
-  students: {
+  profiles: {
     total: number
     withBatch: number
-    withSubscription: number
+    withBilling: number
     withSiblings: number
   }
   relationships: {
-    validSiblingGroups: boolean
+    validSiblingRelationships: boolean
     validBatchLinks: boolean
   }
 }
 
-export async function backupData() {
+export async function backupData(): Promise<
+  | {
+      success: true
+      fileName: string
+      validation: BackupValidation
+      stats: {
+        persons: number
+        profiles: number
+        enrollments: number
+        batches: number
+        siblingRelationships: number
+        studentPayments: number
+      }
+    }
+  | { success: false; error: string }
+> {
   try {
     // First validate the data
-    console.log('🔍 Starting data validation...')
+    logger.info('Starting data validation')
 
     // Get all data with complete relationships
-    const students = await prisma.student.findMany({
+    const persons = await prisma.person.findMany({
       include: {
-        Batch: true,
-        Sibling: {
+        contactPoints: true,
+        programProfiles: {
           include: {
-            Student: {
+            enrollments: {
+              include: {
+                batch: true,
+              },
+            },
+            assignments: {
+              include: {
+                subscription: true,
+              },
+            },
+            payments: true,
+          },
+        },
+        siblingRelationships1: {
+          where: { isActive: true },
+        },
+        siblingRelationships2: {
+          where: { isActive: true },
+        },
+      },
+    })
+
+    const batches = await prisma.batch.findMany({
+      include: {
+        Enrollment: {
+          select: {
+            id: true,
+            status: true,
+            programProfileId: true,
+          },
+        },
+      },
+    })
+
+    const siblingRelationships = await prisma.siblingRelationship.findMany({
+      where: { isActive: true },
+      include: {
+        person1: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        person2: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    })
+
+    const studentPayments = await prisma.studentPayment.findMany({
+      include: {
+        ProgramProfile: {
+          select: {
+            id: true,
+            person: {
               select: {
-                id: true,
                 name: true,
-                status: true,
-                siblingGroupId: true,
               },
             },
           },
         },
-        StudentPayment: true,
       },
     })
 
-    const batches = await prisma.batch.findMany()
-    const siblings = await prisma.sibling.findMany({
-      include: {
-        Student: true,
-      },
-    })
-    const studentPayments = await prisma.studentPayment.findMany()
+    // Count enrollments and profiles across all persons
+    const allProfiles = persons.flatMap((p) => p.programProfiles)
+    const allEnrollments = allProfiles.flatMap((p) => p.enrollments)
 
     // Validate relationships
     const validation: BackupValidation = {
-      students: {
-        total: students.length,
-        withBatch: students.filter((s) => s.Batch).length,
-        withSubscription: students.filter((s) => s.stripeSubscriptionId).length,
-        withSiblings: students.filter((s) => s.Sibling).length,
+      profiles: {
+        total: allProfiles.length,
+        withBatch: allEnrollments.filter((e) => e.batch).length,
+        withBilling: allProfiles.filter((p) => p.assignments.length > 0).length,
+        withSiblings: persons.filter(
+          (p) =>
+            p.siblingRelationships1.length > 0 ||
+            p.siblingRelationships2.length > 0
+        ).length,
       },
       relationships: {
-        validSiblingGroups: students.every(
-          (s) =>
-            !s.siblingGroupId ||
-            s.Sibling?.Student.some(
-              (sibling) =>
-                sibling.id !== s.id &&
-                sibling.siblingGroupId === s.siblingGroupId
-            )
+        validSiblingRelationships: siblingRelationships.every(
+          (rel) => rel.person1 && rel.person2
         ),
-        validBatchLinks: students.every((s) => !s.batchId || s.Batch !== null),
+        validBatchLinks: allEnrollments.every(
+          (e) => !e.batchId || e.batch !== null
+        ),
       },
     }
 
-    console.log('✅ Data validation complete:', validation)
+    logger.info({ validation }, 'Data validation complete')
 
     // Continue with backup if validation passes
     if (!Object.values(validation.relationships).every(Boolean)) {
@@ -85,22 +152,22 @@ export async function backupData() {
     const backup = {
       metadata: {
         timestamp: new Date().toISOString(),
-        version: '2.0',
+        version: '3.0', // Updated version for new schema
+        schema: 'ProgramProfile/Person/Enrollment',
         validation,
         totalCounts: {
-          students: students.length,
+          persons: persons.length,
+          profiles: allProfiles.length,
+          enrollments: allEnrollments.length,
           batches: batches.length,
-          siblings: siblings.length,
+          siblingRelationships: siblingRelationships.length,
           studentPayments: studentPayments.length,
         },
       },
       data: {
-        students: students.map((student) => ({
-          ...student,
-          StudentPayment: undefined, // Remove the included payments to avoid duplicates
-        })),
+        persons,
         batches,
-        siblings,
+        siblingRelationships,
         studentPayments,
       },
     }
@@ -121,11 +188,14 @@ export async function backupData() {
     )
 
     // Log backup stats
-    console.log('✅ Backup completed:', {
-      fileName,
-      counts: backup.metadata.totalCounts,
-      size: `${(JSON.stringify(backup).length / 1024 / 1024).toFixed(2)}MB`,
-    })
+    logger.info(
+      {
+        fileName,
+        counts: backup.metadata.totalCounts,
+        size: `${(JSON.stringify(backup).length / 1024 / 1024).toFixed(2)}MB`,
+      },
+      'Backup completed'
+    )
 
     return {
       success: true,
@@ -134,7 +204,7 @@ export async function backupData() {
       stats: backup.metadata.totalCounts,
     }
   } catch (error) {
-    console.error('❌ Backup failed:', error)
+    await logError(logger, error, 'Backup failed')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

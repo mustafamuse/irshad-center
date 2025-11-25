@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
+import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/students/[id]/payments')
 
 // GET /api/admin/students/[id]/payments
 export async function GET(
@@ -9,31 +13,34 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    // Check if student exists
-    const student = await prisma.student.findUnique({
-      where: { id },
-      select: { id: true },
-    })
-    if (!student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
+
+    // Verify profile exists
+    const profile = await getProgramProfileById(id)
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
-    // Get all payments for this student
+
+    // Get payments for this profile
     const payments = await prisma.studentPayment.findMany({
-      where: { studentId: id },
-      orderBy: [{ year: 'asc' }, { month: 'asc' }],
-      select: {
-        id: true,
-        year: true,
-        month: true,
-        amountPaid: true,
-        paidAt: true,
+      where: {
+        programProfileId: id,
+      },
+      orderBy: {
+        paidAt: 'desc',
       },
     })
+
     return NextResponse.json(payments)
   } catch (error) {
-    console.error('Failed to fetch student payments:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching student payments'
+    )
     return NextResponse.json(
-      { error: 'Failed to fetch student payments' },
+      {
+        error:
+          error instanceof Error ? error.message : 'Failed to fetch payments',
+      },
       { status: 500 }
     )
   }

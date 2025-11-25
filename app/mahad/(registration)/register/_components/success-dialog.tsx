@@ -14,7 +14,6 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
-
 interface PaymentSuccessDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void

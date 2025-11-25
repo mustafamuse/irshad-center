@@ -1,6 +1,0 @@
--- CreateEnum
-CREATE TYPE "Program" AS ENUM ('MAHAD_PROGRAM', 'DUGSI_PROGRAM');
-
--- AlterTable
-ALTER TABLE "Student" ADD COLUMN "program" "Program" NOT NULL DEFAULT 'MAHAD_PROGRAM';
-

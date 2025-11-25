@@ -115,10 +115,26 @@ export function StudentsDataTable({ data }: StudentsDataTableProps) {
   return (
     <>
       {data.map((student) => {
-        const statusConfig = getStatusConfig(student.status)
-        const subscriptionConfig = getSubscriptionConfig(
-          student.subscriptionStatus
-        )
+        // Extract data from new structure
+        const studentName = student.person.name
+        const email =
+          student.person.contactPoints.find((cp) => cp.type === 'EMAIL')
+            ?.value || null
+        const phone =
+          student.person.contactPoints.find((cp) => cp.type === 'PHONE')
+            ?.value || null
+        const currentBatch = student.enrollments?.[0]?.batch
+        const activeAssignment = student.assignments?.[0]
+        const subscriptionStatus =
+          activeAssignment?.subscription?.status || null
+        const stripeSubscriptionId =
+          activeAssignment?.subscription?.stripeSubscriptionId || null
+
+        // Get enrollment status from latest enrollment
+        const enrollmentStatus =
+          student.enrollments?.[0]?.status || 'registered'
+        const statusConfig = getStatusConfig(enrollmentStatus)
+        const subscriptionConfig = getSubscriptionConfig(subscriptionStatus)
         const StatusIcon = statusConfig.icon
         const SubscriptionIcon = subscriptionConfig.icon
 
@@ -134,7 +150,7 @@ export function StudentsDataTable({ data }: StudentsDataTableProps) {
                 </div>
                 <div>
                   <div className="font-medium text-card-foreground">
-                    {student.name}
+                    {studentName}
                   </div>
                 </div>
               </div>
@@ -143,21 +159,21 @@ export function StudentsDataTable({ data }: StudentsDataTableProps) {
             <TableCell className="bg-card">
               <div className="space-y-1">
                 <div className="text-sm text-card-foreground">
-                  {student.email || 'No email'}
+                  {email || 'No email'}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {student.phone || 'No phone'}
+                  {phone || 'No phone'}
                 </div>
               </div>
             </TableCell>
 
             <TableCell className="bg-card">
-              {student.Batch ? (
+              {currentBatch ? (
                 <Badge
                   variant="outline"
                   className="border-border bg-muted/50 text-muted-foreground"
                 >
-                  {student.Batch.name}
+                  {currentBatch.name}
                 </Badge>
               ) : (
                 <span className="text-sm text-muted-foreground">No batch</span>
@@ -167,16 +183,16 @@ export function StudentsDataTable({ data }: StudentsDataTableProps) {
             <TableCell className="bg-card">
               <Badge className={statusConfig.className}>
                 <StatusIcon className="mr-1 h-3 w-3" />
-                {student.status}
+                {enrollmentStatus}
               </Badge>
             </TableCell>
 
             <TableCell className="bg-card">
-              {student.stripeSubscriptionId ? (
+              {stripeSubscriptionId ? (
                 <div className="space-y-1">
                   <Badge className={subscriptionConfig.className}>
                     <SubscriptionIcon className="mr-1 h-3 w-3" />
-                    {student.subscriptionStatus || 'Unknown'}
+                    {subscriptionStatus || 'Unknown'}
                   </Badge>
                   <div>
                     <Button
@@ -186,7 +202,7 @@ export function StudentsDataTable({ data }: StudentsDataTableProps) {
                       className="h-6 p-0 text-xs text-primary hover:bg-accent"
                     >
                       <Link
-                        href={`https://dashboard.stripe.com/subscriptions/${student.stripeSubscriptionId}`}
+                        href={`https://dashboard.stripe.com/subscriptions/${stripeSubscriptionId}`}
                         target="_blank"
                         className="flex items-center space-x-1"
                       >
@@ -208,10 +224,10 @@ export function StudentsDataTable({ data }: StudentsDataTableProps) {
 
             <TableCell className="bg-card">
               <PaymentHistoryDialog
-                payments={student.StudentPayment}
+                payments={student.payments}
                 studentId={student.id}
-                studentName={student.name}
-                subscriptionSiblings={student.subscriptionMembers}
+                studentName={studentName}
+                subscriptionSiblings={[]}
               />
             </TableCell>
           </TableRow>

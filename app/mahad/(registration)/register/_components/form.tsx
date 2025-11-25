@@ -45,7 +45,9 @@ import {
   buttonClassNames,
   getInputClassNames,
 } from '@/lib/registration/utils/form-utils'
+import { ExistingPersonData } from '@/lib/types/registration-errors'
 
+import { DuplicateRegistrationDialog } from './duplicate-dialog'
 import { SiblingSearchDialog } from './search-dialog'
 import { SiblingManagementSection } from './sibling-section'
 import { PaymentSuccessDialog } from './success-dialog'
@@ -59,6 +61,13 @@ export function RegisterForm() {
   const [siblings, setSiblings] = useState<SearchResult[]>([])
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
   const [registeredStudentCount, setRegisteredStudentCount] = useState(1)
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+  const [duplicateField, setDuplicateField] = useState<
+    'email' | 'phone' | 'both' | undefined
+  >()
+  const [existingPersonData, setExistingPersonData] = useState<
+    ExistingPersonData | undefined
+  >()
 
   // Form setup
   const form = useForm<StudentFormValues>({
@@ -68,7 +77,14 @@ export function RegisterForm() {
   })
 
   // Custom hooks
-  const { validateEmail, isCheckingEmail } = useEmailValidation(form)
+  const {
+    validateEmail,
+    validateEmailImmediate,
+    isCheckingEmail,
+    validatePhone,
+    validatePhoneImmediate,
+    isCheckingPhone,
+  } = useEmailValidation(form)
   const { searchSiblings } = useSiblingSearch(formData?.lastName)
   const { registerStudent, isSubmitting } = useRegistration({
     form,
@@ -80,13 +96,51 @@ export function RegisterForm() {
       setRegisteredStudentCount(studentCount)
       setShowPaymentDialog(true)
     },
+    onDuplicate: (field, personData) => {
+      setDuplicateField(field)
+      setExistingPersonData(personData)
+      setShowDuplicateDialog(true)
+    },
   })
 
   // Handlers
   const handleSubmit = async (data: StudentFormValues) => {
-    // Validate email before proceeding
-    const isEmailValid = await validateEmail(data.email)
-    if (!isEmailValid) {
+    // Validate both email and phone immediately before proceeding (no debounce on submit)
+    const [emailValidation, phoneValidation] = await Promise.all([
+      validateEmailImmediate(data.email),
+      validatePhoneImmediate(data.phone),
+    ])
+
+    if (!emailValidation.isValid || !phoneValidation.isValid) {
+      // Check if validation failed due to duplicate registration
+      const emailError = form.formState.errors.email?.message
+      const phoneError = form.formState.errors.phone?.message
+      const isEmailDuplicate =
+        emailError?.includes('already registered') || false
+      const isPhoneDuplicate =
+        phoneError?.includes('already registered') || false
+
+      if (isEmailDuplicate || isPhoneDuplicate) {
+        // Determine which field(s) are duplicates
+        let duplicateField: 'email' | 'phone' | 'both' | undefined
+        if (isEmailDuplicate && isPhoneDuplicate) {
+          duplicateField = 'both'
+        } else if (isEmailDuplicate) {
+          duplicateField = 'email'
+        } else if (isPhoneDuplicate) {
+          duplicateField = 'phone'
+        }
+
+        // Get person data from whichever validation failed
+        const personData =
+          emailValidation.personData || phoneValidation.personData
+
+        if (duplicateField && personData) {
+          setDuplicateField(duplicateField)
+          setExistingPersonData(personData)
+          setShowDuplicateDialog(true)
+        }
+      }
       return
     }
 
@@ -169,10 +223,13 @@ export function RegisterForm() {
                   emailField="email"
                   phoneField="phone"
                   emailPlaceholder="Enter your email"
-                  phoneHelperText="Enter your whatsapp number"
                   isCheckingEmail={isCheckingEmail}
+                  isCheckingPhone={isCheckingPhone}
                   onEmailBlur={async (email) => {
                     await validateEmail(email)
+                  }}
+                  onPhoneBlur={async (phone) => {
+                    await validatePhone(phone)
                   }}
                 />
 
@@ -298,6 +355,18 @@ export function RegisterForm() {
           isOpen={showPaymentDialog}
           onOpenChange={setShowPaymentDialog}
           studentCount={registeredStudentCount}
+        />
+
+        {/* Duplicate Registration Dialog */}
+        <DuplicateRegistrationDialog
+          isOpen={showDuplicateDialog}
+          onOpenChange={setShowDuplicateDialog}
+          duplicateField={duplicateField}
+          existingPerson={existingPersonData}
+          onExit={() => {
+            // Navigation is handled by Link in the dialog
+            setShowDuplicateDialog(false)
+          }}
         />
       </div>
     </div>

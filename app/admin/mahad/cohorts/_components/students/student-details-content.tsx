@@ -132,7 +132,7 @@ export function StudentDetailsContent({
         isPending={isPending}
         updateField={updateField}
         batches={batches}
-        currentBatchName={student.Batch?.name || null}
+        currentBatchName={student.batch?.name || null}
         studentStatus={student.status}
       />
 

@@ -64,7 +64,7 @@ export function EducationFields<T extends FieldValues>({
           >
             <SelectTrigger
               aria-invalid={!!fieldState.error}
-              className={getInputClassNames(!!fieldState.error)}
+              className={`w-full ${getInputClassNames(!!fieldState.error)}`}
             >
               <SelectValue placeholder={educationPlaceholder} />
             </SelectTrigger>
@@ -97,7 +97,7 @@ export function EducationFields<T extends FieldValues>({
           >
             <SelectTrigger
               aria-invalid={!!fieldState.error}
-              className={getInputClassNames(!!fieldState.error)}
+              className={`w-full ${getInputClassNames(!!fieldState.error)}`}
             >
               <SelectValue placeholder={gradePlaceholder} />
             </SelectTrigger>

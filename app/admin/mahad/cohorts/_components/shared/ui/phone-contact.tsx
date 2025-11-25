@@ -11,7 +11,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { createClientLogger } from '@/lib/logger-client'
 import { cn } from '@/lib/utils'
+
+const logger = createClientLogger('PhoneContact')
 
 interface PhoneContactProps {
   phone: string
@@ -40,7 +43,7 @@ export function PhoneContact({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
-      console.error('Failed to copy phone:', error)
+      logger.error('Failed to copy phone', error)
     }
   }
 

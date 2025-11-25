@@ -1,0 +1,59 @@
+
+> irshad-center-app@0.1.0 build
+> prisma generate && next build
+
+Environment variables loaded from .env
+Prisma schema loaded from prisma/schema.prisma
+┌─────────────────────────────────────────────────────────┐
+│  Update available 6.19.0 -> 7.0.0                       │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+
+✔ Generated Prisma Client (v6.19.0) to ./node_modules/@prisma/client in 86ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+Tip: Interested in query caching in just a few lines of code? Try Accelerate today! https://pris.ly/tip-3-accelerate
+
+   ▲ Next.js 15.5.3
+   - Environments: .env.local, .env
+
+   Creating an optimized production build ...
+[baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+ ⚠ Compiled with warnings in 7.5s
+
+./lib/services/mahad/enrollment-service.ts
+Attempted import error: 'getEnrollmentById' is not exported from '@/lib/db/queries/enrollment' (imported as 'getEnrollmentById').
+
+Import trace for requested module:
+./lib/services/mahad/enrollment-service.ts
+./app/admin/mahad/cohorts/_actions/index.ts
+
+./lib/services/mahad/student-service.ts
+Attempted import error: 'createProgramProfile' is not exported from '@/lib/db/queries/program-profile' (imported as 'createProgramProfile').
+
+Import trace for requested module:
+./lib/services/mahad/student-service.ts
+./app/admin/mahad/cohorts/_actions/index.ts
+
+   Skipping linting
+   Checking validity of types ...
+Failed to compile.
+
+./app/admin/mahad/cohorts/_actions/index.ts:60:44
+Type error: Cannot find name 'createBatch'.
+
+[0m [90m 58 |[39m [90m * Type aliases for cleaner function signatures[39m
+ [90m 59 |[39m [90m */[39m
+[31m[1m>[22m[39m[90m 60 |[39m type [33mBatchData[39m [33m=[39m [33mAwaited[39m[33m<[39m[33mReturnType[39m[33m<[39m[36mtypeof[39m createBatch[33m>>[39m
+ [90m    |[39m                                            [31m[1m^[22m[39m
+ [90m 61 |[39m type [33mAssignmentResult[39m [33m=[39m {
+ [90m 62 |[39m   assignedCount[33m:[39m number
+ [90m 63 |[39m   failedAssignments[33m:[39m string[][0m
+Next.js build worker exited with code: 1 and signal: null

@@ -41,10 +41,10 @@ export async function generateMetadata({
 
   return {
     title: `${student.name} - Student Profile`,
-    description: `View profile and details for ${student.name} | ${student.status} | ${student.Batch?.name || 'Unassigned'}`,
+    description: `View profile and details for ${student.name} | ${student.status} | ${student.batch?.name || 'Unassigned'}`,
     openGraph: {
       title: `${student.name} - Student Profile`,
-      description: `${student.status} | ${student.Batch?.name || 'Unassigned'}`,
+      description: `${student.status} | ${student.batch?.name || 'Unassigned'}`,
     },
   }
 }

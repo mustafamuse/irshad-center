@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "lib/services/**/*",
+    "lib/db/**/*",
+    "lib/queries/**/*",
+    "lib/types/**/*",
+    "lib/utils/**/*",
+    "lib/errors.ts"
+  ],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]
+}

@@ -10,7 +10,10 @@ import {
   EMAIL_CONFIG,
 } from '@/lib/email/email-service'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createActionLogger } from '@/lib/logger'
 import { sanitizeFilename } from '@/lib/utils/sanitize'
+
+const logger = createActionLogger('scholarship-actions')
 
 import { formatPDFData } from '../_lib/format-data'
 import { generateScholarshipPDF } from '../_lib/generate-pdf'
@@ -63,7 +66,10 @@ export async function submitScholarshipApplication(
     try {
       pdfBuffer = await generateScholarshipPDF(pdfData)
     } catch (error) {
-      console.error('PDF generation failed:', error)
+      logger.error(
+        { err: error instanceof Error ? error : new Error(String(error)) },
+        'PDF generation failed'
+      )
       throw new ActionError(
         'Failed to generate application PDF. Please try again.',
         ERROR_CODES.SERVER_ERROR
@@ -117,7 +123,10 @@ export async function submitScholarshipApplication(
       })
     } catch (error) {
       // Log but don't fail - application was successfully submitted to admin
-      console.error('Failed to send confirmation email to student:', error)
+      logger.error(
+        { err: error instanceof Error ? error : new Error(String(error)) },
+        'Failed to send confirmation email to student'
+      )
     }
 
     return {
@@ -125,7 +134,10 @@ export async function submitScholarshipApplication(
       message: 'Your application has been submitted successfully',
     }
   } catch (error) {
-    console.error('Scholarship submission error:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Scholarship submission error'
+    )
 
     // Return ActionError in consistent format
     if (error instanceof ActionError) {

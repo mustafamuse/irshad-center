@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/backups/[filename]')
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
@@ -37,7 +41,10 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error serving backup file:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error serving backup file'
+    )
     return NextResponse.json({ error: 'Failed to serve file' }, { status: 500 })
   }
 }

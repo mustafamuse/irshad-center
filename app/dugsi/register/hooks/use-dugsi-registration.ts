@@ -4,9 +4,12 @@ import { useTranslations } from 'next-intl'
 import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { createClientLogger } from '@/lib/logger-client'
 import type { DugsiRegistrationValues } from '@/lib/registration/schemas/registration'
 
 import { registerDugsiChildren } from '../actions'
+
+const logger = createClientLogger('useDugsiRegistration')
 
 interface UseDugsiRegistrationProps {
   form: UseFormReturn<DugsiRegistrationValues>
@@ -29,14 +32,14 @@ export function useDugsiRegistration({
     async (formData: DugsiRegistrationValues) => {
       if (isPending) return
 
-      console.log('🔍 Starting registration...', {
+      logger.debug('Starting registration', {
         childCount: formData.children.length,
       })
 
       startTransition(async () => {
         try {
           const result = await registerDugsiChildren(formData)
-          console.log('🔍 Server action result:', result)
+          logger.debug('Server action result', result)
 
           if (!result.success) {
             // Handle validation errors
@@ -59,7 +62,7 @@ export function useDugsiRegistration({
 
           // Success handling
           if (result.data?.paymentUrl) {
-            console.log('✅ Registration successful! Redirecting to payment...')
+            logger.info('Registration successful! Redirecting to payment')
 
             // Show informative message before redirect
             const childText =
@@ -103,7 +106,7 @@ export function useDugsiRegistration({
             form.reset()
           }
         } catch (error) {
-          console.error('💥 Unexpected error during registration:', error)
+          logger.error('Unexpected error during registration', error)
           toast.error(
             error instanceof Error
               ? error.message

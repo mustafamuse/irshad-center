@@ -38,6 +38,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('ProfitShareCalculator')
 
 // Constants
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({
@@ -322,7 +325,7 @@ export function ProfitShareCalculator({ batches }: ProfitShareCalculatorProps) {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred'
-      console.error('Calculation failed:', errorMessage)
+      logger.error('Calculation failed', errorMessage)
       setError(errorMessage)
     } finally {
       setIsLoading(false)

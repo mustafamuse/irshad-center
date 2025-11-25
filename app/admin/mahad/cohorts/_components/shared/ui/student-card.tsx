@@ -1,5 +1,6 @@
 'use client'
 
+import { SubscriptionStatus } from '@prisma/client'
 import { Users } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -130,44 +131,42 @@ export function StudentCard({
                 {getStudentStatusDisplay(student.status as StudentStatus)}
               </Badge>
 
-              {student.Batch && (
+              {student.batch && (
                 <Badge variant="outline" className="text-xs">
-                  {student.Batch.name}
+                  {student.batch.name}
                 </Badge>
               )}
 
-              {student.subscriptionStatus && (
+              {student.subscription?.status && (
                 <Badge
                   variant={
-                    student.subscriptionStatus === 'active'
+                    student.subscription.status === 'active'
                       ? 'default'
-                      : student.subscriptionStatus === 'past_due'
+                      : student.subscription.status === 'past_due'
                         ? 'destructive'
                         : 'secondary'
                   }
                   className="text-xs"
                 >
-                  {getSubscriptionStatusDisplay(student.subscriptionStatus)}
+                  {getSubscriptionStatusDisplay(
+                    student.subscription.status as SubscriptionStatus
+                  )}
                 </Badge>
               )}
             </div>
           </div>
 
-          {!compact &&
-            student.Sibling &&
-            student.Sibling.Student.length > 0 && (
-              <div className="mt-2">
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <Users className="h-3.5 w-3.5" />
-                  <span>
-                    {student.Sibling.Student.length}{' '}
-                    {student.Sibling.Student.length === 1
-                      ? 'sibling'
-                      : 'siblings'}
-                  </span>
-                </p>
-              </div>
-            )}
+          {!compact && student.siblingCount && student.siblingCount > 0 && (
+            <div className="mt-2">
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Users className="h-3.5 w-3.5" />
+                <span>
+                  {student.siblingCount}{' '}
+                  {student.siblingCount === 1 ? 'sibling' : 'siblings'}
+                </span>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </Card>

@@ -30,6 +30,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('BackupButton')
 
 interface BackupProgress {
   stage:
@@ -141,7 +144,7 @@ export function BackupButton() {
         }
       }
     } catch (error) {
-      console.error('Backup error:', error)
+      logger.error('Backup error', error)
       toast.error('Backup failed', {
         description:
           error instanceof Error

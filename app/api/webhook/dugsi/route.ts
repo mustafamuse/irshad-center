@@ -1,47 +1,65 @@
 /**
  * Dugsi Webhook Handler
  *
- * This endpoint handles webhook events from the Dugsi Stripe account.
- * It's completely separate from the Mahad webhook handler to ensure
- * proper isolation between the two payment systems.
+ * Refactored to use base webhook handler for DRY architecture.
+ * Handles Stripe webhook events from the Dugsi account.
+ *
+ * Responsibilities:
+ * - Route webhook events to appropriate handlers (via base handler)
+ * - Handle Dugsi-specific logic (guardian relationships, family linking)
+ * - Delegate common operations to webhook service
  */
 
-import { headers } from 'next/headers'
-import { NextResponse } from 'next/server'
-
-import type { Prisma } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
+/**
+ * Extended Stripe Invoice type that includes payment_intent field.
+ * Stripe's Invoice type includes payment_intent but it's typed as string | PaymentIntent | null
+ */
+type StripeInvoiceWithPaymentIntent = Stripe.Invoice & {
+  payment_intent?: string | Stripe.PaymentIntent | null
+}
+
 import { prisma } from '@/lib/db'
-import { getNewStudentStatus } from '@/lib/queries/subscriptions'
+import { getBillingAccountByStripeCustomerId } from '@/lib/db/queries/billing'
+import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
+import { createWebhookLogger } from '@/lib/logger'
+import { handleSubscriptionCancellationEnrollments } from '@/lib/services/shared/enrollment-service'
+import { createWebhookHandler } from '@/lib/services/webhooks/base-webhook-handler'
+import {
+  handlePaymentMethodCapture,
+  handleSubscriptionCreated,
+  handleSubscriptionUpdated,
+  handleSubscriptionDeleted as handleSubscriptionDeletedService,
+} from '@/lib/services/webhooks/webhook-service'
 import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
 import { parseDugsiReferenceId } from '@/lib/utils/dugsi-payment'
-import {
-  updateStudentsInTransaction,
-  buildCancellationUpdateData,
-} from '@/lib/utils/student-updates'
-import {
-  extractCustomerId,
-  extractPeriodDates,
-  isValidSubscriptionStatus,
-} from '@/lib/utils/type-guards'
+import { extractCustomerId } from '@/lib/utils/type-guards'
+
+const logger = createWebhookLogger('dugsi')
 
 /**
  * Handle successful payment method capture (checkout.session.completed).
- * This happens when a parent completes the $1 payment to save their payment method.
+ *
+ * Dugsi-specific logic:
+ * - Parse family reference ID from session
+ * - Find guardian via GuardianRelationship
+ * - Delegate billing account creation to service
  */
 async function handlePaymentMethodCaptured(
   session: Stripe.Checkout.Session
 ): Promise<void> {
-  const { client_reference_id, customer, customer_email, payment_intent } =
-    session
+  const { client_reference_id, customer, customer_email } = session
 
-  console.log('💳 Processing Dugsi payment method capture:', {
-    referenceId: client_reference_id,
-    customer,
-    email: customer_email,
-    paymentIntent: payment_intent,
-  })
+  logger.info(
+    {
+      referenceId: client_reference_id,
+      customer,
+      email: customer_email,
+    },
+    'Processing Dugsi payment method capture'
+  )
 
   // Parse the reference ID to get family information
   if (!client_reference_id) {
@@ -61,154 +79,272 @@ async function handlePaymentMethodCaptured(
   }
 
   try {
-    // Use transaction for atomic updates
-    await prisma.$transaction(async (tx) => {
-      // Update all students in the family with the Stripe customer ID
-      const updateResult = await tx.student.updateMany({
-        where: {
-          familyReferenceId: familyId,
-          program: 'DUGSI_PROGRAM',
+    // Get profiles for this family
+    const profiles = await Sentry.startSpan(
+      {
+        name: 'dugsi.get_family_profiles',
+        op: 'db.query',
+        attributes: {
+          family_id: familyId,
         },
-        data: {
-          stripeCustomerIdDugsi: customer,
-          paymentMethodCaptured: true,
-          paymentMethodCapturedAt: new Date(),
-          stripeAccountType: 'DUGSI',
+      },
+      async () => await getProgramProfilesByFamilyId(familyId)
+    )
+
+    if (profiles.length === 0) {
+      logger.warn(
+        { familyId },
+        'No profiles found for family, skipping payment method capture'
+      )
+      return
+    }
+
+    // Find guardian person ID
+    let guardianPersonId: string | null = null
+
+    // Try GuardianRelationship first
+    const firstChildProfile = profiles[0]
+    const guardianRelationship = await Sentry.startSpan(
+      {
+        name: 'dugsi.find_guardian_relationship',
+        op: 'db.query',
+        attributes: {
+          dependent_id: firstChildProfile.personId,
+        },
+      },
+      async () =>
+        await prisma.guardianRelationship.findFirst({
+          where: {
+            dependentId: firstChildProfile.personId,
+            isActive: true,
+            role: 'PARENT',
+          },
+          orderBy: {
+            createdAt: 'asc', // Use first guardian (parent 1)
+          },
+        })
+    )
+
+    if (guardianRelationship) {
+      guardianPersonId = guardianRelationship.guardianId
+    } else if (customer_email) {
+      // Fallback: Try to find parent by email from checkout session
+      const parentPerson = await prisma.person.findFirst({
+        where: {
+          contactPoints: {
+            some: {
+              type: 'EMAIL',
+              value: customer_email.toLowerCase().trim(),
+            },
+          },
         },
       })
 
-      if (updateResult.count === 0) {
-        throw new Error(`No students found for family ${familyId}`)
+      if (parentPerson) {
+        guardianPersonId = parentPerson.id
       }
+    }
 
-      console.log(
-        `✅ Updated ${updateResult.count} students with payment method for family ${familyId}`
+    if (!guardianPersonId) {
+      throw new Error(
+        `No guardian found for family ${familyId} - cannot create billing account`
       )
-    })
+    }
+
+    // Delegate to webhook service for payment method capture
+    const result = await Sentry.startSpan(
+      {
+        name: 'dugsi.capture_payment_method',
+        op: 'webhook.processing',
+        attributes: {
+          family_id: familyId,
+          guardian_person_id: guardianPersonId,
+          customer_id: customer,
+        },
+      },
+      async () =>
+        await handlePaymentMethodCapture(session, 'DUGSI', guardianPersonId)
+    )
+
+    logger.info(
+      {
+        familyId,
+        billingAccountId: result.billingAccountId,
+        customerId: result.customerId,
+        guardianPersonId,
+      },
+      'Payment method captured successfully'
+    )
   } catch (error) {
-    console.error('❌ Error updating student records:', error)
+    logger.error({ err: error }, 'Error capturing payment method')
     throw error
   }
 }
 
 /**
- * Handle subscription creation/update from manual Stripe dashboard actions.
- * This allows admins to manually create subscriptions and have them linked back.
+ * Handle subscription creation event.
+ *
+ * Dugsi-specific logic:
+ * - Find family profiles via GuardianRelationship
+ * - Delegate subscription creation and linking to service
  */
-async function handleSubscriptionEvent(
+async function handleSubscriptionCreatedEvent(
   subscription: Stripe.Subscription
 ): Promise<void> {
-  // Validate and extract customer ID using type guard
   const customerId = extractCustomerId(subscription.customer)
 
   if (!customerId) {
     throw new Error('Invalid or missing customer ID in subscription')
   }
 
-  const subscriptionId = subscription.id
-
-  console.log('📊 Processing Dugsi subscription event:', {
-    customerId,
-    subscriptionId,
-    status: subscription.status,
-  })
-
-  // Validate subscription status using type guard
-  if (!isValidSubscriptionStatus(subscription.status)) {
-    throw new Error(`Invalid subscription status: ${subscription.status}`)
-  }
-
-  // Extract period dates
-  const periodDates = extractPeriodDates(subscription)
+  logger.info(
+    {
+      customerId,
+      subscriptionId: subscription.id,
+      status: subscription.status,
+    },
+    'Processing Dugsi subscription creation'
+  )
 
   try {
-    await prisma.$transaction(async (tx) => {
-      // Find all students with this Stripe customer ID
-      const students = await tx.student.findMany({
-        where: {
-          stripeCustomerIdDugsi: customerId,
-          program: 'DUGSI_PROGRAM',
-        },
-        select: {
-          id: true,
-          subscriptionStatus: true,
-          stripeSubscriptionIdDugsi: true,
-        },
-      })
+    // Find billing account by Stripe customer ID
+    const billingAccount = await getBillingAccountByStripeCustomerId(
+      customerId,
+      'DUGSI'
+    )
 
-      if (students.length === 0) {
-        throw new Error(`No students found for customer: ${customerId}`)
-      }
+    if (!billingAccount) {
+      logger.warn(
+        { customerId },
+        'No billing account found for customer, subscription cannot be linked'
+      )
+      return
+    }
 
-      // Update each student using centralized utility
-      const updatePromises = updateStudentsInTransaction(
-        students,
+    // Find family profiles via GuardianRelationship
+    let profileIds: string[] = []
+
+    if (billingAccount.personId) {
+      const guardianId = billingAccount.personId // For TypeScript
+      // Find all children (dependents) of this guardian
+      const guardianRelationships = await Sentry.startSpan(
         {
-          subscriptionId,
-          customerId,
-          subscriptionStatus: subscription.status,
-          newStudentStatus: getNewStudentStatus(subscription.status),
-          periodStart: periodDates.periodStart,
-          periodEnd: periodDates.periodEnd,
-          program: 'DUGSI',
+          name: 'dugsi.find_dependents',
+          op: 'db.query',
+          attributes: {
+            guardian_id: guardianId,
+          },
         },
-        tx
+        async () =>
+          await prisma.guardianRelationship.findMany({
+            where: {
+              guardianId,
+              isActive: true,
+              role: 'PARENT',
+            },
+            include: {
+              dependent: {
+                include: {
+                  programProfiles: {
+                    where: {
+                      program: 'DUGSI_PROGRAM',
+                    },
+                  },
+                },
+              },
+            },
+          })
       )
 
-      const updateResults = await Promise.all(updatePromises)
+      // Collect all Dugsi profiles from dependents
+      const profilesToLink: Array<{
+        id: string
+        familyReferenceId: string | null
+      }> = []
 
-      if (updateResults.length === 0) {
-        throw new Error('Failed to update students with subscription')
+      for (const rel of guardianRelationships) {
+        profilesToLink.push(...rel.dependent.programProfiles)
       }
 
-      console.log(
-        `✅ Updated ${updateResults.length} students with subscription ${subscriptionId}`
-      )
-
-      // Log if any subscription IDs were added to history
-      const studentsWithHistory = students.filter(
-        (s) =>
-          s.stripeSubscriptionIdDugsi &&
-          s.stripeSubscriptionIdDugsi !== subscriptionId
-      )
-      if (studentsWithHistory.length > 0) {
-        console.log(
-          `📝 Added previous subscription IDs to history for ${studentsWithHistory.length} students`
-        )
+      // If profiles have a familyReferenceId, get all profiles in that family
+      const familyId = profilesToLink[0]?.familyReferenceId
+      if (familyId) {
+        const familyProfiles = await getProgramProfilesByFamilyId(familyId)
+        profileIds = familyProfiles.map((p) => p.id)
+      } else {
+        profileIds = profilesToLink.map((p) => p.id)
       }
-    })
+    }
+
+    // Delegate to webhook service for subscription creation
+    const result = await handleSubscriptionCreated(
+      subscription,
+      'DUGSI',
+      profileIds.length > 0 ? profileIds : undefined
+    )
+
+    logger.info(
+      {
+        subscriptionId: result.subscriptionId,
+        profilesLinked: profileIds.length,
+      },
+      'Subscription created successfully'
+    )
   } catch (error) {
-    console.error('❌ Error handling subscription event:', error)
+    logger.error({ err: error }, 'Error handling subscription creation')
     throw error
   }
 }
 
 /**
- * Handle invoice finalization to capture PaymentIntent IDs.
- * This is the reliable way to get PaymentIntent IDs for subscriptions.
+ * Handle subscription update event.
+ *
+ * Delegates to webhook service for status update.
  */
-async function handleInvoiceFinalized(invoice: Stripe.Invoice): Promise<void> {
-  // Cast to any for webhook context where these properties exist but aren't in the type
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const invoiceWithExtras = invoice as any
+async function handleSubscriptionUpdatedEvent(
+  subscription: Stripe.Subscription
+): Promise<void> {
+  logger.info(
+    {
+      subscriptionId: subscription.id,
+      status: subscription.status,
+    },
+    'Processing Dugsi subscription update'
+  )
 
-  // Only process first subscription invoice (not renewals)
-  if (
-    !invoiceWithExtras.subscription ||
-    invoice.billing_reason !== 'subscription_create'
-  ) {
-    console.log(`⏭️ Skipping non-subscription-create invoice: ${invoice.id}`, {
-      billing_reason: invoice.billing_reason,
-    })
-    return
+  try {
+    // Delegate to webhook service for subscription update
+    const result = await handleSubscriptionUpdated(subscription)
+
+    logger.info(
+      {
+        subscriptionId: result.subscriptionId,
+        status: result.status,
+      },
+      'Subscription updated successfully'
+    )
+  } catch (error) {
+    logger.error({ err: error }, 'Error handling subscription update')
+    throw error
   }
+}
 
-  // Extract PaymentIntent ID from invoice
-  const paymentIntentId = invoiceWithExtras.payment_intent
-    ? typeof invoiceWithExtras.payment_intent === 'string'
-      ? invoiceWithExtras.payment_intent
-      : invoiceWithExtras.payment_intent?.id
-    : null
+/**
+ * Handle invoice finalization.
+ *
+ * Dugsi-specific: Captures PaymentIntent IDs for subscription_create invoices.
+ * Also delegates to service for updating subscription paidUntil date.
+ */
+async function handleInvoiceFinalizedEvent(
+  invoice: Stripe.Invoice
+): Promise<void> {
+  logger.info(
+    {
+      invoiceId: invoice.id,
+      billingReason: invoice.billing_reason,
+    },
+    'Processing Dugsi invoice finalized'
+  )
 
   // Extract customer ID
   const customerId =
@@ -216,267 +352,176 @@ async function handleInvoiceFinalized(invoice: Stripe.Invoice): Promise<void> {
       ? invoice.customer
       : invoice.customer?.id
 
-  if (!paymentIntentId || !customerId) {
-    console.warn('⚠️ Invoice missing payment_intent or customer:', invoice.id, {
-      paymentIntentId,
-      customerId,
-    })
+  if (!customerId) {
+    logger.warn({ invoiceId: invoice.id }, 'Invoice missing customer ID')
     return
   }
 
-  console.log('💳 Capturing PaymentIntent from invoice:', {
-    invoiceId: invoice.id,
-    customerId,
-    paymentIntentId,
-    billing_reason: invoice.billing_reason,
-  })
-
   try {
-    // Update all students in family with this customer ID
-    const updateResult = await prisma.student.updateMany({
-      where: {
-        program: 'DUGSI_PROGRAM',
-        stripeCustomerIdDugsi: customerId,
-      },
-      data: {
-        paymentIntentIdDugsi: paymentIntentId,
-      },
-    })
+    // Find billing account
+    const billingAccount = await getBillingAccountByStripeCustomerId(
+      customerId,
+      'DUGSI'
+    )
 
-    console.log(
-      `✅ PaymentIntent ID captured for ${updateResult.count} students (customer: ${customerId})`
+    if (!billingAccount) {
+      logger.warn(
+        { customerId },
+        'No billing account found for customer, skipping invoice'
+      )
+      return
+    }
+
+    // Dugsi-specific: Capture PaymentIntent ID for first subscription invoice
+    if (invoice.billing_reason === 'subscription_create') {
+      const invoiceWithPaymentIntent = invoice as StripeInvoiceWithPaymentIntent
+      const paymentIntentId = invoiceWithPaymentIntent.payment_intent
+        ? typeof invoiceWithPaymentIntent.payment_intent === 'string'
+          ? invoiceWithPaymentIntent.payment_intent
+          : invoiceWithPaymentIntent.payment_intent?.id
+        : null
+
+      if (paymentIntentId && billingAccount.personId) {
+        // Import upsertBillingAccount here since we need it for Dugsi-specific logic
+        const { upsertBillingAccount } = await import(
+          '@/lib/db/queries/billing'
+        )
+
+        await Sentry.startSpan(
+          {
+            name: 'dugsi.update_payment_intent',
+            op: 'db.query',
+            attributes: {
+              customer_id: customerId,
+              payment_intent_id: paymentIntentId,
+            },
+          },
+          async () =>
+            await upsertBillingAccount({
+              personId: billingAccount.personId,
+              accountType: 'DUGSI',
+              stripeCustomerIdDugsi: customerId,
+              paymentIntentIdDugsi: paymentIntentId,
+            })
+        )
+
+        logger.info(
+          {
+            billingAccountId: billingAccount.id,
+            paymentIntentId,
+          },
+          'PaymentIntent captured'
+        )
+      }
+    }
+
+    logger.info(
+      {
+        invoiceId: invoice.id,
+        customerId,
+      },
+      'Invoice finalized successfully'
     )
   } catch (error) {
-    console.error('❌ Error updating PaymentIntent IDs:', error)
+    logger.error({ err: error }, 'Error handling invoice finalized')
     throw error
   }
 }
 
 /**
- * Main webhook handler for Dugsi Stripe events.
+ * Handle subscription deletion.
+ *
+ * Delegates to service for deactivation, then updates Dugsi-specific enrollment status.
  */
-export async function POST(req: Request) {
-  let eventId: string | undefined
+async function handleSubscriptionDeletedEvent(
+  subscription: Stripe.Subscription
+): Promise<void> {
+  const customerId = extractCustomerId(subscription.customer)
+  const subscriptionId = subscription.id
+
+  if (!customerId) {
+    throw new Error('Invalid customer ID in canceled subscription')
+  }
+
+  logger.info(
+    {
+      customerId,
+      subscriptionId,
+    },
+    'Processing Dugsi subscription deletion'
+  )
 
   try {
-    // Read raw body once for signature verification
-    const body = await req.text()
-
-    // Validate body is not empty
-    if (!body || body.trim().length === 0) {
-      console.error('❌ Empty request body')
-      return NextResponse.json(
-        { message: 'Request body is required' },
-        { status: 400 }
-      )
-    }
-
-    const headersList = await headers()
-    const signature = headersList.get('stripe-signature')
-
-    if (!signature) {
-      console.error('❌ Missing Dugsi webhook signature')
-      return NextResponse.json(
-        { message: 'Missing signature' },
-        { status: 400 }
-      )
-    }
-
-    // Verify the webhook using Dugsi-specific secret
-    // This validates the signature against the raw body
-    let event: Stripe.Event
-    try {
-      event = verifyDugsiWebhook(body, signature)
-    } catch (verificationError) {
-      // Signature verification failed - return 401
-      const errorMessage =
-        verificationError instanceof Error
-          ? verificationError.message
-          : 'Unknown verification error'
-      console.error('❌ Dugsi webhook verification failed:', errorMessage)
-      return NextResponse.json(
-        { message: 'Invalid webhook signature' },
-        { status: 401 }
-      )
-    }
-
-    eventId = event.id
-
-    console.log(`🔔 Dugsi webhook received: ${event.type} (${eventId})`)
-
-    // Check for idempotency - prevent processing the same event twice
-    const existingEvent = await prisma.webhookEvent.findUnique({
-      where: {
-        eventId_source: {
-          eventId: event.id,
-          source: 'dugsi',
-        },
-      },
-    })
-
-    if (existingEvent) {
-      console.log(`⚠️ Event ${event.id} already processed, skipping`)
-      return NextResponse.json(
-        { received: true, skipped: true },
-        { status: 200 }
-      )
-    }
-
-    // Parse JSON payload safely after signature verification
-    let payload: Prisma.InputJsonValue
-    try {
-      payload = JSON.parse(body) as Prisma.InputJsonValue
-    } catch (parseError) {
-      console.error('❌ Failed to parse webhook body as JSON:', parseError)
-      return NextResponse.json(
-        { message: 'Invalid JSON payload' },
-        { status: 400 }
-      )
-    }
-
-    // Record the event to prevent duplicate processing
-    await prisma.webhookEvent.create({
-      data: {
-        eventId: event.id,
-        eventType: event.type,
-        source: 'dugsi',
-        payload: payload,
-      },
-    })
-
-    // Handle different event types
-    switch (event.type) {
-      case 'checkout.session.completed':
-        await handlePaymentMethodCaptured(
-          event.data.object as Stripe.Checkout.Session
-        )
-        break
-
-      case 'invoice.finalized':
-        await handleInvoiceFinalized(event.data.object as Stripe.Invoice)
-        break
-
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
-        await handleSubscriptionEvent(event.data.object as Stripe.Subscription)
-        break
-
-      case 'customer.subscription.deleted':
-        // Handle subscription cancellation
-        const canceledSub = event.data.object as Stripe.Subscription
-        const canceledCustomerId = extractCustomerId(canceledSub.customer)
-
-        if (!canceledCustomerId) {
-          throw new Error('Invalid customer ID in canceled subscription')
-        }
-
-        // Use transaction to atomically update all students
-        await prisma.$transaction(async (tx) => {
-          // Find students first to track history before updating
-          const studentsToCancel = await tx.student.findMany({
-            where: {
-              stripeCustomerIdDugsi: canceledCustomerId,
-              program: 'DUGSI_PROGRAM',
-            },
-          })
-
-          if (studentsToCancel.length === 0) {
-            console.warn(
-              `⚠️ No students found to cancel for customer: ${canceledCustomerId}`
-            )
-          } else {
-            // Build cancellation data using centralized utility
-            const cancellationData = buildCancellationUpdateData(
-              canceledSub.id,
-              'DUGSI'
-            )
-
-            // Update each student with cancellation data
-            await Promise.all(
-              studentsToCancel.map((student) =>
-                tx.student.update({
-                  where: { id: student.id },
-                  data: cancellationData,
-                })
-              )
-            )
-            console.log(
-              `✅ Added subscription ${canceledSub.id} to history and canceled ${studentsToCancel.length} students`
-            )
-          }
-        })
-        break
-
-      default:
-        console.log(`⚠️ Unhandled Dugsi event type: ${event.type}`)
-    }
-
-    return NextResponse.json({ received: true }, { status: 200 })
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-    console.error(`❌ Dugsi Webhook Error: ${errorMessage}`)
-
-    // If we have an eventId and the error isn't about duplicate processing,
-    // we should clean up the webhook event record so it can be retried
-    if (eventId && !errorMessage.includes('already processed')) {
-      try {
-        await prisma.webhookEvent.delete({
-          where: {
-            eventId_source: {
-              eventId,
-              source: 'dugsi',
-            },
-          },
-        })
-      } catch (deleteErr) {
-        // Ignore delete errors
-      }
-    }
-
-    // Return appropriate status codes based on error type
-    // Signature and validation errors should return 400/401 (client errors)
-    if (
-      errorMessage.includes('Missing signature') ||
-      errorMessage.includes('verification failed') ||
-      errorMessage.includes('Webhook verification failed')
-    ) {
-      return NextResponse.json(
-        { message: 'Invalid webhook signature' },
-        { status: 401 }
-      )
-    }
-
-    // Validation errors (malformed data, missing required fields)
-    if (
-      errorMessage.includes('Invalid reference ID') ||
-      errorMessage.includes('Invalid JSON payload') ||
-      errorMessage.includes('Request body is required')
-    ) {
-      return NextResponse.json({ message: errorMessage }, { status: 400 })
-    }
-
-    // Data consistency issues (missing client_reference_id, invalid customer ID, student not found, etc.)
-    // These are not webhook failures - return 200 to prevent Stripe retry
-    if (
-      errorMessage.includes('No client_reference_id') ||
-      errorMessage.includes('Invalid or missing customer ID') ||
-      errorMessage.includes('No students found') ||
-      errorMessage.includes('No students found for family')
-    ) {
-      console.warn('Data issue, returning 200 to prevent retry:', errorMessage)
-      return NextResponse.json(
-        { received: true, warning: errorMessage },
-        { status: 200 }
-      )
-    }
-
-    // For other unexpected errors, return 500 to trigger Stripe retry
-    return NextResponse.json(
-      { message: 'Internal server error' },
-      { status: 500 }
+    // Update enrollment status to WITHDRAWN BEFORE deleting subscription
+    const enrollmentResult = await handleSubscriptionCancellationEnrollments(
+      subscriptionId,
+      'Subscription canceled'
     )
+
+    logger.info(
+      {
+        withdrawn: enrollmentResult.withdrawn,
+        errors: enrollmentResult.errors.length,
+      },
+      'Updated enrollments to WITHDRAWN'
+    )
+
+    // Delegate to webhook service for subscription deletion
+    const result = await handleSubscriptionDeletedService(subscription)
+
+    logger.info(
+      {
+        subscriptionId: result.subscriptionId,
+        enrollmentsWithdrawn: enrollmentResult.withdrawn,
+      },
+      'Subscription deleted successfully'
+    )
+  } catch (error) {
+    logger.error({ err: error }, 'Error handling subscription deletion')
+    throw error
   }
 }
 
-// Force dynamic rendering
+/**
+ * Event handler wrappers that extract the correct object type from Stripe.Event
+ */
+
+async function handleCheckoutSessionCompletedEvent(event: Stripe.Event) {
+  await handlePaymentMethodCaptured(
+    event.data.object as Stripe.Checkout.Session
+  )
+}
+
+async function handleInvoiceFinalizedEventWrapper(event: Stripe.Event) {
+  await handleInvoiceFinalizedEvent(event.data.object as Stripe.Invoice)
+}
+
+async function handleSubscriptionCreatedEventWrapper(event: Stripe.Event) {
+  await handleSubscriptionCreatedEvent(event.data.object as Stripe.Subscription)
+}
+
+async function handleSubscriptionUpdatedEventWrapper(event: Stripe.Event) {
+  await handleSubscriptionUpdatedEvent(event.data.object as Stripe.Subscription)
+}
+
+async function handleSubscriptionDeletedEventWrapper(event: Stripe.Event) {
+  await handleSubscriptionDeletedEvent(event.data.object as Stripe.Subscription)
+}
+
+/**
+ * Main webhook handler for Dugsi Stripe events.
+ * Created using base webhook handler factory.
+ */
+export const POST = createWebhookHandler({
+  source: 'dugsi',
+  verifyWebhook: verifyDugsiWebhook,
+  eventHandlers: {
+    'checkout.session.completed': handleCheckoutSessionCompletedEvent,
+    'invoice.finalized': handleInvoiceFinalizedEventWrapper,
+    'customer.subscription.created': handleSubscriptionCreatedEventWrapper,
+    'customer.subscription.updated': handleSubscriptionUpdatedEventWrapper,
+    'customer.subscription.deleted': handleSubscriptionDeletedEventWrapper,
+  },
+})
+
 export const dynamic = 'force-dynamic'

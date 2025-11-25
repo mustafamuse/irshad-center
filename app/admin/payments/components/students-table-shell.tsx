@@ -1,3 +1,5 @@
+import { EnrollmentStatus } from '@prisma/client'
+
 import {
   Card,
   CardContent,
@@ -13,6 +15,10 @@ import {
   TableBody,
 } from '@/components/ui/table'
 import { prisma } from '@/lib/db'
+import {
+  getProgramProfilesWithBilling,
+  getProgramProfilesWithBillingCount,
+} from '@/lib/db/queries/program-profile'
 import { SearchParams, StudentWithDetails } from '@/types'
 
 import { PaymentsPagination } from './payments-pagination'
@@ -20,30 +26,6 @@ import { PaymentsPagination } from './payments-pagination'
 import { StudentsDataTable } from './students-data-table'
 import { StudentsMobileCards } from './students-mobile-cards'
 import { StudentsTableFilters } from './students-table-filters'
-
-// Helper function to get students who share the same subscription
-async function getSubscriptionMembers(
-  studentId: string,
-  stripeSubscriptionId: string | null
-) {
-  if (!stripeSubscriptionId) {
-    return []
-  }
-
-  // Find all students with the same subscription ID (excluding current student)
-  const subscriptionMembers = await prisma.student.findMany({
-    where: {
-      stripeSubscriptionId: stripeSubscriptionId,
-      id: { not: studentId },
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  })
-
-  return subscriptionMembers
-}
 
 interface StudentsTableShellProps {
   searchParams: SearchParams
@@ -61,82 +43,85 @@ export async function StudentsTableShell({
 
   const sortString = Array.isArray(sort) ? sort[0] : sort
   const [column, order] = (sortString?.split('.') as [
-    keyof StudentWithDetails,
+    string,
     'asc' | 'desc',
   ]) || ['name', 'asc']
 
-  let where: any = {}
+  // Map column name to query parameter
+  const orderByColumn =
+    column === 'name' ? 'name' : column === 'status' ? 'status' : 'createdAt'
 
-  // Always exclude students from "Test" batch
-  const baseExcludeFilter = {
-    Batch: {
-      name: {
-        not: 'Test',
+  // Get profiles with billing info (server-side filtering, sorting, pagination)
+  const statusValue = Array.isArray(status) ? status[0] : status
+  const [profiles, totalStudents] = await Promise.all([
+    getProgramProfilesWithBilling({
+      studentName: studentName as string | undefined,
+      batchId: batchId as string | undefined,
+      status: statusValue
+        ? (statusValue.toUpperCase() as EnrollmentStatus)
+        : undefined,
+      needsBilling: needsBilling === 'true',
+      excludeTestBatch: true,
+      skip,
+      take,
+      orderBy: {
+        column: orderByColumn,
+        order: order || 'asc',
       },
-    },
-  }
+    }),
+    getProgramProfilesWithBillingCount({
+      studentName: studentName as string | undefined,
+      batchId: batchId as string | undefined,
+      status: statusValue
+        ? (statusValue.toUpperCase() as EnrollmentStatus)
+        : undefined,
+      needsBilling: needsBilling === 'true',
+      excludeTestBatch: true,
+    }),
+  ])
 
-  // Handle the special "needs billing" filter
-  if (needsBilling === 'true') {
-    where = {
-      AND: [
-        baseExcludeFilter,
-        {
-          status: {
-            not: 'withdrawn',
-          },
-        },
-        {
-          stripeSubscriptionId: null,
-        },
-      ],
-    }
-  } else {
-    // Regular filters
-    where = {
-      AND: [
-        baseExcludeFilter,
-        {
-          name: {
-            contains: studentName,
-            mode: 'insensitive',
-          },
-          batchId: batchId || undefined,
-          status: status || undefined,
-        },
-      ],
-    }
-  }
+  const paginatedProfiles = profiles
 
-  const students = await prisma.student.findMany({
-    where,
-    include: {
-      Batch: true,
-      StudentPayment: {
-        orderBy: {
-          paidAt: 'desc',
-        },
-      },
-    },
-    orderBy: {
-      [column]: order,
-    },
-    take,
-    skip,
+  // Collect unique subscription IDs
+  const subscriptionIds = new Set<string>()
+  paginatedProfiles.forEach((p) => {
+    const subscriptionId = p.assignments[0]?.subscription?.stripeSubscriptionId
+    if (subscriptionId) {
+      subscriptionIds.add(subscriptionId)
+    }
   })
 
-  // Get subscription members for each student
-  const studentsWithSubscriptionMembers = await Promise.all(
-    students.map(async (student) => ({
-      ...student,
-      subscriptionMembers: await getSubscriptionMembers(
-        student.id,
-        student.stripeSubscriptionId
-      ),
-    }))
-  )
+  // Batch fetch all subscription members in a single query
+  const subscriptionMembersMap = new Map<string, string[]>()
+  if (subscriptionIds.size > 0) {
+    const subscriptions = await prisma.subscription.findMany({
+      where: {
+        stripeSubscriptionId: { in: Array.from(subscriptionIds) },
+      },
+      include: {
+        assignments: {
+          where: { isActive: true },
+          select: {
+            programProfileId: true,
+          },
+        },
+      },
+    })
 
-  const totalStudents = await prisma.student.count({ where })
+    // Build map: subscriptionId -> array of profileIds
+    for (const sub of subscriptions) {
+      if (sub.stripeSubscriptionId) {
+        const profileIds = sub.assignments.map((a) => a.programProfileId)
+        subscriptionMembersMap.set(sub.stripeSubscriptionId, profileIds)
+      }
+    }
+  }
+
+  // Use the profiles directly - components now handle the StudentProfile structure
+  // Type assertion: the query doesn't include all StudentProfile fields but components don't use them
+  const studentsWithSubscriptionMembers =
+    paginatedProfiles as unknown as StudentWithDetails[]
+
   const pageCount = Math.ceil(totalStudents / take)
 
   return (

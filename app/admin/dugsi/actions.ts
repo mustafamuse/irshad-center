@@ -1,24 +1,53 @@
 'use server'
 
+/**
+ * Dugsi Admin Server Actions
+ *
+ * Server Actions for Dugsi program administration.
+ * This file contains ONLY validation and orchestration logic.
+ * All business logic has been extracted to lib/services/dugsi/
+ * All data transformation has been extracted to lib/mappers/dugsi-mapper.ts
+ *
+ * Architecture:
+ * - Actions: Validation + orchestration (this file)
+ * - Services: Business logic (lib/services/dugsi/)
+ * - Mappers: Data transformation (lib/mappers/dugsi-mapper.ts)
+ * - Queries: Data access (lib/db/queries/)
+ */
+
 import { revalidatePath } from 'next/cache'
 
 import { EducationLevel, GradeLevel } from '@prisma/client'
 
-import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
-import { getNewStudentStatus } from '@/lib/queries/subscriptions'
-import { formatFullName } from '@/lib/registration/utils/name-formatting'
-import { constructDugsiPaymentUrl } from '@/lib/stripe-dugsi'
-import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
-import { updateStudentsInTransaction } from '@/lib/utils/student-updates'
-import { isValidEmail, extractPeriodDates } from '@/lib/utils/type-guards'
-
+import { updateEnrollmentStatus } from '@/lib/db/queries/enrollment'
 import {
-  DUGSI_REGISTRATION_SELECT,
-  DUGSI_FAMILY_SELECT,
-  DUGSI_PAYMENT_STATUS_SELECT,
-  DUGSI_SUBSCRIPTION_LINK_SELECT,
-} from './_queries/selects'
+  getProgramProfileById,
+  getProgramProfilesByFamilyId,
+} from '@/lib/db/queries/program-profile'
+import { createActionLogger } from '@/lib/logger'
+import {
+  updateParentInfo as updateParentInfoService,
+  addSecondParent as addSecondParentService,
+  updateChildInfo as updateChildInfoService,
+  addChildToFamily as addChildToFamilyService,
+} from '@/lib/services/dugsi/family-service'
+import {
+  verifyBankAccount,
+  getPaymentStatus,
+  generatePaymentLink as generatePaymentLinkService,
+} from '@/lib/services/dugsi/payment-service'
+import {
+  getAllDugsiRegistrations,
+  getFamilyMembers as getFamilyMembersService,
+  getDeleteFamilyPreview as getDeleteFamilyPreviewService,
+  deleteDugsiFamily as _deleteDugsiEntityService,
+} from '@/lib/services/dugsi/registration-service'
+import {
+  validateDugsiSubscription as validateSubscriptionService,
+  linkDugsiSubscription as linkSubscriptionService,
+} from '@/lib/services/dugsi/subscription-service'
+
 import {
   ActionResult,
   SubscriptionValidationData,
@@ -27,137 +56,77 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
 } from './_types'
-import { getFamilyWhereClause } from './_utils/family'
+import {
+  validateDugsiEmail,
+  validateDugsiProfile as _validateDugsiProfile,
+  validatePaymentIntentId,
+  validateDescriptorCode,
+} from './_utils/validation'
 
+const logger = createActionLogger('dugsi-actions')
+
+/**
+ * Get all Dugsi registrations.
+ *
+ * Returns all program profiles for the Dugsi program with full relations.
+ *
+ * @returns Array of DugsiRegistration DTOs
+ */
 export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
-  const students = await prisma.student.findMany({
-    where: { program: DUGSI_PROGRAM },
-    orderBy: { createdAt: 'desc' },
-    select: DUGSI_REGISTRATION_SELECT,
-  })
-
-  return students
+  return await getAllDugsiRegistrations()
 }
 
 /**
  * Validate a Stripe subscription ID without linking it.
- * Used by the link subscription dialog to check if a subscription exists.
+ *
+ * Used by the link subscription dialog to check if a subscription exists
+ * before attempting to link it to a family.
+ *
+ * @param subscriptionId - Stripe subscription ID
+ * @returns Validation result with subscription details
  */
 export async function validateDugsiSubscription(
   subscriptionId: string
 ): Promise<ActionResult<SubscriptionValidationData>> {
   try {
-    if (!subscriptionId.startsWith('sub_')) {
-      return {
-        success: false,
-        error: 'Invalid subscription ID format. Must start with "sub_"',
-      }
-    }
-
-    // Validate the subscription exists in Stripe
-    const dugsiStripe = getDugsiStripeClient()
-    const subscription =
-      await dugsiStripe.subscriptions.retrieve(subscriptionId)
-
-    if (!subscription) {
-      return { success: false, error: 'Subscription not found in Stripe' }
-    }
-
-    // Extract customer ID
-    const customerId =
-      typeof subscription.customer === 'string'
-        ? subscription.customer
-        : subscription.customer?.id
-
-    if (!customerId) {
-      return { success: false, error: 'Invalid customer ID in subscription' }
-    }
-
-    // Extract period dates using utility function
-    const periodDates = extractPeriodDates(subscription)
-
+    const result = await validateSubscriptionService(subscriptionId)
     return {
       success: true,
-      data: {
-        subscriptionId: subscription.id,
-        customerId,
-        status: subscription.status,
-        currentPeriodStart: periodDates.periodStart,
-        currentPeriodEnd: periodDates.periodEnd,
-      },
+      data: result,
     }
   } catch (error) {
-    console.error('Error validating Dugsi subscription:', error)
-    if (error instanceof Error) {
-      // Check if it's a Stripe error
-      if (error.message.includes('No such subscription')) {
-        return {
-          success: false,
-          error: 'Subscription not found in Stripe',
-        }
-      }
-      return {
-        success: false,
-        error: error.message || 'Failed to validate subscription',
-      }
-    }
     return {
       success: false,
-      error: 'Failed to validate subscription',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to validate subscription',
     }
   }
 }
 
+/**
+ * Get all family members for a given student.
+ *
+ * If student has a familyReferenceId, returns all students in that family.
+ * Otherwise, returns just the single student.
+ *
+ * @param studentId - ProgramProfile ID
+ * @returns Array of family member registrations
+ */
 export async function getFamilyMembers(
   studentId: string
 ): Promise<DugsiRegistration[]> {
-  // Get the selected student
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    select: DUGSI_FAMILY_SELECT,
-  })
-
-  if (!student) return []
-
-  // Find all siblings using familyReferenceId-based matching (same as getFamilyKey)
-  // Priority: familyReferenceId > parentEmail > id
-  let siblings: DugsiRegistration[]
-
-  if (student.familyReferenceId) {
-    // Find all students with the same familyReferenceId
-    siblings = await prisma.student.findMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        familyReferenceId: student.familyReferenceId,
-      },
-      orderBy: { createdAt: 'asc' },
-      select: DUGSI_REGISTRATION_SELECT,
-    })
-  } else if (student.parentEmail) {
-    // Find all students with the same parentEmail (fallback)
-    siblings = await prisma.student.findMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        parentEmail: student.parentEmail,
-        familyReferenceId: null, // Only match students without familyReferenceId
-      },
-      orderBy: { createdAt: 'asc' },
-      select: DUGSI_REGISTRATION_SELECT,
-    })
-  } else {
-    // No family grouping - return just this student
-    siblings = [student as DugsiRegistration]
-  }
-
-  return siblings
+  return await getFamilyMembersService(studentId)
 }
 
 /**
  * Get a preview of students that will be deleted when deleting a family.
- * This is used by the delete confirmation dialog to show which students will be affected.
  *
- * Returns the count and details of students that will be deleted based on the same
- * familyReferenceId-based matching logic used by deleteDugsiFamily().
+ * Used by delete confirmation dialogs to show the impact of deletion.
+ *
+ * @param studentId - ID of any student in the family
+ * @returns Preview with count and student details
  */
 export async function getDeleteFamilyPreview(studentId: string): Promise<
   ActionResult<{
@@ -166,126 +135,82 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<
   }>
 > {
   try {
-    // Get the student to find family members
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        familyReferenceId: true,
-        parentEmail: true,
-      },
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
-    }
-
-    // Find all students that will be deleted using the same logic as deleteDugsiFamily
-    const { where, isSingleStudent } = getFamilyWhereClause({
-      familyReferenceId: student.familyReferenceId,
-      parentEmail: student.parentEmail,
-    })
-
-    let studentsToDelete
-
-    if (isSingleStudent) {
-      // Single student
-      const singleStudent = await prisma.student.findUnique({
-        where: { id: studentId },
-        select: {
-          id: true,
-          name: true,
-          parentEmail: true,
-        },
-      })
-      studentsToDelete = singleStudent
-        ? [
-            {
-              id: singleStudent.id,
-              name: singleStudent.name,
-              parentEmail: singleStudent.parentEmail,
-            },
-          ]
-        : []
-    } else {
-      // Find all students in the family
-      studentsToDelete = await prisma.student.findMany({
-        where: where!,
-        select: {
-          id: true,
-          name: true,
-          parentEmail: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      })
-    }
-
+    const preview = await getDeleteFamilyPreviewService(studentId)
     return {
       success: true,
-      data: {
-        count: studentsToDelete.length,
-        students: studentsToDelete,
-      },
+      data: preview,
     }
   } catch (error) {
-    console.error('Error getting delete preview:', error)
     return {
       success: false,
-      error: 'Failed to get delete preview',
+      error:
+        error instanceof Error ? error.message : 'Failed to get delete preview',
     }
   }
 }
 
+/**
+ * Delete an entire Dugsi family.
+ *
+ * Performs soft delete by withdrawing all enrollments for all family members.
+ * Uses transaction to ensure all family members are deleted atomically.
+ *
+ * @param studentId - ID of any student in the family
+ * @returns ActionResult indicating success or failure
+ */
 export async function deleteDugsiFamily(
   studentId: string
 ): Promise<ActionResult> {
   try {
-    // Get the student to find family members
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: DUGSI_FAMILY_SELECT,
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
     }
 
-    // Use familyReferenceId-based matching to align with UI grouping logic
-    // Priority: familyReferenceId > parentEmail > id (same as getFamilyKey)
-    const { where, isSingleStudent } = getFamilyWhereClause({
-      familyReferenceId: student.familyReferenceId,
-      parentEmail: student.parentEmail,
-    })
+    const familyId = profile.familyReferenceId
 
-    let deleteResult
-
-    if (isSingleStudent) {
-      // No family grouping - delete single student
-      await prisma.student.delete({
-        where: { id: studentId },
-      })
-      deleteResult = { count: 1 }
-    } else {
-      // Delete all students in the family
-      deleteResult = await prisma.student.deleteMany({
-        where: where!,
-      })
+    // Get all family member IDs to delete
+    let profileIdsToDelete = [profile.id]
+    if (familyId) {
+      const familyProfiles = await getProgramProfilesByFamilyId(familyId)
+      profileIdsToDelete = familyProfiles.map((p) => p.id)
     }
 
-    // Revalidate the page to show updated data
+    // Soft delete by withdrawing all enrollments in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Update all enrollments for the profiles being deleted
+      await tx.enrollment.updateMany({
+        where: {
+          programProfileId: { in: profileIdsToDelete },
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        data: {
+          status: 'WITHDRAWN',
+          notes: 'Family deleted by admin',
+        },
+      })
+    })
+
     revalidatePath('/admin/dugsi')
 
-    const count = deleteResult.count
     return {
       success: true,
-      message: `Successfully deleted ${count} ${count === 1 ? 'student' : 'students'}`,
     }
   } catch (error) {
-    console.error('Error deleting family:', error)
-    return { success: false, error: 'Failed to delete family' }
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error deleting Dugsi family'
+    )
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete family',
+    }
   }
 }
-
 /**
  * Link a manually created Stripe subscription to a Dugsi family.
  * This allows admins to create subscriptions in Stripe Dashboard
@@ -296,96 +221,31 @@ export async function linkDugsiSubscription(params: {
   subscriptionId: string
 }): Promise<ActionResult<SubscriptionLinkData>> {
   try {
-    const { parentEmail, subscriptionId } = params
-
-    // Validate parentEmail is not null/empty to prevent matching all null emails
-    if (!parentEmail || parentEmail.trim() === '') {
-      return {
-        success: false,
-        error:
-          'Parent email is required to link subscription. Please update the student record with a parent email first.',
-      }
+    // Validate email format
+    const emailError = validateDugsiEmail(params.parentEmail)
+    if (emailError) {
+      return { success: false, error: emailError }
     }
 
-    // Validate the subscription exists in Stripe
-    const dugsiStripe = getDugsiStripeClient()
-    const subscription =
-      await dugsiStripe.subscriptions.retrieve(subscriptionId)
+    // Use subscription service to link subscription
+    const result = await linkSubscriptionService(
+      params.parentEmail,
+      params.subscriptionId
+    )
 
-    if (!subscription) {
-      return { success: false, error: 'Subscription not found in Stripe' }
-    }
-
-    // Extract customer ID (type guard ensures it's a string)
-    const customerId =
-      typeof subscription.customer === 'string'
-        ? subscription.customer
-        : subscription.customer?.id
-
-    if (!customerId) {
-      return { success: false, error: 'Invalid customer ID in subscription' }
-    }
-
-    // Derive student status from subscription status
-    const newStudentStatus = getNewStudentStatus(subscription.status)
-
-    // Extract period dates
-    const periodDates = extractPeriodDates(subscription)
-
-    // Use transaction to atomically update all students in the family
-    const studentsToUpdate = await prisma.$transaction(async (tx) => {
-      // Find all students to update and track history
-      const students = await tx.student.findMany({
-        where: {
-          parentEmail,
-          program: DUGSI_PROGRAM,
-        },
-        select: DUGSI_SUBSCRIPTION_LINK_SELECT,
-      })
-
-      if (students.length === 0) {
-        return []
-      }
-
-      // Update each student using centralized utility
-      const updatePromises = updateStudentsInTransaction(
-        students,
-        {
-          subscriptionId,
-          customerId,
-          subscriptionStatus: subscription.status,
-          newStudentStatus,
-          periodStart: periodDates.periodStart,
-          periodEnd: periodDates.periodEnd,
-          program: 'DUGSI',
-        },
-        tx
-      )
-
-      await Promise.all(updatePromises)
-
-      return students
-    })
-
-    if (studentsToUpdate.length === 0) {
-      return {
-        success: false,
-        error: 'No students found with this parent email',
-      }
-    }
-
-    // Revalidate the admin page
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
       data: {
-        updated: studentsToUpdate.length,
+        updated: result.updated,
       },
-      message: `Successfully linked subscription to ${studentsToUpdate.length} students`,
     }
   } catch (error) {
-    console.error('Error linking Dugsi subscription:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error linking Dugsi subscription'
+    )
     return {
       success: false,
       error:
@@ -402,50 +262,31 @@ export async function getDugsiPaymentStatus(
   parentEmail: string
 ): Promise<ActionResult<PaymentStatusData>> {
   try {
-    const students = await prisma.student.findMany({
-      where: {
-        parentEmail,
-        program: DUGSI_PROGRAM,
-      },
-      select: DUGSI_PAYMENT_STATUS_SELECT,
-    })
-
-    if (students.length === 0) {
-      return { success: false, error: 'No students found for this email' }
+    // Validate email format
+    const emailError = validateDugsiEmail(parentEmail)
+    if (emailError) {
+      return { success: false, error: emailError }
     }
 
-    // Check if any student has payment method captured
-    const hasPaymentMethod = students.some((s) => s.paymentMethodCaptured)
-    const hasSubscription = students.some((s) => s.stripeSubscriptionIdDugsi)
+    // Use payment service to get status
+    const paymentStatus = await getPaymentStatus(parentEmail)
 
     return {
       success: true,
-      data: {
-        familyEmail: parentEmail,
-        studentCount: students.length,
-        hasPaymentMethod,
-        hasSubscription,
-        stripeCustomerId: students[0]?.stripeCustomerIdDugsi,
-        subscriptionId: students[0]?.stripeSubscriptionIdDugsi,
-        subscriptionStatus: students[0]?.subscriptionStatus,
-        paidUntil: students[0]?.paidUntil,
-        currentPeriodStart: students[0]?.currentPeriodStart,
-        currentPeriodEnd: students[0]?.currentPeriodEnd,
-        students: students.map((s) => ({
-          id: s.id,
-          name: s.name,
-        })),
-      },
+      data: paymentStatus,
     }
   } catch (error) {
-    console.error('Error getting payment status:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error getting Dugsi payment status'
+    )
     return {
       success: false,
-      error: 'Failed to get payment status',
+      error:
+        error instanceof Error ? error.message : 'Failed to get payment status',
     }
   }
 }
-
 /**
  * Verify bank account using microdeposit descriptor code.
  * Admins input the 6-digit SM code that families see in their bank statements.
@@ -455,54 +296,34 @@ export async function verifyDugsiBankAccount(
   descriptorCode: string
 ): Promise<ActionResult<BankVerificationData>> {
   try {
-    // Validate inputs
-    if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
-      return {
-        success: false,
-        error: 'Invalid payment intent ID format. Must start with "pi_"',
-      }
+    // Validate payment intent ID
+    const paymentIntentError = validatePaymentIntentId(paymentIntentId)
+    if (paymentIntentError) {
+      return { success: false, error: paymentIntentError }
     }
 
-    // Validate descriptor code format (6 characters, starts with SM)
-    const cleanCode = descriptorCode.trim().toUpperCase()
-    if (!/^SM[A-Z0-9]{4}$/.test(cleanCode)) {
-      return {
-        success: false,
-        error:
-          'Invalid descriptor code format. Must be 6 characters starting with SM (e.g., SMT86W)',
-      }
+    // Validate descriptor code format
+    const { error: codeError, cleanCode } =
+      validateDescriptorCode(descriptorCode)
+    if (codeError) {
+      return { success: false, error: codeError }
     }
 
-    // Call Stripe API to verify microdeposits
-    const dugsiStripe = getDugsiStripeClient()
-
-    console.log('🔍 Verifying bank account:', {
-      paymentIntentId,
-      descriptorCode: cleanCode,
-    })
-
-    const paymentIntent = await dugsiStripe.paymentIntents.verifyMicrodeposits(
-      paymentIntentId,
-      { descriptor_code: cleanCode }
-    )
-
-    console.log('✅ Bank account verified successfully:', {
-      paymentIntentId,
-      status: paymentIntent.status,
-    })
+    // Use payment service to verify bank account
+    const result = await verifyBankAccount(paymentIntentId, cleanCode)
 
     // Revalidate the dashboard to reflect updated payment status
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      data: {
-        paymentIntentId,
-        status: paymentIntent.status,
-      },
+      data: result,
     }
   } catch (error: unknown) {
-    console.error('❌ Error verifying bank account:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error verifying bank account'
+    )
 
     // Handle specific Stripe errors
     if (
@@ -560,91 +381,24 @@ export async function updateParentInfo(params: {
   phone: string
 }): Promise<ActionResult<{ updated: number }>> {
   try {
-    const { studentId, parentNumber, firstName, lastName, phone } = params
+    // Use family service to update parent info
+    const result = await updateParentInfoService(params)
 
-    // Validate parentNumber
-    if (parentNumber !== 1 && parentNumber !== 2) {
-      return {
-        success: false,
-        error: 'Parent number must be 1 or 2',
-      }
-    }
-
-    // Use transaction to ensure atomic read-write
-    const count = await prisma.$transaction(async (tx) => {
-      // Get the student to find family members (within transaction)
-      const student = await tx.student.findUnique({
-        where: { id: studentId },
-        select: {
-          id: true,
-          familyReferenceId: true,
-          parentEmail: true,
-        },
-      })
-
-      if (!student) {
-        throw new Error('Student not found')
-      }
-
-      // Determine which parent fields to update
-      // SECURITY: Email fields are intentionally excluded - they are immutable
-      // and used for family identification and security purposes
-      const updateData =
-        parentNumber === 1
-          ? {
-              parentFirstName: firstName,
-              parentLastName: lastName,
-              parentPhone: phone,
-            }
-          : {
-              parent2FirstName: firstName,
-              parent2LastName: lastName,
-              parent2Phone: phone,
-            }
-
-      // Use shared utility for family matching logic
-      const { where, isSingleStudent } = getFamilyWhereClause({
-        familyReferenceId: student.familyReferenceId,
-        parentEmail: student.parentEmail,
-      })
-
-      let updateResult
-
-      if (isSingleStudent) {
-        // No family grouping - update single student
-        await tx.student.update({
-          where: { id: studentId },
-          data: updateData,
-        })
-        updateResult = { count: 1 }
-      } else {
-        // Update all students in the family
-        updateResult = await tx.student.updateMany({
-          where: where!,
-          data: updateData,
-        })
-      }
-
-      return updateResult.count
-    })
-
-    // Revalidate the page
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      data: { updated: count },
-      message: `Successfully updated parent information for ${count} ${count === 1 ? 'student' : 'students'}`,
+      data: result,
     }
   } catch (error) {
-    console.error('Error updating parent information:', error)
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : 'Failed to update parent information'
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error updating parent info'
+    )
     return {
       success: false,
-      error: errorMessage,
+      error:
+        error instanceof Error ? error.message : 'Failed to update parent info',
     }
   }
 }
@@ -661,86 +415,30 @@ export async function addSecondParent(params: {
   phone: string
 }): Promise<ActionResult<{ updated: number }>> {
   try {
-    const { studentId, firstName, lastName, email, phone } = params
-
-    // Validate email format (no database access, can be outside transaction)
-    if (!isValidEmail(email)) {
-      return {
-        success: false,
-        error: 'Invalid email format',
-      }
+    // Validate email format
+    const emailError = validateDugsiEmail(params.email)
+    if (emailError) {
+      return { success: false, error: emailError }
     }
 
-    // Use transaction to ensure atomic read-write
-    const count = await prisma.$transaction(async (tx) => {
-      // Get the student to check if second parent exists (within transaction)
-      const student = await tx.student.findUnique({
-        where: { id: studentId },
-        select: {
-          id: true,
-          familyReferenceId: true,
-          parentEmail: true,
-          parent2FirstName: true,
-        },
-      })
+    // Use family service to add second parent
+    const result = await addSecondParentService(params)
 
-      if (!student) {
-        throw new Error('Student not found')
-      }
-
-      // Check if second parent already exists
-      if (student.parent2FirstName) {
-        throw new Error('Second parent already exists')
-      }
-
-      const updateData = {
-        parent2FirstName: firstName,
-        parent2LastName: lastName,
-        parent2Email: email,
-        parent2Phone: phone,
-      }
-
-      // Use shared utility for family matching logic
-      const { where, isSingleStudent } = getFamilyWhereClause({
-        familyReferenceId: student.familyReferenceId,
-        parentEmail: student.parentEmail,
-      })
-
-      let updateResult
-
-      if (isSingleStudent) {
-        // No family grouping - update single student
-        await tx.student.update({
-          where: { id: studentId },
-          data: updateData,
-        })
-        updateResult = { count: 1 }
-      } else {
-        // Update all students in the family
-        updateResult = await tx.student.updateMany({
-          where: where!,
-          data: updateData,
-        })
-      }
-
-      return updateResult.count
-    })
-
-    // Revalidate the page
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      data: { updated: count },
-      message: `Successfully added second parent to ${count} ${count === 1 ? 'student' : 'students'}`,
+      data: result,
     }
   } catch (error) {
-    console.error('Error adding second parent:', error)
-    const errorMessage =
-      error instanceof Error ? error.message : 'Failed to add second parent'
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error adding second parent'
+    )
     return {
       success: false,
-      error: errorMessage,
+      error:
+        error instanceof Error ? error.message : 'Failed to add second parent',
     }
   }
 }
@@ -753,63 +451,34 @@ export async function updateChildInfo(params: {
   studentId: string
   firstName?: string
   lastName?: string
-  gender?: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
+  gender?: 'MALE' | 'FEMALE'
   educationLevel?: EducationLevel
   gradeLevel?: GradeLevel
   schoolName?: string
   healthInfo?: string | null
 }): Promise<ActionResult> {
   try {
-    const { studentId, firstName, lastName, ...updateFields } = params
+    // Use family service to update child info
+    await updateChildInfoService(params)
 
-    // Verify student exists
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: { id: true },
-    })
-
-    if (!student) {
-      return { success: false, error: 'Student not found' }
-    }
-
-    // Build update data
-    const updateData: Record<string, unknown> = {}
-
-    // Combine firstName and lastName into name if both are provided
-    if (firstName !== undefined && lastName !== undefined) {
-      updateData.name = formatFullName(firstName, lastName)
-    }
-
-    // Add other fields that are defined
-    Object.entries(updateFields).forEach(([key, value]) => {
-      if (value !== undefined) {
-        updateData[key] = value
-      }
-    })
-
-    // Update the student
-    await prisma.student.update({
-      where: { id: studentId },
-      data: updateData,
-    })
-
-    // Revalidate the page
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      message: 'Successfully updated child information',
     }
   } catch (error) {
-    console.error('Error updating child information:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error updating child info'
+    )
     return {
       success: false,
-      error: 'Failed to update child information',
+      error:
+        error instanceof Error ? error.message : 'Failed to update child info',
     }
   }
 }
-
 /**
  * Add a new child to an existing family.
  * Copies parent information from an existing sibling.
@@ -826,63 +495,161 @@ export async function addChildToFamily(params: {
   healthInfo?: string | null
 }): Promise<ActionResult<{ childId: string }>> {
   try {
-    const { existingStudentId, firstName, lastName, ...childData } = params
+    // Use family service to add child
+    const result = await addChildToFamilyService(params)
 
-    // Get the existing student to copy parent information
-    const existingStudent = await prisma.student.findUnique({
-      where: { id: existingStudentId },
-      select: {
-        id: true,
-        familyReferenceId: true,
-        parentFirstName: true,
-        parentLastName: true,
-        parentEmail: true,
-        parentPhone: true,
-        parent2FirstName: true,
-        parent2LastName: true,
-        parent2Email: true,
-        parent2Phone: true,
-      },
-    })
-
-    if (!existingStudent) {
-      return { success: false, error: 'Existing student not found' }
-    }
-
-    // Combine firstName and lastName into full name
-    const fullName = formatFullName(firstName, lastName)
-
-    // Create new student with parent info from existing sibling
-    const newStudent = await prisma.student.create({
-      data: {
-        name: fullName,
-        ...childData,
-        program: DUGSI_PROGRAM,
-        familyReferenceId: existingStudent.familyReferenceId,
-        parentFirstName: existingStudent.parentFirstName,
-        parentLastName: existingStudent.parentLastName,
-        parentEmail: existingStudent.parentEmail,
-        parentPhone: existingStudent.parentPhone,
-        parent2FirstName: existingStudent.parent2FirstName,
-        parent2LastName: existingStudent.parent2LastName,
-        parent2Email: existingStudent.parent2Email,
-        parent2Phone: existingStudent.parent2Phone,
-      },
-    })
-
-    // Revalidate the page
     revalidatePath('/admin/dugsi')
 
     return {
       success: true,
-      data: { childId: newStudent.id },
-      message: 'Successfully added child to family',
+      data: result,
     }
   } catch (error) {
-    console.error('Error adding child to family:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error adding child to family'
+    )
     return {
       success: false,
-      error: 'Failed to add child to family',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to add child to family',
+    }
+  }
+}
+
+/**
+ * Update a Dugsi registration (ProgramProfile + Enrollment)
+ */
+export async function updateDugsiRegistration(
+  studentId: string,
+  updates: {
+    status?: 'REGISTERED' | 'ENROLLED' | 'WITHDRAWN'
+    educationLevel?: EducationLevel
+    gradeLevel?: GradeLevel
+    schoolName?: string
+    healthInfo?: string | null
+  }
+): Promise<ActionResult> {
+  try {
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
+    }
+
+    // Update ProgramProfile
+    const profileUpdates: Partial<{
+      educationLevel: EducationLevel
+      gradeLevel: GradeLevel
+      schoolName: string | null
+      healthInfo: string | null
+      status: 'REGISTERED' | 'ENROLLED' | 'WITHDRAWN'
+    }> = {}
+
+    if (updates.educationLevel !== undefined)
+      profileUpdates.educationLevel = updates.educationLevel
+    if (updates.gradeLevel !== undefined)
+      profileUpdates.gradeLevel = updates.gradeLevel
+    if (updates.schoolName !== undefined)
+      profileUpdates.schoolName = updates.schoolName || null
+    if (updates.healthInfo !== undefined)
+      profileUpdates.healthInfo = updates.healthInfo
+    if (updates.status !== undefined) profileUpdates.status = updates.status
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await prisma.programProfile.update({
+        where: { id: studentId },
+        data: profileUpdates,
+      })
+    }
+
+    // Update Enrollment status if provided
+    if (updates.status !== undefined) {
+      const activeEnrollment = profile.enrollments?.find(
+        (e) => e.status !== 'WITHDRAWN' && !e.endDate
+      )
+      if (activeEnrollment) {
+        await updateEnrollmentStatus(
+          activeEnrollment.id,
+          updates.status,
+          'Updated by admin'
+        )
+      }
+    }
+
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error updating Dugsi registration'
+    )
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to update registration',
+    }
+  }
+}
+
+/**
+ * Delete a Dugsi registration (soft delete via Enrollment.status = 'WITHDRAWN')
+ */
+export async function deleteDugsiRegistration(
+  studentId: string
+): Promise<ActionResult> {
+  try {
+    const profile = await getProgramProfileById(studentId)
+    if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+      return {
+        success: false,
+        error: 'Student not found',
+      }
+    }
+
+    // Soft delete by withdrawing all enrollments
+    const enrollments = profile.enrollments || []
+    for (const enrollment of enrollments) {
+      if (enrollment.status !== 'WITHDRAWN' && !enrollment.endDate) {
+        await updateEnrollmentStatus(
+          enrollment.id,
+          'WITHDRAWN',
+          'Deleted by admin'
+        )
+      }
+    }
+
+    // Update profile status
+    await prisma.programProfile.update({
+      where: { id: studentId },
+      data: { status: 'WITHDRAWN' },
+    })
+
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+    }
+  } catch (error) {
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error deleting Dugsi registration'
+    )
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete registration',
     }
   }
 }
@@ -907,72 +674,21 @@ export async function generatePaymentLink(
   }>
 > {
   try {
-    // Use provided family members or fetch them
-    let members: DugsiRegistration[]
-    if (familyMembers && familyMembers.length > 0) {
-      members = familyMembers
-    } else {
-      // Get family members using existing logic
-      members = await getFamilyMembers(studentId)
-    }
-
-    if (members.length === 0) {
-      return { success: false, error: 'Family not found' }
-    }
-
-    const firstMember = members[0]
-
-    // Validate parent email exists
-    if (!firstMember.parentEmail) {
-      return {
-        success: false,
-        error: 'Parent email is required to generate payment link',
-      }
-    }
-
-    // Validate email format
-    if (!isValidEmail(firstMember.parentEmail)) {
-      return {
-        success: false,
-        error: 'Invalid parent email format',
-      }
-    }
-
-    if (!firstMember.familyReferenceId) {
-      return {
-        success: false,
-        error: 'Family reference ID not found',
-      }
-    }
-
-    // Check if payment link config exists
-    if (!process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI) {
-      return {
-        success: false,
-        error:
-          'Payment link not configured. Please set NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI in environment variables.',
-      }
-    }
-
-    // Generate payment URL
-    const paymentUrl = constructDugsiPaymentUrl({
-      parentEmail: firstMember.parentEmail,
-      familyId: firstMember.familyReferenceId,
-      childCount: members.length,
-    })
+    // Use payment service to generate link
+    const paymentLink = await generatePaymentLinkService(
+      studentId,
+      familyMembers
+    )
 
     return {
       success: true,
-      data: {
-        paymentUrl,
-        parentEmail: firstMember.parentEmail,
-        parentPhone: firstMember.parentPhone,
-        childCount: members.length,
-        familyReferenceId: firstMember.familyReferenceId,
-      },
+      data: paymentLink,
     }
   } catch (error) {
-    console.error('Error generating payment link:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error generating payment link'
+    )
     const errorMessage =
       error instanceof Error ? error.message : 'Failed to generate payment link'
     return {

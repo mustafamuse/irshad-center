@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Pencil } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
+import { DateOfBirthField } from '@/components/registration/shared/DateOfBirthField'
 import { NameFields } from '@/components/registration/shared/NameFields'
 import { Button } from '@/components/ui/button'
 import {
@@ -73,8 +74,8 @@ export function EditChildDialog({
       lastName,
       gender: currentData.gender,
       dateOfBirth: currentData.dateOfBirth
-        ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
-        : '',
+        ? new Date(currentData.dateOfBirth)
+        : null,
       educationLevel:
         currentData.educationLevel as ChildFormValues['educationLevel'],
       gradeLevel: currentData.gradeLevel as ChildFormValues['gradeLevel'],
@@ -94,8 +95,8 @@ export function EditChildDialog({
         lastName: splitLast,
         gender: currentData.gender,
         dateOfBirth: currentData.dateOfBirth
-          ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
-          : '',
+          ? new Date(currentData.dateOfBirth)
+          : null,
         educationLevel:
           currentData.educationLevel as ChildFormValues['educationLevel'],
         gradeLevel: currentData.gradeLevel as ChildFormValues['gradeLevel'],
@@ -123,9 +124,7 @@ export function EditChildDialog({
       firstName: values.firstName,
       lastName: values.lastName,
       gender: values.gender,
-      dateOfBirth: values.dateOfBirth
-        ? new Date(values.dateOfBirth)
-        : undefined,
+      dateOfBirth: values.dateOfBirth || undefined,
       educationLevel: values.educationLevel,
       gradeLevel: values.gradeLevel,
       schoolName: values.schoolName || undefined,
@@ -191,18 +190,11 @@ export function EditChildDialog({
               )}
             />
 
-            <FormField
+            <DateOfBirthField
               control={form.control}
-              name="dateOfBirth"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date of Birth (Optional)</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} disabled={isUpdating} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              fieldName="dateOfBirth"
+              label="Date of Birth"
+              required={false}
             />
 
             <FormField

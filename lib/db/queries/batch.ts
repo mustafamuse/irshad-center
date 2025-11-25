@@ -1,48 +1,63 @@
 /**
- * Batch Query Functions
+ * Batch Query Functions (Migrated to ProgramProfile/Enrollment Model)
  *
- * Direct Prisma queries for batch operations following Next.js App Router best practices.
- * These functions replace the Repository/Service pattern with simple, composable query functions.
+ * These functions manage cohorts (batches) for Mahad students. Batches are used
+ * to group students by enrollment period. Note: Dugsi does NOT use batches - they
+ * use family-based grouping instead.
  *
- * Uses React cache() to deduplicate requests across parallel route slots.
+ * Migration Status: ✅ COMPLETE
+ * - All functions migrated from legacy Student model
+ * - Uses Enrollment model to count students
+ * - Maintains backward-compatible return types for UI components
  */
-
-import { cache } from 'react'
 
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
+
+/**
+ * Type representing a batch with student count
+ */
+export interface BatchWithCount {
+  id: string
+  name: string
+  startDate: Date | null
+  endDate: Date | null
+  createdAt: Date
+  updatedAt: Date
+  studentCount: number
+}
 
 /**
  * Get all batches with student count (excluding withdrawn students)
- *
- * Uses React cache() to deduplicate requests. When called multiple times
- * in the same request (e.g., from different parallel route slots), only
- * one database query executes.
  */
-export const getBatches = cache(async function getBatches() {
-  const batches = await prisma.batch.findMany({
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      createdAt: true,
-      updatedAt: true,
-      Student: {
-        where: {
-          status: {
-            not: 'withdrawn',
+export async function getBatches(
+  client: DatabaseClient = prisma
+): Promise<BatchWithCount[]> {
+  // Get all batches with counts in a single query using Prisma's _count API
+  const batches = await client.batch.findMany({
+    orderBy: {
+      startDate: 'desc',
+    },
+    include: {
+      _count: {
+        select: {
+          Enrollment: {
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+              programProfile: {
+                program: 'MAHAD_PROGRAM',
+              },
+            },
           },
         },
-        select: { id: true },
       },
-    },
-    orderBy: {
-      createdAt: 'desc',
     },
   })
 
+  // Map to BatchWithCount interface
   return batches.map((batch) => ({
     id: batch.id,
     name: batch.name,
@@ -50,114 +65,106 @@ export const getBatches = cache(async function getBatches() {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch.Student.length,
+    studentCount: batch._count.Enrollment,
   }))
-})
+}
 
 /**
  * Get a single batch by ID (excluding withdrawn students from count)
  */
-export async function getBatchById(id: string) {
-  const batch = await prisma.batch.findUnique({
+export async function getBatchById(
+  id: string,
+  client: DatabaseClient = prisma
+): Promise<BatchWithCount | null> {
+  const batch = await client.batch.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      createdAt: true,
-      updatedAt: true,
-      Student: {
-        where: {
-          status: {
-            not: 'withdrawn',
-          },
-        },
-        select: { id: true },
-      },
-    },
   })
 
   if (!batch) return null
 
+  // Count active enrollments (not withdrawn) for Mahad students
+  const studentCount = await client.enrollment.count({
+    where: {
+      batchId: id,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
+    },
+  })
+
   return {
-    id: batch.id,
-    name: batch.name,
-    startDate: batch.startDate,
-    endDate: batch.endDate,
-    createdAt: batch.createdAt,
-    updatedAt: batch.updatedAt,
-    studentCount: batch.Student.length,
+    ...batch,
+    studentCount,
   }
 }
 
 /**
  * Check if a batch with the given name exists (case-insensitive)
  */
-export async function getBatchByName(name: string) {
-  const batch = await prisma.batch.findFirst({
+export async function getBatchByName(
+  name: string,
+  client: DatabaseClient = prisma
+): Promise<BatchWithCount | null> {
+  const batch = await client.batch.findFirst({
     where: {
       name: {
         equals: name,
         mode: 'insensitive',
       },
     },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      createdAt: true,
-      updatedAt: true,
-    },
   })
 
-  return batch
-}
+  if (!batch) return null
 
-/**
- * Create a new batch (student count excludes withdrawn)
- */
-export async function createBatch(data: {
-  name: string
-  startDate?: Date | null
-}) {
-  const batch = await prisma.batch.create({
-    data: {
-      name: data.name,
-      startDate: data.startDate || null,
-    },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      createdAt: true,
-      updatedAt: true,
-      Student: {
-        where: {
-          status: {
-            not: 'withdrawn',
-          },
-        },
-        select: { id: true },
+  // Count active enrollments
+  const studentCount = await client.enrollment.count({
+    where: {
+      batchId: batch.id,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
       },
     },
   })
 
   return {
-    id: batch.id,
-    name: batch.name,
-    startDate: batch.startDate,
-    endDate: batch.endDate,
-    createdAt: batch.createdAt,
-    updatedAt: batch.updatedAt,
-    studentCount: batch.Student.length,
+    ...batch,
+    studentCount,
   }
 }
 
 /**
- * Update a batch (student count excludes withdrawn)
+ * Create a new batch
+ * Note: Use admin actions for creation with proper authorization
+ */
+export async function createBatch(
+  data: {
+    name: string
+    startDate?: Date | null
+    endDate?: Date | null
+  },
+  client: DatabaseClient = prisma
+): Promise<BatchWithCount> {
+  const batch = await client.batch.create({
+    data: {
+      name: data.name,
+      startDate: data.startDate || null,
+      endDate: data.endDate || null,
+    },
+  })
+
+  return {
+    ...batch,
+    studentCount: 0, // New batch has no students
+  }
+}
+
+/**
+ * Update a batch
+ * Note: Use admin actions for updates with proper authorization
  */
 export async function updateBatch(
   id: string,
@@ -165,222 +172,363 @@ export async function updateBatch(
     name?: string
     startDate?: Date | null
     endDate?: Date | null
-  }
-) {
-  const batch = await prisma.batch.update({
+  },
+  client: DatabaseClient = prisma
+): Promise<BatchWithCount> {
+  const batch = await client.batch.update({
     where: { id },
     data: {
-      ...(data.name !== undefined && { name: data.name }),
-      ...(data.startDate !== undefined && { startDate: data.startDate }),
-      ...(data.endDate !== undefined && { endDate: data.endDate }),
+      name: data.name,
+      startDate: data.startDate,
+      endDate: data.endDate,
     },
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      createdAt: true,
-      updatedAt: true,
-      Student: {
-        where: {
-          status: {
-            not: 'withdrawn',
-          },
-        },
-        select: { id: true },
+  })
+
+  // Get current student count
+  const studentCount = await client.enrollment.count({
+    where: {
+      batchId: id,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
       },
     },
   })
 
   return {
-    id: batch.id,
-    name: batch.name,
-    startDate: batch.startDate,
-    endDate: batch.endDate,
-    createdAt: batch.createdAt,
-    updatedAt: batch.updatedAt,
-    studentCount: batch.Student.length,
+    ...batch,
+    studentCount,
   }
 }
 
 /**
  * Delete a batch
+ * Note: This will fail if there are active enrollments linked to this batch
+ * The database has a foreign key constraint preventing orphaned enrollments
  */
-export async function deleteBatch(id: string) {
-  await prisma.batch.delete({
+export async function deleteBatch(id: string, client: DatabaseClient = prisma) {
+  // Check if batch has students
+  const studentCount = await client.enrollment.count({
+    where: {
+      batchId: id,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+    },
+  })
+
+  if (studentCount > 0) {
+    throw new Error(
+      `Cannot delete batch with ${studentCount} active students. Remove or reassign students first.`
+    )
+  }
+
+  return await client.batch.delete({
     where: { id },
   })
 }
 
 /**
  * Get all students in a batch
+ * Returns ProgramProfile data for students with active enrollments in the batch
  */
-export async function getBatchStudents(batchId: string) {
-  const students = await prisma.student.findMany({
-    where: { batchId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      status: true,
-      educationLevel: true,
-      gradeLevel: true,
-      dateOfBirth: true,
-      createdAt: true,
-      updatedAt: true,
+export async function getBatchStudents(
+  batchId: string,
+  client: DatabaseClient = prisma
+) {
+  const enrollments = await client.enrollment.findMany({
+    where: {
+      batchId,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
+    },
+    include: {
+      programProfile: {
+        include: {
+          person: {
+            include: {
+              contactPoints: true,
+            },
+          },
+          assignments: {
+            where: { isActive: true },
+            include: {
+              subscription: true,
+            },
+            take: 1,
+          },
+        },
+      },
+      batch: true,
     },
     orderBy: {
-      name: 'asc',
+      programProfile: {
+        person: {
+          name: 'asc',
+        },
+      },
     },
   })
 
-  return students
-}
-
-/**
- * Get the count of students in a batch
- */
-export async function getBatchStudentCount(batchId: string) {
-  const count = await prisma.student.count({
-    where: { batchId },
-  })
-
-  return count
-}
-
-/**
- * Assign students to a batch (bulk update)
- */
-export async function assignStudentsToBatch(
-  batchId: string,
-  studentIds: string[]
-) {
-  const result = await prisma.$transaction(async (tx) => {
-    // Update all students
-    await tx.student.updateMany({
-      where: {
-        id: { in: studentIds },
-      },
-      data: {
-        batchId,
-      },
-    })
-
-    // Verify the updates
-    const updatedStudents = await tx.student.findMany({
-      where: {
-        id: { in: studentIds },
-      },
-      select: {
-        id: true,
-        name: true,
-        batchId: true,
-      },
-    })
-
-    const successfulAssignments = updatedStudents.filter(
-      (s) => s.batchId === batchId
+  // Transform to student-like structure
+  return enrollments.map((enrollment) => {
+    const profile = enrollment.programProfile
+    const emailContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'EMAIL'
     )
-    const failedAssignments = studentIds.filter(
-      (id) => !successfulAssignments.some((s) => s.id === id)
+    const phoneContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
     )
 
     return {
-      success: true,
-      assignedCount: successfulAssignments.length,
-      failedAssignments: failedAssignments.length > 0 ? failedAssignments : [],
+      id: profile.id,
+      name: profile.person.name,
+      email: emailContact?.value || null,
+      phone: phoneContact?.value || null,
+      dateOfBirth: profile.person.dateOfBirth,
+      educationLevel: profile.educationLevel,
+      gradeLevel: profile.gradeLevel,
+      schoolName: profile.schoolName,
+      monthlyRate: profile.monthlyRate,
+      customRate: profile.customRate,
+      enrollmentId: enrollment.id,
+      enrollmentStatus: enrollment.status,
+      enrollmentStartDate: enrollment.startDate,
+      batch: enrollment.batch,
+      subscription: profile.assignments[0]?.subscription || null,
     }
   })
-
-  return result
 }
 
 /**
- * Transfer students from one batch to another
+ * Get the count of students in a batch (active enrollments only)
+ */
+export async function getBatchStudentCount(
+  batchId: string,
+  client: DatabaseClient = prisma
+): Promise<number> {
+  return await client.enrollment.count({
+    where: {
+      batchId,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
+    },
+  })
+}
+
+/**
+ * Assign students to a batch (bulk update enrollments)
+ * This updates existing enrollments or creates new ones
+ */
+export async function assignStudentsToBatch(
+  batchId: string,
+  studentIds: string[], // These are ProgramProfile IDs
+  client: DatabaseClient = prisma
+) {
+  const results = {
+    success: true,
+    assignedCount: 0,
+    failedAssignments: [] as string[],
+    errors: [] as string[],
+  }
+
+  // Verify batch exists
+  const batch = await client.batch.findUnique({
+    where: { id: batchId },
+  })
+
+  if (!batch) {
+    return {
+      success: false,
+      assignedCount: 0,
+      failedAssignments: studentIds,
+      errors: ['Batch not found'],
+    }
+  }
+
+  // Process each student
+  for (const studentId of studentIds) {
+    try {
+      // Get or create active enrollment for this profile
+      let enrollment = await client.enrollment.findFirst({
+        where: {
+          programProfileId: studentId,
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+      })
+
+      if (enrollment) {
+        // Update existing enrollment with new batch
+        await client.enrollment.update({
+          where: { id: enrollment.id },
+          data: { batchId },
+        })
+      } else {
+        // Create new enrollment with batch
+        await client.enrollment.create({
+          data: {
+            programProfileId: studentId,
+            batchId,
+            status: 'ENROLLED',
+            startDate: new Date(),
+          },
+        })
+      }
+
+      results.assignedCount++
+    } catch (error) {
+      results.failedAssignments.push(studentId)
+      results.errors.push(
+        `Failed to assign student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  }
+
+  results.success = results.failedAssignments.length === 0
+
+  return results
+}
+
+/**
+ * Transfer students from one batch to another (bulk update)
  */
 export async function transferStudents(
   fromBatchId: string,
   toBatchId: string,
-  studentIds: string[]
+  studentIds: string[], // These are ProgramProfile IDs
+  client: DatabaseClient = prisma
 ) {
-  const result = await prisma.$transaction(async (tx) => {
-    // Verify students are in the source batch
-    const studentsInSourceBatch = await tx.student.findMany({
-      where: {
-        id: { in: studentIds },
-        batchId: fromBatchId,
-      },
-      select: { id: true },
-    })
+  const results = {
+    success: true,
+    transferredCount: 0,
+    failedTransfers: [] as string[],
+    errors: [] as string[],
+  }
 
-    const validStudentIds = studentsInSourceBatch.map((s) => s.id)
-    const invalidStudentIds = studentIds.filter(
-      (id) => !validStudentIds.includes(id)
-    )
+  // Verify both batches exist
+  const [fromBatch, toBatch] = await Promise.all([
+    client.batch.findUnique({ where: { id: fromBatchId } }),
+    client.batch.findUnique({ where: { id: toBatchId } }),
+  ])
 
-    if (validStudentIds.length === 0) {
-      throw new Error('No valid students found in source batch')
-    }
-
-    // Transfer valid students
-    await tx.student.updateMany({
-      where: {
-        id: { in: validStudentIds },
-      },
-      data: {
-        batchId: toBatchId,
-      },
-    })
-
+  if (!fromBatch || !toBatch) {
     return {
-      success: true,
-      transferredCount: validStudentIds.length,
-      failedTransfers: invalidStudentIds.length > 0 ? invalidStudentIds : [],
+      success: false,
+      transferredCount: 0,
+      failedTransfers: studentIds,
+      errors: ['Source or destination batch not found'],
     }
-  })
+  }
 
-  return result
+  // Transfer each student
+  for (const studentId of studentIds) {
+    try {
+      // Find active enrollment in source batch
+      const enrollment = await client.enrollment.findFirst({
+        where: {
+          programProfileId: studentId,
+          batchId: fromBatchId,
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+      })
+
+      if (enrollment) {
+        // Update enrollment to new batch
+        await client.enrollment.update({
+          where: { id: enrollment.id },
+          data: { batchId: toBatchId },
+        })
+        results.transferredCount++
+      } else {
+        results.failedTransfers.push(studentId)
+        results.errors.push(`Student ${studentId} not found in source batch`)
+      }
+    } catch (error) {
+      results.failedTransfers.push(studentId)
+      results.errors.push(
+        `Failed to transfer student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  }
+
+  results.success = results.failedTransfers.length === 0
+
+  return results
 }
 
 /**
  * Get batch summary statistics
  */
-export async function getBatchSummary() {
+export async function getBatchSummary(client: DatabaseClient = prisma) {
   const [totalBatches, totalStudents, batchesWithStudents] = await Promise.all([
-    prisma.batch.count(),
-    prisma.student.count(),
-    prisma.batch.count({
+    // Total number of batches
+    client.batch.count(),
+    // Total active Mahad students (unique program profiles with active enrollments)
+    client.programProfile.count({
       where: {
-        Student: {
-          some: {},
+        program: 'MAHAD_PROGRAM',
+        enrollments: {
+          some: {
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+            batchId: { not: null }, // Only count students assigned to batches
+          },
+        },
+      },
+    }),
+    // Count batches that have at least one student
+    client.batch.findMany({
+      where: {
+        Enrollment: {
+          some: {
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+            programProfile: {
+              program: 'MAHAD_PROGRAM',
+            },
+          },
         },
       },
     }),
   ])
 
+  const activeBatches = batchesWithStudents.length
+  const averageStudentsPerBatch =
+    activeBatches > 0 ? Math.round(totalStudents / activeBatches) : 0
+
   return {
     totalBatches,
     totalStudents,
-    activeBatches: batchesWithStudents,
-    averageStudentsPerBatch:
-      totalBatches > 0 ? Math.round(totalStudents / totalBatches) : 0,
+    activeBatches,
+    averageStudentsPerBatch,
   }
 }
 
 /**
  * Get batches with filters applied
  */
-export async function getBatchesWithFilters(filters: {
-  search?: string
-  hasStudents?: boolean
-  dateRange?: {
-    from: Date
-    to: Date
-  }
-}) {
+export async function getBatchesWithFilters(
+  filters: {
+    search?: string
+    hasStudents?: boolean
+    dateRange?: {
+      from: Date
+      to: Date
+    }
+  },
+  client: DatabaseClient = prisma
+): Promise<BatchWithCount[]> {
   const where: Prisma.BatchWhereInput = {}
 
+  // Search by batch name
   if (filters.search) {
     where.name = {
       contains: filters.search,
@@ -388,44 +536,62 @@ export async function getBatchesWithFilters(filters: {
     }
   }
 
-  if (filters.hasStudents !== undefined) {
-    if (filters.hasStudents) {
-      where.Student = { some: {} }
-    } else {
-      where.Student = { none: {} }
-    }
-  }
-
+  // Filter by date range (startDate within range)
   if (filters.dateRange) {
-    where.createdAt = {
+    where.startDate = {
       gte: filters.dateRange.from,
       lte: filters.dateRange.to,
     }
   }
 
-  const batches = await prisma.batch.findMany({
-    where,
-    select: {
-      id: true,
-      name: true,
-      startDate: true,
-      endDate: true,
-      createdAt: true,
-      updatedAt: true,
-      Student: {
-        where: {
-          status: {
-            not: 'withdrawn',
+  // Filter by has students
+  if (filters.hasStudents !== undefined) {
+    if (filters.hasStudents) {
+      // Only batches with at least one active enrollment
+      where.Enrollment = {
+        some: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+          programProfile: {
+            program: 'MAHAD_PROGRAM',
           },
         },
-        select: { id: true },
-      },
-    },
+      }
+    } else {
+      // Only batches with no active enrollments
+      where.Enrollment = {
+        none: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+      }
+    }
+  }
+
+  // Get batches with counts in a single query using Prisma's _count API
+  const batches = await client.batch.findMany({
+    where,
     orderBy: {
-      createdAt: 'desc',
+      startDate: 'desc',
+    },
+    include: {
+      _count: {
+        select: {
+          Enrollment: {
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+              programProfile: {
+                program: 'MAHAD_PROGRAM',
+              },
+            },
+          },
+        },
+      },
     },
   })
 
+  // Map to BatchWithCount interface
   return batches.map((batch) => ({
     id: batch.id,
     name: batch.name,
@@ -433,6 +599,124 @@ export async function getBatchesWithFilters(filters: {
     endDate: batch.endDate,
     createdAt: batch.createdAt,
     updatedAt: batch.updatedAt,
-    studentCount: batch.Student.length,
+    studentCount: batch._count.Enrollment,
   }))
+}
+
+/**
+ * Get batches with full details including enrollments
+ * Useful for detailed batch management views
+ */
+export async function getBatchWithEnrollments(
+  batchId: string,
+  client: DatabaseClient = prisma
+) {
+  const batch = await client.batch.findUnique({
+    where: { id: batchId },
+    include: {
+      Enrollment: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+          programProfile: {
+            program: 'MAHAD_PROGRAM',
+          },
+        },
+        include: {
+          programProfile: {
+            include: {
+              person: {
+                include: {
+                  contactPoints: true,
+                },
+              },
+              assignments: {
+                where: { isActive: true },
+                include: {
+                  subscription: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+      },
+    },
+  })
+
+  if (!batch) return null
+
+  return {
+    ...batch,
+    studentCount: batch.Enrollment.length,
+  }
+}
+
+/**
+ * Get unassigned students (students without a batch assignment)
+ * Returns ProgramProfiles for Mahad students with no batch
+ */
+export async function getUnassignedStudents(client: DatabaseClient = prisma) {
+  const profiles = await client.programProfile.findMany({
+    where: {
+      program: 'MAHAD_PROGRAM',
+      OR: [
+        // No enrollments at all
+        {
+          enrollments: {
+            none: {},
+          },
+        },
+        // Has enrollments but none with batchId
+        {
+          enrollments: {
+            every: {
+              OR: [{ batchId: null }, { status: 'WITHDRAWN' }],
+            },
+          },
+        },
+      ],
+    },
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+    },
+    orderBy: {
+      createdAt: 'desc',
+    },
+  })
+
+  return profiles.map((profile) => {
+    const emailContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'EMAIL'
+    )
+    const phoneContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )
+
+    return {
+      id: profile.id,
+      name: profile.person.name,
+      email: emailContact?.value || null,
+      phone: phoneContact?.value || null,
+      educationLevel: profile.educationLevel,
+      gradeLevel: profile.gradeLevel,
+      createdAt: profile.createdAt,
+    }
+  })
 }

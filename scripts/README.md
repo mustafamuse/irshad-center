@@ -1,59 +1,127 @@
-# Code Review Scripts
+# Database Scripts
 
-Automated code review tools for analyzing codebases and generating comprehensive architectural reviews.
+## 🛡️ Safety First
 
-## 🚀 Quick Start
+**NEVER run destructive database operations without proper safeguards.**
 
-```bash
-# Review a folder
-./scripts/code-review.sh app/admin/attendance
+## Available Scripts
 
-# Save analysis to file
-./scripts/code-review.sh app/admin/attendance analysis.md
-```
+### Safety Checks
 
-## 📁 Scripts
+#### `db-safety-check.ts`
 
-### `code-review.sh`
-
-Main analysis script that generates:
-
-- File structure analysis
-- Import/export patterns
-- Code quality metrics
-- Issue detection
-- Claude Code review prompt
-
-### `claude-code-reviewer.md`
-
-Specialized agent prompt for comprehensive reviews
-
-## 🔍 Analysis Features
-
-- **File Types**: `.ts`, `.tsx`, `.js`, `.jsx`, `.json`, `.md`
-- **Metrics**: File counts, complexity, test coverage
-- **Issues**: TODOs, debug statements, TypeScript errors
-- **Architecture**: Component patterns, dependencies
-
-## 💡 Usage Examples
+Validates database environment before any operation.
 
 ```bash
-./scripts/code-review.sh src/components
-./scripts/code-review.sh app full-review.md
-./scripts/code-review.sh lib/utils
+npm run db:safety-check
+# or
+npx tsx scripts/db-safety-check.ts
 ```
 
-## 🤖 With Claude Code
+**What it does:**
 
-1. Run analysis: `./scripts/code-review.sh your/folder`
-2. Use generated prompt in Claude Code
-3. Get comprehensive architectural review
+- Detects database environment (PRODUCTION/STAGING/DEVELOPMENT)
+- Checks for production indicators
+- Validates environment variables
+- Reports safety status
 
-## 📊 Output
+**Use before ANY destructive operation.**
 
-Creates analysis files in `/tmp/code-review-[timestamp]/`:
+### Safe Database Reset
 
-- Summary report
-- Detailed findings
-- Claude Code prompt
-- Raw analysis data
+#### `safe-migrate-reset.ts`
+
+**SAFE wrapper around `prisma migrate reset`**
+
+```bash
+npm run db:reset-safe -- --confirm
+# or
+npx tsx scripts/safe-migrate-reset.ts --confirm
+```
+
+**What it does:**
+
+1. ✅ Validates environment (BLOCKS production)
+2. ✅ Creates automatic backup
+3. ✅ Requires `--confirm` flag
+4. ✅ Logs all operations
+5. ✅ Only then resets database
+
+**NEVER use `prisma migrate reset` directly - always use this script.**
+
+## Environment Setup
+
+**CRITICAL: Always set `DATABASE_ENV`**
+
+```bash
+# Production
+export DATABASE_ENV=PRODUCTION
+
+# Staging
+export DATABASE_ENV=STAGING
+
+# Development
+export DATABASE_ENV=DEVELOPMENT
+```
+
+Add to your `.env` files:
+
+- `.env.production` → `DATABASE_ENV=PRODUCTION`
+- `.env.staging` → `DATABASE_ENV=STAGING`
+- `.env.local` → `DATABASE_ENV=DEVELOPMENT`
+
+## Safety Protocol
+
+Before ANY destructive operation:
+
+1. ✅ Run `npm run db:safety-check`
+2. ✅ Verify environment is NOT PRODUCTION
+3. ✅ Ensure backup exists (or will be created)
+4. ✅ Use safe wrapper scripts
+5. ✅ Require explicit confirmation
+
+## Forbidden Commands
+
+**NEVER run these directly:**
+
+```bash
+# ❌ FORBIDDEN
+npx prisma migrate reset
+npx prisma db push --force-reset
+```
+
+**ALWAYS use safe wrappers:**
+
+```bash
+# ✅ SAFE
+npm run db:reset-safe -- --confirm
+```
+
+## Emergency Override
+
+**Only in true emergencies:**
+
+```bash
+ALLOW_PRODUCTION_OPERATIONS=true npm run db:reset-safe -- --confirm
+```
+
+**This is extremely dangerous and should never be used unless absolutely necessary.**
+
+## Integration
+
+Import safety checks in your scripts:
+
+```typescript
+import { requireNonProductionEnvironment } from './db-safety-check'
+
+async function myDestructiveOperation() {
+  // This will throw if production
+  await requireNonProductionEnvironment('My Operation')
+
+  // Safe to proceed...
+}
+```
+
+## See Also
+
+- [Database Safety Documentation](../docs/DATABASE_SAFETY.md)

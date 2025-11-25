@@ -1,18 +1,27 @@
-import { CalendarDate } from '@internationalized/date'
+'use client'
+
+import type { ChangeEvent, ChangeEventHandler } from 'react'
+
+import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
-import {
-  Button as RACButton,
-  DatePicker,
-  Dialog as RACDialog,
-  Group,
-  Popover,
-} from 'react-aria-components'
 import { Control, FieldValues, Path } from 'react-hook-form'
 
-import { Calendar } from '@/components/ui/calendar-rac'
-import { DateInput } from '@/components/ui/datefield-rac'
+import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
-import { getInputClassNames } from '@/lib/registration/utils/form-utils'
+import { cn } from '@/lib/utils'
 
 interface DateOfBirthFieldProps<T extends FieldValues> {
   control: Control<T>
@@ -29,6 +38,18 @@ export function DateOfBirthField<T extends FieldValues>({
   required = true,
   onValueChange,
 }: DateOfBirthFieldProps<T>) {
+  const handleCalendarChange = (
+    value: string | number,
+    event: ChangeEventHandler<HTMLSelectElement>
+  ) => {
+    const newEvent = {
+      target: {
+        value: String(value),
+      },
+    } as ChangeEvent<HTMLSelectElement>
+    event(newEvent)
+  }
+
   return (
     <FormFieldWrapper
       control={control}
@@ -37,50 +58,82 @@ export function DateOfBirthField<T extends FieldValues>({
       required={required}
     >
       {(field, fieldState) => (
-        <DatePicker
-          value={
-            field.value
-              ? new CalendarDate(
-                  field.value.getFullYear(),
-                  field.value.getMonth() + 1,
-                  field.value.getDate()
-                )
-              : null
-          }
-          onChange={(date) => {
-            if (date) {
-              const dateValue = new Date(date.year, date.month - 1, date.day)
-              field.onChange(dateValue)
-              if (onValueChange) {
-                onValueChange(dateValue)
-              }
-            } else {
-              field.onChange(null)
-              if (onValueChange) {
-                onValueChange(null)
-              }
-            }
-          }}
-          aria-label={label}
-          className="flex flex-col gap-2"
-        >
-          <div className="flex">
-            <Group className="w-full">
-              <DateInput className={getInputClassNames(!!fieldState.error)} />
-            </Group>
-            <RACButton className="data-focus-visible:border-ring data-focus-visible:ring-ring/50 data-focus-visible:ring-[3px] z-10 -me-px -ms-9 flex w-9 items-center justify-center rounded-e-md text-muted-foreground/80 outline-none transition-[color,box-shadow] hover:text-foreground">
-              <CalendarIcon size={16} />
-            </RACButton>
-          </div>
-          <Popover
-            className="data-entering:animate-in data-exiting:animate-out outline-hidden z-50 rounded-lg border bg-background text-popover-foreground shadow-lg data-[entering]:fade-in-0 data-[exiting]:fade-out-0 data-[entering]:zoom-in-95 data-[exiting]:zoom-out-95 data-[placement=bottom]:slide-in-from-top-2 data-[placement=left]:slide-in-from-right-2 data-[placement=right]:slide-in-from-left-2 data-[placement=top]:slide-in-from-bottom-2"
-            offset={4}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              className={cn(
+                'w-full justify-start text-left font-normal',
+                !field.value && 'text-muted-foreground',
+                fieldState.error && 'border-destructive'
+              )}
+              variant="outline"
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {field.value ? (
+                format(field.value, 'PPP')
+              ) : (
+                <span>Pick a date</span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="max-w-[400px] p-3"
+            style={{
+              width: 'var(--radix-popover-trigger-width)',
+              maxWidth: '400px',
+            }}
           >
-            <RACDialog className="max-h-[inherit] overflow-auto p-2">
-              <Calendar />
-            </RACDialog>
-          </Popover>
-        </DatePicker>
+            <Calendar
+              captionLayout="dropdown"
+              className="w-full"
+              fromYear={1900}
+              toYear={2100}
+              mode="single"
+              selected={field.value || undefined}
+              onSelect={(date) => {
+                field.onChange(date || null)
+                if (onValueChange) {
+                  onValueChange(date || null)
+                }
+              }}
+              components={{
+                MonthCaption: (props) => <>{props.children}</>,
+                DropdownNav: (props) => (
+                  <div className="flex w-full items-center gap-2">
+                    {props.children}
+                  </div>
+                ),
+                Dropdown: (props) => (
+                  <Select
+                    onValueChange={(value) => {
+                      if (props.onChange) {
+                        handleCalendarChange(value, props.onChange)
+                      }
+                    }}
+                    value={String(props.value)}
+                  >
+                    <SelectTrigger className="first:flex-1 last:shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {props.options?.map((option) => (
+                        <SelectItem
+                          disabled={option.disabled}
+                          key={option.value}
+                          value={String(option.value)}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ),
+              }}
+              hideNavigation
+            />
+          </PopoverContent>
+        </Popover>
       )}
     </FormFieldWrapper>
   )
