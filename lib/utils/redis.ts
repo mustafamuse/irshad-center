@@ -11,6 +11,26 @@
  */
 
 /**
+ * Mock Redis client for backward compatibility
+ * @deprecated Redis has been removed. This is a no-op mock.
+ */
+const mockRedis = {
+  get: async (_key: string): Promise<string | null> => null,
+  set: async (
+    _key: string,
+    _value: string,
+    _options?: { EX?: number }
+  ): Promise<void> => {},
+  del: async (_key: string): Promise<void> => {},
+  // Add other methods as needed
+}
+
+/**
+ * @deprecated Redis has been removed. This is a no-op mock.
+ */
+export const redis = mockRedis
+
+/**
  * @deprecated Redis has been removed. This function is a no-op.
  */
 export async function getRedisClient() {
