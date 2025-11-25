@@ -1,6 +1,24 @@
 import { NextResponse } from 'next/server'
 
+import { z } from 'zod'
+
 import { prisma } from '@/lib/db'
+import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/students/[id]/manual-payment')
+
+const manualPaymentSchema = z.object({
+  year: z
+    .number()
+    .int()
+    .min(2020)
+    .max(new Date().getFullYear() + 1),
+  month: z.number().int().min(1).max(12),
+  amountPaid: z.number().int().positive(),
+  paidAt: z.string().datetime().optional(),
+  stripeInvoiceId: z.string().optional(),
+})
 
 // POST /api/admin/students/[id]/manual-payment
 export async function POST(
@@ -8,96 +26,71 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: studentId } = await params
+    const { id } = await params
+
+    // Verify profile exists
+    const profile = await getProgramProfileById(id)
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    }
+
+    // Parse and validate request body
     const body = await request.json()
-    const { month, year, amount, applyToSubscriptionMembers } = body
+    const validation = manualPaymentSchema.safeParse(body)
 
-    // Validate input
-    if (!month || !year || !amount) {
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Month, year, and amount are required' },
+        { error: validation.error.errors },
         { status: 400 }
       )
     }
 
-    // Check if student exists
-    const student = await prisma.student.findUnique({
-      where: { id: studentId },
-      select: {
-        id: true,
-        name: true,
-        stripeSubscriptionId: true,
-      },
-    })
+    const { year, month, amountPaid, paidAt, stripeInvoiceId } = validation.data
 
-    if (!student) {
-      return NextResponse.json({ error: 'Student not found' }, { status: 404 })
-    }
-
-    // Get students to apply payment to
-    let studentsToUpdate = [student]
-
-    if (applyToSubscriptionMembers && student.stripeSubscriptionId) {
-      // Find all students with the same subscription
-      const subscriptionMembers = await prisma.student.findMany({
+    // Check if payment already exists (if stripeInvoiceId provided)
+    if (stripeInvoiceId) {
+      const existing = await prisma.studentPayment.findUnique({
         where: {
-          stripeSubscriptionId: student.stripeSubscriptionId,
+          programProfileId_stripeInvoiceId: {
+            programProfileId: id,
+            stripeInvoiceId,
+          },
         },
-        select: { id: true, name: true, stripeSubscriptionId: true },
       })
-      studentsToUpdate = subscriptionMembers
+
+      if (existing) {
+        return NextResponse.json(
+          { error: 'Payment with this invoice ID already exists' },
+          { status: 409 }
+        )
+      }
     }
 
-    // Create payment date for first day of month at 12 PM
-    const paymentDate = new Date(
-      parseInt(year),
-      parseInt(month) - 1,
-      1,
-      12,
-      0,
-      0
-    )
-
-    // Create payment records
-    const paymentData = studentsToUpdate.map((s) => ({
-      studentId: s.id,
-      year: parseInt(year),
-      month: parseInt(month),
-      amountPaid: Math.round(parseFloat(amount) * 100), // Convert to cents
-      paidAt: paymentDate,
-      stripeInvoiceId: null, // Zelle payments don't have Stripe invoice IDs
-    }))
-
-    // Check for existing payments to avoid duplicates
-    const existingPayments = await prisma.studentPayment.findMany({
-      where: {
-        studentId: { in: studentsToUpdate.map((s) => s.id) },
-        year: parseInt(year),
-        month: parseInt(month),
+    // Create payment record
+    const payment = await prisma.studentPayment.create({
+      data: {
+        programProfileId: id,
+        year,
+        month,
+        amountPaid,
+        paidAt: paidAt ? new Date(paidAt) : new Date(),
+        stripeInvoiceId: stripeInvoiceId || null,
       },
     })
 
-    if (existingPayments.length > 0) {
-      return NextResponse.json(
-        { error: 'Payment already exists for this month' },
-        { status: 400 }
-      )
-    }
-
-    // Create the payments
-    const createdPayments = await prisma.studentPayment.createMany({
-      data: paymentData,
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: `Created ${createdPayments.count} payment record(s)`,
-      studentsUpdated: studentsToUpdate.map((s) => s.name),
-    })
+    return NextResponse.json(payment, { status: 201 })
   } catch (error) {
-    console.error('Failed to create manual payment:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error creating manual payment'
+    )
     return NextResponse.json(
-      { error: 'Failed to create manual payment' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create manual payment',
+      },
       { status: 500 }
     )
   }

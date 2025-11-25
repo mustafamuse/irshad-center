@@ -32,14 +32,14 @@ export function StudentSelector({
   // Filter students based on mode and batch selection
   const sourceStudents =
     mode === 'assign'
-      ? students.filter((s) => !s.Batch) // Unassigned students for assign mode
-      : students.filter((s) => s.Batch?.id === selectedBatch) // Students from source batch for transfer mode
+      ? students.filter((s) => !s.batch) // Unassigned students for assign mode
+      : students.filter((s) => s.batch?.id === selectedBatch) // Students from source batch for transfer mode
 
   const destinationStudents =
     mode === 'assign'
-      ? students.filter((s) => s.Batch?.id === selectedBatch) // Show selected batch students in assign mode
+      ? students.filter((s) => s.batch?.id === selectedBatch) // Show selected batch students in assign mode
       : destinationBatchId
-        ? students.filter((s) => s.Batch?.id === destinationBatchId) // Show destination batch students in transfer mode
+        ? students.filter((s) => s.batch?.id === destinationBatchId) // Show destination batch students in transfer mode
         : []
 
   // Apply search filters

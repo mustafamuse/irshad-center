@@ -1,3 +1,7 @@
+'use client'
+
+import type { ChangeEvent, ChangeEventHandler } from 'react'
+
 import { format } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 
@@ -9,6 +13,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 interface StudentDateFieldProps {
@@ -28,6 +39,18 @@ export function StudentDateField({
   onChange,
   disabled = false,
 }: StudentDateFieldProps) {
+  const handleCalendarChange = (
+    value: string | number,
+    event: ChangeEventHandler<HTMLSelectElement>
+  ) => {
+    const newEvent = {
+      target: {
+        value: String(value),
+      },
+    } as ChangeEvent<HTMLSelectElement>
+    event(newEvent)
+  }
+
   return (
     <div className="space-y-2">
       <Label htmlFor={id} className="text-xs text-muted-foreground">
@@ -54,12 +77,56 @@ export function StudentDateField({
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
+          <PopoverContent
+            align="start"
+            className="max-w-[400px] p-3"
+            style={{
+              width: 'var(--radix-popover-trigger-width)',
+              maxWidth: '400px',
+            }}
+          >
             <Calendar
+              captionLayout="dropdown"
+              className="w-full"
+              fromYear={1900}
+              toYear={2100}
               mode="single"
               selected={value ? new Date(value) : undefined}
               onSelect={(date) => onChange(date || null)}
-              initialFocus
+              components={{
+                MonthCaption: (props) => <>{props.children}</>,
+                DropdownNav: (props) => (
+                  <div className="flex w-full items-center gap-2">
+                    {props.children}
+                  </div>
+                ),
+                Dropdown: (props) => (
+                  <Select
+                    onValueChange={(value) => {
+                      if (props.onChange) {
+                        handleCalendarChange(value, props.onChange)
+                      }
+                    }}
+                    value={String(props.value)}
+                  >
+                    <SelectTrigger className="first:flex-1 last:shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {props.options?.map((option) => (
+                        <SelectItem
+                          disabled={option.disabled}
+                          key={option.value}
+                          value={String(option.value)}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ),
+              }}
+              hideNavigation
             />
           </PopoverContent>
         </Popover>

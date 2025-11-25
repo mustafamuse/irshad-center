@@ -8,46 +8,15 @@
 import { Prisma, EnrollmentStatus, Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import {
-  ACTIVE_ENROLLMENT_WHERE,
-  ENROLLMENT_WITH_PROFILE_INCLUDE,
-} from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
+import { validateEnrollment } from '@/lib/services/validation-service'
 import {
   isValidStatusTransition,
   ENROLLMENT_STATUS_TRANSITIONS,
 } from '@/lib/types/enrollment'
 
 const logger = createServiceLogger('enrollment')
-
-/**
- * Validate enrollment data before creation
- *
- * Business Rules:
- * - Dugsi enrollments cannot have a batchId (enforced at application level)
- * - Mahad enrollments can optionally have a batchId
- *
- * @throws Error if validation fails
- */
-async function validateEnrollmentData(
-  data: {
-    programProfileId: string
-    program: Program
-    batchId?: string | null
-    status: EnrollmentStatus
-  },
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _client?: DatabaseClient
-): Promise<void> {
-  // CRITICAL: Dugsi enrollments must NOT have a batchId
-  // Dugsi students are assigned to teachers, not batches
-  if (data.program === 'DUGSI_PROGRAM' && data.batchId) {
-    throw new Error(
-      'Dugsi enrollments cannot have a batchId. Dugsi students are assigned to teachers, not batches.'
-    )
-  }
-}
 
 /**
  * Get all enrollments for a program profile
@@ -61,7 +30,25 @@ export async function getEnrollmentsByProgramProfile(
     where: {
       programProfileId: profileId,
     },
-    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
+    include: {
+      batch: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+      programProfile: {
+        include: {
+          person: {
+            include: {
+              contactPoints: true,
+            },
+          },
+        },
+      },
+    },
     orderBy: {
       startDate: 'desc',
     },
@@ -79,7 +66,8 @@ export async function getActiveEnrollment(
   return client.enrollment.findFirst({
     where: {
       programProfileId: profileId,
-      ...ACTIVE_ENROLLMENT_WHERE,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
     },
     include: {
       batch: true,
@@ -110,7 +98,25 @@ export async function getEnrollmentsByBatch(
       status: status || { not: 'WITHDRAWN' },
       endDate: null,
     },
-    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
+    include: {
+      programProfile: {
+        include: {
+          person: {
+            include: {
+              contactPoints: true,
+            },
+          },
+        },
+      },
+      batch: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+    },
     orderBy: {
       startDate: 'desc',
     },
@@ -129,7 +135,25 @@ export async function getEnrollmentById(
     where: {
       id: enrollmentId,
     },
-    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
+    include: {
+      batch: {
+        select: {
+          id: true,
+          name: true,
+          startDate: true,
+          endDate: true,
+        },
+      },
+      programProfile: {
+        include: {
+          person: {
+            include: {
+              contactPoints: true,
+            },
+          },
+        },
+      },
+    },
   })
 }
 
@@ -185,7 +209,7 @@ export async function createEnrollment(
 
   // Validate enrollment data (checks Dugsi batchId constraint)
   // CRITICAL: Pass transaction client so validation can see uncommitted data
-  await validateEnrollmentData(
+  await validateEnrollment(
     {
       programProfileId: data.programProfileId,
       program: profile.program,
@@ -303,7 +327,7 @@ export async function reEnrollStudent(
   }
 
   // Validate enrollment data
-  await validateEnrollmentData({
+  await validateEnrollment({
     programProfileId,
     program: profile.program,
     batchId,
@@ -348,7 +372,18 @@ export async function getEnrollmentsByProgram(
 
   return client.enrollment.findMany({
     where,
-    include: ENROLLMENT_WITH_PROFILE_INCLUDE,
+    include: {
+      programProfile: {
+        include: {
+          person: {
+            include: {
+              contactPoints: true,
+            },
+          },
+        },
+      },
+      batch: true,
+    },
     orderBy: {
       startDate: 'desc',
     },

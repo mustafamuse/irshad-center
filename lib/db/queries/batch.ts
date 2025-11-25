@@ -14,11 +14,6 @@
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import {
-  ACTIVE_MAHAD_ENROLLMENT_WHERE,
-  ACTIVE_ENROLLMENT_WHERE,
-  extractContactInfo,
-} from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 
 /**
@@ -49,7 +44,13 @@ export async function getBatches(
       _count: {
         select: {
           Enrollment: {
-            where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+              programProfile: {
+                program: 'MAHAD_PROGRAM',
+              },
+            },
           },
         },
       },
@@ -85,7 +86,11 @@ export async function getBatchById(
   const studentCount = await client.enrollment.count({
     where: {
       batchId: id,
-      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
     },
   })
 
@@ -117,7 +122,11 @@ export async function getBatchByName(
   const studentCount = await client.enrollment.count({
     where: {
       batchId: batch.id,
-      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
     },
   })
 
@@ -156,9 +165,6 @@ export async function createBatch(
 /**
  * Update a batch
  * Note: Use admin actions for updates with proper authorization
- *
- * Uses partial update pattern - only updates fields that are explicitly provided.
- * Undefined fields are not touched, null fields are set to null.
  */
 export async function updateBatch(
   id: string,
@@ -169,34 +175,24 @@ export async function updateBatch(
   },
   client: DatabaseClient = prisma
 ): Promise<BatchWithCount> {
-  // Build update data object with only provided fields
-  // This ensures undefined fields don't accidentally overwrite existing values
-  const updateData: {
-    name?: string
-    startDate?: Date | null
-    endDate?: Date | null
-  } = {}
-
-  if (data.name !== undefined) {
-    updateData.name = data.name
-  }
-  if (data.startDate !== undefined) {
-    updateData.startDate = data.startDate
-  }
-  if (data.endDate !== undefined) {
-    updateData.endDate = data.endDate
-  }
-
   const batch = await client.batch.update({
     where: { id },
-    data: updateData,
+    data: {
+      name: data.name,
+      startDate: data.startDate,
+      endDate: data.endDate,
+    },
   })
 
   // Get current student count
   const studentCount = await client.enrollment.count({
     where: {
       batchId: id,
-      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
     },
   })
 
@@ -216,7 +212,8 @@ export async function deleteBatch(id: string, client: DatabaseClient = prisma) {
   const studentCount = await client.enrollment.count({
     where: {
       batchId: id,
-      ...ACTIVE_ENROLLMENT_WHERE,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
     },
   })
 
@@ -242,7 +239,11 @@ export async function getBatchStudents(
   const enrollments = await client.enrollment.findMany({
     where: {
       batchId,
-      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
     },
     include: {
       programProfile: {
@@ -275,13 +276,18 @@ export async function getBatchStudents(
   // Transform to student-like structure
   return enrollments.map((enrollment) => {
     const profile = enrollment.programProfile
-    const { email, phone } = extractContactInfo(profile.person.contactPoints)
+    const emailContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'EMAIL'
+    )
+    const phoneContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )
 
     return {
       id: profile.id,
       name: profile.person.name,
-      email,
-      phone,
+      email: emailContact?.value || null,
+      phone: phoneContact?.value || null,
       dateOfBirth: profile.person.dateOfBirth,
       educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,
@@ -307,7 +313,11 @@ export async function getBatchStudentCount(
   return await client.enrollment.count({
     where: {
       batchId,
-      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+      programProfile: {
+        program: 'MAHAD_PROGRAM',
+      },
     },
   })
 }
@@ -349,7 +359,8 @@ export async function assignStudentsToBatch(
       let enrollment = await client.enrollment.findFirst({
         where: {
           programProfileId: studentId,
-          ...ACTIVE_ENROLLMENT_WHERE,
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
         },
       })
 
@@ -424,7 +435,8 @@ export async function transferStudents(
         where: {
           programProfileId: studentId,
           batchId: fromBatchId,
-          ...ACTIVE_ENROLLMENT_WHERE,
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
         },
       })
 
@@ -465,7 +477,8 @@ export async function getBatchSummary(client: DatabaseClient = prisma) {
         program: 'MAHAD_PROGRAM',
         enrollments: {
           some: {
-            ...ACTIVE_ENROLLMENT_WHERE,
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
             batchId: { not: null }, // Only count students assigned to batches
           },
         },
@@ -475,7 +488,13 @@ export async function getBatchSummary(client: DatabaseClient = prisma) {
     client.batch.findMany({
       where: {
         Enrollment: {
-          some: ACTIVE_MAHAD_ENROLLMENT_WHERE,
+          some: {
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+            programProfile: {
+              program: 'MAHAD_PROGRAM',
+            },
+          },
         },
       },
     }),
@@ -530,12 +549,21 @@ export async function getBatchesWithFilters(
     if (filters.hasStudents) {
       // Only batches with at least one active enrollment
       where.Enrollment = {
-        some: ACTIVE_MAHAD_ENROLLMENT_WHERE,
+        some: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+          programProfile: {
+            program: 'MAHAD_PROGRAM',
+          },
+        },
       }
     } else {
       // Only batches with no active enrollments
       where.Enrollment = {
-        none: ACTIVE_ENROLLMENT_WHERE,
+        none: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
       }
     }
   }
@@ -550,7 +578,13 @@ export async function getBatchesWithFilters(
       _count: {
         select: {
           Enrollment: {
-            where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+              programProfile: {
+                program: 'MAHAD_PROGRAM',
+              },
+            },
           },
         },
       },
@@ -581,7 +615,13 @@ export async function getBatchWithEnrollments(
     where: { id: batchId },
     include: {
       Enrollment: {
-        where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+          programProfile: {
+            program: 'MAHAD_PROGRAM',
+          },
+        },
         include: {
           programProfile: {
             include: {
@@ -646,7 +686,10 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       },
       enrollments: {
-        where: ACTIVE_ENROLLMENT_WHERE,
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
         orderBy: {
           startDate: 'desc',
         },
@@ -659,13 +702,18 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
   })
 
   return profiles.map((profile) => {
-    const { email, phone } = extractContactInfo(profile.person.contactPoints)
+    const emailContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'EMAIL'
+    )
+    const phoneContact = profile.person.contactPoints?.find(
+      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )
 
     return {
       id: profile.id,
       name: profile.person.name,
-      email,
-      phone,
+      email: emailContact?.value || null,
+      phone: phoneContact?.value || null,
       educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,
       createdAt: profile.createdAt,

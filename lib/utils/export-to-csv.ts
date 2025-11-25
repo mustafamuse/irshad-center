@@ -1,7 +1,7 @@
 import { saveAs } from 'file-saver'
 
 export function exportToCSV(
-  data: any[],
+  data: unknown[],
   visibleColumns: string[],
   filename: string
 ) {
@@ -13,7 +13,7 @@ export function exportToCSV(
   // Create data rows
   const rows = data.map((item) =>
     visibleColumns.map((col) => {
-      const value = item[col]
+      const value = (item as unknown as Record<string, unknown>)[col]
       // Handle different value types
       if (value === null || value === undefined) return ''
       if (value instanceof Date) return value.toLocaleDateString()

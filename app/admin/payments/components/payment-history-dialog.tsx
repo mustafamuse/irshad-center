@@ -28,6 +28,9 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('PaymentHistoryDialog')
 
 interface PaymentHistoryDialogProps {
   payments: StudentPayment[]
@@ -445,10 +448,10 @@ export function PaymentHistoryDialog({
                       window.location.reload()
                     } else {
                       const error = await response.json()
-                      console.error('Payment creation failed:', error.error)
+                      logger.error('Payment creation failed', error.error)
                     }
                   } catch (error) {
-                    console.error('Failed to create Zelle payment:', error)
+                    logger.error('Failed to create Zelle payment', error)
                   } finally {
                     setIsSubmitting(false)
                   }

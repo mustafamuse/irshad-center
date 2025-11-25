@@ -12,6 +12,7 @@ export function formatPhoneNumber(value: string): string {
 }
 
 // Debounce utility
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number

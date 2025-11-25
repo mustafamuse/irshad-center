@@ -6,7 +6,10 @@ import { ArrowRight, ArrowRightLeft } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { createClientLogger } from '@/lib/logger-client'
 import { BatchWithCount } from '@/lib/types/batch'
+
+const logger = createClientLogger('AssignmentActions')
 
 import { assignStudentsAction, transferStudentsAction } from '../../_actions'
 import { useLegacyActions, useSelectedStudents } from '../../_store/ui-store'
@@ -67,7 +70,7 @@ export function AssignmentActions({
           }
         }
       } catch (error) {
-        console.error('Assignment/Transfer failed:', error)
+        logger.error('Assignment/Transfer failed', error)
         toast.error('An unexpected error occurred')
       }
     })

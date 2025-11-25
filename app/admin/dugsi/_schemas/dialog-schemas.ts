@@ -29,7 +29,7 @@ export const childFormSchema = z.object({
   gender: z.enum(['MALE', 'FEMALE'], {
     required_error: 'Gender is required',
   }),
-  dateOfBirth: z.string().optional(),
+  dateOfBirth: z.date().optional().nullable(),
   educationLevel: z.enum(
     ['ELEMENTARY', 'MIDDLE_SCHOOL', 'HIGH_SCHOOL', 'COLLEGE', 'POST_GRAD'],
     {

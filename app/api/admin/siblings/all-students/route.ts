@@ -1,37 +1,35 @@
 import { NextResponse } from 'next/server'
 
-import { prisma } from '@/lib/db'
+import { getProgramProfiles } from '@/lib/db/queries/program-profile'
+import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/siblings/all-students')
 
 export async function GET() {
   try {
-    // Get all students
-    const students = await prisma.student.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        status: true,
-        batchId: true,
-        siblingGroupId: true,
-        Batch: {
-          select: {
-            name: true,
-          },
-        },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    })
+    // Get all program profiles
+    const { profiles } = await getProgramProfiles({})
 
-    // Group students by whether they have a sibling group
-    const studentsWithSiblings = students.filter(
-      (student) => student.siblingGroupId
-    )
-    const studentsWithoutSiblings = students.filter(
-      (student) => !student.siblingGroupId
-    )
+    const studentsWithSiblings: string[] = []
+    const studentsWithoutSiblings: string[] = []
+
+    // Check each profile for siblings
+    for (const profile of profiles) {
+      const siblings = await getPersonSiblings(profile.personId)
+      if (siblings.length > 0) {
+        studentsWithSiblings.push(profile.id)
+      } else {
+        studentsWithoutSiblings.push(profile.id)
+      }
+    }
+
+    const students = profiles.map((p) => ({
+      id: p.id,
+      name: p.person.name,
+      program: p.program,
+      personId: p.personId,
+    }))
 
     return NextResponse.json({
       students,
@@ -42,9 +40,15 @@ export async function GET() {
       totalWithoutSiblings: studentsWithoutSiblings.length,
     })
   } catch (error) {
-    console.error('Failed to fetch all Student:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching all students'
+    )
     return NextResponse.json(
-      { error: 'Failed to fetch all students' },
+      {
+        error:
+          error instanceof Error ? error.message : 'Failed to fetch students',
+      },
       { status: 500 }
     )
   }

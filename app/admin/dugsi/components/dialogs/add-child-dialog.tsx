@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, UserPlus } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
+import { DateOfBirthField } from '@/components/registration/shared/DateOfBirthField'
 import { NameFields } from '@/components/registration/shared/NameFields'
 import { Button } from '@/components/ui/button'
 import {
@@ -58,7 +59,7 @@ export function AddChildDialog({
       firstName: '',
       lastName: '',
       gender: 'MALE',
-      dateOfBirth: '',
+      dateOfBirth: null,
       educationLevel: 'ELEMENTARY',
       gradeLevel: 'KINDERGARTEN',
       schoolName: '',
@@ -91,9 +92,7 @@ export function AddChildDialog({
       firstName: values.firstName,
       lastName: values.lastName,
       gender: values.gender,
-      dateOfBirth: values.dateOfBirth
-        ? new Date(values.dateOfBirth)
-        : undefined,
+      dateOfBirth: values.dateOfBirth || undefined,
       educationLevel: values.educationLevel,
       gradeLevel: values.gradeLevel,
       schoolName: values.schoolName || undefined,
@@ -160,18 +159,11 @@ export function AddChildDialog({
               )}
             />
 
-            <FormField
+            <DateOfBirthField
               control={form.control}
-              name="dateOfBirth"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date of Birth (Optional)</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} disabled={isAdding} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              fieldName="dateOfBirth"
+              label="Date of Birth"
+              required={false}
             />
 
             <FormField

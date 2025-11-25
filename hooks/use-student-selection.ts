@@ -1,17 +1,17 @@
 'use client'
 
-import { StudentDTO } from '@/lib/actions/get-students'
+import { BatchStudentData } from '@/lib/types/batch'
 
 interface UseStudentSelectionProps {
-  selectedStudents: StudentDTO[]
-  updateSelectedStudents: (students: StudentDTO[]) => void
+  selectedStudents: BatchStudentData[]
+  updateSelectedStudents: (students: BatchStudentData[]) => void
 }
 
 export function useStudentSelection({
   selectedStudents,
   updateSelectedStudents,
 }: UseStudentSelectionProps) {
-  const handleStudentSelect = (student: StudentDTO) => {
+  const handleStudentSelect = (student: BatchStudentData) => {
     if (!selectedStudents.find((s) => s.id === student.id)) {
       const newStudents = [...selectedStudents, student]
       updateSelectedStudents(newStudents)

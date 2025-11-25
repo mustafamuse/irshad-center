@@ -1,62 +1,136 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/subscriptions')
 
 export async function GET() {
   try {
-    // Get all students with subscription information
-    const students = await prisma.student.findMany({
-      where: {
-        stripeSubscriptionId: { not: null },
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        monthlyRate: true,
-        subscriptionStatus: true,
-        stripeSubscriptionId: true,
-        stripeCustomerId: true,
-        Batch: {
-          select: {
-            name: true,
+    // Get all subscriptions with their assignments
+    const subscriptions = await prisma.subscription.findMany({
+      include: {
+        billingAccount: {
+          include: {
+            person: {
+              include: {
+                contactPoints: true,
+              },
+            },
+          },
+        },
+        assignments: {
+          where: { isActive: true },
+          include: {
+            programProfile: {
+              include: {
+                person: {
+                  include: {
+                    contactPoints: true,
+                  },
+                },
+                enrollments: {
+                  where: {
+                    status: { not: 'WITHDRAWN' },
+                    endDate: null,
+                  },
+                  include: {
+                    batch: {
+                      select: {
+                        id: true,
+                        name: true,
+                      },
+                    },
+                  },
+                  take: 1,
+                },
+              },
+            },
           },
         },
       },
       orderBy: {
-        name: 'asc',
+        createdAt: 'desc',
       },
     })
 
-    // Transform the data to include calculated fields
-    const transformedStudents = students.map((student) => ({
-      id: student.id,
-      name: student.name,
-      email: student.email,
-      phone: student.phone,
-      batchName: student.Batch?.name,
-      monthlyAmount: student.monthlyRate,
-      status: student.subscriptionStatus,
-      stripeSubscriptionId: student.stripeSubscriptionId,
-      stripeCustomerId: student.stripeCustomerId,
-    }))
+    // Transform to match expected response shape
+    const subscriptionsData = subscriptions.map((sub) => {
+      const assignments = sub.assignments.map((assignment) => ({
+        id: assignment.programProfile.id,
+        name: assignment.programProfile.person.name,
+        email:
+          assignment.programProfile.person.contactPoints.find(
+            (cp) => cp.type === 'EMAIL'
+          )?.value || '',
+        phone:
+          assignment.programProfile.person.contactPoints.find(
+            (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+          )?.value || null,
+        program: assignment.programProfile.program,
+        status: assignment.programProfile.status,
+        batchId: assignment.programProfile.enrollments[0]?.batchId || null,
+        batchName:
+          assignment.programProfile.enrollments[0]?.batch?.name || null,
+        assignmentAmount: assignment.amount,
+        assignmentPercentage: assignment.percentage,
+      }))
+
+      return {
+        id: sub.id,
+        stripeSubscriptionId: sub.stripeSubscriptionId,
+        stripeCustomerId: sub.stripeCustomerId,
+        status: sub.status,
+        amount: sub.amount,
+        currency: sub.currency,
+        interval: sub.interval,
+        currentPeriodStart: sub.currentPeriodStart,
+        currentPeriodEnd: sub.currentPeriodEnd,
+        paidUntil: sub.paidUntil,
+        lastPaymentDate: sub.lastPaymentDate,
+        stripeAccountType: sub.stripeAccountType,
+        billingAccount: {
+          id: sub.billingAccount.id,
+          personId: sub.billingAccount.personId,
+          email:
+            sub.billingAccount.person?.contactPoints.find(
+              (cp) => cp.type === 'EMAIL'
+            )?.value || '',
+        },
+        assignments: assignments,
+      }
+    })
+
+    // Calculate summary stats
+    const total = subscriptions.length
+    const active = subscriptions.filter(
+      (sub) =>
+        sub.status === 'active' ||
+        sub.status === 'trialing' ||
+        sub.status === 'past_due'
+    ).length
+    const inactive = total - active
 
     return NextResponse.json({
-      Student: transformedStudents,
+      subscriptions: subscriptionsData,
       summary: {
-        total: students.length,
-        active: students.filter((s) => s.subscriptionStatus === 'active')
-          .length,
-        inactive: students.filter(
-          (s) => s.subscriptionStatus && s.subscriptionStatus !== 'active'
-        ).length,
+        total,
+        active,
+        inactive,
       },
     })
   } catch (error) {
-    console.error('Error fetching subscriptions:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching subscriptions'
+    )
     return NextResponse.json(
-      { error: 'Failed to fetch subscriptions' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch subscriptions',
+      },
       { status: 500 }
     )
   }

@@ -13,7 +13,11 @@ import { useRouter } from 'next/navigation'
 
 import { toast } from 'sonner'
 
+import { createClientLogger } from '@/lib/logger-client'
+
 import { ActionResult } from '../_types'
+
+const logger = createClientLogger('useActionHandler')
 
 interface UseActionHandlerOptions<T> {
   /** Callback executed on successful action */
@@ -86,7 +90,7 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
         }
       } catch (error) {
         // Handle unexpected exceptions (network errors, validation throws, etc.)
-        console.error('Unexpected action error:', error)
+        logger.error('Unexpected action error', error)
         const message =
           errorMessage || 'An unexpected error occurred. Please try again.'
         toast.error(message)

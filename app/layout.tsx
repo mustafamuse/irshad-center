@@ -72,6 +72,28 @@ export default function RootLayout({
             disableTransitionOnChange={false}
           >
             {children}
+            {/* #region agent log */}
+            {typeof window !== 'undefined' &&
+              (() => {
+                fetch(
+                  'http://127.0.0.1:7242/ingest/dd387a56-ba45-49fb-a265-e15472772648',
+                  {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      location: 'layout.tsx:75',
+                      message: 'Root layout rendering Toaster',
+                      data: { position: 'top-right' },
+                      timestamp: Date.now(),
+                      sessionId: 'debug-session',
+                      runId: 'run1',
+                      hypothesisId: 'A',
+                    }),
+                  }
+                ).catch(() => {})
+                return null
+              })()}
+            {/* #endregion */}
             <Toaster
               position="top-right"
               toastOptions={{

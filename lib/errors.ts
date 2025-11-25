@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client'
 import { Stripe } from 'stripe'
 
+import { logger, serializeError } from './logger'
+
 // Base Error class for all application errors
 export class AppError extends Error {
   constructor(
@@ -54,7 +56,7 @@ export function handlePrismaError(
     case 'P2025':
       return new ValidationError('Record not found')
     default:
-      console.error('Database error:', error)
+      logger.error(serializeError(error), 'Database error')
       return new DatabaseError('An unexpected database error occurred')
   }
 }
@@ -70,7 +72,7 @@ export function handleStripeError(error: Stripe.errors.StripeError): AppError {
     case 'StripeAPIError':
       return new StripeError('Payment service unavailable', 503)
     default:
-      console.error('Stripe error:', error)
+      logger.error(serializeError(error), 'Stripe error')
       return new StripeError('An unexpected payment error occurred')
   }
 }

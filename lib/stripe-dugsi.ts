@@ -8,7 +8,10 @@
 
 import Stripe from 'stripe'
 
+import { createServiceLogger } from '@/lib/logger'
 import { isValidEmail } from '@/lib/utils/type-guards'
+
+const logger = createServiceLogger('stripe-dugsi')
 
 let dugsiStripeClient: Stripe | null = null
 
@@ -26,7 +29,7 @@ export function getDugsiStripeClient(): Stripe {
   }
 
   if (!dugsiStripeClient) {
-    console.log('Initializing Dugsi Stripe client...')
+    logger.info('Initializing Dugsi Stripe client')
     dugsiStripeClient = new Stripe(stripeKey, {
       apiVersion: '2025-08-27.basil',
       typescript: true,
@@ -130,23 +133,13 @@ export function verifyDugsiWebhook(
     return dugsiClient.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err) {
     const error = err as Error
-    console.error('❌ Dugsi webhook verification failed:', error.message)
+    logger.error(
+      {
+        err: error,
+        signaturePreview: signature.substring(0, 20) + '...',
+      },
+      'Dugsi webhook verification failed'
+    )
     throw new Error(`Webhook verification failed: ${error.message}`)
-  }
-}
-
-/**
- * Test Dugsi Stripe client initialization.
- * This can be called during app startup to verify configuration.
- */
-export async function testDugsiStripeClientInitialization(): Promise<void> {
-  try {
-    const client = getDugsiStripeClient()
-    // Try to list a single customer to verify the API key works
-    await client.customers.list({ limit: 1 })
-    console.log('✅ Dugsi Stripe client initialized successfully.')
-  } catch (error) {
-    console.error('❌ Dugsi Stripe client initialization failed:', error)
-    throw error
   }
 }

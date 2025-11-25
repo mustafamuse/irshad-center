@@ -286,7 +286,7 @@ export async function getDugsiTeachersByShift(
     },
   })
 
-  return teachers as TeacherWithFullAssignments[]
+  return teachers as unknown as TeacherWithFullAssignments[]
 }
 
 /**

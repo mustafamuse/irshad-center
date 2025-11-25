@@ -27,6 +27,22 @@ function ErrorFallback({
 }
 
 export function ErrorBoundary({ children }: { children: React.ReactNode }) {
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/dd387a56-ba45-49fb-a265-e15472772648', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      location: 'error-boundary.tsx:29',
+      message: 'ErrorBoundary render',
+      data: { hasChildren: !!children },
+      timestamp: Date.now(),
+      sessionId: 'debug-session',
+      runId: 'run1',
+      hypothesisId: 'E',
+    }),
+  }).catch(() => {})
+  // #endregion
+
   return (
     <ReactErrorBoundary FallbackComponent={ErrorFallback}>
       {children}

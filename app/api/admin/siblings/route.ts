@@ -1,82 +1,78 @@
 import { NextResponse } from 'next/server'
 
-import { prisma } from '@/lib/db'
+import { getProgramProfiles } from '@/lib/db/queries/program-profile'
+import {
+  getSiblingGroupsByProgram,
+  createSiblingRelationship,
+} from '@/lib/db/queries/siblings'
+import { createAPILogger } from '@/lib/logger'
+
+const logger = createAPILogger('/api/admin/siblings')
 
 export async function GET() {
   try {
-    // Get all sibling groups with their students
-    const siblingGroups = await prisma.sibling.findMany({
-      include: {
-        Student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            status: true,
-            batchId: true,
-            Batch: {
-              select: {
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            name: 'asc',
-          },
-        },
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    })
+    const groups = await getSiblingGroupsByProgram()
 
-    // Get all students without a sibling group
-    const studentsWithoutSiblings = await prisma.student.findMany({
-      where: {
-        siblingGroupId: null,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        status: true,
-        batchId: true,
-        Batch: {
-          select: {
-            name: true,
-          },
-        },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    })
+    // Get all profiles to find students without siblings
+    const { profiles } = await getProgramProfiles({})
+    const profilesWithSiblings = new Set<string>()
 
-    // Format the response
-    const formattedGroups = siblingGroups.map((group) => ({
-      id: group.id,
-      createdAt: group.createdAt,
-      updatedAt: group.updatedAt,
-      Student: group.Student,
-      studentCount: group.Student.length,
+    // Collect all person IDs that have siblings
+    for (const group of groups) {
+      for (const member of group) {
+        profilesWithSiblings.add(member.person.id)
+      }
+    }
+
+    // Find profiles without siblings
+    const studentsWithoutSiblings = profiles
+      .filter((p) => !profilesWithSiblings.has(p.personId))
+      .map((p) => ({
+        id: p.id,
+        name: p.person.name,
+        program: p.program,
+      }))
+
+    // Format sibling groups
+    const siblingGroups = groups.map((group) => ({
+      siblings: group.map((member) => ({
+        person: {
+          id: member.person.id,
+          name: member.person.name,
+        },
+        profiles: member.profiles.map((p) => ({
+          id: p.id,
+          program: p.program,
+          status: p.status,
+        })),
+      })),
+      totalSiblings: group.length,
     }))
 
+    const totalStudentsWithSiblings = groups.reduce(
+      (sum, group) => sum + group.length,
+      0
+    )
+
     return NextResponse.json({
-      siblingGroups: formattedGroups,
+      siblingGroups,
       studentsWithoutSiblings,
-      totalGroups: formattedGroups.length,
-      totalStudentsWithSiblings: formattedGroups.reduce(
-        (acc, group) => acc + group.Student.length,
-        0
-      ),
+      totalGroups: groups.length,
+      totalStudentsWithSiblings,
       totalStudentsWithoutSiblings: studentsWithoutSiblings.length,
     })
   } catch (error) {
-    console.error('Failed to fetch sibling groups:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching sibling groups'
+    )
     return NextResponse.json(
-      { error: 'Failed to fetch sibling groups' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch sibling groups',
+      },
       { status: 500 }
     )
   }
@@ -85,41 +81,45 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { studentIds } = body
+    const { person1Id, person2Id, detectionMethod, confidence } = body
 
-    if (!studentIds || !Array.isArray(studentIds) || studentIds.length < 2) {
+    if (!person1Id || !person2Id) {
       return NextResponse.json(
-        { error: 'At least two student IDs are required' },
+        { error: 'person1Id and person2Id are required' },
         { status: 400 }
       )
     }
 
-    // Create a new sibling group
-    const siblingGroup = await prisma.sibling.create({
-      data: {
-        Student: {
-          connect: studentIds.map((id) => ({ id })),
-        },
-      },
-      include: {
-        Student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    })
+    if (person1Id === person2Id) {
+      return NextResponse.json(
+        { error: 'Cannot create sibling relationship with self' },
+        { status: 400 }
+      )
+    }
+
+    const relationship = await createSiblingRelationship(
+      person1Id,
+      person2Id,
+      detectionMethod || 'manual',
+      confidence || null
+    )
 
     return NextResponse.json({
       success: true,
-      siblingGroup,
+      data: relationship,
     })
   } catch (error) {
-    console.error('Failed to create sibling group:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error creating sibling relationship'
+    )
     return NextResponse.json(
-      { error: 'Failed to create sibling group' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to create sibling relationship',
+      },
       { status: 500 }
     )
   }

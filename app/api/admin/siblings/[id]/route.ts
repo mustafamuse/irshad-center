@@ -1,58 +1,75 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
+import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import {
+  getPersonSiblings,
+  removeSiblingRelationship,
+  verifySiblingRelationship,
+} from '@/lib/db/queries/siblings'
+import { createAPILogger } from '@/lib/logger'
 
-// Get a single sibling group by ID
+const logger = createAPILogger('/api/admin/siblings/[id]')
+
+// Get a single sibling group by profile ID
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    const siblingGroup = await prisma.sibling.findUnique({
-      where: {
-        id,
-      },
-      include: {
-        Student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            status: true,
-            batchId: true,
-            Batch: {
-              select: {
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            name: 'asc',
-          },
-        },
-      },
-    })
 
-    if (!siblingGroup) {
-      return NextResponse.json(
-        { error: 'Sibling group not found' },
-        { status: 404 }
-      )
+    // Get profile to find person ID
+    const profile = await getProgramProfileById(id)
+    if (!profile) {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
-    return NextResponse.json(siblingGroup)
+    // Get siblings for this person
+    const siblings = await getPersonSiblings(profile.personId)
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        profile: {
+          id: profile.id,
+          name: profile.person.name,
+          program: profile.program,
+        },
+        siblings: siblings.map((s) => ({
+          person: {
+            id: s.person.id,
+            name: s.person.name,
+          },
+          profiles: s.profiles.map((p) => ({
+            id: p.id,
+            program: p.program,
+            status: p.status,
+          })),
+          relationshipId: s.relationshipId,
+          isActive: s.isActive,
+        })),
+        totalSiblings: siblings.length,
+      },
+    })
   } catch (error) {
-    console.error('Failed to fetch sibling group:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error fetching sibling group'
+    )
     return NextResponse.json(
-      { error: 'Failed to fetch sibling group' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch sibling group',
+      },
       { status: 500 }
     )
   }
 }
 
-// Update a sibling group (add or remove students)
+// Update a sibling relationship (verify, activate/deactivate)
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -60,174 +77,82 @@ export async function PATCH(
   try {
     const { id } = await params
     const body = await request.json()
-    const { addStudentIds, removeStudentIds } = body
+    const { verifiedBy, notes, isActive } = body
 
-    // Validate the sibling group exists
-    const existingSiblingGroup = await prisma.sibling.findUnique({
-      where: {
-        id,
-      },
-      include: {
-        Student: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    })
-
-    if (!existingSiblingGroup) {
+    if (!id) {
       return NextResponse.json(
-        { error: 'Sibling group not found' },
-        { status: 404 }
+        { error: 'Relationship ID is required' },
+        { status: 400 }
       )
     }
 
-    // Prepare the update data
-    const updateData: any = {}
-
-    // Add students to the group
-    if (
-      addStudentIds &&
-      Array.isArray(addStudentIds) &&
-      addStudentIds.length > 0
-    ) {
-      updateData.students = {
-        connect: addStudentIds.map((id) => ({ id })),
-      }
-    }
-
-    // Remove students from the group
-    if (
-      removeStudentIds &&
-      Array.isArray(removeStudentIds) &&
-      removeStudentIds.length > 0
-    ) {
-      if (!updateData.Student) {
-        updateData.Student = {}
-      }
-      updateData.Student.disconnect = removeStudentIds.map((id) => ({ id }))
-    }
-
-    // Update the sibling group
-    const updatedSiblingGroup = await prisma.sibling.update({
-      where: {
-        id,
-      },
-      data: updateData,
-      include: {
-        Student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            status: true,
-            batchId: true,
-            Batch: {
-              select: {
-                name: true,
-              },
-            },
-          },
-          orderBy: {
-            name: 'asc',
-          },
+    if (verifiedBy) {
+      await verifySiblingRelationship(id, verifiedBy, notes)
+    } else if (isActive === false) {
+      await removeSiblingRelationship(id)
+    } else {
+      // Update notes or other fields
+      await prisma.siblingRelationship.update({
+        where: { id },
+        data: {
+          notes: notes || undefined,
+          isActive: isActive !== undefined ? isActive : true,
         },
-      },
-    })
-
-    // If there are no students left in the group, delete it
-    if (updatedSiblingGroup.Student.length < 2) {
-      // If only one student left, remove them from the group
-      if (updatedSiblingGroup.Student.length === 1) {
-        await prisma.student.update({
-          where: {
-            id: updatedSiblingGroup.Student[0].id,
-          },
-          data: {
-            siblingGroupId: null,
-          },
-        })
-      }
-
-      // Delete the empty sibling group
-      await prisma.sibling.delete({
-        where: {
-          id,
-        },
-      })
-
-      return NextResponse.json({
-        success: true,
-        message: 'Sibling group deleted because it had fewer than 2 students',
-        deleted: true,
       })
     }
 
     return NextResponse.json({
       success: true,
-      Sibling: updatedSiblingGroup,
     })
   } catch (error) {
-    console.error('Failed to update sibling group:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error updating sibling relationship'
+    )
     return NextResponse.json(
-      { error: 'Failed to update sibling group' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to update sibling relationship',
+      },
       { status: 500 }
     )
   }
 }
 
-// Delete a sibling group
+// Delete a sibling relationship (soft delete)
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    // Validate the sibling group exists
-    const existingSiblingGroup = await prisma.sibling.findUnique({
-      where: {
-        id,
-      },
-      include: {
-        Student: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    })
 
-    if (!existingSiblingGroup) {
+    if (!id) {
       return NextResponse.json(
-        { error: 'Sibling group not found' },
-        { status: 404 }
+        { error: 'Relationship ID is required' },
+        { status: 400 }
       )
     }
 
-    // Update all students to remove the sibling group ID
-    await prisma.student.updateMany({
-      where: {
-        siblingGroupId: id,
-      },
-      data: {
-        siblingGroupId: null,
-      },
-    })
+    await removeSiblingRelationship(id)
 
-    // Delete the sibling group
-    await prisma.sibling.delete({
-      where: {
-        id,
-      },
+    return NextResponse.json({
+      success: true,
     })
-
-    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Failed to delete sibling group:', error)
+    logger.error(
+      { err: error instanceof Error ? error : new Error(String(error)) },
+      'Error deleting sibling relationship'
+    )
     return NextResponse.json(
-      { error: 'Failed to delete sibling group' },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to delete sibling relationship',
+      },
       { status: 500 }
     )
   }

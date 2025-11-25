@@ -6,7 +6,6 @@ import { ErrorBoundary } from '@/app/mahad/(registration)/register/_components/e
 import { IntlProviderWrapper } from '@/components/intl-provider-wrapper'
 import { LanguageProvider } from '@/contexts/language-context'
 
-
 const queryClient = new QueryClient()
 
 interface ProvidersProps {

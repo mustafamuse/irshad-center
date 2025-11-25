@@ -1,3 +1,5 @@
+import { logger } from '@/lib/logger'
+
 import { LogEventData } from './types'
 
 export function logEvent(
@@ -5,7 +7,7 @@ export function logEvent(
   eventId: string,
   data: LogEventData
 ): void {
-  console.log(`[${message}] Event ID: ${eventId}`, data)
+  logger.info(data, message)
 }
 
 export function handleError(
@@ -13,8 +15,12 @@ export function handleError(
   eventId: string,
   error: unknown
 ): void {
-  console.error(
-    `[${context}] Error processing event ${eventId}:`,
-    error instanceof Error ? error.message : error
+  logger.error(
+    {
+      err: error instanceof Error ? error : new Error(String(error)),
+      eventId,
+      context,
+    },
+    `Error processing event`
   )
 }

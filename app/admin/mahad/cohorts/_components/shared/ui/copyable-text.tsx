@@ -5,7 +5,10 @@ import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { createClientLogger } from '@/lib/logger-client'
 import { cn } from '@/lib/utils'
+
+const logger = createClientLogger('CopyableText')
 
 interface CopyableTextProps {
   text: string
@@ -31,7 +34,7 @@ export function CopyableText({
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
-      console.error('Failed to copy text:', error)
+      logger.error('Failed to copy text', error)
     }
   }
 

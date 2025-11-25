@@ -153,8 +153,8 @@ export function createStudentColumns(
       header: 'Batch',
       cell: ({ row }) => {
         const student = row.original
-        return student.Batch ? (
-          <Badge variant="outline">{student.Batch.name}</Badge>
+        return student.batch ? (
+          <Badge variant="outline">{student.batch.name}</Badge>
         ) : (
           <Badge variant="secondary">Unassigned</Badge>
         )
@@ -213,14 +213,9 @@ export function createStudentColumns(
       ),
       cell: ({ row }) => {
         const student = row.original
-        const activeSiblings =
-          student.Sibling?.Student.filter(
-            (sibling) =>
-              sibling.id !== student.id &&
-              (sibling.status === 'enrolled' || sibling.status === 'registered')
-          ) || []
+        const siblingCount = student.siblingCount || 0
 
-        if (activeSiblings.length === 0) {
+        if (siblingCount === 0) {
           return (
             <div className="flex justify-center">
               <span className="text-muted-foreground">-</span>
@@ -235,20 +230,14 @@ export function createStudentColumns(
                 <TooltipTrigger asChild>
                   <div className="flex items-center gap-1 text-primary">
                     <Users className="h-4 w-4" />
-                    <span className="text-sm font-medium">
-                      {activeSiblings.length}
-                    </span>
+                    <span className="text-sm font-medium">{siblingCount}</span>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent>
-                  <div className="space-y-1">
-                    <p className="font-semibold">Active Siblings:</p>
-                    {activeSiblings.map((sibling) => (
-                      <p key={sibling.id} className="text-sm">
-                        {sibling.name}
-                      </p>
-                    ))}
-                  </div>
+                  <p className="text-sm">
+                    {siblingCount} {siblingCount === 1 ? 'sibling' : 'siblings'}{' '}
+                    enrolled
+                  </p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
