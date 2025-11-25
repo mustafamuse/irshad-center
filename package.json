@@ -37,6 +37,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
+    "@internationalized/date": "^3.10.0",
     "@prisma/adapter-pg": "^6.16.2",
     "@prisma/client": "^6.16.2",
     "@radix-ui/react-accordion": "^1.2.1",
@@ -66,6 +67,7 @@
     "@radix-ui/react-toggle": "^1.1.0",
     "@radix-ui/react-toggle-group": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.4",
+    "@react-aria/datepicker": "^3.15.2",
     "@react-email/components": "^1.0.1",
     "@react-google-maps/api": "^2.20.5",
     "@react-pdf/renderer": "^4.1.6",
@@ -103,6 +105,7 @@
     "praytime": "^3.2.0",
     "raw-body": "^3.0.0",
     "react": "^18.3.1",
+    "react-aria-components": "^1.13.0",
     "react-countup": "^6.5.3",
     "react-day-picker": "^9.11.2",
     "react-dom": "^18",
