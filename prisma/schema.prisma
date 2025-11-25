@@ -344,6 +344,7 @@ model ProgramProfile {
   @@index([program, status])
   @@index([personId, program, status]) // Composite: Find profiles by person, program, status
   @@index([program, status, createdAt]) // Composite: Program-specific lists sorted by date
+  @@index([familyReferenceId, program]) // Composite: Find Dugsi family profiles
 }
 
 model Enrollment {

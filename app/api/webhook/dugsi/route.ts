@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
+import { STRIPE_WEBHOOK_EVENTS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
 import { getNewStudentStatus } from '@/lib/queries/subscriptions'
 import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
@@ -346,22 +347,22 @@ export async function POST(req: Request) {
 
     // Handle different event types
     switch (event.type) {
-      case 'checkout.session.completed':
+      case STRIPE_WEBHOOK_EVENTS.CHECKOUT_COMPLETED:
         await handlePaymentMethodCaptured(
           event.data.object as Stripe.Checkout.Session
         )
         break
 
-      case 'invoice.finalized':
+      case STRIPE_WEBHOOK_EVENTS.INVOICE_FINALIZED:
         await handleInvoiceFinalized(event.data.object as Stripe.Invoice)
         break
 
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated':
+      case STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_CREATED:
+      case STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_UPDATED:
         await handleSubscriptionEvent(event.data.object as Stripe.Subscription)
         break
 
-      case 'customer.subscription.deleted':
+      case STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_DELETED:
         // Handle subscription cancellation
         const canceledSub = event.data.object as Stripe.Subscription
         const canceledCustomerId = extractCustomerId(canceledSub.customer)

@@ -5,6 +5,8 @@
  * data matches expected TypeScript interfaces.
  */
 
+import { STRIPE_WEBHOOK_EVENTS } from '@/lib/constants/stripe'
+
 /**
  * Type guard for PaymentStatusData from getDugsiPaymentStatus action
  */
@@ -163,10 +165,10 @@ export function parseDate(value: unknown): Date | null {
  * Type guard for Stripe webhook event types
  */
 export const HANDLED_WEBHOOK_EVENTS = [
-  'checkout.session.completed',
-  'customer.subscription.created',
-  'customer.subscription.updated',
-  'customer.subscription.deleted',
+  STRIPE_WEBHOOK_EVENTS.CHECKOUT_COMPLETED,
+  STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_CREATED,
+  STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_UPDATED,
+  STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_DELETED,
 ] as const
 
 export type HandledWebhookEvent = (typeof HANDLED_WEBHOOK_EVENTS)[number]

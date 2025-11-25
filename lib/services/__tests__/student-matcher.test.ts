@@ -2,6 +2,7 @@ import type { Student } from '@prisma/client'
 import type { Stripe } from 'stripe'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 
+import { STRIPE_CUSTOM_FIELDS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
 import { validateWebhookData } from '@/lib/validations/webhook'
 
@@ -49,7 +50,7 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentsemailonethatyouusedtoregister',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL,
             text: { value: 'john.doe@example.com' },
           },
         ],
@@ -82,7 +83,7 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentswhatsappthatyouuseforourgroup',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_PHONE,
             numeric: { value: '1234567890' },
           },
         ],
@@ -152,7 +153,7 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentsemailonethatyouusedtoregister',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL,
             text: { value: 'john@example.com' },
           },
         ],
@@ -180,7 +181,7 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentswhatsappthatyouuseforourgroup',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_PHONE,
             numeric: { value: '5555555555' },
           },
         ],
@@ -209,11 +210,11 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentsemailonethatyouusedtoregister',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL,
             text: { value: 'X' }, // Invalid name (too short and contains invalid char)
           },
           {
-            key: 'studentswhatsappthatyouuseforourgroup',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_PHONE,
             numeric: { value: '1' }, // Invalid phone (too short)
           },
         ],
@@ -233,7 +234,7 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentsemailonethatyouusedtoregister',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL,
             text: { value: 'john.doe@example.com' },
           },
         ],
@@ -268,11 +269,11 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentsemailonethatyouusedtoregister',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL,
             text: { value: 'Test Name' },
           },
           {
-            key: 'studentswhatsappthatyouuseforourgroup',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_PHONE,
             numeric: { value: '1234567890' },
           },
         ],
@@ -313,11 +314,11 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentsemailonethatyouusedtoregister',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_EMAIL,
             text: { value: 'john.student@example.com' },
           },
           {
-            key: 'studentswhatsappthatyouuseforourgroup',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_PHONE,
             numeric: { value: '1234567890' },
           },
         ],
@@ -364,7 +365,7 @@ describe('StudentMatcher', () => {
       const mockSession = {
         custom_fields: [
           {
-            key: 'studentswhatsappthatyouuseforourgroup',
+            key: STRIPE_CUSTOM_FIELDS.STUDENT_PHONE,
             numeric: { value: '1234567890' },
           },
         ],
