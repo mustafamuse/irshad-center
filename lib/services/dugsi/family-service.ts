@@ -74,10 +74,11 @@ export interface NewChildInput {
 }
 
 /**
- * Update parent information for entire family.
+ * Update parent information for entire family (Dugsi program).
  *
- * SECURITY: Parent emails are immutable and cannot be changed.
- * Only updates name and phone number.
+ * DESIGN NOTE: Parent emails are immutable for Dugsi families to maintain
+ * authentication integrity. Only name and phone can be updated.
+ * See parent-service.ts for cross-program guardian updates.
  *
  * @param input - Parent update data
  * @returns Number of updated records
@@ -376,16 +377,14 @@ export async function addChildToFamily(
       },
     })
 
-    // Create guardian relationships for all guardians
-    for (const guardian of guardians) {
-      await tx.guardianRelationship.create({
-        data: {
-          guardianId: guardian.id,
-          dependentId: newPerson.id,
-          isActive: true,
-        },
-      })
-    }
+    // Create guardian relationships for all guardians (batch insert)
+    await tx.guardianRelationship.createMany({
+      data: guardians.map((guardian) => ({
+        guardianId: guardian.id,
+        dependentId: newPerson.id,
+        isActive: true,
+      })),
+    })
 
     // Create program profile
     const profile = await tx.programProfile.create({
