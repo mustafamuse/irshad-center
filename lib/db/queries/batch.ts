@@ -165,6 +165,9 @@ export async function createBatch(
 /**
  * Update a batch
  * Note: Use admin actions for updates with proper authorization
+ *
+ * Uses partial update pattern - only updates fields that are explicitly provided.
+ * Undefined fields are not touched, null fields are set to null.
  */
 export async function updateBatch(
   id: string,
@@ -175,13 +178,27 @@ export async function updateBatch(
   },
   client: DatabaseClient = prisma
 ): Promise<BatchWithCount> {
+  // Build update data object with only provided fields
+  // This ensures undefined fields don't accidentally overwrite existing values
+  const updateData: {
+    name?: string
+    startDate?: Date | null
+    endDate?: Date | null
+  } = {}
+
+  if (data.name !== undefined) {
+    updateData.name = data.name
+  }
+  if (data.startDate !== undefined) {
+    updateData.startDate = data.startDate
+  }
+  if (data.endDate !== undefined) {
+    updateData.endDate = data.endDate
+  }
+
   const batch = await client.batch.update({
     where: { id },
-    data: {
-      name: data.name,
-      startDate: data.startDate,
-      endDate: data.endDate,
-    },
+    data: updateData,
   })
 
   // Get current student count
