@@ -666,14 +666,41 @@ export async function createFamilyRegistration(data: unknown): Promise<{
         // Use existing child person
         childPerson = existingChild
       } else {
-        // Create new Person for child
-        const newChildPerson = await tx.person.create({
-          data: {
-            name: childFullName,
-            dateOfBirth: child.dateOfBirth,
-          },
-        })
-        childPerson = { id: newChildPerson.id, name: newChildPerson.name }
+        // Create new Person for child with P2002 race condition handling
+        try {
+          const newChildPerson = await tx.person.create({
+            data: {
+              name: childFullName,
+              dateOfBirth: child.dateOfBirth,
+            },
+          })
+          childPerson = { id: newChildPerson.id, name: newChildPerson.name }
+        } catch (error) {
+          // Handle race condition: another transaction created this child
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            logger.info(
+              { name: childFullName, dateOfBirth: child.dateOfBirth },
+              'Child person already exists (race condition), fetching existing'
+            )
+            const raceConditionChild = await findExistingChild(
+              child.firstName,
+              child.lastName,
+              child.dateOfBirth,
+              tx
+            )
+            if (raceConditionChild) {
+              childPerson = raceConditionChild
+            } else {
+              // Child not found by name+DOB, might be a different unique constraint
+              throw error
+            }
+          } else {
+            throw error
+          }
+        }
       }
 
       // Check if child already has a Dugsi ProgramProfile

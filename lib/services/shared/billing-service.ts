@@ -304,6 +304,10 @@ export function calculateSplitAmounts(
     throw new Error('Count must be positive')
   }
 
+  if (totalAmount < 0) {
+    throw new Error('Total amount must be non-negative')
+  }
+
   if (count === 1) {
     return [totalAmount]
   }
