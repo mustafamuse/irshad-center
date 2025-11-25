@@ -24,7 +24,7 @@ export interface EnrollmentWithRelations extends Enrollment {
     id: string
     personId: string
     program: Program
-    status: string
+    status: EnrollmentStatus
   }
   batch: {
     id: string

@@ -326,10 +326,27 @@ export function serializeError(error: unknown): { err: Error } {
 }
 
 /**
+ * Generate a unique request ID for correlation
+ * Uses crypto.randomUUID if available, falls back to timestamp-based ID
+ */
+function generateRequestId(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID()
+  }
+  // Fallback for environments without crypto.randomUUID
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+}
+
+/**
  * Gets the current request context (request ID, user ID, etc.)
  *
  * Use this to add correlation IDs to logs for tracing requests
  * across multiple services and operations.
+ *
+ * The requestId is synchronized with Sentry for cross-correlation:
+ * - If x-request-id header exists, use it
+ * - If Sentry has a trace ID, use it for correlation
+ * - Otherwise, generate a new ID and set it in Sentry scope
  *
  * @returns Request context object or empty object if not in request context
  *
@@ -342,8 +359,26 @@ export function serializeError(error: unknown): { err: Error } {
 export async function getRequestContext(): Promise<Record<string, unknown>> {
   try {
     const headersList = await headers()
-    const requestId = headersList.get('x-request-id')
+    let requestId = headersList.get('x-request-id')
     const userId = headersList.get('x-user-id')
+
+    // If no request ID from headers, try to get from Sentry or generate new one
+    if (!requestId) {
+      const sentryScope = Sentry.getCurrentScope()
+      const propagationContext = sentryScope.getPropagationContext()
+
+      if (propagationContext?.traceId) {
+        // Use Sentry trace ID for correlation
+        requestId = propagationContext.traceId
+      } else {
+        // Generate new ID and set in Sentry for correlation
+        requestId = generateRequestId()
+        sentryScope.setTag('requestId', requestId)
+      }
+    } else {
+      // If we have a request ID from header, also set it in Sentry
+      Sentry.getCurrentScope().setTag('requestId', requestId)
+    }
 
     return {
       ...(requestId && { requestId }),
@@ -351,7 +386,10 @@ export async function getRequestContext(): Promise<Record<string, unknown>> {
     }
   } catch {
     // Not in request context (e.g., cron jobs, background tasks)
-    return {}
+    // Generate a correlation ID for background tasks
+    const backgroundId = generateRequestId()
+    Sentry.getCurrentScope().setTag('requestId', backgroundId)
+    return { requestId: backgroundId, isBackgroundTask: true }
   }
 }
 

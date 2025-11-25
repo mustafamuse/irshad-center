@@ -10,13 +10,40 @@ import { Prisma, EnrollmentStatus, Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
-import { validateEnrollment } from '@/lib/services/validation-service'
 import {
   isValidStatusTransition,
   ENROLLMENT_STATUS_TRANSITIONS,
 } from '@/lib/types/enrollment'
 
 const logger = createServiceLogger('enrollment')
+
+/**
+ * Validate enrollment data before creation
+ *
+ * Business Rules:
+ * - Dugsi enrollments cannot have a batchId (enforced at application level)
+ * - Mahad enrollments can optionally have a batchId
+ *
+ * @throws Error if validation fails
+ */
+async function validateEnrollmentData(
+  data: {
+    programProfileId: string
+    program: Program
+    batchId?: string | null
+    status: EnrollmentStatus
+  },
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _client?: DatabaseClient
+): Promise<void> {
+  // CRITICAL: Dugsi enrollments must NOT have a batchId
+  // Dugsi students are assigned to teachers, not batches
+  if (data.program === 'DUGSI_PROGRAM' && data.batchId) {
+    throw new Error(
+      'Dugsi enrollments cannot have a batchId. Dugsi students are assigned to teachers, not batches.'
+    )
+  }
+}
 
 /**
  * Get all enrollments for a program profile
@@ -209,7 +236,7 @@ export async function createEnrollment(
 
   // Validate enrollment data (checks Dugsi batchId constraint)
   // CRITICAL: Pass transaction client so validation can see uncommitted data
-  await validateEnrollment(
+  await validateEnrollmentData(
     {
       programProfileId: data.programProfileId,
       program: profile.program,
@@ -327,7 +354,7 @@ export async function reEnrollStudent(
   }
 
   // Validate enrollment data
-  await validateEnrollment({
+  await validateEnrollmentData({
     programProfileId,
     program: profile.program,
     batchId,

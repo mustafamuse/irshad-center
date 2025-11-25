@@ -81,10 +81,26 @@ export function getPrimaryPhone(contactPoints: ContactPoint[]): string | null {
 
 /**
  * Helper to normalize phone number for matching
+ *
+ * Validates phone number length (10-15 digits for E.164 compatibility)
+ * Returns null for invalid phone numbers
+ *
+ * @param phone - Raw phone number string
+ * @returns Normalized digits-only string, or null if invalid
  */
 export function normalizePhone(
   phone: string | null | undefined
 ): string | null {
   if (!phone) return null
-  return phone.replace(/\D/g, '')
+  const normalized = phone.replace(/\D/g, '')
+
+  // Validate length: E.164 format allows 10-15 digits
+  // 10 digits = US/Canada without country code
+  // 11 digits = US/Canada with country code (1)
+  // 15 digits = max E.164 length
+  if (normalized.length < 10 || normalized.length > 15) {
+    return null
+  }
+
+  return normalized
 }
