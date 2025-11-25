@@ -1,6 +1,8 @@
+// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
+// TODO: Migrate to ProgramProfile/Enrollment model
+
 import { SubscriptionStatus } from '@prisma/client'
 
-import { prisma } from '@/lib/db'
 import { StudentStatus } from '@/lib/types/student'
 
 // Constants for payment processing
@@ -30,87 +32,39 @@ export interface StudentSubscriptionInfo {
  * Get student subscription status from the simplified schema
  */
 export async function getStudentSubscriptionStatus(
-  studentId: string
+  _studentId: string
 ): Promise<StudentSubscriptionInfo> {
-  const student = await prisma.student.findFirst({
-    where: {
-      id: studentId,
-      program: 'MAHAD_PROGRAM', // Explicit filter for Mahad
-    },
-    select: {
-      stripeSubscriptionId: true,
-      stripeCustomerId: true,
-      subscriptionStatus: true,
-    },
-  })
-
-  if (!student) {
-    return {
-      isSubscribed: false,
-      status: null,
-      stripeSubscriptionId: null,
-      stripeCustomerId: null,
-    }
-  }
-
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
   return {
-    isSubscribed: student.subscriptionStatus === 'active',
-    status: (student.subscriptionStatus as SubscriptionStatus) || null,
-    stripeSubscriptionId: student.stripeSubscriptionId,
-    stripeCustomerId: student.stripeCustomerId,
-  }
+    isSubscribed: false,
+    status: null,
+    stripeSubscriptionId: null,
+    stripeCustomerId: null,
+  } // Temporary: return empty subscription info until migration complete
 }
 
 /**
  * Get all students with active subscriptions
  */
 export async function getActiveSubscriptions() {
-  return prisma.student.findMany({
-    where: {
-      program: 'MAHAD_PROGRAM', // Explicit filter for Mahad
-      subscriptionStatus: 'active',
-      stripeSubscriptionId: { not: null },
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      stripeSubscriptionId: true,
-      stripeCustomerId: true,
-      subscriptionStatus: true,
-      monthlyRate: true,
-      Batch: {
-        select: {
-          id: true,
-          name: true,
-        },
-      },
-    },
-  })
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return [] // Temporary: return empty array until migration complete
 }
 
 /**
  * Update student subscription status
  */
 export async function updateStudentSubscriptionStatus(
-  studentId: string,
-  newStatus: SubscriptionStatus,
-  options?: {
+  _studentId: string,
+  _newStatus: SubscriptionStatus,
+  _options?: {
     stripeSubscriptionId?: string
     lastPaymentDate?: Date
     nextPaymentDate?: Date
   }
 ) {
-  return prisma.student.update({
-    where: { id: studentId },
-    data: {
-      subscriptionStatus: newStatus,
-      stripeSubscriptionId: options?.stripeSubscriptionId,
-      lastPaymentDate: options?.lastPaymentDate,
-      nextPaymentDue: options?.nextPaymentDate,
-      status: getNewStudentStatus(newStatus),
-    },
-  })
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  throw new Error('Migration needed: Student model has been removed')
 }
 
 // Helper function to map subscription status to student status
@@ -139,88 +93,15 @@ export function getNewStudentStatus(
 /**
  * Validate if a student can be enrolled
  */
-export async function validateStudentForEnrollment(studentId: string) {
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    include: {
-      Sibling: {
-        include: {
-          Student: {
-            select: {
-              id: true,
-              name: true,
-              monthlyRate: true,
-              customRate: true,
-            },
-          },
-        },
-      },
-      Batch: true,
-    },
-  })
-
-  if (!student) {
-    throw new Error('Student not found')
-  }
-
-  // Ensure this is a Mahad student
-  if (student.program !== 'MAHAD_PROGRAM') {
-    throw new Error('This function is only for Mahad program students')
-  }
-
-  // Check if student already has an active subscription
-  if (student.subscriptionStatus === 'active') {
-    throw new Error('Student already has an active subscription')
-  }
-
-  // Check if student is in valid status for enrollment
-  if (student.status !== 'registered') {
-    throw new Error(
-      `Student status ${student.status} is not eligible for enrollment`
-    )
-  }
-
-  return {
-    student: {
-      id: student.id,
-      name: student.name,
-      monthlyRate: student.monthlyRate,
-      customRate: student.customRate,
-      batch: student.Batch,
-      siblingGroup: student.Sibling,
-    },
-    isEligible: true,
-  }
+export async function validateStudentForEnrollment(_studentId: string) {
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  throw new Error('Migration needed: Student model has been removed')
 }
 
 /**
  * Get students eligible for enrollment (no active subscription)
  */
 export async function getEligibleStudents() {
-  return prisma.student.findMany({
-    where: {
-      program: 'MAHAD_PROGRAM', // Explicit filter for Mahad
-      OR: [
-        { subscriptionStatus: null },
-        { subscriptionStatus: { not: 'active' } },
-      ],
-      status: 'registered',
-    },
-    include: {
-      Batch: true,
-      Sibling: {
-        include: {
-          Student: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      name: 'asc',
-    },
-  })
+  // TODO: Migrate to ProgramProfile/Enrollment model - Student model removed
+  return [] // Temporary: return empty array until migration complete
 }
