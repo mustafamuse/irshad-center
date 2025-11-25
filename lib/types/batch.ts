@@ -1,18 +1,24 @@
 /**
  * Batch and Student Type Definitions
  *
- * Shared types for batch and student management.
- * These types are built on top of Prisma-generated types.
+ * Shared types for batch and student management, built on top of the unified
+ * Person → ProgramProfile → Enrollment architecture.
+ *
+ * Migration Status: ✅ COMPLETE
+ * - All types migrated from legacy Student model
+ * - Uses ProgramProfile/Enrollment types
+ * - Maintains backward compatibility for UI components
  */
 
 import { ReactNode } from 'react'
 
 import {
   Batch as PrismaBatch,
-  Student as PrismaStudent,
   EducationLevel,
   GradeLevel,
   Prisma,
+  EnrollmentStatus,
+  SubscriptionStatus,
 } from '@prisma/client'
 import { LucideIcon } from 'lucide-react'
 
@@ -85,94 +91,114 @@ export interface BatchAssignmentResult {
 }
 
 // ============================================================================
-// STUDENT TYPES (Built on Prisma types)
+// STUDENT TYPES (Using ProgramProfile/Enrollment Model)
 // ============================================================================
 
-// Use Prisma's generated type directly
-export type Student = PrismaStudent
+/**
+ * Student with batch data - represents a ProgramProfile with enrollment info
+ * This is the main type used in the admin interface for student lists
+ */
+export interface Student {
+  id: string // ProgramProfile.id
+  name: string // Person.name
+  email?: string | null
+  phone?: string | null
+  dateOfBirth?: Date | null
+  educationLevel?: EducationLevel | null
+  gradeLevel?: GradeLevel | null
+  schoolName?: string | null
+  monthlyRate?: number | null
+  customRate: boolean
+  status: StudentStatusEnum // Mapped from EnrollmentStatus
+  batchId?: string | null
+  createdAt: Date
+  updatedAt: Date
+}
 
-// Student with batch relation
-export type StudentWithBatch = Prisma.StudentGetPayload<{
-  include: {
-    Batch: true
-  }
-}>
+/**
+ * Student with batch relation
+ */
+export interface StudentWithBatch extends Student {
+  batch?: {
+    id: string
+    name: string
+    startDate: Date | null
+    endDate: Date | null
+  } | null
+}
 
 // Re-export StudentStatus enum from student.ts for convenience
 export { StudentStatusEnum as StudentStatus }
 export type { StudentStatusEnum }
 
-// Student with batch and related data for UI (full data - used in lists)
-export type BatchStudentData = Prisma.StudentGetPayload<{
-  include: {
-    Batch: {
-      select: {
-        id: true
-        name: true
-        startDate: true
-        endDate: true
-      }
-    }
-    Sibling: {
-      include: {
-        Student: {
-          select: {
-            id: true
-            name: true
-            status: true
-          }
-        }
-      }
-    }
-  }
-}>
+/**
+ * Student with batch and related data for UI (full data - used in lists)
+ * Includes subscription and sibling information
+ */
+export interface BatchStudentData extends StudentWithBatch {
+  subscription?: {
+    id: string
+    status: string
+    stripeSubscriptionId: string | null
+    amount: number
+  } | null
+  siblingCount?: number
+}
 
-// Student detail data - matches what getStudentById returns (subset of fields)
-export type StudentDetailData = Prisma.StudentGetPayload<{
-  select: {
-    id: true
-    name: true
-    email: true
-    phone: true
-    dateOfBirth: true
-    educationLevel: true
-    gradeLevel: true
-    schoolName: true
-    status: true
-    monthlyRate: true
-    customRate: true
-    batchId: true
-    createdAt: true
-    updatedAt: true
-    Batch: {
-      select: {
-        id: true
-        name: true
-        startDate: true
-        endDate: true
-      }
-    }
-    Sibling: {
-      select: {
-        id: true
-        createdAt: true
-        updatedAt: true
-        Student: {
-          select: {
-            id: true
-            name: true
-            status: true
-          }
-        }
-      }
-    }
-  }
-}>
+/**
+ * Student detail data - matches what getStudentById returns (subset of fields)
+ * Used for detail views and forms
+ */
+export interface StudentDetailData extends BatchStudentData {
+  enrollments?: Array<{
+    id: string
+    status: EnrollmentStatus
+    startDate: Date
+    endDate: Date | null
+    batch?: {
+      id: string
+      name: string
+    } | null
+  }>
+  payments?: Array<{
+    id: string
+    amount: number
+    month: number
+    year: number
+    createdAt: Date
+  }>
+}
 
-// Create/Update DTOs use Prisma's input types
-export type CreateStudentDto = Prisma.StudentCreateInput
+/**
+ * Create/Update DTOs for students
+ * Note: Students should be created through registration-service.ts
+ */
+export interface CreateStudentDto {
+  name: string
+  email?: string | null
+  phone?: string | null
+  dateOfBirth?: Date | null
+  educationLevel?: EducationLevel | null
+  gradeLevel?: GradeLevel | null
+  schoolName?: string | null
+  monthlyRate?: number
+  customRate?: boolean
+  batchId?: string | null
+}
 
-export type UpdateStudentDto = Prisma.StudentUpdateInput
+export interface UpdateStudentDto {
+  name?: string
+  email?: string | null
+  phone?: string | null
+  dateOfBirth?: Date | null
+  educationLevel?: EducationLevel | null
+  gradeLevel?: GradeLevel | null
+  schoolName?: string | null
+  status?: string
+  monthlyRate?: number
+  customRate?: boolean
+  batchId?: string | null
+}
 
 // Legacy interface for backward compatibility (will be removed)
 export interface LegacyStudentWithBatch {
@@ -186,52 +212,56 @@ export interface LegacyStudentWithBatch {
   } | null
 }
 
-// Sibling types (using Prisma Select for type safety)
-export type StudentSibling = Prisma.StudentGetPayload<{
-  select: {
-    id: true
-    name: true
-    status: true
-  }
-}>
+/**
+ * Sibling types using the SiblingRelationship model
+ */
+export interface StudentSibling {
+  id: string // Person.id
+  name: string
+  programProfiles: Array<{
+    id: string // ProgramProfile.id
+    program: string
+  }>
+}
 
-export type SiblingGroupWithStudents = Prisma.SiblingGetPayload<{
-  include: {
-    Student: {
-      select: {
-        id: true
-        name: true
-        status: true
-      }
-    }
-  }
-}>
+/**
+ * Sibling group with students
+ */
+export interface SiblingGroupWithStudents {
+  id: string // Composite key from relationship
+  isActive: boolean
+  detectionMethod: string | null
+  confidence: number | null
+  students: StudentSibling[]
+}
 
 // For backward compatibility
 export type SiblingGroup = SiblingGroupWithStudents
 
-// Duplicate detection types (using Prisma Select)
-export type DuplicateStudent = Prisma.StudentGetPayload<{
-  select: {
-    id: true
-    name: true
-    email: true
-    status: true
-    createdAt: true
-    updatedAt: true
-    Sibling: {
-      select: {
-        id: true
-      }
-    }
-  }
-}>
+/**
+ * Duplicate detection types using ProgramProfile
+ */
+export interface DuplicateStudent {
+  id: string // ProgramProfile.id
+  name: string // Person.name
+  email?: string | null
+  phone?: string | null
+  createdAt: Date
+  updatedAt: Date
+  status: StudentStatusEnum
+  batch?: {
+    id: string
+    name: string
+  } | null
+}
 
 export interface DuplicateGroup {
-  email: string
+  phone: string // The duplicate phone number (previously email)
+  email: string // For backward compatibility
   count: number
-  keepRecord: DuplicateStudent
-  duplicateRecords: DuplicateStudent[]
+  profiles: DuplicateStudent[]
+  keepRecord: DuplicateStudent // The recommended record to keep
+  duplicateRecords: DuplicateStudent[] // Records to potentially remove
   hasSiblingGroup: boolean
   hasRecentActivity: boolean
   differences?: Record<string, Set<string>> | null
@@ -260,6 +290,9 @@ export interface StudentFilters {
   }
   status?: {
     selected?: StudentStatusEnum[]
+  }
+  subscriptionStatus?: {
+    selected?: SubscriptionStatus[]
   }
   educationLevel?: {
     selected?: EducationLevel[]

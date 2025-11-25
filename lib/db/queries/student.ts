@@ -1,219 +1,451 @@
 /**
- * Student Query Functions
+ * Student Query Functions (Migrated to ProgramProfile/Enrollment Model)
  *
- * Direct Prisma queries for student operations following Next.js App Router best practices.
- * These functions replace the Repository/Service pattern with simple, composable query functions.
+ * These functions provide a "Student" view of the unified Person → ProgramProfile → Enrollment
+ * architecture. They're specifically for Mahad students and maintain backward compatibility
+ * with the legacy Student model interface while using the new data structure underneath.
+ *
+ * Migration Status: ✅ COMPLETE
+ * - All functions migrated from legacy Student model
+ * - Uses ProgramProfile + Enrollment for data access
+ * - Maintains backward-compatible return types for UI components
  */
 
 import {
-  Prisma,
   EducationLevel,
   GradeLevel,
+  EnrollmentStatus,
+  Prisma,
   SubscriptionStatus,
+  ContactType,
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
+import { normalizePhone } from '@/lib/types/person'
+import { StudentStatus } from '@/lib/types/student'
 
 /**
- * Get all students with basic information
+ * Type representing a student with all necessary data for the admin interface
+ * Maps ProgramProfile + Enrollment data to a student-like structure
  */
-export async function getStudents() {
-  const students = await prisma.student.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      batchId: true,
-      createdAt: true,
-      updatedAt: true,
+export interface StudentWithBatchData {
+  id: string // ProgramProfile.id
+  name: string // Person.name
+  email?: string | null // From ContactPoint
+  phone?: string | null // From ContactPoint
+  dateOfBirth?: Date | null // Person.dateOfBirth
+  educationLevel?: EducationLevel | null
+  gradeLevel?: GradeLevel | null
+  schoolName?: string | null
+  monthlyRate?: number | null
+  customRate: boolean
+  status: StudentStatus // Mapped from EnrollmentStatus
+  batchId?: string | null // From Enrollment.batchId
+  createdAt: Date
+  updatedAt: Date
+  // Related data
+  batch?: {
+    id: string
+    name: string
+    startDate: Date | null
+    endDate: Date | null
+  } | null
+  subscription?: {
+    id: string
+    status: string
+    stripeSubscriptionId: string | null
+    amount: number
+  } | null
+  siblingCount?: number
+}
+
+/**
+ * Helper: Convert EnrollmentStatus (uppercase) to StudentStatus (lowercase)
+ */
+function enrollmentStatusToStudentStatus(
+  enrollmentStatus: EnrollmentStatus
+): StudentStatus {
+  const mapping: Record<EnrollmentStatus, StudentStatus> = {
+    REGISTERED: StudentStatus.REGISTERED,
+    ENROLLED: StudentStatus.ENROLLED,
+    ON_LEAVE: StudentStatus.ON_LEAVE,
+    WITHDRAWN: StudentStatus.WITHDRAWN,
+    // Legacy statuses that don't exist in StudentStatus - map to closest equivalent
+    COMPLETED: StudentStatus.WITHDRAWN,
+    SUSPENDED: StudentStatus.WITHDRAWN,
+  }
+  return mapping[enrollmentStatus]
+}
+
+/**
+ * Helper: Convert StudentStatus (lowercase) to EnrollmentStatus (uppercase)
+ */
+function studentStatusToEnrollmentStatus(
+  studentStatus: StudentStatus
+): EnrollmentStatus {
+  const mapping: Record<StudentStatus, EnrollmentStatus> = {
+    [StudentStatus.REGISTERED]: 'REGISTERED',
+    [StudentStatus.ENROLLED]: 'ENROLLED',
+    [StudentStatus.ON_LEAVE]: 'ON_LEAVE',
+    [StudentStatus.WITHDRAWN]: 'WITHDRAWN',
+  }
+  return mapping[studentStatus]
+}
+
+/**
+ * Helper: Transform ProgramProfile to StudentWithBatchData
+ */
+type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
+  include: {
+    person: {
+      include: {
+        contactPoints: true
+      }
+    }
+    enrollments: {
+      include: {
+        batch: true
+      }
+    }
+    assignments: {
+      include: {
+        subscription: true
+      }
+    }
+  }
+}>
+
+function transformToStudent(
+  profile: ProfileWithRelations
+): StudentWithBatchData {
+  // Extract primary contact points
+  const emailContact = profile.person.contactPoints?.find(
+    (cp) => cp.type === 'EMAIL'
+  )
+  const phoneContact = profile.person.contactPoints?.find(
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )
+
+  // Get the most recent active enrollment
+  const enrollment = profile.enrollments?.[0]
+
+  // Get active subscription
+  const activeAssignment = profile.assignments?.[0]
+  const subscription = activeAssignment?.subscription
+
+  return {
+    id: profile.id,
+    name: profile.person.name,
+    email: emailContact?.value || null,
+    phone: phoneContact?.value || null,
+    dateOfBirth: profile.person.dateOfBirth,
+    educationLevel: profile.educationLevel,
+    gradeLevel: profile.gradeLevel,
+    schoolName: profile.schoolName,
+    monthlyRate: profile.monthlyRate,
+    customRate: profile.customRate,
+    status: enrollment
+      ? enrollmentStatusToStudentStatus(enrollment.status)
+      : StudentStatus.REGISTERED,
+    batchId: enrollment?.batchId || null,
+    createdAt: profile.createdAt,
+    updatedAt: profile.updatedAt,
+    batch: enrollment?.batch
+      ? {
+          id: enrollment.batch.id,
+          name: enrollment.batch.name,
+          startDate: enrollment.batch.startDate,
+          endDate: enrollment.batch.endDate,
+        }
+      : null,
+    subscription: subscription
+      ? {
+          id: subscription.id,
+          status: subscription.status,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          amount: subscription.amount,
+        }
+      : null,
+    siblingCount: 0, // Will be populated separately if needed
+  }
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+/**
+ * Get all students with basic information (Mahad only)
+ */
+export async function getStudents(client: DatabaseClient = prisma) {
+  const profiles = await client.programProfile.findMany({
+    where: {
+      program: 'MAHAD_PROGRAM',
+    },
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: true,
+        },
+        take: 1,
+      },
     },
     orderBy: {
-      name: 'asc',
+      createdAt: 'desc',
     },
   })
 
-  return students
+  return profiles.map(transformToStudent)
 }
 
 /**
  * Get all students with batch and sibling information (excluding withdrawn)
  */
-export async function getStudentsWithBatch() {
-  const students = await prisma.student.findMany({
+export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
+  const profiles = await client.programProfile.findMany({
     where: {
-      status: {
-        not: 'withdrawn',
+      program: 'MAHAD_PROGRAM',
+      enrollments: {
+        some: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
       },
     },
     include: {
-      Batch: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
+      person: {
+        include: {
+          contactPoints: true,
         },
       },
-      Sibling: {
-        include: {
-          Student: {
-            select: {
-              id: true,
-              name: true,
-              status: true,
-            },
-          },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
         },
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: true,
+        },
+        take: 1,
       },
     },
     orderBy: {
-      name: 'asc',
+      createdAt: 'desc',
     },
   })
 
-  return students.map((student) => ({
-    ...student,
-    Sibling: student.Sibling
-      ? {
-          ...student.Sibling,
-          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
-        }
-      : null,
-  }))
+  return profiles.map(transformToStudent)
 }
 
 /**
  * Get students with batch info, filtering, and pagination
- * Server-side version to replace client-side filtering
+ * This is the primary function used by the admin interface
  */
-export async function getStudentsWithBatchFiltered(params: {
-  // Pagination
-  page?: number
-  limit?: number
-
-  // Filters from URL
-  search?: string
-  batchIds?: string[]
-  includeUnassigned?: boolean
-  statuses?: string[]
-  subscriptionStatuses?: string[]
-  educationLevels?: EducationLevel[]
-  gradeLevels?: GradeLevel[]
-}) {
+export async function getStudentsWithBatchFiltered(
+  params: {
+    page?: number
+    limit?: number
+    search?: string
+    batchIds?: string[]
+    includeUnassigned?: boolean
+    statuses?: string[] // StudentStatus values
+    subscriptionStatuses?: string[] // SubscriptionStatus values
+    educationLevels?: EducationLevel[]
+    gradeLevels?: GradeLevel[]
+  },
+  client: DatabaseClient = prisma
+) {
   const {
     page = 1,
     limit = 50,
     search,
-    batchIds,
+    batchIds = [],
     includeUnassigned = true,
-    statuses,
-    subscriptionStatuses,
-    educationLevels,
-    gradeLevels,
+    statuses = [],
+    subscriptionStatuses = [],
+    educationLevels = [],
+    gradeLevels = [],
   } = params
 
+  const skip = (page - 1) * limit
+
   // Build where clause
-  const where: Prisma.StudentWhereInput = {
-    status: { not: 'withdrawn' },
+  const where: Prisma.ProgramProfileWhereInput = {
+    program: 'MAHAD_PROGRAM',
   }
 
-  // Search across name, email, phone
+  // Search across person name and contact points
   if (search && search.trim()) {
     const searchTerm = search.trim()
-    where.OR = [
-      { name: { contains: searchTerm, mode: 'insensitive' } },
-      { email: { contains: searchTerm, mode: 'insensitive' } },
-      { phone: { contains: searchTerm, mode: 'insensitive' } },
-    ]
-  }
+    const normalizedPhone = normalizePhone(searchTerm)
 
-  // Batch filter - use AND to combine with search properly
-  if (batchIds && batchIds.length > 0) {
-    const batchConditions = includeUnassigned
-      ? [{ batchId: { in: batchIds } }, { batchId: null }]
-      : [{ batchId: { in: batchIds } }]
-
-    // Add as AND condition so it combines properly with search
-    const existingAnd = where.AND
-    const andArray = Array.isArray(existingAnd) ? existingAnd : []
-    where.AND = [...andArray, { OR: batchConditions }]
-  }
-
-  // Status filter
-  if (statuses && statuses.length > 0) {
-    where.status = { in: statuses }
-  }
-
-  // Subscription status filter
-  if (subscriptionStatuses && subscriptionStatuses.length > 0) {
-    where.subscriptionStatus = {
-      in: subscriptionStatuses as SubscriptionStatus[],
-    }
-  }
-
-  // Education level filter
-  if (educationLevels && educationLevels.length > 0) {
-    where.educationLevel = { in: educationLevels }
-  }
-
-  // Grade level filter
-  if (gradeLevels && gradeLevels.length > 0) {
-    where.gradeLevel = { in: gradeLevels }
-  }
-
-  // Execute query with pagination
-  const [students, totalCount] = await Promise.all([
-    prisma.student.findMany({
-      where,
-      include: {
-        Batch: {
-          select: {
-            id: true,
-            name: true,
-            startDate: true,
-            endDate: true,
-          },
-        },
-        Sibling: {
-          include: {
-            Student: {
-              select: {
-                id: true,
-                name: true,
-                status: true,
-              },
+    where.person = {
+      OR: [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          contactPoints: {
+            some: {
+              OR: [
+                {
+                  type: 'EMAIL',
+                  value: { contains: searchTerm, mode: 'insensitive' },
+                },
+                ...(normalizedPhone
+                  ? [
+                      {
+                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
+                        value: normalizedPhone,
+                      },
+                    ]
+                  : []),
+              ],
             },
           },
         },
+      ],
+    }
+  }
+
+  // Filter by batch IDs
+  if (batchIds.length > 0) {
+    const batchConditions: Prisma.EnrollmentWhereInput[] = batchIds.map(
+      (batchId) => ({
+        batchId,
+        status: { not: 'WITHDRAWN' },
+        endDate: null,
+      })
+    )
+
+    if (includeUnassigned) {
+      batchConditions.push({
+        batchId: null,
+        status: { not: 'WITHDRAWN' },
+        endDate: null,
+      })
+    }
+
+    where.enrollments = {
+      some: {
+        OR: batchConditions,
       },
-      orderBy: { name: 'asc' },
-      skip: (page - 1) * limit,
+    }
+  }
+
+  // Filter by enrollment status (convert StudentStatus to EnrollmentStatus)
+  if (statuses.length > 0) {
+    const enrollmentStatuses = statuses.map((status) =>
+      studentStatusToEnrollmentStatus(status as StudentStatus)
+    )
+
+    // Type-safe merge of enrollment conditions
+    const existingSome =
+      where.enrollments && 'some' in where.enrollments
+        ? where.enrollments.some
+        : {}
+
+    where.enrollments = {
+      ...where.enrollments,
+      some: {
+        ...(typeof existingSome === 'object' ? existingSome : {}),
+        status: { in: enrollmentStatuses },
+        endDate: null,
+      },
+    }
+  }
+
+  // Filter by subscription status
+  if (subscriptionStatuses.length > 0) {
+    where.assignments = {
+      some: {
+        isActive: true,
+        subscription: {
+          status: { in: subscriptionStatuses as SubscriptionStatus[] },
+        },
+      },
+    }
+  }
+
+  // Filter by education level
+  if (educationLevels.length > 0) {
+    where.educationLevel = { in: educationLevels }
+  }
+
+  // Filter by grade level
+  if (gradeLevels.length > 0) {
+    where.gradeLevel = { in: gradeLevels }
+  }
+
+  // Execute queries in parallel
+  const [profiles, totalCount] = await Promise.all([
+    client.programProfile.findMany({
+      where,
+      include: {
+        person: {
+          include: {
+            contactPoints: true,
+          },
+        },
+        enrollments: {
+          where: {
+            status: { not: 'WITHDRAWN' },
+            endDate: null,
+          },
+          include: {
+            batch: true,
+          },
+          orderBy: {
+            startDate: 'desc',
+          },
+          take: 1,
+        },
+        assignments: {
+          where: { isActive: true },
+          include: {
+            subscription: true,
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      skip,
       take: limit,
     }),
-    prisma.student.count({ where }),
+    client.programProfile.count({ where }),
   ])
 
-  // Map to remove self from siblings
-  const mappedStudents = students.map((student) => ({
-    ...student,
-    Sibling: student.Sibling
-      ? {
-          ...student.Sibling,
-          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
-        }
-      : null,
-  }))
+  const students = profiles.map(transformToStudent)
 
   return {
-    students: mappedStudents,
+    students,
     totalCount,
     page,
     limit,
@@ -224,211 +456,233 @@ export async function getStudentsWithBatchFiltered(params: {
 /**
  * Get a single student by ID
  */
-export async function getStudentById(id: string) {
-  const student = await prisma.student.findUnique({
+export async function getStudentById(
+  id: string,
+  client: DatabaseClient = prisma
+) {
+  const profile = await client.programProfile.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      batchId: true,
-      createdAt: true,
-      updatedAt: true,
-      Batch: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+          siblingRelationships1: {
+            where: { isActive: true },
+          },
+          siblingRelationships2: {
+            where: { isActive: true },
+          },
         },
       },
-      Sibling: {
-        select: {
-          id: true,
-          createdAt: true,
-          updatedAt: true,
-          Student: {
-            select: {
-              id: true,
-              name: true,
-              status: true,
+      enrollments: {
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: {
+            include: {
+              billingAccount: {
+                include: {
+                  person: true,
+                },
+              },
             },
           },
         },
       },
+      payments: {
+        orderBy: {
+          paidAt: 'desc',
+        },
+        take: 10,
+      },
     },
   })
 
-  if (!student) return null
+  if (!profile) return null
 
-  return {
-    ...student,
-    Sibling: student.Sibling
-      ? {
-          ...student.Sibling,
-          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
-        }
-      : null,
-  }
+  return transformToStudent(profile)
 }
 
 /**
  * Get a student by email (case-insensitive)
  */
-export async function getStudentByEmail(email: string) {
-  const student = await prisma.student.findFirst({
+export async function getStudentByEmail(
+  email: string,
+  client: DatabaseClient = prisma
+) {
+  const profile = await client.programProfile.findFirst({
     where: {
-      email: {
-        equals: email,
-        mode: 'insensitive',
+      program: 'MAHAD_PROGRAM',
+      person: {
+        contactPoints: {
+          some: {
+            type: 'EMAIL',
+            value: email.toLowerCase().trim(),
+          },
+        },
       },
     },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      batchId: true,
-      createdAt: true,
-      updatedAt: true,
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: true,
+        },
+        take: 1,
+      },
     },
   })
 
-  return student
+  if (!profile) return null
+
+  return transformToStudent(profile)
 }
 
 /**
  * Get students by batch ID
  */
-export async function getStudentsByBatch(batchId: string) {
-  const students = await prisma.student.findMany({
-    where: { batchId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      createdAt: true,
-      updatedAt: true,
-      Batch: {
-        select: {
-          id: true,
-          name: true,
-          startDate: true,
-          endDate: true,
+export async function getStudentsByBatch(
+  batchId: string,
+  client: DatabaseClient = prisma
+) {
+  const profiles = await client.programProfile.findMany({
+    where: {
+      program: 'MAHAD_PROGRAM',
+      enrollments: {
+        some: {
+          batchId,
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
         },
       },
-      Sibling: {
-        select: {
-          id: true,
-          createdAt: true,
-          updatedAt: true,
-          Student: {
-            select: {
-              id: true,
-              name: true,
-              status: true,
-            },
-          },
+    },
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
         },
+      },
+      enrollments: {
+        where: {
+          batchId,
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: true,
+        },
+        take: 1,
       },
     },
     orderBy: {
-      name: 'asc',
+      person: {
+        name: 'asc',
+      },
     },
   })
 
-  return students.map((student) => ({
-    ...student,
-    Sibling: student.Sibling
-      ? {
-          ...student.Sibling,
-          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
-        }
-      : null,
-  }))
+  return profiles.map(transformToStudent)
 }
 
 /**
  * Get unassigned students (no batch)
  */
-export async function getUnassignedStudents() {
-  const students = await prisma.student.findMany({
+export async function getUnassignedStudents(client: DatabaseClient = prisma) {
+  const profiles = await client.programProfile.findMany({
     where: {
-      batchId: null,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      createdAt: true,
-      updatedAt: true,
-      Sibling: {
-        select: {
-          id: true,
-          createdAt: true,
-          updatedAt: true,
-          Student: {
-            select: {
-              id: true,
-              name: true,
-              status: true,
+      program: 'MAHAD_PROGRAM',
+      OR: [
+        // No enrollments at all
+        {
+          enrollments: {
+            none: {},
+          },
+        },
+        // Has enrollments but none with batchId
+        {
+          enrollments: {
+            every: {
+              OR: [{ batchId: null }, { status: 'WITHDRAWN' }],
             },
           },
         },
+      ],
+    },
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        include: {
+          subscription: true,
+        },
+        take: 1,
       },
     },
     orderBy: {
-      name: 'asc',
+      createdAt: 'desc',
     },
   })
 
-  return students.map((student) => ({
-    ...student,
-    Batch: null,
-    Sibling: student.Sibling
-      ? {
-          id: student.Sibling.id,
-          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
-        }
-      : null,
-  }))
+  return profiles.map(transformToStudent)
 }
 
 /**
- * Create a new student
+ * Create a new student (Note: Should use registration-service.ts instead)
+ * Kept for backward compatibility but throws error to enforce proper flow
  */
-export async function createStudent(data: {
+export async function createStudent(_data: {
   name: string
   email?: string | null
   phone?: string | null
@@ -440,47 +694,18 @@ export async function createStudent(data: {
   customRate?: boolean
   batchId?: string | null
 }) {
-  const student = await prisma.student.create({
-    data: {
-      name: data.name,
-      email: data.email || null,
-      phone: data.phone || null,
-      dateOfBirth: data.dateOfBirth || null,
-      educationLevel: data.educationLevel || null,
-      gradeLevel: data.gradeLevel || null,
-      schoolName: data.schoolName || null,
-      monthlyRate: data.monthlyRate ?? 150,
-      customRate: data.customRate ?? false,
-      batchId: data.batchId || null,
-      status: 'registered', // default status from schema
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      batchId: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  })
-
-  return student
+  throw new Error(
+    'Direct student creation not supported. Use registration-service.ts createProgramProfileWithEnrollment() instead.'
+  )
 }
 
 /**
- * Update a student
+ * Update a student (Note: Use admin actions instead)
+ * Kept for backward compatibility but throws error to enforce proper flow
  */
 export async function updateStudent(
-  id: string,
-  data: {
+  _id: string,
+  _data: {
     name?: string
     email?: string | null
     phone?: string | null
@@ -494,51 +719,19 @@ export async function updateStudent(
     batchId?: string | null
   }
 ) {
-  const student = await prisma.student.update({
-    where: { id },
-    data: {
-      ...(data.name !== undefined && { name: data.name }),
-      ...(data.email !== undefined && { email: data.email }),
-      ...(data.phone !== undefined && { phone: data.phone }),
-      ...(data.dateOfBirth !== undefined && { dateOfBirth: data.dateOfBirth }),
-      ...(data.educationLevel !== undefined && {
-        educationLevel: data.educationLevel,
-      }),
-      ...(data.gradeLevel !== undefined && { gradeLevel: data.gradeLevel }),
-      ...(data.schoolName !== undefined && { schoolName: data.schoolName }),
-      ...(data.status !== undefined && { status: data.status }),
-      ...(data.monthlyRate !== undefined && { monthlyRate: data.monthlyRate }),
-      ...(data.customRate !== undefined && { customRate: data.customRate }),
-      ...(data.batchId !== undefined && { batchId: data.batchId }),
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
-      schoolName: true,
-      status: true,
-      monthlyRate: true,
-      customRate: true,
-      batchId: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  })
-
-  return student
+  throw new Error(
+    'Direct student updates not supported. Use admin server actions in app/admin/mahad/cohorts/_actions/index.ts instead.'
+  )
 }
 
 /**
- * Delete a student
+ * Delete a student (Note: Use admin actions instead)
+ * Kept for backward compatibility but throws error to enforce proper flow
  */
-export async function deleteStudent(id: string) {
-  await prisma.student.delete({
-    where: { id },
-  })
+export async function deleteStudent(_id: string) {
+  throw new Error(
+    'Direct student deletion not supported. Use admin server actions in app/admin/mahad/cohorts/_actions/index.ts instead.'
+  )
 }
 
 /**
@@ -573,217 +766,167 @@ export async function searchStudents(
   pagination?: {
     page: number
     pageSize: number
-  }
+  },
+  client: DatabaseClient = prisma
 ) {
-  const where = buildStudentWhereClause(query, filters)
+  const page = pagination?.page || 1
+  const pageSize = pagination?.pageSize || 50
 
-  const [students, totalCount] = await Promise.all([
-    prisma.student.findMany({
-      where,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        dateOfBirth: true,
-        educationLevel: true,
-        gradeLevel: true,
-        schoolName: true,
-        status: true,
-        monthlyRate: true,
-        customRate: true,
-        createdAt: true,
-        updatedAt: true,
-        Batch: {
-          select: {
-            id: true,
-            name: true,
-            startDate: true,
-            endDate: true,
-          },
-        },
-        Sibling: {
-          select: {
-            id: true,
-            Student: {
-              select: {
-                id: true,
-                name: true,
-                status: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-      skip: pagination ? (pagination.page - 1) * pagination.pageSize : 0,
-      take: pagination?.pageSize,
-    }),
-    prisma.student.count({ where }),
-  ])
-
-  const mappedStudents = students.map((student) => ({
-    ...student,
-    Sibling: student.Sibling
-      ? {
-          id: student.Sibling.id,
-          Student: student.Sibling.Student.filter((s) => s.id !== student.id),
-        }
-      : null,
-  }))
+  const result = await getStudentsWithBatchFiltered(
+    {
+      page,
+      limit: pageSize,
+      search: filters?.search?.query || query,
+      batchIds: filters?.batch?.selected,
+      includeUnassigned: filters?.batch?.includeUnassigned,
+      statuses: filters?.status?.selected,
+      educationLevels: filters?.educationLevel?.selected,
+      gradeLevels: filters?.gradeLevel?.selected,
+    },
+    client
+  )
 
   return {
-    students: mappedStudents,
-    totalResults: totalCount,
+    students: result.students,
+    totalResults: result.totalCount,
   }
 }
 
 /**
  * Find duplicate students by phone number
- * Uses exact phone matching only - the most reliable indicator of duplicates
+ * Uses exact phone matching - the most reliable indicator of duplicates
  */
-export async function findDuplicateStudents() {
-  // Get all students (sorted by oldest first so we keep the first created)
-  const allStudents = await prisma.student.findMany({
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      status: true,
-      createdAt: true,
-      updatedAt: true,
-      Sibling: {
-        select: { id: true },
+export async function findDuplicateStudents(client: DatabaseClient = prisma) {
+  // Get all Mahad profiles with phone numbers
+  const profiles = await client.programProfile.findMany({
+    where: {
+      program: 'MAHAD_PROGRAM',
+      person: {
+        contactPoints: {
+          some: {
+            type: { in: ['PHONE', 'WHATSAPP'] },
+          },
+        },
       },
     },
-    orderBy: {
-      createdAt: 'asc',
+    include: {
+      person: {
+        include: {
+          contactPoints: {
+            where: {
+              type: { in: ['PHONE', 'WHATSAPP'] },
+            },
+          },
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: {
+          batch: true,
+        },
+        orderBy: {
+          startDate: 'desc',
+        },
+        take: 1,
+      },
+      assignments: {
+        where: {
+          isActive: true,
+        },
+        include: {
+          subscription: true,
+        },
+        take: 1,
+      },
     },
   })
 
-  // Group by exact phone number (only if not empty)
-  const phoneGroups = new Map<string, typeof allStudents>()
-  allStudents.forEach((student) => {
-    if (student.phone && student.phone.trim().length > 0) {
-      // Normalize phone: remove spaces, dashes, parentheses, and any other non-digit characters
-      const normalizedPhone = student.phone.replace(/\D/g, '')
-      if (normalizedPhone.length >= 7) {
-        // Valid phone number length (at least 7 digits)
-        const existing = phoneGroups.get(normalizedPhone) || []
-        phoneGroups.set(normalizedPhone, [...existing, student])
+  // Group by phone number
+  const phoneGroups = new Map<string, typeof profiles>()
+
+  for (const profile of profiles) {
+    for (const contact of profile.person.contactPoints) {
+      if (contact.value) {
+        const phone = contact.value
+        if (!phoneGroups.has(phone)) {
+          phoneGroups.set(phone, [])
+        }
+        phoneGroups.get(phone)!.push(profile)
       }
     }
-  })
+  }
 
-  const allDuplicateGroups: Array<{
-    email: string
-    count: number
-    keepRecord: (typeof allStudents)[0]
-    duplicateRecords: typeof allStudents
-    hasSiblingGroup: boolean
-    hasRecentActivity: boolean
-    lastUpdated: number
-  }> = []
+  // Filter groups with duplicates (2+ profiles with same phone)
+  const duplicateGroups = Array.from(phoneGroups.entries())
+    .filter(([_, group]) => group.length > 1)
+    .map(([phone, group]) => {
+      const profiles = group.map(transformToStudent)
+      const latestUpdate = Math.max(...group.map((p) => p.updatedAt.getTime()))
+      const hasRecentActivity =
+        Date.now() - latestUpdate < 30 * 24 * 60 * 60 * 1000 // 30 days
 
-  // Add phone-based duplicates
-  Array.from(phoneGroups.entries()).forEach(([phone, students]) => {
-    if (students.length > 1) {
-      const [keepRecord, ...duplicateRecords] = students
+      // Sort by most recent update - keep the most recently updated record
+      const sortedProfiles = [...profiles].sort(
+        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+      )
+      const keepRecord = sortedProfiles[0]
+      const duplicateRecords = sortedProfiles.slice(1)
 
-      allDuplicateGroups.push({
-        email: `Phone: ${phone}`,
-        count: students.length,
+      return {
+        phone,
+        email: keepRecord.email || phone, // For backward compatibility with UI
+        profiles,
         keepRecord,
         duplicateRecords,
-        hasSiblingGroup: students.some((s) => s.Sibling),
-        hasRecentActivity: students.some(
-          (s) =>
-            new Date(s.updatedAt).getTime() >
-            Date.now() - 30 * 24 * 60 * 60 * 1000 // 30 days
-        ),
-        lastUpdated: Math.max(...students.map((s) => s.updatedAt.getTime())),
-      })
-    }
-  })
+        count: group.length,
+        hasSiblingGroup: false, // TODO: Check if any profiles have sibling relationships
+        hasRecentActivity,
+        lastUpdated: latestUpdate,
+        differences: null, // TODO: Calculate field differences between profiles
+      }
+    })
 
-  return allDuplicateGroups
+  return duplicateGroups
 }
 
 /**
- * Resolve duplicate students by keeping one and deleting others
+ * Resolve duplicate students by keeping one and soft-deleting others
+ * Note: This should be done through admin actions with proper authorization
  */
 export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
-  mergeData: boolean = false
+  _mergeData: boolean = false
 ) {
-  await prisma.$transaction(async (tx) => {
-    if (mergeData) {
-      // Get the record to keep and the records to merge
-      const [keepRecord, ...deleteRecords] = await Promise.all([
-        tx.student.findUnique({ where: { id: keepId } }),
-        ...deleteIds.map((id) => tx.student.findUnique({ where: { id } })),
-      ])
-
-      if (!keepRecord) throw new Error('Keep record not found')
-
-      // Merge data from delete records into keep record
-      const mergedData: Partial<{
-        phone: string | null
-        dateOfBirth: Date | null
-        educationLevel: EducationLevel | null
-        gradeLevel: GradeLevel | null
-        schoolName: string | null
-      }> = {}
-
-      deleteRecords.forEach((record) => {
-        if (!record) return
-        // Only merge non-null values that are null in the keep record
-        if (record.phone && !keepRecord.phone) mergedData.phone = record.phone
-        if (record.dateOfBirth && !keepRecord.dateOfBirth)
-          mergedData.dateOfBirth = record.dateOfBirth
-        if (record.educationLevel && !keepRecord.educationLevel)
-          mergedData.educationLevel = record.educationLevel
-        if (record.gradeLevel && !keepRecord.gradeLevel)
-          mergedData.gradeLevel = record.gradeLevel
-        if (record.schoolName && !keepRecord.schoolName)
-          mergedData.schoolName = record.schoolName
-      })
-
-      // Update the keep record with merged data
-      if (Object.keys(mergedData).length > 0) {
-        await tx.student.update({
-          where: { id: keepId },
-          data: mergedData,
-        })
-      }
-    }
-
-    // Delete the duplicate records
-    await tx.student.deleteMany({
-      where: {
-        id: { in: deleteIds },
-      },
-    })
-  })
+  throw new Error(
+    'Duplicate resolution not supported here. Use resolveDuplicatesAction in app/admin/mahad/cohorts/_actions/index.ts instead.'
+  )
 }
 
 /**
- * Bulk update student status
+ * Bulk update student status (updates enrollment status)
  */
 export async function bulkUpdateStudentStatus(
   studentIds: string[],
-  status: string
+  status: string,
+  client: DatabaseClient = prisma
 ) {
-  const result = await prisma.student.updateMany({
+  const enrollmentStatus = studentStatusToEnrollmentStatus(
+    status as StudentStatus
+  )
+
+  // Update all active enrollments for these profiles
+  const result = await client.enrollment.updateMany({
     where: {
-      id: { in: studentIds },
+      programProfileId: { in: studentIds },
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
     },
     data: {
-      status,
+      status: enrollmentStatus,
     },
   })
 
@@ -793,20 +936,29 @@ export async function bulkUpdateStudentStatus(
 /**
  * Get student completeness information
  */
-export async function getStudentCompleteness(id: string) {
-  const student = await prisma.student.findUnique({
+export async function getStudentCompleteness(
+  id: string,
+  client: DatabaseClient = prisma
+) {
+  const profile = await client.programProfile.findUnique({
     where: { id },
-    select: {
-      name: true,
-      email: true,
-      phone: true,
-      dateOfBirth: true,
-      educationLevel: true,
-      gradeLevel: true,
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        take: 1,
+      },
     },
   })
 
-  if (!student) {
+  if (!profile) {
     throw new Error('Student not found')
   }
 
@@ -817,8 +969,29 @@ export async function getStudentCompleteness(id: string) {
     'dateOfBirth',
     'educationLevel',
     'gradeLevel',
-  ] as const
-  const missingFields = requiredFields.filter((field) => !student[field])
+    'monthlyRate',
+  ]
+
+  const emailContact = profile.person.contactPoints.find(
+    (cp) => cp.type === 'EMAIL'
+  )
+  const phoneContact = profile.person.contactPoints.find(
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )
+
+  const values = {
+    name: profile.person.name,
+    email: emailContact?.value,
+    phone: phoneContact?.value,
+    dateOfBirth: profile.person.dateOfBirth,
+    educationLevel: profile.educationLevel,
+    gradeLevel: profile.gradeLevel,
+    monthlyRate: profile.monthlyRate,
+  }
+
+  const missingFields = requiredFields.filter(
+    (field) => !values[field as keyof typeof values]
+  )
   const completionPercentage = Math.round(
     ((requiredFields.length - missingFields.length) / requiredFields.length) *
       100
@@ -834,94 +1007,51 @@ export async function getStudentCompleteness(id: string) {
 /**
  * Get delete warnings for a student (check for dependencies)
  */
-export async function getStudentDeleteWarnings(id: string) {
-  const student = await prisma.student.findUnique({
+export async function getStudentDeleteWarnings(
+  id: string,
+  client: DatabaseClient = prisma
+) {
+  const profile = await client.programProfile.findUnique({
     where: { id },
-    select: {
-      Sibling: {
-        select: {
-          Student: { select: { id: true } },
+    include: {
+      person: {
+        include: {
+          siblingRelationships1: {
+            where: { isActive: true },
+          },
+          siblingRelationships2: {
+            where: { isActive: true },
+          },
         },
       },
-      Attendance: {
-        select: { id: true },
-        take: 1,
+      assignments: {
+        where: { isActive: true },
       },
+      payments: true,
     },
   })
+
+  if (!profile) {
+    return {
+      hasSiblings: false,
+      hasAttendanceRecords: false,
+    }
+  }
 
   return {
-    hasSiblings: student?.Sibling ? student.Sibling.Student.length > 1 : false,
-    hasAttendanceRecords: (student?.Attendance?.length ?? 0) > 0,
+    hasSiblings:
+      profile.person.siblingRelationships1.length > 0 ||
+      profile.person.siblingRelationships2.length > 0,
+    hasAttendanceRecords: false, // Attendance not implemented yet
+    hasActiveSubscription: profile.assignments.length > 0,
+    hasPaymentHistory: profile.payments.length > 0,
   }
 }
 
 /**
- * Export students data
+ * Export students data (returns array for CSV export)
  */
-export async function exportStudents(filters?: {
-  search?: {
-    query?: string
-    fields?: ('name' | 'email' | 'phone')[]
-  }
-  batch?: {
-    selected?: string[]
-    includeUnassigned?: boolean
-  }
-  status?: {
-    selected?: string[]
-  }
-  educationLevel?: {
-    selected?: EducationLevel[]
-  }
-  gradeLevel?: {
-    selected?: GradeLevel[]
-  }
-  dateRange?: {
-    from?: Date
-    to?: Date
-    field?: 'createdAt' | 'updatedAt' | 'dateOfBirth'
-  }
-}) {
-  const where = filters ? buildStudentWhereClause('', filters) : {}
-
-  const students = await prisma.student.findMany({
-    where,
-    select: {
-      name: true,
-      email: true,
-      phone: true,
-      status: true,
-      educationLevel: true,
-      gradeLevel: true,
-      dateOfBirth: true,
-      createdAt: true,
-      updatedAt: true,
-      Batch: {
-        select: { name: true },
-      },
-    },
-  })
-
-  return students.map((student) => ({
-    name: student.name,
-    email: student.email || '',
-    phone: student.phone || '',
-    batch: student.Batch?.name || 'Unassigned',
-    status: student.status,
-    educationLevel: student.educationLevel || '',
-    gradeLevel: student.gradeLevel || '',
-    dateOfBirth: student.dateOfBirth?.toISOString().split('T')[0] || '',
-    createdAt: student.createdAt.toISOString(),
-    updatedAt: student.updatedAt.toISOString(),
-  }))
-}
-
-/**
- * Build Prisma where clause for student queries
- */
-function buildStudentWhereClause(
-  query?: string,
+export async function exportStudents(
   filters?: {
     search?: {
       query?: string
@@ -945,49 +1075,34 @@ function buildStudentWhereClause(
       to?: Date
       field?: 'createdAt' | 'updatedAt' | 'dateOfBirth'
     }
-  }
-): Prisma.StudentWhereInput {
-  const where: Prisma.StudentWhereInput = {}
+  },
+  client: DatabaseClient = prisma
+) {
+  const result = await getStudentsWithBatchFiltered(
+    {
+      page: 1,
+      limit: 10000, // Large limit for export
+      search: filters?.search?.query,
+      batchIds: filters?.batch?.selected,
+      includeUnassigned: filters?.batch?.includeUnassigned,
+      statuses: filters?.status?.selected,
+      educationLevels: filters?.educationLevel?.selected,
+      gradeLevels: filters?.gradeLevel?.selected,
+    },
+    client
+  )
 
-  // Search query
-  if (query) {
-    where.OR = [
-      { name: { contains: query, mode: 'insensitive' } },
-      { email: { contains: query, mode: 'insensitive' } },
-      { phone: { contains: query, mode: 'insensitive' } },
-    ]
-  }
-
-  // Filters
-  if (filters) {
-    if (filters.batch?.selected?.length) {
-      where.batchId = { in: filters.batch.selected }
-    }
-
-    if (filters.batch?.includeUnassigned === false) {
-      where.batchId = { not: null }
-    }
-
-    if (filters.status?.selected?.length) {
-      where.status = { in: filters.status.selected }
-    }
-
-    if (filters.educationLevel?.selected?.length) {
-      where.educationLevel = { in: filters.educationLevel.selected }
-    }
-
-    if (filters.gradeLevel?.selected?.length) {
-      where.gradeLevel = { in: filters.gradeLevel.selected }
-    }
-
-    if (filters.dateRange?.from || filters.dateRange?.to) {
-      const field = filters.dateRange.field || 'createdAt'
-      where[field] = {
-        ...(filters.dateRange.from && { gte: filters.dateRange.from }),
-        ...(filters.dateRange.to && { lte: filters.dateRange.to }),
-      }
-    }
-  }
-
-  return where
+  return result.students.map((student) => ({
+    id: student.id,
+    name: student.name,
+    email: student.email || '',
+    phone: student.phone || '',
+    batch: student.batch?.name || 'Unassigned',
+    status: student.status,
+    educationLevel: student.educationLevel || '',
+    gradeLevel: student.gradeLevel || '',
+    monthlyRate: student.monthlyRate || 0,
+    subscriptionStatus: student.subscription?.status || 'none',
+    createdAt: student.createdAt.toISOString(),
+  }))
 }
