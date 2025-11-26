@@ -3,13 +3,68 @@
 /**
  * Update Student Action
  *
- * IMPORTANT: This action needs migration to the new schema.
- * The Student model no longer exists.
- * TODO: Priority migration in PR 2e.
+ * Wraps the existing updateMahadStudent service for action-based updates.
  */
 
-import { createStubbedAction } from '@/lib/utils/stub-helpers'
+import { EducationLevel, GradeLevel } from '@prisma/client'
 
-export const updateStudent = createStubbedAction<
-  [string, Record<string, unknown>]
->({ feature: 'updateStudent', reason: 'schema_migration' })
+import {
+  updateMahadStudent,
+  StudentUpdateInput,
+} from '@/lib/services/mahad/student-service'
+
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+interface UpdateStudentData {
+  name?: string
+  email?: string | null
+  phone?: string | null
+  dateOfBirth?: Date | null
+  educationLevel?: EducationLevel | null
+  gradeLevel?: GradeLevel | null
+  schoolName?: string | null
+  monthlyRate?: number
+  customRate?: boolean
+}
+
+interface UpdateStudentResult {
+  success: boolean
+  error?: string
+}
+
+// ============================================================================
+// MAIN ACTION
+// ============================================================================
+
+/**
+ * Update a Mahad student's information
+ *
+ * Uses the existing updateMahadStudent service which handles:
+ * - Person name and dateOfBirth updates
+ * - ContactPoint updates (email, phone) with P2002 handling
+ * - ProgramProfile field updates
+ */
+export async function updateStudent(
+  studentId: string,
+  data: UpdateStudentData
+): Promise<UpdateStudentResult> {
+  try {
+    // Filter out undefined values and pass directly to service
+    const updateInput: StudentUpdateInput = Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined)
+    ) as StudentUpdateInput
+
+    await updateMahadStudent(studentId, updateInput)
+
+    return { success: true }
+  } catch (error) {
+    console.error('Update student error:', error)
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to update student',
+    }
+  }
+}
