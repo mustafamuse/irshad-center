@@ -3,23 +3,28 @@
 /**
  * Get Students Actions
  *
- * IMPORTANT: These actions need migration to the new schema.
- * The Student model no longer exists.
- * TODO: Priority migration in PR 2e.
+ * Query functions for Mahad students. Uses existing services and mappers.
  */
 
-import { createStubbedQuery } from '@/lib/utils/stub-helpers'
+import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
+import { prisma } from '@/lib/db'
+import { getProgramProfileById } from '@/lib/db/queries/program-profile'
+import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
 
 // Re-export StudentStatus from canonical source
 export { StudentStatus } from '@/lib/types/student'
 
-// Our DTO for the frontend
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
 export interface StudentDTO {
   id: string
   name: string
   monthlyRate: number
   hasCustomRate: boolean
-  status: string // Using string to avoid coupling to specific enum
+  status: string
   siblingGroupId: string | null
   batchId: string | null
   batchName: string | null
@@ -28,7 +33,6 @@ export interface StudentDTO {
   stripeCustomerId: string | null
   stripeSubscriptionId: string | null
   subscriptionStatus: string | null
-  // Computed fields
   isEligibleForAutopay: boolean
   hasActiveSubscription: boolean
   familyDiscount: {
@@ -44,24 +48,200 @@ interface StudentQueryOptions {
   siblingGroupId?: string
 }
 
-// Main query function (stubbed)
-export const getStudents = createStubbedQuery<
-  [StudentQueryOptions?],
-  StudentDTO[]
->({ feature: 'getStudents', reason: 'schema_migration' }, [])
+// ============================================================================
+// MAIN QUERY FUNCTIONS
+// ============================================================================
 
-// Helper functions (stubbed)
-export const getEligibleStudentsForAutopay = createStubbedQuery<
-  [],
-  StudentDTO[]
->({ feature: 'getEligibleStudentsForAutopay', reason: 'schema_migration' }, [])
+/**
+ * Get Mahad students with optional filtering
+ *
+ * Queries enrollments and maps to StudentDTO format.
+ */
+export async function getStudents(
+  options?: StudentQueryOptions
+): Promise<StudentDTO[]> {
+  const { includeInactive = false, siblingGroupId } = options || {}
 
-export const getSiblings = createStubbedQuery<[string], StudentDTO[]>(
-  { feature: 'getSiblings', reason: 'schema_migration' },
-  []
-)
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      programProfile: {
+        program: MAHAD_PROGRAM,
+      },
+      status: includeInactive ? undefined : { not: 'WITHDRAWN' },
+      endDate: includeInactive ? undefined : null,
+    },
+    include: mahadEnrollmentInclude,
+    orderBy: {
+      programProfile: {
+        person: {
+          name: 'asc',
+        },
+      },
+    },
+  })
 
-export const getAllStudents = createStubbedQuery<[], StudentDTO[]>(
-  { feature: 'getAllStudents', reason: 'schema_migration' },
-  []
-)
+  // Map to DTOs
+  const students = enrollments.map(mapEnrollmentToStudentDTO)
+
+  // Filter by sibling group if specified
+  if (siblingGroupId) {
+    return students.filter((s) => s.siblingGroupId === siblingGroupId)
+  }
+
+  return students
+}
+
+/**
+ * Get students eligible for autopay enrollment
+ *
+ * Returns students without active subscriptions who are enrolled.
+ */
+export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      programProfile: {
+        program: MAHAD_PROGRAM,
+        // No active subscription
+        assignments: {
+          none: {
+            isActive: true,
+            subscription: {
+              status: 'active',
+            },
+          },
+        },
+      },
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+      endDate: null,
+    },
+    include: mahadEnrollmentInclude,
+    orderBy: {
+      programProfile: {
+        person: {
+          name: 'asc',
+        },
+      },
+    },
+  })
+
+  return enrollments.map(mapEnrollmentToStudentDTO)
+}
+
+/**
+ * Get siblings for a student
+ *
+ * Uses getPersonSiblings to find sibling relationships.
+ */
+export async function getSiblings(studentId: string): Promise<StudentDTO[]> {
+  const profile = await getProgramProfileById(studentId)
+  if (!profile) {
+    return []
+  }
+
+  const siblings = await getPersonSiblings(profile.personId)
+
+  // Convert sibling profiles to StudentDTOs
+  const studentDTOs: StudentDTO[] = []
+
+  for (const sibling of siblings) {
+    // Get Mahad profiles for this sibling
+    const mahadProfiles = sibling.profiles.filter(
+      (p) => p.program === MAHAD_PROGRAM
+    )
+
+    for (const mahadProfile of mahadProfiles) {
+      // Get enrollment for this profile
+      const enrollment = await prisma.enrollment.findFirst({
+        where: {
+          programProfileId: mahadProfile.id,
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        include: mahadEnrollmentInclude,
+      })
+
+      if (enrollment) {
+        studentDTOs.push(mapEnrollmentToStudentDTO(enrollment))
+      }
+    }
+  }
+
+  return studentDTOs
+}
+
+/**
+ * Get all Mahad students (non-withdrawn)
+ *
+ * Simple query for all active students.
+ */
+export async function getAllStudents(): Promise<StudentDTO[]> {
+  return getStudents({ includeInactive: false })
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Maps enrollment data to StudentDTO format
+ */
+function mapEnrollmentToStudentDTO(enrollment: {
+  id: string
+  status: string
+  programProfile: {
+    id: string
+    monthlyRate: number
+    customRate: boolean
+    person: {
+      name: string
+      contactPoints?: Array<{ type: string; value: string }>
+    }
+    assignments: Array<{
+      subscription: {
+        id: string
+        stripeSubscriptionId: string | null
+        stripeCustomerId: string | null
+        status: string
+      } | null
+    }>
+  }
+  batch: { id: string; name: string } | null
+}): StudentDTO {
+  const profile = enrollment.programProfile
+  const person = profile.person
+  const assignment = profile.assignments[0]
+  const subscription = assignment?.subscription
+
+  // Extract contact points
+  const emailContact = person.contactPoints?.find((cp) => cp.type === 'EMAIL')
+  const phoneContact = person.contactPoints?.find(
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )
+
+  // Determine subscription status
+  const hasActiveSubscription = subscription?.status === 'active'
+  const isEligibleForAutopay = !hasActiveSubscription
+
+  return {
+    id: profile.id,
+    name: person.name,
+    monthlyRate: profile.monthlyRate,
+    hasCustomRate: profile.customRate,
+    status: enrollment.status.toLowerCase(),
+    siblingGroupId: null, // Would need sibling query to populate
+    batchId: enrollment.batch?.id ?? null,
+    batchName: enrollment.batch?.name ?? null,
+    email: emailContact?.value ?? null,
+    phone: phoneContact?.value ?? null,
+    stripeCustomerId: subscription?.stripeCustomerId ?? null,
+    stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
+    subscriptionStatus: subscription?.status ?? null,
+    isEligibleForAutopay,
+    hasActiveSubscription,
+    familyDiscount: {
+      applied: false, // Would need sibling count to calculate
+      amount: 0,
+      siblingCount: 0,
+    },
+  }
+}
