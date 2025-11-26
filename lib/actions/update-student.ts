@@ -1,5 +1,7 @@
 'use server'
 
+import { logger } from '@/lib/logger'
+
 /**
  * Update Student Action
  *
@@ -12,8 +14,12 @@ export async function updateStudent(
   _id: string,
   _data: Record<string, unknown>
 ) {
-  console.error(
-    '[UPDATE_STUDENT] updateStudent disabled during schema migration'
+  logger.warn(
+    { feature: 'updateStudent', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
   )
-  throw new Error('Student update needs migration to new schema.')
+  return {
+    success: false,
+    error: 'Student update needs migration to new schema.',
+  }
 }

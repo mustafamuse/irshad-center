@@ -78,6 +78,10 @@ export async function StudentsTableShell({
   ]
 
   // Build where clause
+  // Note: Using any[] due to Prisma type system limitations with nullable relation
+  // filters (subscription: { isNot: null }). The runtime behavior is correct but
+  // Prisma's generated types don't support this pattern well.
+  // See: https://github.com/prisma/prisma/issues/5042
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const whereConditions: any[] = [
     // Mahad program only
@@ -90,6 +94,7 @@ export async function StudentsTableShell({
   if (needsBilling === 'true') {
     whereConditions.push(
       { status: { not: 'WITHDRAWN' } },
+      // Find profiles without active billing assignments (no subscription linked)
       {
         programProfile: {
           assignments: {

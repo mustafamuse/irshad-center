@@ -1,5 +1,7 @@
 'use server'
 
+import { logger } from '@/lib/logger'
+
 /**
  * Data Backup Action
  *
@@ -9,7 +11,10 @@
  */
 
 export async function backupData() {
-  console.error('[BACKUP] Backup disabled during schema migration')
+  logger.warn(
+    { feature: 'backup', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
+  )
   return {
     success: false,
     error: 'Backup functionality needs migration to new schema.',

@@ -10,6 +10,8 @@
 
 import { EducationLevel, GradeLevel } from '@prisma/client'
 
+import { logger } from '@/lib/logger'
+
 export interface BatchStudentData {
   id: string
   name: string
@@ -39,22 +41,25 @@ export interface BatchStudentData {
 }
 
 export async function getBatchData(): Promise<BatchStudentData[]> {
-  console.error(
-    '[GET_BATCH_DATA] getBatchData disabled during schema migration'
+  logger.warn(
+    { feature: 'getBatchData', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
   )
   return []
 }
 
 export async function getDuplicateStudents() {
-  console.error(
-    '[GET_BATCH_DATA] getDuplicateStudents disabled during schema migration'
+  logger.warn(
+    { feature: 'getDuplicateStudents', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
   )
   return []
 }
 
 export async function deleteDuplicateRecords(_recordIds: string[]) {
-  console.error(
-    '[GET_BATCH_DATA] deleteDuplicateRecords disabled during schema migration'
+  logger.warn(
+    { feature: 'deleteDuplicateRecords', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
   )
   return { success: false, error: 'Needs migration.' }
 }

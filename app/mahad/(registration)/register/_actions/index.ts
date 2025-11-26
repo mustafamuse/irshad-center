@@ -10,6 +10,7 @@
 
 import { z } from 'zod'
 
+import { logger } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
 
 // ============================================================================
@@ -45,8 +46,9 @@ export async function registerStudent(_input: {
   studentData: z.infer<typeof mahadRegistrationSchema>
   siblingIds: string[] | null
 }): Promise<ActionResult<{ id: string; name: string }>> {
-  console.error(
-    '[MAHAD_REGISTRATION] Registration disabled during schema migration'
+  logger.warn(
+    { feature: 'mahad_registration', reason: 'schema_migration' },
+    'Registration disabled during schema migration'
   )
   return {
     success: false,
@@ -63,8 +65,9 @@ export async function registerStudent(_input: {
  * Check if email already exists
  */
 export async function checkEmailExists(_email: string): Promise<boolean> {
-  console.error(
-    '[MAHAD_REGISTRATION] Email check disabled during schema migration'
+  logger.warn(
+    { feature: 'mahad_email_check', reason: 'schema_migration' },
+    'Email check disabled during schema migration'
   )
   return false
 }
@@ -76,8 +79,9 @@ export async function searchStudents(
   _query: string,
   _lastName: string
 ): Promise<{ id: string; name: string; lastName: string }[]> {
-  console.error(
-    '[MAHAD_REGISTRATION] Student search disabled during schema migration'
+  logger.warn(
+    { feature: 'mahad_student_search', reason: 'schema_migration' },
+    'Student search disabled during schema migration'
   )
   return []
 }
@@ -89,8 +93,9 @@ export async function addSibling(
   _studentId: string,
   _siblingId: string
 ): Promise<ActionResult> {
-  console.error(
-    '[MAHAD_REGISTRATION] Add sibling disabled during schema migration'
+  logger.warn(
+    { feature: 'mahad_add_sibling', reason: 'schema_migration' },
+    'Add sibling disabled during schema migration'
   )
   return {
     success: false,
@@ -105,8 +110,9 @@ export async function removeSibling(
   _studentId: string,
   _siblingId: string
 ): Promise<ActionResult> {
-  console.error(
-    '[MAHAD_REGISTRATION] Remove sibling disabled during schema migration'
+  logger.warn(
+    { feature: 'mahad_remove_sibling', reason: 'schema_migration' },
+    'Remove sibling disabled during schema migration'
   )
   return {
     success: false,

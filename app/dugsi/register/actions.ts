@@ -10,6 +10,7 @@
 
 import { z } from 'zod'
 
+import { logger } from '@/lib/logger'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
 
 // Type exports for clients
@@ -29,8 +30,9 @@ export type RegistrationResult = {
 export async function registerDugsiChildren(
   _formData: z.infer<typeof dugsiRegistrationSchema>
 ): Promise<RegistrationResult> {
-  console.error(
-    '[DUGSI_REGISTRATION] Registration disabled during schema migration'
+  logger.warn(
+    { feature: 'dugsi_registration', reason: 'schema_migration' },
+    'Registration disabled during schema migration'
   )
   return {
     success: false,
@@ -40,8 +42,9 @@ export async function registerDugsiChildren(
 }
 
 export async function checkParentEmailExists(_email: string): Promise<boolean> {
-  console.error(
-    '[DUGSI_REGISTRATION] Email check disabled during schema migration'
+  logger.warn(
+    { feature: 'dugsi_email_check', reason: 'schema_migration' },
+    'Email check disabled during schema migration'
   )
   return false
 }

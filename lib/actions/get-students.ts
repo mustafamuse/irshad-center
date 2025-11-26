@@ -8,6 +8,8 @@
  * TODO: Priority migration in PR 2e.
  */
 
+import { logger } from '@/lib/logger'
+
 // Enums and constants
 export enum StudentStatus {
   REGISTERED = 'registered',
@@ -51,14 +53,18 @@ interface StudentQueryOptions {
 export async function getStudents(
   _options: StudentQueryOptions = {}
 ): Promise<StudentDTO[]> {
-  console.error('[GET_STUDENTS] getStudents disabled during schema migration')
+  logger.warn(
+    { feature: 'getStudents', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
+  )
   return []
 }
 
 // Helper functions (stubbed)
 export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
-  console.error(
-    '[GET_STUDENTS] getEligibleStudentsForAutopay disabled during schema migration'
+  logger.warn(
+    { feature: 'getEligibleStudentsForAutopay', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
   )
   return []
 }
@@ -66,13 +72,17 @@ export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
 export async function getSiblings(
   _siblingGroupId: string
 ): Promise<StudentDTO[]> {
-  console.error('[GET_STUDENTS] getSiblings disabled during schema migration')
+  logger.warn(
+    { feature: 'getSiblings', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
+  )
   return []
 }
 
 export async function getAllStudents(): Promise<StudentDTO[]> {
-  console.error(
-    '[GET_STUDENTS] getAllStudents disabled during schema migration'
+  logger.warn(
+    { feature: 'getAllStudents', reason: 'schema_migration' },
+    'Feature disabled during schema migration'
   )
   return []
 }
