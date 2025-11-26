@@ -7,6 +7,7 @@
  * Uses existing services - this is thin wiring, not new business logic.
  */
 
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
@@ -15,7 +16,6 @@ import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import {
   createSiblingRelationship,
   removeSiblingRelationship,
-  getPersonSiblings,
 } from '@/lib/db/queries/siblings'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { createMahadStudent } from '@/lib/services/mahad/student-service'
@@ -100,23 +100,25 @@ export async function registerStudent(input: {
       schoolName: data.schoolName,
     })
 
-    // Create sibling relationships if provided
+    // Create sibling relationships if provided (batch fetch to avoid N+1)
     if (siblingIds && siblingIds.length > 0) {
-      // Get the person ID for the newly created profile
       const newProfile = await getProgramProfileById(profile.id)
       if (newProfile) {
-        for (const siblingId of siblingIds) {
-          // Get sibling's person ID
-          const siblingProfile = await getProgramProfileById(siblingId)
-          if (siblingProfile) {
-            await createSiblingRelationship(
+        const siblingProfiles = await prisma.programProfile.findMany({
+          where: { id: { in: siblingIds } },
+          select: { id: true, personId: true },
+        })
+
+        await Promise.all(
+          siblingProfiles.map((sp) =>
+            createSiblingRelationship(
               newProfile.personId,
-              siblingProfile.personId,
+              sp.personId,
               'manual',
               null
             )
-          }
-        }
+          )
+        )
       }
     }
 
@@ -128,6 +130,17 @@ export async function registerStudent(input: {
       },
     }
   } catch (error) {
+    // Handle race condition: another request created same email between check and create
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return {
+        success: false,
+        error: 'A student with this email already exists',
+        field: 'email',
+      }
+    }
     console.error('Registration error:', error)
     return {
       success: false,
@@ -173,17 +186,25 @@ export async function searchStudents(
     return []
   }
 
-  // Build search query for Person by name
+  // Build AND conditions for name search (more efficient than OR + JS filter)
+  const nameConditions: Prisma.PersonWhereInput[] = []
+  if (normalizedFirstName) {
+    nameConditions.push({
+      name: { contains: normalizedFirstName, mode: 'insensitive' },
+    })
+  }
+  if (normalizedLastName) {
+    nameConditions.push({
+      name: { contains: normalizedLastName, mode: 'insensitive' },
+    })
+  }
+
   const profiles = await prisma.programProfile.findMany({
     where: {
       program: MAHAD_PROGRAM,
       status: { not: 'WITHDRAWN' },
-      person: {
-        name: {
-          contains: normalizedFirstName || normalizedLastName,
-          mode: 'insensitive',
-        },
-      },
+      person:
+        nameConditions.length > 1 ? { AND: nameConditions } : nameConditions[0],
     },
     include: {
       person: {
@@ -192,17 +213,16 @@ export async function searchStudents(
         },
       },
     },
-    take: 20, // Limit results
+    take: 20,
   })
 
-  // Filter and map results
+  // Still need JS filter for first/last name position since we store full name
   return profiles
     .filter((profile) => {
       const nameParts = profile.person.name.toLowerCase().split(' ')
       const personFirstName = nameParts[0] || ''
       const personLastName = nameParts.slice(1).join(' ') || ''
 
-      // Match if either name part matches
       const firstNameMatch =
         !normalizedFirstName || personFirstName.includes(normalizedFirstName)
       const lastNameMatch =
@@ -283,18 +303,22 @@ export async function removeSibling(
       return { success: false, error: 'Sibling not found' }
     }
 
-    // Find the sibling relationship
-    const siblings = await getPersonSiblings(studentProfile.personId)
-    const relationship = siblings.find(
-      (s) => s.person.id === siblingProfile.personId
-    )
+    // Direct query for the specific relationship (sorted IDs for consistency)
+    const [p1, p2] = [studentProfile.personId, siblingProfile.personId].sort()
+    const relationship = await prisma.siblingRelationship.findFirst({
+      where: {
+        isActive: true,
+        person1Id: p1,
+        person2Id: p2,
+      },
+      select: { id: true },
+    })
 
     if (!relationship) {
       return { success: false, error: 'Sibling relationship not found' }
     }
 
-    // Remove relationship using existing query helper
-    await removeSiblingRelationship(relationship.relationshipId)
+    await removeSiblingRelationship(relationship.id)
 
     return { success: true }
   } catch (error) {

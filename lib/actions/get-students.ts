@@ -225,7 +225,7 @@ function mapEnrollmentToStudentDTO(enrollment: {
     monthlyRate: profile.monthlyRate,
     hasCustomRate: profile.customRate,
     status: enrollment.status.toLowerCase(),
-    siblingGroupId: null, // Would need sibling query to populate
+    siblingGroupId: null, // Intentionally null - use getSiblings() for sibling data
     batchId: enrollment.batch?.id ?? null,
     batchName: enrollment.batch?.name ?? null,
     email: emailContact?.value ?? null,

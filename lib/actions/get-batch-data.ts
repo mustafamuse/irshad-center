@@ -228,6 +228,20 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     }
   }
 
+  // Build reverse index: profileId → group (O(1) lookup instead of O(n*m))
+  const profileToGroupMap = new Map<
+    string,
+    {
+      id: string
+      students: Array<{ id: string; name: string; status: string }>
+    }
+  >()
+  siblingGroupMap.forEach((group) => {
+    group.students.forEach((student) => {
+      profileToGroupMap.set(student.id, group)
+    })
+  })
+
   // Map enrollments to BatchStudentData
   return enrollments.map((enrollment) => {
     const profile = enrollment.programProfile
@@ -237,16 +251,8 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     const email = extractStudentEmail({ person })
     const phone = extractStudentPhone({ person })
 
-    // Find sibling group
-    let siblingGroup: {
-      id: string
-      students: Array<{ id: string; name: string; status: string }>
-    } | null = null
-    siblingGroupMap.forEach((group) => {
-      if (!siblingGroup && group.students.some((s) => s.id === profile.id)) {
-        siblingGroup = group
-      }
-    })
+    // Find sibling group using O(1) lookup
+    const siblingGroup = profileToGroupMap.get(profile.id) ?? null
 
     return {
       id: profile.id,
