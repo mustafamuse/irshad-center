@@ -213,7 +213,7 @@ export async function searchStudents(
         },
       },
     },
-    take: 20,
+    take: 50, // Fetch more to account for post-filter reduction
   })
 
   // Still need JS filter for first/last name position since we store full name
@@ -230,6 +230,7 @@ export async function searchStudents(
 
       return firstNameMatch && lastNameMatch
     })
+    .slice(0, 20) // Limit final results
     .map((profile) => {
       const nameParts = profile.person.name.split(' ')
       return {

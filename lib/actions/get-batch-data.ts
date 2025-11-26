@@ -72,6 +72,7 @@ export interface DuplicateStudentGroup {
  * Used for batch management and reporting.
  */
 export async function getBatchData(): Promise<BatchStudentData[]> {
+  // Single query with nested sibling relationships (optimized from 2 queries)
   const enrollments = await prisma.enrollment.findMany({
     where: {
       programProfile: {
@@ -87,6 +88,49 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
           person: {
             include: {
               contactPoints: true,
+              // Include both directions of sibling relationships
+              siblingRelationships1: {
+                where: { isActive: true },
+                include: {
+                  person2: {
+                    include: {
+                      programProfiles: {
+                        where: { program: MAHAD_PROGRAM },
+                        include: {
+                          enrollments: {
+                            where: {
+                              status: { not: 'WITHDRAWN' },
+                              endDate: null,
+                            },
+                            take: 1,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              siblingRelationships2: {
+                where: { isActive: true },
+                include: {
+                  person1: {
+                    include: {
+                      programProfiles: {
+                        where: { program: MAHAD_PROGRAM },
+                        include: {
+                          enrollments: {
+                            where: {
+                              status: { not: 'WITHDRAWN' },
+                              endDate: null,
+                            },
+                            take: 1,
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
             },
           },
           assignments: {
@@ -108,82 +152,54 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     },
   })
 
-  // Build sibling groups using batch query (fixes N+1)
-  // Fetch all sibling relationships for enrolled persons in one query
-  const personIds = enrollments.map((e) => e.programProfile.personId)
-
-  const siblingRelationships = await prisma.siblingRelationship.findMany({
-    where: {
-      isActive: true,
-      OR: [{ person1Id: { in: personIds } }, { person2Id: { in: personIds } }],
-    },
-    include: {
-      person1: {
-        include: {
-          programProfiles: {
-            where: { program: MAHAD_PROGRAM },
-            include: {
-              enrollments: {
-                where: { status: { not: 'WITHDRAWN' }, endDate: null },
-                take: 1,
-              },
-            },
-          },
-        },
-      },
-      person2: {
-        include: {
-          programProfiles: {
-            where: { program: MAHAD_PROGRAM },
-            include: {
-              enrollments: {
-                where: { status: { not: 'WITHDRAWN' }, endDate: null },
-                take: 1,
-              },
-            },
-          },
-        },
-      },
-    },
-  })
-
-  // Build sibling map: personId -> array of sibling person IDs
+  // Build sibling map from nested includes (no second query needed)
   const siblingMap = new Map<string, Set<string>>()
-  for (const rel of siblingRelationships) {
-    // Add bidirectional relationships
-    if (!siblingMap.has(rel.person1Id)) siblingMap.set(rel.person1Id, new Set())
-    if (!siblingMap.has(rel.person2Id)) siblingMap.set(rel.person2Id, new Set())
-    siblingMap.get(rel.person1Id)!.add(rel.person2Id)
-    siblingMap.get(rel.person2Id)!.add(rel.person1Id)
-  }
-
-  // Build person info lookup from relationships
   const personInfoMap = new Map<
     string,
     { profileId: string; name: string; status: string }
   >()
-  for (const rel of siblingRelationships) {
-    for (const person of [rel.person1, rel.person2]) {
-      const mahadProfile = person.programProfiles[0]
-      if (mahadProfile && !personInfoMap.has(person.id)) {
-        personInfoMap.set(person.id, {
-          profileId: mahadProfile.id,
-          name: person.name,
-          status: mahadProfile.enrollments[0]?.status || 'REGISTERED',
-        })
-      }
-    }
-  }
 
-  // Also add enrolled students to the lookup
   for (const enrollment of enrollments) {
     const person = enrollment.programProfile.person
-    if (!personInfoMap.has(enrollment.programProfile.personId)) {
-      personInfoMap.set(enrollment.programProfile.personId, {
+    const personId = enrollment.programProfile.personId
+
+    // Add this person to the lookup
+    if (!personInfoMap.has(personId)) {
+      personInfoMap.set(personId, {
         profileId: enrollment.programProfile.id,
         name: person.name,
         status: enrollment.status,
       })
+    }
+
+    // Process siblingRelationships1 (this person is person1)
+    for (const rel of person.siblingRelationships1) {
+      if (!siblingMap.has(personId)) siblingMap.set(personId, new Set())
+      siblingMap.get(personId)!.add(rel.person2Id)
+
+      const siblingProfile = rel.person2.programProfiles[0]
+      if (siblingProfile && !personInfoMap.has(rel.person2Id)) {
+        personInfoMap.set(rel.person2Id, {
+          profileId: siblingProfile.id,
+          name: rel.person2.name,
+          status: siblingProfile.enrollments[0]?.status || 'REGISTERED',
+        })
+      }
+    }
+
+    // Process siblingRelationships2 (this person is person2)
+    for (const rel of person.siblingRelationships2) {
+      if (!siblingMap.has(personId)) siblingMap.set(personId, new Set())
+      siblingMap.get(personId)!.add(rel.person1Id)
+
+      const siblingProfile = rel.person1.programProfiles[0]
+      if (siblingProfile && !personInfoMap.has(rel.person1Id)) {
+        personInfoMap.set(rel.person1Id, {
+          profileId: siblingProfile.id,
+          name: rel.person1.name,
+          status: siblingProfile.enrollments[0]?.status || 'REGISTERED',
+        })
+      }
     }
   }
 
