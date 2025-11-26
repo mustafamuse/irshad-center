@@ -10,7 +10,10 @@
 
 import { EducationLevel, GradeLevel } from '@prisma/client'
 
-import { logger } from '@/lib/logger'
+import {
+  createStubbedAction,
+  createStubbedQuery,
+} from '@/lib/utils/stub-helpers'
 
 export interface BatchStudentData {
   id: string
@@ -40,26 +43,17 @@ export interface BatchStudentData {
   } | null
 }
 
-export async function getBatchData(): Promise<BatchStudentData[]> {
-  logger.warn(
-    { feature: 'getBatchData', reason: 'schema_migration' },
-    'Feature disabled during schema migration'
-  )
-  return []
-}
+export const getBatchData = createStubbedQuery<[], BatchStudentData[]>(
+  { feature: 'getBatchData', reason: 'schema_migration' },
+  []
+)
 
-export async function getDuplicateStudents() {
-  logger.warn(
-    { feature: 'getDuplicateStudents', reason: 'schema_migration' },
-    'Feature disabled during schema migration'
-  )
-  return []
-}
+export const getDuplicateStudents = createStubbedQuery<[], unknown[]>(
+  { feature: 'getDuplicateStudents', reason: 'schema_migration' },
+  []
+)
 
-export async function deleteDuplicateRecords(_recordIds: string[]) {
-  logger.warn(
-    { feature: 'deleteDuplicateRecords', reason: 'schema_migration' },
-    'Feature disabled during schema migration'
-  )
-  return { success: false, error: 'Needs migration.' }
-}
+export const deleteDuplicateRecords = createStubbedAction<[string[]]>({
+  feature: 'deleteDuplicateRecords',
+  reason: 'schema_migration',
+})

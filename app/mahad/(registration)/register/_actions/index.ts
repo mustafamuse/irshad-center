@@ -10,14 +10,19 @@
 
 import { z } from 'zod'
 
-import { logger } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
+import {
+  createStubbedAction,
+  createStubbedQuery,
+} from '@/lib/utils/stub-helpers'
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
-type ActionResult<T = void> = T extends void
+// Keep custom ActionResult for field-level validation errors
+// (The generic ActionResult doesn't support field-specific errors)
+type MahadActionResult<T = void> = T extends void
   ? {
       success: boolean
       data?: never
@@ -35,6 +40,8 @@ type ActionResult<T = void> = T extends void
           field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
         }
 
+type StudentSearchResult = { id: string; name: string; lastName: string }
+
 // ============================================================================
 // REGISTRATION ACTIONS (Stubbed - needs migration)
 // ============================================================================
@@ -42,20 +49,20 @@ type ActionResult<T = void> = T extends void
 /**
  * Register a new Mahad student with optional siblings
  */
-export async function registerStudent(_input: {
-  studentData: z.infer<typeof mahadRegistrationSchema>
-  siblingIds: string[] | null
-}): Promise<ActionResult<{ id: string; name: string }>> {
-  logger.warn(
-    { feature: 'mahad_registration', reason: 'schema_migration' },
-    'Registration disabled during schema migration'
-  )
-  return {
-    success: false,
-    error:
-      'Mahad registration is temporarily unavailable. Please try again later.',
-  }
-}
+export const registerStudent = createStubbedAction<
+  [
+    {
+      studentData: z.infer<typeof mahadRegistrationSchema>
+      siblingIds: string[] | null
+    },
+  ],
+  { id: string; name: string }
+>({
+  feature: 'mahad_registration',
+  reason: 'schema_migration',
+  userMessage:
+    'Mahad registration is temporarily unavailable. Please try again later.',
+})
 
 // ============================================================================
 // UTILITY ACTIONS (Stubbed - needs migration)
@@ -64,58 +71,36 @@ export async function registerStudent(_input: {
 /**
  * Check if email already exists
  */
-export async function checkEmailExists(_email: string): Promise<boolean> {
-  logger.warn(
-    { feature: 'mahad_email_check', reason: 'schema_migration' },
-    'Email check disabled during schema migration'
-  )
-  return false
-}
+export const checkEmailExists = createStubbedQuery<[string], boolean>(
+  { feature: 'mahad_email_check', reason: 'schema_migration' },
+  false
+)
 
 /**
  * Search students by name for sibling matching
  */
-export async function searchStudents(
-  _query: string,
-  _lastName: string
-): Promise<{ id: string; name: string; lastName: string }[]> {
-  logger.warn(
-    { feature: 'mahad_student_search', reason: 'schema_migration' },
-    'Student search disabled during schema migration'
-  )
-  return []
-}
+export const searchStudents = createStubbedQuery<
+  [string, string],
+  StudentSearchResult[]
+>({ feature: 'mahad_student_search', reason: 'schema_migration' }, [])
 
 /**
  * Add sibling relationship
  */
-export async function addSibling(
-  _studentId: string,
-  _siblingId: string
-): Promise<ActionResult> {
-  logger.warn(
-    { feature: 'mahad_add_sibling', reason: 'schema_migration' },
-    'Add sibling disabled during schema migration'
-  )
-  return {
-    success: false,
-    error: 'Sibling management is temporarily unavailable.',
-  }
-}
+export const addSibling = createStubbedAction<[string, string]>({
+  feature: 'mahad_add_sibling',
+  reason: 'schema_migration',
+  userMessage: 'Sibling management is temporarily unavailable.',
+})
 
 /**
  * Remove sibling relationship
  */
-export async function removeSibling(
-  _studentId: string,
-  _siblingId: string
-): Promise<ActionResult> {
-  logger.warn(
-    { feature: 'mahad_remove_sibling', reason: 'schema_migration' },
-    'Remove sibling disabled during schema migration'
-  )
-  return {
-    success: false,
-    error: 'Sibling management is temporarily unavailable.',
-  }
-}
+export const removeSibling = createStubbedAction<[string, string]>({
+  feature: 'mahad_remove_sibling',
+  reason: 'schema_migration',
+  userMessage: 'Sibling management is temporarily unavailable.',
+})
+
+// Export the type for consumers that need field-level errors
+export type { MahadActionResult }

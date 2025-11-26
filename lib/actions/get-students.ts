@@ -8,15 +8,10 @@
  * TODO: Priority migration in PR 2e.
  */
 
-import { logger } from '@/lib/logger'
+import { createStubbedQuery } from '@/lib/utils/stub-helpers'
 
-// Enums and constants
-export enum StudentStatus {
-  REGISTERED = 'registered',
-  ENROLLED = 'enrolled',
-  INACTIVE = 'inactive',
-  PENDING = 'pending',
-}
+// Re-export StudentStatus from canonical source
+export { StudentStatus } from '@/lib/types/student'
 
 // Our DTO for the frontend
 export interface StudentDTO {
@@ -24,7 +19,7 @@ export interface StudentDTO {
   name: string
   monthlyRate: number
   hasCustomRate: boolean
-  status: StudentStatus
+  status: string // Using string to avoid coupling to specific enum
   siblingGroupId: string | null
   batchId: string | null
   batchName: string | null
@@ -50,39 +45,23 @@ interface StudentQueryOptions {
 }
 
 // Main query function (stubbed)
-export async function getStudents(
-  _options: StudentQueryOptions = {}
-): Promise<StudentDTO[]> {
-  logger.warn(
-    { feature: 'getStudents', reason: 'schema_migration' },
-    'Feature disabled during schema migration'
-  )
-  return []
-}
+export const getStudents = createStubbedQuery<
+  [StudentQueryOptions?],
+  StudentDTO[]
+>({ feature: 'getStudents', reason: 'schema_migration' }, [])
 
 // Helper functions (stubbed)
-export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
-  logger.warn(
-    { feature: 'getEligibleStudentsForAutopay', reason: 'schema_migration' },
-    'Feature disabled during schema migration'
-  )
-  return []
-}
+export const getEligibleStudentsForAutopay = createStubbedQuery<
+  [],
+  StudentDTO[]
+>({ feature: 'getEligibleStudentsForAutopay', reason: 'schema_migration' }, [])
 
-export async function getSiblings(
-  _siblingGroupId: string
-): Promise<StudentDTO[]> {
-  logger.warn(
-    { feature: 'getSiblings', reason: 'schema_migration' },
-    'Feature disabled during schema migration'
-  )
-  return []
-}
+export const getSiblings = createStubbedQuery<[string], StudentDTO[]>(
+  { feature: 'getSiblings', reason: 'schema_migration' },
+  []
+)
 
-export async function getAllStudents(): Promise<StudentDTO[]> {
-  logger.warn(
-    { feature: 'getAllStudents', reason: 'schema_migration' },
-    'Feature disabled during schema migration'
-  )
-  return []
-}
+export const getAllStudents = createStubbedQuery<[], StudentDTO[]>(
+  { feature: 'getAllStudents', reason: 'schema_migration' },
+  []
+)

@@ -2,7 +2,7 @@
 
 import { z } from 'zod'
 
-import { logger } from '@/lib/logger'
+import { createStubbedAction } from '@/lib/utils/stub-helpers'
 
 import { AttendanceStatus } from './_types'
 
@@ -15,28 +15,19 @@ import { AttendanceStatus } from './_types'
  * TODO: Implement in future PR when attendance feature is prioritized.
  */
 
-type ActionResult<T = void> = T extends void
-  ? { success: boolean; error?: string }
-  : { success: true; data: T } | { success: false; error: string }
-
 const createSessionSchema = z.object({
   batchId: z.string(),
   date: z.string(),
   notes: z.string().optional(),
 })
 
-export async function createSession(
-  _input: z.infer<typeof createSessionSchema>
-): Promise<ActionResult> {
-  logger.warn(
-    { action: 'createSession', reason: 'feature_not_implemented' },
-    'Attendance feature disabled'
-  )
-  return {
-    success: false,
-    error: 'Attendance feature is not yet implemented.',
-  }
-}
+export const createSession = createStubbedAction<
+  [z.infer<typeof createSessionSchema>]
+>({
+  feature: 'createSession',
+  reason: 'schema_migration',
+  userMessage: 'Attendance feature is not yet implemented.',
+})
 
 const markAttendanceSchema = z.object({
   sessionId: z.string(),
@@ -49,26 +40,16 @@ const markAttendanceSchema = z.object({
   ),
 })
 
-export async function markAttendance(
-  _input: z.infer<typeof markAttendanceSchema>
-): Promise<ActionResult> {
-  logger.warn(
-    { action: 'markAttendance', reason: 'feature_not_implemented' },
-    'Attendance feature disabled'
-  )
-  return {
-    success: false,
-    error: 'Attendance feature is not yet implemented.',
-  }
-}
+export const markAttendance = createStubbedAction<
+  [z.infer<typeof markAttendanceSchema>]
+>({
+  feature: 'markAttendance',
+  reason: 'schema_migration',
+  userMessage: 'Attendance feature is not yet implemented.',
+})
 
-export async function deleteSession(_sessionId: string): Promise<ActionResult> {
-  logger.warn(
-    { action: 'deleteSession', reason: 'feature_not_implemented' },
-    'Attendance feature disabled'
-  )
-  return {
-    success: false,
-    error: 'Attendance feature is not yet implemented.',
-  }
-}
+export const deleteSession = createStubbedAction<[string]>({
+  feature: 'deleteSession',
+  reason: 'schema_migration',
+  userMessage: 'Attendance feature is not yet implemented.',
+})

@@ -1,6 +1,6 @@
 import type { Stripe } from 'stripe'
 
-import { logger } from '@/lib/logger'
+import { createStubbedWebhookHandler } from '@/lib/utils/stub-helpers'
 
 /**
  * Student Event Handlers for Webhooks
@@ -10,50 +10,26 @@ import { logger } from '@/lib/logger'
  * TODO: Priority migration in PR 2e.
  */
 
-export async function syncStudentSubscriptionState(_subscriptionId: string) {
-  logger.warn(
-    { handler: 'syncStudentSubscriptionState', reason: 'schema_migration' },
-    'Webhook handler disabled'
-  )
-  throw new Error('Webhook handlers need migration to new schema')
-}
+export const syncStudentSubscriptionState = createStubbedWebhookHandler<
+  [string]
+>({ feature: 'syncStudentSubscriptionState', reason: 'schema_migration' })
 
-export async function handleCheckoutSessionCompleted(_event: Stripe.Event) {
-  logger.warn(
-    { handler: 'handleCheckoutSessionCompleted', reason: 'schema_migration' },
-    'Webhook handler disabled'
-  )
-  throw new Error('Webhook handlers need migration to new schema')
-}
+export const handleCheckoutSessionCompleted = createStubbedWebhookHandler<
+  [Stripe.Event]
+>({ feature: 'handleCheckoutSessionCompleted', reason: 'schema_migration' })
 
-export async function handleInvoicePaymentSucceeded(_event: Stripe.Event) {
-  logger.warn(
-    { handler: 'handleInvoicePaymentSucceeded', reason: 'schema_migration' },
-    'Webhook handler disabled'
-  )
-  throw new Error('Webhook handlers need migration to new schema')
-}
+export const handleInvoicePaymentSucceeded = createStubbedWebhookHandler<
+  [Stripe.Event]
+>({ feature: 'handleInvoicePaymentSucceeded', reason: 'schema_migration' })
 
-export async function handleInvoicePaymentFailed(_event: Stripe.Event) {
-  logger.warn(
-    { handler: 'handleInvoicePaymentFailed', reason: 'schema_migration' },
-    'Webhook handler disabled'
-  )
-  throw new Error('Webhook handlers need migration to new schema')
-}
+export const handleInvoicePaymentFailed = createStubbedWebhookHandler<
+  [Stripe.Event]
+>({ feature: 'handleInvoicePaymentFailed', reason: 'schema_migration' })
 
-export async function handleSubscriptionUpdated(_event: Stripe.Event) {
-  logger.warn(
-    { handler: 'handleSubscriptionUpdated', reason: 'schema_migration' },
-    'Webhook handler disabled'
-  )
-  throw new Error('Webhook handlers need migration to new schema')
-}
+export const handleSubscriptionUpdated = createStubbedWebhookHandler<
+  [Stripe.Event]
+>({ feature: 'handleSubscriptionUpdated', reason: 'schema_migration' })
 
-export async function handleSubscriptionDeleted(_event: Stripe.Event) {
-  logger.warn(
-    { handler: 'handleSubscriptionDeleted', reason: 'schema_migration' },
-    'Webhook handler disabled'
-  )
-  throw new Error('Webhook handlers need migration to new schema')
-}
+export const handleSubscriptionDeleted = createStubbedWebhookHandler<
+  [Stripe.Event]
+>({ feature: 'handleSubscriptionDeleted', reason: 'schema_migration' })

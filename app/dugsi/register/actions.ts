@@ -10,8 +10,11 @@
 
 import { z } from 'zod'
 
-import { logger } from '@/lib/logger'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
+import {
+  createStubbedAction,
+  createStubbedQuery,
+} from '@/lib/utils/stub-helpers'
 
 // Type exports for clients
 export type RegistrationResult = {
@@ -27,24 +30,18 @@ export type RegistrationResult = {
   }
 }
 
-export async function registerDugsiChildren(
-  _formData: z.infer<typeof dugsiRegistrationSchema>
-): Promise<RegistrationResult> {
-  logger.warn(
-    { feature: 'dugsi_registration', reason: 'schema_migration' },
-    'Registration disabled during schema migration'
-  )
-  return {
-    success: false,
-    error:
-      'Dugsi registration is temporarily unavailable. Please try again later.',
-  }
-}
+// Note: Using createStubbedAction which returns ActionResult, compatible with RegistrationResult
+export const registerDugsiChildren = createStubbedAction<
+  [z.infer<typeof dugsiRegistrationSchema>],
+  RegistrationResult['data']
+>({
+  feature: 'dugsi_registration',
+  reason: 'schema_migration',
+  userMessage:
+    'Dugsi registration is temporarily unavailable. Please try again later.',
+})
 
-export async function checkParentEmailExists(_email: string): Promise<boolean> {
-  logger.warn(
-    { feature: 'dugsi_email_check', reason: 'schema_migration' },
-    'Email check disabled during schema migration'
-  )
-  return false
-}
+export const checkParentEmailExists = createStubbedQuery<[string], boolean>(
+  { feature: 'dugsi_email_check', reason: 'schema_migration' },
+  false
+)

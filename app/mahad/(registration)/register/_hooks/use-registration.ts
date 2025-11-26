@@ -39,10 +39,20 @@ export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
 
         if (!result.success) {
           // If error has a specific field, show it under that field
-          if (result.field) {
-            form.setError(result.field, {
+          // Note: field property is only available when service returns field-specific errors
+          const field = 'field' in result ? result.field : undefined
+          if (
+            field &&
+            typeof field === 'string' &&
+            (field === 'email' ||
+              field === 'phone' ||
+              field === 'firstName' ||
+              field === 'lastName' ||
+              field === 'dateOfBirth')
+          ) {
+            form.setError(field, {
               type: 'manual',
-              message: result.error,
+              message: result.error ?? 'Validation error',
             })
             // Also show toast for visibility
             toast.error(result.error)
