@@ -198,7 +198,25 @@ export async function handleSubscriptionCreated(
 
   // Link to profiles if provided
   if (profileIds && profileIds.length > 0) {
-    const amount = subscription.items.data[0]?.price.unit_amount || 0
+    // Validate subscription has items with valid pricing
+    if (!subscription.items?.data?.length) {
+      logger.error(
+        { subscriptionId: subscription.id },
+        'Subscription has no items - cannot link to profiles'
+      )
+      throw new Error('Subscription has no items')
+    }
+
+    const priceAmount = subscription.items.data[0]?.price?.unit_amount
+    if (priceAmount === null || priceAmount === undefined || priceAmount <= 0) {
+      logger.error(
+        { subscriptionId: subscription.id, priceAmount },
+        'Subscription has invalid amount - cannot link to profiles'
+      )
+      throw new Error('Subscription has invalid amount')
+    }
+
+    const amount = priceAmount
     await Sentry.startSpan(
       {
         name: 'subscription.link_profiles',

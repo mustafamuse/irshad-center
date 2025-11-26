@@ -275,6 +275,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       }
 
       // Validation errors (malformed data, missing required fields)
+      // Return 400 for client errors - Stripe will NOT retry these
       if (
         errorMessage.includes('Invalid') ||
         errorMessage.includes('Missing') ||
@@ -286,10 +287,25 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
         )
       }
 
-      // Default: 400 for all other errors (allows Stripe to retry)
+      // Database/connection errors should return 500 - Stripe WILL retry
+      if (
+        errorMessage.toLowerCase().includes('database') ||
+        errorMessage.toLowerCase().includes('connection') ||
+        errorMessage.toLowerCase().includes('timeout') ||
+        errorMessage.includes('ECONNREFUSED') ||
+        errorMessage.toLowerCase().includes('prisma')
+      ) {
+        return NextResponse.json(
+          { message: 'Internal server error' },
+          { status: 500 }
+        )
+      }
+
+      // Default: 500 for unknown server errors (Stripe WILL retry)
+      // Changed from 400 to ensure transient errors are retried
       return NextResponse.json(
-        { message: `Webhook Error: ${errorMessage}` },
-        { status: 400 }
+        { message: 'Webhook processing error' },
+        { status: 500 }
       )
     }
   }
