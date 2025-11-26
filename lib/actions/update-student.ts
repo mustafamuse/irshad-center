@@ -1,22 +1,15 @@
 'use server'
 
-import { Prisma } from '@prisma/client'
+/**
+ * Update Student Action
+ *
+ * IMPORTANT: This action needs migration to the new schema.
+ * The Student model no longer exists.
+ * TODO: Priority migration in PR 2e.
+ */
 
-import { prisma } from '@/lib/db'
+import { createStubbedAction } from '@/lib/utils/stub-helpers'
 
-export async function updateStudent(
-  id: string,
-  data: Prisma.StudentUpdateInput
-) {
-  try {
-    return {
-      student: await prisma.student.update({
-        where: { id },
-        data,
-      }),
-    }
-  } catch (error) {
-    console.error('Failed to update student:', error)
-    throw new Error('Failed to update student information')
-  }
-}
+export const updateStudent = createStubbedAction<
+  [string, Record<string, unknown>]
+>({ feature: 'updateStudent', reason: 'schema_migration' })

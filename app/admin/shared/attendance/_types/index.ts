@@ -1,6 +1,11 @@
-// Re-export Prisma types for consistency
-export { AttendanceStatus } from '@prisma/client'
-import type { AttendanceStatus } from '@prisma/client'
+// Local AttendanceStatus enum (schema enum was removed - incomplete feature)
+export enum AttendanceStatus {
+  PRESENT = 'PRESENT',
+  ABSENT = 'ABSENT',
+  LATE = 'LATE',
+  EXCUSED = 'EXCUSED',
+  UNEXCUSED = 'UNEXCUSED',
+}
 
 export interface BaseRecord {
   id: string

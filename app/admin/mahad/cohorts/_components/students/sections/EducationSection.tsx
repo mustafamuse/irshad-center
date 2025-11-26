@@ -67,7 +67,7 @@ export function EducationSection({
           onChange={(value) => updateField('educationLevel', value)}
           disabled={isPending}
           icon={BookOpen}
-          displayValue={formatEducationLevel(student.educationLevel)}
+          displayValue={formatEducationLevel(student.educationLevel ?? null)}
           placeholder="Select education level"
         />
 
@@ -80,7 +80,7 @@ export function EducationSection({
           onChange={(value) => updateField('gradeLevel', value)}
           disabled={isPending}
           icon={School}
-          displayValue={formatGradeLevel(student.gradeLevel)}
+          displayValue={formatGradeLevel(student.gradeLevel ?? null)}
           placeholder="Select grade level"
         />
 

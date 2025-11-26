@@ -14,6 +14,7 @@
 import { SubscriptionStatus, StripeAccountType } from '@prisma/client'
 
 import { DugsiRegistration } from '@/app/admin/dugsi/_types'
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import {
   ProgramProfileWithGuardians,
   ProgramProfileFull,
@@ -31,7 +32,7 @@ export function mapProfileToDugsiRegistration(
   profile: ProgramProfileFull
 ): DugsiRegistration | null {
   // Validate program type
-  if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
     return null
   }
 
@@ -52,9 +53,9 @@ export function mapProfileToDugsiRegistration(
     (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
   )?.value
   const parent1Name = parent1?.name
-  const [parent1FirstName, parent1LastName] = parent1Name
-    ? parent1Name.split(' ').slice(0, 2)
-    : [null, null]
+  const parent1NameParts = parent1Name ? parent1Name.split(' ') : []
+  const parent1FirstName = parent1NameParts[0] || null
+  const parent1LastName = parent1NameParts.slice(1).join(' ') || null
 
   // Second parent (second guardian)
   const parent2 = guardians[1]
@@ -65,9 +66,9 @@ export function mapProfileToDugsiRegistration(
     (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
   )?.value
   const parent2Name = parent2?.name
-  const [parent2FirstName, parent2LastName] = parent2Name
-    ? parent2Name.split(' ').slice(0, 2)
-    : [null, null]
+  const parent2NameParts = parent2Name ? parent2Name.split(' ') : []
+  const parent2FirstName = parent2NameParts[0] || null
+  const parent2LastName = parent2NameParts.slice(1).join(' ') || null
 
   // Extract billing information from active assignment
   const activeAssignment = profile.assignments?.[0]
@@ -138,7 +139,7 @@ export function mapProfileToSimpleDugsiRegistration(
   | 'currentPeriodEnd'
   | 'stripeAccountType'
 > {
-  if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
     throw new Error('Invalid profile: must be DUGSI_PROGRAM')
   }
 
@@ -157,9 +158,9 @@ export function mapProfileToSimpleDugsiRegistration(
     (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
   )?.value
   const parent1Name = parent1?.name
-  const [parent1FirstName, parent1LastName] = parent1Name
-    ? parent1Name.split(' ').slice(0, 2)
-    : [null, null]
+  const parent1NameParts = parent1Name ? parent1Name.split(' ') : []
+  const parent1FirstName = parent1NameParts[0] || null
+  const parent1LastName = parent1NameParts.slice(1).join(' ') || null
 
   // Second parent
   const parent2 = guardians[1]
@@ -170,9 +171,9 @@ export function mapProfileToSimpleDugsiRegistration(
     (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
   )?.value
   const parent2Name = parent2?.name
-  const [parent2FirstName, parent2LastName] = parent2Name
-    ? parent2Name.split(' ').slice(0, 2)
-    : [null, null]
+  const parent2NameParts = parent2Name ? parent2Name.split(' ') : []
+  const parent2FirstName = parent2NameParts[0] || null
+  const parent2LastName = parent2NameParts.slice(1).join(' ') || null
 
   return {
     id: profile.id,

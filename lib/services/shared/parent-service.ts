@@ -14,7 +14,7 @@
  * - Get guardian's dependents
  */
 
-import { ContactType, GuardianRole } from '@prisma/client'
+import { ContactType, GuardianRole, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { ValidationError } from '@/lib/services/validation-service'
@@ -91,14 +91,34 @@ export async function updateGuardianInfo(
         data: { value: normalizedEmail },
       })
     } else {
-      await prisma.contactPoint.create({
-        data: {
-          personId: guardianId,
-          type: 'EMAIL',
-          value: normalizedEmail,
-          isPrimary: true,
-        },
-      })
+      try {
+        await prisma.contactPoint.create({
+          data: {
+            personId: guardianId,
+            type: 'EMAIL',
+            value: normalizedEmail,
+            isPrimary: true,
+          },
+        })
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          // Race condition - contact point was created by another request
+          const existing = await prisma.contactPoint.findFirst({
+            where: { personId: guardianId, type: 'EMAIL' },
+          })
+          if (existing) {
+            await prisma.contactPoint.update({
+              where: { id: existing.id },
+              data: { value: normalizedEmail, isPrimary: true },
+            })
+          }
+        } else {
+          throw error
+        }
+      }
     }
   }
 
@@ -118,13 +138,33 @@ export async function updateGuardianInfo(
           data: { value: normalizedPhone },
         })
       } else {
-        await prisma.contactPoint.create({
-          data: {
-            personId: guardianId,
-            type: 'PHONE',
-            value: normalizedPhone,
-          },
-        })
+        try {
+          await prisma.contactPoint.create({
+            data: {
+              personId: guardianId,
+              type: 'PHONE',
+              value: normalizedPhone,
+            },
+          })
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Race condition - contact point was created by another request
+            const existing = await prisma.contactPoint.findFirst({
+              where: { personId: guardianId, type: 'PHONE' },
+            })
+            if (existing) {
+              await prisma.contactPoint.update({
+                where: { id: existing.id },
+                data: { value: normalizedPhone },
+              })
+            }
+          } else {
+            throw error
+          }
+        }
       }
     }
   }

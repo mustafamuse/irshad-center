@@ -42,6 +42,8 @@ export interface PaymentStatusData {
   currentPeriodStart: Date | null
   currentPeriodEnd: Date | null
   students: Array<{ id: string; name: string }>
+  /** Family reference ID for debugging and admin operations */
+  familyReferenceId: string | null
 }
 
 /**
@@ -231,6 +233,7 @@ export async function getPaymentStatus(
     currentPeriodStart: subscription?.currentPeriodStart || null,
     currentPeriodEnd: subscription?.currentPeriodEnd || null,
     students,
+    familyReferenceId: familyId || null,
   }
 }
 

@@ -1,11 +1,19 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
-
-import { AttendanceStatus } from '@prisma/client'
 import { z } from 'zod'
 
-import { prisma } from '@/lib/db'
+import { createStubbedAction } from '@/lib/utils/stub-helpers'
+
+import { AttendanceStatus } from './_types'
+
+/**
+ * Attendance Actions
+ *
+ * NOTE: The attendance feature is incomplete. The database models
+ * (AttendanceSession, AttendanceRecord) were removed from the schema.
+ * These functions are stubbed out until the feature is implemented.
+ * TODO: Implement in future PR when attendance feature is prioritized.
+ */
 
 const createSessionSchema = z.object({
   batchId: z.string(),
@@ -13,22 +21,13 @@ const createSessionSchema = z.object({
   notes: z.string().optional(),
 })
 
-export async function createSession(
-  input: z.infer<typeof createSessionSchema>
-) {
-  const { batchId, date, notes } = createSessionSchema.parse(input)
-
-  const session = await prisma.attendanceSession.create({
-    data: {
-      batchId,
-      date: new Date(date),
-      notes,
-    },
-  })
-
-  revalidatePath('/admin/shared/attendance')
-  return session
-}
+export const createSession = createStubbedAction<
+  [z.infer<typeof createSessionSchema>]
+>({
+  feature: 'createSession',
+  reason: 'schema_migration',
+  userMessage: 'Attendance feature is not yet implemented.',
+})
 
 const markAttendanceSchema = z.object({
   sessionId: z.string(),
@@ -41,60 +40,16 @@ const markAttendanceSchema = z.object({
   ),
 })
 
-export async function markAttendance(
-  input: z.infer<typeof markAttendanceSchema>
-) {
-  const { sessionId, records } = markAttendanceSchema.parse(input)
+export const markAttendance = createStubbedAction<
+  [z.infer<typeof markAttendanceSchema>]
+>({
+  feature: 'markAttendance',
+  reason: 'schema_migration',
+  userMessage: 'Attendance feature is not yet implemented.',
+})
 
-  // Get existing records to determine which to create/update
-  const existingRecords = await prisma.attendanceRecord.findMany({
-    where: { sessionId },
-    select: { studentId: true },
-  })
-  const existingStudentIds = new Set(existingRecords.map((r) => r.studentId))
-
-  // Prepare create and update operations
-  const createRecords = records
-    .filter((r) => !existingStudentIds.has(r.studentId))
-    .map((r) => ({
-      sessionId,
-      studentId: r.studentId,
-      status: r.status,
-      notes: r.notes,
-    }))
-
-  const updateRecords = records
-    .filter((r) => existingStudentIds.has(r.studentId))
-    .map((r) =>
-      prisma.attendanceRecord.update({
-        where: {
-          sessionId_studentId: {
-            sessionId,
-            studentId: r.studentId,
-          },
-        },
-        data: {
-          status: r.status,
-          notes: r.notes,
-        },
-      })
-    )
-
-  // Execute all operations in a transaction
-  await prisma.$transaction([
-    ...updateRecords,
-    ...(createRecords.length > 0
-      ? [prisma.attendanceRecord.createMany({ data: createRecords })]
-      : []),
-  ])
-
-  revalidatePath('/admin/shared/attendance')
-}
-
-export async function deleteSession(sessionId: string) {
-  await prisma.attendanceSession.delete({
-    where: { id: sessionId },
-  })
-
-  revalidatePath('/admin/shared/attendance')
-}
+export const deleteSession = createStubbedAction<[string]>({
+  feature: 'deleteSession',
+  reason: 'schema_migration',
+  userMessage: 'Attendance feature is not yet implemented.',
+})
