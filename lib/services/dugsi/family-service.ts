@@ -24,6 +24,24 @@ import { createServiceLogger } from '@/lib/logger'
 
 const _logger = createServiceLogger('dugsi-family')
 
+/** Phone format: XXX-XXX-XXXX */
+const PHONE_REGEX = /^\d{3}-\d{3}-\d{4}$/
+
+/**
+ * Validates phone number format.
+ * Service-layer validation ensures data integrity even when called directly.
+ */
+function validatePhoneFormat(phone: string): void {
+  if (!phone || !PHONE_REGEX.test(phone)) {
+    throw new ActionError(
+      'Invalid phone format. Expected XXX-XXX-XXXX',
+      ERROR_CODES.VALIDATION_ERROR,
+      'phone',
+      400
+    )
+  }
+}
+
 /**
  * Parent update input
  */
@@ -121,6 +139,9 @@ export interface NewChildInput {
 export async function updateParentInfo(
   input: ParentUpdateInput
 ): Promise<{ updated: number }> {
+  // Validate phone format before proceeding
+  validatePhoneFormat(input.phone)
+
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
     throw new ActionError(
@@ -220,6 +241,9 @@ export async function updateParentInfo(
 export async function addSecondParent(
   input: SecondParentInput
 ): Promise<{ updated: number }> {
+  // Validate phone format before proceeding
+  validatePhoneFormat(input.phone)
+
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
     throw new ActionError(

@@ -59,34 +59,41 @@ async function getSubscriptionMembersBatch(
     },
   })
 
-  // Group by subscriptionId, then create member lists excluding each profile
-  const subscriptionMap = new Map<string, Map<string, SubscriptionMember[]>>()
-
+  // Step 1: Group assignments by subscriptionId (O(n))
+  const assignmentsBySubscription = new Map<string, typeof allAssignments>()
   for (const assignment of allAssignments) {
     if (!assignment.subscriptionId) continue
 
-    if (!subscriptionMap.has(assignment.subscriptionId)) {
-      subscriptionMap.set(assignment.subscriptionId, new Map())
-    }
-
-    const profileMap = subscriptionMap.get(assignment.subscriptionId)!
-
-    // For each subscription, build a map of profileId -> other members
-    for (const otherAssignment of allAssignments) {
-      if (
-        otherAssignment.subscriptionId === assignment.subscriptionId &&
-        otherAssignment.programProfileId !== assignment.programProfileId
-      ) {
-        if (!profileMap.has(assignment.programProfileId)) {
-          profileMap.set(assignment.programProfileId, [])
-        }
-        profileMap.get(assignment.programProfileId)!.push({
-          id: otherAssignment.programProfile.id,
-          name: otherAssignment.programProfile.person.name,
-        })
-      }
+    const existing = assignmentsBySubscription.get(assignment.subscriptionId)
+    if (existing) {
+      existing.push(assignment)
+    } else {
+      assignmentsBySubscription.set(assignment.subscriptionId, [assignment])
     }
   }
+
+  // Step 2: Build member map for each subscription (O(n) total)
+  const subscriptionMap = new Map<string, Map<string, SubscriptionMember[]>>()
+
+  assignmentsBySubscription.forEach(
+    (subscriptionAssignments, subscriptionId) => {
+      const profileMap = new Map<string, SubscriptionMember[]>()
+
+      // For each profile in this subscription, list other members
+      for (const assignment of subscriptionAssignments) {
+        const otherMembers = subscriptionAssignments
+          .filter((a) => a.programProfileId !== assignment.programProfileId)
+          .map((a) => ({
+            id: a.programProfile.id,
+            name: a.programProfile.person.name,
+          }))
+
+        profileMap.set(assignment.programProfileId, otherMembers)
+      }
+
+      subscriptionMap.set(subscriptionId, profileMap)
+    }
+  )
 
   return subscriptionMap
 }
