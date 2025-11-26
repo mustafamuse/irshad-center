@@ -1,39 +1,39 @@
-import { NextResponse } from 'next/server'
-
-import { createActionLogger, logWarning } from '@/lib/logger'
-
 /**
  * Dugsi Webhook Handler
  *
- * MIGRATION NOTE (PR 2c):
- * This webhook is temporarily disabled during schema migration.
- * The Student model no longer exists - requires migration to ProgramProfile.
+ * Handles Stripe webhook events for the Dugsi program.
+ * Uses the shared base handler for DRY implementation.
  *
- * Impact:
- * - Stripe events will return 501 and be retried by Stripe
- * - Payment confirmations not recorded during migration window
- * - Subscription status updates missed during migration window
- *
- * Mitigation:
- * - Stripe automatically retries webhooks for up to 3 days
- * - Migration window is expected to be < 24 hours
- * - Will be re-enabled in PR 2e with new schema support
- *
- * After migration, replay any missed events using:
- * ```bash
- * stripe events list --limit 100 --created[gte]=<migration_start_timestamp>
- * ```
- *
- * TODO: Priority migration in PR 2e.
+ * Note: Dugsi uses a separate Stripe account from Mahad.
  */
-const logger = createActionLogger('dugsi_webhook')
 
-export async function POST() {
-  await logWarning(logger, 'dugsi_webhook disabled', {
-    reason: 'schema_migration',
-  })
-  return NextResponse.json(
-    { error: 'Dugsi webhook needs migration to new schema.' },
-    { status: 501 }
-  )
-}
+import { STRIPE_WEBHOOK_EVENTS } from '@/lib/constants/stripe'
+import { createWebhookHandler } from '@/lib/services/webhooks/base-webhook-handler'
+import { dugsiEventHandlers } from '@/lib/services/webhooks/event-handlers'
+import { verifyDugsiWebhook } from '@/lib/stripe-dugsi'
+
+/**
+ * POST handler for Dugsi webhooks
+ */
+export const POST = createWebhookHandler({
+  source: 'dugsi',
+  verifyWebhook: verifyDugsiWebhook,
+  eventHandlers: {
+    [STRIPE_WEBHOOK_EVENTS.CHECKOUT_COMPLETED]:
+      dugsiEventHandlers['checkout.session.completed'],
+    [STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_CREATED]:
+      dugsiEventHandlers['customer.subscription.created'],
+    [STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_UPDATED]:
+      dugsiEventHandlers['customer.subscription.updated'],
+    [STRIPE_WEBHOOK_EVENTS.SUBSCRIPTION_DELETED]:
+      dugsiEventHandlers['customer.subscription.deleted'],
+    [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_SUCCEEDED]:
+      dugsiEventHandlers['invoice.payment_succeeded'],
+    [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_FAILED]:
+      dugsiEventHandlers['invoice.payment_failed'],
+    [STRIPE_WEBHOOK_EVENTS.INVOICE_FINALIZED]:
+      dugsiEventHandlers['invoice.finalized'],
+  },
+})
+
+export const dynamic = 'force-dynamic'
