@@ -277,6 +277,14 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
  * Find potential duplicate students
  *
  * Groups students by email to identify duplicates.
+ *
+ * Limitations:
+ * - Only detects duplicates based on exact email matches
+ * - Does not detect duplicates with: same name but different emails,
+ *   typos in emails, or multiple accounts for the same person
+ * - Future versions could add fuzzy name matching or phone number matching
+ *
+ * @returns Array of duplicate groups, each containing students sharing the same email
  */
 export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
   // Find emails with multiple persons
@@ -360,10 +368,17 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
 }
 
 /**
- * Delete/merge duplicate records
+ * Withdraw duplicate records (soft delete)
  *
- * Keeps the oldest record and merges data from newer duplicates.
- * THIS IS A DESTRUCTIVE OPERATION - use with caution.
+ * Marks the specified profiles as WITHDRAWN rather than hard-deleting them.
+ * This is reversible but should be used with caution.
+ *
+ * What it does:
+ * - Sets enrollment.reason to 'Duplicate record cleanup'
+ * - Sets profile status to WITHDRAWN
+ *
+ * @param profileIds - Array of ProgramProfile IDs to withdraw
+ * @returns Object with success status and count of withdrawn records
  */
 export async function deleteDuplicateRecords(
   profileIds: string[]

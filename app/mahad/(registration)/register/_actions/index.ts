@@ -57,6 +57,11 @@ type StudentSearchResult = { id: string; name: string; lastName: string }
  * - Person + ContactPoints creation
  * - ProgramProfile creation for MAHAD_PROGRAM
  * - Optional enrollment in batch
+ *
+ * Note: There's a potential race condition between checkEmailExists() and
+ * createMahadStudent(). The underlying service handles P2002 (unique constraint)
+ * errors gracefully - if another request creates the same email, this may
+ * result in a new ProgramProfile for an existing Person rather than a failure.
  */
 export async function registerStudent(input: {
   studentData: z.infer<typeof mahadRegistrationSchema>
@@ -170,6 +175,17 @@ export async function checkEmailExists(email: string): Promise<boolean> {
  * Search students by first and last name for sibling matching
  *
  * Returns Mahad program profiles matching the name criteria.
+ *
+ * Search behavior:
+ * - Performs case-insensitive partial matching
+ * - Uses OR logic for DB query (contains firstName OR lastName)
+ * - Then filters results to require both parts match (AND logic)
+ * - First name must be contained in the first word of the stored name
+ * - Last name must be contained in the remaining words of the stored name
+ *
+ * @param firstName - First name to search for (partial match)
+ * @param lastName - Last name to search for (partial match)
+ * @returns Array of matching students with id, name, and lastName
  */
 export async function searchStudents(
   firstName: string,
@@ -233,12 +249,20 @@ export async function searchStudents(
  * Add sibling relationship between two students
  *
  * Creates a SiblingRelationship record linking the two Person records.
+ *
+ * @param studentId - ProgramProfile ID of the student
+ * @param siblingId - ProgramProfile ID of the sibling to add
  */
 export async function addSibling(
   studentId: string,
   siblingId: string
 ): Promise<MahadActionResult> {
   try {
+    // Input validation
+    if (!studentId || !siblingId) {
+      return { success: false, error: 'Student ID and sibling ID are required' }
+    }
+
     // Get both profiles to access person IDs
     const [studentProfile, siblingProfile] = await Promise.all([
       getProgramProfileById(studentId),
@@ -246,9 +270,11 @@ export async function addSibling(
     ])
 
     if (!studentProfile) {
+      console.error(`addSibling: Student profile not found: ${studentId}`)
       return { success: false, error: 'Student not found' }
     }
     if (!siblingProfile) {
+      console.error(`addSibling: Sibling profile not found: ${siblingId}`)
       return { success: false, error: 'Sibling not found' }
     }
 
@@ -279,12 +305,20 @@ export async function addSibling(
  * Remove sibling relationship between two students
  *
  * Soft-deletes the SiblingRelationship by marking it inactive.
+ *
+ * @param studentId - ProgramProfile ID of the student
+ * @param siblingId - ProgramProfile ID of the sibling to remove
  */
 export async function removeSibling(
   studentId: string,
   siblingId: string
 ): Promise<MahadActionResult> {
   try {
+    // Input validation
+    if (!studentId || !siblingId) {
+      return { success: false, error: 'Student ID and sibling ID are required' }
+    }
+
     // Get both profiles to access person IDs
     const [studentProfile, siblingProfile] = await Promise.all([
       getProgramProfileById(studentId),
@@ -292,9 +326,11 @@ export async function removeSibling(
     ])
 
     if (!studentProfile) {
+      console.error(`removeSibling: Student profile not found: ${studentId}`)
       return { success: false, error: 'Student not found' }
     }
     if (!siblingProfile) {
+      console.error(`removeSibling: Sibling profile not found: ${siblingId}`)
       return { success: false, error: 'Sibling not found' }
     }
 
