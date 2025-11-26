@@ -1,5 +1,7 @@
 'use client'
 
+import { memo, useCallback } from 'react'
+
 import { SubscriptionStatus } from '@prisma/client'
 import { Users } from 'lucide-react'
 
@@ -23,7 +25,11 @@ interface StudentCardProps {
   onViewDetails?: () => void
 }
 
-export function StudentCard({
+/**
+ * StudentCard component - memoized to prevent unnecessary re-renders in lists.
+ * Only re-renders when props change.
+ */
+export const StudentCard = memo(function StudentCard({
   student,
   isSelected,
   onToggle,
@@ -31,20 +37,23 @@ export function StudentCard({
   compact = false,
   onViewDetails,
 }: StudentCardProps) {
-  const handleClick = () => {
+  const handleClick = useCallback(() => {
     if (onViewDetails) {
       onViewDetails()
     } else if (selectable) {
       onToggle()
     }
-  }
+  }, [onViewDetails, selectable, onToggle])
 
-  const handleCheckboxClick = (e: React.MouseEvent) => {
-    // Prevent link navigation when clicking checkbox
-    e.preventDefault()
-    e.stopPropagation()
-    onToggle()
-  }
+  const handleCheckboxClick = useCallback(
+    (e: React.MouseEvent) => {
+      // Prevent link navigation when clicking checkbox
+      e.preventDefault()
+      e.stopPropagation()
+      onToggle()
+    },
+    [onToggle]
+  )
 
   return (
     <Card
@@ -173,4 +182,4 @@ export function StudentCard({
       </div>
     </Card>
   )
-}
+})

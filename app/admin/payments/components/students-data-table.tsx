@@ -1,14 +1,6 @@
 import Link from 'next/link'
 
-import {
-  ExternalLink,
-  User,
-  AlertCircle,
-  CheckCircle,
-  UserX,
-  Clock,
-  Zap,
-} from 'lucide-react'
+import { ExternalLink, User } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,79 +8,10 @@ import { TableCell, TableRow } from '@/components/ui/table'
 import { StudentWithDetails } from '@/types'
 
 import { PaymentHistoryDialog } from './payment-history-dialog'
+import { getStatusConfig, getSubscriptionConfig } from '../utils/status-config'
 
 interface StudentsDataTableProps {
   data: StudentWithDetails[]
-}
-
-function getStatusConfig(status: string) {
-  switch (status) {
-    case 'enrolled':
-      return {
-        variant: 'default' as const,
-        className:
-          'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-800',
-        icon: CheckCircle,
-      }
-    case 'past_due':
-      return {
-        variant: 'destructive' as const,
-        className:
-          'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-300 dark:border-red-800',
-        icon: AlertCircle,
-      }
-    case 'registered':
-      return {
-        variant: 'secondary' as const,
-        className:
-          'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-800',
-        icon: Clock,
-      }
-    case 'inactive':
-      return {
-        variant: 'outline' as const,
-        className: 'bg-muted text-muted-foreground border-border',
-        icon: UserX,
-      }
-    default:
-      return {
-        variant: 'outline' as const,
-        className: 'bg-muted text-muted-foreground border-border',
-        icon: User,
-      }
-  }
-}
-
-function getSubscriptionConfig(status: string | null) {
-  switch (status) {
-    case 'active':
-      return {
-        variant: 'default' as const,
-        className:
-          'bg-green-100 text-green-800 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-800',
-        icon: Zap,
-      }
-    case 'past_due':
-      return {
-        variant: 'destructive' as const,
-        className:
-          'bg-red-100 text-red-800 border-red-200 dark:bg-red-900 dark:text-red-300 dark:border-red-800',
-        icon: AlertCircle,
-      }
-    case 'canceled':
-      return {
-        variant: 'secondary' as const,
-        className:
-          'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900 dark:text-orange-300 dark:border-orange-800',
-        icon: UserX,
-      }
-    default:
-      return {
-        variant: 'secondary' as const,
-        className: 'bg-muted text-muted-foreground border-border',
-        icon: AlertCircle,
-      }
-  }
 }
 
 export function StudentsDataTable({ data }: StudentsDataTableProps) {

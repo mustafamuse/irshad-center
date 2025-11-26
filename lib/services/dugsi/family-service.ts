@@ -209,40 +209,75 @@ export async function addSecondParent(
     )
   }
 
-  // Check if person with this email already exists
-  const existingPerson = await findPersonByContact(input.email, null)
-
-  // Create person and guardian relationship in a transaction
+  // Create person and guardian relationship in a transaction with race condition handling
   await prisma.$transaction(async (tx) => {
     let parentPersonId: string
+    const normalizedEmail = input.email.toLowerCase().trim()
+
+    // Check if person with this email already exists (inside transaction for consistency)
+    const existingPerson = await findPersonByContact(input.email, null)
 
     if (existingPerson) {
       parentPersonId = existingPerson.id
     } else {
-      // Create new person for second parent
+      // Create new person for second parent with race condition handling
       const fullName = `${input.firstName} ${input.lastName}`.trim()
-      const newPerson = await tx.person.create({
-        data: {
-          name: fullName,
-          contactPoints: {
-            create: [
-              { type: 'EMAIL', value: input.email.toLowerCase().trim() },
-              { type: 'PHONE', value: input.phone },
-            ],
+      try {
+        const newPerson = await tx.person.create({
+          data: {
+            name: fullName,
+            contactPoints: {
+              create: [
+                { type: 'EMAIL', value: normalizedEmail },
+                { type: 'PHONE', value: input.phone },
+              ],
+            },
           },
-        },
-      })
-      parentPersonId = newPerson.id
+        })
+        parentPersonId = newPerson.id
+      } catch (error) {
+        // Handle P2002 unique constraint violation (race condition)
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          // Another transaction created this person - look them up
+          const racedPerson = await findPersonByContact(input.email, null)
+          if (!racedPerson) {
+            throw new ActionError(
+              'Failed to create or find person',
+              ERROR_CODES.SERVER_ERROR,
+              undefined,
+              500
+            )
+          }
+          parentPersonId = racedPerson.id
+        } else {
+          throw error
+        }
+      }
     }
 
-    // Create guardian relationship
-    await tx.guardianRelationship.create({
-      data: {
-        guardianId: parentPersonId,
-        dependentId: person.id,
-        isActive: true,
-      },
-    })
+    // Create guardian relationship with race condition handling
+    try {
+      await tx.guardianRelationship.create({
+        data: {
+          guardianId: parentPersonId,
+          dependentId: person.id,
+          isActive: true,
+        },
+      })
+    } catch (error) {
+      // Handle P2002 if relationship already exists (race condition)
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        // Relationship already exists - this is fine, operation is idempotent
+        return
+      }
+      throw error
+    }
   })
 
   return { updated: 1 }
