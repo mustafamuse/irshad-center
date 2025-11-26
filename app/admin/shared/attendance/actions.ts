@@ -1,11 +1,16 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
-
-import { AttendanceStatus } from '@prisma/client'
 import { z } from 'zod'
 
-import { prisma } from '@/lib/db'
+import { AttendanceStatus } from './_types'
+
+/**
+ * Attendance Actions
+ *
+ * NOTE: The attendance feature is incomplete. The database models
+ * (AttendanceSession, AttendanceRecord) were removed from the schema.
+ * These functions are stubbed out until the feature is implemented.
+ */
 
 const createSessionSchema = z.object({
   batchId: z.string(),
@@ -14,20 +19,9 @@ const createSessionSchema = z.object({
 })
 
 export async function createSession(
-  input: z.infer<typeof createSessionSchema>
+  _input: z.infer<typeof createSessionSchema>
 ) {
-  const { batchId, date, notes } = createSessionSchema.parse(input)
-
-  const session = await prisma.attendanceSession.create({
-    data: {
-      batchId,
-      date: new Date(date),
-      notes,
-    },
-  })
-
-  revalidatePath('/admin/shared/attendance')
-  return session
+  throw new Error('Attendance feature is not yet implemented')
 }
 
 const markAttendanceSchema = z.object({
@@ -42,59 +36,11 @@ const markAttendanceSchema = z.object({
 })
 
 export async function markAttendance(
-  input: z.infer<typeof markAttendanceSchema>
+  _input: z.infer<typeof markAttendanceSchema>
 ) {
-  const { sessionId, records } = markAttendanceSchema.parse(input)
-
-  // Get existing records to determine which to create/update
-  const existingRecords = await prisma.attendanceRecord.findMany({
-    where: { sessionId },
-    select: { studentId: true },
-  })
-  const existingStudentIds = new Set(existingRecords.map((r) => r.studentId))
-
-  // Prepare create and update operations
-  const createRecords = records
-    .filter((r) => !existingStudentIds.has(r.studentId))
-    .map((r) => ({
-      sessionId,
-      studentId: r.studentId,
-      status: r.status,
-      notes: r.notes,
-    }))
-
-  const updateRecords = records
-    .filter((r) => existingStudentIds.has(r.studentId))
-    .map((r) =>
-      prisma.attendanceRecord.update({
-        where: {
-          sessionId_studentId: {
-            sessionId,
-            studentId: r.studentId,
-          },
-        },
-        data: {
-          status: r.status,
-          notes: r.notes,
-        },
-      })
-    )
-
-  // Execute all operations in a transaction
-  await prisma.$transaction([
-    ...updateRecords,
-    ...(createRecords.length > 0
-      ? [prisma.attendanceRecord.createMany({ data: createRecords })]
-      : []),
-  ])
-
-  revalidatePath('/admin/shared/attendance')
+  throw new Error('Attendance feature is not yet implemented')
 }
 
-export async function deleteSession(sessionId: string) {
-  await prisma.attendanceSession.delete({
-    where: { id: sessionId },
-  })
-
-  revalidatePath('/admin/shared/attendance')
+export async function deleteSession(_sessionId: string) {
+  throw new Error('Attendance feature is not yet implemented')
 }

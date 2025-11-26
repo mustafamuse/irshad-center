@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 
-import { AttendanceStatus } from '@prisma/client'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -31,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
+import { AttendanceStatus } from '../_types'
 import { markAttendance } from '../actions'
 
 interface Student {

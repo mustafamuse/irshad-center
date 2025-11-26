@@ -13,8 +13,8 @@
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { programProfileFullInclude } from '@/lib/types/prisma-helpers'
 
 /**
  * Get a Dugsi student by ID.

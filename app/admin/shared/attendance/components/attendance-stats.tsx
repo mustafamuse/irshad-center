@@ -1,95 +1,55 @@
-import { Card } from '@/components/ui/card'
-import { prisma } from '@/lib/db'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
+/**
+ * Attendance Stats Component
+ *
+ * NOTE: The attendance feature is incomplete. The database models
+ * (AttendanceSession, AttendanceRecord) were removed from the schema.
+ * This component is stubbed out until the feature is implemented.
+ */
 export async function AttendanceStats() {
-  // Get stats directly with Prisma (Server Component pattern)
-  const [totalSessions, activeStudents] = await Promise.all([
-    // Total attendance sessions (all sessions in weekend program)
-    prisma.attendanceSession.count(),
-
-    // Active students (attended at least one session)
-    prisma.student.count({
-      where: {
-        AttendanceRecord: {
-          some: {},
-        },
-      },
-    }),
-  ])
-
-  // Get completed sessions and average attendance
-  const completedSessions = await prisma.$queryRaw<{ count: number }[]>`
-    SELECT COUNT(DISTINCT s.id) as count
-    FROM "AttendanceSession" s
-    WHERE (
-      SELECT COUNT(DISTINCT r.id)
-      FROM "AttendanceRecord" r
-      WHERE r."sessionId" = s.id
-    ) = (
-      SELECT COUNT(DISTINCT st.id)
-      FROM "Student" st
-      WHERE st."batchId" = s."batchId"
-    )
-  `
-
-  const attendanceRate = await prisma.$queryRaw<{ rate: number }[]>`
-    WITH SessionCounts AS (
-      SELECT 
-        s.id,
-        COUNT(DISTINCT r.id) as marked_count,
-        COUNT(DISTINCT st.id) as total_students
-      FROM "AttendanceSession" s
-      LEFT JOIN "AttendanceRecord" r ON r."sessionId" = s.id AND r.status = 'PRESENT'
-      LEFT JOIN "Student" st ON st."batchId" = s."batchId"
-      GROUP BY s.id
-    )
-    SELECT 
-      COALESCE(
-        ROUND(
-          AVG(
-            CASE 
-              WHEN total_students > 0 
-              THEN (marked_count::float / total_students) * 100 
-              ELSE 0 
-            END
-          )
-        ),
-        0
-      ) as rate
-    FROM SessionCounts
-  `
-
-  const stats = {
-    totalSessions,
-    completedSessions: completedSessions[0]?.count || 0,
-    activeStudents,
-    averageAttendance: attendanceRate[0]?.rate || 0,
-  }
-
   return (
-    <>
-      <Card className="space-y-2 p-4">
-        <p className="text-sm font-medium text-muted-foreground">
-          Total Sessions
-        </p>
-        <p className="text-2xl font-bold">{stats.totalSessions}</p>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Total Sessions
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">-</div>
+        </CardContent>
       </Card>
-      <Card className="space-y-2 p-4">
-        <p className="text-sm font-medium text-muted-foreground">Completed</p>
-        <p className="text-2xl font-bold">{stats.completedSessions}</p>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Active Students
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">-</div>
+        </CardContent>
       </Card>
-      <Card className="space-y-2 p-4">
-        <p className="text-sm font-medium text-muted-foreground">
-          Active Students
-        </p>
-        <p className="text-2xl font-bold">{stats.activeStudents}</p>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            Avg Attendance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">-</div>
+        </CardContent>
       </Card>
-      <Card className="space-y-2 p-4">
-        <p className="text-sm font-medium text-muted-foreground">
-          Avg. Attendance
-        </p>
-        <p className="text-2xl font-bold">{stats.averageAttendance}%</p>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground">
+            This Month
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">-</div>
+        </CardContent>
       </Card>
-    </>
+    </div>
   )
 }

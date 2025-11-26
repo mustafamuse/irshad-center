@@ -21,11 +21,11 @@ export function getDefaultFormData(
     name: student.name,
     email: student.email || FORM_DEFAULTS.EMPTY,
     phone: student.phone || FORM_DEFAULTS.EMPTY,
-    dateOfBirth: student.dateOfBirth,
+    dateOfBirth: student.dateOfBirth ?? null,
     educationLevel: student.educationLevel || FORM_DEFAULTS.NONE,
     gradeLevel: student.gradeLevel || FORM_DEFAULTS.NONE,
     schoolName: student.schoolName || FORM_DEFAULTS.EMPTY,
-    monthlyRate: student.monthlyRate,
+    monthlyRate: student.monthlyRate ?? 0,
     customRate: student.customRate,
     batchId: student.batchId || FORM_DEFAULTS.NONE,
   }

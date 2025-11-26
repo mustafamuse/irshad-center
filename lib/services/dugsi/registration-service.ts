@@ -14,13 +14,13 @@
 import { DugsiRegistration } from '@/app/admin/dugsi/_types'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
 import {
   getProgramProfileById,
   getProgramProfilesByFamilyId,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
-import { programProfileFullInclude } from '@/lib/types/prisma-helpers'
 
 /**
  * Fetch all Dugsi registrations with full relations.

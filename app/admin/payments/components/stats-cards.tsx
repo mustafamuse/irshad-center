@@ -7,56 +7,77 @@ import {
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { STUDENT_STATUS } from '@/lib/constants'
+import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 
+/**
+ * Get payment stats from ProgramProfile/Enrollment model
+ * TODO: Add revenue stats when StudentPayment migration is complete
+ */
 async function getStats() {
-  // Base filter to exclude "Test" batch students
-  const baseExcludeFilter = {
-    Batch: {
-      name: {
-        not: 'Test',
-      },
-    },
-  }
-
+  // Count Mahad program profiles (excluding Test batch)
   const [
     totalStudents,
-    activeSubscriptions,
-    registeredStudents,
-    totalRevenue,
     enrolledStudents,
+    registeredStudents,
+    activeSubscriptions,
+    totalRevenue,
   ] = await Promise.all([
-    prisma.student.count({
+    // Total non-withdrawn students
+    prisma.enrollment.count({
       where: {
-        AND: [baseExcludeFilter, { status: { not: 'withdrawn' } }],
+        status: { not: 'WITHDRAWN' },
+        programProfile: {
+          program: MAHAD_PROGRAM,
+        },
+        batch: {
+          name: { not: 'Test' },
+        },
       },
     }),
-    prisma.student.count({
+    // Enrolled students
+    prisma.enrollment.count({
       where: {
-        AND: [
-          baseExcludeFilter,
-          {
-            subscriptionStatus: 'active',
-            status: { not: STUDENT_STATUS.WITHDRAWN },
-          },
-        ],
+        status: 'ENROLLED',
+        programProfile: {
+          program: MAHAD_PROGRAM,
+        },
+        batch: {
+          name: { not: 'Test' },
+        },
       },
     }),
-    prisma.student.count({
+    // Registered students
+    prisma.enrollment.count({
       where: {
-        AND: [baseExcludeFilter, { status: STUDENT_STATUS.REGISTERED }],
+        status: 'REGISTERED',
+        programProfile: {
+          program: MAHAD_PROGRAM,
+        },
+        batch: {
+          name: { not: 'Test' },
+        },
       },
     }),
+    // Active subscriptions
+    prisma.billingAssignment.count({
+      where: {
+        isActive: true,
+        subscription: {
+          status: 'active',
+        },
+        programProfile: {
+          program: MAHAD_PROGRAM,
+        },
+      },
+    }),
+    // Total revenue from StudentPayment (still uses old model structure)
     prisma.studentPayment.aggregate({
       _sum: { amountPaid: true },
       where: {
-        Student: baseExcludeFilter,
-      },
-    }),
-    prisma.student.count({
-      where: {
-        AND: [baseExcludeFilter, { status: STUDENT_STATUS.ENROLLED }],
+        ProgramProfile: {
+          program: MAHAD_PROGRAM,
+        },
       },
     }),
   ])

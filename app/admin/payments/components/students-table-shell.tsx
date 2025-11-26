@@ -12,37 +12,49 @@ import {
   TableHead,
   TableBody,
 } from '@/components/ui/table'
+import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
-import { SearchParams, StudentWithDetails } from '@/types'
+import { SearchParams } from '@/types'
 
 import { PaymentsPagination } from './payments-pagination'
-// These components will be created in the next steps
 import { StudentsDataTable } from './students-data-table'
 import { StudentsMobileCards } from './students-mobile-cards'
 import { StudentsTableFilters } from './students-table-filters'
 
 // Helper function to get students who share the same subscription
 async function getSubscriptionMembers(
-  studentId: string,
-  stripeSubscriptionId: string | null
+  programProfileId: string,
+  subscriptionId: string | null
 ) {
-  if (!stripeSubscriptionId) {
+  if (!subscriptionId) {
     return []
   }
 
-  // Find all students with the same subscription ID (excluding current student)
-  const subscriptionMembers = await prisma.student.findMany({
+  // Find all profiles with the same subscription (excluding current)
+  const subscriptionMembers = await prisma.billingAssignment.findMany({
     where: {
-      stripeSubscriptionId: stripeSubscriptionId,
-      id: { not: studentId },
+      subscriptionId: subscriptionId,
+      programProfileId: { not: programProfileId },
+      isActive: true,
     },
     select: {
-      id: true,
-      name: true,
+      programProfile: {
+        select: {
+          id: true,
+          person: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
     },
   })
 
-  return subscriptionMembers
+  return subscriptionMembers.map((m) => ({
+    id: m.programProfile.id,
+    name: m.programProfile.person.name,
+  }))
 }
 
 interface StudentsTableShellProps {
@@ -60,83 +72,135 @@ export async function StudentsTableShell({
   const skip = (pageNumber - 1) * take
 
   const sortString = Array.isArray(sort) ? sort[0] : sort
-  const [column, order] = (sortString?.split('.') as [
-    keyof StudentWithDetails,
+  const [column, order] = (sortString?.split('.') || ['name', 'asc']) as [
+    string,
     'asc' | 'desc',
-  ]) || ['name', 'asc']
+  ]
 
-  let where: any = {}
-
-  // Always exclude students from "Test" batch
-  const baseExcludeFilter = {
-    Batch: {
-      name: {
-        not: 'Test',
-      },
-    },
-  }
+  // Build where clause
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const whereConditions: any[] = [
+    // Mahad program only
+    { programProfile: { program: MAHAD_PROGRAM } },
+    // Exclude Test batch
+    { batch: { name: { not: 'Test' } } },
+  ]
 
   // Handle the special "needs billing" filter
   if (needsBilling === 'true') {
-    where = {
-      AND: [
-        baseExcludeFilter,
-        {
-          status: {
-            not: 'withdrawn',
+    whereConditions.push(
+      { status: { not: 'WITHDRAWN' } },
+      {
+        programProfile: {
+          assignments: {
+            none: {
+              isActive: true,
+              subscription: { isNot: null },
+            },
           },
         },
-        {
-          stripeSubscriptionId: null,
-        },
-      ],
-    }
+      }
+    )
   } else {
     // Regular filters
-    where = {
-      AND: [
-        baseExcludeFilter,
-        {
-          name: {
-            contains: studentName,
-            mode: 'insensitive',
+    if (studentName) {
+      whereConditions.push({
+        programProfile: {
+          person: {
+            name: {
+              contains: studentName,
+              mode: 'insensitive',
+            },
           },
-          batchId: batchId || undefined,
-          status: status || undefined,
         },
-      ],
+      })
+    }
+    if (batchId) {
+      whereConditions.push({ batchId })
+    }
+    if (status) {
+      const statusValue = Array.isArray(status) ? status[0] : status
+      whereConditions.push({ status: statusValue.toUpperCase() })
     }
   }
 
-  const students = await prisma.student.findMany({
-    where,
+  // Get enrollments with related data
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      AND: whereConditions,
+    },
     include: {
-      Batch: true,
-      StudentPayment: {
-        orderBy: {
-          paidAt: 'desc',
+      batch: true,
+      programProfile: {
+        include: {
+          person: {
+            include: {
+              contactPoints: true,
+            },
+          },
+          assignments: {
+            where: { isActive: true },
+            include: {
+              subscription: true,
+            },
+          },
         },
       },
     },
-    orderBy: {
-      [column]: order,
-    },
+    orderBy:
+      column === 'name'
+        ? { programProfile: { person: { name: order } } }
+        : { [column]: order },
     take,
     skip,
   })
 
-  // Get subscription members for each student
-  const studentsWithSubscriptionMembers = await Promise.all(
-    students.map(async (student) => ({
-      ...student,
-      subscriptionMembers: await getSubscriptionMembers(
-        student.id,
-        student.stripeSubscriptionId
-      ),
-    }))
+  // Map to legacy format for compatibility with existing table components
+  const students = await Promise.all(
+    enrollments.map(async (enrollment) => {
+      const profile = enrollment.programProfile
+      const person = profile.person
+      const assignment = profile.assignments[0]
+      const subscription = assignment?.subscription
+
+      // Get email and phone from contact points
+      const emailContact = person.contactPoints.find(
+        (cp) => cp.type === 'EMAIL'
+      )
+      const phoneContact = person.contactPoints.find(
+        (cp) => cp.type === 'PHONE'
+      )
+
+      // Get subscription members
+      const subscriptionMembers = await getSubscriptionMembers(
+        profile.id,
+        subscription?.id ?? null
+      )
+
+      return {
+        id: profile.id,
+        name: person.name,
+        email: emailContact?.value ?? null,
+        phone: phoneContact?.value ?? null,
+        status: enrollment.status.toLowerCase(),
+        stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
+        subscriptionStatus: subscription?.status ?? null,
+        monthlyRate: profile.monthlyRate,
+        customRate: profile.customRate,
+        batchId: enrollment.batchId,
+        Batch: enrollment.batch,
+        StudentPayment: [], // TODO: Load from StudentPayment when migrated
+        subscriptionMembers,
+      }
+    })
   )
 
-  const totalStudents = await prisma.student.count({ where })
+  // Get total count
+  const totalStudents = await prisma.enrollment.count({
+    where: {
+      AND: whereConditions,
+    },
+  })
   const pageCount = Math.ceil(totalStudents / take)
 
   return (
@@ -176,7 +240,7 @@ export async function StudentsTableShell({
                 </TableRow>
               </TableHeader>
               <TableBody className="bg-card">
-                <StudentsDataTable data={studentsWithSubscriptionMembers} />
+                <StudentsDataTable data={students} />
               </TableBody>
             </Table>
           </div>
@@ -187,7 +251,7 @@ export async function StudentsTableShell({
 
         {/* Mobile Layout */}
         <div className="block md:hidden">
-          <StudentsMobileCards data={studentsWithSubscriptionMembers} />
+          <StudentsMobileCards data={students} />
           <PaymentsPagination pageCount={pageCount} />
         </div>
       </CardContent>
