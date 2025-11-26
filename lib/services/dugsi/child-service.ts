@@ -15,9 +15,14 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger } from '@/lib/logger'
+
+const _logger = createServiceLogger('dugsi-child')
 
 /**
  * Get a Dugsi student by ID.
+ *
+ * @security Authorization must be enforced at the API route/action layer.
  *
  * @param studentId - Person ID of the student
  * @returns Student with program profile and relationships
@@ -74,6 +79,8 @@ export async function getDugsiStudent(studentId: string) {
 /**
  * Get all Dugsi students in a family.
  *
+ * @security Authorization must be enforced at the API route/action layer.
+ *
  * @param familyReferenceId - Family reference ID
  * @returns Array of students in the family
  */
@@ -121,6 +128,8 @@ export async function getDugsiFamilyStudents(familyReferenceId: string) {
  * Get Dugsi student billing status.
  *
  * Returns subscription and payment information for a student.
+ *
+ * @security Authorization must be enforced at the API route/action layer.
  *
  * @param studentId - Person ID of the student
  * @returns Billing status information
@@ -177,6 +186,8 @@ export async function getDugsiStudentBillingStatus(studentId: string) {
 /**
  * Get Dugsi enrollment status for a student.
  *
+ * @security Authorization must be enforced at the API route/action layer.
+ *
  * @param studentId - Person ID of the student
  * @returns Enrollment information
  */
@@ -223,6 +234,9 @@ export async function getDugsiEnrollmentStatus(studentId: string) {
 
 /**
  * Update Dugsi student information.
+ *
+ * @security Authorization must be enforced at the API route/action layer.
+ *           This service does not verify the caller has permission to modify.
  *
  * @param studentId - Person ID of the student
  * @param data - Student update data (at least one field required)

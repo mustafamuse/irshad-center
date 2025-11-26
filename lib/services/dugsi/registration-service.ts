@@ -33,6 +33,8 @@ import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
  *
  * Uses a single optimized query to avoid N+1 problems.
  *
+ * @security Authorization must be enforced at the API route/action layer.
+ *
  * @returns Array of DugsiRegistration DTOs
  */
 export async function getAllDugsiRegistrations(): Promise<DugsiRegistration[]> {
@@ -64,6 +66,8 @@ export async function getAllDugsiRegistrations(): Promise<DugsiRegistration[]> {
  * If student has a familyReferenceId, returns all students in that family.
  * Otherwise, returns just the single student.
  *
+ * @security Authorization must be enforced at the API route/action layer.
+ *
  * @param studentId - ProgramProfile ID
  * @returns Array of family member registrations
  */
@@ -72,7 +76,7 @@ export async function getFamilyMembers(
 ): Promise<DugsiRegistration[]> {
   const profile = await getProgramProfileById(studentId)
 
-  if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
     return []
   }
 
@@ -88,7 +92,7 @@ export async function getFamilyMembers(
   const familyProfiles = await prisma.programProfile.findMany({
     where: {
       familyReferenceId: familyId,
-      program: 'DUGSI_PROGRAM',
+      program: DUGSI_PROGRAM,
     },
     include: programProfileFullInclude,
     orderBy: {
@@ -113,6 +117,8 @@ export async function getFamilyMembers(
  *
  * Used by delete confirmation dialogs to show the impact of deletion.
  *
+ * @security Authorization must be enforced at the API route/action layer.
+ *
  * @param studentId - ID of any student in the family
  * @returns Object with count and student details
  */
@@ -122,7 +128,7 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
 }> {
   const profile = await getProgramProfileById(studentId)
 
-  if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
     throw new ActionError(
       'Student not found or not in Dugsi program',
       ERROR_CODES.STUDENT_NOT_FOUND,
@@ -161,6 +167,18 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
 /**
  * Delete a Dugsi family and all associated students.
  *
+ * HARD DELETE: Dugsi family data is permanently removed.
+ *
+ * Design Decision: Dugsi uses hard delete because:
+ * - Parent explicitly requested data removal
+ * - No billing history to preserve (subscription handled separately)
+ * - Supports GDPR right-to-be-forgotten compliance
+ *
+ * Contrast with Mahad which uses soft delete (WITHDRAWN status) to:
+ * - Preserve historical enrollment records
+ * - Support re-enrollment without data re-entry
+ * - Maintain audit trail for billing disputes
+ *
  * If the student has a familyReferenceId, deletes all students in that family.
  * Otherwise, deletes just the single student.
  *
@@ -170,13 +188,16 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
  * - BillingAssignments
  * - Person record (if no other program profiles exist)
  *
+ * @security Authorization must be enforced at the API route/action layer.
+ *           This is a destructive operation - verify user intent before calling.
+ *
  * @param studentId - ID of any student in the family
  * @returns Number of students deleted
  */
 export async function deleteDugsiFamily(studentId: string): Promise<number> {
   const profile = await getProgramProfileById(studentId)
 
-  if (!profile || profile.program !== 'DUGSI_PROGRAM') {
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
     throw new ActionError(
       'Student not found or not in Dugsi program',
       ERROR_CODES.STUDENT_NOT_FOUND,
@@ -214,6 +235,8 @@ export async function deleteDugsiFamily(studentId: string): Promise<number> {
  * Search for a Dugsi registration by contact (email or phone).
  *
  * Searches both student and parent contact points.
+ *
+ * @security Authorization must be enforced at the API route/action layer.
  *
  * @param contact - Email or phone number
  * @param contactType - Type of contact ('EMAIL' or 'PHONE')

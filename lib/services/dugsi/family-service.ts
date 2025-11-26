@@ -20,15 +20,23 @@ import {
   findPersonByContact,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger } from '@/lib/logger'
+
+const _logger = createServiceLogger('dugsi-family')
 
 /**
  * Parent update input
  */
 export interface ParentUpdateInput {
+  /** ID of any student in the family (used to look up family) */
   studentId: string
+  /** Which parent to update: 1 = primary, 2 = secondary */
   parentNumber: 1 | 2
+  /** Parent's first name (2-50 chars, letters/spaces/hyphens) */
   firstName: string
+  /** Parent's last name (2-50 chars, letters/spaces/hyphens) */
   lastName: string
+  /** Phone in XXX-XXX-XXXX format */
   phone: string
 }
 
@@ -36,40 +44,63 @@ export interface ParentUpdateInput {
  * Second parent input
  */
 export interface SecondParentInput {
+  /** ID of any student in the family */
   studentId: string
+  /** Second parent's first name */
   firstName: string
+  /** Second parent's last name */
   lastName: string
+  /** Second parent's email (will be lowercase normalized) */
   email: string
+  /** Second parent's phone in XXX-XXX-XXXX format */
   phone: string
 }
 
 /**
- * Child update input
+ * Child update input - at least one optional field must be provided
  */
 export interface ChildUpdateInput {
+  /** ProgramProfile ID of the student to update */
   studentId: string
+  /** Child's first name */
   firstName?: string
+  /** Child's last name */
   lastName?: string
+  /** Child's date of birth */
   dateOfBirth?: Date
+  /** Child's gender */
   gender?: 'MALE' | 'FEMALE'
+  /** Current education level (e.g., PRESCHOOL, ELEMENTARY) */
   educationLevel?: EducationLevel
+  /** Current grade level (e.g., GRADE_1, GRADE_2) */
   gradeLevel?: GradeLevel
+  /** Name of school child attends */
   schoolName?: string
+  /** Health information, allergies, special needs (null to clear) */
   healthInfo?: string | null
 }
 
 /**
- * New child input
+ * New child input - used to add a sibling to an existing family
  */
 export interface NewChildInput {
+  /** ProgramProfile ID of an existing sibling (to copy family/guardian relationships) */
   existingStudentId: string
+  /** New child's first name */
   firstName: string
+  /** New child's last name */
   lastName: string
+  /** New child's gender */
   gender: 'MALE' | 'FEMALE'
+  /** New child's date of birth */
   dateOfBirth?: Date
+  /** Current education level */
   educationLevel: EducationLevel
+  /** Current grade level */
   gradeLevel: GradeLevel
+  /** Name of school child attends */
   schoolName?: string
+  /** Health information, allergies, special needs */
   healthInfo?: string | null
 }
 
@@ -79,6 +110,9 @@ export interface NewChildInput {
  * DESIGN NOTE: Parent emails are immutable for Dugsi families to maintain
  * authentication integrity. Only name and phone can be updated.
  * See parent-service.ts for cross-program guardian updates.
+ *
+ * @security Authorization must be enforced at the API route/action layer.
+ *           This service does not verify the caller has permission to modify.
  *
  * @param input - Parent update data
  * @returns Number of updated records
@@ -176,6 +210,9 @@ export async function updateParentInfo(
  * Creates a new Person record and guardian relationship.
  * Only adds if second parent doesn't already exist.
  *
+ * @security Authorization must be enforced at the API route/action layer.
+ *           This service does not verify the caller has permission to modify.
+ *
  * @param input - Second parent data
  * @returns Number of updated records
  * @throws Error if student not found or second parent already exists
@@ -214,8 +251,8 @@ export async function addSecondParent(
     let parentPersonId: string
     const normalizedEmail = input.email.toLowerCase().trim()
 
-    // Check if person with this email already exists (inside transaction for consistency)
-    const existingPerson = await findPersonByContact(input.email, null)
+    // Check if person with this email already exists (using tx for true TOCTOU safety)
+    const existingPerson = await findPersonByContact(input.email, null, tx)
 
     if (existingPerson) {
       parentPersonId = existingPerson.id
@@ -241,8 +278,8 @@ export async function addSecondParent(
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002'
         ) {
-          // Another transaction created this person - look them up
-          const racedPerson = await findPersonByContact(input.email, null)
+          // Another transaction created this person - look them up (using tx)
+          const racedPerson = await findPersonByContact(input.email, null, tx)
           if (!racedPerson) {
             throw new ActionError(
               'Failed to create or find person',
@@ -287,6 +324,9 @@ export async function addSecondParent(
  * Update child information for a specific student.
  *
  * Updates both Person record (name, DOB) and ProgramProfile (education details).
+ *
+ * @security Authorization must be enforced at the API route/action layer.
+ *           This service does not verify the caller has permission to modify.
  *
  * @param input - Child update data
  * @throws Error if student not found
@@ -356,6 +396,9 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
  *
  * Copies guardian relationships from an existing sibling.
  * Creates Person, ProgramProfile, and Enrollment records.
+ *
+ * @security Authorization must be enforced at the API route/action layer.
+ *           This service does not verify the caller has permission to modify.
  *
  * @param input - New child data
  * @returns Created child's ProgramProfile ID
