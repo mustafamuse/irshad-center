@@ -74,6 +74,20 @@ async function handleCheckoutCompleted(
       session.subscription?.toString() || 'no-subscription',
       accountType
     )
+
+    // Escalate to Sentry error for proper alerting
+    // Customer paid but subscription cannot be linked automatically
+    Sentry.captureMessage('Checkout session could not be matched to person', {
+      level: 'error',
+      extra: {
+        sessionId: session.id,
+        accountType,
+        customerEmail: session.customer_details?.email,
+        subscriptionId: session.subscription?.toString() || null,
+        action: 'manual_linking_required',
+      },
+    })
+
     logger.warn(
       { sessionId: session.id, accountType },
       'No person found for checkout session - manual linking required'
