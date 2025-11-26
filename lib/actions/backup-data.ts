@@ -9,6 +9,10 @@
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import {
+  extractStudentEmail,
+  extractStudentPhone,
+} from '@/lib/mappers/mahad-mapper'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -190,19 +194,16 @@ export async function backupData(): Promise<BackupResult> {
       const assignment = profile.assignments[0]
       const subscription = assignment?.subscription
 
-      const emailContact = person.contactPoints.find(
-        (cp) => cp.type === 'EMAIL'
-      )
-      const phoneContact = person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-      )
+      // Use shared contact helpers
+      const email = extractStudentEmail({ person })
+      const phone = extractStudentPhone({ person })
 
       return {
         id: profile.id,
         personId: profile.personId,
         name: person.name,
-        email: emailContact?.value ?? null,
-        phone: phoneContact?.value ?? null,
+        email,
+        phone,
         dateOfBirth: person.dateOfBirth?.toISOString() ?? null,
         educationLevel: profile.educationLevel,
         gradeLevel: profile.gradeLevel,

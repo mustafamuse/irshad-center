@@ -131,6 +131,7 @@ export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
  * Get siblings for a student
  *
  * Uses getPersonSiblings to find sibling relationships.
+ * Batch fetches enrollments to avoid N+1 queries.
  */
 export async function getSiblings(studentId: string): Promise<StudentDTO[]> {
   const profile = await getProgramProfileById(studentId)
@@ -139,34 +140,30 @@ export async function getSiblings(studentId: string): Promise<StudentDTO[]> {
   }
 
   const siblings = await getPersonSiblings(profile.personId)
-
-  // Convert sibling profiles to StudentDTOs
-  const studentDTOs: StudentDTO[] = []
-
-  for (const sibling of siblings) {
-    // Get Mahad profiles for this sibling
-    const mahadProfiles = sibling.profiles.filter(
-      (p) => p.program === MAHAD_PROGRAM
-    )
-
-    for (const mahadProfile of mahadProfiles) {
-      // Get enrollment for this profile
-      const enrollment = await prisma.enrollment.findFirst({
-        where: {
-          programProfileId: mahadProfile.id,
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
-        include: mahadEnrollmentInclude,
-      })
-
-      if (enrollment) {
-        studentDTOs.push(mapEnrollmentToStudentDTO(enrollment))
-      }
-    }
+  if (siblings.length === 0) {
+    return []
   }
 
-  return studentDTOs
+  // Collect all Mahad profile IDs for batch query
+  const mahadProfileIds = siblings.flatMap((sibling) =>
+    sibling.profiles.filter((p) => p.program === MAHAD_PROGRAM).map((p) => p.id)
+  )
+
+  if (mahadProfileIds.length === 0) {
+    return []
+  }
+
+  // Batch fetch all enrollments in single query (fixes N+1)
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      programProfileId: { in: mahadProfileIds },
+      status: { not: 'WITHDRAWN' },
+      endDate: null,
+    },
+    include: mahadEnrollmentInclude,
+  })
+
+  return enrollments.map(mapEnrollmentToStudentDTO)
 }
 
 /**

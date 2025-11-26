@@ -11,8 +11,11 @@ import { EducationLevel, GradeLevel } from '@prisma/client'
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
-import { getPersonSiblings } from '@/lib/db/queries/siblings'
-import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
+import {
+  mahadEnrollmentInclude,
+  extractStudentEmail,
+  extractStudentPhone,
+} from '@/lib/mappers/mahad-mapper'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -105,7 +108,86 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     },
   })
 
-  // Build sibling groups
+  // Build sibling groups using batch query (fixes N+1)
+  // Fetch all sibling relationships for enrolled persons in one query
+  const personIds = enrollments.map((e) => e.programProfile.personId)
+
+  const siblingRelationships = await prisma.siblingRelationship.findMany({
+    where: {
+      isActive: true,
+      OR: [{ person1Id: { in: personIds } }, { person2Id: { in: personIds } }],
+    },
+    include: {
+      person1: {
+        include: {
+          programProfiles: {
+            where: { program: MAHAD_PROGRAM },
+            include: {
+              enrollments: {
+                where: { status: { not: 'WITHDRAWN' }, endDate: null },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
+      person2: {
+        include: {
+          programProfiles: {
+            where: { program: MAHAD_PROGRAM },
+            include: {
+              enrollments: {
+                where: { status: { not: 'WITHDRAWN' }, endDate: null },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  // Build sibling map: personId -> array of sibling person IDs
+  const siblingMap = new Map<string, Set<string>>()
+  for (const rel of siblingRelationships) {
+    // Add bidirectional relationships
+    if (!siblingMap.has(rel.person1Id)) siblingMap.set(rel.person1Id, new Set())
+    if (!siblingMap.has(rel.person2Id)) siblingMap.set(rel.person2Id, new Set())
+    siblingMap.get(rel.person1Id)!.add(rel.person2Id)
+    siblingMap.get(rel.person2Id)!.add(rel.person1Id)
+  }
+
+  // Build person info lookup from relationships
+  const personInfoMap = new Map<
+    string,
+    { profileId: string; name: string; status: string }
+  >()
+  for (const rel of siblingRelationships) {
+    for (const person of [rel.person1, rel.person2]) {
+      const mahadProfile = person.programProfiles[0]
+      if (mahadProfile && !personInfoMap.has(person.id)) {
+        personInfoMap.set(person.id, {
+          profileId: mahadProfile.id,
+          name: person.name,
+          status: mahadProfile.enrollments[0]?.status || 'REGISTERED',
+        })
+      }
+    }
+  }
+
+  // Also add enrolled students to the lookup
+  for (const enrollment of enrollments) {
+    const person = enrollment.programProfile.person
+    if (!personInfoMap.has(enrollment.programProfile.personId)) {
+      personInfoMap.set(enrollment.programProfile.personId, {
+        profileId: enrollment.programProfile.id,
+        name: person.name,
+        status: enrollment.status,
+      })
+    }
+  }
+
+  // Build sibling groups with stable IDs
   const siblingGroupMap = new Map<
     string,
     {
@@ -116,14 +198,11 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
 
   for (const enrollment of enrollments) {
     const personId = enrollment.programProfile.personId
-    const siblings = await getPersonSiblings(personId)
+    const siblingIds = siblingMap.get(personId)
 
-    if (siblings.length > 0) {
-      // Create a group ID from sorted person IDs
-      const allPersonIds = [
-        personId,
-        ...siblings.map((s) => s.person.id),
-      ].sort()
+    if (siblingIds && siblingIds.size > 0) {
+      // Create stable group ID from sorted person IDs
+      const allPersonIds = [personId, ...Array.from(siblingIds)].sort()
       const groupId = allPersonIds.join('_')
 
       if (!siblingGroupMap.has(groupId)) {
@@ -133,32 +212,18 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
           status: string
         }> = []
 
-        // Add current student
-        groupStudents.push({
-          id: enrollment.programProfile.id,
-          name: enrollment.programProfile.person.name,
-          status: enrollment.status,
-        })
-
-        // Add siblings
-        for (const sibling of siblings) {
-          const mahadProfile = sibling.profiles.find(
-            (p) => p.program === MAHAD_PROGRAM
-          )
-          if (mahadProfile) {
-            const siblingEnrollment = mahadProfile.enrollments[0]
+        for (const pid of allPersonIds) {
+          const info = personInfoMap.get(pid)
+          if (info) {
             groupStudents.push({
-              id: mahadProfile.id,
-              name: sibling.person.name,
-              status: siblingEnrollment?.status || 'REGISTERED',
+              id: info.profileId,
+              name: info.name,
+              status: info.status,
             })
           }
         }
 
-        siblingGroupMap.set(groupId, {
-          id: groupId,
-          students: groupStudents,
-        })
+        siblingGroupMap.set(groupId, { id: groupId, students: groupStudents })
       }
     }
   }
@@ -168,10 +233,9 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     const profile = enrollment.programProfile
     const person = profile.person
 
-    const emailContact = person.contactPoints?.find((cp) => cp.type === 'EMAIL')
-    const phoneContact = person.contactPoints?.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )
+    // Use shared contact helpers
+    const email = extractStudentEmail({ person })
+    const phone = extractStudentPhone({ person })
 
     // Find sibling group
     let siblingGroup: {
@@ -187,8 +251,8 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     return {
       id: profile.id,
       name: person.name,
-      email: emailContact?.value ?? null,
-      phone: phoneContact?.value ?? null,
+      email,
+      phone,
       dateOfBirth: person.dateOfBirth?.toISOString() ?? null,
       educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,

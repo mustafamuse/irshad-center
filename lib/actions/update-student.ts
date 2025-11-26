@@ -51,38 +51,11 @@ export async function updateStudent(
   data: UpdateStudentData
 ): Promise<UpdateStudentResult> {
   try {
-    // Map to service input format
-    const updateInput: StudentUpdateInput = {}
+    // Filter out undefined values and pass directly to service
+    const updateInput: StudentUpdateInput = Object.fromEntries(
+      Object.entries(data).filter(([, value]) => value !== undefined)
+    ) as StudentUpdateInput
 
-    if (data.name !== undefined) {
-      updateInput.name = data.name
-    }
-    if (data.email !== undefined) {
-      updateInput.email = data.email
-    }
-    if (data.phone !== undefined) {
-      updateInput.phone = data.phone
-    }
-    if (data.dateOfBirth !== undefined) {
-      updateInput.dateOfBirth = data.dateOfBirth
-    }
-    if (data.educationLevel !== undefined) {
-      updateInput.educationLevel = data.educationLevel
-    }
-    if (data.gradeLevel !== undefined) {
-      updateInput.gradeLevel = data.gradeLevel
-    }
-    if (data.schoolName !== undefined) {
-      updateInput.schoolName = data.schoolName
-    }
-    if (data.monthlyRate !== undefined) {
-      updateInput.monthlyRate = data.monthlyRate
-    }
-    if (data.customRate !== undefined) {
-      updateInput.customRate = data.customRate
-    }
-
-    // Call the existing service
     await updateMahadStudent(studentId, updateInput)
 
     return { success: true }
