@@ -209,7 +209,7 @@ function mapEnrollmentToStudentDTO(enrollment: {
   const assignment = profile.assignments[0]
   const subscription = assignment?.subscription
 
-  // Extract contact points
+  // Extract contact points (inline to match local narrow type)
   const emailContact = person.contactPoints?.find((cp) => cp.type === 'EMAIL')
   const phoneContact = person.contactPoints?.find(
     (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'

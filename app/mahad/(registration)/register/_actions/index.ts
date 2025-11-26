@@ -109,16 +109,21 @@ export async function registerStudent(input: {
           select: { id: true, personId: true },
         })
 
-        await Promise.all(
-          siblingProfiles.map((sp) =>
-            createSiblingRelationship(
-              newProfile.personId,
-              sp.personId,
-              'manual',
-              null
+        try {
+          await Promise.all(
+            siblingProfiles.map((sp) =>
+              createSiblingRelationship(
+                newProfile.personId,
+                sp.personId,
+                'manual',
+                null
+              )
             )
           )
-        )
+        } catch (error) {
+          // Log but don't fail registration - sibling linking is secondary
+          console.warn('Sibling linking partially failed:', error)
+        }
       }
     }
 
