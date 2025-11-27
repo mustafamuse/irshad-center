@@ -64,6 +64,8 @@ export function RegisterForm() {
   const [siblings, setSiblings] = useState<SearchResult[]>([])
   const [showPaymentDialog, setShowPaymentDialog] = useState(false)
   const [registeredStudentCount, setRegisteredStudentCount] = useState(1)
+  const [registeredProfileId, setRegisteredProfileId] = useState('')
+  const [registeredStudentName, setRegisteredStudentName] = useState('')
 
   // Form setup
   const form = useForm<StudentFormValues>({
@@ -77,12 +79,14 @@ export function RegisterForm() {
   const { searchSiblings } = useSiblingSearch(formData?.lastName)
   const { registerStudent, isSubmitting } = useRegistration({
     form,
-    onSuccess: (studentCount) => {
+    onSuccess: (result) => {
       setFormData(null)
       setSiblings([])
       setShowSiblingSection(false)
       setShowSiblingPrompt(false)
-      setRegisteredStudentCount(studentCount)
+      setRegisteredStudentCount(result.studentCount)
+      setRegisteredProfileId(result.profileId)
+      setRegisteredStudentName(result.studentName)
       setShowPaymentDialog(true)
     },
   })
@@ -323,6 +327,8 @@ export function RegisterForm() {
           isOpen={showPaymentDialog}
           onOpenChange={setShowPaymentDialog}
           studentCount={registeredStudentCount}
+          profileId={registeredProfileId}
+          studentName={registeredStudentName}
         />
       </div>
     </div>

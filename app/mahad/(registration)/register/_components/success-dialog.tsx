@@ -4,7 +4,7 @@ import * as React from 'react'
 
 import { CheckCircle2, AlertCircle } from 'lucide-react'
 
-import { StripePricingTable } from '@/app/mahad/_components/stripe-pricing-table'
+import { CheckoutForm } from '@/app/mahad/_components/checkout-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -14,17 +14,20 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
-
 interface PaymentSuccessDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   studentCount: number
+  profileId: string
+  studentName: string
 }
 
 export function PaymentSuccessDialog({
   isOpen,
   onOpenChange,
   studentCount,
+  profileId,
+  studentName,
 }: PaymentSuccessDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -79,9 +82,9 @@ export function PaymentSuccessDialog({
 
         <div>
           <h3 className="mb-6 text-lg font-semibold text-gray-900">
-            Select Your Payment Plan
+            Set Up Your Payment Plan
           </h3>
-          <StripePricingTable />
+          <CheckoutForm profileId={profileId} studentName={studentName} />
         </div>
 
         <Alert

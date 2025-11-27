@@ -10,9 +10,15 @@ import {
 
 import { registerStudent as registerStudentAction } from '../_actions'
 
+interface RegistrationResult {
+  studentCount: number
+  profileId: string
+  studentName: string
+}
+
 interface UseRegistrationProps {
   form: UseFormReturn<StudentFormValues>
-  onSuccess: (studentCount: number) => void
+  onSuccess: (result: RegistrationResult) => void
 }
 
 export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
@@ -67,7 +73,11 @@ export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
 
         toast.success(successMessage)
         form.reset()
-        onSuccess(siblings.length + 1)
+        onSuccess({
+          studentCount: siblings.length + 1,
+          profileId: result.data.id,
+          studentName: result.data.name,
+        })
       } catch (error) {
         console.error('Registration error:', error)
         toast.error(
