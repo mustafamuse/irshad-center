@@ -6,13 +6,13 @@ import { AlertCircle } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
-// Get environment variables
-const pricingTableId = process.env.NEXT_PUBLIC_STRIPE_PRICING_TABLE_ID
-const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY_PROD
+// Get environment variables (pricing tables always use production/live keys)
+const pricingTableId = process.env.NEXT_PUBLIC_STRIPE_MAHAD_PRICING_TABLE_ID
+const publishableKey = process.env.NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_LIVE
 
 if (!pricingTableId || !publishableKey) {
   throw new Error(
-    'Stripe configuration is missing. Please check your environment variables.'
+    'Mahad Stripe configuration is missing. Please set NEXT_PUBLIC_STRIPE_MAHAD_PRICING_TABLE_ID and NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_LIVE.'
   )
 }
 

@@ -6,24 +6,24 @@
  * Custom checkout form that calculates tuition based on:
  * - Graduation status (still in school vs. graduated)
  * - Payment frequency (monthly vs. bi-monthly)
- * - Billing type (full-time, scholarship, part-time, exempt)
+ *
+ * Billing type is always FULL_TIME at checkout - admin adjusts afterward if needed.
  *
  * Replaces the Stripe Pricing Table for dynamic pricing.
  */
 
 import { useState, useMemo } from 'react'
 
-import {
-  GraduationStatus,
-  PaymentFrequency,
-  StudentBillingType,
-} from '@prisma/client'
+import type { GraduationStatus, PaymentFrequency } from '@prisma/client'
 import {
   Loader2,
   GraduationCap,
   Calendar,
-  CreditCard,
-  Info,
+  CheckCircle2,
+  Shield,
+  Mail,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -35,51 +35,30 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { BASE_RATES } from '@/lib/utils/mahad-tuition'
 
-// Client-side rate calculation (mirrors server-side logic)
-const BASE_RATES = {
-  NON_GRADUATE: {
-    MONTHLY: 12000, // $120
-    BI_MONTHLY: 11000, // $110 per month
-  },
-  GRADUATE: {
-    MONTHLY: 9500, // $95
-    BI_MONTHLY: 9000, // $90 per month
-  },
-} as const
-
-const SCHOLARSHIP_DISCOUNT = 3000 // $30
-
+// Client-side rate calculation using shared BASE_RATES from lib/utils/mahad-tuition
+// All students default to FULL_TIME - admin adjusts billing type afterward if needed
 function calculateRate(
   graduationStatus: GraduationStatus,
-  paymentFrequency: PaymentFrequency,
-  billingType: StudentBillingType
+  paymentFrequency: PaymentFrequency
 ): number {
-  if (billingType === 'EXEMPT') return 0
-
   const baseRate = BASE_RATES[graduationStatus][paymentFrequency]
-  let rate: number = baseRate
-
-  if (billingType === 'PART_TIME') {
-    rate = Math.floor(rate / 2)
-  } else if (billingType === 'FULL_TIME_SCHOLARSHIP') {
-    rate = rate - SCHOLARSHIP_DISCOUNT
-  }
 
   // For bi-monthly, return total for 2 months
   if (paymentFrequency === 'BI_MONTHLY') {
-    rate = rate * 2
+    return baseRate * 2
   }
 
-  return rate
+  return baseRate
 }
 
 function formatCurrency(cents: number): string {
@@ -99,29 +78,27 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
     useState<GraduationStatus>('NON_GRADUATE')
   const [paymentFrequency, setPaymentFrequency] =
     useState<PaymentFrequency>('MONTHLY')
-  const [billingType, setBillingType] =
-    useState<StudentBillingType>('FULL_TIME')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isBannerOpen, setIsBannerOpen] = useState(false)
 
-  // Calculate the rate based on selections
+  // Calculate the rate based on selections (always FULL_TIME)
   const calculatedRate = useMemo(() => {
-    return calculateRate(graduationStatus, paymentFrequency, billingType)
-  }, [graduationStatus, paymentFrequency, billingType])
+    return calculateRate(graduationStatus, paymentFrequency)
+  }, [graduationStatus, paymentFrequency])
 
   // Format the billing period text
-  const billingPeriodText = useMemo(() => {
-    if (billingType === 'EXEMPT') return 'No payment required'
-    return paymentFrequency === 'MONTHLY' ? '/month' : '/2 months'
-  }, [paymentFrequency, billingType])
+  const billingPeriodText =
+    paymentFrequency === 'MONTHLY' ? '/month' : '/2 months'
 
-  // Handle checkout
+  // Calculate monthly equivalent for bi-monthly display
+  const monthlyEquivalent = useMemo(() => {
+    return BASE_RATES[graduationStatus][paymentFrequency]
+  }, [graduationStatus, paymentFrequency])
+
+  // Handle checkout - always uses FULL_TIME billing type
+  // Admin can adjust billing type afterward if needed
   const handleCheckout = async () => {
-    if (billingType === 'EXEMPT') {
-      // TODO: Handle exempt students differently
-      return
-    }
-
     setIsLoading(true)
     setError(null)
 
@@ -133,7 +110,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
           profileId,
           graduationStatus,
           paymentFrequency,
-          billingType,
+          // billingType is always FULL_TIME - admin adjusts if needed
         }),
       })
 
@@ -155,23 +132,72 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <div className="space-y-4">
+        {/* Informational Banner */}
+        <Collapsible open={isBannerOpen} onOpenChange={setIsBannerOpen}>
+          <Alert className="border-[#007078]/20 bg-[#007078]/5">
+            <CollapsibleTrigger asChild>
+              <button
+                className="flex w-full items-center justify-between text-left"
+                aria-label={
+                  isBannerOpen
+                    ? 'Hide registration information'
+                    : 'Show registration information'
+                }
+              >
+                <h3 className="font-semibold text-[#007078]">
+                  Important Registration Information
+                </h3>
+                {isBannerOpen ? (
+                  <ChevronUp className="h-4 w-4 text-[#007078]" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-[#007078]" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <ul className="mt-3 space-y-1.5 text-sm text-gray-700">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#007078]" />
+                  <span>
+                    Students will be added to the attendance list once auto-pay
+                    is confirmed
+                  </span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Shield className="mt-0.5 h-4 w-4 shrink-0 text-[#007078]" />
+                  <span>Secure payment processing through Stripe</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[#007078]" />
+                  <span>
+                    You'll receive email confirmation once setup is complete
+                  </span>
+                </li>
+              </ul>
+            </CollapsibleContent>
+          </Alert>
+        </Collapsible>
+
         {/* Student Info */}
         <div className="text-center">
-          <p className="text-sm text-muted-foreground">
-            Setting up payment for
+          <h2 className="text-xl font-bold tracking-tight text-gray-900">
+            Set Up Your Payment Plan
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Setting up payment for{' '}
+            <span className="font-semibold text-gray-900">{studentName}</span>
           </p>
-          <p className="text-lg font-semibold">{studentName}</p>
         </div>
 
         {/* Graduation Status */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
               <GraduationCap className="h-4 w-4" />
               Education Status
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               Have you completed your formal education?
             </CardDescription>
           </CardHeader>
@@ -179,7 +205,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
             <RadioGroup
               value={graduationStatus}
               onValueChange={(v) => setGraduationStatus(v as GraduationStatus)}
-              className="grid grid-cols-2 gap-4"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
             >
               <div>
                 <RadioGroupItem
@@ -189,10 +215,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 />
                 <Label
                   htmlFor="non-graduate"
-                  className="flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-[#007078] [&:has([data-state=checked])]:border-[#007078]"
+                  className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
                 >
-                  <span className="font-medium">Still in School</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm font-semibold">Still in School</span>
+                  <span className="mt-0.5 text-xs text-muted-foreground">
                     $120/month base
                   </span>
                 </Label>
@@ -205,10 +231,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 />
                 <Label
                   htmlFor="graduate"
-                  className="flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-[#007078] [&:has([data-state=checked])]:border-[#007078]"
+                  className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
                 >
-                  <span className="font-medium">Graduated</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm font-semibold">Graduated</span>
+                  <span className="mt-0.5 text-xs text-muted-foreground">
                     $95/month base
                   </span>
                 </Label>
@@ -219,12 +245,12 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
 
         {/* Payment Frequency */}
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-sm">
               <Calendar className="h-4 w-4" />
               Payment Schedule
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               How often would you like to be charged?
             </CardDescription>
           </CardHeader>
@@ -232,7 +258,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
             <RadioGroup
               value={paymentFrequency}
               onValueChange={(v) => setPaymentFrequency(v as PaymentFrequency)}
-              className="grid grid-cols-2 gap-4"
+              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
             >
               <div>
                 <RadioGroupItem
@@ -242,10 +268,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 />
                 <Label
                   htmlFor="monthly"
-                  className="flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-[#007078] [&:has([data-state=checked])]:border-[#007078]"
+                  className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
                 >
-                  <span className="font-medium">Monthly</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm font-semibold">Monthly</span>
+                  <span className="mt-0.5 text-xs text-muted-foreground">
                     Charged every month
                   </span>
                 </Label>
@@ -258,10 +284,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 />
                 <Label
                   htmlFor="bi-monthly"
-                  className="flex cursor-pointer flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-[#007078] [&:has([data-state=checked])]:border-[#007078]"
+                  className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
                 >
-                  <span className="font-medium">Bi-Monthly</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm font-semibold">Bi-Monthly</span>
+                  <span className="mt-0.5 text-xs font-medium text-green-600">
                     Save $10-$20/month
                   </span>
                 </Label>
@@ -270,96 +296,61 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
           </CardContent>
         </Card>
 
-        {/* Billing Type */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <CreditCard className="h-4 w-4" />
-              Enrollment Type
-            </CardTitle>
-            <CardDescription>Select your enrollment status</CardDescription>
+        {/* Pricing Summary */}
+        <Card className="border-[#007078]/20 bg-[#007078]/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Your Tuition</CardTitle>
           </CardHeader>
           <CardContent>
-            <RadioGroup
-              value={billingType}
-              onValueChange={(v) => setBillingType(v as StudentBillingType)}
-              className="space-y-3"
-            >
-              <div className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent">
-                <RadioGroupItem value="FULL_TIME" id="full-time" />
-                <Label htmlFor="full-time" className="flex-1 cursor-pointer">
-                  <div className="font-medium">Full-Time Student</div>
-                  <div className="text-xs text-muted-foreground">
-                    Standard tuition rate
-                  </div>
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent">
-                <RadioGroupItem
-                  value="FULL_TIME_SCHOLARSHIP"
-                  id="scholarship"
-                />
-                <Label htmlFor="scholarship" className="flex-1 cursor-pointer">
-                  <div className="flex items-center gap-2 font-medium">
-                    Full-Time with Scholarship
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Info className="h-3 w-3 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>$30/month discount for eligible students</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    $30 monthly discount applied
-                  </div>
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent">
-                <RadioGroupItem value="PART_TIME" id="part-time" />
-                <Label htmlFor="part-time" className="flex-1 cursor-pointer">
-                  <div className="font-medium">Part-Time Student</div>
-                  <div className="text-xs text-muted-foreground">
-                    50% of standard rate
-                  </div>
-                </Label>
-              </div>
-
-              <div className="flex items-center space-x-3 rounded-md border p-3 hover:bg-accent">
-                <RadioGroupItem value="EXEMPT" id="exempt" />
-                <Label htmlFor="exempt" className="flex-1 cursor-pointer">
-                  <div className="font-medium">Exempt (TA/Staff)</div>
-                  <div className="text-xs text-muted-foreground">
-                    No payment required
-                  </div>
-                </Label>
-              </div>
-            </RadioGroup>
-          </CardContent>
-        </Card>
-
-        {/* Price Summary */}
-        <Card className="border-[#007078]/20 bg-[#007078]/5">
-          <CardContent className="pt-6">
             <div className="flex items-center justify-between">
-              <span className="text-lg font-medium">Your Tuition</span>
+              <span className="text-base font-semibold">Total</span>
               <div className="text-right">
-                <span className="text-3xl font-bold text-[#007078]">
+                <span className="text-2xl font-bold text-[#007078]">
                   {formatCurrency(calculatedRate)}
                 </span>
-                <span className="text-sm text-muted-foreground">
+                <span className="ml-1 text-xs text-muted-foreground">
                   {billingPeriodText}
                 </span>
               </div>
             </div>
-            {paymentFrequency === 'BI_MONTHLY' && billingType !== 'EXEMPT' && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Equivalent to {formatCurrency(calculatedRate / 2)}/month
+            {paymentFrequency === 'BI_MONTHLY' && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Equivalent to {formatCurrency(monthlyEquivalent)}/month
               </p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Summary Section */}
+        <Card className="border-muted">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Summary</CardTitle>
+            <CardDescription className="text-xs">
+              Review your selections before proceeding
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Education Status:</span>
+              <span className="font-medium">
+                {graduationStatus === 'NON_GRADUATE'
+                  ? 'Still in School'
+                  : 'Graduated'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Payment Schedule:</span>
+              <span className="font-medium">
+                {paymentFrequency === 'MONTHLY' ? 'Monthly' : 'Bi-Monthly'}
+              </span>
+            </div>
+            <div className="flex justify-between border-t pt-1.5">
+              <span className="font-semibold">Total:</span>
+              <span className="text-base font-bold text-[#007078]">
+                {formatCurrency(calculatedRate)}
+                {billingPeriodText}
+              </span>
+            </div>
           </CardContent>
         </Card>
 
@@ -373,7 +364,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
         {/* Checkout Button */}
         <Button
           onClick={handleCheckout}
-          disabled={isLoading || billingType === 'EXEMPT'}
+          disabled={isLoading}
           className="w-full bg-[#007078] hover:bg-[#005a61]"
           size="lg"
         >
@@ -382,22 +373,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Setting up payment...
             </>
-          ) : billingType === 'EXEMPT' ? (
-            'No Payment Required'
           ) : (
             `Continue to Payment - ${formatCurrency(calculatedRate)}${billingPeriodText}`
           )}
         </Button>
-
-        {billingType === 'EXEMPT' && (
-          <Alert className="border-[#deb43e]/20 bg-[#deb43e]/5">
-            <Info className="h-4 w-4 text-[#deb43e]" />
-            <AlertDescription className="text-[#deb43e]">
-              As an exempt student, no payment setup is required. Please contact
-              the administration to complete your registration.
-            </AlertDescription>
-          </Alert>
-        )}
       </div>
     </TooltipProvider>
   )

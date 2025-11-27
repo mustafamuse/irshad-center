@@ -8,27 +8,7 @@
 import { STRIPE_WEBHOOK_EVENTS } from '@/lib/constants/stripe'
 import { createWebhookHandler } from '@/lib/services/webhooks/base-webhook-handler'
 import { mahadEventHandlers } from '@/lib/services/webhooks/event-handlers'
-import { stripeServerClient } from '@/lib/stripe'
-
-/**
- * Verify Mahad webhook signature
- */
-function verifyMahadWebhook(body: string, signature: string) {
-  const webhookSecret =
-    process.env.NODE_ENV === 'production'
-      ? process.env.STRIPE_WEBHOOK_SECRET_PROD
-      : process.env.STRIPE_WEBHOOK_SECRET_DEV
-
-  if (!webhookSecret) {
-    throw new Error('Missing Mahad webhook secret')
-  }
-
-  return stripeServerClient.webhooks.constructEvent(
-    body,
-    signature,
-    webhookSecret
-  )
-}
+import { verifyMahadWebhook } from '@/lib/stripe-mahad'
 
 /**
  * POST handler for Mahad webhooks
