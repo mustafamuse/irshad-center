@@ -33,8 +33,6 @@ export default function ApplicantDetails() {
 
   // Watch form values
   const studentName = watch('studentName')
-  const siblingCount = watch('siblingCount') || 0
-  const monthlyRate = watch('monthlyRate') || 0
   const payer = watch('payer')
 
   // Handle student selection
@@ -117,20 +115,6 @@ export default function ApplicantDetails() {
           </p>
         )}
       </div>
-
-      {/* 2️⃣ Show Sibling/Family Info if applicable */}
-      {studentName && siblingCount !== undefined && siblingCount > 0 && (
-        <div className="rounded bg-muted p-4">
-          <p>
-            Keep in mind since you have <strong>{siblingCount}</strong> sibling
-            {siblingCount !== 1 && 's'} enrolled,
-            <br />
-            The Mahad has provided a{' '}
-            <strong>${150 - (monthlyRate ?? 0)}</strong> discount each month for
-            each sibling.
-          </p>
-        </div>
-      )}
 
       {/* Email */}
       <div>

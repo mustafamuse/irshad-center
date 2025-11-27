@@ -40,9 +40,6 @@ export type StudentWithDetails = {
     id: string
     name: string
   }>
-  // Optional fields from new schema
-  monthlyRate?: number
-  customRate?: boolean
   batchId?: string | null
   // Optional fields from old schema (for backward compat)
   dateOfBirth?: Date | null
