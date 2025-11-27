@@ -1,10 +1,12 @@
-// ⚠️ CRITICAL MIGRATION NEEDED: This file uses the legacy Student model which has been removed.
-// TODO: Migrate to ProgramProfile/Enrollment model
-
 /**
- * Student Update Utilities
+ * @deprecated This file uses the legacy Student model which has been removed.
+ * Migration needed to ProgramProfile/BillingAssignment model.
  *
- * Centralized utilities for updating student subscription data.
+ * For new code, use:
+ * - lib/db/queries/program-profile.ts for student profile operations
+ * - lib/utils/mahad-tuition.ts for rate calculations
+ *
+ * Student Update Utilities (Legacy)
  * Handles status tracking, subscription history, and period date updates.
  */
 
@@ -32,6 +34,7 @@ interface StudentUpdateConfig {
   newStudentStatus: string
   periodStart: Date | null
   periodEnd: Date | null
+  /** @deprecated Rates now calculated via calculateMahadRate() in lib/utils/mahad-tuition.ts */
   monthlyRate?: number
   program: 'MAHAD' | 'DUGSI'
 }

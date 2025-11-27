@@ -1,11 +1,26 @@
+/**
+ * @deprecated This file contains legacy types from the old monolithic Student model.
+ * These types are kept for backward compatibility with legacy dashboard components.
+ *
+ * For new code, use:
+ * - lib/types/student.ts for StudentStatus
+ * - lib/types/program-profile.ts for ProgramProfile types
+ * - lib/utils/mahad-tuition.ts for rate calculations
+ */
 import type Stripe from 'stripe'
 
 import { StudentStatus } from './types/student'
 
+/**
+ * @deprecated Use ProgramProfile from lib/types/program-profile.ts
+ * Rates are now calculated via calculateMahadRate() in lib/utils/mahad-tuition.ts
+ */
 export interface Student {
   id: string
   name: string
+  /** @deprecated Rates now calculated dynamically via calculateMahadRate() */
   monthlyRate: number
+  /** @deprecated Replaced by billingType enum */
   hasCustomRate: boolean
   subscription: boolean
   status: StudentStatus
@@ -13,11 +28,16 @@ export interface Student {
   siblingId: string | null
 }
 
+/**
+ * @deprecated Legacy type for old JSON-based student data
+ */
 export interface StudentData {
   id: string
   name: string
   className: string
+  /** @deprecated Rates now calculated dynamically */
   monthlyRate: number
+  /** @deprecated Replaced by billingType enum */
   hasCustomRate: boolean
   familyId: string | null
   familyName: string
@@ -25,11 +45,15 @@ export interface StudentData {
   totalFamilyMembers: number
 }
 
+/**
+ * @deprecated Legacy type for old JSON-based student storage
+ */
 export interface StudentsJson {
   students: {
     [key: string]: StudentData
   }
   constants: {
+    /** @deprecated Use calculateMahadRate() from lib/utils/mahad-tuition.ts */
     baseRate: number
     discounts: {
       siblings: {
@@ -282,4 +306,8 @@ export interface SubscriptionResponse {
   }
 }
 
+/**
+ * @deprecated Use MAHAD_BASE_RATE from lib/utils/mahad-tuition.ts instead
+ * Kept for backward compatibility with legacy dashboard components
+ */
 export const BASE_RATE = 150
