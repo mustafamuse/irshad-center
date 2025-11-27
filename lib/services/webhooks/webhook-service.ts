@@ -156,31 +156,53 @@ export async function handleSubscriptionCreated(
   )
 
   if (!billingAccount) {
-    // Find person by customer ID in contactPoints or create placeholder
-    const person = await prisma.person.findFirst({
-      where: {
-        billingAccounts: {
-          some: {
-            OR: [
-              { stripeCustomerIdMahad: customerId },
-              { stripeCustomerIdDugsi: customerId },
-            ],
+    // First, check if we have personId in subscription metadata (set by Mahad checkout)
+    const metadataPersonId = subscription.metadata?.personId
+
+    if (metadataPersonId) {
+      // Use personId from metadata to create billing account
+      // This handles the race condition where subscription.created arrives before checkout.completed
+      logger.info(
+        {
+          customerId,
+          personId: metadataPersonId,
+          subscriptionId: subscription.id,
+        },
+        'Creating billing account from subscription metadata personId'
+      )
+
+      billingAccount = await createOrUpdateBillingAccount({
+        personId: metadataPersonId,
+        accountType,
+        stripeCustomerId: customerId,
+      })
+    } else {
+      // Fall back to finding person by existing billing account (for non-Mahad subscriptions)
+      const person = await prisma.person.findFirst({
+        where: {
+          billingAccounts: {
+            some: {
+              OR: [
+                { stripeCustomerIdMahad: customerId },
+                { stripeCustomerIdDugsi: customerId },
+              ],
+            },
           },
         },
-      },
-    })
+      })
 
-    if (!person) {
-      throw new Error(
-        `No person found for customer ${customerId}. Payment method must be captured first.`
-      )
+      if (!person) {
+        throw new Error(
+          `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId.`
+        )
+      }
+
+      billingAccount = await createOrUpdateBillingAccount({
+        personId: person.id,
+        accountType,
+        stripeCustomerId: customerId,
+      })
     }
-
-    billingAccount = await createOrUpdateBillingAccount({
-      personId: person.id,
-      accountType,
-      stripeCustomerId: customerId,
-    })
   }
 
   // Create subscription in database

@@ -2,7 +2,9 @@
  * Mahad Checkout Session API
  *
  * Creates a Stripe Checkout Session with dynamically calculated pricing
- * based on student billing configuration (graduation status, frequency, billing type).
+ * based on student billing configuration (graduation status, payment frequency).
+ *
+ * Billing type is always FULL_TIME at checkout - admin adjusts afterward if needed.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -18,6 +20,9 @@ import { createServiceLogger } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import {
   calculateMahadRate,
+  formatBillingType,
+  formatGraduationStatus,
+  formatRateDisplay,
   getStripeInterval,
   shouldCreateSubscription,
 } from '@/lib/utils/mahad-tuition'
@@ -28,7 +33,7 @@ interface CheckoutRequest {
   profileId: string
   graduationStatus: GraduationStatus
   paymentFrequency: PaymentFrequency
-  billingType: StudentBillingType
+  billingType?: StudentBillingType // Optional - defaults to FULL_TIME (admin adjusts afterward)
   successUrl?: string
   cancelUrl?: string
 }
@@ -41,20 +46,20 @@ export async function POST(request: NextRequest) {
       profileId,
       graduationStatus,
       paymentFrequency,
-      billingType,
+      billingType = 'FULL_TIME', // Default to FULL_TIME - admin adjusts afterward if needed
       successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?success=true`,
       cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?canceled=true`,
     } = body
 
-    // Validate required fields
-    if (!profileId || !graduationStatus || !paymentFrequency || !billingType) {
+    // Validate required fields (billingType has a default, so not required from client)
+    if (!profileId || !graduationStatus || !paymentFrequency) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       )
     }
 
-    // Check if billing type is exempt
+    // Check if billing type is exempt (shouldn't happen since default is FULL_TIME)
     if (!shouldCreateSubscription(billingType)) {
       return NextResponse.json(
         { error: 'Exempt students do not need to set up payment' },
@@ -129,7 +134,7 @@ export async function POST(request: NextRequest) {
         {
           price_data: {
             currency: 'usd',
-            product: process.env.STRIPE_PRODUCT_ID,
+            product: process.env.STRIPE_MAHAD_PRODUCT_ID,
             unit_amount: rateInCents,
             recurring: intervalConfig,
           },
@@ -138,6 +143,13 @@ export async function POST(request: NextRequest) {
       ],
       subscription_data: {
         metadata: {
+          // Human-readable (for Stripe dashboard)
+          Student: profile.person.name,
+          Rate: formatRateDisplay(rateInCents, paymentFrequency),
+          Status: formatGraduationStatus(graduationStatus),
+          Type: formatBillingType(billingType),
+          Source: 'Mahad Registration',
+          // Technical (for webhook processing - DO NOT REMOVE)
           profileId: profile.id,
           personId: profile.personId,
           studentName: profile.person.name,
@@ -145,9 +157,14 @@ export async function POST(request: NextRequest) {
           paymentFrequency,
           billingType,
           calculatedRate: rateInCents.toString(),
+          source: 'mahad-registration',
         },
       },
       metadata: {
+        // Human-readable (for Stripe dashboard)
+        Student: profile.person.name,
+        Source: 'Mahad Registration',
+        // Technical (for webhook processing)
         profileId: profile.id,
         personId: profile.personId,
         studentName: profile.person.name,

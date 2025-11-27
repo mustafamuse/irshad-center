@@ -8,26 +8,24 @@
 
 import Stripe from 'stripe'
 
+import { getDugsiKeys } from '@/lib/keys/stripe'
+import { createServiceLogger } from '@/lib/logger'
 import { isValidEmail } from '@/lib/utils/type-guards'
+
+const logger = createServiceLogger('stripe-dugsi')
 
 let dugsiStripeClient: Stripe | null = null
 
 /**
  * Get the Dugsi-specific Stripe client.
- * Uses a separate API key from the Mahad Stripe account.
+ * Uses centralized keys from lib/keys/stripe.ts which auto-switches test/live.
  */
 export function getDugsiStripeClient(): Stripe {
-  const stripeKey = process.env.STRIPE_SECRET_KEY_DUGSI
-
-  if (!stripeKey) {
-    throw new Error(
-      'Dugsi Stripe key not configured. Please set STRIPE_SECRET_KEY_DUGSI in your environment variables.'
-    )
-  }
+  const { secretKey } = getDugsiKeys()
 
   if (!dugsiStripeClient) {
-    console.log('Initializing Dugsi Stripe client...')
-    dugsiStripeClient = new Stripe(stripeKey, {
+    logger.info('Initializing Dugsi Stripe client')
+    dugsiStripeClient = new Stripe(secretKey, {
       apiVersion: '2025-08-27.basil',
       typescript: true,
     })
@@ -75,13 +73,15 @@ export function constructDugsiPaymentUrl(params: {
     throw new Error('Child count must be a whole number')
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI
+  const { paymentLink } = getDugsiKeys()
 
-  if (!baseUrl) {
+  if (!paymentLink) {
     throw new Error(
-      'Dugsi payment link not configured. Please set NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI in your environment variables.'
+      'Dugsi payment link not configured. Please set NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK in your environment variables.'
     )
   }
+
+  const baseUrl = paymentLink
 
   const url = new URL(baseUrl)
 
@@ -99,16 +99,10 @@ export function constructDugsiPaymentUrl(params: {
 
 /**
  * Get the Dugsi webhook secret for verifying webhook signatures.
+ * Uses centralized keys from lib/keys/stripe.ts.
  */
 export function getDugsiWebhookSecret(): string {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_DUGSI
-
-  if (!webhookSecret) {
-    throw new Error(
-      'Dugsi webhook secret not configured. Please set STRIPE_WEBHOOK_SECRET_DUGSI in your environment variables.'
-    )
-  }
-
+  const { webhookSecret } = getDugsiKeys()
   return webhookSecret
 }
 
@@ -130,7 +124,10 @@ export function verifyDugsiWebhook(
     return dugsiClient.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err) {
     const error = err as Error
-    console.error('❌ Dugsi webhook verification failed:', error.message)
+    logger.error(
+      { err: error, signaturePreview: signature.substring(0, 20) + '...' },
+      'Dugsi webhook verification failed'
+    )
     throw new Error(`Webhook verification failed: ${error.message}`)
   }
 }
@@ -142,11 +139,10 @@ export function verifyDugsiWebhook(
 export async function testDugsiStripeClientInitialization(): Promise<void> {
   try {
     const client = getDugsiStripeClient()
-    // Try to list a single customer to verify the API key works
     await client.customers.list({ limit: 1 })
-    console.log('✅ Dugsi Stripe client initialized successfully.')
+    logger.info('Dugsi Stripe client initialized successfully')
   } catch (error) {
-    console.error('❌ Dugsi Stripe client initialization failed:', error)
+    logger.error({ error }, 'Dugsi Stripe client initialization failed')
     throw error
   }
 }
