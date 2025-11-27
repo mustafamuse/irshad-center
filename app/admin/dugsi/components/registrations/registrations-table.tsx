@@ -48,10 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  formatEducationLevel,
-  formatGradeLevel,
-} from '@/lib/utils/enum-formatters'
+import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
 import { DugsiRegistration } from '../../_types'
@@ -734,20 +731,6 @@ export function DugsiRegistrationsTable({
                                     </p>
                                     <p className="text-sm font-medium">
                                       {formatGradeLevel(child.gradeLevel)}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-start gap-2">
-                                  <GraduationCap className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">
-                                      Education Level
-                                    </p>
-                                    <p className="text-sm font-medium">
-                                      {formatEducationLevel(
-                                        child.educationLevel
-                                      )}
                                     </p>
                                   </div>
                                 </div>

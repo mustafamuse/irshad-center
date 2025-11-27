@@ -11,7 +11,7 @@
  * - Add child to family
  */
 
-import { EducationLevel, GradeLevel, Prisma } from '@prisma/client'
+import { GradeLevel, Prisma } from '@prisma/client'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -88,9 +88,7 @@ export interface ChildUpdateInput {
   dateOfBirth?: Date
   /** Child's gender */
   gender?: 'MALE' | 'FEMALE'
-  /** Current education level (e.g., PRESCHOOL, ELEMENTARY) */
-  educationLevel?: EducationLevel
-  /** Current grade level (e.g., GRADE_1, GRADE_2) */
+  /** Current grade level (e.g., GRADE_1, GRADE_2) - K-12 for Dugsi */
   gradeLevel?: GradeLevel
   /** Name of school child attends */
   schoolName?: string
@@ -112,9 +110,7 @@ export interface NewChildInput {
   gender: 'MALE' | 'FEMALE'
   /** New child's date of birth */
   dateOfBirth?: Date
-  /** Current education level */
-  educationLevel: EducationLevel
-  /** Current grade level */
+  /** Current grade level - K-12 for Dugsi */
   gradeLevel: GradeLevel
   /** Name of school child attends */
   schoolName?: string
@@ -391,15 +387,12 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   // Update program profile fields
   const profileUpdates: Partial<{
     gender: 'MALE' | 'FEMALE'
-    educationLevel: EducationLevel
     gradeLevel: GradeLevel
     schoolName: string | null
     healthInfo: string | null
   }> = {}
 
   if (input.gender !== undefined) profileUpdates.gender = input.gender
-  if (input.educationLevel !== undefined)
-    profileUpdates.educationLevel = input.educationLevel
   if (input.gradeLevel !== undefined)
     profileUpdates.gradeLevel = input.gradeLevel
   if (input.schoolName !== undefined)
@@ -495,7 +488,6 @@ export async function addChildToFamily(
         program: DUGSI_PROGRAM,
         familyReferenceId: familyId,
         gender: input.gender,
-        educationLevel: input.educationLevel,
         gradeLevel: input.gradeLevel,
         schoolName: input.schoolName || null,
         healthInfo: input.healthInfo || null,

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import { GradeLevel } from '@prisma/client'
 
 import {
   // Registration service
@@ -324,7 +324,6 @@ export async function updateChildInfo(params: {
   lastName?: string
   gender?: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
-  educationLevel?: EducationLevel
   gradeLevel?: GradeLevel
   schoolName?: string
   healthInfo?: string | null
@@ -358,7 +357,6 @@ export async function addChildToFamily(params: {
   lastName: string
   gender: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
-  educationLevel: EducationLevel
   gradeLevel: GradeLevel
   schoolName?: string
   healthInfo?: string | null

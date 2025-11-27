@@ -526,20 +526,23 @@ export async function updateStudentAction(
       ...(validated.dateOfBirth !== undefined && {
         dateOfBirth: validated.dateOfBirth || null,
       }),
-      ...(validated.educationLevel !== undefined && {
-        educationLevel: validated.educationLevel || null,
-      }),
       ...(validated.gradeLevel !== undefined && {
         gradeLevel: validated.gradeLevel || null,
       }),
       ...(validated.schoolName !== undefined && {
         schoolName: validated.schoolName || null,
       }),
-      ...(validated.monthlyRate !== undefined && {
-        monthlyRate: validated.monthlyRate,
+      ...(validated.graduationStatus !== undefined && {
+        graduationStatus: validated.graduationStatus || null,
       }),
-      ...(validated.customRate !== undefined && {
-        customRate: validated.customRate,
+      ...(validated.paymentFrequency !== undefined && {
+        paymentFrequency: validated.paymentFrequency || null,
+      }),
+      ...(validated.billingType !== undefined && {
+        billingType: validated.billingType || null,
+      }),
+      ...(validated.paymentNotes !== undefined && {
+        paymentNotes: validated.paymentNotes || null,
       }),
       ...(validated.batchId !== undefined && {
         batchId: validated.batchId || null,

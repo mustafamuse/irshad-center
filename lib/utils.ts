@@ -11,7 +11,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function calculateTotal(students: StudentDTO[]): number {
-  return students.reduce((total, student) => total + student.monthlyRate, 0)
+  return students.reduce((total, student) => total + student.calculatedRate, 0)
 }
 
 export function formatCurrency(amount: number): string {

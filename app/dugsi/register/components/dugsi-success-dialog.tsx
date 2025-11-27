@@ -24,10 +24,7 @@ import {
 import { GenderDisplay } from '@/components/ui/gender-display'
 import { Separator } from '@/components/ui/separator'
 import type { DugsiRegistrationValues } from '@/lib/registration/schemas/registration'
-import {
-  formatEducationLevel,
-  formatGradeLevel,
-} from '@/lib/utils/enum-formatters'
+import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 interface DugsiSuccessDialogProps {
   isOpen: boolean
@@ -205,23 +202,13 @@ export function DugsiSuccessDialog({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Level
-                        </p>
-                        <p className="mt-0.5 text-sm font-medium">
-                          {formatEducationLevel(child.educationLevel)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                          Grade
-                        </p>
-                        <p className="mt-0.5 text-sm font-medium">
-                          {formatGradeLevel(child.gradeLevel)}
-                        </p>
-                      </div>
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Grade
+                      </p>
+                      <p className="mt-0.5 text-sm font-medium">
+                        {formatGradeLevel(child.gradeLevel)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -350,7 +337,6 @@ function generateSummaryText(data: DugsiRegistrationValues): string {
         `Child ${idx + 1}: ${child.firstName} ${child.lastName}
     - DOB: ${formatDate(child.dateOfBirth)}
     - School: ${child.schoolName}
-    - Level: ${formatEducationLevel(child.educationLevel)}
     - Grade: ${formatGradeLevel(child.gradeLevel)}`
     )
     .join('\n')

@@ -1,4 +1,9 @@
-import { EducationLevel, GradeLevel, SubscriptionStatus } from '@prisma/client'
+import {
+  GradeLevel,
+  GraduationStatus,
+  StudentBillingType,
+  SubscriptionStatus,
+} from '@prisma/client'
 
 import { StudentStatus } from '@/lib/types/student'
 
@@ -12,7 +17,8 @@ export type CohortSearchParams = Promise<{
   batch?: string | string[]
   status?: string | string[]
   subscriptionStatus?: string | string[]
-  educationLevel?: string | string[]
+  graduationStatus?: string | string[]
+  billingType?: string | string[]
   gradeLevel?: string | string[]
   page?: string
   limit?: string
@@ -26,7 +32,8 @@ export type ParsedCohortSearchParams = {
   batchIds: string[]
   statuses: StudentStatus[]
   subscriptionStatuses: SubscriptionStatus[]
-  educationLevels: EducationLevel[]
+  graduationStatuses: GraduationStatus[]
+  billingTypes: StudentBillingType[]
   gradeLevels: GradeLevel[]
   page: number
   limit: number
@@ -64,7 +71,8 @@ export function parseSearchParams(
   // Validate enum values against actual enum types
   const validStatuses = Object.values(StudentStatus)
   const validSubscriptionStatuses = Object.values(SubscriptionStatus)
-  const validEducationLevels = Object.values(EducationLevel)
+  const validGraduationStatuses = Object.values(GraduationStatus)
+  const validBillingTypes = Object.values(StudentBillingType)
   const validGradeLevels = Object.values(GradeLevel)
 
   return {
@@ -84,10 +92,14 @@ export function parseSearchParams(
         validSubscriptionStatuses.includes(s as SubscriptionStatus)
       )
       .slice(0, PAGINATION_LIMITS.MAX_ENUM_FILTERS) as SubscriptionStatus[],
-    // Filter out invalid education level values from URL and cap
-    educationLevels: toArray(params.educationLevel)
-      .filter((e) => validEducationLevels.includes(e as EducationLevel))
-      .slice(0, PAGINATION_LIMITS.MAX_ENUM_FILTERS) as EducationLevel[],
+    // Filter out invalid graduation status values from URL and cap
+    graduationStatuses: toArray(params.graduationStatus)
+      .filter((g) => validGraduationStatuses.includes(g as GraduationStatus))
+      .slice(0, PAGINATION_LIMITS.MAX_ENUM_FILTERS) as GraduationStatus[],
+    // Filter out invalid billing type values from URL and cap
+    billingTypes: toArray(params.billingType)
+      .filter((b) => validBillingTypes.includes(b as StudentBillingType))
+      .slice(0, PAGINATION_LIMITS.MAX_ENUM_FILTERS) as StudentBillingType[],
     // Filter out invalid grade level values from URL and cap
     gradeLevels: toArray(params.gradeLevel)
       .filter((g) => validGradeLevels.includes(g as GradeLevel))

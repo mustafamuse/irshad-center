@@ -12,12 +12,13 @@ import {
   ContactType,
   GuardianRole,
   Gender,
-  EducationLevel,
   GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
 } from '@prisma/client'
 import { z } from 'zod'
 
-import { DEFAULT_MONTHLY_RATE } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
@@ -106,7 +107,6 @@ const childDataSchema = z.object({
     .nullable()
     .optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
-  educationLevel: z.nativeEnum(EducationLevel).nullable().optional(),
   gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
   schoolName: z
     .string()
@@ -132,16 +132,7 @@ const programProfileDataSchema = z.object({
     .uuid('Batch ID must be a valid UUID')
     .nullable()
     .optional(),
-  // Max $100,000/month - reasonable upper bound to prevent data entry errors
-  monthlyRate: z
-    .number()
-    .int('Monthly rate must be an integer')
-    .min(0, 'Monthly rate must be non-negative')
-    .max(100000, 'Monthly rate exceeds maximum ($100,000)')
-    .optional(),
-  customRate: z.boolean().optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
-  educationLevel: z.nativeEnum(EducationLevel).nullable().optional(),
   gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
   schoolName: z
     .string()
@@ -158,24 +149,15 @@ const programProfileDataSchema = z.object({
     .uuid('Family reference ID must be a valid UUID')
     .nullable()
     .optional(),
-  highSchoolGradYear: z
-    .number()
-    .int('High school grad year must be an integer')
+  // Mahad billing fields (nullable for non-Mahad profiles)
+  graduationStatus: z.nativeEnum(GraduationStatus).nullable().optional(),
+  paymentFrequency: z.nativeEnum(PaymentFrequency).nullable().optional(),
+  billingType: z.nativeEnum(StudentBillingType).nullable().optional(),
+  paymentNotes: z
+    .string()
+    .max(500, 'Payment notes is too long (max 500 characters)')
     .nullable()
     .optional(),
-  highSchoolGraduated: z.boolean().nullable().optional(),
-  collegeGradYear: z
-    .number()
-    .int('College grad year must be an integer')
-    .nullable()
-    .optional(),
-  collegeGraduated: z.boolean().nullable().optional(),
-  postGradYear: z
-    .number()
-    .int('Post grad year must be an integer')
-    .nullable()
-    .optional(),
-  postGradCompleted: z.boolean().nullable().optional(),
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   enrollmentReason: z
     .string()
@@ -229,13 +211,6 @@ const familyRegistrationSchema = z.object({
   familyReferenceId: z
     .string()
     .uuid('Family reference ID must be a valid UUID'),
-  // Max $100,000/month - reasonable upper bound to prevent data entry errors
-  monthlyRate: z
-    .number()
-    .int('Monthly rate must be an integer')
-    .min(0, 'Monthly rate must be non-negative')
-    .max(100000, 'Monthly rate exceeds maximum ($100,000)')
-    .optional(),
 })
 
 /**
@@ -353,20 +328,16 @@ export async function createProgramProfileWithEnrollment(
     program,
     status = 'REGISTERED' as EnrollmentStatus,
     batchId,
-    monthlyRate = DEFAULT_MONTHLY_RATE,
-    customRate = false,
     gender,
-    educationLevel,
     gradeLevel,
     schoolName,
     healthInfo,
     familyReferenceId,
-    highSchoolGradYear,
-    highSchoolGraduated,
-    collegeGradYear,
-    collegeGraduated,
-    postGradYear,
-    postGradCompleted,
+    // Mahad billing fields
+    graduationStatus,
+    paymentFrequency,
+    billingType,
+    paymentNotes,
     metadata,
     enrollmentReason,
     enrollmentNotes,
@@ -448,20 +419,16 @@ export async function createProgramProfileWithEnrollment(
         personId,
         program,
         status,
-        monthlyRate,
-        customRate,
         gender,
-        educationLevel,
         gradeLevel,
         schoolName,
         healthInfo,
         familyReferenceId,
-        highSchoolGradYear,
-        highSchoolGraduated,
-        collegeGradYear,
-        collegeGraduated,
-        postGradYear,
-        postGradCompleted,
+        // Mahad billing fields
+        graduationStatus,
+        paymentFrequency,
+        billingType,
+        paymentNotes,
         metadata:
           metadata === null
             ? Prisma.JsonNull
@@ -562,7 +529,6 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     parent2FirstName,
     parent2LastName,
     familyReferenceId,
-    monthlyRate = DEFAULT_MONTHLY_RATE,
   } = validated
 
   return prisma.$transaction(async (tx) => {
@@ -721,9 +687,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             personId: childPerson.id,
             program: 'DUGSI_PROGRAM',
             status: 'REGISTERED',
-            monthlyRate,
             gender: child.gender,
-            educationLevel: child.educationLevel,
             gradeLevel: child.gradeLevel,
             schoolName: child.schoolName,
             healthInfo: child.healthInfo,

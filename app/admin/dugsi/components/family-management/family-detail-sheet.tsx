@@ -667,7 +667,6 @@ export function FamilyDetailSheet({
             name: currentEditChild.name,
             gender: currentEditChild.gender || 'MALE',
             dateOfBirth: currentEditChild.dateOfBirth,
-            educationLevel: currentEditChild.educationLevel || '',
             gradeLevel: currentEditChild.gradeLevel || '',
             schoolName: currentEditChild.schoolName,
             healthInfo: currentEditChild.healthInfo,

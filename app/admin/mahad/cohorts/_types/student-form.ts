@@ -1,4 +1,9 @@
-import type { EducationLevel, GradeLevel } from '@prisma/client'
+import type {
+  GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
 
 /**
  * Form data for student details sheet
@@ -9,11 +14,13 @@ export interface StudentFormData {
   email: string
   phone: string
   dateOfBirth: Date | null
-  educationLevel: string // 'none' | EducationLevel
   gradeLevel: string // 'none' | GradeLevel
   schoolName: string
-  monthlyRate: number
-  customRate: boolean
+  // Mahad billing fields
+  graduationStatus: string // 'none' | GraduationStatus
+  paymentFrequency: string // 'none' | PaymentFrequency
+  billingType: string // 'none' | StudentBillingType
+  paymentNotes: string
   batchId: string // 'none' | string (batch ID)
 }
 
@@ -26,11 +33,13 @@ export interface UpdateStudentPayload {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number
-  customRate?: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
   batchId?: string | null
 }
 

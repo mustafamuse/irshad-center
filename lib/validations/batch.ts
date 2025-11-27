@@ -5,7 +5,12 @@
  * These schemas provide runtime type validation and error messages.
  */
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import {
+  GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
 import { z } from 'zod'
 
 // Note: StudentStatus is a string in the database, not an enum
@@ -95,7 +100,6 @@ export const CreateStudentSchema = z.object({
     .date()
     .max(new Date(), 'Date of birth cannot be in the future')
     .optional(),
-  educationLevel: z.nativeEnum(EducationLevel).optional(),
   gradeLevel: z.nativeEnum(GradeLevel).optional(),
   schoolName: z
     .string()
@@ -111,8 +115,11 @@ export const CreateStudentSchema = z.object({
       (val) => !val || !/[<>]/.test(val),
       'School name cannot contain HTML tags'
     ),
-  monthlyRate: z.number().min(0, 'Monthly rate cannot be negative').optional(),
-  customRate: z.boolean().optional(),
+  // Mahad billing fields
+  graduationStatus: z.nativeEnum(GraduationStatus).optional(),
+  paymentFrequency: z.nativeEnum(PaymentFrequency).optional(),
+  billingType: z.nativeEnum(StudentBillingType).optional(),
+  paymentNotes: z.string().max(500).optional().or(z.literal('')),
   batchId: z.string().uuid('Invalid batch ID').optional(),
 })
 
@@ -140,14 +147,19 @@ export const StudentFiltersSchema = z.object({
       selected: z.array(StudentStatusEnum).optional(),
     })
     .optional(),
-  educationLevel: z
-    .object({
-      selected: z.array(z.nativeEnum(EducationLevel)).optional(),
-    })
-    .optional(),
   gradeLevel: z
     .object({
       selected: z.array(z.nativeEnum(GradeLevel)).optional(),
+    })
+    .optional(),
+  graduationStatus: z
+    .object({
+      selected: z.array(z.nativeEnum(GraduationStatus)).optional(),
+    })
+    .optional(),
+  billingType: z
+    .object({
+      selected: z.array(z.nativeEnum(StudentBillingType)).optional(),
     })
     .optional(),
   dateRange: z
@@ -217,8 +229,9 @@ export const ExportStudentsSchema = z.object({
         'phone',
         'batch',
         'status',
-        'educationLevel',
         'gradeLevel',
+        'graduationStatus',
+        'billingType',
         'dateOfBirth',
         'createdAt',
         'updatedAt',

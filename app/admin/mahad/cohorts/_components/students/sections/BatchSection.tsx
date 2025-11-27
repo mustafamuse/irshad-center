@@ -4,7 +4,6 @@ import { Badge } from '@/components/ui/badge'
 import type { BatchWithCount } from '@/lib/types/batch'
 
 import type { StudentFormData } from '../../../_types/student-form'
-import { StudentMoneyField } from '../fields/StudentMoneyField'
 import { StudentSelectField } from '../fields/StudentSelectField'
 
 interface BatchSectionProps {
@@ -83,15 +82,6 @@ export function BatchSection({
             </Badge>
           </div>
         </div>
-
-        <StudentMoneyField
-          id="monthlyRate"
-          label="Monthly Rate"
-          value={formData.monthlyRate}
-          isEditing={isEditing}
-          onChange={(value) => updateField('monthlyRate', value)}
-          disabled={isPending}
-        />
       </div>
     </div>
   )

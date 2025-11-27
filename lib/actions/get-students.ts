@@ -6,11 +6,18 @@
  * Query functions for Mahad students. Uses existing services and mappers.
  */
 
+import type {
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
+
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
+import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 
 // Re-export StudentStatus from canonical source
 export { StudentStatus } from '@/lib/types/student'
@@ -22,8 +29,12 @@ export { StudentStatus } from '@/lib/types/student'
 export interface StudentDTO {
   id: string
   name: string
-  monthlyRate: number
-  hasCustomRate: boolean
+  // Calculated rate based on billing configuration (in cents)
+  calculatedRate: number
+  // Mahad billing configuration
+  graduationStatus: GraduationStatus | null
+  paymentFrequency: PaymentFrequency | null
+  billingType: StudentBillingType | null
   status: string
   siblingGroupId: string | null
   batchId: string | null
@@ -187,8 +198,9 @@ function mapEnrollmentToStudentDTO(enrollment: {
   status: string
   programProfile: {
     id: string
-    monthlyRate: number
-    customRate: boolean
+    graduationStatus: GraduationStatus | null
+    paymentFrequency: PaymentFrequency | null
+    billingType: StudentBillingType | null
     person: {
       name: string
       contactPoints?: Array<{ type: string; value: string }>
@@ -219,11 +231,20 @@ function mapEnrollmentToStudentDTO(enrollment: {
   const hasActiveSubscription = subscription?.status === 'active'
   const isEligibleForAutopay = !hasActiveSubscription
 
+  // Calculate rate using the formula-based rate system
+  const calculatedRate = calculateMahadRate(
+    profile.graduationStatus,
+    profile.paymentFrequency,
+    profile.billingType
+  )
+
   return {
     id: profile.id,
     name: person.name,
-    monthlyRate: profile.monthlyRate,
-    hasCustomRate: profile.customRate,
+    calculatedRate,
+    graduationStatus: profile.graduationStatus,
+    paymentFrequency: profile.paymentFrequency,
+    billingType: profile.billingType,
     status: enrollment.status.toLowerCase(),
     siblingGroupId: null, // Intentionally null - use getSiblings() for sibling data
     batchId: enrollment.batch?.id ?? null,

@@ -7,7 +7,6 @@ import { useFieldArray, useForm } from 'react-hook-form'
 
 import { ContactFields } from '@/components/registration/shared/ContactFields'
 import { DateOfBirthField } from '@/components/registration/shared/DateOfBirthField'
-import { EducationFields } from '@/components/registration/shared/EducationFields'
 import { NameFields } from '@/components/registration/shared/NameFields'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,10 +21,16 @@ import { Form } from '@/components/ui/form'
 import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
 import { Label } from '@/components/ui/label'
 import { SchoolCombobox } from '@/components/ui/school-combobox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   useTranslatedGenderOptions,
-  useTranslatedEducationOptions,
   useTranslatedGradeOptions,
 } from '@/lib/i18n/use-translated-options'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
@@ -34,7 +39,6 @@ import {
   type DugsiRegistrationValues,
   DUGSI_DEFAULT_FORM_VALUES,
   DEFAULT_CHILD_VALUES,
-  DUGSI_EDUCATION_OPTIONS,
   DUGSI_GRADE_OPTIONS,
 } from '@/lib/registration/schemas/registration'
 import {
@@ -48,7 +52,6 @@ import { useDugsiRegistration } from '../hooks/use-dugsi-registration'
 export function DugsiRegisterForm() {
   const t = useTranslations('dugsi')
   const genderOptions = useTranslatedGenderOptions()
-  const educationOptions = useTranslatedEducationOptions()
   const gradeOptions = useTranslatedGradeOptions()
 
   const form = useForm<DugsiRegistrationValues>({
@@ -282,30 +285,45 @@ export function DugsiRegisterForm() {
                       }}
                     />
 
-                    {/* Education Level and Grade */}
-                    <EducationFields
+                    {/* Grade Level */}
+                    <FormFieldWrapper
                       control={form.control}
-                      educationLevelField={`children.${index}.educationLevel`}
-                      gradeLevelField={`children.${index}.gradeLevel`}
-                      educationOptions={educationOptions}
-                      gradeOptions={gradeOptions}
-                      educationLabel={t('fields.schoolLevel')}
-                      gradeLabel={t('fields.grade')}
-                      educationPlaceholder={t('placeholders.selectLevel')}
-                      gradePlaceholder={t('placeholders.selectGrade')}
-                      onEducationChange={(value) => {
-                        form.setValue(
-                          `children.${index}.educationLevel`,
-                          value as (typeof DUGSI_EDUCATION_OPTIONS)[number]['value']
-                        )
-                      }}
-                      onGradeChange={(value) => {
-                        form.setValue(
-                          `children.${index}.gradeLevel`,
-                          value as (typeof DUGSI_GRADE_OPTIONS)[number]['value']
-                        )
-                      }}
-                    />
+                      name={`children.${index}.gradeLevel`}
+                      label={t('fields.grade')}
+                      required
+                    >
+                      {(field, fieldState) => (
+                        <Select
+                          value={field.value || ''}
+                          onValueChange={(value) => {
+                            field.onChange(value)
+                            form.setValue(
+                              `children.${index}.gradeLevel`,
+                              value as (typeof DUGSI_GRADE_OPTIONS)[number]['value']
+                            )
+                          }}
+                        >
+                          <SelectTrigger
+                            aria-invalid={!!fieldState.error}
+                            className={getInputClassNames(!!fieldState.error)}
+                          >
+                            <SelectValue
+                              placeholder={t('placeholders.selectGrade')}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {gradeOptions.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </FormFieldWrapper>
 
                     {/* School Name */}
                     <FormFieldWrapper

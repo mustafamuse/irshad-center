@@ -1,4 +1,9 @@
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import {
+  GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
 
 import type { BatchStudentData, StudentDetailData } from '@/lib/types/batch'
 import { formatEnumValue } from '@/lib/utils/formatters'
@@ -22,11 +27,13 @@ export function getDefaultFormData(
     email: student.email || FORM_DEFAULTS.EMPTY,
     phone: student.phone || FORM_DEFAULTS.EMPTY,
     dateOfBirth: student.dateOfBirth ?? null,
-    educationLevel: student.educationLevel || FORM_DEFAULTS.NONE,
     gradeLevel: student.gradeLevel || FORM_DEFAULTS.NONE,
     schoolName: student.schoolName || FORM_DEFAULTS.EMPTY,
-    monthlyRate: student.monthlyRate ?? 0,
-    customRate: student.customRate,
+    // Mahad billing fields
+    graduationStatus: student.graduationStatus || FORM_DEFAULTS.NONE,
+    paymentFrequency: student.paymentFrequency || FORM_DEFAULTS.NONE,
+    billingType: student.billingType || FORM_DEFAULTS.NONE,
+    paymentNotes: student.paymentNotes || FORM_DEFAULTS.EMPTY,
     batchId: student.batchId || FORM_DEFAULTS.NONE,
   }
 }
@@ -43,15 +50,21 @@ export function convertFormDataToPayload(
     email: formData.email || null,
     phone: formData.phone || null,
     dateOfBirth: formData.dateOfBirth || null,
-    educationLevel: isNoneValue(formData.educationLevel)
-      ? null
-      : (formData.educationLevel as EducationLevel),
     gradeLevel: isNoneValue(formData.gradeLevel)
       ? null
       : (formData.gradeLevel as GradeLevel),
     schoolName: formData.schoolName || null,
-    monthlyRate: formData.monthlyRate,
-    customRate: formData.customRate,
+    // Mahad billing fields
+    graduationStatus: isNoneValue(formData.graduationStatus)
+      ? null
+      : (formData.graduationStatus as GraduationStatus),
+    paymentFrequency: isNoneValue(formData.paymentFrequency)
+      ? null
+      : (formData.paymentFrequency as PaymentFrequency),
+    billingType: isNoneValue(formData.billingType)
+      ? null
+      : (formData.billingType as StudentBillingType),
+    paymentNotes: formData.paymentNotes || null,
     batchId: isNoneValue(formData.batchId) ? null : formData.batchId,
   }
 }
@@ -85,11 +98,6 @@ export function isFormValid(formData: StudentFormData): boolean {
     return false
   }
 
-  // Monthly rate must be non-negative
-  if (formData.monthlyRate < 0) {
-    return false
-  }
-
   // Email must be valid if provided
   if (formData.email && !isValidEmail(formData.email)) {
     return false
@@ -117,21 +125,14 @@ export function hasFormChanges(
     formData.email !== originalData.email ||
     formData.phone !== originalData.phone ||
     formData.dateOfBirth?.getTime() !== originalData.dateOfBirth?.getTime() ||
-    formData.educationLevel !== originalData.educationLevel ||
     formData.gradeLevel !== originalData.gradeLevel ||
     formData.schoolName !== originalData.schoolName ||
-    formData.monthlyRate !== originalData.monthlyRate ||
-    formData.customRate !== originalData.customRate ||
+    formData.graduationStatus !== originalData.graduationStatus ||
+    formData.paymentFrequency !== originalData.paymentFrequency ||
+    formData.billingType !== originalData.billingType ||
+    formData.paymentNotes !== originalData.paymentNotes ||
     formData.batchId !== originalData.batchId
   )
-}
-
-/**
- * Format education level for display
- * Uses shared formatEnumValue utility to convert UPPER_SNAKE_CASE to Title Case
- */
-export function formatEducationLevel(level: string | null): string {
-  return formatEnumValue(level)
 }
 
 /**
@@ -140,4 +141,18 @@ export function formatEducationLevel(level: string | null): string {
  */
 export function formatGradeLevel(grade: string | null): string {
   return formatEnumValue(grade)
+}
+
+/**
+ * Format graduation status for display
+ */
+export function formatGraduationStatus(status: string | null): string {
+  return formatEnumValue(status)
+}
+
+/**
+ * Format billing type for display
+ */
+export function formatBillingType(type: string | null): string {
+  return formatEnumValue(type)
 }

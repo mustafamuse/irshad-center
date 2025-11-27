@@ -11,7 +11,13 @@
  * - Manage student contact information
  */
 
-import { EducationLevel, GradeLevel, Prisma } from '@prisma/client'
+import {
+  GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  Prisma,
+  StudentBillingType,
+} from '@prisma/client'
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
@@ -31,11 +37,13 @@ export interface StudentCreateInput {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number
-  customRate?: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
   batchId?: string | null
 }
 
@@ -47,11 +55,13 @@ export interface StudentUpdateInput {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number
-  customRate?: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
 }
 
 /**
@@ -116,22 +126,28 @@ export async function createMahadStudent(input: StudentCreateInput) {
     })
   }
 
-  // Create program profile
+  // Create program profile with billing fields
   const profile = await createProgramProfile({
     personId: person.id,
     program: MAHAD_PROGRAM,
-    educationLevel: input.educationLevel ?? null,
     gradeLevel: input.gradeLevel ?? null,
     schoolName: input.schoolName ?? null,
   })
 
-  // Update monthly rate if custom rate provided
-  if (input.monthlyRate !== undefined || input.customRate !== undefined) {
+  // Update billing fields if provided
+  if (
+    input.graduationStatus !== undefined ||
+    input.paymentFrequency !== undefined ||
+    input.billingType !== undefined ||
+    input.paymentNotes !== undefined
+  ) {
     await prisma.programProfile.update({
       where: { id: profile.id },
       data: {
-        monthlyRate: input.monthlyRate ?? 150,
-        customRate: input.customRate ?? false,
+        graduationStatus: input.graduationStatus ?? null,
+        paymentFrequency: input.paymentFrequency ?? null,
+        billingType: input.billingType ?? null,
+        paymentNotes: input.paymentNotes ?? null,
       },
     })
   }
@@ -294,11 +310,12 @@ export async function updateMahadStudent(
   return await prisma.programProfile.update({
     where: { id: studentId },
     data: {
-      educationLevel: input.educationLevel,
       gradeLevel: input.gradeLevel,
       schoolName: input.schoolName,
-      monthlyRate: input.monthlyRate,
-      customRate: input.customRate,
+      graduationStatus: input.graduationStatus,
+      paymentFrequency: input.paymentFrequency,
+      billingType: input.billingType,
+      paymentNotes: input.paymentNotes,
     },
   })
 }

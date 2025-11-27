@@ -32,7 +32,6 @@ export function formatPDFData(
           }
         : {}),
       siblingCount: data.siblingCount,
-      monthlyRate: data.monthlyRate,
     },
     'Financial Assessment': {
       educationStatus: data.educationStatus,

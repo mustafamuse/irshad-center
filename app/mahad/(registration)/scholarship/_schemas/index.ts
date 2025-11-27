@@ -15,7 +15,6 @@ export const applicantDetailsSchema = z
     payerName: z.string().optional(),
     payerPhone: z.string().optional(),
     siblingCount: z.number().optional(),
-    monthlyRate: z.number().optional(),
   })
   .refine(
     (data) => {
@@ -215,7 +214,6 @@ export const scholarshipApplicationSchema = z.object({
   payerName: z.string().optional(),
   payerPhone: z.string().optional(),
   siblingCount: z.number().optional(),
-  monthlyRate: z.number().optional(),
   // Financial Assessment
   educationStatus: z.enum(['highschool', 'college', 'not-studying']),
   schoolName: z.string().optional(),

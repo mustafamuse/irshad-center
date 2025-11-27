@@ -1,9 +1,11 @@
 import type {
   Program,
   Gender,
-  EducationLevel,
   GradeLevel,
   EnrollmentStatus,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
 } from '@prisma/client'
 
 /**
@@ -14,22 +16,17 @@ export interface ProgramProfile {
   personId: string
   program: Program
   status: EnrollmentStatus // Normalized to use EnrollmentStatus enum
-  monthlyRate: number
-  customRate: boolean
 
   // Program-specific typed fields
   gender: Gender | null
-  educationLevel: EducationLevel | null
   gradeLevel: GradeLevel | null
   schoolName: string | null
 
-  // Mahad-specific fields
-  highSchoolGradYear: number | null
-  highSchoolGraduated: boolean | null
-  collegeGradYear: number | null
-  collegeGraduated: boolean | null
-  postGradYear: number | null
-  postGradCompleted: boolean | null
+  // Mahad-specific billing fields
+  graduationStatus: GraduationStatus | null
+  paymentFrequency: PaymentFrequency | null
+  billingType: StudentBillingType | null
+  paymentNotes: string | null
 
   // Dugsi-specific fields
   healthInfo: string | null

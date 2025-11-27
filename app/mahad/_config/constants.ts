@@ -1,15 +1,11 @@
 /**
  * Mahad-wide constants
  * Centralized configuration for magic numbers, dates, and settings
+ *
+ * Note: Pricing is now calculated dynamically via calculateMahadRate()
+ * in lib/utils/mahad-tuition.ts based on graduationStatus, paymentFrequency,
+ * and billingType.
  */
-
-// Pricing
-export const PRICING = {
-  MONTHLY_RATE: 120,
-  MULTI_MONTH_RATE: 110,
-  SIBLING_DISCOUNT: 10,
-  BASE_RATE: 150, // Used for discount calculations
-} as const
 
 // Dates
 export const ACADEMIC_CALENDAR = {

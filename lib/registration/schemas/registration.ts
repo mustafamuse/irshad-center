@@ -1,4 +1,4 @@
-import { EducationLevel, GradeLevel, Gender } from '@prisma/client'
+import { GradeLevel, Gender } from '@prisma/client'
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -33,12 +33,7 @@ export const GRADE_LEVEL_LABELS: Record<GradeLevel, string> = {
 // MAHAD (COLLEGE) OPTIONS
 // ============================================================================
 
-export const MAHAD_EDUCATION_OPTIONS = [
-  { value: 'HIGH_SCHOOL', label: 'High School' },
-  { value: 'COLLEGE', label: 'College' },
-  { value: 'POST_GRAD', label: 'Post Graduate' },
-] as const
-
+// Grade options for Mahad students (college year tracking)
 export const MAHAD_GRADE_OPTIONS = [
   { value: 'FRESHMAN', label: 'Freshman' },
   { value: 'SOPHOMORE', label: 'Sophomore' },
@@ -50,12 +45,7 @@ export const MAHAD_GRADE_OPTIONS = [
 // DUGSI (K-12) OPTIONS
 // ============================================================================
 
-export const DUGSI_EDUCATION_OPTIONS = [
-  { value: 'ELEMENTARY', label: 'Elementary School' },
-  { value: 'MIDDLE_SCHOOL', label: 'Middle School' },
-  { value: 'HIGH_SCHOOL', label: 'High School' },
-] as const
-
+// Grade options for Dugsi students (K-12)
 export const DUGSI_GRADE_OPTIONS = [
   { value: 'KINDERGARTEN', label: 'Kindergarten' },
   { value: 'GRADE_1', label: '1st Grade' },
@@ -126,9 +116,7 @@ export const mahadRegistrationSchema = z.object({
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
     ),
-  educationLevel: z.nativeEnum(EducationLevel, {
-    required_error: 'Please select your education level',
-  }),
+  // Grade level is optional for tracking college year
   gradeLevel: z
     .nativeEnum(GradeLevel, {
       required_error: 'Please select your grade level',
@@ -149,7 +137,6 @@ export const MAHAD_DEFAULT_FORM_VALUES: Partial<MahadRegistrationValues> = {
   email: '',
   phone: '',
   dateOfBirth: undefined,
-  educationLevel: undefined,
   gradeLevel: null,
   schoolName: '',
 }
@@ -174,14 +161,10 @@ export const childInfoSchema = z.object({
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
     ),
-  educationLevel: z.nativeEnum(EducationLevel, {
-    required_error: 'Please select education level',
+  // Grade level is required for K-12 students
+  gradeLevel: z.nativeEnum(GradeLevel, {
+    required_error: 'Please select grade level',
   }),
-  gradeLevel: z
-    .nativeEnum(GradeLevel, {
-      required_error: 'Please select grade level',
-    })
-    .nullable(),
   schoolName: schoolNameSchema,
   healthInfo: z
     .string()
@@ -243,8 +226,7 @@ export const DEFAULT_CHILD_VALUES: ChildInfo = {
   lastName: '',
   gender: undefined as unknown as Gender,
   dateOfBirth: null as unknown as Date,
-  educationLevel: undefined as unknown as EducationLevel,
-  gradeLevel: null,
+  gradeLevel: undefined as unknown as GradeLevel,
   schoolName: '',
   healthInfo: '',
 }

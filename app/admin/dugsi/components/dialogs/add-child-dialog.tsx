@@ -59,7 +59,6 @@ export function AddChildDialog({
       lastName: '',
       gender: 'MALE',
       dateOfBirth: '',
-      educationLevel: 'ELEMENTARY',
       gradeLevel: 'KINDERGARTEN',
       schoolName: '',
       healthInfo: '',
@@ -94,7 +93,6 @@ export function AddChildDialog({
       dateOfBirth: values.dateOfBirth
         ? new Date(values.dateOfBirth)
         : undefined,
-      educationLevel: values.educationLevel,
       gradeLevel: values.gradeLevel,
       schoolName: values.schoolName || undefined,
       healthInfo: values.healthInfo || null,
@@ -169,37 +167,6 @@ export function AddChildDialog({
                   <FormControl>
                     <Input type="date" {...field} disabled={isAdding} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="educationLevel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Education Level</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isAdding}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select education level" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="ELEMENTARY">Elementary</SelectItem>
-                      <SelectItem value="MIDDLE_SCHOOL">
-                        Middle School
-                      </SelectItem>
-                      <SelectItem value="HIGH_SCHOOL">High School</SelectItem>
-                      <SelectItem value="COLLEGE">College</SelectItem>
-                      <SelectItem value="POST_GRAD">Post Grad</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

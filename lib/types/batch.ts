@@ -14,8 +14,10 @@ import { ReactNode } from 'react'
 
 import {
   Batch as PrismaBatch,
-  EducationLevel,
   GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
   Prisma,
   EnrollmentStatus,
   SubscriptionStatus,
@@ -104,11 +106,13 @@ export interface Student {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number | null
-  customRate: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
   status: StudentStatusEnum // Mapped from EnrollmentStatus
   batchId?: string | null
   createdAt: Date
@@ -178,11 +182,13 @@ export interface CreateStudentDto {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number
-  customRate?: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
   batchId?: string | null
 }
 
@@ -191,12 +197,14 @@ export interface UpdateStudentDto {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
   status?: string
-  monthlyRate?: number
-  customRate?: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
   batchId?: string | null
 }
 
@@ -294,11 +302,14 @@ export interface StudentFilters {
   subscriptionStatus?: {
     selected?: SubscriptionStatus[]
   }
-  educationLevel?: {
-    selected?: EducationLevel[]
-  }
   gradeLevel?: {
     selected?: GradeLevel[]
+  }
+  graduationStatus?: {
+    selected?: GraduationStatus[]
+  }
+  billingType?: {
+    selected?: StudentBillingType[]
   }
   dateRange?: {
     from?: Date | null
@@ -321,8 +332,9 @@ export interface StudentExportData {
   phone: string
   batch: string
   status: string
-  educationLevel: string
   gradeLevel: string
+  graduationStatus: string
+  billingType: string
   completeness: string
 }
 
