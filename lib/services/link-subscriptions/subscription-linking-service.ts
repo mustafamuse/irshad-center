@@ -161,6 +161,7 @@ async function getLinkedSubscriptionIds(
 
 /**
  * Build an OrphanedSubscription object from a Stripe subscription.
+ * Returns null if subscription should be skipped (invalid or ignored).
  */
 function buildOrphanedSubscriptionObject(
   sub: Stripe.Subscription,
@@ -175,6 +176,11 @@ function buildOrphanedSubscriptionObject(
       { subscriptionId: sub.id },
       'Skipping subscription - invalid customer ID'
     )
+    return null
+  }
+
+  // Skip ignored subscriptions
+  if (sub.metadata?.ignored === 'true') {
     return null
   }
 
@@ -488,6 +494,85 @@ export async function linkSubscriptionToProfile(
     return { success: true }
   } catch (error) {
     logger.error({ err: error }, 'Error linking subscription')
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+/**
+ * Mark a subscription as ignored by adding metadata in Stripe.
+ *
+ * Ignored subscriptions will be filtered out of the orphaned list.
+ *
+ * @param subscriptionId - Stripe subscription ID
+ * @param program - Program type
+ * @param reason - Optional reason for ignoring
+ * @returns Result indicating success or failure
+ */
+export async function ignoreSubscription(
+  subscriptionId: string,
+  program: 'MAHAD' | 'DUGSI',
+  reason?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const accountType: StripeAccountType =
+      program === 'MAHAD' ? 'MAHAD' : 'DUGSI'
+    const stripeClient = getStripeClient(accountType)
+
+    await stripeClient.subscriptions.update(subscriptionId, {
+      metadata: {
+        ignored: 'true',
+        ignoredAt: new Date().toISOString(),
+        ignoredReason: reason || 'Marked as ignored via admin',
+      },
+    })
+
+    logger.info(
+      { subscriptionId, program, reason },
+      'Subscription marked as ignored'
+    )
+
+    return { success: true }
+  } catch (error) {
+    logger.error({ err: error }, 'Error ignoring subscription')
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    }
+  }
+}
+
+/**
+ * Unignore a subscription by removing the ignored metadata.
+ *
+ * @param subscriptionId - Stripe subscription ID
+ * @param program - Program type
+ * @returns Result indicating success or failure
+ */
+export async function unignoreSubscription(
+  subscriptionId: string,
+  program: 'MAHAD' | 'DUGSI'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const accountType: StripeAccountType =
+      program === 'MAHAD' ? 'MAHAD' : 'DUGSI'
+    const stripeClient = getStripeClient(accountType)
+
+    await stripeClient.subscriptions.update(subscriptionId, {
+      metadata: {
+        ignored: '',
+        ignoredAt: '',
+        ignoredReason: '',
+      },
+    })
+
+    logger.info({ subscriptionId, program }, 'Subscription unignored')
+
+    return { success: true }
+  } catch (error) {
+    logger.error({ err: error }, 'Error unignoring subscription')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',

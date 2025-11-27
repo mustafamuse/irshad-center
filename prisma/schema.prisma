@@ -107,12 +107,24 @@ enum Shift {
 
 // DayOfWeek enum removed - was only used by ClassSchedule (removed)
 
-enum EducationLevel {
-  HIGH_SCHOOL
-  COLLEGE
-  POST_GRAD
-  ELEMENTARY
-  MIDDLE_SCHOOL
+// EducationLevel enum REMOVED - replaced by GraduationStatus for billing purposes
+// Mahad students are now categorized as GRADUATE or NON_GRADUATE for tuition rates
+
+enum GraduationStatus {
+  NON_GRADUATE // Still in school (higher base rate: $120/month or $110 bi-monthly)
+  GRADUATE     // Finished education (lower base rate: $95/month or $90 bi-monthly)
+}
+
+enum PaymentFrequency {
+  MONTHLY    // Charged monthly ($120 or $95)
+  BI_MONTHLY // Charged every 2 months ($220 or $180)
+}
+
+enum StudentBillingType {
+  FULL_TIME              // Standard rate
+  FULL_TIME_SCHOLARSHIP  // Full schedule, $30 off (mutually exclusive with PART_TIME)
+  PART_TIME              // Half rate - one day/week (mutually exclusive with SCHOLARSHIP)
+  EXEMPT                 // $0 - TA, financial hardship, etc. (no subscription created)
 }
 
 enum GradeLevel {
@@ -301,22 +313,19 @@ model ProgramProfile {
   personId    String // Foreign key to Person - one person can have multiple profiles (one per program)
   program     Program // MAHAD_PROGRAM, DUGSI_PROGRAM, YOUTH_EVENTS, or GENERAL_DONATION
   status      EnrollmentStatus @default(REGISTERED) // Enrollment status - normalized from legacy string field
-  monthlyRate Int              @default(150) // Monthly rate in cents (default $1.50)
-  customRate  Boolean          @default(false) // Flag indicating if rate is custom (non-standard)
+  monthlyRate Int              @default(0) // Calculated rate stored here (in cents)
 
   // Program-specific typed fields (used across programs)
-  gender         Gender? // MALE or FEMALE
-  educationLevel EducationLevel? // HIGH_SCHOOL, COLLEGE, POST_GRAD, ELEMENTARY, MIDDLE_SCHOOL
-  gradeLevel     GradeLevel? // FRESHMAN through GRADE_12
-  schoolName     String? // Name of current school
+  gender     Gender? // MALE or FEMALE
+  gradeLevel GradeLevel? // FRESHMAN through GRADE_12 (Dugsi) or college year (Mahad)
+  schoolName String? // Name of current school
 
-  // Mahad-specific fields (college program)
-  highSchoolGradYear  Int? // High school graduation year
-  highSchoolGraduated Boolean? // High school graduation status
-  collegeGradYear     Int? // College graduation year
-  collegeGraduated    Boolean? // College graduation status
-  postGradYear        Int? // Post-graduate year
-  postGradCompleted   Boolean? // Post-graduate completion status
+  // Mahad billing fields (nullable for non-Mahad profiles)
+  // Rate is calculated via calculateMahadRate(graduationStatus, paymentFrequency, billingType)
+  graduationStatus GraduationStatus? // NON_GRADUATE or GRADUATE (affects base rate)
+  paymentFrequency PaymentFrequency? // MONTHLY or BI_MONTHLY (affects billing interval)
+  billingType      StudentBillingType? // FULL_TIME, SCHOLARSHIP, PART_TIME, or EXEMPT
+  paymentNotes     String? // Notes like "TA for Sheikh Ahmad" or "Financial hardship approved"
 
   // Dugsi-specific fields (K-12 program)
   healthInfo        String? // Health information for student

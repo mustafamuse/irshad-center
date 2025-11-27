@@ -33,11 +33,13 @@ export interface StudentDetails {
     email?: string
     phone?: string
     status: string
-    monthlyRate: number
-    customRate: boolean
-    educationLevel?: string
     gradeLevel?: string
     schoolName?: string
+    // Mahad billing fields
+    graduationStatus?: string
+    paymentFrequency?: string
+    billingType?: string
+    paymentNotes?: string
   }
   associations: {
     batch?: {

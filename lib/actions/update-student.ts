@@ -6,7 +6,12 @@
  * Wraps the existing updateMahadStudent service for action-based updates.
  */
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import {
+  GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
 
 import {
   updateMahadStudent,
@@ -22,11 +27,13 @@ interface UpdateStudentData {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number
-  customRate?: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
 }
 
 interface UpdateStudentResult {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import { Check, ChevronsUpDown, Search, User } from 'lucide-react'
 
@@ -42,6 +42,17 @@ export function StudentSelector({
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<StudentMatch[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [popoverWidth, setPopoverWidth] = useState<number | undefined>(
+    undefined
+  )
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen)
+    if (newOpen && triggerRef.current) {
+      setPopoverWidth(triggerRef.current.offsetWidth)
+    }
+  }
 
   // Combine potential matches with search results
   const displayStudents = searchQuery
@@ -82,9 +93,10 @@ export function StudentSelector({
   }, [customerEmail, program, potentialMatches.length])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
+          ref={triggerRef}
           variant="outline"
           role="combobox"
           aria-expanded={open}
@@ -108,7 +120,12 @@ export function StudentSelector({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-[500px] p-0" align="start" sideOffset={4}>
+      <PopoverContent
+        className="p-0"
+        align="start"
+        sideOffset={4}
+        style={{ width: popoverWidth ? `${popoverWidth}px` : undefined }}
+      >
         <Command shouldFilter={false} className="rounded-lg border shadow-md">
           <div className="flex items-center border-b px-3">
             <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />

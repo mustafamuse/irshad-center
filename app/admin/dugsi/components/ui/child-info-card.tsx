@@ -12,10 +12,7 @@ import React from 'react'
 import { AlertCircle } from 'lucide-react'
 
 import { GenderDisplay } from '@/components/ui/gender-display'
-import {
-  formatEducationLevel,
-  formatGradeLevel,
-} from '@/lib/utils/enum-formatters'
+import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { DugsiRegistration } from '../../_types'
 
@@ -56,12 +53,6 @@ export function ChildInfoCard({
             <span className="font-medium">
               {formatGradeLevel(child.gradeLevel)}
             </span>
-          )}
-          {child.educationLevel && (
-            <>
-              <span className="text-muted-foreground/50">•</span>
-              <span>{formatEducationLevel(child.educationLevel)}</span>
-            </>
           )}
         </div>
         {showSchool && child.schoolName && (

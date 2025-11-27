@@ -25,11 +25,13 @@ interface StudentBackupRecord {
   email: string | null
   phone: string | null
   dateOfBirth: string | null
-  educationLevel: string | null
   gradeLevel: string | null
   schoolName: string | null
-  monthlyRate: number
-  customRate: boolean
+  // Mahad billing fields
+  graduationStatus: string | null
+  paymentFrequency: string | null
+  billingType: string | null
+  paymentNotes: string | null
   status: string
   createdAt: string
   updatedAt: string
@@ -205,11 +207,13 @@ export async function backupData(): Promise<BackupResult> {
         email,
         phone,
         dateOfBirth: person.dateOfBirth?.toISOString() ?? null,
-        educationLevel: profile.educationLevel,
         gradeLevel: profile.gradeLevel,
         schoolName: profile.schoolName,
-        monthlyRate: profile.monthlyRate,
-        customRate: profile.customRate,
+        // Mahad billing fields
+        graduationStatus: profile.graduationStatus,
+        paymentFrequency: profile.paymentFrequency,
+        billingType: profile.billingType,
+        paymentNotes: profile.paymentNotes,
         status: profile.status,
         createdAt: profile.createdAt.toISOString(),
         updatedAt: profile.updatedAt.toISOString(),

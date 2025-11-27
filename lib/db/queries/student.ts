@@ -12,8 +12,10 @@
  */
 
 import {
-  EducationLevel,
   GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
   EnrollmentStatus,
   Prisma,
   SubscriptionStatus,
@@ -35,11 +37,13 @@ export interface StudentWithBatchData {
   email?: string | null // From ContactPoint
   phone?: string | null // From ContactPoint
   dateOfBirth?: Date | null // Person.dateOfBirth
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number | null
-  customRate: boolean
+  // Mahad billing fields
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
   status: StudentStatus // Mapped from EnrollmentStatus
   batchId?: string | null // From Enrollment.batchId
   createdAt: Date
@@ -140,11 +144,13 @@ function transformToStudent(
     email: emailContact?.value || null,
     phone: phoneContact?.value || null,
     dateOfBirth: profile.person.dateOfBirth,
-    educationLevel: profile.educationLevel,
     gradeLevel: profile.gradeLevel,
     schoolName: profile.schoolName,
-    monthlyRate: profile.monthlyRate,
-    customRate: profile.customRate,
+    // Mahad billing fields
+    graduationStatus: profile.graduationStatus,
+    paymentFrequency: profile.paymentFrequency,
+    billingType: profile.billingType,
+    paymentNotes: profile.paymentNotes,
     status: enrollment
       ? enrollmentStatusToStudentStatus(enrollment.status)
       : StudentStatus.REGISTERED,
@@ -277,8 +283,9 @@ export async function getStudentsWithBatchFiltered(
     includeUnassigned?: boolean
     statuses?: string[] // StudentStatus values
     subscriptionStatuses?: string[] // SubscriptionStatus values
-    educationLevels?: EducationLevel[]
     gradeLevels?: GradeLevel[]
+    graduationStatuses?: GraduationStatus[]
+    billingTypes?: StudentBillingType[]
   },
   client: DatabaseClient = prisma
 ) {
@@ -290,8 +297,9 @@ export async function getStudentsWithBatchFiltered(
     includeUnassigned = true,
     statuses = [],
     subscriptionStatuses = [],
-    educationLevels = [],
     gradeLevels = [],
+    graduationStatuses = [],
+    billingTypes = [],
   } = params
 
   const skip = (page - 1) * limit
@@ -392,14 +400,19 @@ export async function getStudentsWithBatchFiltered(
     }
   }
 
-  // Filter by education level
-  if (educationLevels.length > 0) {
-    where.educationLevel = { in: educationLevels }
-  }
-
   // Filter by grade level
   if (gradeLevels.length > 0) {
     where.gradeLevel = { in: gradeLevels }
+  }
+
+  // Filter by graduation status
+  if (graduationStatuses.length > 0) {
+    where.graduationStatus = { in: graduationStatuses }
+  }
+
+  // Filter by billing type
+  if (billingTypes.length > 0) {
+    where.billingType = { in: billingTypes }
   }
 
   // Execute queries in parallel
@@ -687,11 +700,12 @@ export async function createStudent(_data: {
   email?: string | null
   phone?: string | null
   dateOfBirth?: Date | null
-  educationLevel?: EducationLevel | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
-  monthlyRate?: number
-  customRate?: boolean
+  graduationStatus?: GraduationStatus | null
+  paymentFrequency?: PaymentFrequency | null
+  billingType?: StudentBillingType | null
+  paymentNotes?: string | null
   batchId?: string | null
 }) {
   throw new Error(
@@ -710,12 +724,13 @@ export async function updateStudent(
     email?: string | null
     phone?: string | null
     dateOfBirth?: Date | null
-    educationLevel?: EducationLevel | null
     gradeLevel?: GradeLevel | null
     schoolName?: string | null
     status?: string
-    monthlyRate?: number
-    customRate?: boolean
+    graduationStatus?: GraduationStatus | null
+    paymentFrequency?: PaymentFrequency | null
+    billingType?: StudentBillingType | null
+    paymentNotes?: string | null
     batchId?: string | null
   }
 ) {
@@ -751,11 +766,14 @@ export async function searchStudents(
     status?: {
       selected?: string[]
     }
-    educationLevel?: {
-      selected?: EducationLevel[]
-    }
     gradeLevel?: {
       selected?: GradeLevel[]
+    }
+    graduationStatus?: {
+      selected?: GraduationStatus[]
+    }
+    billingType?: {
+      selected?: StudentBillingType[]
     }
     dateRange?: {
       from?: Date
@@ -780,8 +798,9 @@ export async function searchStudents(
       batchIds: filters?.batch?.selected,
       includeUnassigned: filters?.batch?.includeUnassigned,
       statuses: filters?.status?.selected,
-      educationLevels: filters?.educationLevel?.selected,
       gradeLevels: filters?.gradeLevel?.selected,
+      graduationStatuses: filters?.graduationStatus?.selected,
+      billingTypes: filters?.billingType?.selected,
     },
     client
   )
@@ -967,9 +986,9 @@ export async function getStudentCompleteness(
     'email',
     'phone',
     'dateOfBirth',
-    'educationLevel',
     'gradeLevel',
-    'monthlyRate',
+    'graduationStatus',
+    'billingType',
   ]
 
   const emailContact = profile.person.contactPoints.find(
@@ -984,9 +1003,9 @@ export async function getStudentCompleteness(
     email: emailContact?.value,
     phone: phoneContact?.value,
     dateOfBirth: profile.person.dateOfBirth,
-    educationLevel: profile.educationLevel,
     gradeLevel: profile.gradeLevel,
-    monthlyRate: profile.monthlyRate,
+    graduationStatus: profile.graduationStatus,
+    billingType: profile.billingType,
   }
 
   const missingFields = requiredFields.filter(
@@ -1064,11 +1083,14 @@ export async function exportStudents(
     status?: {
       selected?: string[]
     }
-    educationLevel?: {
-      selected?: EducationLevel[]
-    }
     gradeLevel?: {
       selected?: GradeLevel[]
+    }
+    graduationStatus?: {
+      selected?: GraduationStatus[]
+    }
+    billingType?: {
+      selected?: StudentBillingType[]
     }
     dateRange?: {
       from?: Date
@@ -1086,8 +1108,9 @@ export async function exportStudents(
       batchIds: filters?.batch?.selected,
       includeUnassigned: filters?.batch?.includeUnassigned,
       statuses: filters?.status?.selected,
-      educationLevels: filters?.educationLevel?.selected,
       gradeLevels: filters?.gradeLevel?.selected,
+      graduationStatuses: filters?.graduationStatus?.selected,
+      billingTypes: filters?.billingType?.selected,
     },
     client
   )
@@ -1099,9 +1122,9 @@ export async function exportStudents(
     phone: student.phone || '',
     batch: student.batch?.name || 'Unassigned',
     status: student.status,
-    educationLevel: student.educationLevel || '',
     gradeLevel: student.gradeLevel || '',
-    monthlyRate: student.monthlyRate || 0,
+    graduationStatus: student.graduationStatus || '',
+    billingType: student.billingType || '',
     subscriptionStatus: student.subscription?.status || 'none',
     createdAt: student.createdAt.toISOString(),
   }))

@@ -5,7 +5,7 @@
 
 import {
   Gender,
-  EducationLevel,
+  GradeLevel,
   SubscriptionStatus,
   StripeAccountType,
 } from '@prisma/client'
@@ -24,8 +24,7 @@ export interface DugsiRegistration {
   name: string
   gender: Gender | null
   dateOfBirth: Date | null
-  educationLevel: EducationLevel | null
-  gradeLevel: string | null
+  gradeLevel: GradeLevel | null // K-12 grade level for Dugsi students
   schoolName: string | null
   healthInfo: string | null
   createdAt: Date

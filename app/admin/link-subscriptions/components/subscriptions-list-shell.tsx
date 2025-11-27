@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, Users } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Users, AlertTriangle } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -9,24 +9,47 @@ import {
   getPotentialMatches,
   type OrphanedSubscription,
 } from '../actions'
-import { MultiSubscriptionCard } from './multi-subscription-card'
-import { SubscriptionCard } from './subscription-card'
+import { SubscriptionsListClient } from './subscriptions-list-client'
 
 export async function SubscriptionsListShell() {
-  const orphanedSubs = await getOrphanedSubscriptions()
+  const result = await getOrphanedSubscriptions()
+
+  // Show error alert if Stripe is not configured
+  if (result.error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Unable to Load Subscriptions</AlertTitle>
+        <AlertDescription>
+          {result.error}
+          <p className="mt-2 text-sm">
+            Please ensure your Stripe environment variables are configured
+            correctly.
+          </p>
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
+  const orphanedSubs = result.data
 
   if (orphanedSubs.length === 0) {
     return (
-      <Alert className="border-green-200 bg-green-50">
-        <CheckCircle2 className="h-4 w-4 text-green-600" />
-        <AlertTitle className="text-green-900">
+      <div className="rounded-lg border border-green-200 bg-green-50 p-8 text-center dark:border-green-800 dark:bg-green-950">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
+          <CheckCircle2 className="h-8 w-8 text-green-600 dark:text-green-400" />
+        </div>
+        <h3 className="text-lg font-semibold text-green-900 dark:text-green-100">
           All Subscriptions Linked!
-        </AlertTitle>
-        <AlertDescription className="text-green-700">
+        </h3>
+        <p className="mt-2 text-sm text-green-700 dark:text-green-300">
           There are no orphaned subscriptions. All active Stripe subscriptions
           are linked to students in the database.
-        </AlertDescription>
-      </Alert>
+        </p>
+        <p className="mt-1 text-xs text-green-600 dark:text-green-400">
+          Great job keeping everything organized!
+        </p>
+      </div>
     )
   }
 
@@ -85,8 +108,19 @@ export async function SubscriptionsListShell() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="easy" className="w-full">
-        <TabsList className="grid h-auto w-full grid-cols-3 gap-1 bg-muted p-1">
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList className="grid h-auto w-full grid-cols-4 gap-1 bg-muted p-1">
+          <TabsTrigger
+            value="all"
+            className="flex flex-col items-center justify-center gap-1 rounded-md px-2 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm sm:flex-row sm:gap-2 sm:py-3"
+          >
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="text-xs font-medium sm:text-sm">All</span>
+            </div>
+            <Badge variant="default" className="h-5 text-xs">
+              {orphanedSubs.length}
+            </Badge>
+          </TabsTrigger>
           <TabsTrigger
             value="easy"
             className="flex flex-col items-center justify-center gap-1 rounded-md px-2 py-2 data-[state=active]:bg-background data-[state=active]:shadow-sm sm:flex-row sm:gap-2 sm:py-3"
@@ -138,102 +172,44 @@ export async function SubscriptionsListShell() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="easy" className="mt-6 space-y-4">
-          {subsWithMatches.length === 0 ? (
-            <Alert>
-              <AlertDescription>
-                No easy matches found. Check the other tabs for subscriptions
-                that need manual review.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              <div className="rounded-lg border bg-muted/50 p-4">
-                <p className="text-sm font-medium text-foreground">
-                  These subscriptions have customer emails that match students
-                  in the database.
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  The matching student will be pre-selected in the dropdown for
-                  quick linking.
-                </p>
-              </div>
-              {subsWithMatches.map(({ sub, matches }) => (
-                <SubscriptionCard
-                  key={sub.id}
-                  subscription={sub}
-                  potentialMatches={matches}
-                />
-              ))}
-            </>
-          )}
+        <TabsContent value="all" className="mt-6">
+          <SubscriptionsListClient
+            subsWithMatches={subsWithMatches}
+            multiSubsByCustomer={multiSubsByCustomer}
+            multiSubsMatchesMap={multiSubsMatchesMap}
+            noMatchesWithMatches={noMatchesWithMatches}
+            allSubscriptions={orphanedSubs}
+          />
         </TabsContent>
 
-        <TabsContent value="multi" className="mt-6 space-y-4">
-          {multiSubsByCustomer.size === 0 ? (
-            <Alert>
-              <AlertDescription>
-                No customers with multiple subscriptions found.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              <Alert className="border-yellow-200 bg-yellow-50">
-                <AlertCircle className="h-4 w-4 text-yellow-600" />
-                <AlertTitle className="text-yellow-900">
-                  Multiple Subscriptions
-                </AlertTitle>
-                <AlertDescription className="text-yellow-700">
-                  These customers have multiple subscriptions. They may be
-                  paying for themselves and other students. Link each
-                  subscription to the correct student.
-                </AlertDescription>
-              </Alert>
-              {Array.from(multiSubsByCustomer.entries()).map(
-                ([customerId, subs]) => (
-                  <MultiSubscriptionCard
-                    key={customerId}
-                    customerId={customerId}
-                    customerEmail={subs[0].customerEmail || ''}
-                    customerName={subs[0].customerName || 'No Name'}
-                    subscriptions={subs}
-                    potentialMatchesMap={multiSubsMatchesMap}
-                  />
-                )
-              )}
-            </>
-          )}
+        <TabsContent value="easy" className="mt-6">
+          <SubscriptionsListClient
+            subsWithMatches={subsWithMatches}
+            multiSubsByCustomer={new Map()}
+            multiSubsMatchesMap={new Map()}
+            noMatchesWithMatches={[]}
+            allSubscriptions={orphanedSubs}
+          />
         </TabsContent>
 
-        <TabsContent value="manual" className="mt-6 space-y-4">
-          {noMatchesWithMatches.length === 0 ? (
-            <Alert>
-              <AlertDescription>
-                All subscriptions have potential matches. Great!
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <>
-              <Alert className="border-red-200 bg-red-50">
-                <AlertCircle className="h-4 w-4 text-red-600" />
-                <AlertTitle className="text-red-900">
-                  Manual Review Required
-                </AlertTitle>
-                <AlertDescription className="text-red-700">
-                  These subscriptions have no obvious matches in the database.
-                  Use the search function to manually find and link the correct
-                  student.
-                </AlertDescription>
-              </Alert>
-              {noMatchesWithMatches.map(({ sub, matches }) => (
-                <SubscriptionCard
-                  key={sub.id}
-                  subscription={sub}
-                  potentialMatches={matches}
-                />
-              ))}
-            </>
-          )}
+        <TabsContent value="multi" className="mt-6">
+          <SubscriptionsListClient
+            subsWithMatches={[]}
+            multiSubsByCustomer={multiSubsByCustomer}
+            multiSubsMatchesMap={multiSubsMatchesMap}
+            noMatchesWithMatches={[]}
+            allSubscriptions={orphanedSubs}
+          />
+        </TabsContent>
+
+        <TabsContent value="manual" className="mt-6">
+          <SubscriptionsListClient
+            subsWithMatches={[]}
+            multiSubsByCustomer={new Map()}
+            multiSubsMatchesMap={new Map()}
+            noMatchesWithMatches={noMatchesWithMatches}
+            allSubscriptions={orphanedSubs}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -12,7 +12,6 @@ export interface ScholarshipPDFData {
     payerName?: string
     payerPhone?: string
     siblingCount?: number
-    monthlyRate?: number
   }
   'Financial Assessment': {
     educationStatus: string
@@ -111,7 +110,6 @@ export function ScholarshipPDFDocument({ data }: Props) {
     payerName,
     payerPhone,
     siblingCount = 0,
-    monthlyRate = 0,
   } = data['Applicant Details']
 
   const {
@@ -145,14 +143,8 @@ export function ScholarshipPDFDocument({ data }: Props) {
   }
 
   const siblingInfo = siblingCount
-    ? `I have ${siblingCount} sibling${siblingCount > 1 ? 's' : ''}${
-        monthlyRate
-          ? ` and my monthly tuition rate is ${formatCurrency(monthlyRate)}`
-          : ''
-      }.`
-    : monthlyRate
-      ? `My monthly tuition rate is ${formatCurrency(monthlyRate)}.`
-      : ''
+    ? `I have ${siblingCount} sibling${siblingCount > 1 ? 's' : ''}.`
+    : ''
 
   const parentsInfo =
     livesWithBothParents === 'yes'

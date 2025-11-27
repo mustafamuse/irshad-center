@@ -1,4 +1,4 @@
-import { EducationLevel, GradeLevel, Program } from '@prisma/client'
+import { GradeLevel, GraduationStatus, Program } from '@prisma/client'
 import csvParser from 'csv-parser'
 import * as fs from 'fs'
 
@@ -29,7 +29,7 @@ interface MahadCSVRow {
 interface ProcessedStudent {
   fullName: string
   dateOfBirth: Date | null
-  educationLevel: EducationLevel | null
+  graduationStatus: GraduationStatus | null
   gradeLevel: GradeLevel | null
   schoolName: string | null
   email: string | null
@@ -131,18 +131,18 @@ function calculateAge(birthDate: Date): number {
 }
 
 /**
- * Map the CSV "Current School level" value to the EducationLevel enum.
+ * Map the CSV "Current School level" value to GraduationStatus.
  * Returns:
- *  - EducationLevel.HIGH_SCHOOL if the value is "Highschool" or "High school"
- *  - Otherwise (for example, "Currently not in school"), returns null so we can guess using age.
+ *  - NON_GRADUATE if still in school (high school or college)
+ *  - GRADUATE if graduated/not in school
  */
-function mapEducationLevel(level: string): EducationLevel | null {
+function mapGraduationStatus(level: string): GraduationStatus | null {
   if (!level) return null
   const lvl = level.trim().toLowerCase()
-  if (lvl === 'college') {
-    return EducationLevel.COLLEGE
-  } else if (lvl === 'highschool' || lvl === 'high school') {
-    return EducationLevel.HIGH_SCHOOL
+  if (lvl === 'college' || lvl === 'highschool' || lvl === 'high school') {
+    return GraduationStatus.NON_GRADUATE
+  } else if (lvl === 'graduated' || lvl === 'graduate') {
+    return GraduationStatus.GRADUATE
   }
   return null
 }
@@ -188,7 +188,7 @@ function processCSVRow(row: MahadCSVRow): ProcessedStudent {
   const dateOfBirth = dobValue ? new Date(dobValue) : null
 
   const schoolLevelRaw = row['Current School level']?.trim() || ''
-  const educationLevel = mapEducationLevel(schoolLevelRaw)
+  const graduationStatus = mapGraduationStatus(schoolLevelRaw)
 
   const gradeRaw = row['Grade/Year']?.trim() || ''
   const gradeLevel = mapGradeLevel(gradeRaw)
@@ -202,7 +202,7 @@ function processCSVRow(row: MahadCSVRow): ProcessedStudent {
   return {
     fullName,
     dateOfBirth,
-    educationLevel,
+    graduationStatus,
     gradeLevel,
     schoolName,
     email,
@@ -260,11 +260,11 @@ async function createStudentRecord(student: ProcessedStudent): Promise<void> {
       data: {
         personId: person.id,
         program: Program.MAHAD_PROGRAM,
-        educationLevel: student.educationLevel,
+        // Mahad billing fields - defaults to NON_GRADUATE if provided
+        graduationStatus: student.graduationStatus,
         gradeLevel: student.gradeLevel,
         schoolName: student.schoolName,
-        monthlyRate: 150, // Default Mahad rate ($1.50 in cents)
-        customRate: false,
+        // Leave billingType and paymentFrequency null for admin to set
       },
     })
 

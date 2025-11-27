@@ -7,7 +7,12 @@
  * Uses existing services and queries.
  */
 
-import { EducationLevel, GradeLevel } from '@prisma/client'
+import {
+  GradeLevel,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
@@ -27,9 +32,13 @@ export interface BatchStudentData {
   email: string | null
   phone: string | null
   dateOfBirth: string | null
-  educationLevel: EducationLevel | null
   gradeLevel: GradeLevel | null
   schoolName: string | null
+  // Mahad billing fields
+  graduationStatus: GraduationStatus | null
+  paymentFrequency: PaymentFrequency | null
+  billingType: StudentBillingType | null
+  paymentNotes: string | null
   status: string
   createdAt: string
   updatedAt: string
@@ -276,9 +285,13 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
       email,
       phone,
       dateOfBirth: person.dateOfBirth?.toISOString() ?? null,
-      educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,
       schoolName: profile.schoolName,
+      // Mahad billing fields
+      graduationStatus: profile.graduationStatus,
+      paymentFrequency: profile.paymentFrequency,
+      billingType: profile.billingType,
+      paymentNotes: profile.paymentNotes,
       status: enrollment.status,
       createdAt: profile.createdAt.toISOString(),
       updatedAt: profile.updatedAt.toISOString(),

@@ -62,7 +62,6 @@ export function ScholarshipForm() {
       email: '',
       phone: '',
       siblingCount: 0,
-      monthlyRate: 0,
       payer: undefined,
       payerRelation: '',
       payerName: '',

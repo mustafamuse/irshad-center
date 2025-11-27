@@ -283,11 +283,13 @@ export async function getBatchStudents(
       email,
       phone,
       dateOfBirth: profile.person.dateOfBirth,
-      educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,
       schoolName: profile.schoolName,
-      monthlyRate: profile.monthlyRate,
-      customRate: profile.customRate,
+      // Mahad billing fields
+      graduationStatus: profile.graduationStatus,
+      paymentFrequency: profile.paymentFrequency,
+      billingType: profile.billingType,
+      paymentNotes: profile.paymentNotes,
       enrollmentId: enrollment.id,
       enrollmentStatus: enrollment.status,
       enrollmentStartDate: enrollment.startDate,
@@ -666,8 +668,9 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
       name: profile.person.name,
       email,
       phone,
-      educationLevel: profile.educationLevel,
       gradeLevel: profile.gradeLevel,
+      graduationStatus: profile.graduationStatus,
+      billingType: profile.billingType,
       createdAt: profile.createdAt,
     }
   })

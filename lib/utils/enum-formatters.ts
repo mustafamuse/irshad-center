@@ -1,15 +1,3 @@
-export function formatEducationLevel(level: string | null): string {
-  if (!level) return '—'
-  const map: Record<string, string> = {
-    HIGH_SCHOOL: 'High School',
-    MIDDLE_SCHOOL: 'Middle School',
-    ELEMENTARY: 'Elementary',
-    COLLEGE: 'College',
-    POST_GRAD: 'Post Graduate',
-  }
-  return map[level] || level
-}
-
 export function formatGradeLevel(grade: string | null): string {
   if (!grade) return '—'
   const map: Record<string, string> = {
@@ -32,4 +20,42 @@ export function formatGradeLevel(grade: string | null): string {
     SENIOR: 'Senior',
   }
   return map[grade] || grade
+}
+
+/**
+ * Format graduation status for display
+ */
+export function formatGraduationStatus(status: string | null): string {
+  if (!status) return '—'
+  const map: Record<string, string> = {
+    NON_GRADUATE: 'Non-Graduate (Still in School)',
+    GRADUATE: 'Graduate',
+  }
+  return map[status] || status
+}
+
+/**
+ * Format payment frequency for display
+ */
+export function formatPaymentFrequency(frequency: string | null): string {
+  if (!frequency) return '—'
+  const map: Record<string, string> = {
+    MONTHLY: 'Monthly',
+    BI_MONTHLY: 'Bi-Monthly (Every 2 Months)',
+  }
+  return map[frequency] || frequency
+}
+
+/**
+ * Format student billing type for display
+ */
+export function formatBillingType(type: string | null): string {
+  if (!type) return '—'
+  const map: Record<string, string> = {
+    FULL_TIME: 'Full-Time',
+    FULL_TIME_SCHOLARSHIP: 'Full-Time (Scholarship)',
+    PART_TIME: 'Part-Time',
+    EXEMPT: 'Exempt',
+  }
+  return map[type] || type
 }

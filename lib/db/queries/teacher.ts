@@ -257,6 +257,8 @@ export async function getDugsiTeachersByShift(
       person: {
         include: {
           contactPoints: true,
+          guardianRelationships: true,
+          dependentRelationships: true,
         },
       },
       assignments: {
@@ -268,6 +270,17 @@ export async function getDugsiTeachersByShift(
           },
         },
         include: {
+          teacher: {
+            include: {
+              person: {
+                include: {
+                  contactPoints: true,
+                  guardianRelationships: true,
+                  dependentRelationships: true,
+                },
+              },
+            },
+          },
           programProfile: {
             include: {
               person: true,

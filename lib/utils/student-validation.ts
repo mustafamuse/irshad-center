@@ -11,9 +11,10 @@ export function getStudentCompleteness(
   const requiredFields = {
     phone: student.phone ?? null,
     dateOfBirth: student.dateOfBirth ?? null,
-    educationLevel: student.educationLevel ?? null,
-    gradeLevel: student.gradeLevel ?? null,
-    schoolName: student.schoolName ?? null,
+    // Mahad billing fields - these determine the rate
+    billingType: student.billingType ?? null,
+    graduationStatus: student.graduationStatus ?? null,
+    paymentFrequency: student.paymentFrequency ?? null,
   }
 
   const hasAllFields = Object.values(requiredFields).every(

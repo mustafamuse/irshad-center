@@ -10,7 +10,6 @@ import {
   Program,
   EnrollmentStatus,
   ContactType,
-  EducationLevel,
   GradeLevel,
 } from '@prisma/client'
 
@@ -312,7 +311,6 @@ export async function createProgramProfile(
     personId: string
     program: Program
     status?: EnrollmentStatus
-    educationLevel?: EducationLevel | null
     gradeLevel?: GradeLevel | null
     schoolName?: string | null
     familyReferenceId?: string | null
@@ -324,7 +322,6 @@ export async function createProgramProfile(
       personId: data.personId,
       program: data.program,
       status: data.status || 'REGISTERED',
-      educationLevel: data.educationLevel,
       gradeLevel: data.gradeLevel,
       schoolName: data.schoolName,
       familyReferenceId: data.familyReferenceId,

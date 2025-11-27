@@ -54,11 +54,13 @@ export interface MahadStudent {
   email: string | null
   phone: string | null
   dateOfBirth: Date | null
-  educationLevel: string | null
   gradeLevel: string | null
   schoolName: string | null
-  monthlyRate: number
-  customRate: boolean
+  // Billing fields
+  graduationStatus: string | null
+  paymentFrequency: string | null
+  billingType: string | null
+  paymentNotes: string | null
   enrollmentId: string
   enrollmentStatus: string
   enrollmentStartDate: Date
@@ -107,11 +109,13 @@ export function mapEnrollmentToMahadStudent(
     email: emailContact?.value ?? null,
     phone: phoneContact?.value ?? null,
     dateOfBirth: person.dateOfBirth,
-    educationLevel: profile.educationLevel,
     gradeLevel: profile.gradeLevel,
     schoolName: profile.schoolName,
-    monthlyRate: profile.monthlyRate,
-    customRate: profile.customRate,
+    // Billing fields
+    graduationStatus: profile.graduationStatus,
+    paymentFrequency: profile.paymentFrequency,
+    billingType: profile.billingType,
+    paymentNotes: profile.paymentNotes,
     enrollmentId: enrollment.id,
     enrollmentStatus: enrollment.status,
     enrollmentStartDate: enrollment.startDate,

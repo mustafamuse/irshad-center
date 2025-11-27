@@ -95,7 +95,6 @@ export async function registerStudent(input: {
       email: data.email,
       phone: data.phone,
       dateOfBirth: data.dateOfBirth,
-      educationLevel: data.educationLevel,
       gradeLevel: data.gradeLevel,
       schoolName: data.schoolName,
     })

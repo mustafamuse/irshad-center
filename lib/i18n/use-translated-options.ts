@@ -1,7 +1,6 @@
 import { useTranslations } from 'next-intl'
 
 import {
-  DUGSI_EDUCATION_OPTIONS,
   DUGSI_GRADE_OPTIONS,
   GENDER_OPTIONS,
 } from '../registration/schemas/registration'
@@ -12,20 +11,6 @@ export function useTranslatedGenderOptions() {
   return GENDER_OPTIONS.map((option) => ({
     value: option.value,
     label: option.value === 'MALE' ? t('boy') : t('girl'),
-  }))
-}
-
-export function useTranslatedEducationOptions() {
-  const t = useTranslations('dugsi.education')
-
-  return DUGSI_EDUCATION_OPTIONS.map((option) => ({
-    value: option.value,
-    label:
-      option.value === 'ELEMENTARY'
-        ? t('elementary')
-        : option.value === 'MIDDLE_SCHOOL'
-          ? t('middleSchool')
-          : t('highSchool'),
   }))
 }
 

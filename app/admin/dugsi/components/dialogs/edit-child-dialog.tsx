@@ -50,7 +50,6 @@ interface EditChildDialogProps {
     name: string
     gender: 'MALE' | 'FEMALE'
     dateOfBirth: Date | null
-    educationLevel: string
     gradeLevel: string
     schoolName: string | null
     healthInfo: string | null
@@ -75,8 +74,6 @@ export function EditChildDialog({
       dateOfBirth: currentData.dateOfBirth
         ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
         : '',
-      educationLevel:
-        currentData.educationLevel as ChildFormValues['educationLevel'],
       gradeLevel: currentData.gradeLevel as ChildFormValues['gradeLevel'],
       schoolName: currentData.schoolName || '',
       healthInfo: currentData.healthInfo || '',
@@ -96,8 +93,6 @@ export function EditChildDialog({
         dateOfBirth: currentData.dateOfBirth
           ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
           : '',
-        educationLevel:
-          currentData.educationLevel as ChildFormValues['educationLevel'],
         gradeLevel: currentData.gradeLevel as ChildFormValues['gradeLevel'],
         schoolName: currentData.schoolName || '',
         healthInfo: currentData.healthInfo || '',
@@ -126,7 +121,6 @@ export function EditChildDialog({
       dateOfBirth: values.dateOfBirth
         ? new Date(values.dateOfBirth)
         : undefined,
-      educationLevel: values.educationLevel,
       gradeLevel: values.gradeLevel,
       schoolName: values.schoolName || undefined,
       healthInfo: values.healthInfo || null,
@@ -200,37 +194,6 @@ export function EditChildDialog({
                   <FormControl>
                     <Input type="date" {...field} disabled={isUpdating} />
                   </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="educationLevel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Education Level</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isUpdating}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select education level" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="ELEMENTARY">Elementary</SelectItem>
-                      <SelectItem value="MIDDLE_SCHOOL">
-                        Middle School
-                      </SelectItem>
-                      <SelectItem value="HIGH_SCHOOL">High School</SelectItem>
-                      <SelectItem value="COLLEGE">College</SelectItem>
-                      <SelectItem value="POST_GRAD">Post Grad</SelectItem>
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

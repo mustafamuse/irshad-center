@@ -248,8 +248,10 @@ export async function StudentsTableShell({
       status: enrollment.status.toLowerCase(),
       stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
       subscriptionStatus: subscription?.status ?? null,
-      monthlyRate: profile.monthlyRate,
-      customRate: profile.customRate,
+      // Billing configuration
+      graduationStatus: profile.graduationStatus,
+      paymentFrequency: profile.paymentFrequency,
+      billingType: profile.billingType,
       batchId: enrollment.batchId,
       Batch: enrollment.batch,
       StudentPayment: [], // TODO: Load from StudentPayment when migrated
