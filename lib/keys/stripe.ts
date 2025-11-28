@@ -17,6 +17,7 @@ import { z } from 'zod'
 const stripeSecretKeySchema = z.string().startsWith('sk_')
 const stripeWebhookSecretSchema = z.string().startsWith('whsec_')
 const stripePublishableKeySchema = z.string().startsWith('pk_')
+const stripeProductIdSchema = z.string().startsWith('prod_')
 
 // Schema for a program's Stripe configuration
 const stripeProgramConfigSchema = z.object({
@@ -125,6 +126,17 @@ export function getMahadKeys(): MahadConfig {
       'Mahad Stripe webhook secret not configured or invalid format. ' +
         'Please set STRIPE_MAHAD_WEBHOOK_SECRET_TEST and STRIPE_MAHAD_WEBHOOK_SECRET_LIVE (must start with whsec_).'
     )
+  }
+
+  // Validate product ID if provided
+  if (config.productId) {
+    const productIdResult = stripeProductIdSchema.safeParse(config.productId)
+    if (!productIdResult.success) {
+      throw new Error(
+        'Mahad Stripe product ID has invalid format. ' +
+          'Please set STRIPE_MAHAD_PRODUCT_ID (must start with prod_).'
+      )
+    }
   }
 
   return config

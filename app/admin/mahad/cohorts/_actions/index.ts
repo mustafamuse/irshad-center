@@ -34,6 +34,8 @@ import {
   getStudentDeleteWarnings,
   updateStudent,
 } from '@/lib/db/queries/student'
+import { getMahadKeys } from '@/lib/keys/stripe'
+import { createActionLogger } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import {
   calculateMahadRate,
@@ -47,6 +49,8 @@ import {
 } from '@/lib/validations/batch'
 
 import type { UpdateStudentPayload } from '../_types/student-form'
+
+const logger = createActionLogger('mahad/cohorts')
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -117,8 +121,8 @@ function handleActionError<T = void>(
     }
   }
 
-  // Log error with context for debugging
-  console.error(`[${action}] Error:`, error)
+  // Log error with structured context
+  logger.error({ err: error, action, context }, `Action failed: ${action}`)
 
   // Handle Prisma-specific errors with custom messages
   if (isPrismaError(error) && context?.handlers?.[error.code]) {
@@ -423,7 +427,10 @@ export async function getStudentDeleteWarningsAction(id: string) {
     const warnings = await getStudentDeleteWarnings(id)
     return { success: true, data: warnings } as const
   } catch (error) {
-    console.error('Failed to fetch delete warnings:', error)
+    logger.error(
+      { err: error, studentId: id },
+      'Failed to fetch delete warnings'
+    )
     return {
       success: false,
       data: { hasSiblings: false, hasAttendanceRecords: false },
@@ -490,7 +497,10 @@ export async function bulkDeleteStudentsAction(
         await deleteStudent(id)
         deletedCount++
       } catch (error) {
-        console.error(`Failed to delete student ${id}:`, error)
+        logger.error(
+          { err: error, studentId: id },
+          'Failed to delete student in bulk operation'
+        )
         failedDeletes.push(id)
       }
     }
@@ -673,7 +683,17 @@ export async function generatePaymentLinkAction(
     // 5. Get customer email
     const email = profile.person.contactPoints[0]?.value
 
-    // 6. Create Stripe checkout session
+    // 6. Get validated product ID from centralized keys
+    const { productId } = getMahadKeys()
+    if (!productId) {
+      return {
+        success: false,
+        error:
+          'Stripe product not configured. Please set STRIPE_MAHAD_PRODUCT_ID.',
+      }
+    }
+
+    // 7. Create Stripe checkout session
     const stripe = getMahadStripeClient()
     const intervalConfig = getStripeInterval(profile.paymentFrequency)
 
@@ -685,7 +705,7 @@ export async function generatePaymentLinkAction(
         {
           price_data: {
             currency: 'usd',
-            product: process.env.STRIPE_MAHAD_PRODUCT_ID,
+            product: productId,
             unit_amount: amount,
             recurring: intervalConfig,
           },
@@ -725,7 +745,7 @@ export async function generatePaymentLinkAction(
       billingPeriod,
     }
   } catch (error) {
-    console.error('Error generating payment link:', error)
+    logger.error({ err: error, profileId }, 'Error generating payment link')
     const message =
       error instanceof Error ? error.message : 'Failed to generate payment link'
     return { success: false, error: message }
@@ -746,31 +766,58 @@ export async function generatePaymentLinkWithDefaultsAction(
   profileId: string
 ): Promise<PaymentLinkResult> {
   try {
-    const student = await getStudentById(profileId)
-    if (!student) {
-      return { success: false, error: 'Student profile not found' }
-    }
+    // Use transaction to ensure check + update are atomic
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Check student exists and get batch info via enrollment
+      const profile = await tx.programProfile.findUnique({
+        where: { id: profileId },
+        include: {
+          enrollments: {
+            where: { status: { in: ['REGISTERED', 'ENROLLED'] } },
+            select: { batchId: true },
+            take: 1,
+          },
+        },
+      })
 
-    await prisma.programProfile.update({
-      where: { id: profileId },
-      data: {
-        graduationStatus: DEFAULT_BILLING_CONFIG.graduationStatus,
-        billingType: DEFAULT_BILLING_CONFIG.billingType,
-        paymentFrequency: DEFAULT_BILLING_CONFIG.paymentFrequency,
-      },
+      if (!profile) {
+        return { success: false as const, error: 'Student profile not found' }
+      }
+
+      // 2. Update billing config with defaults
+      await tx.programProfile.update({
+        where: { id: profileId },
+        data: {
+          graduationStatus: DEFAULT_BILLING_CONFIG.graduationStatus,
+          billingType: DEFAULT_BILLING_CONFIG.billingType,
+          paymentFrequency: DEFAULT_BILLING_CONFIG.paymentFrequency,
+        },
+      })
+
+      // Return batch ID for path revalidation
+      return {
+        success: true as const,
+        batchId: profile.enrollments[0]?.batchId,
+      }
     })
 
-    revalidatePath('/admin/mahad/cohorts')
-    revalidatePath(`/admin/mahad/cohorts/students/${profileId}`)
-    if (student.batchId) {
-      revalidatePath(`/admin/mahad/cohorts/${student.batchId}`)
+    if (!result.success) {
+      return result
     }
 
+    // Revalidate paths after successful transaction
+    revalidatePath('/admin/mahad/cohorts')
+    revalidatePath(`/admin/mahad/cohorts/students/${profileId}`)
+    if (result.batchId) {
+      revalidatePath(`/admin/mahad/cohorts/${result.batchId}`)
+    }
+
+    // Generate payment link (outside transaction since it's an external API call)
     return generatePaymentLinkAction(profileId)
   } catch (error) {
-    console.error(
-      'Error generating payment link with default billing configuration:',
-      error
+    logger.error(
+      { err: error, profileId },
+      'Error generating payment link with default billing configuration'
     )
 
     if (isPrismaError(error) && error.code === PRISMA_ERRORS.RECORD_NOT_FOUND) {
