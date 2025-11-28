@@ -95,6 +95,14 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
     return BASE_RATES[graduationStatus][paymentFrequency]
   }, [graduationStatus, paymentFrequency])
 
+  // Calculate savings for bi-monthly vs monthly
+  const biMonthlySavings = useMemo(() => {
+    return (
+      BASE_RATES[graduationStatus].MONTHLY -
+      BASE_RATES[graduationStatus].BI_MONTHLY
+    )
+  }, [graduationStatus])
+
   // Handle checkout - always uses FULL_TIME billing type
   // Admin can adjust billing type afterward if needed
   const handleCheckout = async () => {
@@ -222,6 +230,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
               <RadioGroupItem
                 value="NON_GRADUATE"
                 id="non-graduate"
+                aria-describedby="non-graduate-desc"
                 className="peer sr-only"
               />
               <Label
@@ -229,7 +238,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
               >
                 <span className="text-sm font-semibold">Still in School</span>
-                <span className="mt-0.5 text-xs text-muted-foreground">
+                <span
+                  id="non-graduate-desc"
+                  className="mt-0.5 text-xs text-muted-foreground"
+                >
                   {formatCurrency(BASE_RATES.NON_GRADUATE.MONTHLY)}/month base
                 </span>
               </Label>
@@ -238,6 +250,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
               <RadioGroupItem
                 value="GRADUATE"
                 id="graduate"
+                aria-describedby="graduate-desc"
                 className="peer sr-only"
               />
               <Label
@@ -245,7 +258,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
               >
                 <span className="text-sm font-semibold">Graduated</span>
-                <span className="mt-0.5 text-xs text-muted-foreground">
+                <span
+                  id="graduate-desc"
+                  className="mt-0.5 text-xs text-muted-foreground"
+                >
                   {formatCurrency(BASE_RATES.GRADUATE.MONTHLY)}/month base
                 </span>
               </Label>
@@ -275,6 +291,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
               <RadioGroupItem
                 value="MONTHLY"
                 id="monthly"
+                aria-describedby="monthly-desc"
                 className="peer sr-only"
               />
               <Label
@@ -282,7 +299,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
               >
                 <span className="text-sm font-semibold">Monthly</span>
-                <span className="mt-0.5 text-xs text-muted-foreground">
+                <span
+                  id="monthly-desc"
+                  className="mt-0.5 text-xs text-muted-foreground"
+                >
                   Charged every month
                 </span>
               </Label>
@@ -291,6 +311,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
               <RadioGroupItem
                 value="BI_MONTHLY"
                 id="bi-monthly"
+                aria-describedby="bi-monthly-desc"
                 className="peer sr-only"
               />
               <Label
@@ -298,8 +319,11 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 className="flex cursor-pointer flex-col items-center justify-between rounded-lg border-2 border-muted bg-card p-3 transition-all hover:border-[#007078]/50 hover:bg-accent hover:shadow-md peer-data-[state=checked]:border-[#007078] peer-data-[state=checked]:bg-[#007078]/5 peer-data-[state=checked]:shadow-sm [&:has([data-state=checked])]:border-[#007078] [&:has([data-state=checked])]:bg-[#007078]/5"
               >
                 <span className="text-sm font-semibold">Bi-Monthly</span>
-                <span className="mt-0.5 text-xs font-medium text-green-600">
-                  Save $10-$20/month
+                <span
+                  id="bi-monthly-desc"
+                  className="mt-0.5 text-xs font-medium text-green-600"
+                >
+                  Save {formatCurrency(biMonthlySavings)}/month
                 </span>
               </Label>
             </div>

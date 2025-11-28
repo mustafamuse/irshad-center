@@ -3,9 +3,10 @@
 import { useState } from 'react'
 
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Home, Loader2 } from 'lucide-react'
+import { CheckCircle2, Home, Loader2, XCircle } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
 import { ContactFields } from '@/components/registration/shared/ContactFields'
@@ -57,6 +58,10 @@ import { PaymentSuccessDialog } from './success-dialog'
 import { useRegistration } from '../_hooks/use-registration'
 
 export function RegisterForm() {
+  const searchParams = useSearchParams()
+  const paymentSuccess = searchParams.get('success') === 'true'
+  const paymentCanceled = searchParams.get('canceled') === 'true'
+
   const [formData, setFormData] = useState<StudentFormValues | null>(null)
   const [showSiblingPrompt, setShowSiblingPrompt] = useState(false)
   const [showSiblingSearch, setShowSiblingSearch] = useState(false)
@@ -145,6 +150,60 @@ export function RegisterForm() {
             </span>
           </div>
         </div>
+
+        {/* Payment Success Message */}
+        {paymentSuccess && (
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="flex items-start gap-4 pt-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-100">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-semibold text-green-800">
+                  Payment Setup Complete
+                </h3>
+                <p className="text-sm text-green-700">
+                  Your automatic payment has been set up successfully. You will
+                  receive a confirmation email shortly. Your student will be
+                  added to the attendance list once the first payment is
+                  confirmed.
+                </p>
+                <div className="pt-2">
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="border-green-300 text-green-700 hover:bg-green-100"
+                  >
+                    <Link href="/mahad">Return to Home</Link>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Payment Canceled Message */}
+        {paymentCanceled && (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="flex items-start gap-4 pt-6">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                <XCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-semibold text-amber-800">
+                  Payment Setup Canceled
+                </h3>
+                <p className="text-sm text-amber-700">
+                  Your payment setup was canceled. Your registration is still
+                  saved, but you will need to complete the payment setup to
+                  finalize your enrollment. Please register again below to set
+                  up your payment.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Form {...form}>
           <form

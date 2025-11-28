@@ -161,7 +161,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Update profile BEFORE creating Stripe session to prevent race condition
+    // Update profile BEFORE creating Stripe session to prevent race condition where:
+    // 1. User completes Stripe checkout
+    // 2. Webhook fires before this function returns
+    // 3. Webhook reads stale billing config from database
     // If Stripe fails, the profile still reflects the user's intended billing config
     await prisma.programProfile.update({
       where: { id: profileId },
