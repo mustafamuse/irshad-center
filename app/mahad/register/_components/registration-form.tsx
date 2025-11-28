@@ -52,9 +52,9 @@ import {
   getInputClassNames,
 } from '@/lib/registration/utils/form-utils'
 
-import { SiblingSearchDialog } from './search-dialog'
-import { SiblingManagementSection } from './sibling-section'
-import { PaymentSuccessDialog } from './success-dialog'
+import { CheckoutDialog } from './checkout-dialog'
+import { SiblingManagementSection } from './sibling-management'
+import { SiblingSearchDialog } from './sibling-search-dialog'
 import { useRegistration } from '../_hooks/use-registration'
 
 export function RegisterForm() {
@@ -381,8 +381,8 @@ export function RegisterForm() {
           existingSiblingIds={siblings.map((s) => s.id)}
         />
 
-        {/* Payment Success Dialog */}
-        <PaymentSuccessDialog
+        {/* Checkout Dialog */}
+        <CheckoutDialog
           isOpen={showPaymentDialog}
           onOpenChange={setShowPaymentDialog}
           studentCount={registeredStudentCount}

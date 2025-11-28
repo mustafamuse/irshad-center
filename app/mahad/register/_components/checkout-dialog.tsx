@@ -4,7 +4,6 @@ import * as React from 'react'
 
 import { AlertCircle } from 'lucide-react'
 
-import { CheckoutForm } from '@/app/mahad/_components/checkout-form'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
   Dialog,
@@ -14,7 +13,9 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 
-interface PaymentSuccessDialogProps {
+import { CheckoutForm } from './checkout-form'
+
+interface CheckoutDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   studentCount: number
@@ -22,13 +23,13 @@ interface PaymentSuccessDialogProps {
   studentName: string
 }
 
-export function PaymentSuccessDialog({
+export function CheckoutDialog({
   isOpen,
   onOpenChange,
   studentCount,
   profileId,
   studentName,
-}: PaymentSuccessDialogProps) {
+}: CheckoutDialogProps) {
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
