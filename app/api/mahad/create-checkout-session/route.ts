@@ -9,15 +9,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-import {
-  GraduationStatus,
-  PaymentFrequency,
-  StudentBillingType,
-} from '@prisma/client'
+import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
 import { getMahadKeys } from '@/lib/keys/stripe'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import {
   calculateMahadRate,
@@ -27,38 +23,51 @@ import {
   getStripeInterval,
   shouldCreateSubscription,
 } from '@/lib/utils/mahad-tuition'
+import {
+  CheckoutRequestSchema,
+  MAX_EXPECTED_RATE_CENTS,
+} from '@/lib/validations/checkout'
 
 const logger = createServiceLogger('mahad-checkout')
 
-interface CheckoutRequest {
-  profileId: string
-  graduationStatus: GraduationStatus
-  paymentFrequency: PaymentFrequency
-  billingType?: StudentBillingType // Optional - defaults to FULL_TIME (admin adjusts afterward)
-  successUrl?: string
-  cancelUrl?: string
+/**
+ * Get and validate app URL for redirect URLs
+ */
+function getAppUrl(): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!appUrl) {
+    throw new Error(
+      'NEXT_PUBLIC_APP_URL environment variable is not configured'
+    )
+  }
+  if (!appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
+    throw new Error('NEXT_PUBLIC_APP_URL must start with http:// or https://')
+  }
+  return appUrl
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CheckoutRequest
+    // Validate app URL configuration
+    const appUrl = getAppUrl()
+
+    // Parse and validate request body with Zod
+    const rawBody = await request.json()
+    const parseResult = CheckoutRequestSchema.safeParse(rawBody)
+
+    if (!parseResult.success) {
+      const errors = parseResult.error.errors.map((e) => e.message).join(', ')
+      return NextResponse.json({ error: errors }, { status: 400 })
+    }
 
     const {
       profileId,
       graduationStatus,
       paymentFrequency,
-      billingType = 'FULL_TIME', // Default to FULL_TIME - admin adjusts afterward if needed
-      successUrl = `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?success=true`,
-      cancelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?canceled=true`,
-    } = body
-
-    // Validate required fields (billingType has a default, so not required from client)
-    if (!profileId || !graduationStatus || !paymentFrequency) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      )
-    }
+      billingType = 'FULL_TIME',
+      successUrl = `${appUrl}/mahad/register?success=true`,
+      cancelUrl = `${appUrl}/mahad/register?canceled=true`,
+    } = parseResult.data
 
     // Check if billing type is exempt (shouldn't happen since default is FULL_TIME)
     if (!shouldCreateSubscription(billingType)) {
@@ -114,25 +123,51 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Rate bounds validation - warn on unusually high rates
+    if (rateInCents > MAX_EXPECTED_RATE_CENTS) {
+      await logWarning(logger, 'Unusually high rate calculated', {
+        rateInCents,
+        maxExpected: MAX_EXPECTED_RATE_CENTS,
+        profileId,
+        graduationStatus,
+        paymentFrequency,
+        billingType,
+      })
+    }
+
     // Get Stripe interval configuration
     const intervalConfig = getStripeInterval(paymentFrequency)
 
     // Get validated product ID from centralized keys
     const { productId } = getMahadKeys()
     if (!productId) {
-      logger.error('STRIPE_MAHAD_PRODUCT_ID not configured')
+      await logError(
+        logger,
+        new Error('STRIPE_MAHAD_PRODUCT_ID not configured'),
+        'Stripe product not configured',
+        { profileId }
+      )
       return NextResponse.json(
         { error: 'Payment system not properly configured' },
         { status: 500 }
       )
     }
 
+    // Update profile BEFORE creating Stripe session to prevent race condition
+    // If Stripe fails, the profile still reflects the user's intended billing config
+    await prisma.programProfile.update({
+      where: { id: profileId },
+      data: {
+        graduationStatus,
+        paymentFrequency,
+        billingType,
+      },
+    })
+
     const stripe = getMahadStripeClient()
 
-    // Create or retrieve Stripe customer
-    let customerId: string | undefined
-
     // Check if this person already has a billing account with a Stripe customer
+    let customerId: string | undefined
     const existingBillingAccount = await prisma.billingAccount.findFirst({
       where: { personId: profile.personId },
       select: { stripeCustomerIdMahad: true },
@@ -145,7 +180,7 @@ export async function POST(request: NextRequest) {
     // Create the checkout session
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      payment_method_types: ['card', 'us_bank_account'],
+      payment_method_types: ['us_bank_account'],
       customer: customerId,
       customer_email: customerId ? undefined : email,
       line_items: [
@@ -207,22 +242,18 @@ export async function POST(request: NextRequest) {
       'Checkout session created'
     )
 
-    // Update the profile with billing configuration
-    await prisma.programProfile.update({
-      where: { id: profileId },
-      data: {
-        graduationStatus,
-        paymentFrequency,
-        billingType,
-      },
-    })
-
     return NextResponse.json({
       sessionId: session.id,
       url: session.url,
     })
   } catch (error) {
-    logger.error({ error }, 'Failed to create checkout session')
+    // Check for Zod validation errors
+    if (error instanceof z.ZodError) {
+      const errors = error.errors.map((e) => e.message).join(', ')
+      return NextResponse.json({ error: errors }, { status: 400 })
+    }
+
+    await logError(logger, error, 'Failed to create checkout session', {})
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }

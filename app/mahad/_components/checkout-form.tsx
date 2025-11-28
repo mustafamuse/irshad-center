@@ -102,6 +102,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
     setIsLoading(true)
     setError(null)
 
+    // Create abort controller with 30 second timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
+
     try {
       const response = await fetch('/api/mahad/create-checkout-session', {
         method: 'POST',
@@ -112,7 +116,10 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
           paymentFrequency,
           // billingType is always FULL_TIME - admin adjusts if needed
         }),
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       const data = await response.json()
 
@@ -125,7 +132,13 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
         window.location.href = data.url
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      clearTimeout(timeoutId)
+
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('Request timed out. Please try again.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Something went wrong')
+      }
       setIsLoading(false)
     }
   }

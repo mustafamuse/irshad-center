@@ -40,6 +40,16 @@ vi.mock('@/lib/logger', () => ({
     warn: vi.fn(),
     debug: vi.fn(),
   })),
+  logError: vi.fn(),
+  logWarning: vi.fn(),
+}))
+
+vi.mock('@/lib/keys/stripe', () => ({
+  getMahadKeys: vi.fn(() => ({
+    productId: 'prod_test123',
+    secretKey: 'sk_test_xxx',
+    webhookSecret: 'whsec_test',
+  })),
 }))
 
 // ============================================================================
@@ -74,10 +84,13 @@ function createRequest(body: Record<string, unknown>): Request {
   })
 }
 
+const TEST_PROFILE_ID = '123e4567-e89b-12d3-a456-426614174000'
+const TEST_PERSON_ID = '123e4567-e89b-12d3-a456-426614174001'
+
 function createMockProfile(overrides: Record<string, unknown> = {}) {
   return {
-    id: 'profile-123',
-    personId: 'person-456',
+    id: TEST_PROFILE_ID,
+    personId: TEST_PERSON_ID,
     program: 'MAHAD_PROGRAM',
     person: {
       name: 'Test Student',
@@ -100,11 +113,11 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
   describe('Validation', () => {
     it('should return 400 for missing required fields', async () => {
-      const response = await POST(createRequest({ profileId: 'profile-123' }))
+      const response = await POST(createRequest({ profileId: TEST_PROFILE_ID }))
 
       expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.error).toBe('Missing required fields')
+      expect(data.error).toContain('Invalid graduation status')
     })
 
     it('should return 400 for missing profileId', async () => {
@@ -118,13 +131,13 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       expect(response.status).toBe(400)
       const data = await response.json()
-      expect(data.error).toBe('Missing required fields')
+      expect(data.error).toContain('Required')
     })
 
     it('should return 400 for EXEMPT billing type', async () => {
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'EXEMPT',
@@ -139,11 +152,12 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
   describe('Profile Not Found', () => {
     it('should return 404 for non-existent profile', async () => {
+      const nonExistentId = '00000000-0000-0000-0000-000000000000'
       mockedPrisma.programProfile.findUnique.mockResolvedValue(null)
 
       const response = await POST(
         createRequest({
-          profileId: 'non-existent',
+          profileId: nonExistentId,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -169,7 +183,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -210,7 +224,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -246,7 +260,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'BI_MONTHLY',
           billingType: 'FULL_TIME',
@@ -283,7 +297,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME_SCHOLARSHIP',
@@ -319,7 +333,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'PART_TIME',
@@ -357,7 +371,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -366,17 +380,17 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       expect(mockStripeCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          subscription_data: {
+          subscription_data: expect.objectContaining({
             metadata: expect.objectContaining({
-              profileId: 'profile-123',
-              personId: 'person-456',
+              profileId: TEST_PROFILE_ID,
+              personId: TEST_PERSON_ID,
               studentName: 'Test Student',
               graduationStatus: 'NON_GRADUATE',
               paymentFrequency: 'MONTHLY',
               billingType: 'FULL_TIME',
               calculatedRate: '12000',
             }),
-          },
+          }),
         })
       )
     })
@@ -393,7 +407,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -403,8 +417,8 @@ describe('POST /api/mahad/create-checkout-session', () => {
       expect(mockStripeCreate).toHaveBeenCalledWith(
         expect.objectContaining({
           metadata: expect.objectContaining({
-            profileId: 'profile-123',
-            personId: 'person-456',
+            profileId: TEST_PROFILE_ID,
+            personId: TEST_PERSON_ID,
             studentName: 'Test Student',
             source: 'mahad-registration',
           }),
@@ -426,7 +440,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'GRADUATE',
           paymentFrequency: 'BI_MONTHLY',
           billingType: 'PART_TIME',
@@ -434,7 +448,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
       )
 
       expect(prisma.programProfile.update).toHaveBeenCalledWith({
-        where: { id: 'profile-123' },
+        where: { id: TEST_PROFILE_ID },
         data: {
           graduationStatus: 'GRADUATE',
           paymentFrequency: 'BI_MONTHLY',
@@ -459,7 +473,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -486,7 +500,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -515,7 +529,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -542,7 +556,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -569,7 +583,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -588,7 +602,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       const response = await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -600,7 +614,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
   })
 
   describe('Payment Methods', () => {
-    it('should allow card and ACH payment methods', async () => {
+    it('should allow ACH bank payment method only', async () => {
       const mockProfile = createMockProfile()
       mockedPrisma.programProfile.findUnique.mockResolvedValue(mockProfile)
       mockedPrisma.billingAccount.findFirst.mockResolvedValue(null)
@@ -612,7 +626,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
@@ -621,7 +635,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       expect(mockStripeCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          payment_method_types: ['card', 'us_bank_account'],
+          payment_method_types: ['us_bank_account'],
         })
       )
     })
@@ -638,7 +652,7 @@ describe('POST /api/mahad/create-checkout-session', () => {
 
       await POST(
         createRequest({
-          profileId: 'profile-123',
+          profileId: TEST_PROFILE_ID,
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
