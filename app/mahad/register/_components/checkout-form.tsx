@@ -67,6 +67,8 @@ function formatCurrency(cents: number): string {
   }).format(cents / 100)
 }
 
+const CHECKOUT_TIMEOUT_MS = 30000
+
 interface CheckoutFormProps {
   profileId: string
   studentName: string
@@ -109,9 +111,8 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
     setIsLoading(true)
     setError(null)
 
-    // Create abort controller with 30 second timeout
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    const timeoutId = setTimeout(() => controller.abort(), CHECKOUT_TIMEOUT_MS)
 
     try {
       const response = await fetch('/api/mahad/create-checkout-session', {

@@ -47,6 +47,7 @@ import {
   BatchTransferSchema,
   UpdateStudentSchema,
 } from '@/lib/validations/batch'
+import { MAX_EXPECTED_RATE_CENTS } from '@/lib/validations/checkout'
 
 import type { UpdateStudentPayload } from '../_types/student-form'
 
@@ -681,10 +682,34 @@ export async function generatePaymentLinkAction(
       }
     }
 
-    // 5. Get customer email
+    // 5. Validate email exists
     const email = profile.person.contactPoints[0]?.value
+    if (!email) {
+      return {
+        success: false,
+        error:
+          'Student email address is required for payment setup. Please add an email first.',
+      }
+    }
 
-    // 6. Get validated product ID from centralized keys
+    // 6. Rate bounds validation - warn on unusually high rates
+    if (amount > MAX_EXPECTED_RATE_CENTS) {
+      logger.warn(
+        { amount, maxExpected: MAX_EXPECTED_RATE_CENTS, profileId },
+        'Unusually high rate calculated for admin payment link'
+      )
+    }
+
+    // 7. Validate app URL configuration
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (!appUrl) {
+      return {
+        success: false,
+        error: 'App URL not configured. Please set NEXT_PUBLIC_APP_URL.',
+      }
+    }
+
+    // 8. Get validated product ID from centralized keys
     const { productId } = getMahadKeys()
     if (!productId) {
       return {
@@ -694,12 +719,14 @@ export async function generatePaymentLinkAction(
       }
     }
 
-    // 7. Create Stripe checkout session
+    // 9. Create Stripe checkout session
     const stripe = getMahadStripeClient()
     const intervalConfig = getStripeInterval(profile.paymentFrequency)
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
+      // Admin links support both card and ACH for flexibility (e.g., failed ACH retry).
+      // User self-service checkout only allows ACH to enforce lower-fee payment method.
       payment_method_types: ['card', 'us_bank_account'],
       customer_email: email,
       line_items: [
@@ -731,17 +758,25 @@ export async function generatePaymentLinkAction(
         studentName: profile.person.name,
         source: 'admin-generated-link',
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?success=true`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?canceled=true`,
+      success_url: `${appUrl}/mahad/register?success=true`,
+      cancel_url: `${appUrl}/mahad/register?canceled=true`,
       allow_promotion_codes: true,
     })
 
     const billingPeriod =
       profile.paymentFrequency === 'BI_MONTHLY' ? '/2 months' : '/month'
 
+    // Validate session URL exists (it can be null for certain session types)
+    if (!session.url) {
+      return {
+        success: false,
+        error: 'Failed to generate checkout URL. Please try again.',
+      }
+    }
+
     return {
       success: true,
-      url: session.url!,
+      url: session.url,
       amount,
       billingPeriod,
     }
