@@ -47,6 +47,8 @@ function getAppUrl(): string {
 }
 
 export async function POST(request: NextRequest) {
+  let requestContext: Record<string, unknown> = {}
+
   try {
     // Validate app URL configuration
     const appUrl = getAppUrl()
@@ -69,6 +71,8 @@ export async function POST(request: NextRequest) {
       cancelUrl = `${appUrl}/mahad/register?canceled=true`,
     } = parseResult.data
 
+    requestContext = { profileId, graduationStatus, paymentFrequency }
+
     // Check if billing type is exempt (shouldn't happen since default is FULL_TIME)
     if (!shouldCreateSubscription(billingType)) {
       return NextResponse.json(
@@ -77,7 +81,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the student profile with email (primary preferred, fallback to any active)
+    // Get the student profile with email and billing account in one query
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },
       include: {
@@ -86,6 +90,10 @@ export async function POST(request: NextRequest) {
             contactPoints: {
               where: { type: 'EMAIL', isActive: true },
               orderBy: { isPrimary: 'desc' },
+              take: 1,
+            },
+            billingAccounts: {
+              select: { stripeCustomerIdMahad: true },
               take: 1,
             },
           },
@@ -166,16 +174,9 @@ export async function POST(request: NextRequest) {
 
     const stripe = getMahadStripeClient()
 
-    // Check if this person already has a billing account with a Stripe customer
-    let customerId: string | undefined
-    const existingBillingAccount = await prisma.billingAccount.findFirst({
-      where: { personId: profile.personId },
-      select: { stripeCustomerIdMahad: true },
-    })
-
-    if (existingBillingAccount?.stripeCustomerIdMahad) {
-      customerId = existingBillingAccount.stripeCustomerIdMahad
-    }
+    // Use existing Stripe customer if available (from combined profile query)
+    const customerId =
+      profile.person.billingAccounts[0]?.stripeCustomerIdMahad ?? undefined
 
     // Create the checkout session
     const session = await stripe.checkout.sessions.create({
@@ -253,7 +254,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: errors }, { status: 400 })
     }
 
-    await logError(logger, error, 'Failed to create checkout session', {})
+    await logError(
+      logger,
+      error,
+      'Failed to create checkout session',
+      requestContext
+    )
     return NextResponse.json(
       { error: 'Failed to create checkout session' },
       { status: 500 }
