@@ -30,6 +30,7 @@ import {
   calculateDugsiRate,
   formatRate,
   getRateTierDescription,
+  MAX_EXPECTED_FAMILY_RATE,
 } from '@/lib/utils/dugsi-tuition'
 
 import { Family } from '../../_types'
@@ -85,6 +86,11 @@ export function PaymentLinkDialog({
         return
       }
       overrideAmountCents = Math.round(parsed * 100)
+
+      // Warn admin if override exceeds typical max rate
+      if (overrideAmountCents > MAX_EXPECTED_FAMILY_RATE) {
+        toast.warning('Amount exceeds typical max rate. Please verify.')
+      }
     }
 
     startTransition(async () => {
