@@ -89,10 +89,3 @@ export const GeneratePaymentLinkSchema = z.object({
 })
 
 export type GeneratePaymentLinkInput = z.infer<typeof GeneratePaymentLinkSchema>
-
-/**
- * Maximum expected rate in cents for Dugsi
- * Based on 10 children: $650 = 65000 cents
- * Re-exported for convenience
- */
-export { MAX_EXPECTED_FAMILY_RATE as MAX_EXPECTED_RATE_CENTS } from '@/lib/utils/dugsi-tuition'

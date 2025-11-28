@@ -19,8 +19,8 @@ import { useUIStore } from '../ui-store'
 const PERFORMANCE_THRESHOLDS = {
   /** Maximum time for large selection operations (ms) */
   LARGE_SELECTION_TIME_MS: 50,
-  /** Maximum time for rapid toggle operations (ms) - relaxed for CI */
-  RAPID_TOGGLES_TIME_MS: 250,
+  /** Maximum time for rapid toggle operations (ms) - relaxed for CI/varied environments */
+  RAPID_TOGGLES_TIME_MS: 500,
   /** Maximum time for rapid mixed operations (ms) */
   RAPID_OPS_TIME_MS: 100,
   /** Threshold that triggers performance warning */

@@ -28,28 +28,10 @@ import {
   getRateTierDescription,
   MAX_EXPECTED_FAMILY_RATE,
 } from '@/lib/utils/dugsi-tuition'
-import {
-  DugsiCheckoutRequestSchema,
-  MAX_EXPECTED_RATE_CENTS,
-} from '@/lib/validations/dugsi-checkout'
+import { getAppUrl } from '@/lib/utils/env'
+import { DugsiCheckoutRequestSchema } from '@/lib/validations/dugsi-checkout'
 
 const logger = createServiceLogger('dugsi-checkout')
-
-/**
- * Get and validate app URL for redirect URLs
- */
-function getAppUrl(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  if (!appUrl) {
-    throw new Error(
-      'NEXT_PUBLIC_APP_URL environment variable is not configured'
-    )
-  }
-  if (!appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
-    throw new Error('NEXT_PUBLIC_APP_URL must start with http:// or https://')
-  }
-  return appUrl
-}
 
 export async function POST(request: NextRequest) {
   let requestContext: Record<string, unknown> = {}
@@ -159,7 +141,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Rate bounds validation - warn on unusually high rates
-    if (rateInCents > MAX_EXPECTED_RATE_CENTS) {
+    if (rateInCents > MAX_EXPECTED_FAMILY_RATE) {
       await logWarning(logger, 'Unusually high rate for Dugsi checkout', {
         rateInCents,
         maxExpected: MAX_EXPECTED_FAMILY_RATE,
@@ -245,6 +227,20 @@ export async function POST(request: NextRequest) {
       cancel_url: cancelUrl,
       allow_promotion_codes: true,
     })
+
+    // Validate session URL was created
+    if (!session.url) {
+      await logError(
+        logger,
+        new Error('Stripe returned session without URL'),
+        'Checkout session created without URL',
+        { familyId, sessionId: session.id }
+      )
+      return NextResponse.json(
+        { error: 'Failed to create payment link' },
+        { status: 500 }
+      )
+    }
 
     logger.info(
       {

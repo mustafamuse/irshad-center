@@ -36,6 +36,7 @@ import {
   validateOverrideAmount,
   MAX_EXPECTED_FAMILY_RATE,
 } from '@/lib/utils/dugsi-tuition'
+import { getAppUrl } from '@/lib/utils/env'
 
 import {
   ActionResult,
@@ -593,8 +594,10 @@ export async function generateFamilyPaymentLinkAction(
       primaryGuardian.billingAccounts[0]?.stripeCustomerIdDugsi ?? undefined
     const childNames = familyProfiles.map((p) => p.person.name).join(', ')
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL
-    if (!appUrl) {
+    let appUrl: string
+    try {
+      appUrl = getAppUrl()
+    } catch {
       return {
         success: false,
         error: 'App URL not configured',
