@@ -1,10 +1,10 @@
 'use client'
 
-import { useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import { Edit, Eye, Save, X } from 'lucide-react'
+import { Edit, Eye, Link2, Save, X } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import {
   BatchWithCount,
 } from '@/lib/types/batch'
 
+import { PaymentLinkDialog } from './payment-link-dialog'
 import { updateStudentAction } from '../../_actions'
 import { BasicInfoSection } from './sections/BasicInfoSection'
 import { BatchSection } from './sections/BatchSection'
@@ -49,6 +50,7 @@ export function StudentDetailsContent({
 }: StudentDetailsContentProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [showPaymentLinkDialog, setShowPaymentLinkDialog] = useState(false)
   const { formData, updateField, toPayload, isValid, reset } = useStudentForm(
     student,
     true // Always initialize form
@@ -104,15 +106,27 @@ export function StudentDetailsContent({
               </>
             )}
           </div>
-          {!isEditing && onModeChange && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onModeChange('edit')}
-            >
-              <Edit className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
+          {!isEditing && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPaymentLinkDialog(true)}
+              >
+                <Link2 className="mr-2 h-4 w-4" />
+                Payment Link
+              </Button>
+              {onModeChange && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onModeChange('edit')}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -159,6 +173,14 @@ export function StudentDetailsContent({
           </Button>
         </div>
       )}
+
+      {/* Payment Link Dialog */}
+      <PaymentLinkDialog
+        profileId={student.id}
+        studentName={student.name}
+        open={showPaymentLinkDialog}
+        onOpenChange={setShowPaymentLinkDialog}
+      />
     </div>
   )
 }

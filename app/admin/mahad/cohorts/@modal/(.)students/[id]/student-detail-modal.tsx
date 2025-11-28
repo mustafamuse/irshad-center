@@ -45,15 +45,11 @@ export function StudentDetailModal({
   }
 
   const isEditing = mode === 'edit'
-  const titleId = 'student-detail-title'
-  const descriptionId = 'student-detail-description'
 
   return (
     <Dialog open onOpenChange={handleOpenChange}>
       <DialogContent
         className="max-h-[90vh] max-w-3xl p-0"
-        aria-labelledby={titleId}
-        aria-describedby={descriptionId}
         aria-busy={isSubmitting}
         onOpenAutoFocus={(e) => {
           // Focus the first input in edit mode, or the close button in view mode
@@ -70,8 +66,8 @@ export function StudentDetailModal({
         }}
       >
         <DialogHeader className="px-6 pt-6">
-          <DialogTitle id={titleId}>{student.name}</DialogTitle>
-          <DialogDescription id={descriptionId}>
+          <DialogTitle>{student.name}</DialogTitle>
+          <DialogDescription>
             {isEditing
               ? 'Update student information. Required fields are marked with an asterisk (*)'
               : 'View and manage student information'}

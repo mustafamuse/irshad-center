@@ -29,6 +29,8 @@ import { BatchWithCount } from '@/lib/types/batch'
 import { StudentStatus, getStudentStatusDisplay } from '@/lib/types/student'
 import { getSubscriptionStatusDisplay } from '@/lib/utils/subscription-status'
 
+import { PaymentLinkDialog } from './payment-link-dialog'
+import { generatePaymentLinkWithDefaultsAction } from '../../_actions'
 import { DeleteStudentDialog } from '../batches/delete-student-dialog'
 import { CopyableText } from '../shared/ui/copyable-text'
 import { PhoneContact } from '../shared/ui/phone-contact'
@@ -42,6 +44,7 @@ function StudentActionsCell({
   batches: BatchWithCount[]
 }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [paymentLinkDialogOpen, setPaymentLinkDialogOpen] = useState(false)
 
   return (
     <>
@@ -65,6 +68,14 @@ function StudentActionsCell({
               Edit student
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(event) => {
+              event.preventDefault()
+              setPaymentLinkDialogOpen(true)
+            }}
+          >
+            Generate payment link
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-red-600"
@@ -82,6 +93,14 @@ function StudentActionsCell({
         studentName={student.name}
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
+      />
+      <PaymentLinkDialog
+        profileId={student.id}
+        studentName={student.name}
+        open={paymentLinkDialogOpen}
+        onOpenChange={setPaymentLinkDialogOpen}
+        generateLink={generatePaymentLinkWithDefaultsAction}
+        errorActionHref={`/admin/mahad/cohorts/students/${student.id}?mode=edit`}
       />
     </>
   )

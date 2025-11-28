@@ -11,9 +11,15 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma } from '@prisma/client'
+import {
+  Prisma,
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
 import { z } from 'zod'
 
+import { prisma } from '@/lib/db'
 import {
   createBatch,
   deleteBatch,
@@ -28,6 +34,11 @@ import {
   getStudentDeleteWarnings,
   updateStudent,
 } from '@/lib/db/queries/student'
+import { getMahadStripeClient } from '@/lib/stripe-mahad'
+import {
+  calculateMahadRate,
+  getStripeInterval,
+} from '@/lib/utils/mahad-tuition'
 import {
   CreateBatchSchema,
   BatchAssignmentSchema,
@@ -572,5 +583,203 @@ export async function updateStudentAction(
           'Invalid batch or related record reference',
       },
     })
+  }
+}
+
+// ============================================================================
+// PAYMENT LINK GENERATION
+// ============================================================================
+
+/**
+ * Result type for payment link generation
+ */
+export type PaymentLinkResult = {
+  success: boolean
+  url?: string
+  amount?: number
+  billingPeriod?: string
+  error?: string
+}
+
+/**
+ * Generate a Stripe checkout payment link for a student
+ *
+ * This action allows admins to generate payment links for students who:
+ * - Registered but abandoned checkout
+ * - Need a new payment link (e.g., payment method update)
+ * - Have been configured with specific billing settings by admin
+ *
+ * @param profileId - The student's program profile ID
+ * @returns Payment link URL and calculated amount, or error
+ */
+export async function generatePaymentLinkAction(
+  profileId: string
+): Promise<PaymentLinkResult> {
+  try {
+    // 1. Fetch profile with billing config and contact info
+    const profile = await prisma.programProfile.findUnique({
+      where: { id: profileId },
+      include: {
+        person: {
+          include: {
+            contactPoints: {
+              where: { type: 'EMAIL', isActive: true },
+              take: 1,
+            },
+          },
+        },
+      },
+    })
+
+    if (!profile) {
+      return { success: false, error: 'Student profile not found' }
+    }
+
+    // 2. Validate billing config is complete
+    if (
+      !profile.graduationStatus ||
+      !profile.paymentFrequency ||
+      !profile.billingType
+    ) {
+      return {
+        success: false,
+        error:
+          'Billing configuration incomplete. Please set Graduation Status, Payment Frequency, and Billing Type first, then save changes.',
+      }
+    }
+
+    // 3. Check if EXEMPT
+    if (profile.billingType === 'EXEMPT') {
+      return {
+        success: false,
+        error: 'Exempt students do not need payment setup.',
+      }
+    }
+
+    // 4. Calculate rate
+    const amount = calculateMahadRate(
+      profile.graduationStatus,
+      profile.paymentFrequency,
+      profile.billingType
+    )
+
+    if (amount <= 0) {
+      return {
+        success: false,
+        error: 'Invalid rate calculation. Please verify billing configuration.',
+      }
+    }
+
+    // 5. Get customer email
+    const email = profile.person.contactPoints[0]?.value
+
+    // 6. Create Stripe checkout session
+    const stripe = getMahadStripeClient()
+    const intervalConfig = getStripeInterval(profile.paymentFrequency)
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card', 'us_bank_account'],
+      customer_email: email,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product: process.env.STRIPE_MAHAD_PRODUCT_ID,
+            unit_amount: amount,
+            recurring: intervalConfig,
+          },
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        metadata: {
+          profileId: profile.id,
+          personId: profile.personId,
+          studentName: profile.person.name,
+          graduationStatus: profile.graduationStatus,
+          paymentFrequency: profile.paymentFrequency,
+          billingType: profile.billingType,
+          calculatedRate: amount.toString(),
+          source: 'admin-generated-link',
+        },
+      },
+      metadata: {
+        profileId: profile.id,
+        personId: profile.personId,
+        studentName: profile.person.name,
+        source: 'admin-generated-link',
+      },
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?success=true`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/mahad/register?canceled=true`,
+      allow_promotion_codes: true,
+    })
+
+    const billingPeriod =
+      profile.paymentFrequency === 'BI_MONTHLY' ? '/2 months' : '/month'
+
+    return {
+      success: true,
+      url: session.url!,
+      amount,
+      billingPeriod,
+    }
+  } catch (error) {
+    console.error('Error generating payment link:', error)
+    const message =
+      error instanceof Error ? error.message : 'Failed to generate payment link'
+    return { success: false, error: message }
+  }
+}
+
+const DEFAULT_BILLING_CONFIG: {
+  graduationStatus: GraduationStatus
+  billingType: StudentBillingType
+  paymentFrequency: PaymentFrequency
+} = {
+  graduationStatus: 'NON_GRADUATE',
+  billingType: 'FULL_TIME',
+  paymentFrequency: 'MONTHLY',
+}
+
+export async function generatePaymentLinkWithDefaultsAction(
+  profileId: string
+): Promise<PaymentLinkResult> {
+  try {
+    const student = await getStudentById(profileId)
+    if (!student) {
+      return { success: false, error: 'Student profile not found' }
+    }
+
+    await prisma.programProfile.update({
+      where: { id: profileId },
+      data: {
+        graduationStatus: DEFAULT_BILLING_CONFIG.graduationStatus,
+        billingType: DEFAULT_BILLING_CONFIG.billingType,
+        paymentFrequency: DEFAULT_BILLING_CONFIG.paymentFrequency,
+      },
+    })
+
+    revalidatePath('/admin/mahad/cohorts')
+    revalidatePath(`/admin/mahad/cohorts/students/${profileId}`)
+    if (student.batchId) {
+      revalidatePath(`/admin/mahad/cohorts/${student.batchId}`)
+    }
+
+    return generatePaymentLinkAction(profileId)
+  } catch (error) {
+    console.error(
+      'Error generating payment link with default billing configuration:',
+      error
+    )
+
+    if (isPrismaError(error) && error.code === PRISMA_ERRORS.RECORD_NOT_FOUND) {
+      return { success: false, error: 'Student profile not found' }
+    }
+
+    const message =
+      error instanceof Error ? error.message : 'Failed to generate payment link'
+
+    return { success: false, error: message }
   }
 }
