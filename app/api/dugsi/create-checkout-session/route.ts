@@ -98,12 +98,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate child count matches actual family size (warn if mismatch)
-    if (familyProfiles.length !== childCount) {
-      await logWarning(logger, 'Child count mismatch with family profiles', {
+    // Use DB count as authoritative source (security fix)
+    const actualChildCount = familyProfiles.length
+
+    // Log if request count differs (for debugging), but ALWAYS use DB count
+    if (childCount !== undefined && actualChildCount !== childCount) {
+      await logWarning(logger, 'Child count mismatch - using actual DB count', {
         familyId,
         requestedChildCount: childCount,
-        actualProfileCount: familyProfiles.length,
+        actualChildCount,
       })
     }
 
@@ -132,7 +135,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate rate using the tuition calculator or use override
-    const calculatedRate = calculateDugsiRate(childCount)
+    // SECURITY: Always use actualChildCount from DB, never client-provided childCount
+    const calculatedRate = calculateDugsiRate(actualChildCount)
     const rateInCents = overrideAmount ?? calculatedRate
     const isOverride = overrideAmount !== undefined
 
@@ -149,7 +153,7 @@ export async function POST(request: NextRequest) {
         rateInCents,
         maxExpected: MAX_EXPECTED_FAMILY_RATE,
         familyId,
-        childCount,
+        actualChildCount,
         isOverride,
       })
     }
@@ -204,12 +208,12 @@ export async function POST(request: NextRequest) {
           Family: primaryGuardian.name,
           Children: childNames,
           Rate: formatRateDisplay(rateInCents),
-          Tier: getRateTierDescription(childCount),
+          Tier: getRateTierDescription(actualChildCount),
           Source: 'Dugsi Admin Payment Link',
           // Technical (for webhook processing - DO NOT REMOVE)
           familyId,
           guardianPersonId: primaryGuardian.id,
-          childCount: childCount.toString(),
+          childCount: actualChildCount.toString(),
           profileIds: familyProfiles.map((p) => p.id).join(','),
           calculatedRate: calculatedRate.toString(),
           overrideUsed: isOverride ? 'true' : 'false',
@@ -223,7 +227,7 @@ export async function POST(request: NextRequest) {
         // Technical (for webhook processing)
         familyId,
         guardianPersonId: primaryGuardian.id,
-        childCount: childCount.toString(),
+        childCount: actualChildCount.toString(),
         source: 'dugsi-admin-payment-link',
       },
       success_url: successUrl,
@@ -249,7 +253,7 @@ export async function POST(request: NextRequest) {
       {
         familyId,
         guardianName: primaryGuardian.name,
-        childCount,
+        actualChildCount,
         calculatedRate,
         finalRate: rateInCents,
         isOverride,

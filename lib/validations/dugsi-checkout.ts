@@ -20,11 +20,14 @@ import { MAX_EXPECTED_FAMILY_RATE } from '@/lib/utils/dugsi-tuition'
  */
 export const DugsiCheckoutRequestSchema = z.object({
   familyId: z.string().uuid('Invalid family ID format'),
+  // childCount is optional - server uses familyProfiles.length as authoritative source
+  // Client may pass it for UI hints, but it's not used for pricing (security fix)
   childCount: z
     .number()
     .int('Child count must be a whole number')
     .min(1, 'At least 1 child is required')
-    .max(15, 'Maximum 15 children per family'),
+    .max(15, 'Maximum 15 children per family')
+    .optional(),
   overrideAmount: z
     .number()
     .int('Override amount must be a whole number (in cents)')
