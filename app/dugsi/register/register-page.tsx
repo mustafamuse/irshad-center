@@ -12,7 +12,7 @@ import { LanguageSwitcher } from '@/components/language-switcher'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 
-import { DugsiRegisterForm } from './components/dugsi-register-form'
+import { DugsiRegisterForm } from './_components/register-form'
 import { Providers } from './providers'
 
 function DugsiRegisterContent() {

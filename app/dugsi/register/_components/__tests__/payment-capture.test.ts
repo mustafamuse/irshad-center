@@ -12,7 +12,7 @@ import {
   generateFamilyId,
 } from '@/lib/utils/dugsi-payment'
 
-import { registerDugsiChildren } from '../actions'
+import { registerDugsiChildren } from '../../_actions'
 
 // Mock data for testing
 const mockFamily = (overrides = {}) => ({

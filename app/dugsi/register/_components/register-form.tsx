@@ -47,7 +47,7 @@ import {
 } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
 
-import { useDugsiRegistration } from '../hooks/use-dugsi-registration'
+import { useDugsiRegistration } from '../_hooks/use-registration'
 
 export function DugsiRegisterForm() {
   const t = useTranslations('dugsi')
