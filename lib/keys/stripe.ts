@@ -34,9 +34,10 @@ interface MahadConfig extends StripeProgramConfig {
   pricingTableId?: string
 }
 
-// Dugsi-specific config (includes payment link)
+// Dugsi-specific config (includes payment link and product ID)
 interface DugsiConfig extends StripeProgramConfig {
   paymentLink?: string
+  productId?: string
 }
 
 // Full Stripe keys configuration
@@ -91,6 +92,7 @@ export function keys(): StripeKeysConfig {
     webhookSecret: dugsiWebhookSecret,
     publishableKey: dugsiPublishableKey,
     paymentLink: process.env.NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK,
+    productId: process.env.STRIPE_DUGSI_PRODUCT_ID,
   }
 
   return {

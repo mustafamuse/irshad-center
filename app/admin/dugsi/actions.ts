@@ -4,6 +4,9 @@ import { revalidatePath } from 'next/cache'
 
 import { GradeLevel } from '@prisma/client'
 
+import { prisma } from '@/lib/db'
+import { getDugsiKeys } from '@/lib/keys/stripe'
+import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -23,6 +26,16 @@ import {
   getPaymentStatus,
   generatePaymentLink as generatePaymentLinkService,
 } from '@/lib/services/dugsi'
+import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import {
+  calculateDugsiRate,
+  formatRate,
+  formatRateDisplay,
+  getStripeInterval,
+  getRateTierDescription,
+  validateOverrideAmount,
+  MAX_EXPECTED_FAMILY_RATE,
+} from '@/lib/utils/dugsi-tuition'
 
 import {
   ActionResult,
@@ -32,6 +45,8 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
 } from './_types'
+
+const logger = createServiceLogger('dugsi-admin-actions')
 
 /**
  * Get all Dugsi registrations.
@@ -405,6 +420,278 @@ export async function generatePaymentLink(
     }
   } catch (error) {
     console.error('Error generating payment link:', error)
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to generate payment link',
+    }
+  }
+}
+
+/**
+ * Input for generating family payment link with calculated/override rate
+ */
+export interface GenerateFamilyPaymentLinkInput {
+  familyId: string
+  childCount: number
+  overrideAmount?: number
+}
+
+/**
+ * Output from generating family payment link
+ */
+export interface FamilyPaymentLinkData {
+  paymentUrl: string
+  calculatedRate: number
+  finalRate: number
+  isOverride: boolean
+  rateDescription: string
+  tierDescription: string
+  familyName: string
+  childCount: number
+}
+
+/**
+ * Generate a payment link for a Dugsi family with dynamic pricing.
+ *
+ * This creates a Stripe Checkout Session with:
+ * - Calculated rate based on child count (tiered pricing)
+ * - Optional admin override amount
+ * - ACH-only payment method
+ *
+ * @param input - Family ID, child count, and optional override amount (in cents)
+ * @returns Payment link data with rate information
+ */
+export async function generateFamilyPaymentLinkAction(
+  input: GenerateFamilyPaymentLinkInput
+): Promise<ActionResult<FamilyPaymentLinkData>> {
+  const { familyId, childCount, overrideAmount } = input
+
+  try {
+    // Validate child count
+    if (childCount < 1 || childCount > 15) {
+      return {
+        success: false,
+        error: 'Child count must be between 1 and 15',
+      }
+    }
+
+    // Validate override amount if provided
+    if (overrideAmount !== undefined) {
+      const validation = validateOverrideAmount(overrideAmount, childCount)
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: validation.reason || 'Invalid override amount',
+        }
+      }
+      if (validation.reason) {
+        await logWarning(logger, validation.reason, {
+          familyId,
+          childCount,
+          overrideAmount,
+        })
+      }
+    }
+
+    // Get family profiles with guardian information
+    const familyProfiles = await prisma.programProfile.findMany({
+      where: {
+        familyReferenceId: familyId,
+        program: 'DUGSI_PROGRAM',
+        status: { in: ['REGISTERED', 'ENROLLED'] },
+      },
+      include: {
+        person: {
+          include: {
+            guardianRelationships: {
+              include: {
+                guardian: {
+                  include: {
+                    contactPoints: {
+                      where: { type: 'EMAIL', isActive: true },
+                      orderBy: { isPrimary: 'desc' },
+                      take: 1,
+                    },
+                    billingAccounts: {
+                      select: { stripeCustomerIdDugsi: true },
+                      take: 1,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (familyProfiles.length === 0) {
+      return {
+        success: false,
+        error: 'Family not found or no active students',
+      }
+    }
+
+    // Get primary guardian
+    const firstChild = familyProfiles[0]
+    const guardianRelationships = firstChild.person.guardianRelationships || []
+    const primaryGuardian = guardianRelationships[0]?.guardian
+
+    if (!primaryGuardian) {
+      return {
+        success: false,
+        error: 'No guardian found for this family',
+      }
+    }
+
+    const guardianEmail = primaryGuardian.contactPoints[0]?.value
+    if (!guardianEmail) {
+      return {
+        success: false,
+        error: 'Guardian email address is required for payment setup',
+      }
+    }
+
+    // Calculate rate
+    const calculatedRate = calculateDugsiRate(childCount)
+    const rateInCents = overrideAmount ?? calculatedRate
+    const isOverride = overrideAmount !== undefined
+
+    // Rate bounds validation
+    if (rateInCents > MAX_EXPECTED_FAMILY_RATE) {
+      await logWarning(logger, 'Unusually high rate for payment link', {
+        rateInCents,
+        maxExpected: MAX_EXPECTED_FAMILY_RATE,
+        familyId,
+        childCount,
+        isOverride,
+      })
+    }
+
+    // Get Stripe interval and product ID
+    const intervalConfig = getStripeInterval()
+    const { productId } = getDugsiKeys()
+
+    if (!productId) {
+      await logError(
+        logger,
+        new Error('STRIPE_DUGSI_PRODUCT_ID not configured'),
+        'Stripe product not configured for Dugsi',
+        { familyId }
+      )
+      return {
+        success: false,
+        error: 'Payment system not properly configured',
+      }
+    }
+
+    const stripe = getDugsiStripeClient()
+    const customerId =
+      primaryGuardian.billingAccounts[0]?.stripeCustomerIdDugsi ?? undefined
+    const childNames = familyProfiles.map((p) => p.person.name).join(', ')
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (!appUrl) {
+      return {
+        success: false,
+        error: 'App URL not configured',
+      }
+    }
+
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['us_bank_account'],
+      customer: customerId,
+      customer_email: customerId ? undefined : guardianEmail,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product: productId,
+            unit_amount: rateInCents,
+            recurring: intervalConfig,
+          },
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        metadata: {
+          Family: primaryGuardian.name,
+          Children: childNames,
+          Rate: formatRateDisplay(rateInCents),
+          Tier: getRateTierDescription(childCount),
+          Source: 'Dugsi Admin Payment Link',
+          familyId,
+          guardianPersonId: primaryGuardian.id,
+          childCount: childCount.toString(),
+          profileIds: familyProfiles.map((p) => p.id).join(','),
+          calculatedRate: calculatedRate.toString(),
+          overrideUsed: isOverride ? 'true' : 'false',
+          source: 'dugsi-admin-payment-link',
+        },
+      },
+      metadata: {
+        Family: primaryGuardian.name,
+        Source: 'Dugsi Admin Payment Link',
+        familyId,
+        guardianPersonId: primaryGuardian.id,
+        childCount: childCount.toString(),
+        source: 'dugsi-admin-payment-link',
+      },
+      success_url: `${appUrl}/dugsi?payment=success`,
+      cancel_url: `${appUrl}/dugsi?payment=canceled`,
+      allow_promotion_codes: true,
+    })
+
+    if (!session.url) {
+      await logError(
+        logger,
+        new Error('Stripe returned session without URL'),
+        'Checkout session created without URL',
+        { familyId, sessionId: session.id }
+      )
+      return {
+        success: false,
+        error: 'Failed to create payment link',
+      }
+    }
+
+    logger.info(
+      {
+        familyId,
+        guardianName: primaryGuardian.name,
+        childCount,
+        calculatedRate,
+        finalRate: rateInCents,
+        isOverride,
+        sessionId: session.id,
+      },
+      'Family payment link generated'
+    )
+
+    return {
+      success: true,
+      data: {
+        paymentUrl: session.url,
+        calculatedRate,
+        finalRate: rateInCents,
+        isOverride,
+        rateDescription: formatRate(rateInCents),
+        tierDescription: getRateTierDescription(childCount),
+        familyName: primaryGuardian.name,
+        childCount,
+      },
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to generate family payment link', {
+      familyId,
+      childCount,
+      overrideAmount,
+    })
     return {
       success: false,
       error:
