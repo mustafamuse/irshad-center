@@ -25,6 +25,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 import {
   calculateDugsiRate,
   formatRate,
@@ -126,7 +127,8 @@ export function PaymentLinkDialog({
       return
     }
 
-    let phoneNumber = parentPhone.replace(/\D/g, '')
+    // Normalize phone and add US country code if needed for WhatsApp
+    let phoneNumber = normalizePhone(parentPhone) ?? ''
     if (phoneNumber.length === 10 && !phoneNumber.startsWith('1')) {
       phoneNumber = `1${phoneNumber}`
     }

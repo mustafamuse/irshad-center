@@ -123,7 +123,10 @@ export async function POST(request: NextRequest) {
     const guardianEmail = primaryGuardian.contactPoints[0]?.value
     if (!guardianEmail) {
       return NextResponse.json(
-        { error: 'Guardian email address is required for payment setup' },
+        {
+          error:
+            'Guardian must have an email address on file to receive payment link',
+        },
         { status: 400 }
       )
     }
