@@ -219,7 +219,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 >
                   <span className="text-sm font-semibold">Still in School</span>
                   <span className="mt-0.5 text-xs text-muted-foreground">
-                    $120/month base
+                    {formatCurrency(BASE_RATES.NON_GRADUATE.MONTHLY)}/month base
                   </span>
                 </Label>
               </div>
@@ -235,7 +235,7 @@ export function CheckoutForm({ profileId, studentName }: CheckoutFormProps) {
                 >
                   <span className="text-sm font-semibold">Graduated</span>
                   <span className="mt-0.5 text-xs text-muted-foreground">
-                    $95/month base
+                    {formatCurrency(BASE_RATES.GRADUATE.MONTHLY)}/month base
                   </span>
                 </Label>
               </div>

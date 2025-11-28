@@ -634,6 +634,7 @@ export async function generatePaymentLinkAction(
           include: {
             contactPoints: {
               where: { type: 'EMAIL', isActive: true },
+              orderBy: { isPrimary: 'desc' },
               take: 1,
             },
           },

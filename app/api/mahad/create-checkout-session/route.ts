@@ -16,6 +16,7 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { getMahadKeys } from '@/lib/keys/stripe'
 import { createServiceLogger } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import {
@@ -67,14 +68,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get the student profile
+    // Get the student profile with email (primary preferred, fallback to any active)
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },
       include: {
         person: {
           include: {
             contactPoints: {
-              where: { type: 'EMAIL', isPrimary: true },
+              where: { type: 'EMAIL', isActive: true },
+              orderBy: { isPrimary: 'desc' },
               take: 1,
             },
           },
@@ -86,6 +88,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Student profile not found' },
         { status: 404 }
+      )
+    }
+
+    // Validate email exists
+    const email = profile.person.contactPoints[0]?.value
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Student email address is required for payment setup' },
+        { status: 400 }
       )
     }
 
@@ -106,8 +117,15 @@ export async function POST(request: NextRequest) {
     // Get Stripe interval configuration
     const intervalConfig = getStripeInterval(paymentFrequency)
 
-    // Get student email
-    const email = profile.person.contactPoints[0]?.value
+    // Get validated product ID from centralized keys
+    const { productId } = getMahadKeys()
+    if (!productId) {
+      logger.error('STRIPE_MAHAD_PRODUCT_ID not configured')
+      return NextResponse.json(
+        { error: 'Payment system not properly configured' },
+        { status: 500 }
+      )
+    }
 
     const stripe = getMahadStripeClient()
 
@@ -134,7 +152,7 @@ export async function POST(request: NextRequest) {
         {
           price_data: {
             currency: 'usd',
-            product: process.env.STRIPE_MAHAD_PRODUCT_ID,
+            product: productId,
             unit_amount: rateInCents,
             recurring: intervalConfig,
           },

@@ -100,8 +100,8 @@ export function calculateMahadRate(
 
   // Apply billing type modifier
   if (billingType === 'PART_TIME') {
-    // Part-time = half rate
-    rate = Math.floor(rate / 2)
+    // Part-time = half rate, rounded to nearest cent
+    rate = Math.round(rate / 2)
   } else if (billingType === 'FULL_TIME_SCHOLARSHIP') {
     // Scholarship = $30 off
     rate = rate - SCHOLARSHIP_DISCOUNT
