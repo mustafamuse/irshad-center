@@ -330,9 +330,9 @@ export async function generatePaymentLink(
   }
 
   // Check if payment link config exists
-  if (!process.env.NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI) {
+  if (!process.env.NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK) {
     throw new ActionError(
-      'Payment link not configured. Please set NEXT_PUBLIC_STRIPE_PAYMENT_LINK_DUGSI in environment variables.',
+      'Payment link not configured. Please set NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK in environment variables.',
       ERROR_CODES.SERVER_ERROR,
       undefined,
       500

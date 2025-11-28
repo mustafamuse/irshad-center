@@ -100,8 +100,8 @@ export function calculateMahadRate(
 
   // Apply billing type modifier
   if (billingType === 'PART_TIME') {
-    // Part-time = half rate
-    rate = Math.floor(rate / 2)
+    // Part-time = half rate, rounded to nearest cent
+    rate = Math.round(rate / 2)
   } else if (billingType === 'FULL_TIME_SCHOLARSHIP') {
     // Scholarship = $30 off
     rate = rate - SCHOLARSHIP_DISCOUNT
@@ -177,4 +177,49 @@ export function getBillingTypeDescription(
     default:
       return 'Unknown billing type'
   }
+}
+
+/**
+ * Format rate with frequency for Stripe metadata display
+ *
+ * @param cents - Rate in cents
+ * @param frequency - Payment frequency
+ * @returns Formatted string like "$220.00/bi-monthly"
+ */
+export function formatRateDisplay(
+  cents: number,
+  frequency: PaymentFrequency
+): string {
+  const dollars = (cents / 100).toFixed(2)
+  const freqLabels: Record<PaymentFrequency, string> = {
+    MONTHLY: '/month',
+    BI_MONTHLY: '/bi-monthly',
+  }
+  return `$${dollars}${freqLabels[frequency]}`
+}
+
+/**
+ * Format graduation status for display
+ *
+ * @param status - Graduation status
+ * @returns Human-readable string
+ */
+export function formatGraduationStatus(status: GraduationStatus): string {
+  return status === 'GRADUATE' ? 'Graduate' : 'Non-Graduate'
+}
+
+/**
+ * Format billing type for display
+ *
+ * @param type - Student billing type
+ * @returns Human-readable string
+ */
+export function formatBillingType(type: StudentBillingType): string {
+  const labels: Record<StudentBillingType, string> = {
+    FULL_TIME: 'Full Time',
+    FULL_TIME_SCHOLARSHIP: 'Full Time (Scholarship)',
+    PART_TIME: 'Part Time',
+    EXEMPT: 'Exempt',
+  }
+  return labels[type]
 }

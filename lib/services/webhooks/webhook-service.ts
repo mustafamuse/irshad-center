@@ -14,6 +14,11 @@
  */
 
 import { StripeAccountType, SubscriptionStatus } from '@prisma/client'
+import type {
+  GraduationStatus,
+  PaymentFrequency,
+  StudentBillingType,
+} from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
@@ -34,6 +39,7 @@ import {
   createSubscriptionFromStripe,
   updateSubscriptionStatus,
 } from '@/lib/services/shared/subscription-service'
+import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 import {
   extractCustomerId,
   extractPeriodDates,
@@ -150,31 +156,53 @@ export async function handleSubscriptionCreated(
   )
 
   if (!billingAccount) {
-    // Find person by customer ID in contactPoints or create placeholder
-    const person = await prisma.person.findFirst({
-      where: {
-        billingAccounts: {
-          some: {
-            OR: [
-              { stripeCustomerIdMahad: customerId },
-              { stripeCustomerIdDugsi: customerId },
-            ],
+    // First, check if we have personId in subscription metadata (set by Mahad checkout)
+    const metadataPersonId = subscription.metadata?.personId
+
+    if (metadataPersonId) {
+      // Use personId from metadata to create billing account
+      // This handles the race condition where subscription.created arrives before checkout.completed
+      logger.info(
+        {
+          customerId,
+          personId: metadataPersonId,
+          subscriptionId: subscription.id,
+        },
+        'Creating billing account from subscription metadata personId'
+      )
+
+      billingAccount = await createOrUpdateBillingAccount({
+        personId: metadataPersonId,
+        accountType,
+        stripeCustomerId: customerId,
+      })
+    } else {
+      // Fall back to finding person by existing billing account (for non-Mahad subscriptions)
+      const person = await prisma.person.findFirst({
+        where: {
+          billingAccounts: {
+            some: {
+              OR: [
+                { stripeCustomerIdMahad: customerId },
+                { stripeCustomerIdDugsi: customerId },
+              ],
+            },
           },
         },
-      },
-    })
+      })
 
-    if (!person) {
-      throw new Error(
-        `No person found for customer ${customerId}. Payment method must be captured first.`
-      )
+      if (!person) {
+        throw new Error(
+          `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId.`
+        )
+      }
+
+      billingAccount = await createOrUpdateBillingAccount({
+        personId: person.id,
+        accountType,
+        stripeCustomerId: customerId,
+      })
     }
-
-    billingAccount = await createOrUpdateBillingAccount({
-      personId: person.id,
-      accountType,
-      stripeCustomerId: customerId,
-    })
   }
 
   // Create subscription in database
@@ -195,6 +223,69 @@ export async function handleSubscriptionCreated(
         accountType
       )
   )
+
+  // Validate rate against calculated rate if metadata is present (Mahad checkout)
+  const subscriptionMetadata = subscription.metadata || {}
+  if (
+    accountType === 'MAHAD' &&
+    subscriptionMetadata.calculatedRate &&
+    subscriptionMetadata.graduationStatus &&
+    subscriptionMetadata.paymentFrequency &&
+    subscriptionMetadata.billingType
+  ) {
+    const priceAmount = subscription.items?.data?.[0]?.price?.unit_amount
+    const expectedRate = parseInt(subscriptionMetadata.calculatedRate, 10)
+
+    // Validate that the checkout session calculated rate matches the actual rate
+    const actualCalculatedRate = calculateMahadRate(
+      subscriptionMetadata.graduationStatus as GraduationStatus,
+      subscriptionMetadata.paymentFrequency as PaymentFrequency,
+      subscriptionMetadata.billingType as StudentBillingType
+    )
+
+    if (priceAmount !== expectedRate) {
+      logger.warn(
+        {
+          subscriptionId: subscription.id,
+          stripeAmount: priceAmount,
+          expectedRate,
+          graduationStatus: subscriptionMetadata.graduationStatus,
+          paymentFrequency: subscriptionMetadata.paymentFrequency,
+          billingType: subscriptionMetadata.billingType,
+        },
+        'Rate mismatch: Stripe amount differs from expected calculated rate'
+      )
+    }
+
+    if (actualCalculatedRate !== expectedRate) {
+      logger.warn(
+        {
+          subscriptionId: subscription.id,
+          metadataRate: expectedRate,
+          recalculatedRate: actualCalculatedRate,
+          graduationStatus: subscriptionMetadata.graduationStatus,
+          paymentFrequency: subscriptionMetadata.paymentFrequency,
+          billingType: subscriptionMetadata.billingType,
+        },
+        'Rate calculation mismatch: Stored metadata rate differs from recalculated rate'
+      )
+    }
+
+    logger.info(
+      {
+        subscriptionId: subscription.id,
+        profileId: subscriptionMetadata.profileId,
+        studentName: subscriptionMetadata.studentName,
+        stripeAmount: priceAmount,
+        expectedRate,
+        graduationStatus: subscriptionMetadata.graduationStatus,
+        paymentFrequency: subscriptionMetadata.paymentFrequency,
+        billingType: subscriptionMetadata.billingType,
+        rateValid: priceAmount === expectedRate,
+      },
+      'Mahad subscription rate validation completed'
+    )
+  }
 
   // Link to profiles if provided
   if (profileIds && profileIds.length > 0) {

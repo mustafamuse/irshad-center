@@ -4,14 +4,13 @@ This directory contains components that are **truly shared** across multiple fea
 
 ## Current Components
 
-### stripe-pricing-table.tsx
+### checkout-form.tsx
 
 **Used by:**
 
-- `(public)/_components/payment-banner.tsx` - Payment banner on home page
-- `(registration)/register/_components/payment-success-dialog.tsx` - Payment dialog after registration
+- `(registration)/register/_components/page-wrapper.tsx` - Registration checkout flow
 
-**Purpose:** Stripe payment integration component that displays pricing options and handles Stripe checkout flow.
+**Purpose:** Custom checkout form that calculates tuition based on graduation status and payment frequency, then creates a Stripe checkout session.
 
 ## Guidelines
 

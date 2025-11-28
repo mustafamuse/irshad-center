@@ -7,6 +7,7 @@
 
 import Stripe from 'stripe'
 
+import { getMahadKeys } from '@/lib/keys/stripe'
 import { createServiceLogger } from '@/lib/logger'
 
 const logger = createServiceLogger('stripe-mahad')
@@ -15,25 +16,16 @@ let mahadStripeClient: Stripe | null = null
 
 /**
  * Get the Mahad Stripe client.
- * Uses environment-specific API keys (DEV/PROD).
+ * Uses centralized keys from lib/keys/stripe.ts which auto-switches test/live.
  *
  * @returns Stripe client instance
  */
 export function getMahadStripeClient(): Stripe {
-  const stripeKey =
-    process.env.NODE_ENV === 'production'
-      ? process.env.STRIPE_SECRET_KEY_PROD
-      : process.env.STRIPE_SECRET_KEY_DEV
-
-  if (!stripeKey) {
-    throw new Error(
-      'Mahad Stripe key not configured. Please set STRIPE_SECRET_KEY_DEV and STRIPE_SECRET_KEY_PROD in your environment variables.'
-    )
-  }
+  const { secretKey } = getMahadKeys()
 
   if (!mahadStripeClient) {
     logger.info('Initializing Mahad Stripe client')
-    mahadStripeClient = new Stripe(stripeKey, {
+    mahadStripeClient = new Stripe(secretKey, {
       apiVersion: '2025-08-27.basil',
       typescript: true,
     })
@@ -44,20 +36,10 @@ export function getMahadStripeClient(): Stripe {
 
 /**
  * Get the Mahad webhook secret for verifying webhook signatures.
- * Uses environment-specific webhook secrets (DEV/PROD).
+ * Uses centralized keys from lib/keys/stripe.ts.
  */
 export function getMahadWebhookSecret(): string {
-  const webhookSecret =
-    process.env.NODE_ENV === 'production'
-      ? process.env.STRIPE_WEBHOOK_SECRET_PROD
-      : process.env.STRIPE_WEBHOOK_SECRET_DEV
-
-  if (!webhookSecret) {
-    throw new Error(
-      'Mahad webhook secret not configured. Please set STRIPE_WEBHOOK_SECRET_DEV and STRIPE_WEBHOOK_SECRET_PROD in your environment variables.'
-    )
-  }
-
+  const { webhookSecret } = getMahadKeys()
   return webhookSecret
 }
 
