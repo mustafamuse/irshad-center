@@ -230,7 +230,6 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       return NextResponse.json({ received: true }, { status: 200 })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-      const _errorStack = err instanceof Error ? err.stack : undefined
 
       logger.error(
         {

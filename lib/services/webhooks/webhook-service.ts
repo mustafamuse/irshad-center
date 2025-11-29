@@ -28,7 +28,6 @@ import {
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
 } from '@/lib/db/queries/billing'
-import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
 import { createServiceLogger } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -39,6 +38,7 @@ import {
   createSubscriptionFromStripe,
   updateSubscriptionStatus,
 } from '@/lib/services/shared/subscription-service'
+import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 import {
   extractCustomerId,
@@ -287,6 +287,54 @@ export async function handleSubscriptionCreated(
     )
   }
 
+  // Validate rate for Dugsi subscriptions
+  if (
+    accountType === 'DUGSI' &&
+    subscriptionMetadata.calculatedRate &&
+    subscriptionMetadata.childCount
+  ) {
+    const priceAmount = subscription.items?.data?.[0]?.price?.unit_amount
+    const expectedRate = parseInt(subscriptionMetadata.calculatedRate, 10)
+    const childCount = parseInt(subscriptionMetadata.childCount, 10)
+
+    const actualCalculatedRate = calculateDugsiRate(childCount)
+
+    if (priceAmount !== expectedRate) {
+      logger.warn(
+        {
+          subscriptionId: subscription.id,
+          stripeAmount: priceAmount,
+          expectedRate,
+          childCount,
+        },
+        'Rate mismatch: Stripe amount differs from expected calculated rate'
+      )
+    }
+
+    if (actualCalculatedRate !== expectedRate) {
+      logger.warn(
+        {
+          subscriptionId: subscription.id,
+          metadataRate: expectedRate,
+          recalculatedRate: actualCalculatedRate,
+          childCount,
+        },
+        'Rate calculation mismatch: Stored metadata rate differs from recalculated rate'
+      )
+    }
+
+    logger.info(
+      {
+        subscriptionId: subscription.id,
+        stripeAmount: priceAmount,
+        expectedRate,
+        childCount,
+        rateValid: priceAmount === expectedRate,
+      },
+      'Dugsi subscription rate validation completed'
+    )
+  }
+
   // Link to profiles if provided
   if (profileIds && profileIds.length > 0) {
     // Validate subscription has items with valid pricing
@@ -493,39 +541,4 @@ export async function getSubscriptionAssignments(stripeSubscriptionId: string) {
   }
 
   return await getBillingAssignmentsBySubscription(subscription.id)
-}
-
-/**
- * Link subscription to family profiles.
- *
- * Helper for Dugsi webhooks to link a subscription to all family members.
- *
- * @param stripeSubscriptionId - Stripe subscription ID
- * @param familyId - Family reference ID
- * @param amount - Subscription amount
- * @returns Number of profiles linked
- */
-export async function linkSubscriptionToFamily(
-  stripeSubscriptionId: string,
-  familyId: string,
-  amount: number
-): Promise<number> {
-  // Get subscription from database
-  const subscription = await getSubscriptionByStripeId(stripeSubscriptionId)
-
-  if (!subscription) {
-    throw new Error('Subscription not found in database')
-  }
-
-  // Get all family profiles
-  const profiles = await getProgramProfilesByFamilyId(familyId)
-  const profileIds = profiles.map((p) => p.id)
-
-  // Link subscription to all family members
-  return await linkSubscriptionToProfiles(
-    subscription.id,
-    profileIds,
-    amount,
-    'Linked automatically via webhook'
-  )
 }
