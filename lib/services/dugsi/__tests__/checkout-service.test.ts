@@ -172,5 +172,71 @@ describe('createDugsiCheckoutSession', () => {
         })
       )
     })
+
+    it('should select first isPrimaryPayer guardian when multiple have flag set', async () => {
+      const firstPrimaryPayer = {
+        id: 'guardian-first-primary',
+        name: 'First Primary',
+        contactPoints: [{ value: 'first@test.com', type: 'EMAIL' }],
+        billingAccounts: [],
+      }
+
+      const secondPrimaryPayer = {
+        id: 'guardian-second-primary',
+        name: 'Second Primary',
+        contactPoints: [{ value: 'second@test.com', type: 'EMAIL' }],
+        billingAccounts: [],
+      }
+
+      mockPrismaFindMany.mockResolvedValue([
+        {
+          id: 'profile-1',
+          person: {
+            name: 'Child 1',
+            dependentRelationships: [
+              { isPrimaryPayer: true, guardian: firstPrimaryPayer },
+              { isPrimaryPayer: true, guardian: secondPrimaryPayer },
+            ],
+          },
+        },
+      ])
+
+      await createDugsiCheckoutSession({ familyId: 'family-123' })
+
+      expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          customer_email: 'first@test.com',
+        })
+      )
+    })
+
+    it('should throw error when primary payer has no email', async () => {
+      const guardianNoEmail = {
+        id: 'guardian-no-email',
+        name: 'No Email Parent',
+        contactPoints: [],
+        billingAccounts: [],
+      }
+
+      mockPrismaFindMany.mockResolvedValue([
+        {
+          id: 'profile-1',
+          person: {
+            name: 'Child 1',
+            dependentRelationships: [
+              { isPrimaryPayer: true, guardian: guardianNoEmail },
+            ],
+          },
+        },
+      ])
+
+      await expect(
+        createDugsiCheckoutSession({ familyId: 'family-123' })
+      ).rejects.toMatchObject({
+        message:
+          'Guardian must have an email address on file to receive payment link',
+        field: 'guardianEmail',
+      })
+    })
   })
 })

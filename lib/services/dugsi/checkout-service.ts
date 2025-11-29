@@ -105,6 +105,7 @@ export async function createDugsiCheckoutSession(
       person: {
         include: {
           dependentRelationships: {
+            where: { isActive: true },
             include: {
               guardian: {
                 include: {

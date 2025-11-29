@@ -1061,6 +1061,20 @@ export async function linkGuardianToDependent(
   } = data
   const client = tx || prisma
 
+  // Ensure only one guardian can be isPrimaryPayer per dependent
+  // Clear other isPrimaryPayer flags before setting new one
+  if (isPrimaryPayer) {
+    await client.guardianRelationship.updateMany({
+      where: {
+        dependentId: dependentPersonId,
+        guardianId: { not: guardianPersonId },
+        isActive: true,
+        isPrimaryPayer: true,
+      },
+      data: { isPrimaryPayer: false },
+    })
+  }
+
   // Check if relationship already exists
   const existing = await client.guardianRelationship.findFirst({
     where: {

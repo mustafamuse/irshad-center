@@ -10,11 +10,13 @@ const {
   mockFindFirst,
   mockCreate,
   mockUpdate,
+  mockUpdateMany,
   mockValidateGuardianRelationship,
 } = vi.hoisted(() => ({
   mockFindFirst: vi.fn(),
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
+  mockUpdateMany: vi.fn(),
   mockValidateGuardianRelationship: vi.fn(),
 }))
 
@@ -24,6 +26,7 @@ vi.mock('@/lib/db', () => ({
       findFirst: (...args: unknown[]) => mockFindFirst(...args),
       create: (...args: unknown[]) => mockCreate(...args),
       update: (...args: unknown[]) => mockUpdate(...args),
+      updateMany: (...args: unknown[]) => mockUpdateMany(...args),
     },
   },
 }))
@@ -48,6 +51,7 @@ describe('linkGuardianToDependent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockValidateGuardianRelationship.mockResolvedValue(undefined)
+    mockUpdateMany.mockResolvedValue({ count: 0 })
   })
 
   describe('isPrimaryPayer handling', () => {
@@ -185,6 +189,55 @@ describe('linkGuardianToDependent', () => {
           isPrimaryPayer: true,
         }),
       })
+    })
+
+    it('should clear other isPrimaryPayer flags when setting new primary payer', async () => {
+      mockFindFirst.mockResolvedValue(null)
+      mockCreate.mockResolvedValue({
+        id: 'rel-1',
+        guardianId: 'guardian-1',
+        dependentId: 'child-1',
+        isPrimaryPayer: true,
+        isActive: true,
+      })
+      mockUpdateMany.mockResolvedValue({ count: 1 })
+
+      await linkGuardianToDependent({
+        guardianPersonId: 'guardian-1',
+        dependentPersonId: 'child-1',
+        role: 'PARENT',
+        isPrimaryPayer: true,
+      })
+
+      expect(mockUpdateMany).toHaveBeenCalledWith({
+        where: {
+          dependentId: 'child-1',
+          guardianId: { not: 'guardian-1' },
+          isActive: true,
+          isPrimaryPayer: true,
+        },
+        data: { isPrimaryPayer: false },
+      })
+    })
+
+    it('should not clear isPrimaryPayer flags when isPrimaryPayer is false', async () => {
+      mockFindFirst.mockResolvedValue(null)
+      mockCreate.mockResolvedValue({
+        id: 'rel-1',
+        guardianId: 'guardian-1',
+        dependentId: 'child-1',
+        isPrimaryPayer: false,
+        isActive: true,
+      })
+
+      await linkGuardianToDependent({
+        guardianPersonId: 'guardian-1',
+        dependentPersonId: 'child-1',
+        role: 'PARENT',
+        isPrimaryPayer: false,
+      })
+
+      expect(mockUpdateMany).not.toHaveBeenCalled()
     })
   })
 })
