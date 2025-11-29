@@ -190,7 +190,7 @@ export const dugsiRegistrationSchema = z
     parent2Phone: phoneSchema.optional().or(z.literal('')),
 
     // Primary Payer Selection (which parent is responsible for payments)
-    primaryPayer: z.enum(['parent1', 'parent2']).default('parent1'),
+    primaryPayer: z.enum(['parent1', 'parent2']),
 
     // Children (Array)
     children: z
@@ -244,7 +244,6 @@ export const DUGSI_DEFAULT_FORM_VALUES: Partial<DugsiRegistrationValues> = {
   parent2LastName: '',
   parent2Email: '',
   parent2Phone: '',
-  primaryPayer: 'parent1',
   children: [DEFAULT_CHILD_VALUES, DEFAULT_CHILD_VALUES],
 }
 
