@@ -20,6 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Form } from '@/components/ui/form'
 import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { SchoolCombobox } from '@/components/ui/school-combobox'
 import {
   Select,
@@ -188,6 +189,58 @@ export function DugsiRegisterForm() {
                       form.setValue('parent2Phone', formatted)
                     }
                   />
+
+                  {/* Primary Payer Selection */}
+                  {(() => {
+                    const parent1FullName = [
+                      form.watch('parent1FirstName'),
+                      form.watch('parent1LastName'),
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+                      .trim()
+                    const parent2FullName = [
+                      form.watch('parent2FirstName'),
+                      form.watch('parent2LastName'),
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
+                      .trim()
+
+                    return (
+                      <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50/50 p-4">
+                        <Label className="text-sm font-medium text-gray-700">
+                          {t('parentSection.whoPays')}
+                        </Label>
+                        <RadioGroup
+                          value={form.watch('primaryPayer')}
+                          onValueChange={(value: 'parent1' | 'parent2') =>
+                            form.setValue('primaryPayer', value)
+                          }
+                          className="flex flex-col gap-2 sm:flex-row sm:gap-6"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="parent1" id="payer-1" />
+                            <Label
+                              htmlFor="payer-1"
+                              className="cursor-pointer text-sm font-normal"
+                            >
+                              {parent1FullName || t('parentSection.parent1')}
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="parent2" id="payer-2" />
+                            <Label
+                              htmlFor="payer-2"
+                              className="cursor-pointer text-sm font-normal"
+                            >
+                              {parent2FullName || t('parentSection.parent2')}
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+                    )
+                  })()}
                 </div>
               )}
             </CardContent>

@@ -138,10 +138,12 @@ export async function createDugsiCheckoutSession(
   // SECURITY: Use DB count as authoritative source
   const actualChildCount = familyProfiles.length
 
-  // Get primary guardian
+  // Get primary guardian (prefer isPrimaryPayer, fall back to first guardian)
   const firstChild = familyProfiles[0]
   const guardianRelationships = firstChild.person.guardianRelationships || []
-  const primaryGuardian = guardianRelationships[0]?.guardian
+  const primaryGuardian =
+    guardianRelationships.find((r) => r.isPrimaryPayer)?.guardian ??
+    guardianRelationships[0]?.guardian
 
   if (!primaryGuardian) {
     const errorMessage =

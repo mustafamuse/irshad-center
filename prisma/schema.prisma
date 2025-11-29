@@ -268,6 +268,7 @@ model GuardianRelationship {
   endDate     DateTime? // When relationship ended (null if active)
   isActive    Boolean      @default(true) // Currently active relationship
   notes       String? // Optional notes about the relationship
+  isPrimaryPayer Boolean @default(false) // True if this guardian is responsible for tuition payments
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -280,6 +281,7 @@ model GuardianRelationship {
   @@unique([guardianId, dependentId, role]) // One relationship per guardian-dependent-role combo
   @@index([guardianId]) // Find all dependents for a guardian
   @@index([dependentId]) // Find all guardians for a dependent
+  @@index([dependentId, isPrimaryPayer]) // Optimize checkout queries for primary payer lookup
   @@index([isActive]) // Filter active relationships
 }
 

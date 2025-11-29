@@ -208,6 +208,7 @@ const familyRegistrationSchema = z.object({
   parent2LastName: sanitizedNameSchema('Parent 2 last name')
     .nullable()
     .optional(),
+  primaryPayer: z.enum(['parent1', 'parent2']).default('parent1'),
   familyReferenceId: z
     .string()
     .uuid('Family reference ID must be a valid UUID'),
@@ -528,6 +529,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     parent2Phone,
     parent2FirstName,
     parent2LastName,
+    primaryPayer,
     familyReferenceId,
   } = validated
 
@@ -711,6 +713,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           guardianPersonId: parent1Person.id,
           dependentPersonId: childPerson.id,
           role: 'PARENT',
+          isPrimaryPayer: primaryPayer === 'parent1',
         },
         tx
       )
@@ -722,6 +725,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             guardianPersonId: parent2Person.id,
             dependentPersonId: childPerson.id,
             role: 'PARENT',
+            isPrimaryPayer: primaryPayer === 'parent2',
           },
           tx
         )
@@ -1044,10 +1048,17 @@ export async function linkGuardianToDependent(
     dependentPersonId: string
     role?: GuardianRole
     notes?: string | null
+    isPrimaryPayer?: boolean
   },
   tx?: Prisma.TransactionClient
 ) {
-  const { guardianPersonId, dependentPersonId, role = 'PARENT', notes } = data
+  const {
+    guardianPersonId,
+    dependentPersonId,
+    role = 'PARENT',
+    notes,
+    isPrimaryPayer = false,
+  } = data
   const client = tx || prisma
 
   // Check if relationship already exists
@@ -1059,14 +1070,15 @@ export async function linkGuardianToDependent(
   })
 
   if (existing) {
-    // Reactivate if inactive
-    if (!existing.isActive) {
+    // Update isPrimaryPayer or reactivate if inactive
+    if (!existing.isActive || isPrimaryPayer !== existing.isPrimaryPayer) {
       return client.guardianRelationship.update({
         where: { id: existing.id },
         data: {
           isActive: true,
           role,
           notes,
+          isPrimaryPayer,
         },
       })
     }
@@ -1092,6 +1104,7 @@ export async function linkGuardianToDependent(
       role,
       notes,
       isActive: true,
+      isPrimaryPayer,
     },
   })
 }

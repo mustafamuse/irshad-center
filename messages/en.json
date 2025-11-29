@@ -17,7 +17,8 @@
       "description": "Primary contact for registration",
       "parent1": "Parent 1",
       "parent2": "Parent 2",
-      "singleParent": "Single parent household"
+      "singleParent": "Single parent household",
+      "whoPays": "Who will be responsible for tuition payments?"
     },
     "childrenSection": {
       "title": "Children",
