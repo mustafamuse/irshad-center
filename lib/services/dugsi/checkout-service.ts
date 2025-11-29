@@ -139,12 +139,21 @@ export async function createDugsiCheckoutSession(
   // SECURITY: Use DB count as authoritative source
   const actualChildCount = familyProfiles.length
 
-  // Get primary guardian (prefer isPrimaryPayer, fall back to first guardian)
+  // Get primary guardian (must have isPrimaryPayer set)
   const firstChild = familyProfiles[0]
   const dependentRelationships = firstChild.person.dependentRelationships || []
-  const primaryGuardian =
-    dependentRelationships.find((r) => r.isPrimaryPayer)?.guardian ??
-    dependentRelationships[0]?.guardian
+  const primaryPayerRelation = dependentRelationships.find(
+    (r) => r.isPrimaryPayer
+  )
+  if (!primaryPayerRelation) {
+    throw new ActionError(
+      'No primary payer designated for this family. Please set a primary payer before checkout.',
+      ERROR_CODES.VALIDATION_ERROR,
+      'primaryPayer',
+      400
+    )
+  }
+  const primaryGuardian = primaryPayerRelation.guardian
 
   if (!primaryGuardian) {
     const errorMessage =

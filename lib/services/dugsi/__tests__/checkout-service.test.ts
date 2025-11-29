@@ -106,7 +106,7 @@ describe('createDugsiCheckoutSession', () => {
       )
     })
 
-    it('should fallback to first guardian when no isPrimaryPayer is set', async () => {
+    it('should throw error when no guardian has isPrimaryPayer set', async () => {
       const firstGuardian = {
         id: 'guardian-first',
         name: 'First Parent',
@@ -134,13 +134,13 @@ describe('createDugsiCheckoutSession', () => {
         },
       ])
 
-      await createDugsiCheckoutSession({ familyId: 'family-123' })
-
-      expect(mockStripeSessionCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          customer_email: 'first@test.com',
-        })
-      )
+      await expect(
+        createDugsiCheckoutSession({ familyId: 'family-123' })
+      ).rejects.toMatchObject({
+        message:
+          'No primary payer designated for this family. Please set a primary payer before checkout.',
+        field: 'primaryPayer',
+      })
     })
 
     it('should use existing Stripe customer ID from primary payer', async () => {
