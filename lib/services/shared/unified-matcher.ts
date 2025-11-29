@@ -41,6 +41,8 @@ export interface UnifiedMatchResult {
   programProfile: Awaited<
     ReturnType<typeof prisma.programProfile.findFirst>
   > | null
+  /** The matched person ID (for guardians without billing accounts) */
+  personId: string | null
   /** How the match was made (phone, email, or guardian) */
   matchMethod: 'phone' | 'email' | 'guardian' | null
   /** Validated email address from the session */
@@ -103,6 +105,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail: null,
         accountType,
@@ -119,6 +122,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail: null,
         accountType,
@@ -140,6 +144,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail,
         accountType,
@@ -211,6 +216,7 @@ export class UnifiedMatcher {
       return {
         billingAccount,
         programProfile: profile,
+        personId: profile.personId,
         matchMethod: 'email',
         validatedEmail,
         accountType,
@@ -227,6 +233,7 @@ export class UnifiedMatcher {
     return {
       billingAccount: null,
       programProfile: null,
+      personId: null,
       matchMethod: null,
       validatedEmail,
       accountType,
@@ -249,6 +256,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail: null,
         accountType,
@@ -266,6 +274,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail: null,
         accountType,
@@ -278,6 +287,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail: null,
         accountType,
@@ -337,6 +347,7 @@ export class UnifiedMatcher {
       return {
         billingAccount,
         programProfile: profile,
+        personId: profile.personId,
         matchMethod: 'phone',
         validatedEmail: null,
         accountType,
@@ -353,6 +364,7 @@ export class UnifiedMatcher {
     return {
       billingAccount: null,
       programProfile: null,
+      personId: null,
       matchMethod: null,
       validatedEmail: null,
       accountType,
@@ -372,6 +384,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail: null,
         accountType,
@@ -388,6 +401,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail: null,
         accountType,
@@ -400,6 +414,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: null,
+        personId: null,
         matchMethod: null,
         validatedEmail,
         accountType,
@@ -433,7 +448,8 @@ export class UnifiedMatcher {
 
       return {
         billingAccount,
-        programProfile: null, // Guardian account, no specific profile
+        programProfile: null,
+        personId: billingAccount.personId,
         matchMethod: 'guardian',
         validatedEmail,
         accountType,
@@ -481,6 +497,7 @@ export class UnifiedMatcher {
       return {
         billingAccount: null,
         programProfile: profile,
+        personId: profile.personId,
         matchMethod: 'email',
         validatedEmail,
         accountType,
@@ -494,9 +511,49 @@ export class UnifiedMatcher {
       )
     }
 
+    // For Dugsi, check if this person is a guardian for registered students
+    if (accountType === 'DUGSI') {
+      const guardianRelationships = await prisma.guardianRelationship.findMany({
+        where: {
+          guardianId: person.id,
+          isActive: true,
+        },
+        include: {
+          dependent: {
+            include: {
+              programProfiles: {
+                where: { program: 'DUGSI_PROGRAM' },
+              },
+            },
+          },
+        },
+      })
+
+      const hasDugsiDependents = guardianRelationships.some(
+        (rel) => rel.dependent.programProfiles.length > 0
+      )
+
+      if (hasDugsiDependents) {
+        logger.info(
+          { email: validatedEmail, personId: person.id },
+          'Found Dugsi guardian by payer email (no billing account yet)'
+        )
+
+        return {
+          billingAccount: null,
+          programProfile: null,
+          personId: person.id,
+          matchMethod: 'guardian',
+          validatedEmail,
+          accountType,
+        }
+      }
+    }
+
     return {
       billingAccount: null,
       programProfile: null,
+      personId: null,
       matchMethod: null,
       validatedEmail,
       accountType,

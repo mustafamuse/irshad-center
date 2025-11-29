@@ -213,11 +213,16 @@ export async function validateEnrollment(
  * Validate GuardianRelationship creation
  * Ensures guardian is not their own dependent (backup to DB constraint)
  */
-export async function validateGuardianRelationship(data: {
-  guardianId: string
-  dependentId: string
-  role: GuardianRole
-}) {
+export async function validateGuardianRelationship(
+  data: {
+    guardianId: string
+    dependentId: string
+    role: GuardianRole
+  },
+  tx?: Prisma.TransactionClient
+) {
+  const client = tx || prisma
+
   // Check self-reference
   if (data.guardianId === data.dependentId) {
     throw new ValidationError(
@@ -232,11 +237,11 @@ export async function validateGuardianRelationship(data: {
 
   // Check if both persons exist
   const [guardian, dependent] = await Promise.all([
-    prisma.person.findUnique({
+    client.person.findUnique({
       where: { id: data.guardianId },
       select: { id: true, name: true },
     }),
-    prisma.person.findUnique({
+    client.person.findUnique({
       where: { id: data.dependentId },
       select: { id: true, name: true },
     }),
@@ -259,7 +264,7 @@ export async function validateGuardianRelationship(data: {
   }
 
   // Check for existing active relationship
-  const existingRelationship = await prisma.guardianRelationship.findFirst({
+  const existingRelationship = await client.guardianRelationship.findFirst({
     where: {
       guardianId: data.guardianId,
       dependentId: data.dependentId,

@@ -146,10 +146,10 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
     profilesToDelete = familyProfiles
   }
 
-  // Extract parent email from guardian relationships
+  // Extract parent email from guardian relationships (child is dependent, parents are guardians)
   const parentEmail =
-    profile.person.guardianRelationships?.[0]?.guardian?.contactPoints?.find(
-      (cp) => cp.type === 'EMAIL'
+    profile.person.dependentRelationships?.[0]?.guardian?.contactPoints?.find(
+      (cp: { type: string }) => cp.type === 'EMAIL'
     )?.value ?? null
 
   const students = profilesToDelete.map((p) => ({

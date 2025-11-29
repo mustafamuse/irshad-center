@@ -81,8 +81,8 @@
       "addChild": "Add Another Child",
       "remove": "Remove",
       "processing": "Processing...",
-      "continueToPayment": "Continue to Payment ({count} {childText})",
-      "continueShort": "Continue ({count})"
+      "continueToPayment": "Complete Registration ({count} {childText})",
+      "continueShort": "Register ({count})"
     },
     "messages": {
       "enrollmentSuccess": "Successfully enrolled {count} {childText}!",

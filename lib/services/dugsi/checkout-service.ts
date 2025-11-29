@@ -104,7 +104,7 @@ export async function createDugsiCheckoutSession(
     include: {
       person: {
         include: {
-          guardianRelationships: {
+          dependentRelationships: {
             include: {
               guardian: {
                 include: {
@@ -140,14 +140,14 @@ export async function createDugsiCheckoutSession(
 
   // Get primary guardian (prefer isPrimaryPayer, fall back to first guardian)
   const firstChild = familyProfiles[0]
-  const guardianRelationships = firstChild.person.guardianRelationships || []
+  const dependentRelationships = firstChild.person.dependentRelationships || []
   const primaryGuardian =
-    guardianRelationships.find((r) => r.isPrimaryPayer)?.guardian ??
-    guardianRelationships[0]?.guardian
+    dependentRelationships.find((r) => r.isPrimaryPayer)?.guardian ??
+    dependentRelationships[0]?.guardian
 
   if (!primaryGuardian) {
     const errorMessage =
-      guardianRelationships.length === 0
+      dependentRelationships.length === 0
         ? 'No guardian relationships found for this family'
         : 'Guardian record is missing contact information'
     throw new ActionError(

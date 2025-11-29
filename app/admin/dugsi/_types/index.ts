@@ -48,6 +48,7 @@ export interface DugsiRegistration {
   stripeSubscriptionIdDugsi: string | null
   paymentIntentIdDugsi: string | null
   subscriptionStatus: SubscriptionStatus | null
+  subscriptionAmount: number | null
   paidUntil: Date | null
   currentPeriodStart: Date | null
   currentPeriodEnd: Date | null

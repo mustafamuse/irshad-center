@@ -156,25 +156,28 @@ export async function handleSubscriptionCreated(
   )
 
   if (!billingAccount) {
-    // First, check if we have personId in subscription metadata (set by Mahad checkout)
-    const metadataPersonId = subscription.metadata?.personId
+    // Check for personId (Mahad) or guardianPersonId (Dugsi) in subscription metadata
+    const metadataPersonId =
+      subscription.metadata?.personId || subscription.metadata?.guardianPersonId // Mahad // Dugsi
 
     if (metadataPersonId) {
-      // Use personId from metadata to create billing account
-      // This handles the race condition where subscription.created arrives before checkout.completed
+      // Use person ID from metadata to create billing account
+      // Handles race condition where subscription.created arrives before checkout.completed
       logger.info(
         {
           customerId,
           personId: metadataPersonId,
           subscriptionId: subscription.id,
         },
-        'Creating billing account from subscription metadata personId'
+        'Creating billing account from subscription metadata'
       )
 
       billingAccount = await createOrUpdateBillingAccount({
         personId: metadataPersonId,
         accountType,
         stripeCustomerId: customerId,
+        paymentMethodCaptured: true,
+        paymentMethodCapturedAt: new Date(),
       })
     } else {
       // Fall back to finding person by existing billing account (for non-Mahad subscriptions)
@@ -193,7 +196,7 @@ export async function handleSubscriptionCreated(
 
       if (!person) {
         throw new Error(
-          `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId.`
+          `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
         )
       }
 

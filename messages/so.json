@@ -81,8 +81,8 @@
       "addChild": "Ku Dar Ilmo Kale",
       "remove": "Ka saar",
       "processing": "Socota...",
-      "continueToPayment": "Sii wad Lacag Bixinta ({count} {childText})",
-      "continueShort": "Sii wad ({count})"
+      "continueToPayment": "Dhammaystir Diiwaangelinta ({count} {childText})",
+      "continueShort": "Diiwaan ({count})"
     },
     "messages": {
       "enrollmentSuccess": "Si guul leh ayaa loo diiwaan geliyay {count} {childText}!",

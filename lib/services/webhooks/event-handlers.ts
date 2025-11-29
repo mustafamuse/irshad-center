@@ -63,6 +63,7 @@ async function handleCheckoutCompleted(
 
   // Get person ID from match result
   const personId =
+    matchResult.personId ||
     matchResult.billingAccount?.personId ||
     matchResult.programProfile?.personId ||
     null

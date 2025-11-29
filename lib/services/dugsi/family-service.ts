@@ -148,10 +148,10 @@ export async function updateParentInfo(
     )
   }
 
-  // Get guardian relationships for the profile
+  // Get guardian relationships for the profile (child is dependent, parents are guardians)
   const person = profile.person
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -252,8 +252,8 @@ export async function addSecondParent(
 
   // Check if second parent already exists
   const person = profile.person
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -444,10 +444,10 @@ export async function addChildToFamily(
     )
   }
 
-  // Get guardian relationships from existing profile
+  // Get guardian relationships from existing profile (child is dependent, parents are guardians)
   const person = existingProfile.person
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 

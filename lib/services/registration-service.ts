@@ -1090,12 +1090,15 @@ export async function linkGuardianToDependent(
     '@/lib/services/validation-service'
   )
 
-  // Validate before creating
-  await validateGuardianRelationship({
-    guardianId: guardianPersonId,
-    dependentId: dependentPersonId,
-    role,
-  })
+  // Validate before creating (pass tx for transaction visibility)
+  await validateGuardianRelationship(
+    {
+      guardianId: guardianPersonId,
+      dependentId: dependentPersonId,
+      role,
+    },
+    tx
+  )
 
   return client.guardianRelationship.create({
     data: {

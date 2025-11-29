@@ -28,7 +28,7 @@ import { usePersistedViewMode } from '../hooks/use-persisted-view-mode'
 import { useActiveTab, useDugsiFilters, useLegacyActions } from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
-import { DashboardStats } from './dashboard/dashboard-stats'
+import { DugsiStats } from './dashboard/dashboard-stats'
 import { TabContent } from './dashboard/tab-content'
 
 interface DugsiDashboardProps {
@@ -87,7 +87,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
         <DashboardFilters />
 
         {/* Dashboard Stats */}
-        <DashboardStats registrations={registrations} />
+        <DugsiStats registrations={registrations} />
 
         {/* Main Content Tabs */}
         <Tabs
