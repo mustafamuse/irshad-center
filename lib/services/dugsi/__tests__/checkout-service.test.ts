@@ -89,7 +89,7 @@ describe('createDugsiCheckoutSession', () => {
           id: 'profile-1',
           person: {
             name: 'Child 1',
-            guardianRelationships: [
+            dependentRelationships: [
               { isPrimaryPayer: false, guardian: nonPrimaryGuardian },
               { isPrimaryPayer: true, guardian: primaryPayerGuardian },
             ],
@@ -126,7 +126,7 @@ describe('createDugsiCheckoutSession', () => {
           id: 'profile-1',
           person: {
             name: 'Child 1',
-            guardianRelationships: [
+            dependentRelationships: [
               { isPrimaryPayer: false, guardian: firstGuardian },
               { isPrimaryPayer: false, guardian: secondGuardian },
             ],
@@ -156,7 +156,7 @@ describe('createDugsiCheckoutSession', () => {
           id: 'profile-1',
           person: {
             name: 'Child 1',
-            guardianRelationships: [
+            dependentRelationships: [
               { isPrimaryPayer: true, guardian: primaryPayerGuardian },
             ],
           },
