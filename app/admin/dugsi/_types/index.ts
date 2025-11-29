@@ -41,6 +41,9 @@ export interface DugsiRegistration {
   parent2Email: string | null
   parent2Phone: string | null
 
+  // Primary payer designation (1 = parent1, 2 = parent2, null = not set)
+  primaryPayerParentNumber: 1 | 2 | null
+
   // Billing info (from BillingAccount + Subscription)
   paymentMethodCaptured: boolean
   paymentMethodCapturedAt: Date | null

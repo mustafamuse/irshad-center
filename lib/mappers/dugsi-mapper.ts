@@ -70,6 +70,13 @@ export function mapProfileToDugsiRegistration(
   const parent2FirstName = parent2NameParts[0] || null
   const parent2LastName = parent2NameParts.slice(1).join(' ') || null
 
+  // Determine which parent is the primary payer
+  const primaryPayerIndex = dependentRelationships.findIndex(
+    (rel) => rel.isPrimaryPayer
+  )
+  const primaryPayerParentNumber: 1 | 2 | null =
+    primaryPayerIndex === 0 ? 1 : primaryPayerIndex === 1 ? 2 : null
+
   // Extract billing information from active assignment
   const activeAssignment = profile.assignments?.[0]
   const subscription = activeAssignment?.subscription
@@ -96,6 +103,9 @@ export function mapProfileToDugsiRegistration(
     parent2LastName: parent2LastName ?? null,
     parent2Email: parent2Email ?? null,
     parent2Phone: parent2Phone ?? null,
+
+    // Primary payer designation
+    primaryPayerParentNumber,
 
     // Billing info
     paymentMethodCaptured: billingAccount?.paymentMethodCaptured ?? false,
@@ -176,6 +186,13 @@ export function mapProfileToSimpleDugsiRegistration(
   const parent2FirstName = parent2NameParts[0] || null
   const parent2LastName = parent2NameParts.slice(1).join(' ') || null
 
+  // Determine which parent is the primary payer
+  const primaryPayerIndex = dependentRelationships.findIndex(
+    (rel) => rel.isPrimaryPayer
+  )
+  const primaryPayerParentNumber: 1 | 2 | null =
+    primaryPayerIndex === 0 ? 1 : primaryPayerIndex === 1 ? 2 : null
+
   return {
     id: profile.id,
     name: person.name,
@@ -195,6 +212,8 @@ export function mapProfileToSimpleDugsiRegistration(
     parent2LastName: parent2LastName ?? null,
     parent2Email: parent2Email ?? null,
     parent2Phone: parent2Phone ?? null,
+
+    primaryPayerParentNumber,
 
     familyReferenceId: profile.familyReferenceId,
   }
