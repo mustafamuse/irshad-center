@@ -15,6 +15,7 @@ import { prisma } from '@/lib/db'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
+import { getAppUrl } from '@/lib/utils/env'
 import {
   calculateMahadRate,
   formatBillingType,
@@ -29,22 +30,6 @@ import {
 } from '@/lib/validations/checkout'
 
 const logger = createServiceLogger('mahad-checkout')
-
-/**
- * Get and validate app URL for redirect URLs
- */
-function getAppUrl(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL
-  if (!appUrl) {
-    throw new Error(
-      'NEXT_PUBLIC_APP_URL environment variable is not configured'
-    )
-  }
-  if (!appUrl.startsWith('http://') && !appUrl.startsWith('https://')) {
-    throw new Error('NEXT_PUBLIC_APP_URL must start with http:// or https://')
-  }
-  return appUrl
-}
 
 export async function POST(request: NextRequest) {
   let requestContext: Record<string, unknown> = {}

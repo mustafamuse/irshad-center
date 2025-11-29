@@ -65,8 +65,9 @@ describe('CheckoutForm', () => {
       expect(screen.getByText('Education Status')).toBeInTheDocument()
       // Text appears in both options and summary
       expect(screen.getAllByText('Still in School').length).toBeGreaterThan(0)
-      expect(screen.getByText('$120/month base')).toBeInTheDocument()
-      expect(screen.getByText('$95/month base')).toBeInTheDocument()
+      // Currency format includes cents: $120.00/month base
+      expect(screen.getByText('$120.00/month base')).toBeInTheDocument()
+      expect(screen.getByText('$95.00/month base')).toBeInTheDocument()
     })
 
     it('renders payment schedule options', () => {
@@ -77,7 +78,8 @@ describe('CheckoutForm', () => {
       expect(screen.getAllByText('Monthly').length).toBeGreaterThan(0)
       expect(screen.getAllByText('Bi-Monthly').length).toBeGreaterThan(0)
       expect(screen.getByText('Charged every month')).toBeInTheDocument()
-      expect(screen.getByText('Save $10-$20/month')).toBeInTheDocument()
+      // Savings text is dynamic based on graduation status (default NON_GRADUATE = $10.00)
+      expect(screen.getByText('Save $10.00/month')).toBeInTheDocument()
     })
 
     it('renders default price of $120/month', () => {
@@ -166,18 +168,18 @@ describe('CheckoutForm', () => {
       })
       await user.click(checkoutButton)
 
+      // Verify fetch was called with correct URL and body (ignoring signal property)
       expect(mockFetch).toHaveBeenCalledWith(
         '/api/mahad/create-checkout-session',
-        {
+        expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             profileId: 'test-profile-123',
             graduationStatus: 'NON_GRADUATE',
             paymentFrequency: 'MONTHLY',
-            // billingType is always FULL_TIME - admin adjusts afterward
           }),
-        }
+        })
       )
     })
 

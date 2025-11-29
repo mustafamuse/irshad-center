@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 
 import { GradeLevel } from '@prisma/client'
 
+import { ActionError } from '@/lib/errors/action-error'
+import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -22,7 +24,10 @@ import {
   verifyBankAccount,
   getPaymentStatus,
   generatePaymentLink as generatePaymentLinkService,
+  // Checkout service
+  createDugsiCheckoutSession,
 } from '@/lib/services/dugsi'
+import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
 
 import {
   ActionResult,
@@ -32,6 +37,8 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
 } from './_types'
+
+const logger = createServiceLogger('dugsi-admin-actions')
 
 /**
  * Get all Dugsi registrations.
@@ -53,7 +60,9 @@ export async function validateDugsiSubscription(
       data: result,
     }
   } catch (error) {
-    console.error('Error validating Dugsi subscription:', error)
+    await logError(logger, error, 'Failed to validate Dugsi subscription', {
+      subscriptionId,
+    })
     return {
       success: false,
       error:
@@ -89,7 +98,9 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<
       data: result,
     }
   } catch (error) {
-    console.error('Error getting delete preview:', error)
+    await logError(logger, error, 'Failed to get delete preview', {
+      studentId,
+    })
     return {
       success: false,
       error:
@@ -112,7 +123,7 @@ export async function deleteDugsiFamily(
       message: `Successfully deleted ${count} ${count === 1 ? 'student' : 'students'}`,
     }
   } catch (error) {
-    console.error('Error deleting family:', error)
+    await logError(logger, error, 'Failed to delete family', { studentId })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to delete family',
@@ -149,7 +160,10 @@ export async function linkDugsiSubscription(params: {
       message: `Successfully linked subscription to ${result.updated} students`,
     }
   } catch (error) {
-    console.error('Error linking Dugsi subscription:', error)
+    await logError(logger, error, 'Failed to link Dugsi subscription', {
+      parentEmail: params.parentEmail,
+      subscriptionId: params.subscriptionId,
+    })
     return {
       success: false,
       error:
@@ -171,7 +185,9 @@ export async function getDugsiPaymentStatus(
       data: result,
     }
   } catch (error) {
-    console.error('Error getting payment status:', error)
+    await logError(logger, error, 'Failed to get payment status', {
+      parentEmail,
+    })
     return {
       success: false,
       error:
@@ -214,7 +230,9 @@ export async function verifyDugsiBankAccount(
       data: result,
     }
   } catch (error: unknown) {
-    console.error('Error verifying bank account:', error)
+    await logError(logger, error, 'Failed to verify bank account', {
+      paymentIntentId,
+    })
 
     // Handle specific Stripe errors
     if (
@@ -275,7 +293,10 @@ export async function updateParentInfo(params: {
       message: `Successfully updated parent information for ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
     }
   } catch (error) {
-    console.error('Error updating parent information:', error)
+    await logError(logger, error, 'Failed to update parent information', {
+      studentId: params.studentId,
+      parentNumber: params.parentNumber,
+    })
     return {
       success: false,
       error:
@@ -306,7 +327,9 @@ export async function addSecondParent(params: {
       message: `Successfully added second parent to ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
     }
   } catch (error) {
-    console.error('Error adding second parent:', error)
+    await logError(logger, error, 'Failed to add second parent', {
+      studentId: params.studentId,
+    })
     return {
       success: false,
       error:
@@ -337,7 +360,9 @@ export async function updateChildInfo(params: {
       message: 'Successfully updated child information',
     }
   } catch (error) {
-    console.error('Error updating child information:', error)
+    await logError(logger, error, 'Failed to update child information', {
+      studentId: params.studentId,
+    })
     return {
       success: false,
       error:
@@ -371,7 +396,9 @@ export async function addChildToFamily(params: {
       message: 'Successfully added child to family',
     }
   } catch (error) {
-    console.error('Error adding child to family:', error)
+    await logError(logger, error, 'Failed to add child to family', {
+      existingStudentId: params.existingStudentId,
+    })
     return {
       success: false,
       error:
@@ -404,7 +431,113 @@ export async function generatePaymentLink(
       data: result,
     }
   } catch (error) {
-    console.error('Error generating payment link:', error)
+    await logError(logger, error, 'Failed to generate payment link', {
+      studentId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to generate payment link',
+    }
+  }
+}
+
+/**
+ * Input for generating family payment link with calculated/override rate
+ */
+export interface GenerateFamilyPaymentLinkInput {
+  familyId: string
+  childCount: number
+  overrideAmount?: number
+}
+
+/**
+ * Output from generating family payment link
+ */
+export interface FamilyPaymentLinkData {
+  paymentUrl: string
+  calculatedRate: number
+  finalRate: number
+  isOverride: boolean
+  rateDescription: string
+  tierDescription: string
+  familyName: string
+  childCount: number
+}
+
+/**
+ * Generate a payment link for a Dugsi family with dynamic pricing.
+ *
+ * This creates a Stripe Checkout Session with:
+ * - Calculated rate based on child count (tiered pricing)
+ * - Optional admin override amount
+ * - ACH-only payment method
+ *
+ * SECURITY: Uses createDugsiCheckoutSession service which always
+ * gets child count from database, preventing billing manipulation.
+ *
+ * @param input - Family ID, child count (for display only), and optional override amount (in cents)
+ * @returns Payment link data with rate information
+ */
+export async function generateFamilyPaymentLinkAction(
+  input: GenerateFamilyPaymentLinkInput
+): Promise<ActionResult<FamilyPaymentLinkData>> {
+  const { familyId, childCount, overrideAmount } = input
+
+  try {
+    // Validate override amount if provided (early validation before service call)
+    if (overrideAmount !== undefined) {
+      const validation = validateOverrideAmount(overrideAmount, childCount)
+      if (!validation.valid) {
+        return {
+          success: false,
+          error: validation.reason || 'Invalid override amount',
+        }
+      }
+      if (validation.reason) {
+        await logWarning(logger, validation.reason, {
+          familyId,
+          childCount,
+          overrideAmount,
+        })
+      }
+    }
+
+    // Call the checkout service (uses DB child count for security)
+    const result = await createDugsiCheckoutSession({
+      familyId,
+      overrideAmount,
+    })
+
+    return {
+      success: true,
+      data: {
+        paymentUrl: result.url,
+        calculatedRate: result.calculatedRate,
+        finalRate: result.finalRate,
+        isOverride: result.isOverride,
+        rateDescription: result.rateDescription,
+        tierDescription: result.tierDescription,
+        familyName: result.familyName,
+        childCount: result.childCount,
+      },
+    }
+  } catch (error) {
+    // Handle ActionError from service
+    if (error instanceof ActionError) {
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+
+    await logError(logger, error, 'Failed to generate family payment link', {
+      familyId,
+      childCount,
+      overrideAmount,
+    })
     return {
       success: false,
       error:

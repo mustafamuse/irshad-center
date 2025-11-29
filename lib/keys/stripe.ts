@@ -34,9 +34,10 @@ interface MahadConfig extends StripeProgramConfig {
   pricingTableId?: string
 }
 
-// Dugsi-specific config (includes payment link)
+// Dugsi-specific config (includes payment link and product ID)
 interface DugsiConfig extends StripeProgramConfig {
   paymentLink?: string
+  productId?: string
 }
 
 // Full Stripe keys configuration
@@ -91,6 +92,7 @@ export function keys(): StripeKeysConfig {
     webhookSecret: dugsiWebhookSecret,
     publishableKey: dugsiPublishableKey,
     paymentLink: process.env.NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK,
+    productId: process.env.STRIPE_DUGSI_PRODUCT_ID,
   }
 
   return {
@@ -166,6 +168,17 @@ export function getDugsiKeys(): DugsiConfig {
       'Dugsi Stripe webhook secret not configured or invalid format. ' +
         'Please set STRIPE_DUGSI_WEBHOOK_SECRET_TEST and STRIPE_DUGSI_WEBHOOK_SECRET_LIVE (must start with whsec_).'
     )
+  }
+
+  // Validate product ID if provided
+  if (config.productId) {
+    const productIdResult = stripeProductIdSchema.safeParse(config.productId)
+    if (!productIdResult.success) {
+      throw new Error(
+        'Dugsi Stripe product ID has invalid format. ' +
+          'Please set STRIPE_DUGSI_PRODUCT_ID (must start with prod_).'
+      )
+    }
   }
 
   return config

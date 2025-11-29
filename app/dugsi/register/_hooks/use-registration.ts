@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 
 import type { DugsiRegistrationValues } from '@/lib/registration/schemas/registration'
 
-import { registerDugsiChildren } from '../actions'
+import { registerDugsiChildren } from '../_actions'
 
 interface UseDugsiRegistrationProps {
   form: UseFormReturn<DugsiRegistrationValues>
