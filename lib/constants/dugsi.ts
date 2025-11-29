@@ -114,3 +114,18 @@ export const SUCCESS_MESSAGES = {
   PAYMENT_CAPTURED: 'Payment method captured successfully',
   STATUS_REFRESHED: 'Payment status refreshed',
 } as const
+
+// WhatsApp Payment Message Template (English + Somali)
+export function getWhatsAppPaymentMessage(paymentUrl: string): string {
+  return `As-salāmu ʿalaykum wa raḥmatullāh.
+
+From Irshad Dugsi — please complete your registration by setting up autopay. It's only a $1 setup charge to activate, no full payment will be taken now in shāʾ Allāh.
+
+---
+
+As-salāmu ʿalaykum wa raḥmatullāh.
+
+Ka socota Irshad Dugsi — fadlan dhammaystir diiwaangelinta adigoo dejinaya autopay-ga. Waxaa jiri doona $1 kaliya oo lagu dejinayo nidaamka, lacagta buuxdana laguma soo dallaci doono hadda in shāʾ Allāh.
+
+${paymentUrl}`
+}

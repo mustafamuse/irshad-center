@@ -170,6 +170,17 @@ export function getDugsiKeys(): DugsiConfig {
     )
   }
 
+  // Validate product ID if provided
+  if (config.productId) {
+    const productIdResult = stripeProductIdSchema.safeParse(config.productId)
+    if (!productIdResult.success) {
+      throw new Error(
+        'Dugsi Stripe product ID has invalid format. ' +
+          'Please set STRIPE_DUGSI_PRODUCT_ID (must start with prod_).'
+      )
+    }
+  }
+
   return config
 }
 

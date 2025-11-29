@@ -9,6 +9,7 @@
  * - Child: Student-specific operations
  * - Family: Parent/guardian and child updates
  * - Payment: Bank verification and payment links
+ * - Checkout: Stripe checkout session creation
  */
 
 export * from './registration-service'
@@ -16,3 +17,4 @@ export * from './subscription-service'
 export * from './child-service'
 export * from './family-service'
 export * from './payment-service'
+export * from './checkout-service'

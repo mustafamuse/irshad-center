@@ -25,6 +25,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { getWhatsAppPaymentMessage } from '@/lib/constants/dugsi'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 import {
   calculateDugsiRate,
@@ -140,7 +141,7 @@ export function PaymentLinkDialog({
     }
 
     const message = encodeURIComponent(
-      `As-salāmu ʿalaykum wa raḥmatullāh.\n\nFrom Irshad Dugsi — please complete your registration by setting up autopay. It's only a $1 setup charge to activate, no full payment will be taken now in shāʾ Allāh.\n\n---\n\nAs-salāmu ʿalaykum wa raḥmatullāh.\n\nKa socota Irshad Dugsi — fadlan dhammaystir diiwaangelinta adigoo dejinaya autopay-ga. Waxaa jiri doona $1 kaliya oo lagu dejinayo nidaamka, lacagta buuxdana laguma soo dallaci doono hadda in shāʾ Allāh.\n\n${result.paymentUrl}`
+      getWhatsAppPaymentMessage(result.paymentUrl)
     )
 
     window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
