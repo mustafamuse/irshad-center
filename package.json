@@ -27,8 +27,6 @@
     "webhook": "stripe listen --forward-to localhost:3000/api/webhook --events customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.payment_succeeded,invoice.payment_failed,payment_intent.payment_failed",
     "dev:webhook": "concurrently \"npm run dev\" \"npm run webhook\"",
     "seed": "tsx prisma/seed.ts",
-    "export-data": "curl -o seed-data.json http://localhost:3000/api/admin/export",
-    "seed-from-export": "tsx scripts/seed-from-export.ts",
     "pr-template": "node .github/scripts/suggest-pr-template.js",
     "setup-hooks": "bash .github/scripts/setup-hooks.sh",
     "db:safety-check": "tsx scripts/db-safety-check.ts",
