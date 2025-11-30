@@ -536,278 +536,320 @@ export async function createFamilyRegistration(data: unknown): Promise<{
   // Sequential batch operations - no interactive transaction needed
   // Each operation is idempotent using upsert/skipDuplicates patterns
   // This works with Supavisor connection pooling (transaction mode)
+  //
+  // IMPORTANT: Without interactive transactions, partial failures are possible.
+  // Each phase is idempotent, so re-running registration will complete missing steps.
+  // We log the familyReferenceId to enable manual recovery if needed.
+
+  logger.info({ familyReferenceId }, 'Starting family registration')
+
   const createdProfiles: Array<{
     id: string
     name: string
     personId: string
   }> = []
 
-  // Phase 1: Find or create parents (parallel, each idempotent)
-  const parent1FullName = `${parent1FirstName} ${parent1LastName}`
-  const hasParent2 =
-    parent2FirstName && parent2LastName && parent2Email && parent2Phone
+  let currentPhase = 'init'
+  try {
+    // Phase 1: Find or create parents (parallel, each idempotent)
+    currentPhase = 'parents'
+    const parent1FullName = `${parent1FirstName} ${parent1LastName}`
+    const hasParent2 =
+      parent2FirstName && parent2LastName && parent2Email && parent2Phone
 
-  const [parent1Person, parent2Person] = await Promise.all([
-    findOrCreatePersonWithContact({
-      name: parent1FullName,
-      email: parent1Email,
-      phone: parent1Phone,
-      isPrimaryEmail: true,
-      isPrimaryPhone: true,
-    }),
-    hasParent2
-      ? findOrCreatePersonWithContact({
-          name: `${parent2FirstName} ${parent2LastName}`,
-          email: parent2Email!,
-          phone: parent2Phone!,
-          isPrimaryEmail: true,
-          isPrimaryPhone: true,
-        })
-      : Promise.resolve(null),
-  ])
+    const [parent1Person, parent2Person] = await Promise.all([
+      findOrCreatePersonWithContact({
+        name: parent1FullName,
+        email: parent1Email,
+        phone: parent1Phone,
+        isPrimaryEmail: true,
+        isPrimaryPhone: true,
+      }),
+      hasParent2
+        ? findOrCreatePersonWithContact({
+            name: `${parent2FirstName} ${parent2LastName}`,
+            email: parent2Email!,
+            phone: parent2Phone!,
+            isPrimaryEmail: true,
+            isPrimaryPhone: true,
+          })
+        : Promise.resolve(null),
+    ])
 
-  // Phase 2: Create or get billing account (idempotent find-or-create)
-  const primaryEmailContact = parent1Person.contactPoints.find(
-    (cp) => cp.type === 'EMAIL' && cp.isPrimary
-  )
-
-  const existingBillingAccount = await prisma.billingAccount.findFirst({
-    where: {
-      personId: parent1Person.id,
-      accountType: 'DUGSI',
-    },
-  })
-
-  let billingAccount
-  if (existingBillingAccount) {
-    // Update primary contact if changed
-    if (
-      primaryEmailContact &&
-      existingBillingAccount.primaryContactPointId !== primaryEmailContact.id
-    ) {
-      billingAccount = await prisma.billingAccount.update({
-        where: { id: existingBillingAccount.id },
-        data: { primaryContactPointId: primaryEmailContact.id },
-      })
-    } else {
-      billingAccount = existingBillingAccount
-    }
-  } else {
-    // Create new billing account
-    billingAccount = await prisma.billingAccount.create({
-      data: {
-        personId: parent1Person.id,
-        accountType: 'DUGSI',
-        primaryContactPointId: primaryEmailContact?.id || null,
-      },
-    })
-  }
-
-  // Phase 3: Create children (sequential - each has idempotent findOrCreate)
-  for (const child of children) {
-    const childFullName = `${child.firstName} ${child.lastName}`
-
-    // Check if child already exists
-    const existingChild = await findExistingChild(
-      child.firstName,
-      child.lastName,
-      child.dateOfBirth
+    // Phase 2: Create or get billing account (idempotent find-or-create)
+    currentPhase = 'billing'
+    const primaryEmailContact = parent1Person.contactPoints.find(
+      (cp) => cp.type === 'EMAIL' && cp.isPrimary
     )
 
-    let childPerson: { id: string; name: string }
-    if (existingChild) {
-      childPerson = existingChild
-    } else {
-      // Create new Person with P2002 race condition handling
-      try {
-        const newChildPerson = await prisma.person.create({
-          data: {
-            name: childFullName,
-            dateOfBirth: child.dateOfBirth,
-          },
+    const existingBillingAccount = await prisma.billingAccount.findFirst({
+      where: {
+        personId: parent1Person.id,
+        accountType: 'DUGSI',
+      },
+    })
+
+    let billingAccount
+    if (existingBillingAccount) {
+      // Update primary contact if changed
+      if (
+        primaryEmailContact &&
+        existingBillingAccount.primaryContactPointId !== primaryEmailContact.id
+      ) {
+        billingAccount = await prisma.billingAccount.update({
+          where: { id: existingBillingAccount.id },
+          data: { primaryContactPointId: primaryEmailContact.id },
         })
-        childPerson = { id: newChildPerson.id, name: newChildPerson.name }
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          logger.info(
-            { name: childFullName, dateOfBirth: child.dateOfBirth },
-            'Child person already exists (race condition), fetching existing'
-          )
-          const raceConditionChild = await findExistingChild(
-            child.firstName,
-            child.lastName,
-            child.dateOfBirth
-          )
-          if (raceConditionChild) {
-            childPerson = raceConditionChild
+      } else {
+        billingAccount = existingBillingAccount
+      }
+    } else {
+      // Create new billing account
+      billingAccount = await prisma.billingAccount.create({
+        data: {
+          personId: parent1Person.id,
+          accountType: 'DUGSI',
+          primaryContactPointId: primaryEmailContact?.id || null,
+        },
+      })
+    }
+
+    // Phase 3: Create children (sequential - each has idempotent findOrCreate)
+    currentPhase = 'children'
+    for (const child of children) {
+      const childFullName = `${child.firstName} ${child.lastName}`
+
+      // Check if child already exists
+      const existingChild = await findExistingChild(
+        child.firstName,
+        child.lastName,
+        child.dateOfBirth
+      )
+
+      let childPerson: { id: string; name: string }
+      if (existingChild) {
+        childPerson = existingChild
+      } else {
+        // Create new Person with P2002 race condition handling
+        try {
+          const newChildPerson = await prisma.person.create({
+            data: {
+              name: childFullName,
+              dateOfBirth: child.dateOfBirth,
+            },
+          })
+          childPerson = { id: newChildPerson.id, name: newChildPerson.name }
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            logger.info(
+              { name: childFullName, dateOfBirth: child.dateOfBirth },
+              'Child person already exists (race condition), fetching existing'
+            )
+            const raceConditionChild = await findExistingChild(
+              child.firstName,
+              child.lastName,
+              child.dateOfBirth
+            )
+            if (raceConditionChild) {
+              childPerson = raceConditionChild
+            } else {
+              throw error
+            }
           } else {
             throw error
           }
-        } else {
-          throw error
         }
       }
-    }
 
-    // Check if child already has a Dugsi ProgramProfile
-    const existingProfile = await prisma.programProfile.findFirst({
-      where: {
-        personId: childPerson.id,
-        program: 'DUGSI_PROGRAM',
-      },
-    })
-
-    let profile
-    if (existingProfile) {
-      // Update existing profile with new family reference if needed
-      profile = await prisma.programProfile.update({
-        where: { id: existingProfile.id },
-        data: {
-          gender: child.gender ?? existingProfile.gender,
-          gradeLevel: child.gradeLevel ?? existingProfile.gradeLevel,
-          schoolName: child.schoolName ?? existingProfile.schoolName,
-          healthInfo: child.healthInfo ?? existingProfile.healthInfo,
-          familyReferenceId,
-        },
-      })
-    } else {
-      // Create ProgramProfile for child
-      profile = await prisma.programProfile.create({
-        data: {
+      // Check if child already has a Dugsi ProgramProfile
+      const existingProfile = await prisma.programProfile.findFirst({
+        where: {
           personId: childPerson.id,
           program: 'DUGSI_PROGRAM',
-          status: 'REGISTERED',
-          gender: child.gender,
-          gradeLevel: child.gradeLevel,
-          schoolName: child.schoolName,
-          healthInfo: child.healthInfo,
-          familyReferenceId,
         },
       })
 
-      // Create Enrollment (no batchId for Dugsi)
-      await prisma.enrollment.create({
-        data: {
-          programProfileId: profile.id,
-          batchId: null,
-          status: 'REGISTERED',
-        },
+      let profile
+      if (existingProfile) {
+        // Update existing profile - only update fields that are explicitly provided
+        // Using undefined check to avoid overwriting existing data with null
+        profile = await prisma.programProfile.update({
+          where: { id: existingProfile.id },
+          data: {
+            ...(child.gender !== undefined &&
+              child.gender !== null && { gender: child.gender }),
+            ...(child.gradeLevel !== undefined &&
+              child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
+            ...(child.schoolName !== undefined &&
+              child.schoolName !== null && { schoolName: child.schoolName }),
+            ...(child.healthInfo !== undefined &&
+              child.healthInfo !== null && { healthInfo: child.healthInfo }),
+            familyReferenceId,
+          },
+        })
+      } else {
+        // Create ProgramProfile for child
+        profile = await prisma.programProfile.create({
+          data: {
+            personId: childPerson.id,
+            program: 'DUGSI_PROGRAM',
+            status: 'REGISTERED',
+            gender: child.gender,
+            gradeLevel: child.gradeLevel,
+            schoolName: child.schoolName,
+            healthInfo: child.healthInfo,
+            familyReferenceId,
+          },
+        })
+
+        // Create Enrollment (no batchId for Dugsi)
+        await prisma.enrollment.create({
+          data: {
+            programProfileId: profile.id,
+            batchId: null,
+            status: 'REGISTERED',
+          },
+        })
+      }
+
+      createdProfiles.push({
+        id: profile.id,
+        name: childFullName,
+        personId: childPerson.id,
       })
     }
 
-    createdProfiles.push({
-      id: profile.id,
-      name: childFullName,
-      personId: childPerson.id,
-    })
-  }
+    // Phase 4: Batch create guardian relationships (idempotent with skipDuplicates)
+    currentPhase = 'guardians'
+    const guardianRelationships: Array<{
+      guardianPersonId: string
+      dependentPersonId: string
+      role: GuardianRole
+      isPrimaryPayer: boolean
+    }> = []
 
-  // Phase 4: Batch create guardian relationships (idempotent with skipDuplicates)
-  const guardianRelationships: Array<{
-    guardianPersonId: string
-    dependentPersonId: string
-    role: GuardianRole
-    isPrimaryPayer: boolean
-  }> = []
-
-  for (const profile of createdProfiles) {
-    guardianRelationships.push({
-      guardianPersonId: parent1Person.id,
-      dependentPersonId: profile.personId,
-      role: 'PARENT',
-      isPrimaryPayer: primaryPayer === 'parent1',
-    })
-
-    if (parent2Person) {
+    for (const profile of createdProfiles) {
       guardianRelationships.push({
-        guardianPersonId: parent2Person.id,
+        guardianPersonId: parent1Person.id,
         dependentPersonId: profile.personId,
         role: 'PARENT',
-        isPrimaryPayer: primaryPayer === 'parent2',
+        isPrimaryPayer: primaryPayer === 'parent1',
       })
-    }
-  }
 
-  await createGuardianRelationshipsBatch(guardianRelationships)
-
-  // Phase 5: Create sibling relationships (batch with skipDuplicates)
-  if (createdProfiles.length > 1) {
-    const siblingPairs: Array<{ p1: string; p2: string }> = []
-    for (let i = 0; i < createdProfiles.length; i++) {
-      for (let j = i + 1; j < createdProfiles.length; j++) {
-        const [p1, p2] = [
-          createdProfiles[i].personId,
-          createdProfiles[j].personId,
-        ].sort()
-        siblingPairs.push({ p1, p2 })
-      }
-    }
-
-    // Batch fetch existing sibling relationships
-    const existingRelationships = await prisma.siblingRelationship.findMany({
-      where: {
-        OR: siblingPairs.map(({ p1, p2 }) => ({
-          person1Id: p1,
-          person2Id: p2,
-        })),
-      },
-    })
-
-    const existingMap = new Map(
-      existingRelationships.map((r) => [`${r.person1Id}-${r.person2Id}`, r])
-    )
-
-    const toCreate: Array<{
-      person1Id: string
-      person2Id: string
-      detectionMethod: string
-      confidence: null
-      isActive: boolean
-    }> = []
-    const toReactivate: string[] = []
-
-    for (const { p1, p2 } of siblingPairs) {
-      const existing = existingMap.get(`${p1}-${p2}`)
-      if (!existing) {
-        toCreate.push({
-          person1Id: p1,
-          person2Id: p2,
-          detectionMethod: 'manual',
-          confidence: null,
-          isActive: true,
+      if (parent2Person) {
+        guardianRelationships.push({
+          guardianPersonId: parent2Person.id,
+          dependentPersonId: profile.personId,
+          role: 'PARENT',
+          isPrimaryPayer: primaryPayer === 'parent2',
         })
-      } else if (!existing.isActive) {
-        toReactivate.push(existing.id)
       }
     }
 
-    if (toCreate.length > 0) {
-      await prisma.siblingRelationship.createMany({
-        data: toCreate,
-        skipDuplicates: true,
-      })
-    }
+    await createGuardianRelationshipsBatch(guardianRelationships)
 
-    if (toReactivate.length > 0) {
-      await prisma.siblingRelationship.updateMany({
-        where: { id: { in: toReactivate } },
-        data: {
-          isActive: true,
-          detectionMethod: 'manual',
+    // Phase 5: Create sibling relationships (batch with skipDuplicates)
+    currentPhase = 'siblings'
+    if (createdProfiles.length > 1) {
+      const siblingPairs: Array<{ p1: string; p2: string }> = []
+      for (let i = 0; i < createdProfiles.length; i++) {
+        for (let j = i + 1; j < createdProfiles.length; j++) {
+          const [p1, p2] = [
+            createdProfiles[i].personId,
+            createdProfiles[j].personId,
+          ].sort()
+          siblingPairs.push({ p1, p2 })
+        }
+      }
+
+      // Batch fetch existing sibling relationships
+      const existingRelationships = await prisma.siblingRelationship.findMany({
+        where: {
+          OR: siblingPairs.map(({ p1, p2 }) => ({
+            person1Id: p1,
+            person2Id: p2,
+          })),
         },
       })
-    }
-  }
 
-  return {
-    profiles: createdProfiles,
-    billingAccount: {
-      id: billingAccount.id,
-      primaryContactPointId: billingAccount.primaryContactPointId,
-    },
+      const existingMap = new Map(
+        existingRelationships.map((r) => [`${r.person1Id}-${r.person2Id}`, r])
+      )
+
+      const toCreate: Array<{
+        person1Id: string
+        person2Id: string
+        detectionMethod: string
+        confidence: null
+        isActive: boolean
+      }> = []
+      const toReactivate: string[] = []
+
+      for (const { p1, p2 } of siblingPairs) {
+        const existing = existingMap.get(`${p1}-${p2}`)
+        if (!existing) {
+          toCreate.push({
+            person1Id: p1,
+            person2Id: p2,
+            detectionMethod: 'manual',
+            confidence: null,
+            isActive: true,
+          })
+        } else if (!existing.isActive) {
+          toReactivate.push(existing.id)
+        }
+      }
+
+      if (toCreate.length > 0) {
+        await prisma.siblingRelationship.createMany({
+          data: toCreate,
+          skipDuplicates: true,
+        })
+      }
+
+      if (toReactivate.length > 0) {
+        await prisma.siblingRelationship.updateMany({
+          where: { id: { in: toReactivate } },
+          data: {
+            isActive: true,
+            detectionMethod: 'manual',
+          },
+        })
+      }
+    }
+
+    logger.info(
+      {
+        familyReferenceId,
+        profileCount: createdProfiles.length,
+        billingAccountId: billingAccount.id,
+      },
+      'Family registration completed successfully'
+    )
+
+    return {
+      profiles: createdProfiles,
+      billingAccount: {
+        id: billingAccount.id,
+        primaryContactPointId: billingAccount.primaryContactPointId,
+      },
+    }
+  } catch (error) {
+    // Log partial failure state for manual recovery
+    logger.error(
+      {
+        familyReferenceId,
+        phase: currentPhase,
+        createdProfileCount: createdProfiles.length,
+        createdProfileIds: createdProfiles.map((p) => p.id),
+        error,
+      },
+      'Family registration failed - partial state may exist. Re-run registration to complete.'
+    )
+    throw error
   }
 }
 
@@ -1001,10 +1043,8 @@ async function findOrCreatePersonWithContact(
 async function findExistingChild(
   firstName: string,
   lastName: string,
-  dateOfBirth: Date | null | undefined,
-  tx?: Prisma.TransactionClient
+  dateOfBirth: Date | null | undefined
 ): Promise<{ id: string; name: string } | null> {
-  const client = tx || prisma
   const fullName = `${firstName} ${lastName}`.trim()
 
   if (!dateOfBirth) {
@@ -1012,7 +1052,7 @@ async function findExistingChild(
   }
 
   // Find person by name and DOB
-  const existing = await client.person.findFirst({
+  const existing = await prisma.person.findFirst({
     where: {
       name: {
         equals: fullName,
