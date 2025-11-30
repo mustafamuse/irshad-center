@@ -7,12 +7,16 @@ import type { Metadata } from 'next'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { createServiceLogger } from '@/lib/logger'
 import { getAllDugsiRegistrations } from '@/lib/services/dugsi'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 import messages from '@/messages/en.json'
 
 import { SearchableRegistrationsList } from './_components/searchable-registrations-list'
 import type { Family } from './_types'
+
+const logger = createServiceLogger('dugsi-success')
+const MAX_RECENT_REGISTRATIONS = 50
 
 export const dynamic = 'force-dynamic'
 
@@ -54,7 +58,10 @@ function groupByFamily(
       // Update parent 2 info if it exists and wasn't set before
       const family = familyMap.get(familyKey)
       if (!family) {
-        console.error('Family not found in map', { familyKey })
+        logger.error(
+          { familyKey },
+          'Family not found in map during parent2 update'
+        )
         continue
       }
       if (!family.parent2Name && reg.parent2FirstName && reg.parent2LastName) {
@@ -66,7 +73,7 @@ function groupByFamily(
 
     const family = familyMap.get(familyKey)
     if (!family) {
-      console.error('Family not found in map', { familyKey })
+      logger.error({ familyKey }, 'Family not found in map during child push')
       continue
     }
     family.children.push({
@@ -96,10 +103,9 @@ async function RegistrationsList({
 }) {
   let registrations
   try {
-    // Limit to last 50 registrations for performance
-    registrations = await getAllDugsiRegistrations(50)
+    registrations = await getAllDugsiRegistrations(MAX_RECENT_REGISTRATIONS)
   } catch (error) {
-    console.error('Failed to load registrations:', error)
+    logger.error({ error }, 'Failed to load registrations')
     return (
       <Card className="border-red-200 bg-red-50">
         <CardContent className="py-12 text-center">
