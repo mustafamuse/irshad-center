@@ -52,7 +52,9 @@
     },
     "gender": {
       "boy": "Boy",
-      "girl": "Girl"
+      "girl": "Girl",
+      "male": "Male",
+      "female": "Female"
     },
     "education": {
       "elementary": "Elementary School",
@@ -75,7 +77,8 @@
       "grade12": "12th Grade"
     },
     "helpText": {
-      "healthInfo": "Share any allergies, medical conditions, ADHD/Autism, medications, dietary needs, or support strategies. Type \"None\" if not applicable."
+      "healthInfo": "Share any allergies, medical conditions, ADHD/Autism, medications, dietary needs, or support strategies. Type \"None\" if not applicable.",
+      "genderSelect": "Please select one option"
     },
     "buttons": {
       "addChild": "Add Another Child",

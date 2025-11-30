@@ -15,7 +15,12 @@ export interface GenderRadioGroupProps {
   name: string
   className?: string
   disabled?: boolean
-  options?: readonly { readonly value: string; readonly label: string }[]
+  helperText?: string
+  options?: readonly {
+    readonly value: string
+    readonly label: string
+    readonly subLabel?: string
+  }[]
 }
 
 const GENDER_STYLES = {
@@ -24,14 +29,18 @@ const GENDER_STYLES = {
     bgColor: 'bg-blue-50',
     borderColor: 'border-blue-200',
     hoverColor: 'hover:bg-blue-100',
-    selectedColor: 'bg-blue-100 border-blue-300',
+    selectedColor: 'bg-blue-100 border-blue-400',
+    focusRing: 'focus-visible:ring-blue-500',
+    shadow: 'shadow-md shadow-blue-200/50',
   },
   FEMALE: {
     color: 'text-pink-600',
     bgColor: 'bg-pink-50',
     borderColor: 'border-pink-200',
     hoverColor: 'hover:bg-pink-100',
-    selectedColor: 'bg-pink-100 border-pink-300',
+    selectedColor: 'bg-pink-100 border-pink-400',
+    focusRing: 'focus-visible:ring-pink-500',
+    shadow: 'shadow-md shadow-pink-200/50',
   },
 } as const
 
@@ -41,77 +50,101 @@ export function GenderRadioGroup({
   name,
   className,
   disabled = false,
+  helperText,
   options = GENDER_OPTIONS,
 }: GenderRadioGroupProps) {
-  return (
-    <RadioGroup
-      value={value || ''}
-      onValueChange={onValueChange}
-      className={cn('grid w-full grid-cols-2 gap-4', className)}
-      disabled={disabled}
-    >
-      {options.map((option) => {
-        const isSelected = value === option.value
-        const styles = GENDER_STYLES[option.value as keyof typeof GENDER_STYLES]
+  const hasSelection = !!value
 
-        return (
-          <div key={option.value} className="relative w-full">
-            <RadioGroupItem
-              value={option.value}
-              id={`${name}-${option.value}`}
-              className="peer sr-only"
-            />
-            <Label
-              htmlFor={`${name}-${option.value}`}
-              className={cn(
-                'flex min-h-[60px] w-full cursor-pointer items-center gap-2 rounded-lg border-2 p-3 transition-all duration-200',
-                'peer-focus:ring-2 peer-focus:ring-offset-2',
-                styles.bgColor,
-                styles.borderColor,
-                styles.hoverColor,
-                isSelected && styles.selectedColor,
-                isSelected && 'ring-2 ring-offset-2',
-                disabled && 'cursor-not-allowed opacity-50',
-                className
-              )}
-            >
-              <div
+  return (
+    <div className="space-y-2">
+      <RadioGroup
+        value={value || ''}
+        onValueChange={onValueChange}
+        className={cn('grid w-full grid-cols-2 gap-4', className)}
+        disabled={disabled}
+        aria-label="Select gender"
+      >
+        {options.map((option) => {
+          const isSelected = value === option.value
+          const styles =
+            GENDER_STYLES[option.value as keyof typeof GENDER_STYLES]
+          const subLabelId = `${name}-${option.value}-sublabel`
+
+          return (
+            <div key={option.value} className="relative w-full">
+              <RadioGroupItem
+                value={option.value}
+                id={`${name}-${option.value}`}
+                className="peer sr-only"
+                aria-describedby={option.subLabel ? subLabelId : undefined}
+                aria-checked={isSelected}
+              />
+              <Label
+                htmlFor={`${name}-${option.value}`}
                 className={cn(
-                  'flex h-6 w-6 items-center justify-center rounded-full',
-                  isSelected ? styles.color : 'text-muted-foreground'
+                  'flex min-h-[60px] w-full cursor-pointer items-center gap-3 rounded-lg border-2 p-3 transition-all duration-200',
+                  'peer-focus-visible:ring-2 peer-focus-visible:ring-offset-2',
+                  'hover:scale-[1.02] active:scale-[0.98]',
+                  // Unselected state: neutral appearance
+                  !isSelected && 'border-dashed border-gray-300 bg-white',
+                  !isSelected && 'hover:border-solid hover:bg-gray-50',
+                  // Selected state: strong colors
+                  isSelected && styles.selectedColor,
+                  isSelected && styles.shadow,
+                  isSelected && 'ring-2 ring-offset-2',
+                  styles.focusRing,
+                  disabled &&
+                    'cursor-not-allowed opacity-50 hover:scale-100 active:scale-100',
+                  className
                 )}
               >
-                <User className="h-4 w-4" />
-              </div>
-              <div className="flex-1">
                 <div
                   className={cn(
-                    'text-sm font-medium',
-                    isSelected ? styles.color : 'text-foreground'
+                    'flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-colors',
+                    isSelected ? styles.color : 'text-muted-foreground'
                   )}
                 >
-                  {option.label}
+                  <User className="h-5 w-5" />
                 </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {option.value === 'MALE' ? 'Male' : 'Female'}
-                </div>
-              </div>
-              {isSelected && (
-                <div
-                  className={cn(
-                    'flex h-4 w-4 items-center justify-center rounded-full',
-                    styles.color,
-                    styles.bgColor
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={cn(
+                      'text-sm font-semibold leading-tight',
+                      isSelected ? styles.color : 'text-foreground'
+                    )}
+                  >
+                    {option.label}
+                  </div>
+                  {option.subLabel && (
+                    <div
+                      id={subLabelId}
+                      className="mt-0.5 text-[10px] leading-tight text-muted-foreground"
+                    >
+                      {option.subLabel}
+                    </div>
                   )}
-                >
-                  <div className="h-1.5 w-1.5 rounded-full bg-current" />
                 </div>
-              )}
-            </Label>
-          </div>
-        )
-      })}
-    </RadioGroup>
+                {isSelected && (
+                  <div
+                    className={cn(
+                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-full',
+                      styles.color,
+                      styles.bgColor
+                    )}
+                    aria-hidden="true"
+                  >
+                    <div className="h-2 w-2 rounded-full bg-current" />
+                  </div>
+                )}
+              </Label>
+            </div>
+          )
+        })}
+      </RadioGroup>
+      {helperText && (
+        <p className="text-xs text-muted-foreground">{helperText}</p>
+      )}
+    </div>
   )
 }
 

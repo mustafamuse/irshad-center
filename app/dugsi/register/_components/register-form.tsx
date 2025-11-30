@@ -268,6 +268,11 @@ export function DugsiRegisterForm() {
                           onValueChange={field.onChange}
                           name={`children.${index}.gender`}
                           options={genderOptions}
+                          helperText={
+                            !field.value
+                              ? t('helpText.genderSelect')
+                              : undefined
+                          }
                         />
                       )}
                     </FormFieldWrapper>

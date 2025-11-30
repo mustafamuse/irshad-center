@@ -11,6 +11,7 @@ export function useTranslatedGenderOptions() {
   return GENDER_OPTIONS.map((option) => ({
     value: option.value,
     label: option.value === 'MALE' ? t('boy') : t('girl'),
+    subLabel: option.value === 'MALE' ? t('male') : t('female'),
   }))
 }
 
