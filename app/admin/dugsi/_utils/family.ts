@@ -12,7 +12,6 @@ import { DugsiRegistration, Family, FamilyStatus } from '../_types'
  * Priority: familyReferenceId > parentEmail > id
  *
  * This function defines how families are grouped throughout the application:
- * - **UI grouping**: Groups students into families for display
  *
  * **How it works:**
  * 1. If `familyReferenceId` exists, all students with the same ID are one family
@@ -153,43 +152,4 @@ export function getFamilyStatus(family: Family): FamilyStatus {
   if (family.hasSubscription) return 'active'
   if (family.hasPayment) return 'pending'
   return 'no-payment'
-}
-
-/**
- * @deprecated Phone-based family matching is deprecated in favor of familyReferenceId-based matching.
- *
- *
- * Previous versions used phone number matching for database queries to find family members.
- * This approach had a critical flaw: if a parent registered different children with the same
- * phone number but different emails, the UI would show them as separate families, but
- * deletion/updates would affect all students with matching phone numbers.
- *
- * **Migration:**
- * All family identification now uses the same logic as getFamilyKey():
- * - Priority: familyReferenceId > parentEmail > id
- * - See: getFamilyMembers(), deleteDugsiFamily(), getDeleteFamilyPreview()
- *
- * **Why this was changed:**
- * - UI-database consistency: What you see in the UI is what gets deleted/updated
- * - Predictable behavior: Family grouping is transparent and consistent
- * - Safer deletions: No risk of accidentally deleting unrelated students
- *
- * **Risk of phone-based matching:**
- * Example scenario that caused issues:
- * - Day 1: Parent registers 2 kids with email parent1@gmail.com, phone 555-1234
- * - Day 30: Same parent registers 1 kid with email parent2@gmail.com, same phone
- * - UI shows: 2 separate families (grouped by email)
- * - Old deletion logic: Would delete all 3 kids (matched by phone)
- * - Result: Unexpected data loss
- *
- * @see getFamilyKey - Current source of truth for family identification
- */
-export function getFamilyPhoneNumbers(
-  registration:
-    | DugsiRegistration
-    | { parentPhone: string | null; parent2Phone: string | null }
-): string[] {
-  return [registration.parentPhone, registration.parent2Phone].filter(
-    (phone): phone is string => Boolean(phone)
-  )
 }

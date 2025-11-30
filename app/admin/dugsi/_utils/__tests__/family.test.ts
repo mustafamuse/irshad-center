@@ -11,7 +11,6 @@ import {
   getFamilyKey,
   groupRegistrationsByFamily,
   getFamilyStatus,
-  getFamilyPhoneNumbers,
 } from '../family'
 
 describe('getFamilyKey', () => {
@@ -52,53 +51,6 @@ describe('getFamilyKey', () => {
     const key = getFamilyKey(registration as DugsiRegistration)
     expect(key).toBe('family-ref-123')
     expect(key).not.toBe('parent@example.com')
-  })
-})
-
-describe('getFamilyPhoneNumbers', () => {
-  it('should return both phone numbers when present', () => {
-    const registration: Partial<DugsiRegistration> = {
-      parentPhone: '123-456-7890',
-      parent2Phone: '987-654-3210',
-    }
-    const phones = getFamilyPhoneNumbers(registration as DugsiRegistration)
-    expect(phones).toEqual(['123-456-7890', '987-654-3210'])
-  })
-
-  it('should return only parentPhone when parent2Phone is missing', () => {
-    const registration: Partial<DugsiRegistration> = {
-      parentPhone: '123-456-7890',
-      parent2Phone: null,
-    }
-    const phones = getFamilyPhoneNumbers(registration as DugsiRegistration)
-    expect(phones).toEqual(['123-456-7890'])
-  })
-
-  it('should return only parent2Phone when parentPhone is missing', () => {
-    const registration: Partial<DugsiRegistration> = {
-      parentPhone: null,
-      parent2Phone: '987-654-3210',
-    }
-    const phones = getFamilyPhoneNumbers(registration as DugsiRegistration)
-    expect(phones).toEqual(['987-654-3210'])
-  })
-
-  it('should return empty array when both phones are missing', () => {
-    const registration: Partial<DugsiRegistration> = {
-      parentPhone: null,
-      parent2Phone: null,
-    }
-    const phones = getFamilyPhoneNumbers(registration as DugsiRegistration)
-    expect(phones).toEqual([])
-  })
-
-  it('should work with minimal object shape', () => {
-    const registration = {
-      parentPhone: '123-456-7890',
-      parent2Phone: '987-654-3210',
-    }
-    const phones = getFamilyPhoneNumbers(registration)
-    expect(phones).toEqual(['123-456-7890', '987-654-3210'])
   })
 })
 
