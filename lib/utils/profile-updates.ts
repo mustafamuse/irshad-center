@@ -242,15 +242,3 @@ export async function syncProfileSubscriptionState(
     amount: subscription.amount,
   })
 }
-
-/**
- * @deprecated Use `updateProfilesInTransaction` instead.
- * This alias exists for backward compatibility and will be removed in a future release.
- */
-export const updateStudentsInTransaction = updateProfilesInTransaction
-
-/**
- * @deprecated Use `buildCancellationUpdateData` instead.
- * This alias exists for backward compatibility and will be removed in a future release.
- */
-export const buildStudentUpdateData = buildCancellationUpdateData

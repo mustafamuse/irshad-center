@@ -339,18 +339,6 @@ export type EnrollmentSummary = {
 }
 
 // ============================================================================
-// DEPRECATED TYPES (for migration)
-// ============================================================================
-
-/**
- * @deprecated Use StudentProfile instead
- *
- * Legacy type for backward compatibility during migration.
- * Will be removed in Phase 3.
- */
-export type StudentWithDetails = StudentProfile
-
-// ============================================================================
 // TYPE GUARDS
 // ============================================================================
 
