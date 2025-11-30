@@ -1,5 +1,7 @@
 import { useTransition, useCallback } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import { useTranslations } from 'next-intl'
 import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -23,6 +25,7 @@ export function useDugsiRegistration({
   onSuccess,
 }: UseDugsiRegistrationProps) {
   const t = useTranslations('dugsi')
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   const registerChildren = useCallback(
@@ -84,23 +87,18 @@ export function useDugsiRegistration({
               window.location.href = result.data!.paymentUrl!
             }, 1500) // Brief delay to show message
           } else {
-            // Success without payment URL
-            const childText =
-              formData.children.length === 1
-                ? t('childrenSection.child')
-                : t('childrenSection.children')
-
-            toast.success(
-              `Registration complete! Successfully enrolled ${formData.children.length} ${childText}.`
-            )
+            // Success without payment URL - redirect to success page
+            const familyId = result.data?.familyId
 
             // Call onSuccess callback if provided
             if (onSuccess && result.data) {
               onSuccess(result.data)
             }
 
-            // Optionally reset form
-            form.reset()
+            // Redirect to success page
+            router.push(
+              `/dugsi/register/success${familyId ? `?familyId=${familyId}` : ''}`
+            )
           }
         } catch (error) {
           console.error('💥 Unexpected error during registration:', error)
@@ -112,7 +110,7 @@ export function useDugsiRegistration({
         }
       })
     },
-    [isPending, form, onSuccess, t]
+    [isPending, form, onSuccess, router, t]
   )
 
   return {
