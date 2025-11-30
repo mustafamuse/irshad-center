@@ -104,7 +104,8 @@ export async function createDugsiCheckoutSession(
     include: {
       person: {
         include: {
-          guardianRelationships: {
+          dependentRelationships: {
+            where: { isActive: true },
             include: {
               guardian: {
                 include: {
@@ -138,14 +139,25 @@ export async function createDugsiCheckoutSession(
   // SECURITY: Use DB count as authoritative source
   const actualChildCount = familyProfiles.length
 
-  // Get primary guardian
+  // Get primary guardian (must have isPrimaryPayer set)
   const firstChild = familyProfiles[0]
-  const guardianRelationships = firstChild.person.guardianRelationships || []
-  const primaryGuardian = guardianRelationships[0]?.guardian
+  const dependentRelationships = firstChild.person.dependentRelationships || []
+  const primaryPayerRelation = dependentRelationships.find(
+    (r) => r.isPrimaryPayer
+  )
+  if (!primaryPayerRelation) {
+    throw new ActionError(
+      'No primary payer designated for this family. Please set a primary payer before checkout.',
+      ERROR_CODES.VALIDATION_ERROR,
+      'primaryPayer',
+      400
+    )
+  }
+  const primaryGuardian = primaryPayerRelation.guardian
 
   if (!primaryGuardian) {
     const errorMessage =
-      guardianRelationships.length === 0
+      dependentRelationships.length === 0
         ? 'No guardian relationships found for this family'
         : 'Guardian record is missing contact information'
     throw new ActionError(

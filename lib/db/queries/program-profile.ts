@@ -170,7 +170,7 @@ export async function getProgramProfileById(
       person: {
         include: {
           contactPoints: true,
-          guardianRelationships: {
+          dependentRelationships: {
             where: { isActive: true },
             include: {
               guardian: {
@@ -453,7 +453,7 @@ export async function getProgramProfilesByFamilyId(
       person: {
         include: {
           contactPoints: true,
-          guardianRelationships: {
+          dependentRelationships: {
             include: {
               guardian: {
                 include: {

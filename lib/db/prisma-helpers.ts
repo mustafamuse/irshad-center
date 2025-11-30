@@ -44,7 +44,7 @@ export const programProfileFullInclude =
     person: {
       include: {
         contactPoints: true,
-        guardianRelationships: {
+        dependentRelationships: {
           include: {
             guardian: {
               include: {
@@ -83,7 +83,7 @@ export const programProfileWithGuardiansInclude =
     person: {
       include: {
         contactPoints: true,
-        guardianRelationships: {
+        dependentRelationships: {
           where: { isActive: true },
           include: {
             guardian: {

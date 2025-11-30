@@ -20,6 +20,7 @@ import {
   addSecondParent as addSecondParentService,
   updateChildInfo as updateChildInfoService,
   addChildToFamily as addChildToFamilyService,
+  setPrimaryPayer as setPrimaryPayerService,
   // Payment service
   verifyBankAccount,
   getPaymentStatus,
@@ -334,6 +335,35 @@ export async function addSecondParent(params: {
       success: false,
       error:
         error instanceof Error ? error.message : 'Failed to add second parent',
+    }
+  }
+}
+
+/**
+ * Set which parent is the primary payer for a family.
+ */
+export async function setPrimaryPayer(params: {
+  studentId: string
+  parentNumber: 1 | 2
+}): Promise<ActionResult<{ updated: number }>> {
+  try {
+    const result = await setPrimaryPayerService(params)
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+      data: result,
+      message: `Parent ${params.parentNumber} is now the primary payer`,
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to set primary payer', {
+      studentId: params.studentId,
+      parentNumber: params.parentNumber,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to set primary payer',
     }
   }
 }

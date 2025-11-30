@@ -17,7 +17,8 @@
       "description": "Xiriirka ugu muhiimsan ee diiwaan gelinta",
       "parent1": "Waalid 1",
       "parent2": "Waalid 2",
-      "singleParent": "Qoys hal waalid ah"
+      "singleParent": "Qoys hal waalid ah",
+      "whoPays": "Yaa masuul ka noqonaya lacagta waxbarashada?"
     },
     "childrenSection": {
       "title": "Carruurta",
@@ -80,8 +81,8 @@
       "addChild": "Ku Dar Ilmo Kale",
       "remove": "Ka saar",
       "processing": "Socota...",
-      "continueToPayment": "Sii wad Lacag Bixinta ({count} {childText})",
-      "continueShort": "Sii wad ({count})"
+      "continueToPayment": "Dhammaystir Diiwaangelinta ({count} {childText})",
+      "continueShort": "Diiwaan ({count})"
     },
     "messages": {
       "enrollmentSuccess": "Si guul leh ayaa loo diiwaan geliyay {count} {childText}!",

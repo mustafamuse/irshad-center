@@ -17,7 +17,8 @@
       "description": "Primary contact for registration",
       "parent1": "Parent 1",
       "parent2": "Parent 2",
-      "singleParent": "Single parent household"
+      "singleParent": "Single parent household",
+      "whoPays": "Who will be responsible for tuition payments?"
     },
     "childrenSection": {
       "title": "Children",
@@ -51,7 +52,9 @@
     },
     "gender": {
       "boy": "Boy",
-      "girl": "Girl"
+      "girl": "Girl",
+      "male": "Male",
+      "female": "Female"
     },
     "education": {
       "elementary": "Elementary School",
@@ -74,14 +77,15 @@
       "grade12": "12th Grade"
     },
     "helpText": {
-      "healthInfo": "Share any allergies, medical conditions, ADHD/Autism, medications, dietary needs, or support strategies. Type \"None\" if not applicable."
+      "healthInfo": "Share any allergies, medical conditions, ADHD/Autism, medications, dietary needs, or support strategies. Type \"None\" if not applicable.",
+      "genderSelect": "Please select one option"
     },
     "buttons": {
       "addChild": "Add Another Child",
       "remove": "Remove",
       "processing": "Processing...",
-      "continueToPayment": "Continue to Payment ({count} {childText})",
-      "continueShort": "Continue ({count})"
+      "continueToPayment": "Complete Registration ({count} {childText})",
+      "continueShort": "Register ({count})"
     },
     "messages": {
       "enrollmentSuccess": "Successfully enrolled {count} {childText}!",

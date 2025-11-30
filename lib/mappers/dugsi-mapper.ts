@@ -38,9 +38,9 @@ export function mapProfileToDugsiRegistration(
 
   const person = profile.person
 
-  // Extract guardian relationships
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  // Extract guardian relationships (child is the dependent, guardians are parents)
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -70,6 +70,13 @@ export function mapProfileToDugsiRegistration(
   const parent2FirstName = parent2NameParts[0] || null
   const parent2LastName = parent2NameParts.slice(1).join(' ') || null
 
+  // Determine which parent is the primary payer
+  const primaryPayerIndex = dependentRelationships.findIndex(
+    (rel) => rel.isPrimaryPayer
+  )
+  const primaryPayerParentNumber: 1 | 2 | null =
+    primaryPayerIndex === 0 ? 1 : primaryPayerIndex === 1 ? 2 : null
+
   // Extract billing information from active assignment
   const activeAssignment = profile.assignments?.[0]
   const subscription = activeAssignment?.subscription
@@ -97,6 +104,9 @@ export function mapProfileToDugsiRegistration(
     parent2Email: parent2Email ?? null,
     parent2Phone: parent2Phone ?? null,
 
+    // Primary payer designation
+    primaryPayerParentNumber,
+
     // Billing info
     paymentMethodCaptured: billingAccount?.paymentMethodCaptured ?? false,
     paymentMethodCapturedAt: billingAccount?.paymentMethodCapturedAt ?? null,
@@ -104,6 +114,7 @@ export function mapProfileToDugsiRegistration(
     stripeSubscriptionIdDugsi: subscription?.stripeSubscriptionId ?? null,
     paymentIntentIdDugsi: billingAccount?.paymentIntentIdDugsi ?? null,
     subscriptionStatus: (subscription?.status as SubscriptionStatus) ?? null,
+    subscriptionAmount: subscription?.amount ?? null,
     paidUntil: subscription?.paidUntil ?? null,
     currentPeriodStart: subscription?.currentPeriodStart ?? null,
     currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
@@ -133,6 +144,7 @@ export function mapProfileToSimpleDugsiRegistration(
   | 'stripeSubscriptionIdDugsi'
   | 'paymentIntentIdDugsi'
   | 'subscriptionStatus'
+  | 'subscriptionAmount'
   | 'paidUntil'
   | 'currentPeriodStart'
   | 'currentPeriodEnd'
@@ -143,8 +155,8 @@ export function mapProfileToSimpleDugsiRegistration(
   }
 
   const person = profile.person
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -174,6 +186,13 @@ export function mapProfileToSimpleDugsiRegistration(
   const parent2FirstName = parent2NameParts[0] || null
   const parent2LastName = parent2NameParts.slice(1).join(' ') || null
 
+  // Determine which parent is the primary payer
+  const primaryPayerIndex = dependentRelationships.findIndex(
+    (rel) => rel.isPrimaryPayer
+  )
+  const primaryPayerParentNumber: 1 | 2 | null =
+    primaryPayerIndex === 0 ? 1 : primaryPayerIndex === 1 ? 2 : null
+
   return {
     id: profile.id,
     name: person.name,
@@ -194,6 +213,8 @@ export function mapProfileToSimpleDugsiRegistration(
     parent2Email: parent2Email ?? null,
     parent2Phone: parent2Phone ?? null,
 
+    primaryPayerParentNumber,
+
     familyReferenceId: profile.familyReferenceId,
   }
 }
@@ -205,7 +226,7 @@ export function mapProfileToSimpleDugsiRegistration(
 export function extractParentEmail(
   profile: ProgramProfileWithGuardians
 ): string | null {
-  const guardian = profile.person.guardianRelationships?.[0]?.guardian
+  const guardian = profile.person.dependentRelationships?.[0]?.guardian
   return (
     guardian?.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value ?? null
   )

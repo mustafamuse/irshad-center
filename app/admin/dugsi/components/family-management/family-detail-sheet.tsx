@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Edit,
   UserPlus,
+  Wallet,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -36,9 +37,11 @@ import {
 } from '@/components/ui/sheet'
 
 import { FamilyStatusBadge } from './family-status-badge'
+import { useActionHandler } from '../../_hooks/use-action-handler'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { setPrimaryPayer } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
@@ -78,6 +81,9 @@ export function FamilyDetailSheet({
 
   const [addChildDialog, setAddChildDialog] = useState(false)
   const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
+
+  const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
+    useActionHandler(setPrimaryPayer)
 
   if (!family) return null
 
@@ -129,6 +135,13 @@ export function FamilyDetailSheet({
 
   const handleAddSecondParent = () => {
     setEditParentDialog({ open: true, parentNumber: 2, isAdding: true })
+  }
+
+  const handleSetPrimaryPayer = (parentNumber: 1 | 2) => {
+    executeSetPrimaryPayer({
+      studentId: firstMember.id,
+      parentNumber,
+    })
   }
 
   const handleEditChild = (studentId: string) => {
@@ -199,15 +212,35 @@ export function FamilyDetailSheet({
                           firstMember.parentLastName
                         )}
                       </span>
+                      {firstMember.primaryPayerParentNumber === 1 && (
+                        <Badge variant="outline" className="text-xs">
+                          <Wallet className="mr-1 h-3 w-3" />
+                          Primary Payer
+                        </Badge>
+                      )}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleEditParent1}
-                      className="h-7 px-2"
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      {firstMember.primaryPayerParentNumber !== 1 &&
+                        hasSecondParent(firstMember) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSetPrimaryPayer(1)}
+                            disabled={isSettingPrimaryPayer}
+                            className="h-7 px-2 text-xs"
+                          >
+                            Set as Payer
+                          </Button>
+                        )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleEditParent1}
+                        className="h-7 px-2"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   {firstMember.parentEmail && (
                     <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
@@ -281,15 +314,34 @@ export function FamilyDetailSheet({
                               firstMember.parent2LastName
                             )}
                           </span>
+                          {firstMember.primaryPayerParentNumber === 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              <Wallet className="mr-1 h-3 w-3" />
+                              Primary Payer
+                            </Badge>
+                          )}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleEditParent2}
-                          className="h-7 px-2"
-                        >
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          {firstMember.primaryPayerParentNumber !== 2 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSetPrimaryPayer(2)}
+                              disabled={isSettingPrimaryPayer}
+                              className="h-7 px-2 text-xs"
+                            >
+                              Set as Payer
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleEditParent2}
+                            className="h-7 px-2"
+                          >
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                       {firstMember.parent2Email && (
                         <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">

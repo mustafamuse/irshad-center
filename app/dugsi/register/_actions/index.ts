@@ -78,6 +78,9 @@ export async function registerDugsiChildren(
       parent2LastName: validated.isSingleParent
         ? null
         : validated.parent2LastName,
+      primaryPayer: validated.isSingleParent
+        ? 'parent1'
+        : validated.primaryPayer,
       familyReferenceId,
     })
 

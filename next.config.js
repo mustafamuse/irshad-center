@@ -10,7 +10,7 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "img-src 'self' blob: data: https://*.stripe.com",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://*.js.stripe.com https://maps.googleapis.com",
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://*.js.stripe.com https://maps.googleapis.com https://va.vercel-scripts.com https://*.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline'",
               process.env.NODE_ENV === 'development'
                 ? "connect-src 'self' ws: wss: blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com"

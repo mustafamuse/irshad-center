@@ -148,10 +148,10 @@ export async function updateParentInfo(
     )
   }
 
-  // Get guardian relationships for the profile
+  // Get guardian relationships for the profile (child is dependent, parents are guardians)
   const person = profile.person
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -252,8 +252,8 @@ export async function addSecondParent(
 
   // Check if second parent already exists
   const person = profile.person
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -444,10 +444,10 @@ export async function addChildToFamily(
     )
   }
 
-  // Get guardian relationships from existing profile
+  // Get guardian relationships from existing profile (child is dependent, parents are guardians)
   const person = existingProfile.person
-  const guardianRelationships = person.guardianRelationships || []
-  const guardians = guardianRelationships
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -508,4 +508,101 @@ export async function addChildToFamily(
   })
 
   return { childId: newProfile.id }
+}
+
+/**
+ * Set primary payer input
+ */
+export interface SetPrimaryPayerInput {
+  /** ID of any student in the family */
+  studentId: string
+  /** Which parent to set as primary payer: 1 or 2 */
+  parentNumber: 1 | 2
+}
+
+/**
+ * Set which parent is the primary payer for a family.
+ *
+ * Updates GuardianRelationship.isPrimaryPayer for all children in the family.
+ * Ensures only one guardian has isPrimaryPayer=true per child.
+ *
+ * @param input - Primary payer selection
+ * @returns Number of relationships updated
+ * @throws ActionError if student/parent not found
+ */
+export async function setPrimaryPayer(
+  input: SetPrimaryPayerInput
+): Promise<{ updated: number }> {
+  const profile = await getProgramProfileById(input.studentId)
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
+    throw new ActionError(
+      'Student not found',
+      ERROR_CODES.STUDENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  const familyId = profile.familyReferenceId
+  if (!familyId) {
+    throw new ActionError(
+      'Family reference ID not found',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  // Get guardian relationships for the profile
+  const dependentRelationships = profile.person.dependentRelationships || []
+  const guardians = dependentRelationships.map((rel) => rel.guardian)
+
+  const guardianIndex = input.parentNumber - 1
+  const selectedGuardian = guardians[guardianIndex]
+
+  if (!selectedGuardian) {
+    throw new ActionError(
+      `Parent ${input.parentNumber} not found`,
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  // Get all children in the family
+  const familyProfiles = await prisma.programProfile.findMany({
+    where: {
+      familyReferenceId: familyId,
+      program: DUGSI_PROGRAM,
+    },
+    select: { personId: true },
+  })
+
+  const childPersonIds = familyProfiles.map((p) => p.personId)
+
+  // Update in transaction: clear all isPrimaryPayer, then set selected guardian
+  const result = await prisma.$transaction(async (tx) => {
+    // Clear isPrimaryPayer for all guardians of these children
+    await tx.guardianRelationship.updateMany({
+      where: {
+        dependentId: { in: childPersonIds },
+        isActive: true,
+      },
+      data: { isPrimaryPayer: false },
+    })
+
+    // Set isPrimaryPayer for selected guardian
+    const updated = await tx.guardianRelationship.updateMany({
+      where: {
+        guardianId: selectedGuardian.id,
+        dependentId: { in: childPersonIds },
+        isActive: true,
+      },
+      data: { isPrimaryPayer: true },
+    })
+
+    return updated.count
+  })
+
+  return { updated: result }
 }

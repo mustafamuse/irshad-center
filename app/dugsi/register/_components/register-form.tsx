@@ -268,6 +268,11 @@ export function DugsiRegisterForm() {
                           onValueChange={field.onChange}
                           name={`children.${index}.gender`}
                           options={genderOptions}
+                          helperText={
+                            !field.value
+                              ? t('helpText.genderSelect')
+                              : undefined
+                          }
                         />
                       )}
                     </FormFieldWrapper>
@@ -386,43 +391,110 @@ export function DugsiRegisterForm() {
                 <UserPlus className="mr-2 h-4 w-4 sm:h-5 sm:w-5" />
                 {t('buttons.addChild')}
               </Button>
-
-              {/* Submit Button */}
-              <Button
-                type="submit"
-                className={cn(
-                  buttonClassNames.primary,
-                  'mt-4 h-11 text-sm sm:mt-6 sm:h-12 sm:text-base'
-                )}
-                disabled={isPending}
-              >
-                {isPending ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
-                    <span className="xs:inline hidden">
-                      {t('buttons.processing')}
-                    </span>
-                    <span className="xs:hidden">{t('buttons.processing')}</span>
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <span className="hidden sm:inline">
-                      {t('buttons.continueToPayment', {
-                        count: fields.length,
-                        childText:
-                          fields.length === 1
-                            ? t('childrenSection.child')
-                            : t('childrenSection.children'),
-                      })}
-                    </span>
-                    <span className="sm:hidden">
-                      {t('buttons.continueShort', { count: fields.length })}
-                    </span>
-                  </span>
-                )}
-              </Button>
             </CardContent>
           </Card>
+
+          {/* Payment Responsibility Section - Only for two-parent households */}
+          {!isSingleParent && (
+            <Card className="rounded-xl border-0 bg-white shadow-sm ring-1 ring-gray-200 sm:rounded-2xl">
+              <CardHeader className="space-y-2 border-b p-4 sm:p-6">
+                <CardTitle className="text-xl font-semibold text-[#007078] sm:text-2xl">
+                  {t('parentSection.whoPays')}
+                </CardTitle>
+                <CardDescription className="text-sm text-gray-600 sm:text-base">
+                  Select which parent will be responsible for tuition payments
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 p-4 sm:p-6">
+                <FormFieldWrapper
+                  control={form.control}
+                  name="primaryPayer"
+                  label={t('parentSection.whoPays')}
+                  required
+                >
+                  {(field, fieldState) => {
+                    const parent1FullName =
+                      [
+                        form.watch('parent1FirstName'),
+                        form.watch('parent1LastName'),
+                      ]
+                        .filter(Boolean)
+                        .join(' ')
+                        .trim() || t('parentSection.parent1')
+
+                    const parent2FullName =
+                      [
+                        form.watch('parent2FirstName'),
+                        form.watch('parent2LastName'),
+                      ]
+                        .filter(Boolean)
+                        .join(' ')
+                        .trim() || t('parentSection.parent2')
+
+                    return (
+                      <Select
+                        value={field.value || ''}
+                        onValueChange={(value: 'parent1' | 'parent2') => {
+                          field.onChange(value)
+                          form.setValue('primaryPayer', value)
+                        }}
+                      >
+                        <SelectTrigger
+                          aria-invalid={!!fieldState.error}
+                          className={getInputClassNames(!!fieldState.error)}
+                        >
+                          <SelectValue placeholder="Select a parent" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="parent1">
+                            {parent1FullName}
+                          </SelectItem>
+                          <SelectItem value="parent2">
+                            {parent2FullName}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )
+                  }}
+                </FormFieldWrapper>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Submit Button */}
+          <Button
+            type="submit"
+            className={cn(
+              buttonClassNames.primary,
+              'h-11 text-sm sm:h-12 sm:text-base'
+            )}
+            disabled={isPending}
+          >
+            {isPending ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin sm:h-5 sm:w-5" />
+                <span className="xs:inline hidden">
+                  {t('buttons.processing')}
+                </span>
+                <span className="xs:hidden">{t('buttons.processing')}</span>
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <span className="hidden sm:inline">
+                  {t('buttons.continueToPayment', {
+                    count: fields.length,
+                    childText:
+                      fields.length === 1
+                        ? t('childrenSection.child')
+                        : t('childrenSection.children'),
+                  })}
+                </span>
+                <span className="sm:hidden">
+                  {t('buttons.continueShort', { count: fields.length })}
+                </span>
+              </span>
+            )}
+          </Button>
         </form>
       </Form>
     </section>
