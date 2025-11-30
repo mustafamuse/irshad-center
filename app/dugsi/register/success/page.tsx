@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { CheckCircle2 } from 'lucide-react'
 import type { Metadata } from 'next'
 
-
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { getAllDugsiRegistrations } from '@/lib/services/dugsi'
@@ -53,7 +52,11 @@ function groupByFamily(
       })
     } else {
       // Update parent 2 info if it exists and wasn't set before
-      const family = familyMap.get(familyKey)!
+      const family = familyMap.get(familyKey)
+      if (!family) {
+        console.error('Family not found in map', { familyKey })
+        continue
+      }
       if (!family.parent2Name && reg.parent2FirstName && reg.parent2LastName) {
         family.parent2Name = `${reg.parent2FirstName} ${reg.parent2LastName}`
         family.parent2Email = reg.parent2Email
@@ -61,7 +64,11 @@ function groupByFamily(
       }
     }
 
-    const family = familyMap.get(familyKey)!
+    const family = familyMap.get(familyKey)
+    if (!family) {
+      console.error('Family not found in map', { familyKey })
+      continue
+    }
     family.children.push({
       id: reg.id,
       name: reg.name,

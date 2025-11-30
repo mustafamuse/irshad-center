@@ -29,7 +29,15 @@ const prismaDirectClient =
     log: ['error'],
     datasources: {
       db: {
-        url: process.env.DIRECT_URL,
+        url: (() => {
+          if (!process.env.DIRECT_URL) {
+            throw new Error(
+              'DIRECT_URL is required for interactive transactions. ' +
+                'Add DIRECT_URL to .env pointing to port 5432 (bypassing PgBouncer)'
+            )
+          }
+          return process.env.DIRECT_URL
+        })(),
       },
     },
   })

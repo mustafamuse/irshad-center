@@ -915,7 +915,11 @@ async function findOrCreatePersonWithContact(
         include: { contactPoints: true },
       })
 
-      return updatedPerson!
+      if (!updatedPerson) {
+        throw new Error('Failed to update person with contact points')
+      }
+
+      return updatedPerson
     }
   }
 
@@ -1135,8 +1139,10 @@ export async function linkGuardianToDependent(
 /**
  * Batch create guardian relationships for multiple children
  * Optimizes by doing single batch queries instead of per-child operations
+ *
+ * @internal Exported for testing purposes
  */
-async function createGuardianRelationshipsBatch(
+export async function createGuardianRelationshipsBatch(
   relationships: Array<{
     guardianPersonId: string
     dependentPersonId: string
@@ -1211,10 +1217,29 @@ async function createGuardianRelationshipsBatch(
 
   // 4. Batch create new relationships
   if (toCreate.length > 0) {
-    await tx.guardianRelationship.createMany({
-      data: toCreate,
-      skipDuplicates: true,
-    })
+    try {
+      const result = await tx.guardianRelationship.createMany({
+        data: toCreate,
+        skipDuplicates: true,
+      })
+
+      if (result.count !== toCreate.length) {
+        logger.warn(
+          {
+            expected: toCreate.length,
+            created: result.count,
+            skipped: toCreate.length - result.count,
+          },
+          'Some guardian relationships already existed (race condition detected)'
+        )
+      }
+    } catch (error) {
+      logger.error(
+        { error, toCreateCount: toCreate.length },
+        'Failed to create guardian relationships'
+      )
+      throw error
+    }
   }
 
   // 5. Batch reactivate inactive relationships

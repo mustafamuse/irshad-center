@@ -110,7 +110,7 @@ export function useDugsiRegistration({
         }
       })
     },
-    [isPending, form, onSuccess, router, t]
+    [form, onSuccess, router, t]
   )
 
   return {
