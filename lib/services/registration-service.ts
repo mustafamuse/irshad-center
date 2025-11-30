@@ -19,7 +19,7 @@ import {
 } from '@prisma/client'
 import { z } from 'zod'
 
-import { prisma } from '@/lib/db'
+import { prisma, prismaDirectClient } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import { createServiceLogger } from '@/lib/logger'
@@ -533,294 +533,300 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     familyReferenceId,
   } = validated
 
-  return prisma.$transaction(async (tx) => {
-    const createdProfiles = []
+  // Use direct client (bypasses PgBouncer) for interactive transactions
+  // PgBouncer in transaction mode doesn't support long-running transactions
+  return prismaDirectClient.$transaction(
+    async (tx) => {
+      const createdProfiles: Array<{
+        id: string
+        name: string
+        personId: string
+      }> = []
 
-    // Find or create Parent 1 Person with contact points
-    const parent1FullName = `${parent1FirstName} ${parent1LastName}`
-    const parent1Person = await findOrCreatePersonWithContact(
-      {
-        name: parent1FullName,
-        email: parent1Email,
-        phone: parent1Phone,
-        isPrimaryEmail: true,
-        isPrimaryPhone: true,
-      },
-      tx
-    )
+      // Parallelize parent creation for better performance
+      const parent1FullName = `${parent1FirstName} ${parent1LastName}`
+      const hasParent2 =
+        parent2FirstName && parent2LastName && parent2Email && parent2Phone
 
-    // Find or create Parent 2 Person with contact points (if provided)
-    let parent2Person: typeof parent1Person | null = null
-    if (
-      !validated.parent2Email &&
-      !validated.parent2Phone &&
-      !validated.parent2FirstName &&
-      !validated.parent2LastName
-    ) {
-      // Single parent household - no parent 2
-    } else if (
-      parent2FirstName &&
-      parent2LastName &&
-      parent2Email &&
-      parent2Phone
-    ) {
-      const parent2FullName = `${parent2FirstName} ${parent2LastName}`
-      parent2Person = await findOrCreatePersonWithContact(
-        {
-          name: parent2FullName,
-          email: parent2Email,
-          phone: parent2Phone,
-          isPrimaryEmail: true,
-          isPrimaryPhone: true,
-        },
-        tx
-      )
-    }
-
-    // Create or get billing account for parent 1 (within transaction)
-    const primaryEmailContact = parent1Person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL' && cp.isPrimary
-    )
-
-    // Check if billing account already exists
-    const existingBillingAccount = await tx.billingAccount.findFirst({
-      where: {
-        personId: parent1Person.id,
-        accountType: 'DUGSI',
-      },
-    })
-
-    let billingAccount
-    if (existingBillingAccount) {
-      // Update primary contact if needed
-      if (
-        primaryEmailContact &&
-        existingBillingAccount.primaryContactPointId !== primaryEmailContact.id
-      ) {
-        billingAccount = await tx.billingAccount.update({
-          where: { id: existingBillingAccount.id },
-          data: {
-            primaryContactPointId: primaryEmailContact.id,
-          },
-        })
-      } else {
-        billingAccount = existingBillingAccount
-      }
-    } else {
-      // Create new billing account
-      billingAccount = await tx.billingAccount.create({
-        data: {
-          personId: parent1Person.id,
-          accountType: 'DUGSI',
-          primaryContactPointId: primaryEmailContact?.id || null,
-        },
-      })
-    }
-
-    // Create each child
-    for (const child of children) {
-      const childFullName = `${child.firstName} ${child.lastName}`
-
-      // Check if child already exists
-      const existingChild = await findExistingChild(
-        child.firstName,
-        child.lastName,
-        child.dateOfBirth,
-        tx
-      )
-
-      let childPerson: { id: string; name: string }
-      if (existingChild) {
-        // Use existing child person
-        childPerson = existingChild
-      } else {
-        // Create new Person for child with P2002 race condition handling
-        try {
-          const newChildPerson = await tx.person.create({
-            data: {
-              name: childFullName,
-              dateOfBirth: child.dateOfBirth,
-            },
-          })
-          childPerson = { id: newChildPerson.id, name: newChildPerson.name }
-        } catch (error) {
-          // Handle race condition: another transaction created this child
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            logger.info(
-              { name: childFullName, dateOfBirth: child.dateOfBirth },
-              'Child person already exists (race condition), fetching existing'
-            )
-            const raceConditionChild = await findExistingChild(
-              child.firstName,
-              child.lastName,
-              child.dateOfBirth,
-              tx
-            )
-            if (raceConditionChild) {
-              childPerson = raceConditionChild
-            } else {
-              // Child not found by name+DOB, might be a different unique constraint
-              throw error
-            }
-          } else {
-            throw error
-          }
-        }
-      }
-
-      // Check if child already has a Dugsi ProgramProfile
-      const existingProfile = await tx.programProfile.findFirst({
-        where: {
-          personId: childPerson.id,
-          program: 'DUGSI_PROGRAM',
-        },
-      })
-
-      let profile
-      if (existingProfile) {
-        profile = existingProfile
-      } else {
-        // Create ProgramProfile for child
-        profile = await tx.programProfile.create({
-          data: {
-            personId: childPerson.id,
-            program: 'DUGSI_PROGRAM',
-            status: 'REGISTERED',
-            gender: child.gender,
-            gradeLevel: child.gradeLevel,
-            schoolName: child.schoolName,
-            healthInfo: child.healthInfo,
-            familyReferenceId,
-          },
-        })
-
-        // Create Enrollment (no batchId for Dugsi)
-        await tx.enrollment.create({
-          data: {
-            programProfileId: profile.id,
-            batchId: null, // Dugsi doesn't use batches
-            status: 'REGISTERED',
-          },
-        })
-      }
-
-      // Link guardian relationships using helper function
-      await linkGuardianToDependent(
-        {
-          guardianPersonId: parent1Person.id,
-          dependentPersonId: childPerson.id,
-          role: 'PARENT',
-          isPrimaryPayer: primaryPayer === 'parent1',
-        },
-        tx
-      )
-
-      // Create GuardianRelationship for parent 2 → child (if parent 2 exists)
-      if (parent2Person) {
-        await linkGuardianToDependent(
+      const [parent1Person, parent2Person] = await Promise.all([
+        findOrCreatePersonWithContact(
           {
-            guardianPersonId: parent2Person.id,
-            dependentPersonId: childPerson.id,
-            role: 'PARENT',
-            isPrimaryPayer: primaryPayer === 'parent2',
+            name: parent1FullName,
+            email: parent1Email,
+            phone: parent1Phone,
+            isPrimaryEmail: true,
+            isPrimaryPhone: true,
           },
           tx
-        )
-      }
+        ),
+        hasParent2
+          ? findOrCreatePersonWithContact(
+              {
+                name: `${parent2FirstName} ${parent2LastName}`,
+                email: parent2Email!,
+                phone: parent2Phone!,
+                isPrimaryEmail: true,
+                isPrimaryPhone: true,
+              },
+              tx
+            )
+          : Promise.resolve(null),
+      ])
 
-      createdProfiles.push({
-        id: profile.id,
-        name: childFullName,
-        personId: childPerson.id,
-      })
-    }
+      // Create or get billing account for parent 1 (within transaction)
+      const primaryEmailContact = parent1Person.contactPoints.find(
+        (cp) => cp.type === 'EMAIL' && cp.isPrimary
+      )
 
-    // Create sibling relationships if multiple children (within transaction)
-    // Optimized to batch check existing relationships first
-    if (createdProfiles.length > 1) {
-      // Build all sibling pairs with consistent ordering (p1 < p2)
-      const siblingPairs: Array<{ p1: string; p2: string }> = []
-      for (let i = 0; i < createdProfiles.length; i++) {
-        for (let j = i + 1; j < createdProfiles.length; j++) {
-          const [p1, p2] = [
-            createdProfiles[i].personId,
-            createdProfiles[j].personId,
-          ].sort()
-          siblingPairs.push({ p1, p2 })
-        }
-      }
-
-      // Batch fetch all existing sibling relationships
-      const existingRelationships = await tx.siblingRelationship.findMany({
+      // Check if billing account already exists
+      const existingBillingAccount = await tx.billingAccount.findFirst({
         where: {
-          OR: siblingPairs.map(({ p1, p2 }) => ({
-            person1Id: p1,
-            person2Id: p2,
-          })),
+          personId: parent1Person.id,
+          accountType: 'DUGSI',
         },
       })
 
-      // Create a map for quick lookup
-      const existingMap = new Map(
-        existingRelationships.map((r) => [`${r.person1Id}-${r.person2Id}`, r])
-      )
-
-      // Prepare batch operations
-      const toCreate: Array<{
-        person1Id: string
-        person2Id: string
-        detectionMethod: string
-        confidence: null
-        isActive: boolean
-      }> = []
-      const toReactivate: string[] = []
-
-      for (const { p1, p2 } of siblingPairs) {
-        const existing = existingMap.get(`${p1}-${p2}`)
-        if (!existing) {
-          toCreate.push({
-            person1Id: p1,
-            person2Id: p2,
-            detectionMethod: 'manual',
-            confidence: null,
-            isActive: true,
+      let billingAccount
+      if (existingBillingAccount) {
+        // Update primary contact if needed
+        if (
+          primaryEmailContact &&
+          existingBillingAccount.primaryContactPointId !==
+            primaryEmailContact.id
+        ) {
+          billingAccount = await tx.billingAccount.update({
+            where: { id: existingBillingAccount.id },
+            data: {
+              primaryContactPointId: primaryEmailContact.id,
+            },
           })
-        } else if (!existing.isActive) {
-          toReactivate.push(existing.id)
+        } else {
+          billingAccount = existingBillingAccount
         }
-      }
-
-      // Batch create new relationships
-      if (toCreate.length > 0) {
-        await tx.siblingRelationship.createMany({
-          data: toCreate,
-          skipDuplicates: true,
-        })
-      }
-
-      // Batch reactivate inactive relationships
-      if (toReactivate.length > 0) {
-        await tx.siblingRelationship.updateMany({
-          where: { id: { in: toReactivate } },
+      } else {
+        // Create new billing account
+        billingAccount = await tx.billingAccount.create({
           data: {
-            isActive: true,
-            detectionMethod: 'manual',
+            personId: parent1Person.id,
+            accountType: 'DUGSI',
+            primaryContactPointId: primaryEmailContact?.id || null,
           },
         })
       }
-    }
 
-    return {
-      profiles: createdProfiles,
-      billingAccount: {
-        id: billingAccount.id,
-        primaryContactPointId: billingAccount.primaryContactPointId,
-      },
+      // Create each child
+      for (const child of children) {
+        const childFullName = `${child.firstName} ${child.lastName}`
+
+        // Check if child already exists
+        const existingChild = await findExistingChild(
+          child.firstName,
+          child.lastName,
+          child.dateOfBirth,
+          tx
+        )
+
+        let childPerson: { id: string; name: string }
+        if (existingChild) {
+          // Use existing child person
+          childPerson = existingChild
+        } else {
+          // Create new Person for child with P2002 race condition handling
+          try {
+            const newChildPerson = await tx.person.create({
+              data: {
+                name: childFullName,
+                dateOfBirth: child.dateOfBirth,
+              },
+            })
+            childPerson = { id: newChildPerson.id, name: newChildPerson.name }
+          } catch (error) {
+            // Handle race condition: another transaction created this child
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              logger.info(
+                { name: childFullName, dateOfBirth: child.dateOfBirth },
+                'Child person already exists (race condition), fetching existing'
+              )
+              const raceConditionChild = await findExistingChild(
+                child.firstName,
+                child.lastName,
+                child.dateOfBirth,
+                tx
+              )
+              if (raceConditionChild) {
+                childPerson = raceConditionChild
+              } else {
+                // Child not found by name+DOB, might be a different unique constraint
+                throw error
+              }
+            } else {
+              throw error
+            }
+          }
+        }
+
+        // Check if child already has a Dugsi ProgramProfile
+        const existingProfile = await tx.programProfile.findFirst({
+          where: {
+            personId: childPerson.id,
+            program: 'DUGSI_PROGRAM',
+          },
+        })
+
+        let profile
+        if (existingProfile) {
+          profile = existingProfile
+        } else {
+          // Create ProgramProfile for child
+          profile = await tx.programProfile.create({
+            data: {
+              personId: childPerson.id,
+              program: 'DUGSI_PROGRAM',
+              status: 'REGISTERED',
+              gender: child.gender,
+              gradeLevel: child.gradeLevel,
+              schoolName: child.schoolName,
+              healthInfo: child.healthInfo,
+              familyReferenceId,
+            },
+          })
+
+          // Create Enrollment (no batchId for Dugsi)
+          await tx.enrollment.create({
+            data: {
+              programProfileId: profile.id,
+              batchId: null, // Dugsi doesn't use batches
+              status: 'REGISTERED',
+            },
+          })
+        }
+
+        createdProfiles.push({
+          id: profile.id,
+          name: childFullName,
+          personId: childPerson.id,
+        })
+      }
+
+      // Batch create guardian relationships (optimized: 3-4 queries instead of N*5)
+      const guardianRelationships: Array<{
+        guardianPersonId: string
+        dependentPersonId: string
+        role: GuardianRole
+        isPrimaryPayer: boolean
+      }> = []
+
+      for (const profile of createdProfiles) {
+        guardianRelationships.push({
+          guardianPersonId: parent1Person.id,
+          dependentPersonId: profile.personId,
+          role: 'PARENT',
+          isPrimaryPayer: primaryPayer === 'parent1',
+        })
+
+        if (parent2Person) {
+          guardianRelationships.push({
+            guardianPersonId: parent2Person.id,
+            dependentPersonId: profile.personId,
+            role: 'PARENT',
+            isPrimaryPayer: primaryPayer === 'parent2',
+          })
+        }
+      }
+
+      await createGuardianRelationshipsBatch(guardianRelationships, tx)
+
+      // Create sibling relationships if multiple children (within transaction)
+      // Optimized to batch check existing relationships first
+      if (createdProfiles.length > 1) {
+        // Build all sibling pairs with consistent ordering (p1 < p2)
+        const siblingPairs: Array<{ p1: string; p2: string }> = []
+        for (let i = 0; i < createdProfiles.length; i++) {
+          for (let j = i + 1; j < createdProfiles.length; j++) {
+            const [p1, p2] = [
+              createdProfiles[i].personId,
+              createdProfiles[j].personId,
+            ].sort()
+            siblingPairs.push({ p1, p2 })
+          }
+        }
+
+        // Batch fetch all existing sibling relationships
+        const existingRelationships = await tx.siblingRelationship.findMany({
+          where: {
+            OR: siblingPairs.map(({ p1, p2 }) => ({
+              person1Id: p1,
+              person2Id: p2,
+            })),
+          },
+        })
+
+        // Create a map for quick lookup
+        const existingMap = new Map(
+          existingRelationships.map((r) => [`${r.person1Id}-${r.person2Id}`, r])
+        )
+
+        // Prepare batch operations
+        const toCreate: Array<{
+          person1Id: string
+          person2Id: string
+          detectionMethod: string
+          confidence: null
+          isActive: boolean
+        }> = []
+        const toReactivate: string[] = []
+
+        for (const { p1, p2 } of siblingPairs) {
+          const existing = existingMap.get(`${p1}-${p2}`)
+          if (!existing) {
+            toCreate.push({
+              person1Id: p1,
+              person2Id: p2,
+              detectionMethod: 'manual',
+              confidence: null,
+              isActive: true,
+            })
+          } else if (!existing.isActive) {
+            toReactivate.push(existing.id)
+          }
+        }
+
+        // Batch create new relationships
+        if (toCreate.length > 0) {
+          await tx.siblingRelationship.createMany({
+            data: toCreate,
+            skipDuplicates: true,
+          })
+        }
+
+        // Batch reactivate inactive relationships
+        if (toReactivate.length > 0) {
+          await tx.siblingRelationship.updateMany({
+            where: { id: { in: toReactivate } },
+            data: {
+              isActive: true,
+              detectionMethod: 'manual',
+            },
+          })
+        }
+      }
+
+      return {
+        profiles: createdProfiles,
+        billingAccount: {
+          id: billingAccount.id,
+          primaryContactPointId: billingAccount.primaryContactPointId,
+        },
+      }
+    },
+    {
+      maxWait: 10000, // 10s to acquire transaction
+      timeout: 60000, // 60s for transaction to complete
     }
-  })
+  )
 }
 
 /**
@@ -1124,4 +1130,98 @@ export async function linkGuardianToDependent(
       isPrimaryPayer,
     },
   })
+}
+
+/**
+ * Batch create guardian relationships for multiple children
+ * Optimizes by doing single batch queries instead of per-child operations
+ */
+async function createGuardianRelationshipsBatch(
+  relationships: Array<{
+    guardianPersonId: string
+    dependentPersonId: string
+    role: GuardianRole
+    isPrimaryPayer: boolean
+  }>,
+  tx: Prisma.TransactionClient
+) {
+  if (relationships.length === 0) return
+
+  const dependentIds = Array.from(
+    new Set(relationships.map((r) => r.dependentPersonId))
+  )
+
+  // 1. Batch fetch existing relationships (1 query instead of N)
+  const existingRelationships = await tx.guardianRelationship.findMany({
+    where: {
+      OR: relationships.map((r) => ({
+        guardianId: r.guardianPersonId,
+        dependentId: r.dependentPersonId,
+      })),
+    },
+  })
+
+  const existingMap = new Map(
+    existingRelationships.map((r) => [`${r.guardianId}-${r.dependentId}`, r])
+  )
+
+  // 2. Separate into create vs update
+  const toCreate: Array<{
+    guardianId: string
+    dependentId: string
+    role: GuardianRole
+    isPrimaryPayer: boolean
+    isActive: boolean
+  }> = []
+  const toReactivate: string[] = []
+
+  for (const rel of relationships) {
+    const key = `${rel.guardianPersonId}-${rel.dependentPersonId}`
+    const existing = existingMap.get(key)
+
+    if (!existing) {
+      toCreate.push({
+        guardianId: rel.guardianPersonId,
+        dependentId: rel.dependentPersonId,
+        role: rel.role,
+        isPrimaryPayer: rel.isPrimaryPayer,
+        isActive: true,
+      })
+    } else if (!existing.isActive) {
+      toReactivate.push(existing.id)
+    }
+  }
+
+  // 3. Clear isPrimaryPayer for OTHER guardians (1 updateMany instead of N)
+  const primaryPayerGuardianIds = relationships
+    .filter((r) => r.isPrimaryPayer)
+    .map((r) => r.guardianPersonId)
+
+  if (primaryPayerGuardianIds.length > 0) {
+    await tx.guardianRelationship.updateMany({
+      where: {
+        dependentId: { in: dependentIds },
+        guardianId: { notIn: primaryPayerGuardianIds },
+        isActive: true,
+        isPrimaryPayer: true,
+      },
+      data: { isPrimaryPayer: false },
+    })
+  }
+
+  // 4. Batch create new relationships
+  if (toCreate.length > 0) {
+    await tx.guardianRelationship.createMany({
+      data: toCreate,
+      skipDuplicates: true,
+    })
+  }
+
+  // 5. Batch reactivate inactive relationships
+  if (toReactivate.length > 0) {
+    await tx.guardianRelationship.updateMany({
+      where: { id: { in: toReactivate } },
+      data: { isActive: true },
+    })
+  }
 }
