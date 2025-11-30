@@ -104,6 +104,15 @@
       "genderRequired": "Please select a gender",
       "dateRequired": "Please select a date of birth",
       "healthInfoMin": "Please provide health information or type 'None'"
+    },
+    "success": {
+      "title": "Registration Successful!",
+      "description": "Your family has been registered for the Dugsi program.",
+      "justRegistered": "Just Registered",
+      "recentRegistrations": "Recent Registrations",
+      "registerAnother": "Register Another Family",
+      "noRegistrations": "No registrations yet.",
+      "errorLoading": "Failed to load registrations. Please try again later."
     }
   }
 }

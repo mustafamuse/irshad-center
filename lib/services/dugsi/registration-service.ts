@@ -35,9 +35,12 @@ import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
  *
  * @security Authorization must be enforced at the API route/action layer.
  *
+ * @param limit - Optional limit on number of registrations to return (for performance)
  * @returns Array of DugsiRegistration DTOs
  */
-export async function getAllDugsiRegistrations(): Promise<DugsiRegistration[]> {
+export async function getAllDugsiRegistrations(
+  limit?: number
+): Promise<DugsiRegistration[]> {
   const profiles = await prisma.programProfile.findMany({
     where: {
       program: DUGSI_PROGRAM,
@@ -46,6 +49,7 @@ export async function getAllDugsiRegistrations(): Promise<DugsiRegistration[]> {
     orderBy: {
       createdAt: 'desc',
     },
+    ...(limit && { take: limit }),
   })
 
   // Map to DTOs
