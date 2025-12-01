@@ -117,12 +117,9 @@ export const mahadRegistrationSchema = z.object({
       'Date of birth cannot be in the future'
     ),
   // Grade level is optional for tracking college year
-  gradeLevel: z
-    .nativeEnum(GradeLevel, {
-      required_error: 'Please select your grade level',
-    })
-    .nullable(),
-  schoolName: schoolNameSchema,
+  // TEMPORARILY OPTIONAL - Will restore requirement in a few months
+  gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
+  schoolName: schoolNameSchema.nullable().optional(),
 })
 
 export type MahadRegistrationValues = z.infer<typeof mahadRegistrationSchema>
@@ -137,8 +134,8 @@ export const MAHAD_DEFAULT_FORM_VALUES: Partial<MahadRegistrationValues> = {
   email: '',
   phone: '',
   dateOfBirth: undefined,
-  gradeLevel: null,
-  schoolName: '',
+  gradeLevel: undefined,
+  schoolName: undefined,
 }
 
 // ============================================================================
@@ -161,11 +158,9 @@ export const childInfoSchema = z.object({
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
     ),
-  // Grade level is required for K-12 students
-  gradeLevel: z.nativeEnum(GradeLevel, {
-    required_error: 'Please select grade level',
-  }),
-  schoolName: schoolNameSchema,
+  // TEMPORARILY OPTIONAL - Will restore requirement in a few months
+  gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
+  schoolName: schoolNameSchema.nullable().optional(),
   healthInfo: z
     .string()
     .min(1, 'Please provide health information or type "None"')
@@ -229,8 +224,8 @@ export const DEFAULT_CHILD_VALUES: ChildInfo = {
   lastName: '',
   gender: undefined as unknown as Gender,
   dateOfBirth: null as unknown as Date,
-  gradeLevel: undefined as unknown as GradeLevel,
-  schoolName: '',
+  gradeLevel: undefined,
+  schoolName: undefined,
   healthInfo: '',
 }
 

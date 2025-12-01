@@ -20,7 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Form } from '@/components/ui/form'
 import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
 import { Label } from '@/components/ui/label'
-import { SchoolCombobox } from '@/components/ui/school-combobox'
+// TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
 import {
   Select,
   SelectContent,
@@ -31,7 +31,8 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import {
   useTranslatedGenderOptions,
-  useTranslatedGradeOptions,
+  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
+  // useTranslatedGradeOptions,
 } from '@/lib/i18n/use-translated-options'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import {
@@ -39,7 +40,8 @@ import {
   type DugsiRegistrationValues,
   DUGSI_DEFAULT_FORM_VALUES,
   DEFAULT_CHILD_VALUES,
-  DUGSI_GRADE_OPTIONS,
+  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
+  // DUGSI_GRADE_OPTIONS,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
@@ -52,7 +54,8 @@ import { useDugsiRegistration } from '../_hooks/use-registration'
 export function DugsiRegisterForm() {
   const t = useTranslations('dugsi')
   const genderOptions = useTranslatedGenderOptions()
-  const gradeOptions = useTranslatedGradeOptions()
+  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
+  // const gradeOptions = useTranslatedGradeOptions()
 
   const form = useForm<DugsiRegistrationValues>({
     resolver: zodResolver(dugsiRegistrationSchema),
@@ -290,8 +293,9 @@ export function DugsiRegisterForm() {
                       }}
                     />
 
+                    {/* TEMPORARILY HIDDEN - Will restore in a few months */}
                     {/* Grade Level */}
-                    <FormFieldWrapper
+                    {/* <FormFieldWrapper
                       control={form.control}
                       name={`children.${index}.gradeLevel`}
                       label={t('fields.grade')}
@@ -328,10 +332,10 @@ export function DugsiRegisterForm() {
                           </SelectContent>
                         </Select>
                       )}
-                    </FormFieldWrapper>
+                    </FormFieldWrapper> */}
 
                     {/* School Name */}
-                    <FormFieldWrapper
+                    {/* <FormFieldWrapper
                       control={form.control}
                       name={`children.${index}.schoolName`}
                       label={t('fields.school')}
@@ -349,7 +353,8 @@ export function DugsiRegisterForm() {
                           className={getInputClassNames(!!fieldState.error)}
                         />
                       )}
-                    </FormFieldWrapper>
+                    </FormFieldWrapper> */}
+                    {/* END TEMPORARILY HIDDEN */}
 
                     {/* Health Information */}
                     <FormFieldWrapper

@@ -29,27 +29,30 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
-import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
+// TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
+// import { Input } from '@/components/ui/input'
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from '@/components/ui/select'
+// import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import { useEmailValidation } from '@/lib/registration/hooks/use-email-validation'
 import { useSiblingSearch } from '@/lib/registration/hooks/use-sibling-search'
 import {
   mahadRegistrationSchema as studentFormSchema,
   type MahadRegistrationValues as StudentFormValues,
-  MAHAD_GRADE_OPTIONS,
+  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
+  // MAHAD_GRADE_OPTIONS,
   MAHAD_DEFAULT_FORM_VALUES as DEFAULT_FORM_VALUES,
   type SearchResult,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
-  getInputClassNames,
+  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
+  // getInputClassNames,
 } from '@/lib/registration/utils/form-utils'
 
 import { CheckoutDialog } from './checkout-dialog'
@@ -250,8 +253,9 @@ export function RegisterForm() {
                   fieldName="dateOfBirth"
                 />
 
+                {/* TEMPORARILY HIDDEN - Will restore in a few months
                 {/* Grade Level Field */}
-                <FormFieldWrapper
+                {/* <FormFieldWrapper
                   control={form.control}
                   name="gradeLevel"
                   label="Grade Level (Optional)"
@@ -277,10 +281,10 @@ export function RegisterForm() {
                       </SelectContent>
                     </Select>
                   )}
-                </FormFieldWrapper>
+                </FormFieldWrapper> */}
 
                 {/* School Name Field */}
-                <FormFieldWrapper
+                {/* <FormFieldWrapper
                   control={form.control}
                   name="schoolName"
                   label="School Name"
@@ -295,7 +299,8 @@ export function RegisterForm() {
                       className={getInputClassNames(!!fieldState.error)}
                     />
                   )}
-                </FormFieldWrapper>
+                </FormFieldWrapper> */}
+                {/* END TEMPORARILY HIDDEN */}
 
                 {/* Submit Button */}
                 <Button
