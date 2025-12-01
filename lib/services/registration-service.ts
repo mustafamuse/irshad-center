@@ -497,7 +497,6 @@ export async function createProgramProfileWithEnrollment(
  *
  * 1. **Parents** - Find or create parent Person records (upsert pattern)
  * 2. **Billing** - Create billing account for primary payer
- * 3. **Children** - Create child profiles with enrollments (parallel)
  *
  * ## Recovery Strategy for Partial Failures
  *
@@ -1000,6 +999,36 @@ async function findOrCreatePersonWithContact(
       }
 
       if (contactPointsToCreate.length > 0) {
+        // Clear existing primary flags for types we're adding as primary
+        // This ensures only one contact point per type is marked as primary
+        const primaryEmailBeingAdded = contactPointsToCreate.some(
+          (cp) => cp.type === 'EMAIL' && cp.isPrimary
+        )
+        const primaryPhoneBeingAdded = contactPointsToCreate.some(
+          (cp) => cp.type === 'PHONE' && cp.isPrimary
+        )
+
+        if (primaryEmailBeingAdded) {
+          await client.contactPoint.updateMany({
+            where: {
+              personId: existingPerson.id,
+              type: 'EMAIL',
+              isPrimary: true,
+            },
+            data: { isPrimary: false },
+          })
+        }
+        if (primaryPhoneBeingAdded) {
+          await client.contactPoint.updateMany({
+            where: {
+              personId: existingPerson.id,
+              type: 'PHONE',
+              isPrimary: true,
+            },
+            data: { isPrimary: false },
+          })
+        }
+
         await client.contactPoint.createMany({
           data: contactPointsToCreate,
           skipDuplicates: true,
