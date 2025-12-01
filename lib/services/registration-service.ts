@@ -670,6 +670,16 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           },
         })
 
+        /**
+         * Update existing profile - only update fields that are explicitly provided.
+         *
+         * Uses !== undefined && !== null checks intentionally:
+         * - undefined: Field was not included in form submission (e.g., SHOW_GRADE_SCHOOL=false)
+         * - null: Field was explicitly cleared (we still skip to preserve existing data)
+         *
+         * This prevents overwriting existing demographic data with empty form fields
+         * when re-registering or updating a child's profile.
+         */
         let profile
         if (existingProfile) {
           profile = await prisma.programProfile.update({

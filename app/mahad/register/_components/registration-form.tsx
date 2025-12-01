@@ -29,30 +29,28 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
-// TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
-// import { Input } from '@/components/ui/input'
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from '@/components/ui/select'
-// import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
+import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import { useEmailValidation } from '@/lib/registration/hooks/use-email-validation'
 import { useSiblingSearch } from '@/lib/registration/hooks/use-sibling-search'
 import {
   mahadRegistrationSchema as studentFormSchema,
   type MahadRegistrationValues as StudentFormValues,
-  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
-  // MAHAD_GRADE_OPTIONS,
+  MAHAD_GRADE_OPTIONS,
   MAHAD_DEFAULT_FORM_VALUES as DEFAULT_FORM_VALUES,
   type SearchResult,
+  SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
-  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
-  // getInputClassNames,
+  getInputClassNames,
 } from '@/lib/registration/utils/form-utils'
 
 import { CheckoutDialog } from './checkout-dialog'
@@ -253,54 +251,58 @@ export function RegisterForm() {
                   fieldName="dateOfBirth"
                 />
 
-                {/* TEMPORARILY HIDDEN - Will restore in a few months
-                {/* Grade Level Field */}
-                {/* <FormFieldWrapper
-                  control={form.control}
-                  name="gradeLevel"
-                  label="Grade Level (Optional)"
-                  required={false}
-                >
-                  {(field, fieldState) => (
-                    <Select
-                      value={field.value || ''}
-                      onValueChange={field.onChange}
+                {/* Grade & School Fields - controlled by SHOW_GRADE_SCHOOL feature flag */}
+                {SHOW_GRADE_SCHOOL && (
+                  <>
+                    <FormFieldWrapper
+                      control={form.control}
+                      name="gradeLevel"
+                      label="Grade Level"
+                      required
                     >
-                      <SelectTrigger
-                        aria-invalid={!!fieldState.error}
-                        className={getInputClassNames(!!fieldState.error)}
-                      >
-                        <SelectValue placeholder="Select grade level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MAHAD_GRADE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </FormFieldWrapper> */}
+                      {(field, fieldState) => (
+                        <Select
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger
+                            aria-invalid={!!fieldState.error}
+                            className={getInputClassNames(!!fieldState.error)}
+                          >
+                            <SelectValue placeholder="Select grade level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MAHAD_GRADE_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </FormFieldWrapper>
 
-                {/* School Name Field */}
-                {/* <FormFieldWrapper
-                  control={form.control}
-                  name="schoolName"
-                  label="School Name"
-                  required
-                >
-                  {(field, fieldState) => (
-                    <Input
-                      {...field}
-                      value={field.value || ''}
-                      placeholder="Enter school name"
-                      aria-invalid={!!fieldState.error}
-                      className={getInputClassNames(!!fieldState.error)}
-                    />
-                  )}
-                </FormFieldWrapper> */}
-                {/* END TEMPORARILY HIDDEN */}
+                    <FormFieldWrapper
+                      control={form.control}
+                      name="schoolName"
+                      label="School Name"
+                      required
+                    >
+                      {(field, fieldState) => (
+                        <Input
+                          {...field}
+                          value={field.value || ''}
+                          placeholder="Enter school name"
+                          aria-invalid={!!fieldState.error}
+                          className={getInputClassNames(!!fieldState.error)}
+                        />
+                      )}
+                    </FormFieldWrapper>
+                  </>
+                )}
 
                 {/* Submit Button */}
                 <Button

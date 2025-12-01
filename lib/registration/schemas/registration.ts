@@ -3,6 +3,17 @@ import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
 // ============================================================================
+// FEATURE FLAGS
+// ============================================================================
+
+/**
+ * Feature flag to show/hide grade and school fields in registration forms.
+ * Set NEXT_PUBLIC_SHOW_GRADE_SCHOOL=true in Vercel to re-enable these fields.
+ */
+export const SHOW_GRADE_SCHOOL =
+  process.env.NEXT_PUBLIC_SHOW_GRADE_SCHOOL === 'true'
+
+// ============================================================================
 // SHARED CONSTANTS & LABELS
 // ============================================================================
 
@@ -116,10 +127,15 @@ export const mahadRegistrationSchema = z.object({
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
     ),
-  // Grade level is optional for tracking college year
-  // TEMPORARILY OPTIONAL - Will restore requirement in a few months
-  gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
-  schoolName: schoolNameSchema.nullable().optional(),
+  // Grade level - controlled by SHOW_GRADE_SCHOOL feature flag
+  gradeLevel: SHOW_GRADE_SCHOOL
+    ? z.nativeEnum(GradeLevel, {
+        required_error: 'Please select your grade level',
+      })
+    : z.nativeEnum(GradeLevel).nullable().optional(),
+  schoolName: SHOW_GRADE_SCHOOL
+    ? schoolNameSchema
+    : schoolNameSchema.nullable().optional(),
 })
 
 export type MahadRegistrationValues = z.infer<typeof mahadRegistrationSchema>
@@ -158,9 +174,13 @@ export const childInfoSchema = z.object({
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
     ),
-  // TEMPORARILY OPTIONAL - Will restore requirement in a few months
-  gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
-  schoolName: schoolNameSchema.nullable().optional(),
+  // Grade level - controlled by SHOW_GRADE_SCHOOL feature flag
+  gradeLevel: SHOW_GRADE_SCHOOL
+    ? z.nativeEnum(GradeLevel, { required_error: 'Please select grade level' })
+    : z.nativeEnum(GradeLevel).nullable().optional(),
+  schoolName: SHOW_GRADE_SCHOOL
+    ? schoolNameSchema
+    : schoolNameSchema.nullable().optional(),
   healthInfo: z
     .string()
     .min(1, 'Please provide health information or type "None"')

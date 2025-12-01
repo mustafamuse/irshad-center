@@ -20,7 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Form } from '@/components/ui/form'
 import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
 import { Label } from '@/components/ui/label'
-// TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
+import { SchoolCombobox } from '@/components/ui/school-combobox'
 import {
   Select,
   SelectContent,
@@ -31,8 +31,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import {
   useTranslatedGenderOptions,
-  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
-  // useTranslatedGradeOptions,
+  useTranslatedGradeOptions,
 } from '@/lib/i18n/use-translated-options'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import {
@@ -40,8 +39,8 @@ import {
   type DugsiRegistrationValues,
   DUGSI_DEFAULT_FORM_VALUES,
   DEFAULT_CHILD_VALUES,
-  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
-  // DUGSI_GRADE_OPTIONS,
+  DUGSI_GRADE_OPTIONS,
+  SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
@@ -54,8 +53,7 @@ import { useDugsiRegistration } from '../_hooks/use-registration'
 export function DugsiRegisterForm() {
   const t = useTranslations('dugsi')
   const genderOptions = useTranslatedGenderOptions()
-  // TEMPORARILY UNUSED - Will restore when grade/school fields are re-enabled
-  // const gradeOptions = useTranslatedGradeOptions()
+  const gradeOptions = useTranslatedGradeOptions()
 
   const form = useForm<DugsiRegistrationValues>({
     resolver: zodResolver(dugsiRegistrationSchema),
@@ -293,68 +291,74 @@ export function DugsiRegisterForm() {
                       }}
                     />
 
-                    {/* TEMPORARILY HIDDEN - Will restore in a few months */}
-                    {/* Grade Level */}
-                    {/* <FormFieldWrapper
-                      control={form.control}
-                      name={`children.${index}.gradeLevel`}
-                      label={t('fields.grade')}
-                      required
-                    >
-                      {(field, fieldState) => (
-                        <Select
-                          value={field.value || ''}
-                          onValueChange={(value) => {
-                            field.onChange(value)
-                            form.setValue(
-                              `children.${index}.gradeLevel`,
-                              value as (typeof DUGSI_GRADE_OPTIONS)[number]['value']
-                            )
-                          }}
+                    {/* Grade & School Fields - controlled by SHOW_GRADE_SCHOOL feature flag */}
+                    {SHOW_GRADE_SCHOOL && (
+                      <>
+                        <FormFieldWrapper
+                          control={form.control}
+                          name={`children.${index}.gradeLevel`}
+                          label={t('fields.grade')}
+                          required
                         >
-                          <SelectTrigger
-                            aria-invalid={!!fieldState.error}
-                            className={getInputClassNames(!!fieldState.error)}
-                          >
-                            <SelectValue
-                              placeholder={t('placeholders.selectGrade')}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {gradeOptions.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
+                          {(field, fieldState) => (
+                            <Select
+                              value={field.value || ''}
+                              onValueChange={(value) => {
+                                field.onChange(value)
+                                form.setValue(
+                                  `children.${index}.gradeLevel`,
+                                  value as (typeof DUGSI_GRADE_OPTIONS)[number]['value']
+                                )
+                              }}
+                            >
+                              <SelectTrigger
+                                aria-invalid={!!fieldState.error}
+                                className={getInputClassNames(
+                                  !!fieldState.error
+                                )}
                               >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </FormFieldWrapper> */}
+                                <SelectValue
+                                  placeholder={t('placeholders.selectGrade')}
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {gradeOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </FormFieldWrapper>
 
-                    {/* School Name */}
-                    {/* <FormFieldWrapper
-                      control={form.control}
-                      name={`children.${index}.schoolName`}
-                      label={t('fields.school')}
-                      required
-                    >
-                      {(field, fieldState) => (
-                        <SchoolCombobox
-                          value={field.value}
-                          onChange={(value) => {
-                            form.setValue(`children.${index}.schoolName`, value)
-                            field.onChange(value)
-                          }}
-                          onBlur={field.onBlur}
-                          placeholder={t('placeholders.selectSchool')}
-                          className={getInputClassNames(!!fieldState.error)}
-                        />
-                      )}
-                    </FormFieldWrapper> */}
-                    {/* END TEMPORARILY HIDDEN */}
+                        <FormFieldWrapper
+                          control={form.control}
+                          name={`children.${index}.schoolName`}
+                          label={t('fields.school')}
+                          required
+                        >
+                          {(field, fieldState) => (
+                            <SchoolCombobox
+                              value={field.value}
+                              onChange={(value) => {
+                                form.setValue(
+                                  `children.${index}.schoolName`,
+                                  value
+                                )
+                                field.onChange(value)
+                              }}
+                              onBlur={field.onBlur}
+                              placeholder={t('placeholders.selectSchool')}
+                              className={getInputClassNames(!!fieldState.error)}
+                            />
+                          )}
+                        </FormFieldWrapper>
+                      </>
+                    )}
 
                     {/* Health Information */}
                     <FormFieldWrapper
