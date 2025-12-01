@@ -614,113 +614,110 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       })
     }
 
-    // Phase 3: Create children (sequential - each has idempotent findOrCreate)
+    // Phase 3: Create children in parallel (each operation is idempotent)
     currentPhase = 'children'
-    for (const child of children) {
-      const childFullName = `${child.firstName} ${child.lastName}`
+    const childResults = await Promise.all(
+      children.map(async (child) => {
+        const childFullName = `${child.firstName} ${child.lastName}`
 
-      // Check if child already exists
-      const existingChild = await findExistingChild(
-        child.firstName,
-        child.lastName,
-        child.dateOfBirth
-      )
+        const existingChild = await findExistingChild(
+          child.firstName,
+          child.lastName,
+          child.dateOfBirth
+        )
 
-      let childPerson: { id: string; name: string }
-      if (existingChild) {
-        childPerson = existingChild
-      } else {
-        // Create new Person with P2002 race condition handling
-        try {
-          const newChildPerson = await prisma.person.create({
-            data: {
-              name: childFullName,
-              dateOfBirth: child.dateOfBirth,
-            },
-          })
-          childPerson = { id: newChildPerson.id, name: newChildPerson.name }
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            logger.info(
-              { name: childFullName, dateOfBirth: child.dateOfBirth },
-              'Child person already exists (race condition), fetching existing'
-            )
-            const raceConditionChild = await findExistingChild(
-              child.firstName,
-              child.lastName,
-              child.dateOfBirth
-            )
-            if (raceConditionChild) {
-              childPerson = raceConditionChild
+        let childPerson: { id: string; name: string }
+        if (existingChild) {
+          childPerson = existingChild
+        } else {
+          try {
+            const newChildPerson = await prisma.person.create({
+              data: {
+                name: childFullName,
+                dateOfBirth: child.dateOfBirth,
+              },
+            })
+            childPerson = { id: newChildPerson.id, name: newChildPerson.name }
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              logger.info(
+                { name: childFullName, dateOfBirth: child.dateOfBirth },
+                'Child person already exists (race condition), fetching existing'
+              )
+              const raceConditionChild = await findExistingChild(
+                child.firstName,
+                child.lastName,
+                child.dateOfBirth
+              )
+              if (raceConditionChild) {
+                childPerson = raceConditionChild
+              } else {
+                throw error
+              }
             } else {
               throw error
             }
-          } else {
-            throw error
           }
         }
-      }
 
-      // Check if child already has a Dugsi ProgramProfile
-      const existingProfile = await prisma.programProfile.findFirst({
-        where: {
-          personId: childPerson.id,
-          program: 'DUGSI_PROGRAM',
-        },
-      })
-
-      let profile
-      if (existingProfile) {
-        // Update existing profile - only update fields that are explicitly provided
-        // Using undefined check to avoid overwriting existing data with null
-        profile = await prisma.programProfile.update({
-          where: { id: existingProfile.id },
-          data: {
-            ...(child.gender !== undefined &&
-              child.gender !== null && { gender: child.gender }),
-            ...(child.gradeLevel !== undefined &&
-              child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
-            ...(child.schoolName !== undefined &&
-              child.schoolName !== null && { schoolName: child.schoolName }),
-            ...(child.healthInfo !== undefined &&
-              child.healthInfo !== null && { healthInfo: child.healthInfo }),
-            familyReferenceId,
-          },
-        })
-      } else {
-        // Create ProgramProfile for child
-        profile = await prisma.programProfile.create({
-          data: {
+        const existingProfile = await prisma.programProfile.findFirst({
+          where: {
             personId: childPerson.id,
             program: 'DUGSI_PROGRAM',
-            status: 'REGISTERED',
-            gender: child.gender,
-            gradeLevel: child.gradeLevel,
-            schoolName: child.schoolName,
-            healthInfo: child.healthInfo,
-            familyReferenceId,
           },
         })
 
-        // Create Enrollment (no batchId for Dugsi)
-        await prisma.enrollment.create({
-          data: {
-            programProfileId: profile.id,
-            batchId: null,
-            status: 'REGISTERED',
-          },
-        })
-      }
+        let profile
+        if (existingProfile) {
+          profile = await prisma.programProfile.update({
+            where: { id: existingProfile.id },
+            data: {
+              ...(child.gender !== undefined &&
+                child.gender !== null && { gender: child.gender }),
+              ...(child.gradeLevel !== undefined &&
+                child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
+              ...(child.schoolName !== undefined &&
+                child.schoolName !== null && { schoolName: child.schoolName }),
+              ...(child.healthInfo !== undefined &&
+                child.healthInfo !== null && { healthInfo: child.healthInfo }),
+              familyReferenceId,
+            },
+          })
+        } else {
+          profile = await prisma.programProfile.create({
+            data: {
+              personId: childPerson.id,
+              program: 'DUGSI_PROGRAM',
+              status: 'REGISTERED',
+              gender: child.gender,
+              gradeLevel: child.gradeLevel,
+              schoolName: child.schoolName,
+              healthInfo: child.healthInfo,
+              familyReferenceId,
+            },
+          })
 
-      createdProfiles.push({
-        id: profile.id,
-        name: childFullName,
-        personId: childPerson.id,
+          await prisma.enrollment.create({
+            data: {
+              programProfileId: profile.id,
+              batchId: null,
+              status: 'REGISTERED',
+            },
+          })
+        }
+
+        return {
+          id: profile.id,
+          name: childFullName,
+          personId: childPerson.id,
+        }
       })
-    }
+    )
+
+    createdProfiles.push(...childResults)
 
     // Phase 4: Batch create guardian relationships (idempotent with skipDuplicates)
     currentPhase = 'guardians'
