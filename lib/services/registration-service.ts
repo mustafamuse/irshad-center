@@ -409,7 +409,7 @@ export async function createProgramProfileWithEnrollment(
         'Person already has an active enrollment for this program'
       )
       throw new Error(
-        `Person already has an active ${program} enrollment (Profile ID: ${existingProfile.id}). ` +
+        `This person already has an active ${program} enrollment. ` +
           'Withdraw the existing enrollment first before re-registering.'
       )
     }
@@ -498,7 +498,6 @@ export async function createProgramProfileWithEnrollment(
  * 1. **Parents** - Find or create parent Person records (upsert pattern)
  * 2. **Billing** - Create billing account for primary payer
  * 3. **Children** - Create child profiles with enrollments (parallel)
- * 4. **Guardians** - Link parents to children (skipDuplicates)
  *
  * ## Recovery Strategy for Partial Failures
  *
@@ -571,6 +570,11 @@ export async function createFamilyRegistration(data: unknown): Promise<{
 
   let currentPhase = 'init'
   try {
+    // Phase 0: Pre-flight validation (before any writes)
+    // Catches family conflicts early to prevent orphaned data
+    currentPhase = 'validation'
+    await validateFamilyConflicts(children, familyReferenceId)
+
     // Phase 1: Find or create parents (parallel, each idempotent)
     currentPhase = 'parents'
     const parent1FullName = `${parent1FirstName} ${parent1LastName}`
@@ -675,7 +679,19 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               if (raceConditionChild) {
                 childPerson = raceConditionChild
               } else {
-                throw error
+                logger.error(
+                  {
+                    name: childFullName,
+                    dateOfBirth: child.dateOfBirth,
+                    familyReferenceId,
+                    prismaError: error.meta,
+                  },
+                  'P2002 but child not found - possible constraint mismatch'
+                )
+                throw new Error(
+                  `Registration temporarily unavailable for ${childFullName}. ` +
+                    `Please retry. If the problem persists, contact support with reference: ${familyReferenceId}`
+                )
               }
             } else {
               throw error
@@ -1126,6 +1142,46 @@ async function findExistingChild(
   })
 
   return existing
+}
+
+/**
+ * Pre-flight validation to catch family conflicts before any writes.
+ * This prevents orphaned data when a child is already registered
+ * under a different family.
+ */
+async function validateFamilyConflicts(
+  children: Array<z.infer<typeof childDataSchema>>,
+  familyReferenceId: string
+): Promise<void> {
+  for (const child of children) {
+    const existingChild = await findExistingChild(
+      child.firstName,
+      child.lastName,
+      child.dateOfBirth
+    )
+
+    if (existingChild) {
+      const profile = await prisma.programProfile.findFirst({
+        where: {
+          personId: existingChild.id,
+          program: 'DUGSI_PROGRAM',
+        },
+        select: {
+          familyReferenceId: true,
+        },
+      })
+
+      if (
+        profile?.familyReferenceId &&
+        profile.familyReferenceId !== familyReferenceId
+      ) {
+        throw new Error(
+          `Child ${child.firstName} ${child.lastName} is already registered ` +
+            `under a different family. Contact support to update family relationships.`
+        )
+      }
+    }
+  }
 }
 
 /**
