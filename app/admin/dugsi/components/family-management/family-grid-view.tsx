@@ -11,6 +11,7 @@ import {
   Send,
   Link,
   Mail,
+  Trash2,
 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -32,6 +33,7 @@ import { useFamilyActions } from '../../_hooks/use-family-actions'
 import { Family } from '../../_types'
 import { formatParentName } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
+import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 import { ChildInfoCard } from '../ui/child-info-card'
 import { ParentInfo } from '../ui/parent-info'
@@ -55,6 +57,9 @@ export function FamilyGridView({
   )
   const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
+    null
+  )
 
   // Zustand store selectors
   const isVerifyBankDialogOpen = useDugsiUIStore(
@@ -248,6 +253,14 @@ export function FamilyGridView({
                             View in Stripe
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-600"
+                          onClick={() => setDeleteDialogFamily(family)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Family
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -304,6 +317,25 @@ export function FamilyGridView({
           onOpenChange={(open) => setDialogOpen('verifyBank', open)}
           paymentIntentId={verifyBankDialogData.paymentIntentId}
           parentEmail={verifyBankDialogData.parentEmail}
+        />
+      )}
+
+      {/* Delete Family Dialog */}
+      {deleteDialogFamily && (
+        <DeleteFamilyDialog
+          studentId={deleteDialogFamily.members[0]?.id || ''}
+          familyName={formatParentName(
+            deleteDialogFamily.members[0]?.parentFirstName,
+            deleteDialogFamily.members[0]?.parentLastName
+          )}
+          hasActiveSubscription={
+            deleteDialogFamily.hasSubscription &&
+            deleteDialogFamily.members[0]?.subscriptionStatus === 'active'
+          }
+          open={!!deleteDialogFamily}
+          onOpenChange={(open) => {
+            if (!open) setDeleteDialogFamily(null)
+          }}
         />
       )}
     </>

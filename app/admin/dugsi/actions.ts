@@ -112,16 +112,32 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<
 
 /**
  * Delete a Dugsi family.
+ *
+ * Cancels active Stripe subscriptions, then deletes all program data.
  */
 export async function deleteDugsiFamily(
   studentId: string
-): Promise<ActionResult> {
+): Promise<
+  ActionResult<{ studentsDeleted: number; subscriptionsCanceled: number }>
+> {
   try {
-    const count = await deleteDugsiFamilyService(studentId)
+    const result = await deleteDugsiFamilyService(studentId)
     revalidatePath('/admin/dugsi')
+
+    const parts: string[] = []
+    parts.push(
+      `${result.studentsDeleted} ${result.studentsDeleted === 1 ? 'student' : 'students'}`
+    )
+    if (result.subscriptionsCanceled > 0) {
+      parts.push(
+        `${result.subscriptionsCanceled} ${result.subscriptionsCanceled === 1 ? 'subscription' : 'subscriptions'} canceled`
+      )
+    }
+
     return {
       success: true,
-      message: `Successfully deleted ${count} ${count === 1 ? 'student' : 'students'}`,
+      data: result,
+      message: `Successfully deleted ${parts.join(', ')}`,
     }
   } catch (error) {
     await logError(logger, error, 'Failed to delete family', { studentId })

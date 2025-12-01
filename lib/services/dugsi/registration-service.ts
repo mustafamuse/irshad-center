@@ -21,6 +21,7 @@ import {
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
+import { cancelSubscription } from '@/lib/services/shared/subscription-service'
 
 /**
  * Fetch all Dugsi registrations with full relations.
@@ -169,6 +170,14 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
 }
 
 /**
+ * Delete family result type
+ */
+export interface DeleteFamilyResult {
+  studentsDeleted: number
+  subscriptionsCanceled: number
+}
+
+/**
  * Delete a Dugsi family and all associated students.
  *
  * HARD DELETE: Dugsi family data is permanently removed.
@@ -186,19 +195,25 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
  * If the student has a familyReferenceId, deletes all students in that family.
  * Otherwise, deletes just the single student.
  *
+ * Order of operations:
+ * 1. Cancel active Stripe subscriptions
+ * 2. Delete ProgramProfile records (cascade handles the rest)
+ *
  * Cascade deletes will handle:
- * - ProgramProfile
  * - Enrollments
  * - BillingAssignments
- * - Person record (if no other program profiles exist)
+ * - StudentPayments
+ * - TeacherAssignments
  *
  * @security Authorization must be enforced at the API route/action layer.
  *           This is a destructive operation - verify user intent before calling.
  *
  * @param studentId - ID of any student in the family
- * @returns Number of students deleted
+ * @returns Object with studentsDeleted and subscriptionsCanceled counts
  */
-export async function deleteDugsiFamily(studentId: string): Promise<number> {
+export async function deleteDugsiFamily(
+  studentId: string
+): Promise<DeleteFamilyResult> {
   const profile = await getProgramProfileById(studentId)
 
   if (!profile || profile.program !== DUGSI_PROGRAM) {
@@ -214,15 +229,21 @@ export async function deleteDugsiFamily(studentId: string): Promise<number> {
 
   // No family ID - delete just this profile
   if (!familyId) {
+    // Cancel any subscriptions for this single profile
+    const subscriptionsCanceled = await cancelFamilySubscriptions([profile])
+
     await prisma.programProfile.delete({
       where: { id: studentId },
     })
-    return 1
+    return { studentsDeleted: 1, subscriptionsCanceled }
   }
 
-  // Get all family members
+  // Get all family members with their billing assignments
   const familyProfiles = await getProgramProfilesByFamilyId(familyId)
   const profileIds = familyProfiles.map((p) => p.id)
+
+  // Cancel all active subscriptions for this family
+  const subscriptionsCanceled = await cancelFamilySubscriptions(familyProfiles)
 
   // Delete all program profiles in the family
   // Cascade deletes will handle related records
@@ -232,7 +253,47 @@ export async function deleteDugsiFamily(studentId: string): Promise<number> {
     },
   })
 
-  return profileIds.length
+  return { studentsDeleted: profileIds.length, subscriptionsCanceled }
+}
+
+/**
+ * Cancel all active subscriptions for family profiles.
+ *
+ * Collects unique subscription IDs from billing assignments and cancels them
+ * in both the database and Stripe.
+ *
+ * @param profiles - Array of family profiles with assignments
+ * @returns Number of subscriptions canceled
+ */
+async function cancelFamilySubscriptions(
+  profiles: Awaited<ReturnType<typeof getProgramProfilesByFamilyId>>
+): Promise<number> {
+  // Collect unique active subscription IDs
+  const subscriptionIds = new Set<string>()
+
+  for (const profile of profiles) {
+    for (const assignment of profile.assignments) {
+      if (
+        assignment.subscription &&
+        assignment.subscription.status === 'active'
+      ) {
+        subscriptionIds.add(assignment.subscription.stripeSubscriptionId)
+      }
+    }
+  }
+
+  // Cancel each subscription in both DB and Stripe
+  let canceled = 0
+  for (const stripeSubscriptionId of Array.from(subscriptionIds)) {
+    try {
+      await cancelSubscription(stripeSubscriptionId, true, 'DUGSI')
+      canceled++
+    } catch {
+      // Log but continue - subscription may already be canceled in Stripe
+    }
+  }
+
+  return canceled
 }
 
 /**

@@ -2,10 +2,24 @@
 
 import { useState } from 'react'
 
-import { Users, CheckCircle, XCircle } from 'lucide-react'
+import {
+  Users,
+  CheckCircle,
+  XCircle,
+  MoreHorizontal,
+  Eye,
+  Trash2,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { EmptyState } from '@/components/ui/empty-state'
 import {
   Table,
@@ -28,6 +42,7 @@ import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
+import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 
 interface FamilyTableViewProps {
@@ -37,6 +52,9 @@ interface FamilyTableViewProps {
 export function FamilyTableView({ families }: FamilyTableViewProps) {
   const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
+    null
+  )
 
   // Zustand store selectors
   const isVerifyBankDialogOpen = useDugsiUIStore(
@@ -215,16 +233,41 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                     <FamilyStatusBadge status={status} showLabel={false} />
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRowClick(family)
-                      }}
-                    >
-                      View Details
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Open menu</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleRowClick(family)
+                          }}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteDialogFamily(family)
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Family
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               )
@@ -256,6 +299,25 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
           }}
           paymentIntentId={verifyBankDialogData.paymentIntentId}
           parentEmail={verifyBankDialogData.parentEmail}
+        />
+      )}
+
+      {/* Delete Family Dialog */}
+      {deleteDialogFamily && (
+        <DeleteFamilyDialog
+          studentId={deleteDialogFamily.members[0]?.id || ''}
+          familyName={formatParentName(
+            deleteDialogFamily.members[0]?.parentFirstName,
+            deleteDialogFamily.members[0]?.parentLastName
+          )}
+          hasActiveSubscription={
+            deleteDialogFamily.hasSubscription &&
+            deleteDialogFamily.members[0]?.subscriptionStatus === 'active'
+          }
+          open={!!deleteDialogFamily}
+          onOpenChange={(open) => {
+            if (!open) setDeleteDialogFamily(null)
+          }}
         />
       )}
     </TooltipProvider>
