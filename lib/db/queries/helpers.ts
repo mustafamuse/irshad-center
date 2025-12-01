@@ -10,7 +10,7 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
 import { createBillingAssignment } from './billing'
-import { createEnrollment } from './program-profile'
+import { createEnrollment } from './enrollment'
 import { createGuardianRelationship } from './relationships'
 
 /**
@@ -41,8 +41,11 @@ export async function calculateBillingAssignmentTotal(
 /**
  * Get active enrollments for a program profile
  */
-export async function getActiveEnrollments(programProfileId: string) {
-  return prisma.enrollment.findMany({
+export async function getActiveEnrollments(
+  programProfileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.findMany({
     where: {
       programProfileId,
       status: { in: ['REGISTERED', 'ENROLLED'] },
@@ -65,8 +68,11 @@ export async function getActiveEnrollments(programProfileId: string) {
 /**
  * Get all enrollments for a program profile (including inactive)
  */
-export async function getAllEnrollments(programProfileId: string) {
-  return prisma.enrollment.findMany({
+export async function getAllEnrollments(
+  programProfileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.findMany({
     where: {
       programProfileId,
     },
@@ -87,8 +93,11 @@ export async function getAllEnrollments(programProfileId: string) {
 /**
  * Get active teacher assignments for a Dugsi student
  */
-export async function getActiveTeacherAssignments(programProfileId: string) {
-  return prisma.teacherAssignment.findMany({
+export async function getActiveTeacherAssignments(
+  programProfileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.teacherAssignment.findMany({
     where: {
       programProfileId,
       isActive: true,
@@ -118,8 +127,11 @@ export async function getActiveTeacherAssignments(programProfileId: string) {
 /**
  * Get all teacher assignments for a student (including inactive)
  */
-export async function getAllTeacherAssignments(programProfileId: string) {
-  return prisma.teacherAssignment.findMany({
+export async function getAllTeacherAssignments(
+  programProfileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.teacherAssignment.findMany({
     where: {
       programProfileId,
     },
@@ -148,16 +160,19 @@ export async function getAllTeacherAssignments(programProfileId: string) {
 /**
  * Create enrollment with automatic batch assignment for Mahad
  */
-export async function createEnrollmentWithBatch(data: {
-  programProfileId: string
-  batchId?: string | null
-  status?: EnrollmentStatus
-  startDate?: Date
-  reason?: string | null
-  notes?: string | null
-}) {
+export async function createEnrollmentWithBatch(
+  data: {
+    programProfileId: string
+    batchId?: string | null
+    status?: EnrollmentStatus
+    startDate?: Date
+    reason?: string | null
+    notes?: string | null
+  },
+  client: DatabaseClient = prisma
+) {
   // Get program to determine if batch is required
-  const profile = await prisma.programProfile.findUnique({
+  const profile = await client.programProfile.findUnique({
     where: { id: data.programProfileId },
     select: { program: true },
   })
@@ -168,7 +183,7 @@ export async function createEnrollmentWithBatch(data: {
 
   // For Mahad, try to find active batch if not provided
   if (profile.program === 'MAHAD_PROGRAM' && !data.batchId) {
-    const activeBatch = await prisma.batch.findFirst({
+    const activeBatch = await client.batch.findFirst({
       where: {
         endDate: null, // Active batch
       },
@@ -182,30 +197,34 @@ export async function createEnrollmentWithBatch(data: {
     }
   }
 
-  return createEnrollment(data)
+  return createEnrollment(data, client)
 }
 
 /**
  * Create billing assignment with total validation
  */
-export async function createBillingAssignmentWithValidation(data: {
-  subscriptionId: string
-  programProfileId: string
-  amount: number
-  percentage?: number | null
-  notes?: string | null
-  strict?: boolean // If true, throws error on over-assignment
-}) {
+export async function createBillingAssignmentWithValidation(
+  data: {
+    subscriptionId: string
+    programProfileId: string
+    amount: number
+    percentage?: number | null
+    notes?: string | null
+    strict?: boolean // If true, throws error on over-assignment
+  },
+  client: DatabaseClient = prisma
+) {
   const { strict = false, ...assignmentData } = data
 
   // Calculate current total
   const currentTotal = await calculateBillingAssignmentTotal(
     data.subscriptionId,
-    data.programProfileId
+    data.programProfileId,
+    client
   )
 
   // Get subscription amount
-  const subscription = await prisma.subscription.findUnique({
+  const subscription = await client.subscription.findUnique({
     where: { id: data.subscriptionId },
     select: { amount: true },
   })
@@ -223,7 +242,7 @@ export async function createBillingAssignmentWithValidation(data: {
     )
   }
 
-  return createBillingAssignment(assignmentData)
+  return createBillingAssignment(assignmentData, client)
 }
 
 /**
@@ -245,24 +264,33 @@ export async function createDugsiTeacherAssignment(_data: {
  * Create guardian relationship with validation
  * Convenience wrapper
  */
-export async function createParentRelationship(data: {
-  guardianId: string
-  dependentId: string
-  startDate?: Date
-  notes?: string | null
-}) {
-  return createGuardianRelationship({
-    ...data,
-    role: 'PARENT',
-  })
+export async function createParentRelationship(
+  data: {
+    guardianId: string
+    dependentId: string
+    startDate?: Date
+    notes?: string | null
+  },
+  client: DatabaseClient = prisma
+) {
+  return createGuardianRelationship(
+    {
+      ...data,
+      role: 'PARENT',
+    },
+    client
+  )
 }
 
 /**
  * Get billing assignment summary for a subscription
  */
-export async function getBillingAssignmentSummary(subscriptionId: string) {
+export async function getBillingAssignmentSummary(
+  subscriptionId: string,
+  client: DatabaseClient = prisma
+) {
   const [subscription, assignments] = await Promise.all([
-    prisma.subscription.findUnique({
+    client.subscription.findUnique({
       where: { id: subscriptionId },
       select: {
         id: true,
@@ -270,7 +298,7 @@ export async function getBillingAssignmentSummary(subscriptionId: string) {
         status: true,
       },
     }),
-    prisma.billingAssignment.findMany({
+    client.billingAssignment.findMany({
       where: {
         subscriptionId,
         isActive: true,
@@ -312,9 +340,10 @@ export async function getBillingAssignmentSummary(subscriptionId: string) {
  */
 export async function getPersonProgramProfiles(
   personId: string,
-  program?: Program
+  program?: Program,
+  client: DatabaseClient = prisma
 ) {
-  return prisma.programProfile.findMany({
+  return client.programProfile.findMany({
     where: {
       personId,
       ...(program && { program }),
@@ -351,15 +380,18 @@ export async function getPersonProgramProfiles(
 /**
  * Validate and create person with contact points
  */
-export async function validateAndCreatePerson(data: {
-  name: string
-  dateOfBirth?: Date | null
-  contactPoints?: Array<{
-    type: 'EMAIL' | 'PHONE' | 'WHATSAPP' | 'OTHER'
-    value: string
-    isPrimary?: boolean
-  }>
-}) {
+export async function validateAndCreatePerson(
+  data: {
+    name: string
+    dateOfBirth?: Date | null
+    contactPoints?: Array<{
+      type: 'EMAIL' | 'PHONE' | 'WHATSAPP' | 'OTHER'
+      value: string
+      isPrimary?: boolean
+    }>
+  },
+  client: DatabaseClient = prisma
+) {
   // Basic validation
   if (!data.name || data.name.trim().length === 0) {
     throw new Error('Person name is required')
@@ -385,7 +417,7 @@ export async function validateAndCreatePerson(data: {
     }
   }
 
-  return prisma.person.create({
+  return client.person.create({
     data: {
       name: data.name.trim(),
       dateOfBirth: data.dateOfBirth,
@@ -408,8 +440,11 @@ export async function validateAndCreatePerson(data: {
 /**
  * Get enrollment history for a program profile
  */
-export async function getEnrollmentHistory(programProfileId: string) {
-  return prisma.enrollment.findMany({
+export async function getEnrollmentHistory(
+  programProfileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.enrollment.findMany({
     where: {
       programProfileId,
     },
@@ -427,9 +462,10 @@ export async function getEnrollmentHistory(programProfileId: string) {
  */
 export async function isPersonEnrolled(
   personId: string,
-  program: Program
+  program: Program,
+  client: DatabaseClient = prisma
 ): Promise<boolean> {
-  const profile = await prisma.programProfile.findFirst({
+  const profile = await client.programProfile.findFirst({
     where: {
       personId,
       program,
@@ -450,8 +486,12 @@ export async function isPersonEnrolled(
 /**
  * Get all active students for a teacher
  */
-export async function getTeacherStudents(teacherId: string, shift?: Shift) {
-  return prisma.teacherAssignment.findMany({
+export async function getTeacherStudents(
+  teacherId: string,
+  shift?: Shift,
+  client: DatabaseClient = prisma
+) {
+  return client.teacherAssignment.findMany({
     where: {
       teacherId,
       isActive: true,

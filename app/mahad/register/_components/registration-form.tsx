@@ -46,6 +46,7 @@ import {
   MAHAD_GRADE_OPTIONS,
   MAHAD_DEFAULT_FORM_VALUES as DEFAULT_FORM_VALUES,
   type SearchResult,
+  SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
@@ -250,52 +251,58 @@ export function RegisterForm() {
                   fieldName="dateOfBirth"
                 />
 
-                {/* Grade Level Field */}
-                <FormFieldWrapper
-                  control={form.control}
-                  name="gradeLevel"
-                  label="Grade Level (Optional)"
-                  required={false}
-                >
-                  {(field, fieldState) => (
-                    <Select
-                      value={field.value || ''}
-                      onValueChange={field.onChange}
+                {/* Grade & School Fields - controlled by SHOW_GRADE_SCHOOL feature flag */}
+                {SHOW_GRADE_SCHOOL && (
+                  <>
+                    <FormFieldWrapper
+                      control={form.control}
+                      name="gradeLevel"
+                      label="Grade Level"
+                      required
                     >
-                      <SelectTrigger
-                        aria-invalid={!!fieldState.error}
-                        className={getInputClassNames(!!fieldState.error)}
-                      >
-                        <SelectValue placeholder="Select grade level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MAHAD_GRADE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </FormFieldWrapper>
+                      {(field, fieldState) => (
+                        <Select
+                          value={field.value || ''}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger
+                            aria-invalid={!!fieldState.error}
+                            className={getInputClassNames(!!fieldState.error)}
+                          >
+                            <SelectValue placeholder="Select grade level" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MAHAD_GRADE_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </FormFieldWrapper>
 
-                {/* School Name Field */}
-                <FormFieldWrapper
-                  control={form.control}
-                  name="schoolName"
-                  label="School Name"
-                  required
-                >
-                  {(field, fieldState) => (
-                    <Input
-                      {...field}
-                      value={field.value || ''}
-                      placeholder="Enter school name"
-                      aria-invalid={!!fieldState.error}
-                      className={getInputClassNames(!!fieldState.error)}
-                    />
-                  )}
-                </FormFieldWrapper>
+                    <FormFieldWrapper
+                      control={form.control}
+                      name="schoolName"
+                      label="School Name"
+                      required
+                    >
+                      {(field, fieldState) => (
+                        <Input
+                          {...field}
+                          value={field.value || ''}
+                          placeholder="Enter school name"
+                          aria-invalid={!!fieldState.error}
+                          className={getInputClassNames(!!fieldState.error)}
+                        />
+                      )}
+                    </FormFieldWrapper>
+                  </>
+                )}
 
                 {/* Submit Button */}
                 <Button

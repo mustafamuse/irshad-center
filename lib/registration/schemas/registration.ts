@@ -3,6 +3,17 @@ import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
 // ============================================================================
+// FEATURE FLAGS
+// ============================================================================
+
+/**
+ * Feature flag to show/hide grade and school fields in registration forms.
+ * Set NEXT_PUBLIC_SHOW_GRADE_SCHOOL=true in Vercel to re-enable these fields.
+ */
+export const SHOW_GRADE_SCHOOL =
+  process.env.NEXT_PUBLIC_SHOW_GRADE_SCHOOL === 'true'
+
+// ============================================================================
 // SHARED CONSTANTS & LABELS
 // ============================================================================
 
@@ -116,13 +127,15 @@ export const mahadRegistrationSchema = z.object({
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
     ),
-  // Grade level is optional for tracking college year
-  gradeLevel: z
-    .nativeEnum(GradeLevel, {
-      required_error: 'Please select your grade level',
-    })
-    .nullable(),
-  schoolName: schoolNameSchema,
+  // Grade level - controlled by SHOW_GRADE_SCHOOL feature flag
+  gradeLevel: SHOW_GRADE_SCHOOL
+    ? z.nativeEnum(GradeLevel, {
+        required_error: 'Please select your grade level',
+      })
+    : z.nativeEnum(GradeLevel).nullable().optional(),
+  schoolName: SHOW_GRADE_SCHOOL
+    ? schoolNameSchema
+    : schoolNameSchema.nullable().optional(),
 })
 
 export type MahadRegistrationValues = z.infer<typeof mahadRegistrationSchema>
@@ -137,8 +150,8 @@ export const MAHAD_DEFAULT_FORM_VALUES: Partial<MahadRegistrationValues> = {
   email: '',
   phone: '',
   dateOfBirth: undefined,
-  gradeLevel: null,
-  schoolName: '',
+  gradeLevel: undefined,
+  schoolName: undefined,
 }
 
 // ============================================================================
@@ -161,11 +174,13 @@ export const childInfoSchema = z.object({
       (date) => date <= new Date(),
       'Date of birth cannot be in the future'
     ),
-  // Grade level is required for K-12 students
-  gradeLevel: z.nativeEnum(GradeLevel, {
-    required_error: 'Please select grade level',
-  }),
-  schoolName: schoolNameSchema,
+  // Grade level - controlled by SHOW_GRADE_SCHOOL feature flag
+  gradeLevel: SHOW_GRADE_SCHOOL
+    ? z.nativeEnum(GradeLevel, { required_error: 'Please select grade level' })
+    : z.nativeEnum(GradeLevel).nullable().optional(),
+  schoolName: SHOW_GRADE_SCHOOL
+    ? schoolNameSchema
+    : schoolNameSchema.nullable().optional(),
   healthInfo: z
     .string()
     .min(1, 'Please provide health information or type "None"')
@@ -229,8 +244,8 @@ export const DEFAULT_CHILD_VALUES: ChildInfo = {
   lastName: '',
   gender: undefined as unknown as Gender,
   dateOfBirth: null as unknown as Date,
-  gradeLevel: undefined as unknown as GradeLevel,
-  schoolName: '',
+  gradeLevel: undefined,
+  schoolName: undefined,
   healthInfo: '',
 }
 

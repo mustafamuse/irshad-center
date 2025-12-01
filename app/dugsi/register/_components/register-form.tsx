@@ -40,6 +40,7 @@ import {
   DUGSI_DEFAULT_FORM_VALUES,
   DEFAULT_CHILD_VALUES,
   DUGSI_GRADE_OPTIONS,
+  SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
@@ -290,66 +291,74 @@ export function DugsiRegisterForm() {
                       }}
                     />
 
-                    {/* Grade Level */}
-                    <FormFieldWrapper
-                      control={form.control}
-                      name={`children.${index}.gradeLevel`}
-                      label={t('fields.grade')}
-                      required
-                    >
-                      {(field, fieldState) => (
-                        <Select
-                          value={field.value || ''}
-                          onValueChange={(value) => {
-                            field.onChange(value)
-                            form.setValue(
-                              `children.${index}.gradeLevel`,
-                              value as (typeof DUGSI_GRADE_OPTIONS)[number]['value']
-                            )
-                          }}
+                    {/* Grade & School Fields - controlled by SHOW_GRADE_SCHOOL feature flag */}
+                    {SHOW_GRADE_SCHOOL && (
+                      <>
+                        <FormFieldWrapper
+                          control={form.control}
+                          name={`children.${index}.gradeLevel`}
+                          label={t('fields.grade')}
+                          required
                         >
-                          <SelectTrigger
-                            aria-invalid={!!fieldState.error}
-                            className={getInputClassNames(!!fieldState.error)}
-                          >
-                            <SelectValue
-                              placeholder={t('placeholders.selectGrade')}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {gradeOptions.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
+                          {(field, fieldState) => (
+                            <Select
+                              value={field.value || ''}
+                              onValueChange={(value) => {
+                                field.onChange(value)
+                                form.setValue(
+                                  `children.${index}.gradeLevel`,
+                                  value as (typeof DUGSI_GRADE_OPTIONS)[number]['value']
+                                )
+                              }}
+                            >
+                              <SelectTrigger
+                                aria-invalid={!!fieldState.error}
+                                className={getInputClassNames(
+                                  !!fieldState.error
+                                )}
                               >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </FormFieldWrapper>
+                                <SelectValue
+                                  placeholder={t('placeholders.selectGrade')}
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {gradeOptions.map((option) => (
+                                  <SelectItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </FormFieldWrapper>
 
-                    {/* School Name */}
-                    <FormFieldWrapper
-                      control={form.control}
-                      name={`children.${index}.schoolName`}
-                      label={t('fields.school')}
-                      required
-                    >
-                      {(field, fieldState) => (
-                        <SchoolCombobox
-                          value={field.value}
-                          onChange={(value) => {
-                            form.setValue(`children.${index}.schoolName`, value)
-                            field.onChange(value)
-                          }}
-                          onBlur={field.onBlur}
-                          placeholder={t('placeholders.selectSchool')}
-                          className={getInputClassNames(!!fieldState.error)}
-                        />
-                      )}
-                    </FormFieldWrapper>
+                        <FormFieldWrapper
+                          control={form.control}
+                          name={`children.${index}.schoolName`}
+                          label={t('fields.school')}
+                          required
+                        >
+                          {(field, fieldState) => (
+                            <SchoolCombobox
+                              value={field.value}
+                              onChange={(value) => {
+                                form.setValue(
+                                  `children.${index}.schoolName`,
+                                  value
+                                )
+                                field.onChange(value)
+                              }}
+                              onBlur={field.onBlur}
+                              placeholder={t('placeholders.selectSchool')}
+                              className={getInputClassNames(!!fieldState.error)}
+                            />
+                          )}
+                        </FormFieldWrapper>
+                      </>
+                    )}
 
                     {/* Health Information */}
                     <FormFieldWrapper

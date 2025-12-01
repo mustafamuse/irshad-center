@@ -1,4 +1,4 @@
-export function formatGradeLevel(grade: string | null): string {
+export function formatGradeLevel(grade: string | null | undefined): string {
   if (!grade) return '—'
   const map: Record<string, string> = {
     KINDERGARTEN: 'Kindergarten',
