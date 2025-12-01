@@ -490,6 +490,26 @@ export async function createProgramProfileWithEnrollment(
  * Creates or reuses BillingAccount for primary parent.
  * Also creates sibling relationships between children.
  *
+ * ## Execution Phases (Sequential, Non-Transactional)
+ *
+ * Due to Supavisor connection pooling constraints, this function uses sequential
+ * operations without interactive transactions. Each phase is idempotent:
+ *
+ * 1. **Parents** - Find or create parent Person records (upsert pattern)
+ * 2. **Billing** - Create billing account for primary payer
+ * 3. **Children** - Create child profiles with enrollments (parallel)
+ * 4. **Guardians** - Link parents to children (skipDuplicates)
+ *
+ * ## Recovery Strategy for Partial Failures
+ *
+ * If a failure occurs mid-registration:
+ * - **Re-run registration**: All operations use upsert/skipDuplicates patterns,
+ *   so re-submitting the same data will complete missing steps safely.
+ * - **Manual recovery**: Use the logged `familyReferenceId` to query profiles
+ *   and identify missing relationships.
+ * - **Child reassignment blocked**: Existing children with a different
+ *   familyReferenceId will throw an error to prevent accidental reassignment.
+ *
  * @param data - Family registration data (validated against familyRegistrationSchema)
  * @returns Object with created profiles and billing account
  *
@@ -510,7 +530,7 @@ export async function createProgramProfileWithEnrollment(
  * ```
  *
  * @throws {ZodError} If data validation fails
- * @throws {Error} If phone normalization fails
+ * @throws {Error} If child is already registered under a different family
  */
 export async function createFamilyRegistration(data: unknown): Promise<{
   profiles: Array<{ id: string; name: string; personId: string }>
@@ -682,6 +702,17 @@ export async function createFamilyRegistration(data: unknown): Promise<{
          */
         let profile
         if (existingProfile) {
+          // Prevent reassigning child to a different family
+          if (
+            existingProfile.familyReferenceId &&
+            existingProfile.familyReferenceId !== familyReferenceId
+          ) {
+            throw new Error(
+              `Child ${childFullName} is already registered under a different family. ` +
+                `Contact support to update family relationships.`
+            )
+          }
+
           profile = await prisma.programProfile.update({
             where: { id: existingProfile.id },
             data: {
@@ -696,6 +727,25 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               familyReferenceId,
             },
           })
+
+          // Ensure active enrollment exists for re-registering students
+          const activeEnrollment = await prisma.enrollment.findFirst({
+            where: {
+              programProfileId: profile.id,
+              status: { in: ['REGISTERED', 'ENROLLED'] },
+              endDate: null,
+            },
+          })
+
+          if (!activeEnrollment) {
+            await prisma.enrollment.create({
+              data: {
+                programProfileId: profile.id,
+                batchId: null,
+                status: 'REGISTERED',
+              },
+            })
+          }
         } else {
           profile = await prisma.programProfile.create({
             data: {
