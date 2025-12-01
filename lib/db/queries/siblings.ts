@@ -456,18 +456,15 @@ export async function getSiblingsByFamilyId(
  * @param person2Id - Second person ID
  * @param detectionMethod - How the relationship was detected ('manual', 'GUARDIAN_MATCH', etc.)
  * @param confidence - Confidence score (0-1) for automatic detection, null for manual
- * @param tx - Optional Prisma transaction client. If provided, all operations run within the transaction.
+ * @param client - Database client (for transaction support)
  */
 export async function createSiblingRelationship(
   person1Id: string,
   person2Id: string,
   detectionMethod: string = 'manual',
   confidence: number | null = null,
-  tx?: Prisma.TransactionClient
+  client: DatabaseClient = prisma
 ) {
-  // Use transaction client if provided, otherwise use global prisma client
-  const client = tx || prisma
-
   // Ensure person1Id < person2Id for consistency
   const [p1, p2] = [person1Id, person2Id].sort()
 
