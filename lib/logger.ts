@@ -14,14 +14,24 @@ import { headers } from 'next/headers'
 
 import * as Sentry from '@sentry/nextjs'
 import pino from 'pino'
+import pretty from 'pino-pretty'
 
-// Determine log level from environment
 const logLevel =
   process.env.PINO_LOG_LEVEL ||
   (process.env.NODE_ENV === 'production' ? 'info' : 'debug')
 
-// Determine if we're in development
 const isDevelopment = process.env.NODE_ENV !== 'production'
+
+const devStream = isDevelopment
+  ? pretty({
+      colorize: true,
+      translateTime: 'SYS:standard',
+      ignore: 'pid,hostname',
+      singleLine: false,
+      messageFormat: '{levelLabel} [{source}] {msg}',
+      sync: true,
+    })
+  : undefined
 
 /**
  * Base logger configuration
@@ -32,143 +42,88 @@ const isDevelopment = process.env.NODE_ENV !== 'production'
  * - Structured JSON output for searchability
  * - Pretty-printed in development for readability
  */
-export const logger = pino({
-  level: logLevel,
+export const logger = pino(
+  {
+    level: logLevel,
 
-  // Redact sensitive data but keep emails/phones visible
-  redact: {
-    paths: [
-      // ========================================================================
-      // Authentication & Authorization
-      // ========================================================================
-      'password',
-      'token',
-      'apiKey',
-      'api_key',
-      'accessToken',
-      'refreshToken',
-      'secret',
-      'authorization',
-
-      // ========================================================================
-      // Request Headers with Secrets
-      // ========================================================================
-      'req.headers.authorization',
-      'req.headers.cookie',
-      'req.headers["x-api-key"]',
-      'headers.authorization',
-      'headers.cookie',
-
-      // ========================================================================
-      // Stripe API Keys & Secrets (CRITICAL - DO NOT LOG)
-      // ========================================================================
-      'stripeSecretKey',
-      'stripe_secret_key',
-      'STRIPE_SECRET_KEY_PROD',
-      'STRIPE_SECRET_KEY_DUGSI',
-      'STRIPE_WEBHOOK_SECRET_PROD',
-      'STRIPE_WEBHOOK_SECRET_DUGSI',
-
-      // ========================================================================
-      // Payment Card Data (PCI Compliance - MUST REDACT)
-      // ========================================================================
-      'paymentMethod.card.number',
-      'paymentMethod.card.cvc',
-      'paymentMethod.card.exp_month',
-      'paymentMethod.card.exp_year',
-      'source.card.number',
-      'source.card.cvc',
-      'card.number',
-      'card.cvc',
-      'cardNumber',
-      'cvc',
-
-      // ========================================================================
-      // Bank Account Data (PCI Compliance)
-      // ========================================================================
-      'bank_account.account_number',
-      'bank_account.routing_number',
-      'accountNumber',
-      'routingNumber',
-
-      // ========================================================================
-      // Database Credentials
-      // ========================================================================
-      'DATABASE_URL',
-      'DIRECT_URL',
-      'connectionString',
-
-      // ========================================================================
-      // Service API Keys
-      // ========================================================================
-      'RESEND_API_KEY',
-      'CRON_SECRET_KEY',
-      'ADMIN_PASSWORD',
-      'NEXTAUTH_SECRET',
-
-      // ========================================================================
-      // Deliberately NOT Redacted (Needed for Debugging):
-      // - email, *.email, customer_email, billing_details.email
-      // - phone, *.phone, customer_phone, shipping.phone
-      // - name, customer_name, dateOfBirth
-      // ========================================================================
-    ],
-    censor: '[REDACTED]',
-    remove: false, // Keep structure, just redact values
-  },
-
-  // Base context included in all logs
-  base: {
-    env: process.env.NODE_ENV,
-    app: 'irshad-center',
-  },
-
-  // Pretty print in development, JSON in production
-  transport: isDevelopment
-    ? {
-        target: 'pino-pretty',
-        options: {
-          colorize: true,
-          translateTime: 'SYS:standard',
-          ignore: 'pid,hostname',
-          singleLine: false,
-          messageFormat: '{levelLabel} [{source}] {msg}',
-        },
-      }
-    : undefined,
-
-  // Serializers for common objects
-  serializers: {
-    // Error serializer - automatically extracts stack trace
-    err: pino.stdSerializers.err,
-    error: pino.stdSerializers.err,
-
-    // Request serializer - omits sensitive headers
-    req: (req) => {
-      if (!req) return undefined
-      return {
-        method: req.method,
-        url: req.url,
-        headers: {
-          host: req.headers?.host,
-          'user-agent': req.headers?.['user-agent'],
-          // Deliberately omit: authorization, cookie, api keys
-        },
-      }
+    redact: {
+      paths: [
+        'password',
+        'token',
+        'apiKey',
+        'api_key',
+        'accessToken',
+        'refreshToken',
+        'secret',
+        'authorization',
+        'req.headers.authorization',
+        'req.headers.cookie',
+        'req.headers["x-api-key"]',
+        'headers.authorization',
+        'headers.cookie',
+        'stripeSecretKey',
+        'stripe_secret_key',
+        'STRIPE_SECRET_KEY_PROD',
+        'STRIPE_SECRET_KEY_DUGSI',
+        'STRIPE_WEBHOOK_SECRET_PROD',
+        'STRIPE_WEBHOOK_SECRET_DUGSI',
+        'paymentMethod.card.number',
+        'paymentMethod.card.cvc',
+        'paymentMethod.card.exp_month',
+        'paymentMethod.card.exp_year',
+        'source.card.number',
+        'source.card.cvc',
+        'card.number',
+        'card.cvc',
+        'cardNumber',
+        'cvc',
+        'bank_account.account_number',
+        'bank_account.routing_number',
+        'accountNumber',
+        'routingNumber',
+        'DATABASE_URL',
+        'DIRECT_URL',
+        'connectionString',
+        'RESEND_API_KEY',
+        'CRON_SECRET_KEY',
+        'ADMIN_PASSWORD',
+        'NEXTAUTH_SECRET',
+      ],
+      censor: '[REDACTED]',
+      remove: false,
     },
 
-    // Response serializer
-    res: (res) => {
-      if (!res) return undefined
-      return {
-        statusCode: res.statusCode,
-      }
+    base: {
+      env: process.env.NODE_ENV,
+      app: 'irshad-center',
+    },
+
+    serializers: {
+      err: pino.stdSerializers.err,
+      error: pino.stdSerializers.err,
+
+      req: (req) => {
+        if (!req) return undefined
+        return {
+          method: req.method,
+          url: req.url,
+          headers: {
+            host: req.headers?.host,
+            'user-agent': req.headers?.['user-agent'],
+          },
+        }
+      },
+
+      res: (res) => {
+        if (!res) return undefined
+        return {
+          statusCode: res.statusCode,
+        }
+      },
     },
   },
-
-  // Format timestamps as ISO strings
-  timestamp: () => `,"time":"${new Date().toISOString()}"`,
-})
+  devStream
+)
 
 /**
  * Create a child logger with specific context
