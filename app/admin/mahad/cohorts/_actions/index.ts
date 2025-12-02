@@ -30,7 +30,6 @@ import {
 import {
   getStudentById,
   resolveDuplicateStudents,
-  deleteStudent,
   getStudentDeleteWarnings,
   updateStudent,
 } from '@/lib/db/queries/student'
@@ -452,8 +451,7 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
-    // Delete the student
-    await deleteStudent(id)
+    await prisma.programProfile.delete({ where: { id } })
 
     revalidatePath('/admin/mahad/cohorts')
     if (student.batchId) {
@@ -495,7 +493,7 @@ export async function bulkDeleteStudentsAction(
         if (student?.batchId) {
           batchIdsToRevalidate.add(student.batchId)
         }
-        await deleteStudent(id)
+        await prisma.programProfile.delete({ where: { id } })
         deletedCount++
       } catch (error) {
         logger.error(
