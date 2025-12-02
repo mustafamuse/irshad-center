@@ -76,11 +76,11 @@ export function StudentDetailSheet({
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
       <SheetContent className="flex w-full flex-col p-0 sm:max-w-lg">
-        <SheetHeader className="border-b px-6 py-4">
+        <SheetHeader className="border-b px-4 py-3 sm:px-6 sm:py-4">
           <SheetTitle>{student.name}</SheetTitle>
         </SheetHeader>
 
-        <ScrollArea className="flex-1 px-6 py-4">
+        <ScrollArea className="flex-1 px-4 py-4 sm:px-6">
           <StudentDetailsContent
             student={mapToStudentData(student)}
             batches={batches.map(mapToBatchWithCount)}

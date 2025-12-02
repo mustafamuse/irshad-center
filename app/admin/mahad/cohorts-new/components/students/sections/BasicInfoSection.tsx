@@ -36,13 +36,13 @@ export function BasicInfoSection({
   updateField,
 }: BasicInfoSectionProps) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <Users className="h-4 w-4" />
         Basic Information
       </h3>
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         <StudentTextField
           id="name"
           label="Name"

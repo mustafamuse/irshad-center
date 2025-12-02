@@ -68,13 +68,13 @@ export function BatchSection({
   }
 
   return (
-    <div className="space-y-4 border-t pt-6">
+    <div className="space-y-3 border-t pt-4 sm:space-y-4 sm:pt-6">
       <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
         <BookOpen className="h-4 w-4" />
         Cohort & Payment Information
       </h3>
 
-      <div className="space-y-3">
+      <div className="space-y-2 sm:space-y-3">
         <StudentSelectField
           id="batchId"
           label="Cohort Assignment"

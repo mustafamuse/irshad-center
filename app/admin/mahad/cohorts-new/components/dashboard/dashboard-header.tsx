@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus } from 'lucide-react'
+import { Plus, UserPlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
@@ -20,13 +20,23 @@ export function DashboardHeader() {
         </p>
       </div>
 
-      <Button
-        onClick={() => openDialogWithData('createBatch')}
-        className="w-full sm:w-auto"
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        New Batch
-      </Button>
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <Button
+          variant="outline"
+          onClick={() => openDialogWithData('assignStudents')}
+          className="w-full sm:w-auto"
+        >
+          <UserPlus className="mr-2 h-4 w-4" />
+          Assign Students
+        </Button>
+        <Button
+          onClick={() => openDialogWithData('createBatch')}
+          className="w-full sm:w-auto"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          New Batch
+        </Button>
+      </div>
     </div>
   )
 }
