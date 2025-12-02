@@ -1,2 +1,4 @@
 export { PaymentLinkDialog } from './payment-link-dialog'
 export { DeleteStudentDialog } from './delete-student-dialog'
+export { CreateBatchDialog } from './create-batch-dialog'
+export { AssignStudentsDialog } from './assign-students-dialog'

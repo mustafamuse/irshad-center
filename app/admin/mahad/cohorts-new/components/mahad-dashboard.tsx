@@ -15,6 +15,7 @@ import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
 import { DashboardStats } from './dashboard/dashboard-stats'
 import { TabContent } from './dashboard/tab-content'
+import { AssignStudentsDialog, CreateBatchDialog } from './dialogs'
 
 interface MahadDashboardProps {
   students: StudentWithBatchData[]
@@ -166,6 +167,9 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
           />
         </TabsContent>
       </Tabs>
+
+      <CreateBatchDialog />
+      <AssignStudentsDialog students={mahadStudents} batches={mahadBatches} />
     </div>
   )
 }
