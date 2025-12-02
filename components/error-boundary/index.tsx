@@ -23,6 +23,7 @@ interface AppErrorBoundaryProps {
   variant?: ErrorVariant
   fallbackUrl?: string
   fallbackLabel?: string
+  onReset?: () => void
 }
 
 interface ErrorFallbackProps {
@@ -269,6 +270,7 @@ export function AppErrorBoundary({
   variant = 'card',
   fallbackUrl = '/',
   fallbackLabel = 'Go home',
+  onReset,
 }: AppErrorBoundaryProps) {
   return (
     <ReactErrorBoundary
@@ -281,9 +283,7 @@ export function AppErrorBoundary({
           fallbackLabel={fallbackLabel}
         />
       )}
-      onReset={() => {
-        window.location.reload()
-      }}
+      onReset={onReset ?? (() => window.location.reload())}
       onError={(error) => {
         console.error(`AppErrorBoundary caught error in ${context}:`, error)
         Sentry.captureException(error, {
