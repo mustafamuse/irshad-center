@@ -15,18 +15,34 @@ export interface SelectOption {
 }
 
 interface StudentSelectFieldProps {
+  /** Unique identifier for the field */
   id: string
+  /** Label text displayed above the field */
   label: string
+  /** Current selected value */
   value: string
+  /** Available options for selection */
   options: SelectOption[]
+  /** Whether the field is in edit mode */
   isEditing: boolean
+  /** Callback when selection changes */
   onChange: (value: string) => void
+  /** Whether the field is disabled */
   disabled?: boolean
+  /** Icon to display next to value in view mode */
   icon?: LucideIcon
+  /** Display text for view mode (defaults to selected option label) */
   displayValue?: string
+  /** Placeholder text when no value selected */
   placeholder?: string
 }
 
+/**
+ * StudentSelectField - Reusable select dropdown field component
+ *
+ * Renders a dropdown select in edit mode, or displays the value
+ * with optional icon in view mode.
+ */
 export function StudentSelectField({
   id,
   label,

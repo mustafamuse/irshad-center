@@ -3,58 +3,42 @@ import { BookOpen, DollarSign, GraduationCap, School } from 'lucide-react'
 import type { BatchStudentData, StudentDetailData } from '@/lib/types/batch'
 
 import {
+  formatBillingType,
   formatGradeLevel,
   formatGraduationStatus,
-  formatBillingType,
 } from '../../../_lib/student-form-utils'
 import type { StudentFormData } from '../../../_types'
+import {
+  BILLING_TYPE_OPTIONS,
+  GRADE_LEVEL_OPTIONS,
+  GRADUATION_STATUS_OPTIONS,
+  PAYMENT_FREQUENCY_OPTIONS,
+} from '../../../constants/form-options'
 import { StudentSelectField } from '../fields/StudentSelectField'
 import { StudentTextField } from '../fields/StudentTextField'
 
 interface EducationSectionProps {
+  /** Student data to display/edit */
   student: BatchStudentData | StudentDetailData
+  /** Current form data state */
   formData: StudentFormData
+  /** Whether the form is in edit mode */
   isEditing: boolean
+  /** Whether a save operation is pending */
   isPending: boolean
+  /** Callback to update a form field */
   updateField: <K extends keyof StudentFormData>(
     field: K,
     value: StudentFormData[K]
   ) => void
 }
 
-const GRADUATION_STATUS_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'NON_GRADUATE', label: 'Non-Graduate (Still in School)' },
-  { value: 'GRADUATE', label: 'Graduate' },
-]
-
-const BILLING_TYPE_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'FULL_TIME', label: 'Full-Time' },
-  { value: 'FULL_TIME_SCHOLARSHIP', label: 'Full-Time (Scholarship)' },
-  { value: 'PART_TIME', label: 'Part-Time' },
-  { value: 'EXEMPT', label: 'Exempt' },
-]
-
-const PAYMENT_FREQUENCY_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'MONTHLY', label: 'Monthly' },
-  { value: 'BI_MONTHLY', label: 'Bi-Monthly (Every 2 Months)' },
-]
-
-const GRADE_LEVEL_OPTIONS = [
-  { value: 'none', label: 'None' },
-  { value: 'KINDERGARTEN', label: 'Kindergarten' },
-  ...Array.from({ length: 12 }, (_, i) => ({
-    value: `GRADE_${i + 1}`,
-    label: `Grade ${i + 1}`,
-  })),
-  { value: 'FRESHMAN', label: 'Freshman' },
-  { value: 'SOPHOMORE', label: 'Sophomore' },
-  { value: 'JUNIOR', label: 'Junior' },
-  { value: 'SENIOR', label: 'Senior' },
-]
-
+/**
+ * EducationSection - Form section for billing and education configuration
+ *
+ * Displays graduation status, billing type, payment frequency, grade level,
+ * school name, and payment notes. Supports both view and edit modes.
+ */
 export function EducationSection({
   student,
   formData,

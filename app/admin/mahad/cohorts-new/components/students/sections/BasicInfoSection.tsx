@@ -7,16 +7,27 @@ import { StudentDateField } from '../fields/StudentDateField'
 import { StudentTextField } from '../fields/StudentTextField'
 
 interface BasicInfoSectionProps {
+  /** Student data to display */
   student: BatchStudentData | StudentDetailData
+  /** Current form data state */
   formData: StudentFormData
+  /** Whether the form is in edit mode */
   isEditing: boolean
+  /** Whether a save operation is pending */
   isPending: boolean
+  /** Callback to update a form field */
   updateField: <K extends keyof StudentFormData>(
     field: K,
     value: StudentFormData[K]
   ) => void
 }
 
+/**
+ * BasicInfoSection - Form section for core student information
+ *
+ * Displays and edits name, email, phone, and date of birth.
+ * Email and phone fields include clickable links in view mode.
+ */
 export function BasicInfoSection({
   student,
   formData,

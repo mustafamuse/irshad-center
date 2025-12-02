@@ -7,18 +7,31 @@ import type { StudentFormData } from '../../../_types'
 import { StudentSelectField } from '../fields/StudentSelectField'
 
 interface BatchSectionProps {
+  /** Current form data state */
   formData: StudentFormData
+  /** Whether the form is in edit mode */
   isEditing: boolean
+  /** Whether a save operation is pending */
   isPending: boolean
+  /** Callback to update a form field */
   updateField: <K extends keyof StudentFormData>(
     field: K,
     value: StudentFormData[K]
   ) => void
+  /** Available batches for selection */
   batches: BatchWithCount[]
+  /** Current batch name for display in view mode */
   currentBatchName: string | null
+  /** Student's current enrollment status */
   studentStatus: string | null
 }
 
+/**
+ * BatchSection - Form section for cohort assignment and status display
+ *
+ * Allows selecting a cohort from available batches and displays
+ * the student's current enrollment status.
+ */
 export function BatchSection({
   formData,
   isEditing,

@@ -23,14 +23,31 @@ import { EducationSection } from './sections/EducationSection'
 import { SiblingsSection } from './sections/SiblingsSection'
 
 interface StudentDetailsContentProps {
+  /** Student data to display/edit */
   student: BatchStudentData | StudentDetailData
+  /** Available batches for cohort assignment */
   batches: BatchWithCount[]
+  /** Current mode - 'view' for read-only, 'edit' for editable */
   mode?: 'view' | 'edit'
+  /** Callback when mode changes */
   onModeChange?: (mode: 'view' | 'edit') => void
+  /** Callback when form submission state changes */
   onSubmitStateChange?: (isSubmitting: boolean) => void
+  /** Whether to show the mode toggle buttons */
   showModeToggle?: boolean
 }
 
+/**
+ * StudentDetailsContent - Main form for viewing and editing student information
+ *
+ * Provides a comprehensive interface for student data management including:
+ * - Basic info (name, email, phone, DOB)
+ * - Cohort assignment
+ * - Billing configuration
+ * - Sibling relationships
+ *
+ * Supports both view and edit modes with proper form validation.
+ */
 export function StudentDetailsContent({
   student,
   batches,
