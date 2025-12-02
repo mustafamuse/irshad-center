@@ -120,18 +120,17 @@ app/dugsi/
 
 **Routes**:
 
-- `/admin/mahad/cohorts` - Cohort (batch) management
+- `/admin/mahad` - Student and cohort (batch) management dashboard
 
 **Structure**:
 
 ```
 app/admin/mahad/
-├── cohorts/
-│   ├── page.tsx          # Main page (Server Component)
-│   ├── actions.ts        # Server Actions
-│   ├── components/       # Feature-based components
-│   ├── store/            # Zustand store
-│   └── hooks/            # Custom hooks
+├── page.tsx              # Main page (Server Component)
+├── _actions/             # Server Actions
+├── components/           # Feature-based components
+├── store/                # Zustand store
+├── _hooks/               # Custom hooks
 └── README.md             # Documentation
 ```
 

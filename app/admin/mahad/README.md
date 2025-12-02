@@ -1,11 +1,21 @@
-# Mahad Admin Routes
+# Mahad Admin
 
-This directory contains admin functionality specific to the Mahad (college-level) program.
+Admin dashboard for the Mahad (college-level) program.
 
 ## Structure
 
-- `cohorts/` - Cohort management (groups of students starting together)
-- `students/` - Student management for Mahad program
+```
+app/admin/mahad/
+├── page.tsx           # Main dashboard page
+├── _actions/          # Server actions
+├── _hooks/            # React hooks
+├── _lib/              # Utilities
+├── _types/            # Type definitions
+├── _utils/            # Helper functions
+├── components/        # UI components
+├── constants/         # Form options, etc.
+└── store/             # Zustand state management
+```
 
 ## Notes
 
