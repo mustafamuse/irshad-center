@@ -735,7 +735,7 @@ export async function updateStudent(
   }
 ) {
   throw new Error(
-    'Direct student updates not supported. Use admin server actions in app/admin/mahad/cohorts/_actions/index.ts instead.'
+    'Direct student updates not supported. Use admin server actions in app/admin/mahad/_actions/index.ts instead.'
   )
 }
 
@@ -745,7 +745,7 @@ export async function updateStudent(
  */
 export async function deleteStudent(_id: string) {
   throw new Error(
-    'Direct student deletion not supported. Use admin server actions in app/admin/mahad/cohorts/_actions/index.ts instead.'
+    'Direct student deletion not supported. Use admin server actions in app/admin/mahad/_actions/index.ts instead.'
   )
 }
 
@@ -921,7 +921,7 @@ export async function resolveDuplicateStudents(
   _mergeData: boolean = false
 ) {
   throw new Error(
-    'Duplicate resolution not supported here. Use resolveDuplicatesAction in app/admin/mahad/cohorts/_actions/index.ts instead.'
+    'Duplicate resolution not supported here. Use resolveDuplicatesAction in app/admin/mahad/_actions/index.ts instead.'
   )
 }
 
