@@ -31,7 +31,6 @@ import {
   getStudentById,
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
-  updateStudent,
 } from '@/lib/db/queries/student'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger } from '@/lib/logger'
@@ -538,35 +537,133 @@ export async function updateStudentAction(
       }
     }
 
-    // Update the student
-    await updateStudent(id, {
-      ...(validated.name !== undefined && { name: validated.name }),
-      ...(validated.email !== undefined && { email: validated.email || null }),
-      ...(validated.phone !== undefined && { phone: validated.phone || null }),
-      ...(validated.dateOfBirth !== undefined && {
-        dateOfBirth: validated.dateOfBirth || null,
-      }),
-      ...(validated.gradeLevel !== undefined && {
-        gradeLevel: validated.gradeLevel || null,
-      }),
-      ...(validated.schoolName !== undefined && {
-        schoolName: validated.schoolName || null,
-      }),
-      ...(validated.graduationStatus !== undefined && {
-        graduationStatus: validated.graduationStatus || null,
-      }),
-      ...(validated.paymentFrequency !== undefined && {
-        paymentFrequency: validated.paymentFrequency || null,
-      }),
-      ...(validated.billingType !== undefined && {
-        billingType: validated.billingType || null,
-      }),
-      ...(validated.paymentNotes !== undefined && {
-        paymentNotes: validated.paymentNotes || null,
-      }),
-      ...(validated.batchId !== undefined && {
-        batchId: validated.batchId || null,
-      }),
+    await prisma.$transaction(async (tx) => {
+      const profile = await tx.programProfile.findUnique({
+        where: { id },
+        include: {
+          person: { include: { contactPoints: true } },
+          enrollments: { orderBy: { startDate: 'desc' }, take: 1 },
+        },
+      })
+
+      if (!profile) throw new Error('Profile not found')
+
+      if (validated.name !== undefined || validated.dateOfBirth !== undefined) {
+        await tx.person.update({
+          where: { id: profile.personId },
+          data: {
+            ...(validated.name !== undefined && { name: validated.name }),
+            ...(validated.dateOfBirth !== undefined && {
+              dateOfBirth: validated.dateOfBirth || null,
+            }),
+          },
+        })
+      }
+
+      if (validated.email !== undefined) {
+        const existingEmail = profile.person.contactPoints.find(
+          (c) => c.type === 'EMAIL' && c.isActive
+        )
+        if (validated.email) {
+          if (existingEmail) {
+            await tx.contactPoint.update({
+              where: { id: existingEmail.id },
+              data: { value: validated.email.toLowerCase() },
+            })
+          } else {
+            await tx.contactPoint.create({
+              data: {
+                personId: profile.personId,
+                type: 'EMAIL',
+                value: validated.email.toLowerCase(),
+                isPrimary: true,
+              },
+            })
+          }
+        } else if (existingEmail) {
+          await tx.contactPoint.update({
+            where: { id: existingEmail.id },
+            data: { isActive: false, deactivatedAt: new Date() },
+          })
+        }
+      }
+
+      if (validated.phone !== undefined) {
+        const existingPhone = profile.person.contactPoints.find(
+          (c) => c.type === 'PHONE' && c.isActive
+        )
+        if (validated.phone) {
+          if (existingPhone) {
+            await tx.contactPoint.update({
+              where: { id: existingPhone.id },
+              data: { value: validated.phone },
+            })
+          } else {
+            await tx.contactPoint.create({
+              data: {
+                personId: profile.personId,
+                type: 'PHONE',
+                value: validated.phone,
+                isPrimary: !profile.person.contactPoints.some(
+                  (c) => c.isPrimary && c.isActive
+                ),
+              },
+            })
+          }
+        } else if (existingPhone) {
+          await tx.contactPoint.update({
+            where: { id: existingPhone.id },
+            data: { isActive: false, deactivatedAt: new Date() },
+          })
+        }
+      }
+
+      const profileFields = {
+        ...(validated.gradeLevel !== undefined && {
+          gradeLevel: validated.gradeLevel || null,
+        }),
+        ...(validated.schoolName !== undefined && {
+          schoolName: validated.schoolName || null,
+        }),
+        ...(validated.graduationStatus !== undefined && {
+          graduationStatus: validated.graduationStatus || null,
+        }),
+        ...(validated.paymentFrequency !== undefined && {
+          paymentFrequency: validated.paymentFrequency || null,
+        }),
+        ...(validated.billingType !== undefined && {
+          billingType: validated.billingType || null,
+        }),
+        ...(validated.paymentNotes !== undefined && {
+          paymentNotes: validated.paymentNotes || null,
+        }),
+      }
+
+      if (Object.keys(profileFields).length > 0) {
+        await tx.programProfile.update({
+          where: { id },
+          data: profileFields,
+        })
+      }
+
+      if (validated.batchId !== undefined) {
+        const latestEnrollment = profile.enrollments[0]
+        if (latestEnrollment) {
+          await tx.enrollment.update({
+            where: { id: latestEnrollment.id },
+            data: { batchId: validated.batchId || null },
+          })
+        } else if (validated.batchId) {
+          await tx.enrollment.create({
+            data: {
+              programProfileId: id,
+              batchId: validated.batchId,
+              status: 'REGISTERED',
+              startDate: new Date(),
+            },
+          })
+        }
+      }
     })
 
     // Revalidate all relevant paths
