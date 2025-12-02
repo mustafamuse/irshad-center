@@ -85,6 +85,7 @@ export function AssignStudentsDialog({
   )
 
   const handleOpenChange = (open: boolean) => {
+    if (!open && isPending) return
     if (!open) {
       closeDialog()
       setSelectedBatchId('')
@@ -133,10 +134,12 @@ export function AssignStudentsDialog({
         const { assignedCount, failedAssignments } = result.data
         if (failedAssignments.length > 0) {
           toast.warning(
-            `Assigned ${assignedCount} students. ${failedAssignments.length} failed.`
+            `Assigned ${assignedCount} student${assignedCount !== 1 ? 's' : ''}. ${failedAssignments.length} failed.`
           )
         } else {
-          toast.success(`Successfully assigned ${assignedCount} students`)
+          toast.success(
+            `Successfully assigned ${assignedCount} student${assignedCount !== 1 ? 's' : ''}`
+          )
         }
         handleOpenChange(false)
         router.refresh()

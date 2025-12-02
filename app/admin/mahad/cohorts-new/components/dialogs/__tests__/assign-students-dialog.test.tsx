@@ -358,7 +358,7 @@ describe('AssignStudentsDialog', () => {
         success: true,
         data: {
           assignedCount: 1,
-          failedAssignments: [{ studentId: 'student-2', error: 'Failed' }],
+          failedAssignments: ['student-2'],
         },
       })
 
@@ -382,7 +382,7 @@ describe('AssignStudentsDialog', () => {
       )
 
       expect(toast.warning).toHaveBeenCalledWith(
-        'Assigned 1 students. 1 failed.'
+        'Assigned 1 student. 1 failed.'
       )
     })
 
