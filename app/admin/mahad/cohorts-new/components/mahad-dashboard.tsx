@@ -9,13 +9,22 @@ import { StudentWithBatchData } from '@/lib/db/queries/student'
 
 import { useStudentFilters } from '../_hooks/use-student-filters'
 import { useStudentStats, useDuplicates } from '../_hooks/use-student-groups'
-import { MahadBatch, MahadStudent, TabValue } from '../_types'
-import { useActiveTab, useMahadFilters, useMahadUIStore } from '../store'
+import { DuplicateGroup, MahadBatch, MahadStudent, TabValue } from '../_types'
+import {
+  useActiveTab,
+  useDialogData,
+  useMahadFilters,
+  useMahadUIStore,
+} from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
 import { DashboardStats } from './dashboard/dashboard-stats'
 import { TabContent } from './dashboard/tab-content'
-import { AssignStudentsDialog, CreateBatchDialog } from './dialogs'
+import {
+  AssignStudentsDialog,
+  CreateBatchDialog,
+  ResolveDuplicatesDialog,
+} from './dialogs'
 
 interface MahadDashboardProps {
   students: StudentWithBatchData[]
@@ -74,6 +83,7 @@ function mapBatch(b: BatchWithCount): MahadBatch {
 export function MahadDashboard({ students, batches }: MahadDashboardProps) {
   const activeTab = useActiveTab()
   const filters = useMahadFilters()
+  const dialogData = useDialogData()
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
 
   const mahadStudents = students.map(mapStudent)
@@ -170,6 +180,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
 
       <CreateBatchDialog />
       <AssignStudentsDialog students={mahadStudents} batches={mahadBatches} />
+      <ResolveDuplicatesDialog group={dialogData as DuplicateGroup | null} />
     </div>
   )
 }

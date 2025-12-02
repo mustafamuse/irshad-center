@@ -76,15 +76,33 @@ export function calculateStats(students: MahadStudent[]): DashboardStats {
   return stats
 }
 
+function selectKeepRecord(students: MahadStudent[]): MahadStudent {
+  const sorted = [...students].sort((a, b) => {
+    if (a.subscription && !b.subscription) return -1
+    if (!a.subscription && b.subscription) return 1
+    if (a.batchId && !b.batchId) return -1
+    if (!a.batchId && b.batchId) return 1
+    return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  })
+  return sorted[0]
+}
+
 export function detectDuplicates(students: MahadStudent[]): DuplicateGroup[] {
   const duplicates: DuplicateGroup[] = []
-  const seen = new Map<string, MahadStudent[]>()
+  const seen = new Map<
+    string,
+    { matchValue: string; students: MahadStudent[] }
+  >()
 
   for (const student of students) {
     if (student.email) {
-      const emailKey = `email:${student.email.toLowerCase()}`
-      const existing = seen.get(emailKey) || []
-      existing.push(student)
+      const normalizedEmail = student.email.toLowerCase()
+      const emailKey = `email:${normalizedEmail}`
+      const existing = seen.get(emailKey) || {
+        matchValue: normalizedEmail,
+        students: [],
+      }
+      existing.students.push(student)
       seen.set(emailKey, existing)
     }
 
@@ -92,23 +110,34 @@ export function detectDuplicates(students: MahadStudent[]): DuplicateGroup[] {
       const normalized = student.phone.replace(/\D/g, '')
       if (normalized.length >= 10) {
         const phoneKey = `phone:${normalized.slice(-10)}`
-        const existing = seen.get(phoneKey) || []
-        existing.push(student)
+        const existing = seen.get(phoneKey) || {
+          matchValue: student.phone,
+          students: [],
+        }
+        existing.students.push(student)
         seen.set(phoneKey, existing)
       }
     }
   }
 
-  Array.from(seen.entries()).forEach(([key, group]) => {
-    if (group.length > 1) {
-      const matchType = key.startsWith('email:') ? 'email' : 'phone'
-      duplicates.push({
-        key,
-        students: group,
-        matchType: matchType as 'email' | 'phone',
-      })
+  Array.from(seen.entries()).forEach(
+    ([key, { matchValue, students: group }]) => {
+      if (group.length > 1) {
+        const matchType = key.startsWith('email:') ? 'email' : 'phone'
+        const keepRecord = selectKeepRecord(group)
+        const duplicateRecords = group.filter((s) => s.id !== keepRecord.id)
+
+        duplicates.push({
+          key,
+          matchValue,
+          matchType: matchType as 'email' | 'phone',
+          students: group,
+          keepRecord,
+          duplicateRecords,
+        })
+      }
     }
-  })
+  )
 
   return duplicates
 }

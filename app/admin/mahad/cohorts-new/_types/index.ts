@@ -100,6 +100,7 @@ export type DialogType =
   | 'deleteStudent'
   | 'paymentLink'
   | 'studentDetail'
+  | 'resolveDuplicates'
   | null
 
 /**
@@ -114,9 +115,13 @@ export interface ActionResult<T = void> {
 
 /**
  * Duplicate group for duplicate detection
+ * Contains both the record to keep and records to delete
  */
 export interface DuplicateGroup {
   key: string
+  matchValue: string
+  matchType: 'email' | 'phone'
   students: MahadStudent[]
-  matchType: 'email' | 'phone' | 'name'
+  keepRecord: MahadStudent
+  duplicateRecords: MahadStudent[]
 }

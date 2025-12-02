@@ -1,17 +1,33 @@
 'use client'
 
-import { AlertTriangle, Mail, Phone, CheckCircle } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle,
+  CheckCircle2,
+  Mail,
+  Phone,
+  Trash2,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 
 import { DuplicateGroup } from '../../_types'
+import { useMahadUIStore } from '../../store'
 
 interface DuplicatesViewProps {
   duplicates: DuplicateGroup[]
 }
 
 function DuplicateCard({ group }: { group: DuplicateGroup }) {
+  const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
   const Icon = group.matchType === 'email' ? Mail : Phone
   const label = group.matchType === 'email' ? 'Email match' : 'Phone match'
 
@@ -27,22 +43,49 @@ function DuplicateCard({ group }: { group: DuplicateGroup }) {
           </CardTitle>
           <Badge variant="secondary">{group.students.length} students</Badge>
         </div>
+        <p className="mt-1 text-xs text-muted-foreground">{group.matchValue}</p>
       </CardHeader>
-      <CardContent>
-        <ul className="space-y-2">
-          {group.students.map((student) => (
-            <li
-              key={student.id}
-              className="flex items-center justify-between rounded-md bg-muted/50 p-2 text-sm"
-            >
-              <span className="font-medium">{student.name}</span>
-              <span className="text-muted-foreground">
+      <CardContent className="space-y-2">
+        <div className="flex items-center gap-2 rounded-md bg-green-50 p-2 dark:bg-green-950">
+          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium text-green-800 dark:text-green-200">
+              {group.keepRecord.name}
+            </p>
+            <p className="truncate text-xs text-green-600 dark:text-green-400">
+              {group.keepRecord.batch?.name || 'Unassigned'}
+              {group.keepRecord.subscription && ' (has subscription)'}
+            </p>
+          </div>
+        </div>
+
+        {group.duplicateRecords.map((student) => (
+          <div
+            key={student.id}
+            className="flex items-center gap-2 rounded-md bg-red-50 p-2 dark:bg-red-950"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-red-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                {student.name}
+              </p>
+              <p className="truncate text-xs text-red-600 dark:text-red-400">
                 {student.batch?.name || 'Unassigned'}
-              </span>
-            </li>
-          ))}
-        </ul>
+              </p>
+            </div>
+          </div>
+        ))}
       </CardContent>
+      <CardFooter className="pt-2">
+        <Button
+          variant="destructive"
+          size="sm"
+          className="w-full"
+          onClick={() => openDialogWithData('resolveDuplicates', group)}
+        >
+          Resolve Duplicates
+        </Button>
+      </CardFooter>
     </Card>
   )
 }
