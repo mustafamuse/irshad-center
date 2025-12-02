@@ -1,5 +1,8 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
+
+import * as Sentry from '@sentry/nextjs'
 import { AlertCircle, AlertTriangle, RefreshCw } from 'lucide-react'
 import { ErrorBoundary as ReactErrorBoundary } from 'react-error-boundary'
 
@@ -31,13 +34,24 @@ interface ErrorFallbackProps {
   fallbackLabel: string
 }
 
-function detectErrorType(error: Error) {
+function detectErrorType(error: Error): 'database' | 'notFound' | 'generic' {
+  if (error.constructor.name.includes('PrismaClient')) {
+    return 'database'
+  }
+
+  if ('statusCode' in error) {
+    const status = (error as { statusCode: number }).statusCode
+    if (status === 404) return 'notFound'
+    if (status >= 500) return 'database'
+  }
+
   const message = error.message.toLowerCase()
 
   if (
     message.includes('prisma') ||
     message.includes('database') ||
-    message.includes('connection')
+    message.includes('connection') ||
+    message.includes('timeout')
   ) {
     return 'database'
   }
@@ -47,6 +61,13 @@ function detectErrorType(error: Error) {
   }
 
   return 'generic'
+}
+
+function getSafeErrorMessage(error: Error): string {
+  if (process.env.NODE_ENV === 'production') {
+    return 'An unexpected error occurred. Please try again or contact support.'
+  }
+  return error.message
 }
 
 function getErrorContent(errorType: 'database' | 'notFound' | 'generic') {
@@ -80,12 +101,18 @@ function InlineErrorFallback({
   resetErrorBoundary: () => void
 }) {
   return (
-    <div className="rounded-lg border border-destructive/50 p-6">
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="rounded-lg border border-destructive/50 p-6"
+    >
       <div className="flex items-center gap-2 text-destructive">
-        <AlertTriangle className="h-4 w-4" />
+        <AlertTriangle aria-hidden="true" className="h-4 w-4" />
         <h3 className="font-medium">Something went wrong</h3>
       </div>
-      <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        {getSafeErrorMessage(error)}
+      </p>
       <Button variant="outline" onClick={resetErrorBoundary} className="mt-4">
         Try again
       </Button>
@@ -100,12 +127,20 @@ function CardErrorFallback({
   fallbackUrl,
   fallbackLabel,
 }: Omit<ErrorFallbackProps, 'variant'>) {
+  const router = useRouter()
   const errorType = detectErrorType(error)
   const { title, description } = getErrorContent(errorType)
 
   return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-destructive/50 bg-destructive/5 p-8 text-center">
-      <AlertCircle className="mb-4 h-10 w-10 text-destructive" />
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="flex flex-col items-center justify-center rounded-lg border border-destructive/50 bg-destructive/5 p-8 text-center"
+    >
+      <AlertCircle
+        aria-hidden="true"
+        className="mb-4 h-10 w-10 text-destructive"
+      />
 
       <h3 className="mb-2 text-lg font-semibold text-destructive">{title}</h3>
 
@@ -115,13 +150,13 @@ function CardErrorFallback({
 
       <div className="flex gap-2">
         <Button onClick={resetErrorBoundary} size="sm">
-          <RefreshCw className="mr-2 h-4 w-4" />
+          <RefreshCw aria-hidden="true" className="mr-2 h-4 w-4" />
           Try Again
         </Button>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => (window.location.href = fallbackUrl)}
+          onClick={() => router.push(fallbackUrl)}
         >
           {fallbackLabel}
         </Button>
@@ -156,12 +191,21 @@ function FullscreenErrorFallback({
   fallbackUrl,
   fallbackLabel,
 }: Omit<ErrorFallbackProps, 'variant'>) {
+  const router = useRouter()
+
   return (
-    <div className="container mx-auto flex min-h-screen items-center justify-center px-4 py-16">
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="container mx-auto flex min-h-screen items-center justify-center px-4 py-16"
+    >
       <Card className="w-full max-w-md">
         <CardHeader>
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-            <AlertTriangle className="h-6 w-6 text-destructive" />
+            <AlertTriangle
+              aria-hidden="true"
+              className="h-6 w-6 text-destructive"
+            />
           </div>
           <CardTitle className="text-center text-destructive">
             Something went wrong
@@ -171,7 +215,9 @@ function FullscreenErrorFallback({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">{error.message}</p>
+          <p className="text-sm text-muted-foreground">
+            {getSafeErrorMessage(error)}
+          </p>
 
           {process.env.NODE_ENV === 'development' && error.stack && (
             <details className="text-xs">
@@ -188,10 +234,7 @@ function FullscreenErrorFallback({
             <Button onClick={resetErrorBoundary} variant="default">
               Try again
             </Button>
-            <Button
-              onClick={() => (window.location.href = fallbackUrl)}
-              variant="outline"
-            >
+            <Button onClick={() => router.push(fallbackUrl)} variant="outline">
               {fallbackLabel}
             </Button>
           </div>
@@ -243,6 +286,9 @@ export function AppErrorBoundary({
       }}
       onError={(error) => {
         console.error(`AppErrorBoundary caught error in ${context}:`, error)
+        Sentry.captureException(error, {
+          tags: { errorBoundary: context, variant },
+        })
       }}
     >
       {children}
