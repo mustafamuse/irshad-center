@@ -52,12 +52,23 @@ function getStatusBadge(status: StudentStatus) {
 }
 
 export function StudentsTable({ students, batches }: StudentsTableProps) {
-  const [selectedStudent, setSelectedStudent] = useState<MahadStudent | null>(
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null
   )
-  const [paymentLinkStudent, setPaymentLinkStudent] =
-    useState<MahadStudent | null>(null)
-  const [deleteStudent, setDeleteStudent] = useState<MahadStudent | null>(null)
+  const [paymentLinkStudentId, setPaymentLinkStudentId] = useState<
+    string | null
+  >(null)
+  const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null)
+
+  const selectedStudent = selectedStudentId
+    ? (students.find((s) => s.id === selectedStudentId) ?? null)
+    : null
+  const paymentLinkStudent = paymentLinkStudentId
+    ? (students.find((s) => s.id === paymentLinkStudentId) ?? null)
+    : null
+  const deleteStudent = deleteStudentId
+    ? (students.find((s) => s.id === deleteStudentId) ?? null)
+    : null
   const selectedIds = useSelectedStudents()
   const { toggleStudent, setSelected, clearSelected } = useMahadUIStore()
 
@@ -115,7 +126,7 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
               <TableRow
                 key={student.id}
                 className="cursor-pointer"
-                onClick={() => setSelectedStudent(student)}
+                onClick={() => setSelectedStudentId(student.id)}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox
@@ -143,18 +154,18 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        onClick={() => setSelectedStudent(student)}
+                        onClick={() => setSelectedStudentId(student.id)}
                       >
                         View Details
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() => setPaymentLinkStudent(student)}
+                        onClick={() => setPaymentLinkStudentId(student.id)}
                       >
                         Generate Payment Link
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() => setDeleteStudent(student)}
+                        onClick={() => setDeleteStudentId(student.id)}
                       >
                         Delete Student
                       </DropdownMenuItem>
@@ -171,22 +182,22 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         student={selectedStudent}
         batches={batches}
         open={!!selectedStudent}
-        onOpenChange={(open) => !open && setSelectedStudent(null)}
+        onOpenChange={(open) => !open && setSelectedStudentId(null)}
       />
 
       <PaymentLinkDialog
         profileId={paymentLinkStudent?.id ?? ''}
         studentName={paymentLinkStudent?.name ?? ''}
         open={!!paymentLinkStudent}
-        onOpenChange={(open) => !open && setPaymentLinkStudent(null)}
+        onOpenChange={(open) => !open && setPaymentLinkStudentId(null)}
       />
 
       <DeleteStudentDialog
         studentId={deleteStudent?.id ?? ''}
         studentName={deleteStudent?.name ?? ''}
         open={!!deleteStudent}
-        onOpenChange={(open) => !open && setDeleteStudent(null)}
-        onDeleted={() => setDeleteStudent(null)}
+        onOpenChange={(open) => !open && setDeleteStudentId(null)}
+        onDeleted={() => setDeleteStudentId(null)}
       />
     </>
   )
