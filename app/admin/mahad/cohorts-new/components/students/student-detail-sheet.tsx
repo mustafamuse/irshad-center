@@ -20,40 +20,6 @@ interface StudentDetailSheetProps {
   onOpenChange: (open: boolean) => void
 }
 
-function mapToBatchWithCount(batch: MahadBatch) {
-  return {
-    id: batch.id,
-    name: batch.name,
-    startDate: batch.startDate,
-    endDate: batch.endDate,
-    createdAt: batch.createdAt,
-    updatedAt: batch.updatedAt,
-    studentCount: batch.studentCount,
-  }
-}
-
-function mapToStudentData(student: MahadStudent) {
-  return {
-    id: student.id,
-    name: student.name,
-    email: student.email,
-    phone: student.phone,
-    dateOfBirth: student.dateOfBirth,
-    gradeLevel: student.gradeLevel,
-    schoolName: student.schoolName,
-    graduationStatus: student.graduationStatus,
-    paymentFrequency: student.paymentFrequency,
-    billingType: student.billingType,
-    paymentNotes: student.paymentNotes,
-    status: student.status,
-    batchId: student.batchId,
-    batch: student.batch,
-    siblingCount: student.siblingCount ?? 0,
-    createdAt: student.createdAt,
-    updatedAt: student.updatedAt,
-  }
-}
-
 export function StudentDetailSheet({
   student,
   batches,
@@ -82,8 +48,8 @@ export function StudentDetailSheet({
 
         <ScrollArea className="flex-1 px-4 py-4 sm:px-6">
           <StudentDetailsContent
-            student={mapToStudentData(student)}
-            batches={batches.map(mapToBatchWithCount)}
+            student={student}
+            batches={batches}
             mode={mode}
             onModeChange={setMode}
             onSubmitStateChange={setIsSubmitting}

@@ -202,6 +202,9 @@ export function AssignStudentsDialog({
                 <p className="mt-2 text-sm text-muted-foreground">
                   All students are already assigned to batches
                 </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  New enrollments will appear here automatically
+                </p>
               </div>
             ) : (
               <ScrollArea className="h-64 rounded-md border">
@@ -216,6 +219,7 @@ export function AssignStudentsDialog({
                         checked={selectedStudentIds.has(student.id)}
                         onCheckedChange={() => toggleStudent(student.id)}
                         disabled={isPending}
+                        aria-label={`Select ${student.name}`}
                       />
                       <label
                         htmlFor={student.id}
