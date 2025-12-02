@@ -25,7 +25,7 @@ export function TabContent({
 }: TabContentProps) {
   switch (tab) {
     case 'students':
-      return <StudentsTable students={students} />
+      return <StudentsTable students={students} batches={batches} />
     case 'batches':
       return <BatchGrid batches={batches} students={students} />
     case 'duplicates':

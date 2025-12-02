@@ -24,11 +24,14 @@ import {
 import { StudentStatus } from '@/lib/types/student'
 
 import { StudentDetailSheet } from './student-detail-sheet'
-import { MahadStudent } from '../../_types'
+import { MahadBatch, MahadStudent } from '../../_types'
 import { useSelectedStudents, useMahadUIStore } from '../../store'
+import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
+import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 
 interface StudentsTableProps {
   students: MahadStudent[]
+  batches: MahadBatch[]
 }
 
 function getStatusBadge(status: StudentStatus) {
@@ -48,13 +51,26 @@ function getStatusBadge(status: StudentStatus) {
   return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
-export function StudentsTable({ students }: StudentsTableProps) {
-  const [selectedStudent, setSelectedStudent] = useState<MahadStudent | null>(
+export function StudentsTable({ students, batches }: StudentsTableProps) {
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null
   )
+  const [paymentLinkStudentId, setPaymentLinkStudentId] = useState<
+    string | null
+  >(null)
+  const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null)
+
+  const selectedStudent = selectedStudentId
+    ? (students.find((s) => s.id === selectedStudentId) ?? null)
+    : null
+  const paymentLinkStudent = paymentLinkStudentId
+    ? (students.find((s) => s.id === paymentLinkStudentId) ?? null)
+    : null
+  const deleteStudent = deleteStudentId
+    ? (students.find((s) => s.id === deleteStudentId) ?? null)
+    : null
   const selectedIds = useSelectedStudents()
-  const { toggleStudent, setSelected, clearSelected, openDialogWithData } =
-    useMahadUIStore()
+  const { toggleStudent, setSelected, clearSelected } = useMahadUIStore()
 
   const allSelected =
     students.length > 0 && students.every((s) => selectedIds.has(s.id))
@@ -110,7 +126,7 @@ export function StudentsTable({ students }: StudentsTableProps) {
               <TableRow
                 key={student.id}
                 className="cursor-pointer"
-                onClick={() => setSelectedStudent(student)}
+                onClick={() => setSelectedStudentId(student.id)}
               >
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Checkbox
@@ -138,22 +154,18 @@ export function StudentsTable({ students }: StudentsTableProps) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
-                        onClick={() => setSelectedStudent(student)}
+                        onClick={() => setSelectedStudentId(student.id)}
                       >
                         View Details
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() =>
-                          openDialogWithData('paymentLink', student)
-                        }
+                        onClick={() => setPaymentLinkStudentId(student.id)}
                       >
                         Generate Payment Link
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() =>
-                          openDialogWithData('deleteStudent', student)
-                        }
+                        onClick={() => setDeleteStudentId(student.id)}
                       >
                         Delete Student
                       </DropdownMenuItem>
@@ -168,8 +180,24 @@ export function StudentsTable({ students }: StudentsTableProps) {
 
       <StudentDetailSheet
         student={selectedStudent}
+        batches={batches}
         open={!!selectedStudent}
-        onOpenChange={(open) => !open && setSelectedStudent(null)}
+        onOpenChange={(open) => !open && setSelectedStudentId(null)}
+      />
+
+      <PaymentLinkDialog
+        profileId={paymentLinkStudent?.id ?? ''}
+        studentName={paymentLinkStudent?.name ?? ''}
+        open={!!paymentLinkStudent}
+        onOpenChange={(open) => !open && setPaymentLinkStudentId(null)}
+      />
+
+      <DeleteStudentDialog
+        studentId={deleteStudent?.id ?? ''}
+        studentName={deleteStudent?.name ?? ''}
+        open={!!deleteStudent}
+        onOpenChange={(open) => !open && setDeleteStudentId(null)}
+        onDeleted={() => setDeleteStudentId(null)}
       />
     </>
   )

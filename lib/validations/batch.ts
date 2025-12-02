@@ -100,10 +100,11 @@ export const CreateStudentSchema = z.object({
     .date()
     .max(new Date(), 'Date of birth cannot be in the future')
     .optional(),
-  gradeLevel: z.nativeEnum(GradeLevel).optional(),
+  gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
   schoolName: z
     .string()
     .max(200, 'School name must be less than 200 characters')
+    .nullable()
     .optional()
     .or(z.literal(''))
     .transform((val) =>
@@ -116,11 +117,11 @@ export const CreateStudentSchema = z.object({
       'School name cannot contain HTML tags'
     ),
   // Mahad billing fields
-  graduationStatus: z.nativeEnum(GraduationStatus).optional(),
-  paymentFrequency: z.nativeEnum(PaymentFrequency).optional(),
-  billingType: z.nativeEnum(StudentBillingType).optional(),
-  paymentNotes: z.string().max(500).optional().or(z.literal('')),
-  batchId: z.string().uuid('Invalid batch ID').optional(),
+  graduationStatus: z.nativeEnum(GraduationStatus).nullable().optional(),
+  paymentFrequency: z.nativeEnum(PaymentFrequency).nullable().optional(),
+  billingType: z.nativeEnum(StudentBillingType).nullable().optional(),
+  paymentNotes: z.string().max(500).nullable().optional().or(z.literal('')),
+  batchId: z.string().uuid('Invalid batch ID').nullable().optional(),
 })
 
 export const UpdateStudentSchema = CreateStudentSchema.partial()
