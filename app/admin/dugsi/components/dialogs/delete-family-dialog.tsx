@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 
 import { deleteDugsiFamily, getDeleteFamilyPreview } from '../../actions'
 
@@ -101,9 +102,10 @@ export function DeleteFamilyDialog({
 
               <div className="min-h-[80px]">
                 {isLoadingPreview && (
-                  <p className="text-sm text-muted-foreground">
-                    Loading family details...
-                  </p>
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
                 )}
 
                 {!isLoadingPreview && preview && (

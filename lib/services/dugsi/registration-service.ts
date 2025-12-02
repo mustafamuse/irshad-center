@@ -11,6 +11,8 @@
  * - Manage registration status updates
  */
 
+import { StripeAccountType } from '@prisma/client'
+
 import { DugsiRegistration } from '@/app/admin/dugsi/_types'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -20,8 +22,11 @@ import {
   getProgramProfilesByFamilyId,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger, logWarning } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
+
+const logger = createServiceLogger('dugsi-registration')
 
 /**
  * Fetch all Dugsi registrations with full relations.
@@ -286,10 +291,22 @@ async function cancelFamilySubscriptions(
   let canceled = 0
   for (const stripeSubscriptionId of Array.from(subscriptionIds)) {
     try {
-      await cancelSubscription(stripeSubscriptionId, true, 'DUGSI')
+      await cancelSubscription(
+        stripeSubscriptionId,
+        true,
+        StripeAccountType.DUGSI
+      )
       canceled++
-    } catch {
-      // Log but continue - subscription may already be canceled in Stripe
+    } catch (error) {
+      await logWarning(
+        logger,
+        'Subscription cancellation failed during family deletion',
+        {
+          stripeSubscriptionId,
+          familyId: profiles[0]?.familyReferenceId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        }
+      )
     }
   }
 
