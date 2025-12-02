@@ -5,3 +5,4 @@
  */
 
 export * from './dugsi-mapper'
+export * from './mahad-mapper'
