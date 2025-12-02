@@ -8,9 +8,11 @@
  * - Billing accounts and subscriptions
  * - Payment processing
  * - Guardian/parent management
+ * - Enrollment management
  */
 
 export * from './billing-service'
 export * from './subscription-service'
 export * from './payment-service'
 export * from './parent-service'
+export * from './enrollment-service'

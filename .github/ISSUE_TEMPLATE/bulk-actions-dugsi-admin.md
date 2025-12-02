@@ -22,7 +22,6 @@ Implement three bulk actions currently marked as TODOs in the Dugsi admin dashbo
 - ✅ Single-family subscription linking via `LinkSubscriptionDialog`
 - ✅ Payment link generation via `constructDugsiPaymentUrl()` in `lib/stripe-dugsi.ts`
 - ✅ Subscription linking action `linkDugsiSubscription()` in `app/admin/dugsi/actions.ts`
-- ✅ CSV export utility `exportToCSV()` in `lib/utils/export-to-csv.ts`
 - ✅ Family grouping and filtering via hooks (`useFamilyGroups`, `useFamilyFilters`)
 
 ### Current TODOs
@@ -443,7 +442,6 @@ fam_123,John,Doe,john@email.com,123-456-7890,Jane,Doe,jane@email.com,098-765-432
 
 - Payment link generation: `lib/stripe-dugsi.ts::constructDugsiPaymentUrl()`
 - Subscription linking: `app/admin/dugsi/actions.ts::linkDugsiSubscription()`
-- CSV export utility: `lib/utils/export-to-csv.ts::exportToCSV()`
 - Family grouping: `app/admin/dugsi/_utils/family.ts`
 
 ## 🏷️ Labels

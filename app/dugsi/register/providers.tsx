@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-import { ErrorBoundary } from '@/app/mahad/register/_components/error-boundary'
+import { AppErrorBoundary } from '@/components/error-boundary'
 import { IntlProviderWrapper } from '@/components/intl-provider-wrapper'
 import { LanguageProvider } from '@/contexts/language-context'
 
@@ -17,7 +17,9 @@ export function Providers({ children }: ProvidersProps) {
     <QueryClientProvider client={queryClient}>
       <LanguageProvider>
         <IntlProviderWrapper>
-          <ErrorBoundary>{children}</ErrorBoundary>
+          <AppErrorBoundary context="Dugsi registration" variant="inline">
+            {children}
+          </AppErrorBoundary>
         </IntlProviderWrapper>
       </LanguageProvider>
     </QueryClientProvider>

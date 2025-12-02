@@ -61,3 +61,4 @@ prisma/*.bak
 
 # IDE-specific settings
 .claude/
+.cursor/

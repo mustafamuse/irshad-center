@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster } from 'sonner'
 
-import { ErrorBoundary } from './_components/error-boundary'
+import { AppErrorBoundary } from '@/components/error-boundary'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -23,7 +23,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ErrorBoundary>
+      <AppErrorBoundary context="Mahad registration" variant="inline">
         {children}
         <Toaster
           position="top-center"
@@ -37,7 +37,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           }}
         />
         <ReactQueryDevtools initialIsOpen={false} />
-      </ErrorBoundary>
+      </AppErrorBoundary>
     </QueryClientProvider>
   )
 }

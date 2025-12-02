@@ -18,7 +18,6 @@ import { BatchWithCount, BatchStudentData } from '@/lib/types/batch'
 import { AssignmentActions } from './assignment-actions'
 import { BatchSelector } from './batch-selector'
 import { StudentSelector } from './student-selector'
-import { TransferProgress } from './transfer-progress'
 import {
   useLegacyActions,
   useSelectedStudents,
@@ -131,9 +130,6 @@ export function AssignStudentsForm({
               students={students}
             />
           )}
-
-          {/* Transfer Progress */}
-          <TransferProgress batches={batches} />
 
           {/* Action Buttons */}
           <AssignmentActions
