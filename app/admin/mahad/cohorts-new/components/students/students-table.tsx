@@ -24,11 +24,14 @@ import {
 import { StudentStatus } from '@/lib/types/student'
 
 import { StudentDetailSheet } from './student-detail-sheet'
-import { MahadStudent } from '../../_types'
+import { MahadBatch, MahadStudent } from '../../_types'
 import { useSelectedStudents, useMahadUIStore } from '../../store'
+import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
+import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 
 interface StudentsTableProps {
   students: MahadStudent[]
+  batches: MahadBatch[]
 }
 
 function getStatusBadge(status: StudentStatus) {
@@ -48,13 +51,15 @@ function getStatusBadge(status: StudentStatus) {
   return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
-export function StudentsTable({ students }: StudentsTableProps) {
+export function StudentsTable({ students, batches }: StudentsTableProps) {
   const [selectedStudent, setSelectedStudent] = useState<MahadStudent | null>(
     null
   )
+  const [paymentLinkStudent, setPaymentLinkStudent] =
+    useState<MahadStudent | null>(null)
+  const [deleteStudent, setDeleteStudent] = useState<MahadStudent | null>(null)
   const selectedIds = useSelectedStudents()
-  const { toggleStudent, setSelected, clearSelected, openDialogWithData } =
-    useMahadUIStore()
+  const { toggleStudent, setSelected, clearSelected } = useMahadUIStore()
 
   const allSelected =
     students.length > 0 && students.every((s) => selectedIds.has(s.id))
@@ -143,17 +148,13 @@ export function StudentsTable({ students }: StudentsTableProps) {
                         View Details
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        onClick={() =>
-                          openDialogWithData('paymentLink', student)
-                        }
+                        onClick={() => setPaymentLinkStudent(student)}
                       >
                         Generate Payment Link
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() =>
-                          openDialogWithData('deleteStudent', student)
-                        }
+                        onClick={() => setDeleteStudent(student)}
                       >
                         Delete Student
                       </DropdownMenuItem>
@@ -168,8 +169,24 @@ export function StudentsTable({ students }: StudentsTableProps) {
 
       <StudentDetailSheet
         student={selectedStudent}
+        batches={batches}
         open={!!selectedStudent}
         onOpenChange={(open) => !open && setSelectedStudent(null)}
+      />
+
+      <PaymentLinkDialog
+        profileId={paymentLinkStudent?.id ?? ''}
+        studentName={paymentLinkStudent?.name ?? ''}
+        open={!!paymentLinkStudent}
+        onOpenChange={(open) => !open && setPaymentLinkStudent(null)}
+      />
+
+      <DeleteStudentDialog
+        studentId={deleteStudent?.id ?? ''}
+        studentName={deleteStudent?.name ?? ''}
+        open={!!deleteStudent}
+        onOpenChange={(open) => !open && setDeleteStudent(null)}
+        onDeleted={() => setDeleteStudent(null)}
       />
     </>
   )
