@@ -22,6 +22,7 @@ import {
   Edit,
   UserPlus,
   Wallet,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -43,6 +44,7 @@ import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
 import { setPrimaryPayer } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
+import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
@@ -81,6 +83,7 @@ export function FamilyDetailSheet({
 
   const [addChildDialog, setAddChildDialog] = useState(false)
   const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
+  const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
 
   const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
     useActionHandler(setPrimaryPayer)
@@ -579,6 +582,18 @@ export function FamilyDetailSheet({
                 View in Stripe
               </Button>
             )}
+
+            {/* Danger Zone */}
+            <div className="pt-4">
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => setDeleteFamilyDialog(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4 text-red-500" />
+                <span className="text-red-500">Delete Family</span>
+              </Button>
+            </div>
           </div>
         </div>
       </SheetContent>
@@ -641,6 +656,21 @@ export function FamilyDetailSheet({
         open={paymentLinkDialog}
         onOpenChange={setPaymentLinkDialog}
       />
+
+      {/* Delete Family Dialog */}
+      {deleteFamilyDialog && (
+        <DeleteFamilyDialog
+          studentId={firstMember.id}
+          familyName={getSheetTitle()}
+          hasActiveSubscription={
+            family.hasSubscription &&
+            family.members[0]?.subscriptionStatus === 'active'
+          }
+          open={deleteFamilyDialog}
+          onOpenChange={setDeleteFamilyDialog}
+          onSuccess={() => onOpenChange(false)}
+        />
+      )}
     </Sheet>
   )
 }
