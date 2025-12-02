@@ -1,8 +1,9 @@
 'use client'
 
 import { format } from 'date-fns'
-import { Calendar, Users, Layers } from 'lucide-react'
+import { Calendar, Users, Layers, Pencil } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 import { MahadBatch, MahadStudent } from '../../_types'
@@ -22,17 +23,32 @@ function BatchCard({
 }) {
   const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
+  const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
 
   const handleClick = () => {
     setBatchFilter(batch.id)
     setActiveTab('students')
   }
 
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    openDialogWithData('editBatch', batch)
+  }
+
   return (
     <Card
-      className="cursor-pointer transition-colors hover:bg-muted/50"
+      className="group relative cursor-pointer transition-colors hover:bg-muted/50"
       onClick={handleClick}
     >
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute right-2 top-2 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={handleEdit}
+        aria-label={`Edit ${batch.name}`}
+      >
+        <Pencil className="h-4 w-4" />
+      </Button>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">{batch.name}</CardTitle>
       </CardHeader>

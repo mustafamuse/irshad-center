@@ -71,7 +71,7 @@ export function ResolveDuplicatesDialog({
     })
   }
 
-  if (!group) return null
+  if (!group || !group.students) return null
 
   return (
     <AlertDialog open={isOpen} onOpenChange={handleOpenChange}>

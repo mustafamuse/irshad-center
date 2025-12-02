@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import { Loader2, Plus } from 'lucide-react'
+import { format } from 'date-fns'
+import { Loader2, Plus, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -19,44 +20,43 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-import { createBatchAction } from '../../_actions'
-import { useDialogState, useMahadUIStore } from '../../store'
+import { createBatchAction, updateBatchAction } from '../../_actions'
+import { MahadBatch } from '../../_types'
+import { useDialogState, useDialogData, useMahadUIStore } from '../../store'
 
-/**
- * Dialog for creating new batches in the Mahad program.
- *
- * Features:
- * - Batch name (required) with validation
- * - Optional start date picker
- * - Loading state with spinner during creation
- * - Auto-reset on close
- * - Toast notifications for success/error
- *
- * Opens when `openDialog === 'createBatch'` in the Zustand store.
- *
- * @example
- * // Trigger from dashboard header
- * openDialogWithData('createBatch')
- *
- * // Render in parent component
- * <CreateBatchDialog />
- */
-export function CreateBatchDialog() {
+function formatDateForInput(date: Date | null): string {
+  if (!date) return ''
+  return format(date, 'yyyy-MM-dd')
+}
+
+export function BatchFormDialog() {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [name, setName] = useState('')
   const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
 
   const openDialog = useDialogState()
+  const dialogData = useDialogData() as MahadBatch | null
   const closeDialog = useMahadUIStore((s) => s.closeDialog)
 
-  const isOpen = openDialog === 'createBatch'
+  const isEditMode = openDialog === 'editBatch'
+  const isOpen = openDialog === 'createBatch' || openDialog === 'editBatch'
+
+  useEffect(() => {
+    if (isEditMode && dialogData) {
+      setName(dialogData.name)
+      setStartDate(formatDateForInput(dialogData.startDate))
+      setEndDate(formatDateForInput(dialogData.endDate))
+    }
+  }, [isEditMode, dialogData])
 
   const handleOpenChange = (open: boolean) => {
     if (!open) {
       closeDialog()
       setName('')
       setStartDate('')
+      setEndDate('')
     }
   }
 
@@ -68,21 +68,37 @@ export function CreateBatchDialog() {
       return
     }
 
-    const formData = new FormData()
-    formData.set('name', name.trim())
-    if (startDate) {
-      formData.set('startDate', startDate)
-    }
-
     startTransition(async () => {
-      const result = await createBatchAction(formData)
+      if (isEditMode && dialogData) {
+        const result = await updateBatchAction(dialogData.id, {
+          name: name.trim(),
+          startDate: startDate ? new Date(startDate) : null,
+          endDate: endDate ? new Date(endDate) : null,
+        })
 
-      if (result.success) {
-        toast.success(`Batch "${name}" created successfully`)
-        handleOpenChange(false)
-        router.refresh()
+        if (result.success) {
+          toast.success(`Batch "${name}" updated successfully`)
+          handleOpenChange(false)
+          router.refresh()
+        } else {
+          toast.error(result.error || 'Failed to update batch')
+        }
       } else {
-        toast.error(result.error || 'Failed to create batch')
+        const formData = new FormData()
+        formData.set('name', name.trim())
+        if (startDate) {
+          formData.set('startDate', startDate)
+        }
+
+        const result = await createBatchAction(formData)
+
+        if (result.success) {
+          toast.success(`Batch "${name}" created successfully`)
+          handleOpenChange(false)
+          router.refresh()
+        } else {
+          toast.error(result.error || 'Failed to create batch')
+        }
       }
     })
   }
@@ -92,9 +108,13 @@ export function CreateBatchDialog() {
       <DialogContent className="sm:max-w-md">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Create New Batch</DialogTitle>
+            <DialogTitle>
+              {isEditMode ? 'Edit Batch' : 'Create New Batch'}
+            </DialogTitle>
             <DialogDescription>
-              Create a new batch to organize students into cohorts.
+              {isEditMode
+                ? 'Update the batch name and dates.'
+                : 'Create a new batch to organize students into cohorts.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -123,6 +143,17 @@ export function CreateBatchDialog() {
                 disabled={isPending}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="end-date">End Date (optional)</Label>
+              <Input
+                id="end-date"
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                disabled={isPending}
+              />
+            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">
@@ -138,7 +169,12 @@ export function CreateBatchDialog() {
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  {isEditMode ? 'Saving...' : 'Creating...'}
+                </>
+              ) : isEditMode ? (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Changes
                 </>
               ) : (
                 <>
@@ -153,3 +189,5 @@ export function CreateBatchDialog() {
     </Dialog>
   )
 }
+
+export { BatchFormDialog as CreateBatchDialog }

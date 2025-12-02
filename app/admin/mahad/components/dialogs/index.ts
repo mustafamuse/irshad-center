@@ -1,5 +1,5 @@
 export { PaymentLinkDialog } from './payment-link-dialog'
 export { DeleteStudentDialog } from './delete-student-dialog'
-export { CreateBatchDialog } from './create-batch-dialog'
+export { BatchFormDialog, CreateBatchDialog } from './batch-form-dialog'
 export { AssignStudentsDialog } from './assign-students-dialog'
 export { ResolveDuplicatesDialog } from './resolve-duplicates-dialog'
