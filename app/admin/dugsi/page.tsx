@@ -2,9 +2,10 @@ import { Suspense } from 'react'
 
 import { Metadata } from 'next'
 
+import { AppErrorBoundary } from '@/components/error-boundary'
+
 import { getDugsiRegistrations } from './actions'
 import { DugsiDashboard } from './components/dugsi-dashboard'
-import { DugsiErrorBoundary } from './components/error-boundary'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,11 +53,16 @@ export default async function DugsiAdminPage() {
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
-      <DugsiErrorBoundary>
+      <AppErrorBoundary
+        context="Dugsi admin dashboard"
+        variant="card"
+        fallbackUrl="/admin/dugsi"
+        fallbackLabel="Reload Dashboard"
+      >
         <Suspense fallback={<Loading />}>
           <DugsiDashboard registrations={registrations} />
         </Suspense>
-      </DugsiErrorBoundary>
+      </AppErrorBoundary>
     </main>
   )
 }

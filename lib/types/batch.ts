@@ -208,18 +208,6 @@ export interface UpdateStudentDto {
   batchId?: string | null
 }
 
-// Legacy interface for backward compatibility (will be removed)
-export interface LegacyStudentWithBatch {
-  id: string
-  name: string
-  Batch: {
-    id: string
-    name: string
-    startDate: Date | null
-    endDate: Date | null
-  } | null
-}
-
 /**
  * Sibling types using the SiblingRelationship model
  */
