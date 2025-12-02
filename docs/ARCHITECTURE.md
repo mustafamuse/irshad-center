@@ -189,7 +189,7 @@ export async function deleteDugsiFamily(studentId: string) {
 **Pattern**: Fetch multiple data sources in parallel
 
 ```typescript
-// app/admin/mahad/cohorts/page.tsx
+// app/admin/mahad/page.tsx
 const [batches, students, duplicates] = await Promise.all([
   getBatches(),
   getStudentsWithBatch(),
@@ -266,7 +266,7 @@ const [searchParams, setSearchParams] = useQueryStates({
 All Server Actions follow a consistent error handling pattern:
 
 ```typescript
-// app/admin/mahad/cohorts/actions.ts
+// app/admin/mahad/_actions/index.ts
 type ActionResult<T = void> = {
   success: boolean
   data?: T
@@ -285,7 +285,7 @@ export async function createBatchAction(
     const batch = await createBatch(validated)
 
     // Revalidation
-    revalidatePath('/admin/mahad/cohorts')
+    revalidatePath('/admin/mahad')
 
     return { success: true, data: batch }
   } catch (error) {

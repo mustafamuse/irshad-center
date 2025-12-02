@@ -1,5 +1,5 @@
 import { permanentRedirect } from 'next/navigation'
 
 export default function BatchesRedirect() {
-  permanentRedirect('/admin/mahad/cohorts')
+  permanentRedirect('/admin/mahad')
 }

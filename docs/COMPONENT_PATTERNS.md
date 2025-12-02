@@ -80,7 +80,7 @@ export default async function DugsiAdminPage() {
 ### Server Component with Parallel Fetching
 
 ```typescript
-// app/admin/mahad/cohorts/page.tsx
+// app/admin/mahad/page.tsx
 export default async function CohortsPage() {
   // Parallel data fetching
   const [batches, students, duplicates] = await Promise.all([
