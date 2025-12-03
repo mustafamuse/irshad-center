@@ -28,7 +28,12 @@ export function DashboardHeader({
       toast.error('No families to export')
       return
     }
-    const { exported, skipped } = exportDugsiParentsToVCard(families)
+    const { exported, skipped, downloadFailed } =
+      exportDugsiParentsToVCard(families)
+    if (downloadFailed) {
+      toast.error('Failed to download file')
+      return
+    }
     if (exported > 0) {
       const msg =
         skipped > 0

@@ -20,11 +20,9 @@ interface BatchGridProps {
 
 function BatchCard({
   batch,
-  studentCount,
   students,
 }: {
   batch: MahadBatch
-  studentCount: number
   students: MahadStudent[]
 }) {
   const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
@@ -43,10 +41,14 @@ function BatchCard({
 
   const handleExportContacts = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const { exported, skipped } = exportMahadStudentsToVCard(
+    const { exported, skipped, downloadFailed } = exportMahadStudentsToVCard(
       students,
       batch.name
     )
+    if (downloadFailed) {
+      toast.error('Failed to download file')
+      return
+    }
     if (exported > 0) {
       const msg =
         skipped > 0
@@ -89,7 +91,7 @@ function BatchCard({
       <CardContent className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Users className="h-4 w-4" />
-          <span>{studentCount} students</span>
+          <span>{students.length} students</span>
         </div>
         {batch.startDate && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -167,7 +169,6 @@ export function BatchGrid({ batches, students }: BatchGridProps) {
         <BatchCard
           key={batch.id}
           batch={batch}
-          studentCount={batch.studentCount}
           students={studentsByBatch.map.get(batch.id) ?? []}
         />
       ))}

@@ -17,7 +17,12 @@ export function DashboardHeader({ students }: DashboardHeaderProps) {
   const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
 
   const handleExportAll = () => {
-    const { exported, skipped } = exportMahadStudentsToVCard(students)
+    const { exported, skipped, downloadFailed } =
+      exportMahadStudentsToVCard(students)
+    if (downloadFailed) {
+      toast.error('Failed to download file')
+      return
+    }
     if (exported > 0) {
       const msg =
         skipped > 0

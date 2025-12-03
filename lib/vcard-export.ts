@@ -16,6 +16,7 @@ interface VCardContact {
 export interface ExportResult {
   exported: number
   skipped: number
+  downloadFailed?: boolean
 }
 
 export function escapeVCardValue(value: string): string {
@@ -69,16 +70,21 @@ export function generateVCard(contact: VCardContact): string {
   return lines.join('\r\n')
 }
 
-function downloadVCardFile(content: string, filename: string): void {
-  const blob = new Blob([content], { type: 'text/vcard;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
+function downloadVCardFile(content: string, filename: string): boolean {
+  try {
+    const blob = new Blob([content], { type: 'text/vcard;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function getDateString(): string {
@@ -121,7 +127,10 @@ export function exportMahadStudentsToVCard(
     ? `mahad-${batchName.toLowerCase().replace(/\s+/g, '-')}-contacts-${getDateString()}.vcf`
     : `mahad-all-contacts-${getDateString()}.vcf`
 
-  downloadVCardFile(vcards, filename)
+  const success = downloadVCardFile(vcards, filename)
+  if (!success) {
+    return { exported: 0, skipped, downloadFailed: true }
+  }
   return { exported: contacts.length, skipped }
 }
 
@@ -209,6 +218,9 @@ export function exportDugsiParentsToVCard(families: Family[]): ExportResult {
   const vcards = contacts.map(generateVCard).join('\r\n')
   const filename = `dugsi-parent-contacts-${getDateString()}.vcf`
 
-  downloadVCardFile(vcards, filename)
+  const success = downloadVCardFile(vcards, filename)
+  if (!success) {
+    return { exported: 0, skipped, downloadFailed: true }
+  }
   return { exported: contacts.length, skipped }
 }
