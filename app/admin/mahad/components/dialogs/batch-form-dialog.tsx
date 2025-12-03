@@ -89,6 +89,9 @@ export function BatchFormDialog() {
         if (startDate) {
           formData.set('startDate', startDate)
         }
+        if (endDate) {
+          formData.set('endDate', endDate)
+        }
 
         const result = await createBatchAction(formData)
 
