@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { GradeLevel } from '@prisma/client'
+import { GradeLevel, StudentShift } from '@prisma/client'
 
 import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
@@ -403,6 +403,7 @@ export async function updateChildInfo(params: {
   gender?: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
   gradeLevel?: GradeLevel
+  shift?: StudentShift
   schoolName?: string
   healthInfo?: string | null
 }): Promise<ActionResult> {

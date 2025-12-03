@@ -103,6 +103,11 @@ enum Shift {
   EVENING
 }
 
+enum StudentShift {
+  MORNING
+  AFTERNOON
+}
+
 // AttendanceStatus and CheckInMethod enums removed - incomplete feature
 
 // DayOfWeek enum removed - was only used by ClassSchedule (removed)
@@ -332,6 +337,7 @@ model ProgramProfile {
   // Dugsi-specific fields (K-12 program)
   healthInfo        String? // Health information for student
   familyReferenceId String? // Family tracking ID for Dugsi families
+  shift             StudentShift? // Student's preferred shift (MORNING or AFTERNOON)
 
   // Metadata for initiative-specific fields (JSONB)
   // Flexible JSONB column for program-specific fields without requiring schema migrations
@@ -356,6 +362,7 @@ model ProgramProfile {
   @@index([personId, program, status]) // Composite: Find profiles by person, program, status
   @@index([program, status, createdAt]) // Composite: Program-specific lists sorted by date
   @@index([familyReferenceId, program]) // Composite: Find Dugsi family profiles
+  @@index([program, shift]) // Composite: Filter Dugsi students by shift
 }
 
 model Enrollment {

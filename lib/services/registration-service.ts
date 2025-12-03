@@ -13,6 +13,7 @@ import {
   GuardianRole,
   Gender,
   GradeLevel,
+  StudentShift,
   GraduationStatus,
   PaymentFrequency,
   StudentBillingType,
@@ -108,6 +109,7 @@ const childDataSchema = z.object({
     .optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
   gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
+  shift: z.nativeEnum(StudentShift).nullable().optional(),
   schoolName: z
     .string()
     .max(255, 'School name is too long')
@@ -134,6 +136,7 @@ const programProfileDataSchema = z.object({
     .optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
   gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
+  shift: z.nativeEnum(StudentShift).nullable().optional(),
   schoolName: z
     .string()
     .max(255, 'School name is too long')
@@ -331,6 +334,7 @@ export async function createProgramProfileWithEnrollment(
     batchId,
     gender,
     gradeLevel,
+    shift,
     schoolName,
     healthInfo,
     familyReferenceId,
@@ -422,6 +426,7 @@ export async function createProgramProfileWithEnrollment(
         status,
         gender,
         gradeLevel,
+        shift,
         schoolName,
         healthInfo,
         familyReferenceId,
@@ -496,7 +501,6 @@ export async function createProgramProfileWithEnrollment(
  * operations without interactive transactions. Each phase is idempotent:
  *
  * 1. **Parents** - Find or create parent Person records (upsert pattern)
- * 2. **Billing** - Create billing account for primary payer
  *
  * ## Recovery Strategy for Partial Failures
  *
@@ -735,6 +739,8 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                 child.gender !== null && { gender: child.gender }),
               ...(child.gradeLevel !== undefined &&
                 child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
+              ...(child.shift !== undefined &&
+                child.shift !== null && { shift: child.shift }),
               ...(child.schoolName !== undefined &&
                 child.schoolName !== null && { schoolName: child.schoolName }),
               ...(child.healthInfo !== undefined &&
@@ -769,6 +775,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               status: 'REGISTERED',
               gender: child.gender,
               gradeLevel: child.gradeLevel,
+              shift: child.shift,
               schoolName: child.schoolName,
               healthInfo: child.healthInfo,
               familyReferenceId,

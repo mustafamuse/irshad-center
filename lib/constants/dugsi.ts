@@ -93,6 +93,18 @@ export const SUBSCRIPTION_STATUS_BADGES = {
   },
 } as const
 
+// Shift Badge Styles
+export const SHIFT_BADGES = {
+  MORNING: {
+    className: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+    label: 'Morning',
+  },
+  AFTERNOON: {
+    className: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
+    label: 'Afternoon',
+  },
+} as const
+
 // Error Messages
 export const ERROR_MESSAGES = {
   STUDENT_NOT_FOUND: 'Student not found',

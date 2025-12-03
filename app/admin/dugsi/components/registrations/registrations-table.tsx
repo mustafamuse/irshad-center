@@ -48,6 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
@@ -734,6 +735,25 @@ export function DugsiRegistrationsTable({
                                     </p>
                                   </div>
                                 </div>
+
+                                {child.shift && (
+                                  <div className="flex items-start gap-2">
+                                    <div className="mt-0.5 h-4 w-4" />
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Shift
+                                      </p>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          SHIFT_BADGES[child.shift].className
+                                        }
+                                      >
+                                        {SHIFT_BADGES[child.shift].label}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                )}
 
                                 {child.schoolName && (
                                   <div className="flex items-start gap-2">

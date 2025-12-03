@@ -62,6 +62,7 @@ export async function registerDugsiChildren(
         dateOfBirth: child.dateOfBirth,
         gender: child.gender,
         gradeLevel: child.gradeLevel,
+        shift: child.shift,
         schoolName: child.schoolName || null,
         healthInfo: child.healthInfo || null,
       })),

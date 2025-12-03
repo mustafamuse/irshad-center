@@ -54,6 +54,9 @@ export const childFormSchema = z.object({
       required_error: 'Grade level is required',
     }
   ),
+  shift: z.enum(['MORNING', 'AFTERNOON'], {
+    required_error: 'Shift is required',
+  }),
   schoolName: z.string().optional(),
   healthInfo: z.string().optional(),
 })

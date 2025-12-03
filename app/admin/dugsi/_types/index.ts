@@ -6,6 +6,7 @@
 import {
   Gender,
   GradeLevel,
+  StudentShift,
   SubscriptionStatus,
   StripeAccountType,
 } from '@prisma/client'
@@ -25,6 +26,7 @@ export interface DugsiRegistration {
   gender: Gender | null
   dateOfBirth: Date | null
   gradeLevel: GradeLevel | null // K-12 grade level for Dugsi students
+  shift: StudentShift | null
   schoolName: string | null
   healthInfo: string | null
   createdAt: Date
@@ -75,6 +77,7 @@ export interface Family {
 export interface FamilyFilters {
   dateFilter: DateFilter
   hasHealthInfo: boolean
+  shift?: 'MORNING' | 'AFTERNOON' | 'all'
 }
 
 // Tab and view types

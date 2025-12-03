@@ -51,6 +51,7 @@ interface EditChildDialogProps {
     gender: 'MALE' | 'FEMALE'
     dateOfBirth: Date | null
     gradeLevel: string
+    shift: 'MORNING' | 'AFTERNOON'
     schoolName: string | null
     healthInfo: string | null
   }
@@ -75,6 +76,7 @@ export function EditChildDialog({
         ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
         : '',
       gradeLevel: currentData.gradeLevel as ChildFormValues['gradeLevel'],
+      shift: currentData.shift as ChildFormValues['shift'],
       schoolName: currentData.schoolName || '',
       healthInfo: currentData.healthInfo || '',
     },
@@ -94,6 +96,7 @@ export function EditChildDialog({
           ? new Date(currentData.dateOfBirth).toISOString().split('T')[0]
           : '',
         gradeLevel: currentData.gradeLevel as ChildFormValues['gradeLevel'],
+        shift: currentData.shift as ChildFormValues['shift'],
         schoolName: currentData.schoolName || '',
         healthInfo: currentData.healthInfo || '',
       })
@@ -122,6 +125,7 @@ export function EditChildDialog({
         ? new Date(values.dateOfBirth)
         : undefined,
       gradeLevel: values.gradeLevel,
+      shift: values.shift,
       schoolName: values.schoolName || undefined,
       healthInfo: values.healthInfo || null,
     })
@@ -233,6 +237,32 @@ export function EditChildDialog({
                       <SelectItem value="SOPHOMORE">Sophomore</SelectItem>
                       <SelectItem value="JUNIOR">Junior</SelectItem>
                       <SelectItem value="SENIOR">Senior</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="shift"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Shift</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    disabled={isUpdating}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select shift" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="MORNING">Morning</SelectItem>
+                      <SelectItem value="AFTERNOON">Afternoon</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

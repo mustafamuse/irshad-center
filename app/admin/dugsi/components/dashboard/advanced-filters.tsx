@@ -39,10 +39,14 @@ export function AdvancedFilters({
     onFiltersChange({
       dateFilter: 'all',
       hasHealthInfo: false,
+      shift: 'all',
     })
   }
 
-  const hasActiveFilters = filters.dateFilter !== 'all' || filters.hasHealthInfo
+  const hasActiveFilters =
+    filters.dateFilter !== 'all' ||
+    filters.hasHealthInfo ||
+    (filters.shift && filters.shift !== 'all')
 
   return (
     <Card>
@@ -84,6 +88,29 @@ export function AdvancedFilters({
             </Select>
           </div>
 
+          {/* Shift Filter */}
+          <div className="flex items-center gap-2 border-l pl-4">
+            <Label className="text-xs text-muted-foreground">Shift:</Label>
+            <Select
+              value={filters.shift || 'all'}
+              onValueChange={(value) =>
+                onFiltersChange({
+                  ...filters,
+                  shift: value as 'MORNING' | 'AFTERNOON' | 'all',
+                })
+              }
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Shifts</SelectItem>
+                <SelectItem value="MORNING">Morning</SelectItem>
+                <SelectItem value="AFTERNOON">Afternoon</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Health Info Filter */}
           <div className="flex items-center gap-2 border-l pl-4">
             <Checkbox
@@ -118,6 +145,12 @@ export function AdvancedFilters({
                         (opt) => opt.value === filters.dateFilter
                       )?.label
                     }
+                  </Badge>
+                )}
+                {filters.shift && filters.shift !== 'all' && (
+                  <Badge variant="outline" className="text-xs">
+                    {filters.shift === 'MORNING' ? 'Morning' : 'Afternoon'}{' '}
+                    Shift
                   </Badge>
                 )}
                 {filters.hasHealthInfo && (

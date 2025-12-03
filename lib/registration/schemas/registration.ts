@@ -1,4 +1,4 @@
-import { GradeLevel, Gender } from '@prisma/client'
+import { GradeLevel, Gender, StudentShift } from '@prisma/client'
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -76,6 +76,11 @@ export const DUGSI_GRADE_OPTIONS = [
 export const GENDER_OPTIONS = [
   { value: 'MALE', label: 'Boy' },
   { value: 'FEMALE', label: 'Girl' },
+] as const
+
+export const SHIFT_OPTIONS = [
+  { value: 'MORNING', label: 'Morning' },
+  { value: 'AFTERNOON', label: 'Afternoon' },
 ] as const
 
 // ============================================================================
@@ -178,6 +183,9 @@ export const childInfoSchema = z.object({
   gradeLevel: SHOW_GRADE_SCHOOL
     ? z.nativeEnum(GradeLevel, { required_error: 'Please select grade level' })
     : z.nativeEnum(GradeLevel).nullable().optional(),
+  shift: z.nativeEnum(StudentShift, {
+    required_error: 'Please select a shift (Morning or Afternoon)',
+  }),
   schoolName: SHOW_GRADE_SCHOOL
     ? schoolNameSchema
     : schoolNameSchema.nullable().optional(),
@@ -245,6 +253,7 @@ export const DEFAULT_CHILD_VALUES: ChildInfo = {
   gender: undefined as unknown as Gender,
   dateOfBirth: null as unknown as Date,
   gradeLevel: undefined,
+  shift: undefined as unknown as StudentShift,
   schoolName: undefined,
   healthInfo: '',
 }
