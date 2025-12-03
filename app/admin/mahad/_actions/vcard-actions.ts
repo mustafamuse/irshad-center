@@ -1,10 +1,8 @@
 'use server'
 
-import { getBatchById } from '@/lib/db/queries/batch'
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
-import { logError } from '@/lib/logger'
-import { createActionLogger } from '@/lib/logger'
-import { ActionResult } from '@/lib/utils/action-helpers'
+import { createActionLogger, logError } from '@/lib/logger'
+import { ActionResult, createErrorResult } from '@/lib/utils/action-helpers'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -51,9 +49,8 @@ export async function generateMahadVCardContent(
     }
 
     let filename: string
-    if (batchId) {
-      const batch = await getBatchById(batchId)
-      const batchName = batch?.name || 'batch'
+    if (batchId && students.length > 0) {
+      const batchName = students[0]?.batch?.name || 'batch'
       filename = `mahad-${batchName.toLowerCase().replace(/\s+/g, '-')}-contacts-${getDateString()}.vcf`
     } else {
       filename = `mahad-all-contacts-${getDateString()}.vcf`
@@ -72,12 +69,6 @@ export async function generateMahadVCardContent(
     await logError(logger, error, 'Failed to generate Mahad vCard content', {
       batchId,
     })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to generate vCard content',
-    }
+    return createErrorResult(error, 'Failed to generate vCard content')
   }
 }

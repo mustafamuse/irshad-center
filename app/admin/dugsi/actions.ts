@@ -28,6 +28,7 @@ import {
   // Checkout service
   createDugsiCheckoutSession,
 } from '@/lib/services/dugsi'
+import { createErrorResult } from '@/lib/utils/action-helpers'
 import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
 import {
   formatPhoneForVCard,
@@ -645,8 +646,6 @@ export async function generateDugsiVCardContent(): Promise<
     let skipped = 0
 
     for (const family of families) {
-      if (family.members.length === 0) continue
-
       const first = family.members[0]
       const childNames = family.members.map((m) => m.name).join(', ')
 
@@ -711,12 +710,6 @@ export async function generateDugsiVCardContent(): Promise<
     }
   } catch (error) {
     await logError(logger, error, 'Failed to generate Dugsi vCard content')
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to generate vCard content',
-    }
+    return createErrorResult(error, 'Failed to generate vCard content')
   }
 }

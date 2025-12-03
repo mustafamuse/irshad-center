@@ -21,6 +21,20 @@ export type ActionResult<T = void> = {
 }
 
 /**
+ * Creates a standardized error result for catch blocks.
+ * Extracts error message from Error instances or uses default message.
+ */
+export function createErrorResult<T = void>(
+  error: unknown,
+  defaultMessage: string
+): ActionResult<T> {
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : defaultMessage,
+  }
+}
+
+/**
  * Wraps an async function with standardized error handling.
  *
  * Eliminates try-catch boilerplate and ensures consistent error format
