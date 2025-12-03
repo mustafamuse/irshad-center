@@ -155,6 +155,9 @@ export async function createBatchAction(
     startDate: formData.get('startDate')
       ? new Date(formData.get('startDate') as string)
       : undefined,
+    endDate: formData.get('endDate')
+      ? new Date(formData.get('endDate') as string)
+      : undefined,
   }
 
   try {
@@ -164,6 +167,7 @@ export async function createBatchAction(
     const batch = await createBatch({
       name: validated.name,
       startDate: validated.startDate ?? null,
+      endDate: validated.endDate ?? null,
     })
 
     revalidatePath('/admin/mahad')

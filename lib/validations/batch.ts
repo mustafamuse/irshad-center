@@ -33,6 +33,7 @@ export const CreateBatchSchema = z.object({
     .max(100, 'Batch name must be less than 100 characters')
     .trim(),
   startDate: z.date().optional(),
+  endDate: z.date().optional(),
 })
 
 export const UpdateBatchSchema = z.object({
