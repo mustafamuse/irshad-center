@@ -24,6 +24,7 @@ import {
   createBatch,
   deleteBatch,
   getBatchById,
+  updateBatch,
   assignStudentsToBatch,
   transferStudents,
 } from '@/lib/db/queries/batch'
@@ -41,6 +42,7 @@ import {
 } from '@/lib/utils/mahad-tuition'
 import {
   CreateBatchSchema,
+  UpdateBatchSchema,
   BatchAssignmentSchema,
   BatchTransferSchema,
   UpdateStudentSchema,
@@ -212,6 +214,46 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Cohort not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Cannot delete cohort with related records',
+      },
+    })
+  }
+}
+
+/**
+ * Update an existing batch
+ */
+export async function updateBatchAction(
+  id: string,
+  data: { name?: string; startDate?: Date | null; endDate?: Date | null }
+): Promise<ActionResult<BatchData>> {
+  try {
+    const validated = UpdateBatchSchema.parse(data)
+
+    const existingBatch = await getBatchById(id)
+    if (!existingBatch) {
+      return {
+        success: false,
+        error: 'Cohort not found',
+      }
+    }
+
+    const batch = await updateBatch(id, {
+      name: validated.name,
+      startDate: validated.startDate,
+      endDate: validated.endDate,
+    })
+
+    revalidatePath('/admin/mahad')
+
+    return {
+      success: true,
+      data: batch,
+    }
+  } catch (error) {
+    return handleActionError(error, 'updateBatchAction', {
+      handlers: {
+        [PRISMA_ERRORS.UNIQUE_CONSTRAINT]: `A cohort with the name "${String(data.name)}" already exists`,
+        [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Cohort not found',
       },
     })
   }

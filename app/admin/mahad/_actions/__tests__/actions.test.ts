@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockCreateBatch,
+  mockUpdateBatch,
   mockDeleteBatch,
   mockGetBatchById,
   mockAssignStudentsToBatch,
@@ -18,6 +19,7 @@ const {
   mockStripeSessionCreate,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
+  mockUpdateBatch: vi.fn(),
   mockDeleteBatch: vi.fn(),
   mockGetBatchById: vi.fn(),
   mockAssignStudentsToBatch: vi.fn(),
@@ -51,6 +53,7 @@ vi.mock('@/lib/db', () => ({
 
 vi.mock('@/lib/db/queries/batch', () => ({
   createBatch: (...args: unknown[]) => mockCreateBatch(...args),
+  updateBatch: (...args: unknown[]) => mockUpdateBatch(...args),
   deleteBatch: (...args: unknown[]) => mockDeleteBatch(...args),
   getBatchById: (...args: unknown[]) => mockGetBatchById(...args),
   assignStudentsToBatch: (...args: unknown[]) =>
@@ -98,6 +101,7 @@ vi.mock('@/lib/utils/mahad-tuition', () => ({
 
 import {
   createBatchAction,
+  updateBatchAction,
   deleteBatchAction,
   assignStudentsAction,
   transferStudentsAction,
@@ -202,6 +206,86 @@ describe('Batch Actions', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Cohort not found')
+    })
+  })
+
+  describe('updateBatchAction', () => {
+    it('should update a batch with valid data', async () => {
+      mockGetBatchById.mockResolvedValue({
+        id: VALID_BATCH_ID,
+        name: 'Original Name',
+        startDate: null,
+        endDate: null,
+      })
+      const mockUpdatedBatch = {
+        id: VALID_BATCH_ID,
+        name: 'Updated Name',
+        startDate: new Date('2024-01-15'),
+        endDate: null,
+      }
+      mockUpdateBatch.mockResolvedValue(mockUpdatedBatch)
+
+      const result = await updateBatchAction(VALID_BATCH_ID, {
+        name: 'Updated Name',
+        startDate: new Date('2024-01-15'),
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.data).toEqual(mockUpdatedBatch)
+      expect(mockUpdateBatch).toHaveBeenCalledWith(VALID_BATCH_ID, {
+        name: 'Updated Name',
+        startDate: expect.any(Date),
+        endDate: undefined,
+      })
+      expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/mahad')
+    })
+
+    it('should update only provided fields (partial update)', async () => {
+      mockGetBatchById.mockResolvedValue({
+        id: VALID_BATCH_ID,
+        name: 'Original Name',
+      })
+      const mockUpdatedBatch = { id: VALID_BATCH_ID, name: 'New Name' }
+      mockUpdateBatch.mockResolvedValue(mockUpdatedBatch)
+
+      const result = await updateBatchAction(VALID_BATCH_ID, {
+        name: 'New Name',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockUpdateBatch).toHaveBeenCalledWith(VALID_BATCH_ID, {
+        name: 'New Name',
+        startDate: undefined,
+        endDate: undefined,
+      })
+    })
+
+    it('should return error for non-existent batch', async () => {
+      mockGetBatchById.mockResolvedValue(null)
+
+      const result = await updateBatchAction('non-existent', { name: 'Test' })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Cohort not found')
+      expect(mockUpdateBatch).not.toHaveBeenCalled()
+    })
+
+    it('should handle duplicate name error', async () => {
+      mockGetBatchById.mockResolvedValue({
+        id: VALID_BATCH_ID,
+        name: 'Original Name',
+      })
+
+      const prismaError = new Error('Unique constraint failed')
+      Object.assign(prismaError, { code: 'P2002' })
+      mockUpdateBatch.mockRejectedValue(prismaError)
+
+      const result = await updateBatchAction(VALID_BATCH_ID, {
+        name: 'Existing Cohort',
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('already exists')
     })
   })
 

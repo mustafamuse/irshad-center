@@ -42,8 +42,8 @@ export const UpdateBatchSchema = z.object({
     .max(100, 'Batch name must be less than 100 characters')
     .trim()
     .optional(),
-  startDate: z.date().optional(),
-  endDate: z.date().optional(),
+  startDate: z.date().nullable().optional(),
+  endDate: z.date().nullable().optional(),
 })
 
 export const BatchAssignmentSchema = z.object({

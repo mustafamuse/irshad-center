@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
-import { CreateBatchDialog } from '../create-batch-dialog'
+import { CreateBatchDialog } from '../batch-form-dialog'
 
 const mockPush = vi.fn()
 const mockRefresh = vi.fn()
@@ -17,9 +17,11 @@ vi.mock('next/navigation', () => ({
 const mockCloseDialog = vi.fn()
 const mockOpenDialogWithData = vi.fn()
 let mockOpenDialog: string | null = null
+let mockDialogData: unknown = null
 
 vi.mock('../../../store', () => ({
   useDialogState: () => mockOpenDialog,
+  useDialogData: () => mockDialogData,
   useMahadUIStore: (selector: (s: unknown) => unknown) =>
     selector({
       closeDialog: mockCloseDialog,
@@ -28,9 +30,12 @@ vi.mock('../../../store', () => ({
 }))
 
 const mockCreateBatchAction = vi.fn()
+const mockUpdateBatchAction = vi.fn()
 
 vi.mock('../../../_actions', () => ({
   createBatchAction: (formData: FormData) => mockCreateBatchAction(formData),
+  updateBatchAction: (id: string, data: unknown) =>
+    mockUpdateBatchAction(id, data),
 }))
 
 vi.mock('sonner', () => ({
@@ -69,7 +74,8 @@ describe('CreateBatchDialog', () => {
     it('renders optional start date input', () => {
       render(<CreateBatchDialog />)
       expect(screen.getByLabelText(/start date/i)).toBeInTheDocument()
-      expect(screen.getByText(/optional/i)).toBeInTheDocument()
+      const optionalLabels = screen.getAllByText(/optional/i)
+      expect(optionalLabels.length).toBeGreaterThanOrEqual(1)
     })
 
     it('renders cancel and create buttons', () => {

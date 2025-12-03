@@ -93,6 +93,7 @@ export interface DashboardStats {
  */
 export type DialogType =
   | 'createBatch'
+  | 'editBatch'
   | 'assignStudents'
   | 'deleteStudent'
   | 'paymentLink'
