@@ -24,9 +24,17 @@ export function DashboardHeader({
   const { setViewMode } = useLegacyActions()
 
   const handleExportContacts = () => {
-    const count = exportDugsiParentsToVCard(families)
-    if (count > 0) {
-      toast.success(`Exported ${count} parent contacts`)
+    if (families.length === 0) {
+      toast.error('No families to export')
+      return
+    }
+    const { exported, skipped } = exportDugsiParentsToVCard(families)
+    if (exported > 0) {
+      const msg =
+        skipped > 0
+          ? `Exported ${exported} parent contacts (${skipped} skipped)`
+          : `Exported ${exported} parent contacts`
+      toast.success(msg)
     } else {
       toast.error('No parent contacts with phone or email to export')
     }

@@ -13,6 +13,11 @@ interface VCardContact {
   note?: string
 }
 
+export interface ExportResult {
+  exported: number
+  skipped: number
+}
+
 export function escapeVCardValue(value: string): string {
   return value
     .replace(/\\/g, '\\\\')
@@ -83,11 +88,15 @@ function getDateString(): string {
 export function exportMahadStudentsToVCard(
   students: MahadStudent[],
   batchName?: string
-): number {
+): ExportResult {
   const contacts: VCardContact[] = []
+  let skipped = 0
 
   for (const student of students) {
-    if (!student.phone && !student.email) continue
+    if (!student.phone && !student.email) {
+      skipped++
+      continue
+    }
 
     const batchSuffix = student.batch?.name || batchName || ''
     const displayName = batchSuffix
@@ -105,7 +114,7 @@ export function exportMahadStudentsToVCard(
     })
   }
 
-  if (contacts.length === 0) return 0
+  if (contacts.length === 0) return { exported: 0, skipped }
 
   const vcards = contacts.map(generateVCard).join('\r\n')
   const filename = batchName
@@ -113,12 +122,48 @@ export function exportMahadStudentsToVCard(
     : `mahad-all-contacts-${getDateString()}.vcf`
 
   downloadVCardFile(vcards, filename)
-  return contacts.length
+  return { exported: contacts.length, skipped }
 }
 
-export function exportDugsiParentsToVCard(families: Family[]): number {
+function addParentContact(
+  contacts: VCardContact[],
+  seenEmails: Set<string>,
+  firstName: string | null,
+  lastName: string | null,
+  email: string | null,
+  phone: string | null,
+  childrenNames: string
+): boolean {
+  if (!firstName && !lastName) return false
+
+  const emailLower = email?.toLowerCase()
+  if (emailLower && seenEmails.has(emailLower)) return false
+
+  const formattedPhone = formatPhoneForVCard(phone)
+  if (!emailLower && !formattedPhone) return false
+
+  if (emailLower) seenEmails.add(emailLower)
+
+  const parentName = `${firstName || ''} ${lastName || ''}`.trim() || 'Parent'
+  const displayName = `${parentName} IrshadDugsi`
+
+  contacts.push({
+    firstName: displayName,
+    lastName: '',
+    fullName: displayName,
+    email: emailLower || undefined,
+    phone: formattedPhone,
+    organization: 'Irshad Center',
+    note: `Children: ${childrenNames}`,
+  })
+
+  return true
+}
+
+export function exportDugsiParentsToVCard(families: Family[]): ExportResult {
   const seenEmails = new Set<string>()
   const contacts: VCardContact[] = []
+  let skipped = 0
 
   for (const family of families) {
     const firstMember = family.members[0]
@@ -126,56 +171,44 @@ export function exportDugsiParentsToVCard(families: Family[]): number {
 
     const childrenNames = family.members.map((m) => m.name).join(', ')
 
-    if (firstMember.parentFirstName || firstMember.parentLastName) {
-      const email = firstMember.parentEmail?.toLowerCase()
-      if (!email || !seenEmails.has(email)) {
-        if (email) seenEmails.add(email)
-
-        const parentName =
-          `${firstMember.parentFirstName || ''} ${firstMember.parentLastName || ''}`.trim() ||
-          'Parent'
-        const displayName = `${parentName} IrshadDugsi`
-
-        contacts.push({
-          firstName: displayName,
-          lastName: '',
-          fullName: displayName,
-          email: email || undefined,
-          phone: formatPhoneForVCard(firstMember.parentPhone),
-          organization: 'Irshad Center',
-          note: `Children: ${childrenNames}`,
-        })
-      }
+    const added1 = addParentContact(
+      contacts,
+      seenEmails,
+      firstMember.parentFirstName,
+      firstMember.parentLastName,
+      firstMember.parentEmail,
+      firstMember.parentPhone,
+      childrenNames
+    )
+    if (
+      !added1 &&
+      (firstMember.parentFirstName || firstMember.parentLastName)
+    ) {
+      skipped++
     }
 
-    if (firstMember.parent2FirstName || firstMember.parent2LastName) {
-      const email2 = firstMember.parent2Email?.toLowerCase()
-      if (!email2 || !seenEmails.has(email2)) {
-        if (email2) seenEmails.add(email2)
-
-        const parentName =
-          `${firstMember.parent2FirstName || ''} ${firstMember.parent2LastName || ''}`.trim() ||
-          'Parent'
-        const displayName = `${parentName} IrshadDugsi`
-
-        contacts.push({
-          firstName: displayName,
-          lastName: '',
-          fullName: displayName,
-          email: email2 || undefined,
-          phone: formatPhoneForVCard(firstMember.parent2Phone),
-          organization: 'Irshad Center',
-          note: `Children: ${childrenNames}`,
-        })
-      }
+    const added2 = addParentContact(
+      contacts,
+      seenEmails,
+      firstMember.parent2FirstName,
+      firstMember.parent2LastName,
+      firstMember.parent2Email,
+      firstMember.parent2Phone,
+      childrenNames
+    )
+    if (
+      !added2 &&
+      (firstMember.parent2FirstName || firstMember.parent2LastName)
+    ) {
+      skipped++
     }
   }
 
-  if (contacts.length === 0) return 0
+  if (contacts.length === 0) return { exported: 0, skipped }
 
   const vcards = contacts.map(generateVCard).join('\r\n')
   const filename = `dugsi-parent-contacts-${getDateString()}.vcf`
 
   downloadVCardFile(vcards, filename)
-  return contacts.length
+  return { exported: contacts.length, skipped }
 }

@@ -17,9 +17,13 @@ export function DashboardHeader({ students }: DashboardHeaderProps) {
   const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
 
   const handleExportAll = () => {
-    const count = exportMahadStudentsToVCard(students)
-    if (count > 0) {
-      toast.success(`Exported ${count} contacts`)
+    const { exported, skipped } = exportMahadStudentsToVCard(students)
+    if (exported > 0) {
+      const msg =
+        skipped > 0
+          ? `Exported ${exported} contacts (${skipped} skipped)`
+          : `Exported ${exported} contacts`
+      toast.success(msg)
     } else {
       toast.error('No contacts with phone or email to export')
     }

@@ -1,5 +1,7 @@
 'use client'
 
+import { useMemo } from 'react'
+
 import { format } from 'date-fns'
 import { Calendar, Users, Layers, Pencil, Download } from 'lucide-react'
 import { toast } from 'sonner'
@@ -41,9 +43,16 @@ function BatchCard({
 
   const handleExportContacts = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const count = exportMahadStudentsToVCard(students, batch.name)
-    if (count > 0) {
-      toast.success(`Exported ${count} contacts from ${batch.name}`)
+    const { exported, skipped } = exportMahadStudentsToVCard(
+      students,
+      batch.name
+    )
+    if (exported > 0) {
+      const msg =
+        skipped > 0
+          ? `Exported ${exported} contacts from ${batch.name} (${skipped} skipped)`
+          : `Exported ${exported} contacts from ${batch.name}`
+      toast.success(msg)
     } else {
       toast.error('No contacts with phone or email to export')
     }
@@ -125,7 +134,20 @@ function UnassignedCard({ count }: { count: number }) {
 }
 
 export function BatchGrid({ batches, students }: BatchGridProps) {
-  const unassignedCount = students.filter((s) => !s.batchId).length
+  const studentsByBatch = useMemo(() => {
+    const map = new Map<string, MahadStudent[]>()
+    let unassigned: MahadStudent[] = []
+    for (const s of students) {
+      if (s.batchId) {
+        const list = map.get(s.batchId) ?? []
+        list.push(s)
+        map.set(s.batchId, list)
+      } else {
+        unassigned.push(s)
+      }
+    }
+    return { map, unassignedCount: unassigned.length }
+  }, [students])
 
   if (batches.length === 0) {
     return (
@@ -146,10 +168,10 @@ export function BatchGrid({ batches, students }: BatchGridProps) {
           key={batch.id}
           batch={batch}
           studentCount={batch.studentCount}
-          students={students.filter((s) => s.batchId === batch.id)}
+          students={studentsByBatch.map.get(batch.id) ?? []}
         />
       ))}
-      <UnassignedCard count={unassignedCount} />
+      <UnassignedCard count={studentsByBatch.unassignedCount} />
     </div>
   )
 }
