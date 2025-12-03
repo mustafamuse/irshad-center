@@ -1,47 +1,57 @@
 'use client'
 
+import { useState } from 'react'
+
 import { Download } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { exportDugsiParentsToVCard } from '@/lib/vcard-export'
+import { downloadVCardFile } from '@/lib/vcard-client'
 
-import { Family } from '../../_types'
+import { generateDugsiVCardContent } from '../../actions'
 import { useLegacyActions, useViewMode } from '../../store'
 
 interface DashboardHeaderProps {
   title?: string
   description?: string
-  families?: Family[]
 }
 
 export function DashboardHeader({
   title = 'Dugsi Program Management',
   description = 'Manage student registrations and family subscriptions',
-  families = [],
 }: DashboardHeaderProps) {
   const viewMode = useViewMode()
   const { setViewMode } = useLegacyActions()
+  const [isExporting, setIsExporting] = useState(false)
 
-  const handleExportContacts = () => {
-    if (families.length === 0) {
-      toast.error('No families to export')
-      return
-    }
-    const { exported, skipped, downloadFailed } =
-      exportDugsiParentsToVCard(families)
-    if (downloadFailed) {
-      toast.error('Failed to download file')
-      return
-    }
-    if (exported > 0) {
+  const handleExportContacts = async () => {
+    setIsExporting(true)
+    try {
+      const result = await generateDugsiVCardContent()
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to generate contacts')
+        return
+      }
+
+      const { content, filename, exported, skipped } = result.data
+      if (exported === 0) {
+        toast.error('No parent contacts with phone or email to export')
+        return
+      }
+
+      const downloaded = downloadVCardFile(content, filename)
+      if (!downloaded) {
+        toast.error('Failed to download file')
+        return
+      }
+
       const msg =
         skipped > 0
           ? `Exported ${exported} parent contacts (${skipped} skipped)`
           : `Exported ${exported} parent contacts`
       toast.success(msg)
-    } else {
-      toast.error('No parent contacts with phone or email to export')
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -61,10 +71,11 @@ export function DashboardHeader({
           variant="outline"
           size="sm"
           onClick={handleExportContacts}
+          disabled={isExporting}
           aria-label="Export parent contacts to vCard"
         >
           <Download className="mr-2 h-4 w-4" />
-          Export Contacts
+          {isExporting ? 'Exporting...' : 'Export Contacts'}
         </Button>
         <div className="flex gap-2" role="group" aria-label="View mode">
           <Button

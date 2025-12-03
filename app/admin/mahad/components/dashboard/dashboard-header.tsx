@@ -1,36 +1,48 @@
 'use client'
 
+import { useState } from 'react'
+
 import { Download, Plus, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { exportMahadStudentsToVCard } from '@/lib/vcard-export'
+import { downloadVCardFile } from '@/lib/vcard-client'
 
-import { MahadStudent } from '../../_types'
+import { generateMahadVCardContent } from '../../_actions/vcard-actions'
 import { useMahadUIStore } from '../../store'
 
-interface DashboardHeaderProps {
-  students: MahadStudent[]
-}
-
-export function DashboardHeader({ students }: DashboardHeaderProps) {
+export function DashboardHeader() {
   const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
+  const [isExporting, setIsExporting] = useState(false)
 
-  const handleExportAll = () => {
-    const { exported, skipped, downloadFailed } =
-      exportMahadStudentsToVCard(students)
-    if (downloadFailed) {
-      toast.error('Failed to download file')
-      return
-    }
-    if (exported > 0) {
+  const handleExportAll = async () => {
+    setIsExporting(true)
+    try {
+      const result = await generateMahadVCardContent()
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to generate contacts')
+        return
+      }
+
+      const { content, filename, exported, skipped } = result.data
+      if (exported === 0) {
+        toast.error('No contacts with phone or email to export')
+        return
+      }
+
+      const downloaded = downloadVCardFile(content, filename)
+      if (!downloaded) {
+        toast.error('Failed to download file')
+        return
+      }
+
       const msg =
         skipped > 0
           ? `Exported ${exported} contacts (${skipped} skipped)`
           : `Exported ${exported} contacts`
       toast.success(msg)
-    } else {
-      toast.error('No contacts with phone or email to export')
+    } finally {
+      setIsExporting(false)
     }
   }
 
@@ -49,10 +61,11 @@ export function DashboardHeader({ students }: DashboardHeaderProps) {
         <Button
           variant="outline"
           onClick={handleExportAll}
+          disabled={isExporting}
           className="w-full sm:w-auto"
         >
           <Download className="mr-2 h-4 w-4" />
-          Export Contacts
+          {isExporting ? 'Exporting...' : 'Export Contacts'}
         </Button>
         <Button
           variant="outline"

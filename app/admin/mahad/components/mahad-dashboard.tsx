@@ -95,7 +95,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
 
   return (
     <div className="space-y-6">
-      <DashboardHeader students={mahadStudents} />
+      <DashboardHeader />
 
       <DashboardStats stats={stats} />
 

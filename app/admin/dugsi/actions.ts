@@ -29,6 +29,13 @@ import {
   createDugsiCheckoutSession,
 } from '@/lib/services/dugsi'
 import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
+import {
+  formatPhoneForVCard,
+  generateVCardsContent,
+  getDateString,
+  VCardContact,
+  VCardResult,
+} from '@/lib/vcard-export'
 
 import {
   ActionResult,
@@ -37,6 +44,7 @@ import {
   BankVerificationData,
   SubscriptionLinkData,
   DugsiRegistration,
+  Family,
 } from './_types'
 
 const logger = createServiceLogger('dugsi-admin-actions')
@@ -590,6 +598,125 @@ export async function generateFamilyPaymentLinkAction(
         error instanceof Error
           ? error.message
           : 'Failed to generate payment link',
+    }
+  }
+}
+
+/**
+ * Generate vCard content for Dugsi parents.
+ *
+ * Fetches all registrations from DB, groups by family, and generates
+ * vCard content with deduplicated parent contacts.
+ */
+export async function generateDugsiVCardContent(): Promise<
+  ActionResult<VCardResult>
+> {
+  try {
+    const registrations = await getAllDugsiRegistrations()
+
+    const familyMap = new Map<string, DugsiRegistration[]>()
+    for (const reg of registrations) {
+      const key =
+        reg.familyReferenceId ||
+        reg.parentEmail?.toLowerCase() ||
+        reg.parentPhone ||
+        reg.id
+      const list = familyMap.get(key) ?? []
+      list.push(reg)
+      familyMap.set(key, list)
+    }
+
+    const families: Family[] = Array.from(familyMap.entries()).map(
+      ([key, members]) => {
+        const first = members[0]
+        return {
+          familyKey: key,
+          members,
+          hasPayment: members.some((m) => m.paymentMethodCaptured),
+          hasSubscription: members.some((m) => m.stripeSubscriptionIdDugsi),
+          parentEmail: first.parentEmail,
+          parentPhone: first.parentPhone,
+        }
+      }
+    )
+
+    const contacts: VCardContact[] = []
+    const seen = new Set<string>()
+    let skipped = 0
+
+    for (const family of families) {
+      if (family.members.length === 0) continue
+
+      const first = family.members[0]
+      const childNames = family.members.map((m) => m.name).join(', ')
+
+      const addParent = (
+        firstName: string | null,
+        lastName: string | null,
+        email: string | null,
+        phone: string | null
+      ) => {
+        const formattedPhone = formatPhoneForVCard(phone)
+        if (!formattedPhone && !email) {
+          skipped++
+          return
+        }
+
+        const dedupeKey = email?.toLowerCase() || formattedPhone || ''
+        if (seen.has(dedupeKey)) {
+          skipped++
+          return
+        }
+        seen.add(dedupeKey)
+
+        contacts.push({
+          firstName: firstName || '',
+          lastName: lastName || '',
+          fullName:
+            [firstName, lastName].filter(Boolean).join(' ') || 'Dugsi Parent',
+          phone: formattedPhone,
+          email: email || undefined,
+          organization: 'Dugsi',
+          note: `Children: ${childNames}`,
+        })
+      }
+
+      if (first.parentFirstName || first.parentLastName) {
+        addParent(
+          first.parentFirstName,
+          first.parentLastName,
+          first.parentEmail,
+          first.parentPhone
+        )
+      }
+
+      if (first.parent2FirstName || first.parent2LastName) {
+        addParent(
+          first.parent2FirstName,
+          first.parent2LastName,
+          first.parent2Email,
+          first.parent2Phone
+        )
+      }
+    }
+
+    return {
+      success: true,
+      data: {
+        content: generateVCardsContent(contacts),
+        filename: `dugsi-parent-contacts-${getDateString()}.vcf`,
+        exported: contacts.length,
+        skipped,
+      },
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to generate Dugsi vCard content')
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to generate vCard content',
     }
   }
 }
