@@ -23,11 +23,17 @@ import {
   UserPlus,
   Wallet,
   Trash2,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
@@ -36,13 +42,14 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { SHIFT_BADGES, SHIFT_COLORS } from '@/lib/constants/dugsi'
 
 import { FamilyStatusBadge } from './family-status-badge'
 import { useActionHandler } from '../../_hooks/use-action-handler'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
-import { setPrimaryPayer } from '../../actions'
+import { setPrimaryPayer, updateFamilyShift } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
@@ -54,6 +61,7 @@ interface FamilyDetailSheetProps {
   family: Family | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  onFamilyUpdate?: (shift: 'MORNING' | 'AFTERNOON') => void
   onVerifyBankAccount?: (paymentIntentId: string, parentEmail: string) => void
 }
 
@@ -61,6 +69,7 @@ export function FamilyDetailSheet({
   family,
   open,
   onOpenChange,
+  onFamilyUpdate,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
   const [editParentDialog, setEditParentDialog] = useState<{
@@ -84,9 +93,15 @@ export function FamilyDetailSheet({
   const [addChildDialog, setAddChildDialog] = useState(false)
   const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
   const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
+  const [isShiftPopoverOpen, setIsShiftPopoverOpen] = useState(false)
 
   const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
     useActionHandler(setPrimaryPayer)
+
+  const { execute: executeUpdateFamilyShift, isPending: isUpdatingShift } =
+    useActionHandler(updateFamilyShift, {
+      successMessage: 'Family shift updated successfully!',
+    })
 
   if (!family) return null
 
@@ -151,6 +166,19 @@ export function FamilyDetailSheet({
     setEditChildDialog({ open: true, studentId })
   }
 
+  const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
+    if (firstMember.familyReferenceId) {
+      setIsShiftPopoverOpen(false)
+      await executeUpdateFamilyShift({
+        familyReferenceId: firstMember.familyReferenceId,
+        shift,
+      })
+      if (onFamilyUpdate) {
+        onFamilyUpdate(shift)
+      }
+    }
+  }
+
   const currentEditChild = family.members.find(
     (m) => m.id === editChildDialog.studentId
   )
@@ -192,6 +220,63 @@ export function FamilyDetailSheet({
                 <CreditCard className="mr-1 h-3 w-3" />
                 Customer
               </Badge>
+            )}
+
+            {/* Shift Badge with Popover */}
+            {firstMember && (
+              <Popover
+                open={isShiftPopoverOpen}
+                onOpenChange={setIsShiftPopoverOpen}
+              >
+                <PopoverTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className={`cursor-pointer ${firstMember.shift ? SHIFT_BADGES[firstMember.shift].className : 'border-dashed'} ${isUpdatingShift ? 'cursor-not-allowed opacity-50' : ''}`}
+                    role="button"
+                    aria-label={
+                      firstMember.shift
+                        ? `Change shift from ${SHIFT_BADGES[firstMember.shift].label}`
+                        : 'Set family shift'
+                    }
+                    aria-busy={isUpdatingShift}
+                    tabIndex={0}
+                  >
+                    {isUpdatingShift && (
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                    )}
+                    {firstMember.shift
+                      ? SHIFT_BADGES[firstMember.shift].label
+                      : 'Set Shift'}
+                  </Badge>
+                </PopoverTrigger>
+                <PopoverContent className="w-48" align="start">
+                  <div className="space-y-1">
+                    <p className="pb-2 text-xs font-medium text-muted-foreground">
+                      Select Family Shift
+                    </p>
+                    <button
+                      onClick={() => handleShiftChange('MORNING')}
+                      disabled={isUpdatingShift}
+                      className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-50"
+                    >
+                      <div
+                        className={`h-2 w-2 rounded-full ${SHIFT_COLORS.MORNING}`}
+                      />
+                      <span>Morning</span>
+                    </button>
+                    <button
+                      onClick={() => handleShiftChange('AFTERNOON')}
+                      disabled={isUpdatingShift}
+                      className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-50"
+                    >
+                      <div
+                        className={`h-2 w-2 rounded-full ${SHIFT_COLORS.AFTERNOON}`}
+                      />
+                      <span>Afternoon</span>
+                    </button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
         </SheetHeader>
@@ -637,7 +722,6 @@ export function FamilyDetailSheet({
             gender: currentEditChild.gender || 'MALE',
             dateOfBirth: currentEditChild.dateOfBirth,
             gradeLevel: currentEditChild.gradeLevel || '',
-            shift: currentEditChild.shift || 'MORNING',
             schoolName: currentEditChild.schoolName,
             healthInfo: currentEditChild.healthInfo,
           }}

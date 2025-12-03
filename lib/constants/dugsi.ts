@@ -105,6 +105,12 @@ export const SHIFT_BADGES = {
   },
 } as const
 
+// Shift Indicator Colors (for dots/icons)
+export const SHIFT_COLORS = {
+  MORNING: 'bg-blue-500',
+  AFTERNOON: 'bg-orange-500',
+} as const
+
 // Error Messages
 export const ERROR_MESSAGES = {
   STUDENT_NOT_FOUND: 'Student not found',

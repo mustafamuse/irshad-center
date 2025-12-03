@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 
 import { GradeLevel, StudentShift } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+import { prisma } from '@/lib/db'
 import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import {
@@ -403,7 +405,6 @@ export async function updateChildInfo(params: {
   gender?: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
   gradeLevel?: GradeLevel
-  shift?: StudentShift
   schoolName?: string
   healthInfo?: string | null
 }): Promise<ActionResult> {
@@ -425,6 +426,44 @@ export async function updateChildInfo(params: {
         error instanceof Error
           ? error.message
           : 'Failed to update child information',
+    }
+  }
+}
+
+/**
+ * Update shift for all children in a family.
+ */
+export async function updateFamilyShift(params: {
+  familyReferenceId: string
+  shift: StudentShift
+}): Promise<ActionResult> {
+  try {
+    await prisma.programProfile.updateMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        familyReferenceId: params.familyReferenceId,
+      },
+      data: {
+        shift: params.shift,
+      },
+    })
+
+    revalidatePath('/admin/dugsi')
+
+    return {
+      success: true,
+      message: 'Successfully updated family shift',
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to update family shift', {
+      familyReferenceId: params.familyReferenceId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to update family shift',
     }
   }
 }

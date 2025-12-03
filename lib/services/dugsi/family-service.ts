@@ -11,7 +11,7 @@
  * - Add child to family
  */
 
-import { GradeLevel, StudentShift, Prisma } from '@prisma/client'
+import { GradeLevel, Prisma } from '@prisma/client'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -90,8 +90,6 @@ export interface ChildUpdateInput {
   gender?: 'MALE' | 'FEMALE'
   /** Current grade level (e.g., GRADE_1, GRADE_2) - K-12 for Dugsi */
   gradeLevel?: GradeLevel
-  /** Student's shift (MORNING or AFTERNOON) */
-  shift?: StudentShift
   /** Name of school child attends */
   schoolName?: string
   /** Health information, allergies, special needs (null to clear) */
@@ -390,7 +388,6 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   const profileUpdates: Partial<{
     gender: 'MALE' | 'FEMALE'
     gradeLevel: GradeLevel
-    shift: StudentShift
     schoolName: string | null
     healthInfo: string | null
   }> = {}
@@ -398,7 +395,6 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   if (input.gender !== undefined) profileUpdates.gender = input.gender
   if (input.gradeLevel !== undefined)
     profileUpdates.gradeLevel = input.gradeLevel
-  if (input.shift !== undefined) profileUpdates.shift = input.shift
   if (input.schoolName !== undefined)
     profileUpdates.schoolName = input.schoolName || null
   if (input.healthInfo !== undefined)
