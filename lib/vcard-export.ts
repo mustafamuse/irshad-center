@@ -1,3 +1,5 @@
+'use client'
+
 import type { Family } from '@/app/admin/dugsi/_types'
 import type { MahadStudent } from '@/app/admin/mahad/_types'
 
@@ -11,7 +13,7 @@ interface VCardContact {
   note?: string
 }
 
-function escapeVCardValue(value: string): string {
+export function escapeVCardValue(value: string): string {
   return value
     .replace(/\\/g, '\\\\')
     .replace(/;/g, '\\;')
@@ -19,7 +21,7 @@ function escapeVCardValue(value: string): string {
     .replace(/\n/g, '\\n')
 }
 
-function formatPhoneForVCard(
+export function formatPhoneForVCard(
   phone: string | null | undefined
 ): string | undefined {
   if (!phone) return undefined
@@ -33,7 +35,7 @@ function formatPhoneForVCard(
   return `+${digits}`
 }
 
-function generateVCard(contact: VCardContact): string {
+export function generateVCard(contact: VCardContact): string {
   const lines: string[] = [
     'BEGIN:VCARD',
     'VERSION:3.0',
