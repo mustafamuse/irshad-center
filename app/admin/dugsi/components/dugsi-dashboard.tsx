@@ -81,7 +81,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
         </LiveRegion>
 
         {/* Header */}
-        <DashboardHeader />
+        <DashboardHeader families={familyGroups} />
 
         {/* Filters */}
         <DashboardFilters />

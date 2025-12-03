@@ -1,10 +1,12 @@
 'use client'
 
 import { format } from 'date-fns'
-import { Calendar, Users, Layers, Pencil } from 'lucide-react'
+import { Calendar, Users, Layers, Pencil, Download } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { exportMahadStudentsToVCard } from '@/lib/vcard-export'
 
 import { MahadBatch, MahadStudent } from '../../_types'
 import { useMahadUIStore } from '../../store'
@@ -17,9 +19,11 @@ interface BatchGridProps {
 function BatchCard({
   batch,
   studentCount,
+  students,
 }: {
   batch: MahadBatch
   studentCount: number
+  students: MahadStudent[]
 }) {
   const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
@@ -35,20 +39,41 @@ function BatchCard({
     openDialogWithData('editBatch', batch)
   }
 
+  const handleExportContacts = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const count = exportMahadStudentsToVCard(students, batch.name)
+    if (count > 0) {
+      toast.success(`Exported ${count} contacts from ${batch.name}`)
+    } else {
+      toast.error('No contacts with phone or email to export')
+    }
+  }
+
   return (
     <Card
       className="group relative cursor-pointer transition-colors hover:bg-muted/50"
       onClick={handleClick}
     >
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute right-2 top-2 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={handleEdit}
-        aria-label={`Edit ${batch.name}`}
-      >
-        <Pencil className="h-4 w-4" />
-      </Button>
+      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={handleExportContacts}
+          aria-label={`Export contacts from ${batch.name}`}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={handleEdit}
+          aria-label={`Edit ${batch.name}`}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </div>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">{batch.name}</CardTitle>
       </CardHeader>
@@ -121,6 +146,7 @@ export function BatchGrid({ batches, students }: BatchGridProps) {
           key={batch.id}
           batch={batch}
           studentCount={batch.studentCount}
+          students={students.filter((s) => s.batchId === batch.id)}
         />
       ))}
       <UnassignedCard count={unassignedCount} />

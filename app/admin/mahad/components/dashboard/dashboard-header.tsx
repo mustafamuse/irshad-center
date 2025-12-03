@@ -1,13 +1,29 @@
 'use client'
 
-import { Plus, UserPlus } from 'lucide-react'
+import { Download, Plus, UserPlus } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { exportMahadStudentsToVCard } from '@/lib/vcard-export'
 
+import { MahadStudent } from '../../_types'
 import { useMahadUIStore } from '../../store'
 
-export function DashboardHeader() {
+interface DashboardHeaderProps {
+  students: MahadStudent[]
+}
+
+export function DashboardHeader({ students }: DashboardHeaderProps) {
   const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
+
+  const handleExportAll = () => {
+    const count = exportMahadStudentsToVCard(students)
+    if (count > 0) {
+      toast.success(`Exported ${count} contacts`)
+    } else {
+      toast.error('No contacts with phone or email to export')
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -21,6 +37,14 @@ export function DashboardHeader() {
       </div>
 
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <Button
+          variant="outline"
+          onClick={handleExportAll}
+          className="w-full sm:w-auto"
+        >
+          <Download className="mr-2 h-4 w-4" />
+          Export Contacts
+        </Button>
         <Button
           variant="outline"
           onClick={() => openDialogWithData('assignStudents')}

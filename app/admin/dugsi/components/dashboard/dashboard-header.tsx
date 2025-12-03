@@ -1,20 +1,36 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { Download } from 'lucide-react'
+import { toast } from 'sonner'
 
+import { Button } from '@/components/ui/button'
+import { exportDugsiParentsToVCard } from '@/lib/vcard-export'
+
+import { Family } from '../../_types'
 import { useLegacyActions, useViewMode } from '../../store'
 
 interface DashboardHeaderProps {
   title?: string
   description?: string
+  families?: Family[]
 }
 
 export function DashboardHeader({
   title = 'Dugsi Program Management',
   description = 'Manage student registrations and family subscriptions',
+  families = [],
 }: DashboardHeaderProps) {
   const viewMode = useViewMode()
   const { setViewMode } = useLegacyActions()
+
+  const handleExportContacts = () => {
+    const count = exportDugsiParentsToVCard(families)
+    if (count > 0) {
+      toast.success(`Exported ${count} parent contacts`)
+    } else {
+      toast.error('No parent contacts with phone or email to export')
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -27,25 +43,36 @@ export function DashboardHeader({
         </p>
       </div>
 
-      <div className="flex gap-2" role="group" aria-label="View mode">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <Button
-          variant={viewMode === 'grid' ? 'default' : 'outline'}
+          variant="outline"
           size="sm"
-          onClick={() => setViewMode('grid')}
-          aria-pressed={viewMode === 'grid'}
-          aria-label="Parents view"
+          onClick={handleExportContacts}
+          aria-label="Export parent contacts to vCard"
         >
-          Parents
+          <Download className="mr-2 h-4 w-4" />
+          Export Contacts
         </Button>
-        <Button
-          variant={viewMode === 'table' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setViewMode('table')}
-          aria-pressed={viewMode === 'table'}
-          aria-label="Students view"
-        >
-          Students
-        </Button>
+        <div className="flex gap-2" role="group" aria-label="View mode">
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+            aria-pressed={viewMode === 'grid'}
+            aria-label="Parents view"
+          >
+            Parents
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+            aria-pressed={viewMode === 'table'}
+            aria-label="Students view"
+          >
+            Students
+          </Button>
+        </div>
       </div>
     </div>
   )
