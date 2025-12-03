@@ -28,13 +28,17 @@ export function formatPhoneForVCard(
 ): string | undefined {
   if (!phone) return undefined
   const digits = phone.replace(/\D/g, '')
+  if (digits.length === 0) return undefined
   if (digits.length === 10) {
     return `+1${digits}`
   }
   if (digits.length === 11 && digits.startsWith('1')) {
     return `+${digits}`
   }
-  return `+${digits}`
+  if (digits.length >= 8 && digits.length <= 15) {
+    return `+${digits}`
+  }
+  return undefined
 }
 
 export function generateVCard(contact: VCardContact): string {

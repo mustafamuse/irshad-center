@@ -19,13 +19,7 @@ interface BatchGridProps {
   students: MahadStudent[]
 }
 
-function BatchCard({
-  batch,
-  studentCount,
-}: {
-  batch: MahadBatch
-  studentCount: number
-}) {
+function BatchCard({ batch }: { batch: MahadBatch }) {
   const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
   const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
@@ -105,7 +99,7 @@ function BatchCard({
       <CardContent className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Users className="h-4 w-4" />
-          <span>{studentCount} students</span>
+          <span>{batch.studentCount} students</span>
         </div>
         {batch.startDate && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -150,18 +144,10 @@ function UnassignedCard({ count }: { count: number }) {
 }
 
 export function BatchGrid({ batches, students }: BatchGridProps) {
-  const studentsByBatch = useMemo(() => {
-    const map = new Map<string, number>()
-    let unassignedCount = 0
-    for (const s of students) {
-      if (s.batchId) {
-        map.set(s.batchId, (map.get(s.batchId) ?? 0) + 1)
-      } else {
-        unassignedCount++
-      }
-    }
-    return { map, unassignedCount }
-  }, [students])
+  const unassignedCount = useMemo(
+    () => students.filter((s) => !s.batchId).length,
+    [students]
+  )
 
   if (batches.length === 0) {
     return (
@@ -178,13 +164,9 @@ export function BatchGrid({ batches, students }: BatchGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {batches.map((batch) => (
-        <BatchCard
-          key={batch.id}
-          batch={batch}
-          studentCount={studentsByBatch.map.get(batch.id) ?? 0}
-        />
+        <BatchCard key={batch.id} batch={batch} />
       ))}
-      <UnassignedCard count={studentsByBatch.unassignedCount} />
+      <UnassignedCard count={unassignedCount} />
     </div>
   )
 }

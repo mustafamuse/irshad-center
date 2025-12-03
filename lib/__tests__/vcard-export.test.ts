@@ -63,8 +63,21 @@ describe('formatPhoneForVCard', () => {
     expect(formatPhoneForVCard('1-612-555-1234')).toBe('+16125551234')
   })
 
-  it('should handle other digit lengths with + prefix', () => {
-    expect(formatPhoneForVCard('12345')).toBe('+12345')
+  it('should return undefined for too few digits', () => {
+    expect(formatPhoneForVCard('12345')).toBeUndefined()
+  })
+
+  it('should return undefined for only non-digit characters', () => {
+    expect(formatPhoneForVCard('---')).toBeUndefined()
+  })
+
+  it('should format valid international numbers (8-15 digits)', () => {
+    expect(formatPhoneForVCard('12345678')).toBe('+12345678')
+    expect(formatPhoneForVCard('123456789012345')).toBe('+123456789012345')
+  })
+
+  it('should return undefined for numbers exceeding 15 digits', () => {
+    expect(formatPhoneForVCard('1234567890123456')).toBeUndefined()
   })
 })
 

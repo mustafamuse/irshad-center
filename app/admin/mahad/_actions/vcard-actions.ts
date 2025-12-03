@@ -2,7 +2,9 @@
 
 import { getBatchById } from '@/lib/db/queries/batch'
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
-import { withActionError, ActionResult } from '@/lib/utils/action-helpers'
+import { logError } from '@/lib/logger'
+import { createActionLogger } from '@/lib/logger'
+import { ActionResult } from '@/lib/utils/action-helpers'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -11,10 +13,12 @@ import {
   VCardResult,
 } from '@/lib/vcard-export'
 
+const logger = createActionLogger('mahad-vcard')
+
 export async function generateMahadVCardContent(
   batchId?: string
 ): Promise<ActionResult<VCardResult>> {
-  return withActionError(async () => {
+  try {
     const students = batchId
       ? await getStudentsByBatch(batchId)
       : await getStudents()
@@ -56,10 +60,24 @@ export async function generateMahadVCardContent(
     }
 
     return {
-      content: generateVCardsContent(contacts),
-      filename,
-      exported: contacts.length,
-      skipped,
+      success: true,
+      data: {
+        content: generateVCardsContent(contacts),
+        filename,
+        exported: contacts.length,
+        skipped,
+      },
     }
-  }, 'Failed to generate vCard content')
+  } catch (error) {
+    await logError(logger, error, 'Failed to generate Mahad vCard content', {
+      batchId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to generate vCard content',
+    }
+  }
 }
