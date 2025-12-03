@@ -88,13 +88,8 @@ export type ViewMode = 'grid' | 'table'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
 export type FamilyStatus = 'active' | 'pending' | 'no-payment'
 
-// Action result types
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-}
+// Re-export ActionResult from canonical location
+export type { ActionResult } from '@/lib/utils/action-helpers'
 
 // Action data payload types
 export interface SubscriptionValidationData {

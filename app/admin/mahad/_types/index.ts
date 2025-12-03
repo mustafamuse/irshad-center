@@ -101,15 +101,8 @@ export type DialogType =
   | 'resolveDuplicates'
   | null
 
-/**
- * Action result for server actions
- */
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-}
+// Re-export ActionResult from canonical location
+export type { ActionResult } from '@/lib/utils/action-helpers'
 
 /**
  * Duplicate group for duplicate detection

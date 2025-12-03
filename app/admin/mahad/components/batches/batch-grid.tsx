@@ -1,11 +1,16 @@
 'use client'
 
+import { useMemo, useState } from 'react'
+
 import { format } from 'date-fns'
-import { Calendar, Users, Layers, Pencil } from 'lucide-react'
+import { Calendar, Users, Layers, Pencil, Download } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { downloadVCardFile } from '@/lib/vcard-client'
 
+import { generateMahadVCardContent } from '../../_actions/vcard-actions'
 import { MahadBatch, MahadStudent } from '../../_types'
 import { useMahadUIStore } from '../../store'
 
@@ -14,16 +19,11 @@ interface BatchGridProps {
   students: MahadStudent[]
 }
 
-function BatchCard({
-  batch,
-  studentCount,
-}: {
-  batch: MahadBatch
-  studentCount: number
-}) {
+function BatchCard({ batch }: { batch: MahadBatch }) {
   const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
   const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
+  const [isExporting, setIsExporting] = useState(false)
 
   const handleClick = () => {
     setBatchFilter(batch.id)
@@ -35,27 +35,71 @@ function BatchCard({
     openDialogWithData('editBatch', batch)
   }
 
+  const handleExportContacts = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsExporting(true)
+    try {
+      const result = await generateMahadVCardContent(batch.id)
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to generate contacts')
+        return
+      }
+
+      const { content, filename, exported, skipped } = result.data
+      if (exported === 0) {
+        toast.error('No contacts with phone or email to export')
+        return
+      }
+
+      const downloaded = downloadVCardFile(content, filename)
+      if (!downloaded) {
+        toast.error('Failed to download file')
+        return
+      }
+
+      const msg =
+        skipped > 0
+          ? `Exported ${exported} contacts from ${batch.name} (${skipped} skipped)`
+          : `Exported ${exported} contacts from ${batch.name}`
+      toast.success(msg)
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   return (
     <Card
       className="group relative cursor-pointer transition-colors hover:bg-muted/50"
       onClick={handleClick}
     >
-      <Button
-        variant="ghost"
-        size="icon"
-        className="absolute right-2 top-2 h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={handleEdit}
-        aria-label={`Edit ${batch.name}`}
-      >
-        <Pencil className="h-4 w-4" />
-      </Button>
+      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={handleExportContacts}
+          disabled={isExporting}
+          aria-label={`Export contacts from ${batch.name}`}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={handleEdit}
+          aria-label={`Edit ${batch.name}`}
+        >
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </div>
       <CardHeader className="pb-2">
         <CardTitle className="text-lg">{batch.name}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Users className="h-4 w-4" />
-          <span>{studentCount} students</span>
+          <span>{batch.studentCount} students</span>
         </div>
         {batch.startDate && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -100,7 +144,10 @@ function UnassignedCard({ count }: { count: number }) {
 }
 
 export function BatchGrid({ batches, students }: BatchGridProps) {
-  const unassignedCount = students.filter((s) => !s.batchId).length
+  const unassignedCount = useMemo(
+    () => students.filter((s) => !s.batchId).length,
+    [students]
+  )
 
   if (batches.length === 0) {
     return (
@@ -117,11 +164,7 @@ export function BatchGrid({ batches, students }: BatchGridProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {batches.map((batch) => (
-        <BatchCard
-          key={batch.id}
-          batch={batch}
-          studentCount={batch.studentCount}
-        />
+        <BatchCard key={batch.id} batch={batch} />
       ))}
       <UnassignedCard count={unassignedCount} />
     </div>

@@ -16,7 +16,22 @@ export type ActionResult<T = void> = {
   success: boolean
   data?: T
   error?: string
+  message?: string
   errors?: Partial<Record<string, string[]>>
+}
+
+/**
+ * Creates a standardized error result for catch blocks.
+ * Extracts error message from Error instances or uses default message.
+ */
+export function createErrorResult<T = void>(
+  error: unknown,
+  defaultMessage: string
+): ActionResult<T> {
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : defaultMessage,
+  }
 }
 
 /**

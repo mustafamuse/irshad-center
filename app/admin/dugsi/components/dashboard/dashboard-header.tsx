@@ -1,7 +1,14 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { useState } from 'react'
 
+import { Download } from 'lucide-react'
+import { toast } from 'sonner'
+
+import { Button } from '@/components/ui/button'
+import { downloadVCardFile } from '@/lib/vcard-client'
+
+import { generateDugsiVCardContent } from '../../actions'
 import { useLegacyActions, useViewMode } from '../../store'
 
 interface DashboardHeaderProps {
@@ -15,6 +22,38 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   const viewMode = useViewMode()
   const { setViewMode } = useLegacyActions()
+  const [isExporting, setIsExporting] = useState(false)
+
+  const handleExportContacts = async () => {
+    setIsExporting(true)
+    try {
+      const result = await generateDugsiVCardContent()
+      if (!result.success || !result.data) {
+        toast.error(result.error || 'Failed to generate contacts')
+        return
+      }
+
+      const { content, filename, exported, skipped } = result.data
+      if (exported === 0) {
+        toast.error('No parent contacts with phone or email to export')
+        return
+      }
+
+      const downloaded = downloadVCardFile(content, filename)
+      if (!downloaded) {
+        toast.error('Failed to download file')
+        return
+      }
+
+      const msg =
+        skipped > 0
+          ? `Exported ${exported} parent contacts (${skipped} skipped)`
+          : `Exported ${exported} parent contacts`
+      toast.success(msg)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -27,25 +66,37 @@ export function DashboardHeader({
         </p>
       </div>
 
-      <div className="flex gap-2" role="group" aria-label="View mode">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <Button
-          variant={viewMode === 'grid' ? 'default' : 'outline'}
+          variant="outline"
           size="sm"
-          onClick={() => setViewMode('grid')}
-          aria-pressed={viewMode === 'grid'}
-          aria-label="Parents view"
+          onClick={handleExportContacts}
+          disabled={isExporting}
+          aria-label="Export parent contacts to vCard"
         >
-          Parents
+          <Download className="mr-2 h-4 w-4" />
+          {isExporting ? 'Exporting...' : 'Export Contacts'}
         </Button>
-        <Button
-          variant={viewMode === 'table' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setViewMode('table')}
-          aria-pressed={viewMode === 'table'}
-          aria-label="Students view"
-        >
-          Students
-        </Button>
+        <div className="flex gap-2" role="group" aria-label="View mode">
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+            aria-pressed={viewMode === 'grid'}
+            aria-label="Parents view"
+          >
+            Parents
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('table')}
+            aria-pressed={viewMode === 'table'}
+            aria-label="Students view"
+          >
+            Students
+          </Button>
+        </div>
       </div>
     </div>
   )
