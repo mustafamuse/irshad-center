@@ -92,7 +92,10 @@ export const nameSchema = z
   .trim()
   .min(2, 'Name must be at least 2 characters')
   .max(50, 'Name must be less than 50 characters')
-  .regex(/^[a-zA-Z\s-]+$/, 'Name can only contain letters, spaces, and hyphens')
+  .regex(
+    /^[a-zA-Z\s'-]+$/,
+    'Name can only contain letters, spaces, hyphens, and apostrophes'
+  )
 
 export const emailSchema = z
   .string()
@@ -193,6 +196,8 @@ export const childInfoSchema = z.object({
     .string()
     .min(1, 'Please provide health information or type "None"')
     .max(500, 'Please keep health information under 500 characters'),
+  useCustomLastName: z.boolean().default(false),
+  useCustomShift: z.boolean().default(false),
 })
 
 export const dugsiRegistrationSchema = z
@@ -239,6 +244,43 @@ export const dugsiRegistrationSchema = z
       path: ['parent2FirstName'],
     }
   )
+  .refine(
+    (data) => {
+      // Validate that non-custom children match first child's last name
+      if (data.children.length > 1) {
+        const firstChildLastName = data.children[0]?.lastName
+        return data.children
+          .slice(1)
+          .every(
+            (child) =>
+              child.useCustomLastName || child.lastName === firstChildLastName
+          )
+      }
+      return true
+    },
+    {
+      message: 'Children using first child last name must match first child',
+      path: ['children'],
+    }
+  )
+  .refine(
+    (data) => {
+      // Validate that non-custom children match first child's shift
+      if (data.children.length > 1) {
+        const firstChildShift = data.children[0]?.shift
+        return data.children
+          .slice(1)
+          .every(
+            (child) => child.useCustomShift || child.shift === firstChildShift
+          )
+      }
+      return true
+    },
+    {
+      message: 'Children using first child shift must match first child',
+      path: ['children'],
+    }
+  )
 
 export type ChildInfo = z.infer<typeof childInfoSchema>
 export type DugsiRegistrationValues = z.infer<typeof dugsiRegistrationSchema>
@@ -256,6 +298,8 @@ export const DEFAULT_CHILD_VALUES: ChildInfo = {
   shift: undefined as unknown as StudentShift,
   schoolName: undefined,
   healthInfo: '',
+  useCustomLastName: false,
+  useCustomShift: false,
 }
 
 export const DUGSI_DEFAULT_FORM_VALUES: Partial<DugsiRegistrationValues> = {

@@ -3,6 +3,7 @@ import { Control, FieldValues, Path } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import { getInputClassNames } from '@/lib/registration/utils/form-utils'
+import { capitalizeName } from '@/lib/utils'
 
 interface NameFieldsProps<T extends FieldValues> {
   control: Control<T>
@@ -39,6 +40,11 @@ export function NameFields<T extends FieldValues>({
             placeholder={firstNamePlaceholder}
             aria-invalid={!!fieldState.error}
             className={getInputClassNames(!!fieldState.error)}
+            onChange={(e) => {
+              const capitalized = capitalizeName(e.target.value)
+              field.onChange(capitalized)
+            }}
+            onBlur={field.onBlur}
           />
         )}
       </FormFieldWrapper>
@@ -55,6 +61,11 @@ export function NameFields<T extends FieldValues>({
             placeholder={lastNamePlaceholder}
             aria-invalid={!!fieldState.error}
             className={getInputClassNames(!!fieldState.error)}
+            onChange={(e) => {
+              const capitalized = capitalizeName(e.target.value)
+              field.onChange(capitalized)
+            }}
+            onBlur={field.onBlur}
           />
         )}
       </FormFieldWrapper>

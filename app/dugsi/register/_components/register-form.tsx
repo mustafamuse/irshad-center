@@ -1,13 +1,16 @@
 'use client'
 
+import React from 'react'
+
 import { zodResolver } from '@hookform/resolvers/zod'
-import { UserPlus, X, Users, Loader2 } from 'lucide-react'
+import { UserPlus, X, Users, Loader2, Pencil, RotateCcw } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useFieldArray, useForm } from 'react-hook-form'
 
 import { ContactFields } from '@/components/registration/shared/ContactFields'
 import { DateOfBirthField } from '@/components/registration/shared/DateOfBirthField'
 import { NameFields } from '@/components/registration/shared/NameFields'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -19,6 +22,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Form } from '@/components/ui/form'
 import { GenderRadioGroup } from '@/components/ui/gender-radio-group'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SchoolCombobox } from '@/components/ui/school-combobox'
 import {
@@ -47,7 +51,7 @@ import {
   buttonClassNames,
   getInputClassNames,
 } from '@/lib/registration/utils/form-utils'
-import { cn } from '@/lib/utils'
+import { cn, capitalizeName } from '@/lib/utils'
 
 import { useDugsiRegistration } from '../_hooks/use-registration'
 
@@ -80,12 +84,104 @@ export function DugsiRegisterForm() {
   }
 
   const handleAddChild = () => {
-    append(DEFAULT_CHILD_VALUES)
+    // Get first child's values as template
+    const firstChild = form.getValues('children.0')
+
+    append({
+      ...DEFAULT_CHILD_VALUES,
+      // Auto-populate new child with first child's last name and shift
+      lastName: firstChild?.lastName || '',
+      shift: firstChild?.shift || undefined,
+      useCustomLastName: false,
+      useCustomShift: false,
+    })
   }
 
   const handleRemoveChild = (index: number) => {
-    if (fields.length > 1) {
+    // Add bounds checking to prevent race conditions
+    if (fields.length > 1 && index < fields.length && index >= 0) {
       remove(index)
+    }
+  }
+
+  // Watch first child's last name and shift (template values)
+  const firstChildLastName = form.watch('children.0.lastName')
+  const firstChildShift = form.watch('children.0.shift')
+
+  /**
+   * Syncs first child's last name to all non-custom siblings.
+   * This runs when the first child's last name changes or when children are added/removed.
+   * Only updates children where useCustomLastName is false.
+   */
+  React.useEffect(() => {
+    if (firstChildLastName && fields.length > 1) {
+      // Use fields.length instead of fields array to avoid dependency issues
+      for (let idx = 1; idx < fields.length; idx++) {
+        const child = form.getValues(`children.${idx}`)
+        // Add safety check for child existence to prevent race conditions
+        if (child && !child.useCustomLastName) {
+          form.setValue(`children.${idx}.lastName`, firstChildLastName, {
+            shouldValidate: false, // Avoid validation during sync
+          })
+        }
+      }
+    }
+  }, [firstChildLastName, fields.length, form])
+
+  /**
+   * Syncs first child's shift to all non-custom siblings.
+   * This runs when the first child's shift changes or when children are added/removed.
+   * Only updates children where useCustomShift is false.
+   */
+  React.useEffect(() => {
+    if (firstChildShift && fields.length > 1) {
+      for (let idx = 1; idx < fields.length; idx++) {
+        const child = form.getValues(`children.${idx}`)
+        // Add safety check for child existence to prevent race conditions
+        if (child && !child.useCustomShift) {
+          form.setValue(`children.${idx}.shift`, firstChildShift, {
+            shouldValidate: false,
+          })
+        }
+      }
+    }
+  }, [firstChildShift, fields.length, form])
+
+  /**
+   * Toggles custom last name override for a child.
+   * When disabled (reverting), automatically copies first child's last name.
+   * @param index - Child index (must be 1 or greater, 0 is always template)
+   */
+  const toggleCustomLastName = (index: number) => {
+    if (index === 0) return // First child is always template
+
+    const currentValue = form.getValues(`children.${index}.useCustomLastName`)
+    form.setValue(`children.${index}.useCustomLastName`, !currentValue)
+
+    // If reverting to first child's value (custom → non-custom), update the field
+    if (currentValue && firstChildLastName) {
+      form.setValue(`children.${index}.lastName`, firstChildLastName, {
+        shouldValidate: true,
+      })
+    }
+  }
+
+  /**
+   * Toggles custom shift override for a child.
+   * When disabled (reverting), automatically copies first child's shift.
+   * @param index - Child index (must be 1 or greater, 0 is always template)
+   */
+  const toggleCustomShift = (index: number) => {
+    if (index === 0) return // First child is always template
+
+    const currentValue = form.getValues(`children.${index}.useCustomShift`)
+    form.setValue(`children.${index}.useCustomShift`, !currentValue)
+
+    // If reverting to first child's value (custom → non-custom), update the field
+    if (currentValue && firstChildShift) {
+      form.setValue(`children.${index}.shift`, firstChildShift, {
+        shouldValidate: true,
+      })
     }
   }
 
@@ -225,11 +321,21 @@ export function DugsiRegisterForm() {
                 >
                   <CardHeader className="border-b bg-gray-50/50 p-3 sm:p-4 sm:pb-4">
                     <div className="flex items-center justify-between">
-                      <CardTitle className="text-base font-medium text-[#007078] sm:text-lg">
-                        {t('childrenSection.childNumber', {
-                          number: index + 1,
-                        })}
-                      </CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-base font-medium text-[#007078] sm:text-lg">
+                          {t('childrenSection.childNumber', {
+                            number: index + 1,
+                          })}
+                        </CardTitle>
+                        {index === 0 && fields.length > 1 && (
+                          <Badge
+                            variant="secondary"
+                            className="text-xs font-normal"
+                          >
+                            Template for siblings
+                          </Badge>
+                        )}
+                      </div>
                       {fields.length > 1 && (
                         <Button
                           type="button"
@@ -247,15 +353,114 @@ export function DugsiRegisterForm() {
                   </CardHeader>
                   <CardContent className="space-y-4 p-4 sm:space-y-6 sm:p-6">
                     {/* Child Name */}
-                    <NameFields
-                      control={form.control}
-                      firstNameField={`children.${index}.firstName`}
-                      lastNameField={`children.${index}.lastName`}
-                      firstNameLabel={t('fields.firstName')}
-                      lastNameLabel={t('fields.lastName')}
-                      firstNamePlaceholder={t('placeholders.childFirstName')}
-                      lastNamePlaceholder={t('placeholders.childLastName')}
-                    />
+                    <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
+                      {/* First Name */}
+                      <FormFieldWrapper
+                        control={form.control}
+                        name={`children.${index}.firstName`}
+                        label={t('fields.firstName')}
+                        required
+                      >
+                        {(field, fieldState) => (
+                          <Input
+                            {...field}
+                            placeholder={t('placeholders.childFirstName')}
+                            aria-invalid={!!fieldState.error}
+                            className={getInputClassNames(!!fieldState.error)}
+                            onChange={(e) => {
+                              const capitalized = capitalizeName(e.target.value)
+                              field.onChange(capitalized)
+                            }}
+                            onBlur={field.onBlur}
+                          />
+                        )}
+                      </FormFieldWrapper>
+
+                      {/* Last Name with Override (only for children 1+) */}
+                      <FormFieldWrapper
+                        control={form.control}
+                        name={`children.${index}.lastName`}
+                        label={t('fields.lastName')}
+                        required
+                      >
+                        {(field, fieldState) => {
+                          const useCustom = form.watch(
+                            `children.${index}.useCustomLastName`
+                          )
+                          const isTemplate = index === 0
+
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1">
+                                  <Input
+                                    {...field}
+                                    placeholder={t(
+                                      'placeholders.childLastName'
+                                    )}
+                                    readOnly={
+                                      !isTemplate &&
+                                      !useCustom &&
+                                      !!firstChildLastName
+                                    }
+                                    aria-invalid={!!fieldState.error}
+                                    className={cn(
+                                      getInputClassNames(!!fieldState.error),
+                                      !isTemplate &&
+                                        !useCustom &&
+                                        !!firstChildLastName
+                                        ? 'bg-muted'
+                                        : ''
+                                    )}
+                                    onChange={(e) => {
+                                      const capitalized = capitalizeName(
+                                        e.target.value
+                                      )
+                                      field.onChange(capitalized)
+                                    }}
+                                    onBlur={field.onBlur}
+                                  />
+                                </div>
+
+                                {!isTemplate && firstChildLastName && (
+                                  <>
+                                    <Badge
+                                      variant={
+                                        useCustom ? 'secondary' : 'default'
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {useCustom ? 'Custom' : 'From Child #1'}
+                                    </Badge>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        toggleCustomLastName(index)
+                                      }
+                                      className="h-8 px-2"
+                                    >
+                                      {useCustom ? (
+                                        <>
+                                          <RotateCcw className="mr-1 h-3 w-3" />
+                                          Revert
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Pencil className="mr-1 h-3 w-3" />
+                                          Edit
+                                        </>
+                                      )}
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        }}
+                      </FormFieldWrapper>
+                    </div>
 
                     {/* Gender Selection */}
                     <FormFieldWrapper
@@ -292,38 +497,94 @@ export function DugsiRegisterForm() {
                       }}
                     />
 
-                    {/* Shift Selection */}
+                    {/* Shift Selection with Override (only for children 1+) */}
                     <FormFieldWrapper
                       name={`children.${index}.shift`}
                       control={form.control}
                       label={t('fields.shift')}
                       required
                     >
-                      {(field, fieldState) => (
-                        <Select
-                          value={field.value || ''}
-                          onValueChange={(value) => field.onChange(value)}
-                        >
-                          <SelectTrigger
-                            aria-invalid={!!fieldState.error}
-                            className={getInputClassNames(!!fieldState.error)}
-                          >
-                            <SelectValue
-                              placeholder={t('placeholders.selectShift')}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {SHIFT_OPTIONS.map((option) => (
-                              <SelectItem
-                                key={option.value}
-                                value={option.value}
-                              >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
+                      {(field, fieldState) => {
+                        const useCustom = form.watch(
+                          `children.${index}.useCustomShift`
+                        )
+                        const isTemplate = index === 0
+
+                        return (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1">
+                                <Select
+                                  value={field.value || ''}
+                                  onValueChange={(value) =>
+                                    field.onChange(value)
+                                  }
+                                  disabled={
+                                    !isTemplate &&
+                                    !useCustom &&
+                                    !!firstChildShift
+                                  }
+                                >
+                                  <SelectTrigger
+                                    aria-invalid={!!fieldState.error}
+                                    className={getInputClassNames(
+                                      !!fieldState.error
+                                    )}
+                                  >
+                                    <SelectValue
+                                      placeholder={t(
+                                        'placeholders.selectShift'
+                                      )}
+                                    />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {SHIFT_OPTIONS.map((option) => (
+                                      <SelectItem
+                                        key={option.value}
+                                        value={option.value}
+                                      >
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              {!isTemplate && firstChildShift && (
+                                <>
+                                  <Badge
+                                    variant={
+                                      useCustom ? 'secondary' : 'default'
+                                    }
+                                    className="text-xs"
+                                  >
+                                    {useCustom ? 'Custom' : 'From Child #1'}
+                                  </Badge>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => toggleCustomShift(index)}
+                                    className="h-8 px-2"
+                                  >
+                                    {useCustom ? (
+                                      <>
+                                        <RotateCcw className="mr-1 h-3 w-3" />
+                                        Revert
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Pencil className="mr-1 h-3 w-3" />
+                                        Edit
+                                      </>
+                                    )}
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      }}
                     </FormFieldWrapper>
 
                     {/* Grade & School Fields - controlled by SHOW_GRADE_SCHOOL feature flag */}
