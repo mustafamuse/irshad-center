@@ -4,6 +4,7 @@ import {
   dugsiRegistrationSchema,
   childInfoSchema,
   DEFAULT_CHILD_VALUES,
+  nameSchema,
 } from '../registration'
 
 describe('dugsiRegistrationSchema', () => {
@@ -337,6 +338,38 @@ describe('dugsiRegistrationSchema', () => {
       if (result.success) {
         expect(result.data.useCustomShift).toBe(false)
       }
+    })
+  })
+
+  describe('nameSchema', () => {
+    it('accepts names with apostrophes', () => {
+      expect(nameSchema.safeParse("O'Brien").success).toBe(true)
+      expect(nameSchema.safeParse("D'Angelo").success).toBe(true)
+      expect(nameSchema.safeParse("L'Esperance").success).toBe(true)
+    })
+
+    it('accepts names with hyphens', () => {
+      expect(nameSchema.safeParse('Mary-Ann').success).toBe(true)
+      expect(nameSchema.safeParse('Smith-Jones').success).toBe(true)
+    })
+
+    it('accepts names with both hyphens and apostrophes', () => {
+      expect(nameSchema.safeParse("O'Brien-Smith").success).toBe(true)
+    })
+
+    it('rejects names with numbers', () => {
+      const result = nameSchema.safeParse('John123')
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects names with special characters', () => {
+      const result = nameSchema.safeParse('John@Doe')
+      expect(result.success).toBe(false)
+    })
+
+    it('rejects empty or too short names', () => {
+      expect(nameSchema.safeParse('').success).toBe(false)
+      expect(nameSchema.safeParse('A').success).toBe(false)
     })
   })
 })
