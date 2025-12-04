@@ -177,12 +177,19 @@ export function FamilyDetailSheet({
   }
 
   const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
-    // Prevent concurrent updates
     if (isUpdatingShift) {
+      console.warn('Shift update blocked: concurrent request', {
+        requestedShift: shift,
+        currentShift: firstMember?.shift,
+      })
       return
     }
 
     if (!firstMember?.familyReferenceId) {
+      console.warn('Shift update blocked: missing family reference', {
+        requestedShift: shift,
+        familyKey: family.familyKey,
+      })
       toast.error('Cannot update shift: Family reference not found')
       return
     }

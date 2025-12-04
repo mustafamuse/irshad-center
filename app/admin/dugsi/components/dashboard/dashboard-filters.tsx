@@ -19,6 +19,30 @@ import {
   useLegacyActions,
 } from '../../store'
 
+/**
+ * Dashboard Filters Component
+ *
+ * Architecture Note: Hybrid Filter Strategy
+ *
+ * This component uses a mixed filtering approach optimized for different use cases:
+ *
+ * SHIFT Filter (URL searchParams + Database Filtering):
+ * - Uses URL query parameters (?shift=MORNING)
+ * - Filters at database level via Server Component re-render
+ * - Benefits: Leverages composite index [program, shift] for performance
+ * - Reduces initial payload size when filtering large datasets
+ * - Server Component re-renders on param change (intentional)
+ *
+ * OTHER Filters (Zustand State + Client Filtering):
+ * - Date filter, health info, search query
+ * - Stored in Zustand state, applied client-side after data fetch
+ * - Benefits: No database indexes available for these fields
+ * - Instant filter updates without server round-trip
+ * - Better UX for smaller filter scopes
+ *
+ * This hybrid approach optimizes based on filter characteristics rather than
+ * enforcing consistency for its own sake.
+ */
 export function DashboardFilters() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -43,7 +67,13 @@ export function DashboardFilters() {
     setSearchQuery(debouncedSearchQuery)
   }, [debouncedSearchQuery, setSearchQuery])
 
-  // Handler to update shift in URL params
+  /**
+   * Updates shift filter via URL query parameters.
+   *
+   * Note: router.push triggers Server Component re-render. This is intentional
+   * and optimal - we want fresh data from database with the new shift filter
+   * applied, taking advantage of the [program, shift] composite index.
+   */
   const handleShiftChange = (shift: 'MORNING' | 'AFTERNOON' | 'all') => {
     const params = new URLSearchParams(searchParams.toString())
     if (shift === 'all') {

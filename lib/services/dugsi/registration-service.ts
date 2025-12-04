@@ -25,6 +25,7 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logWarning } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
+import { DugsiRegistrationFiltersSchema } from '@/lib/validations/dugsi'
 
 const logger = createServiceLogger('dugsi-registration')
 
@@ -47,13 +48,16 @@ const logger = createServiceLogger('dugsi-registration')
  */
 export async function getAllDugsiRegistrations(
   limit?: number,
-  filters?: { shift?: 'MORNING' | 'AFTERNOON' | 'all' }
+  filters?: { shift?: 'MORNING' | 'AFTERNOON' }
 ): Promise<DugsiRegistration[]> {
+  const validatedFilters = filters
+    ? DugsiRegistrationFiltersSchema.parse(filters)
+    : undefined
+
   const profiles = await prisma.programProfile.findMany({
     where: {
       program: DUGSI_PROGRAM,
-      ...(filters?.shift &&
-        filters.shift !== 'all' && { shift: filters.shift }),
+      ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
     },
     include: programProfileFullInclude,
     orderBy: {

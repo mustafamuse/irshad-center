@@ -22,7 +22,30 @@ export const UpdateFamilyShiftSchema = z.object({
 })
 
 // ============================================================================
+// SEARCH PARAMS VALIDATION
+// ============================================================================
+
+export const ShiftFilterSchema = z
+  .enum([StudentShift.MORNING, StudentShift.AFTERNOON, 'all'])
+  .optional()
+  .transform((val) => {
+    if (!val || val === 'all') return undefined
+    return val
+  })
+
+// ============================================================================
+// SERVICE LAYER VALIDATION
+// ============================================================================
+
+export const DugsiRegistrationFiltersSchema = z.object({
+  shift: z.enum([StudentShift.MORNING, StudentShift.AFTERNOON]).optional(),
+})
+
+// ============================================================================
 // TYPE INFERENCE HELPERS
 // ============================================================================
 
 export type UpdateFamilyShiftInput = z.infer<typeof UpdateFamilyShiftSchema>
+export type DugsiRegistrationFilters = z.infer<
+  typeof DugsiRegistrationFiltersSchema
+>

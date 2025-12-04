@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { Metadata } from 'next'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
 import { getDugsiRegistrations } from './actions'
 import { DugsiDashboard } from './components/dugsi-dashboard'
@@ -51,13 +52,10 @@ export const metadata: Metadata = {
 export default async function DugsiAdminPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ shift?: 'MORNING' | 'AFTERNOON' | 'all' }>
+  searchParams?: Promise<{ shift?: string }>
 }) {
   const params = await searchParams
-  const shift =
-    params?.shift === 'MORNING' || params?.shift === 'AFTERNOON'
-      ? params.shift
-      : undefined
+  const shift = ShiftFilterSchema.parse(params?.shift)
 
   const registrations = await getDugsiRegistrations({ shift })
 
