@@ -94,6 +94,9 @@ export function FamilyDetailSheet({
   const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
   const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
   const [isShiftPopoverOpen, setIsShiftPopoverOpen] = useState(false)
+  const [pendingShift, setPendingShift] = useState<
+    'MORNING' | 'AFTERNOON' | null
+  >(null)
 
   const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
     useActionHandler(setPrimaryPayer)
@@ -101,6 +104,13 @@ export function FamilyDetailSheet({
   const { execute: executeUpdateFamilyShift, isPending: isUpdatingShift } =
     useActionHandler(updateFamilyShift, {
       successMessage: 'Family shift updated successfully!',
+      onSuccess: () => {
+        if (pendingShift) {
+          setIsShiftPopoverOpen(false)
+          onFamilyUpdate?.(pendingShift)
+          setPendingShift(null)
+        }
+      },
     })
 
   if (!family) return null
@@ -168,15 +178,11 @@ export function FamilyDetailSheet({
 
   const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
     if (firstMember.familyReferenceId) {
-      const result = await executeUpdateFamilyShift({
+      setPendingShift(shift)
+      await executeUpdateFamilyShift({
         familyReferenceId: firstMember.familyReferenceId,
         shift,
       })
-
-      if (result?.success) {
-        setIsShiftPopoverOpen(false)
-        onFamilyUpdate?.(shift)
-      }
     }
   }
 
