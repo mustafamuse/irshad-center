@@ -139,6 +139,7 @@ describe('Batch Actions', () => {
       expect(mockCreateBatch).toHaveBeenCalledWith({
         name: 'Test Cohort',
         startDate: expect.any(Date),
+        endDate: null,
       })
       expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/mahad')
     })

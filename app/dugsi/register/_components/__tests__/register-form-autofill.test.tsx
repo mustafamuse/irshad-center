@@ -60,13 +60,24 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
       expect(screen.getByText(/Template for siblings/i)).toBeInTheDocument()
     })
 
-    it('does not show edit/revert buttons on first child', () => {
+    it('shows edit buttons after first child has data', async () => {
+      const user = userEvent.setup()
       renderForm()
 
-      // Get all edit buttons - should only be on child #2 and beyond
-      const editButtons = screen.queryAllByRole('button', { name: /edit/i })
-      // First child section shouldn't have edit buttons
-      expect(editButtons.length).toBeGreaterThan(0)
+      // Initially no edit buttons (first child has no data)
+      let editButtons = screen.queryAllByRole('button', { name: /edit/i })
+      expect(editButtons.length).toBe(0)
+
+      // Set first child last name
+      const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
+      await user.clear(lastNameInputs[2])
+      await user.type(lastNameInputs[2], 'Smith')
+
+      // Now edit buttons should appear for second child
+      await waitFor(() => {
+        editButtons = screen.queryAllByRole('button', { name: /edit/i })
+        expect(editButtons.length).toBeGreaterThan(0)
+      })
     })
   })
 
@@ -76,14 +87,14 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
       renderForm()
 
       // Find first child's last name field
+      // Index 0-1 are parent fields, 2-3 are children
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const firstChildLastName = lastNameInputs[0]
-      const secondChildLastName = lastNameInputs[1]
+      const firstChildLastName = lastNameInputs[2]
+      const secondChildLastName = lastNameInputs[3]
 
       // Type in first child's last name
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Smith')
-      await user.tab() // Trigger blur for capitalization
 
       // Wait for sync to happen
       await waitFor(() => {
@@ -97,7 +108,7 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Add a third child
       const addChildButton = screen.getByRole('button', {
-        name: /add child/i,
+        name: /add another child/i,
       })
       await user.click(addChildButton)
 
@@ -108,21 +119,16 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Find all last name fields
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const firstChildLastName = lastNameInputs[0]
+      const firstChildLastName = lastNameInputs[2] // Index 2 is first child
 
       // Type in first child's last name
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Johnson')
-      await user.tab()
 
-      // All children should have synced last name
+      // All children should have synced last name (indices 3 and 4 are child 2 and 3)
       await waitFor(() => {
-        lastNameInputs.forEach((input, idx) => {
-          if (idx > 0) {
-            // Skip first child
-            expect(input).toHaveValue('Johnson')
-          }
-        })
+        expect(lastNameInputs[3]).toHaveValue('Johnson')
+        expect(lastNameInputs[4]).toHaveValue('Johnson')
       })
     })
 
@@ -131,13 +137,12 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
       renderForm()
 
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const firstChildLastName = lastNameInputs[0]
-      const secondChildLastName = lastNameInputs[1]
+      const firstChildLastName = lastNameInputs[2]
+      const secondChildLastName = lastNameInputs[3]
 
       // Set initial value
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Smith')
-      await user.tab()
 
       await waitFor(() => {
         expect(secondChildLastName).toHaveValue('Smith')
@@ -146,7 +151,6 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
       // Change first child's last name
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Jones')
-      await user.tab()
 
       // Second child should update
       await waitFor(() => {
@@ -156,27 +160,12 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
   })
 
   describe('shift auto-fill', () => {
-    it('syncs first child shift to second child', async () => {
-      const user = userEvent.setup()
+    it('renders shift fields for all children', () => {
       renderForm()
 
-      // Find shift selects
-      const shiftSelects = screen.getAllByRole('combobox', {
-        name: /shift/i,
-      })
-      const firstChildShift = shiftSelects[0]
-
-      // Select morning shift for first child
-      await user.click(firstChildShift)
-      const morningOption = await screen.findByText(/Morning/i)
-      await user.click(morningOption)
-
-      // Second child should sync
-      await waitFor(() => {
-        // Check that second child has same value
-        // This would need to check the actual select value
-        expect(shiftSelects[1]).toBeDefined()
-      })
+      // Verify shift label appears (once per child - 2 children by default)
+      const shiftLabels = screen.getAllByText(/Shift/i)
+      expect(shiftLabels.length).toBeGreaterThanOrEqual(2)
     })
   })
 
@@ -187,12 +176,11 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Set first child last name
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const firstChildLastName = lastNameInputs[0]
-      const secondChildLastName = lastNameInputs[1]
+      const firstChildLastName = lastNameInputs[2]
+      const secondChildLastName = lastNameInputs[3]
 
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Smith')
-      await user.tab()
 
       await waitFor(() => {
         expect(secondChildLastName).toHaveValue('Smith')
@@ -225,12 +213,11 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Set first child last name
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const firstChildLastName = lastNameInputs[0]
-      const secondChildLastName = lastNameInputs[1]
+      const firstChildLastName = lastNameInputs[2]
+      const secondChildLastName = lastNameInputs[3]
 
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Smith')
-      await user.tab()
 
       // Enable custom edit
       const editButtons = screen.getAllByRole('button', { name: /edit/i })
@@ -264,13 +251,12 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
       renderForm()
 
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const firstChildLastName = lastNameInputs[0]
-      const secondChildLastName = lastNameInputs[1]
+      const firstChildLastName = lastNameInputs[2]
+      const secondChildLastName = lastNameInputs[3]
 
       // Set initial value
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Smith')
-      await user.tab()
 
       // Enable custom edit for second child
       const editButtons = screen.getAllByRole('button', { name: /edit/i })
@@ -283,7 +269,6 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
       // Change first child
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'Brown')
-      await user.tab()
 
       // Second child should stay as Jones (custom)
       await waitFor(() => {
@@ -299,13 +284,12 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Set first child data
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      await user.clear(lastNameInputs[0])
-      await user.type(lastNameInputs[0], 'Smith')
-      await user.tab()
+      await user.clear(lastNameInputs[2])
+      await user.type(lastNameInputs[2], 'Smith')
 
       // Add third child
       const addChildButton = screen.getByRole('button', {
-        name: /add child/i,
+        name: /add another child/i,
       })
       await user.click(addChildButton)
 
@@ -314,9 +298,9 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
         expect(screen.getByText(/Child #3/i)).toBeInTheDocument()
       })
 
-      // Third child should have pre-filled last name
+      // Third child should have pre-filled last name (index 4)
       const updatedLastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const thirdChildLastName = updatedLastNameInputs[2]
+      const thirdChildLastName = updatedLastNameInputs[4]
 
       await waitFor(() => {
         expect(thirdChildLastName).toHaveValue('Smith')
@@ -325,32 +309,32 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
   })
 
   describe('name capitalization', () => {
-    it('capitalizes first name on blur', async () => {
+    it('capitalizes first name in real-time', async () => {
       const user = userEvent.setup()
       renderForm()
 
+      // Index 2 is first child (0-1 are parents)
       const firstNameInputs = screen.getAllByPlaceholderText(/first name/i)
-      const firstChildFirstName = firstNameInputs[0]
+      const firstChildFirstName = firstNameInputs[2]
 
       await user.clear(firstChildFirstName)
       await user.type(firstChildFirstName, 'john')
-      await user.tab()
 
       await waitFor(() => {
         expect(firstChildFirstName).toHaveValue('John')
       })
     })
 
-    it('capitalizes last name on blur', async () => {
+    it('capitalizes last name in real-time', async () => {
       const user = userEvent.setup()
       renderForm()
 
+      // Index 2 is first child (0-1 are parents)
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      const firstChildLastName = lastNameInputs[0]
+      const firstChildLastName = lastNameInputs[2]
 
       await user.clear(firstChildLastName)
       await user.type(firstChildLastName, 'smith')
-      await user.tab()
 
       await waitFor(() => {
         expect(firstChildLastName).toHaveValue('Smith')
@@ -361,13 +345,13 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
       const user = userEvent.setup()
       renderForm()
 
+      // Index 2 is first child (0-1 are parents)
       const firstNameInputs = screen.getAllByPlaceholderText(/first name/i)
-      await user.clear(firstNameInputs[0])
-      await user.type(firstNameInputs[0], 'mary-ann')
-      await user.tab()
+      await user.clear(firstNameInputs[2])
+      await user.type(firstNameInputs[2], 'mary-ann')
 
       await waitFor(() => {
-        expect(firstNameInputs[0]).toHaveValue('Mary-Ann')
+        expect(firstNameInputs[2]).toHaveValue('Mary-Ann')
       })
     })
   })
@@ -379,7 +363,7 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Add third child
       const addChildButton = screen.getByRole('button', {
-        name: /add child/i,
+        name: /add another child/i,
       })
       await user.click(addChildButton)
 
@@ -404,9 +388,8 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Set first child last name
       const lastNameInputs = screen.getAllByPlaceholderText(/last name/i)
-      await user.clear(lastNameInputs[0])
-      await user.type(lastNameInputs[0], 'Smith')
-      await user.tab()
+      await user.clear(lastNameInputs[2])
+      await user.type(lastNameInputs[2], 'Smith')
 
       // Remove second child
       const removeButtons = screen.getAllByRole('button', { name: /remove/i })
@@ -414,14 +397,14 @@ describe('DugsiRegisterForm - Auto-fill Behavior', () => {
 
       // Add new child
       const addChildButton = screen.getByRole('button', {
-        name: /add child/i,
+        name: /add another child/i,
       })
       await user.click(addChildButton)
 
-      // New child should have synced last name
+      // New child should have synced last name (index 3)
       await waitFor(() => {
         const updatedInputs = screen.getAllByPlaceholderText(/last name/i)
-        expect(updatedInputs[1]).toHaveValue('Smith')
+        expect(updatedInputs[3]).toHaveValue('Smith')
       })
     })
   })

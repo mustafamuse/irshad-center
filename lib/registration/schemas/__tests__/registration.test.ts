@@ -27,8 +27,7 @@ describe('dugsiRegistrationSchema', () => {
     gender: 'FEMALE' as const,
     dateOfBirth: new Date('2010-01-01'),
     shift: 'MORNING' as const,
-    schoolLevel: 'ELEMENTARY' as const,
-    grade: 'GRADE_5' as const,
+    gradeLevel: 'GRADE_5' as const,
     schoolName: 'Test Elementary',
     healthInfo: 'None',
     useCustomLastName: false,
@@ -265,19 +264,19 @@ describe('dugsiRegistrationSchema', () => {
       expect(result.success).toBe(true)
     })
 
-    it.skip('handles three children with mixed custom overrides', () => {
+    it('handles three children with mixed custom overrides', () => {
       const data = {
         ...validParentData,
         children: [
           {
             ...validChildData,
-            firstName: 'Child1',
+            firstName: 'Alice',
             lastName: 'Smith',
             shift: 'MORNING' as const,
           },
           {
             ...validChildData,
-            firstName: 'Child2',
+            firstName: 'Bob',
             lastName: 'Jones',
             shift: 'AFTERNOON' as const,
             useCustomLastName: true,
@@ -285,7 +284,7 @@ describe('dugsiRegistrationSchema', () => {
           },
           {
             ...validChildData,
-            firstName: 'Child3',
+            firstName: 'Charlie',
             lastName: 'Smith',
             shift: 'MORNING' as const,
             useCustomLastName: false,
