@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 
+import { useRouter, useSearchParams } from 'next/navigation'
+
 import { Search, Filter } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -18,10 +20,15 @@ import {
 } from '../../store'
 
 export function DashboardFilters() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const showAdvancedFilters = useAdvancedFiltersState()
   const filters = useDugsiFilters()
   const { setSearchQuery, setAdvancedFilters, setAdvancedFiltersOpen } =
     useLegacyActions()
+
+  const shiftFromUrl =
+    (searchParams.get('shift') as 'MORNING' | 'AFTERNOON' | 'all') || 'all'
 
   // Local state for immediate input value
   const [localSearchQuery, setLocalSearchQuery] = useState(
@@ -36,18 +43,32 @@ export function DashboardFilters() {
     setSearchQuery(debouncedSearchQuery)
   }, [debouncedSearchQuery, setSearchQuery])
 
+  // Handler to update shift in URL params
+  const handleShiftChange = (shift: 'MORNING' | 'AFTERNOON' | 'all') => {
+    const params = new URLSearchParams(searchParams.toString())
+    if (shift === 'all') {
+      params.delete('shift')
+    } else {
+      params.set('shift', shift)
+    }
+    router.push(`?${params.toString()}`)
+  }
+
   const advancedFilters = filters.advanced || {
     dateFilter: 'all',
     hasHealthInfo: false,
   }
 
   const hasActiveAdvancedFilters =
-    advancedFilters.dateFilter !== 'all' || advancedFilters.hasHealthInfo
+    advancedFilters.dateFilter !== 'all' ||
+    advancedFilters.hasHealthInfo ||
+    shiftFromUrl !== 'all'
 
   // Count active filters for mobile drawer badge
   const activeFilterCount =
     (advancedFilters.dateFilter !== 'all' ? 1 : 0) +
-    (advancedFilters.hasHealthInfo ? 1 : 0)
+    (advancedFilters.hasHealthInfo ? 1 : 0) +
+    (shiftFromUrl !== 'all' ? 1 : 0)
 
   return (
     <>
@@ -90,6 +111,8 @@ export function DashboardFilters() {
           <AdvancedFilters
             filters={advancedFilters}
             onFiltersChange={setAdvancedFilters}
+            shift={shiftFromUrl}
+            onShiftChange={handleShiftChange}
           />
         </MobileFilterDrawer>
       </div>
@@ -105,6 +128,8 @@ export function DashboardFilters() {
           <AdvancedFilters
             filters={advancedFilters}
             onFiltersChange={setAdvancedFilters}
+            shift={shiftFromUrl}
+            onShiftChange={handleShiftChange}
           />
         </div>
       )}

@@ -42,14 +42,18 @@ const logger = createServiceLogger('dugsi-registration')
  * @security Authorization must be enforced at the API route/action layer.
  *
  * @param limit - Optional limit on number of registrations to return (for performance)
+ * @param filters - Optional filters to apply (shift)
  * @returns Array of DugsiRegistration DTOs
  */
 export async function getAllDugsiRegistrations(
-  limit?: number
+  limit?: number,
+  filters?: { shift?: 'MORNING' | 'AFTERNOON' | 'all' }
 ): Promise<DugsiRegistration[]> {
   const profiles = await prisma.programProfile.findMany({
     where: {
       program: DUGSI_PROGRAM,
+      ...(filters?.shift &&
+        filters.shift !== 'all' && { shift: filters.shift }),
     },
     include: programProfileFullInclude,
     orderBy: {

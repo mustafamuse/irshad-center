@@ -48,8 +48,15 @@ export const metadata: Metadata = {
   description: 'Manage Dugsi program registrations and families',
 }
 
-export default async function DugsiAdminPage() {
-  const registrations = await getDugsiRegistrations()
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: 'MORNING' | 'AFTERNOON' | 'all' }>
+}) {
+  const params = await searchParams
+  const registrations = await getDugsiRegistrations({
+    shift: params?.shift,
+  })
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">

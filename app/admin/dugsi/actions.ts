@@ -59,8 +59,10 @@ const logger = createServiceLogger('dugsi-admin-actions')
 /**
  * Get all Dugsi registrations.
  */
-export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
-  return await getAllDugsiRegistrations()
+export async function getDugsiRegistrations(filters?: {
+  shift?: 'MORNING' | 'AFTERNOON' | 'all'
+}): Promise<DugsiRegistration[]> {
+  return await getAllDugsiRegistrations(undefined, filters)
 }
 
 /**

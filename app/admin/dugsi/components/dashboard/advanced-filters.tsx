@@ -18,6 +18,8 @@ import { FamilyFilters, DateFilter } from '../../_types'
 interface AdvancedFiltersProps {
   filters: FamilyFilters
   onFiltersChange: (filters: FamilyFilters) => void
+  shift: 'MORNING' | 'AFTERNOON' | 'all'
+  onShiftChange: (shift: 'MORNING' | 'AFTERNOON' | 'all') => void
 }
 
 const DATE_FILTER_OPTIONS: Array<{
@@ -34,19 +36,19 @@ const DATE_FILTER_OPTIONS: Array<{
 export function AdvancedFilters({
   filters,
   onFiltersChange,
+  shift,
+  onShiftChange,
 }: AdvancedFiltersProps) {
   const clearAllFilters = () => {
     onFiltersChange({
       dateFilter: 'all',
       hasHealthInfo: false,
-      shift: 'all',
     })
+    onShiftChange('all')
   }
 
   const hasActiveFilters =
-    filters.dateFilter !== 'all' ||
-    filters.hasHealthInfo ||
-    (filters.shift && filters.shift !== 'all')
+    filters.dateFilter !== 'all' || filters.hasHealthInfo || shift !== 'all'
 
   return (
     <Card>
@@ -92,12 +94,9 @@ export function AdvancedFilters({
           <div className="flex items-center gap-2 border-l pl-4">
             <Label className="text-xs text-muted-foreground">Shift:</Label>
             <Select
-              value={filters.shift || 'all'}
+              value={shift}
               onValueChange={(value) =>
-                onFiltersChange({
-                  ...filters,
-                  shift: value as 'MORNING' | 'AFTERNOON' | 'all',
-                })
+                onShiftChange(value as 'MORNING' | 'AFTERNOON' | 'all')
               }
             >
               <SelectTrigger className="w-[140px]">
@@ -147,10 +146,9 @@ export function AdvancedFilters({
                     }
                   </Badge>
                 )}
-                {filters.shift && filters.shift !== 'all' && (
+                {shift !== 'all' && (
                   <Badge variant="outline" className="text-xs">
-                    {filters.shift === 'MORNING' ? 'Morning' : 'Afternoon'}{' '}
-                    Shift
+                    {shift === 'MORNING' ? 'Morning' : 'Afternoon'} Shift
                   </Badge>
                 )}
                 {filters.hasHealthInfo && (

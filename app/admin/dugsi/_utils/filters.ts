@@ -130,13 +130,6 @@ export function filterFamiliesByAdvanced(
     })
   }
 
-  // Shift filter
-  if (filters.shift && filters.shift !== 'all') {
-    filtered = filtered.filter((family) => {
-      return family.members.some((member) => member.shift === filters.shift)
-    })
-  }
-
   return filtered
 }
 
