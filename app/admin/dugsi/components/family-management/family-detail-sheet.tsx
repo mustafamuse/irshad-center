@@ -177,13 +177,16 @@ export function FamilyDetailSheet({
   }
 
   const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
-    if (firstMember.familyReferenceId) {
-      setPendingShift(shift)
-      await executeUpdateFamilyShift({
-        familyReferenceId: firstMember.familyReferenceId,
-        shift,
-      })
+    if (!firstMember?.familyReferenceId) {
+      toast.error('Cannot update shift: Family reference not found')
+      return
     }
+
+    setPendingShift(shift)
+    await executeUpdateFamilyShift({
+      familyReferenceId: firstMember.familyReferenceId,
+      shift,
+    })
   }
 
   const currentEditChild = family.members.find(

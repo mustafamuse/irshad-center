@@ -11,12 +11,11 @@ import React from 'react'
 
 import { AlertCircle } from 'lucide-react'
 
-import { Badge } from '@/components/ui/badge'
 import { GenderDisplay } from '@/components/ui/gender-display'
-import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { DugsiRegistration } from '../../_types'
+import { ShiftBadge } from '../shared/shift-badge'
 
 interface ChildInfoCardProps {
   child: DugsiRegistration
@@ -56,14 +55,7 @@ export function ChildInfoCard({
               {formatGradeLevel(child.gradeLevel)}
             </span>
           )}
-          {child.shift && (
-            <Badge
-              variant="outline"
-              className={SHIFT_BADGES[child.shift].className}
-            >
-              {SHIFT_BADGES[child.shift].label}
-            </Badge>
-          )}
+          <ShiftBadge shift={child.shift} />
         </div>
         {showSchool && child.schoolName && (
           <div className="text-xs text-muted-foreground">

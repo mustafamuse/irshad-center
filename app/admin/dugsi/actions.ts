@@ -443,16 +443,14 @@ export async function updateFamilyShift(
   try {
     const validated = UpdateFamilyShiftSchema.parse(params)
 
-    await prisma.$transaction(async (tx) => {
-      await tx.programProfile.updateMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: validated.familyReferenceId,
-        },
-        data: {
-          shift: validated.shift,
-        },
-      })
+    await prisma.programProfile.updateMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        familyReferenceId: validated.familyReferenceId,
+      },
+      data: {
+        shift: validated.shift,
+      },
     })
 
     revalidatePath('/admin/dugsi')

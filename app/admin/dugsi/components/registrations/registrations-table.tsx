@@ -65,6 +65,7 @@ import {
   getDeleteFamilyPreview,
 } from '../../actions'
 import { PaymentStatusSection } from '../payment-status-section'
+import { ShiftBadge } from '../shared/shift-badge'
 
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]
@@ -247,20 +248,7 @@ export function DugsiRegistrationsTable({
                             {registration.name}
                           </TableCell>
                           <TableCell>
-                            {registration.shift ? (
-                              <Badge
-                                variant="outline"
-                                className={
-                                  SHIFT_BADGES[registration.shift].className
-                                }
-                              >
-                                {SHIFT_BADGES[registration.shift].label}
-                              </Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                Not Set
-                              </span>
-                            )}
+                            <ShiftBadge shift={registration.shift} />
                           </TableCell>
                           <TableCell className="w-16">
                             <GenderIcon
@@ -340,20 +328,7 @@ export function DugsiRegistrationsTable({
                         {registration.name}
                       </TableCell>
                       <TableCell>
-                        {registration.shift ? (
-                          <Badge
-                            variant="outline"
-                            className={
-                              SHIFT_BADGES[registration.shift].className
-                            }
-                          >
-                            {SHIFT_BADGES[registration.shift].label}
-                          </Badge>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Not Set
-                          </span>
-                        )}
+                        <ShiftBadge shift={registration.shift} />
                       </TableCell>
                       <TableCell className="w-16">
                         <GenderIcon gender={registration.gender} size="lg" />

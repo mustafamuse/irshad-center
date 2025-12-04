@@ -35,7 +35,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 
 import { FamilyDetailSheet } from './family-detail-sheet'
 import { FamilyStatusBadge } from './family-status-badge'
@@ -45,6 +44,7 @@ import { formatParentName, hasSecondParent } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
+import { ShiftBadge } from '../shared/shift-badge'
 
 interface FamilyTableViewProps {
   families: Family[]
@@ -135,16 +135,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                     {family.members.length}{' '}
                     {family.members.length === 1 ? 'Kid' : 'Kids'}
                   </Badge>
-                  {family.members[0]?.shift && (
-                    <Badge
-                      variant="outline"
-                      className={
-                        SHIFT_BADGES[family.members[0].shift].className
-                      }
-                    >
-                      {SHIFT_BADGES[family.members[0].shift].label}
-                    </Badge>
-                  )}
+                  <ShiftBadge shift={family.members[0]?.shift ?? null} />
                 </div>
               </div>
 
@@ -225,16 +216,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                         <Users className="h-3 w-3" />
                         {family.members.length}
                       </Badge>
-                      {family.members[0]?.shift && (
-                        <Badge
-                          variant="outline"
-                          className={
-                            SHIFT_BADGES[family.members[0].shift].className
-                          }
-                        >
-                          {SHIFT_BADGES[family.members[0].shift].label}
-                        </Badge>
-                      )}
+                      <ShiftBadge shift={family.members[0]?.shift ?? null} />
                     </div>
                   </TableCell>
                   <TableCell>
