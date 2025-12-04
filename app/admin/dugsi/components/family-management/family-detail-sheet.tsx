@@ -177,6 +177,11 @@ export function FamilyDetailSheet({
   }
 
   const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
+    // Prevent concurrent updates
+    if (isUpdatingShift) {
+      return
+    }
+
     if (!firstMember?.familyReferenceId) {
       toast.error('Cannot update shift: Family reference not found')
       return
@@ -250,6 +255,12 @@ export function FamilyDetailSheet({
                     }
                     aria-busy={isUpdatingShift}
                     tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setIsShiftPopoverOpen(true)
+                      }
+                    }}
                   >
                     {isUpdatingShift && (
                       <Loader2 className="mr-1 h-3 w-3 animate-spin" />
@@ -259,7 +270,10 @@ export function FamilyDetailSheet({
                       : 'Set Shift'}
                   </Badge>
                 </PopoverTrigger>
-                <PopoverContent className="w-48" align="start">
+                <PopoverContent
+                  className={`w-48 ${isUpdatingShift ? 'pointer-events-none opacity-50' : ''}`}
+                  align="start"
+                >
                   <div className="space-y-1">
                     <p className="pb-2 text-xs font-medium text-muted-foreground">
                       Select Family Shift

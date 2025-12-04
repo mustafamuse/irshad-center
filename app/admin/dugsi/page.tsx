@@ -54,9 +54,12 @@ export default async function DugsiAdminPage({
   searchParams?: Promise<{ shift?: 'MORNING' | 'AFTERNOON' | 'all' }>
 }) {
   const params = await searchParams
-  const registrations = await getDugsiRegistrations({
-    shift: params?.shift,
-  })
+  const shift =
+    params?.shift === 'MORNING' || params?.shift === 'AFTERNOON'
+      ? params.shift
+      : undefined
+
+  const registrations = await getDugsiRegistrations({ shift })
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">

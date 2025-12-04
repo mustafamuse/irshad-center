@@ -455,7 +455,7 @@ export async function updateFamilyShift(
       },
     })
 
-    revalidatePath('/admin/dugsi')
+    revalidatePath('/admin/dugsi', 'page')
 
     return {
       success: true,
@@ -464,6 +464,7 @@ export async function updateFamilyShift(
   } catch (error) {
     await logError(logger, error, 'Failed to update family shift', {
       familyReferenceId: params.familyReferenceId,
+      attemptedShift: params.shift,
     })
     return {
       success: false,
