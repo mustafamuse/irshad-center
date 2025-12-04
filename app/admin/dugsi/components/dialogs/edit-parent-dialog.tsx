@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { formatPhoneNumber } from '@/lib/registration/utils/form-utils'
+import { capitalizeName } from '@/lib/utils'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
 import {
@@ -160,7 +161,16 @@ export function EditParentDialog({
                 <FormItem>
                   <FormLabel>First Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="John" {...field} disabled={isPending} />
+                    <Input
+                      placeholder="John"
+                      {...field}
+                      disabled={isPending}
+                      onBlur={(e) => {
+                        const capitalized = capitalizeName(e.target.value)
+                        field.onChange(capitalized)
+                        field.onBlur()
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -174,7 +184,16 @@ export function EditParentDialog({
                 <FormItem>
                   <FormLabel>Last Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="Doe" {...field} disabled={isPending} />
+                    <Input
+                      placeholder="Doe"
+                      {...field}
+                      disabled={isPending}
+                      onBlur={(e) => {
+                        const capitalized = capitalizeName(e.target.value)
+                        field.onChange(capitalized)
+                        field.onBlur()
+                      }}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

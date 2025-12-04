@@ -112,3 +112,29 @@ export function isValidDate(dateString: string | undefined | null): boolean {
   const date = new Date(dateString)
   return !isNaN(date.getTime()) && dateString.trim() !== ''
 }
+
+/**
+ * Capitalizes the first letter of each word in a string
+ * Handles hyphens and apostrophes correctly (e.g., "mary-ann" -> "Mary-Ann", "o'brien" -> "O'Brien")
+ * @param str - The string to capitalize
+ * @returns The capitalized string
+ */
+export function capitalizeName(str: string): string {
+  if (!str) return ''
+
+  return str
+    .toLowerCase()
+    .split(/(\s|-|')/) // Split on spaces, hyphens, and apostrophes while keeping delimiters
+    .map((word) => {
+      // Keep delimiters as-is
+      if (word === ' ' || word === '-' || word === "'") {
+        return word
+      }
+      // Capitalize first letter of each word part
+      if (word.length > 0) {
+        return word.charAt(0).toUpperCase() + word.slice(1)
+      }
+      return word
+    })
+    .join('')
+}
