@@ -122,7 +122,10 @@ export function isValidDate(dateString: string | undefined | null): boolean {
 export function capitalizeName(str: string): string {
   if (!str) return ''
 
-  return str
+  // Normalize Unicode apostrophe variants to standard ASCII apostrophe
+  const normalized = str.replace(/[\u2019\u02BC]/g, "'")
+
+  return normalized
     .toLowerCase()
     .split(/(\s|-|')/) // Split on spaces, hyphens, and apostrophes while keeping delimiters
     .map((word) => {

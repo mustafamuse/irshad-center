@@ -53,6 +53,15 @@ describe('capitalizeName', () => {
     it('handles possessive apostrophes at end', () => {
       expect(capitalizeName("james'")).toBe("James'")
     })
+
+    it('normalizes Unicode apostrophe variants', () => {
+      // U+2019 right single quotation mark (curly apostrophe from mobile)
+      expect(capitalizeName('o\u2019brien')).toBe("O'Brien")
+      expect(capitalizeName('d\u2019angelo')).toBe("D'Angelo")
+
+      // U+02BC modifier letter apostrophe
+      expect(capitalizeName('o\u02BCbrien')).toBe("O'Brien")
+    })
   })
 
   describe('combined special characters', () => {

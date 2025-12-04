@@ -126,7 +126,7 @@ export function DugsiRegisterForm() {
         }
       }
     }
-  }, [firstChildLastName, fields.length])
+  }, [firstChildLastName, fields.length, form])
 
   /**
    * Syncs first child's shift to all non-custom siblings.
@@ -145,7 +145,7 @@ export function DugsiRegisterForm() {
         }
       }
     }
-  }, [firstChildShift, fields.length])
+  }, [firstChildShift, fields.length, form])
 
   /**
    * Toggles custom last name override for a child.
