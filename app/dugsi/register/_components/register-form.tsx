@@ -107,48 +107,55 @@ export function DugsiRegisterForm() {
   const firstChildLastName = form.watch('children.0.lastName')
   const firstChildShift = form.watch('children.0.shift')
 
-  // Sync first child's last name to all non-custom children (children 1+)
+  /**
+   * Syncs first child's last name to all non-custom siblings.
+   * This runs when the first child's last name changes or when children are added/removed.
+   * Only updates children where useCustomLastName is false.
+   */
   React.useEffect(() => {
     if (firstChildLastName && fields.length > 1) {
-      fields.slice(1).forEach((field, idx) => {
-        const actualIndex = idx + 1 // Offset since we sliced from index 1
-        const child = form.getValues(`children.${actualIndex}`)
+      // Use fields.length instead of fields array to avoid dependency issues
+      for (let idx = 1; idx < fields.length; idx++) {
+        const child = form.getValues(`children.${idx}`)
         if (!child.useCustomLastName) {
-          form.setValue(
-            `children.${actualIndex}.lastName`,
-            firstChildLastName,
-            {
-              shouldValidate: false, // Avoid validation during sync
-            }
-          )
+          form.setValue(`children.${idx}.lastName`, firstChildLastName, {
+            shouldValidate: false, // Avoid validation during sync
+          })
         }
-      })
+      }
     }
-  }, [firstChildLastName, fields, form])
+  }, [firstChildLastName, fields.length, form])
 
-  // Sync first child's shift to all non-custom children (children 1+)
+  /**
+   * Syncs first child's shift to all non-custom siblings.
+   * This runs when the first child's shift changes or when children are added/removed.
+   * Only updates children where useCustomShift is false.
+   */
   React.useEffect(() => {
     if (firstChildShift && fields.length > 1) {
-      fields.slice(1).forEach((field, idx) => {
-        const actualIndex = idx + 1
-        const child = form.getValues(`children.${actualIndex}`)
+      for (let idx = 1; idx < fields.length; idx++) {
+        const child = form.getValues(`children.${idx}`)
         if (!child.useCustomShift) {
-          form.setValue(`children.${actualIndex}.shift`, firstChildShift, {
+          form.setValue(`children.${idx}.shift`, firstChildShift, {
             shouldValidate: false,
           })
         }
-      })
+      }
     }
-  }, [firstChildShift, fields, form])
+  }, [firstChildShift, fields.length, form])
 
-  // Toggle custom last name for a child (children 1+ only)
+  /**
+   * Toggles custom last name override for a child.
+   * When disabled (reverting), automatically copies first child's last name.
+   * @param index - Child index (must be 1 or greater, 0 is always template)
+   */
   const toggleCustomLastName = (index: number) => {
     if (index === 0) return // First child is always template
 
     const currentValue = form.getValues(`children.${index}.useCustomLastName`)
     form.setValue(`children.${index}.useCustomLastName`, !currentValue)
 
-    // If reverting to first child's value, update the field
+    // If reverting to first child's value (custom → non-custom), update the field
     if (currentValue && firstChildLastName) {
       form.setValue(`children.${index}.lastName`, firstChildLastName, {
         shouldValidate: true,
@@ -156,14 +163,18 @@ export function DugsiRegisterForm() {
     }
   }
 
-  // Toggle custom shift for a child (children 1+ only)
+  /**
+   * Toggles custom shift override for a child.
+   * When disabled (reverting), automatically copies first child's shift.
+   * @param index - Child index (must be 1 or greater, 0 is always template)
+   */
   const toggleCustomShift = (index: number) => {
     if (index === 0) return // First child is always template
 
     const currentValue = form.getValues(`children.${index}.useCustomShift`)
     form.setValue(`children.${index}.useCustomShift`, !currentValue)
 
-    // If reverting to first child's value, update the field
+    // If reverting to first child's value (custom → non-custom), update the field
     if (currentValue && firstChildShift) {
       form.setValue(`children.${index}.shift`, firstChildShift, {
         shouldValidate: true,
