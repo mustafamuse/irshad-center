@@ -98,7 +98,8 @@ export function DugsiRegisterForm() {
   }
 
   const handleRemoveChild = (index: number) => {
-    if (fields.length > 1) {
+    // Add bounds checking to prevent race conditions
+    if (fields.length > 1 && index < fields.length && index >= 0) {
       remove(index)
     }
   }
@@ -117,14 +118,15 @@ export function DugsiRegisterForm() {
       // Use fields.length instead of fields array to avoid dependency issues
       for (let idx = 1; idx < fields.length; idx++) {
         const child = form.getValues(`children.${idx}`)
-        if (!child.useCustomLastName) {
+        // Add safety check for child existence to prevent race conditions
+        if (child && !child.useCustomLastName) {
           form.setValue(`children.${idx}.lastName`, firstChildLastName, {
             shouldValidate: false, // Avoid validation during sync
           })
         }
       }
     }
-  }, [firstChildLastName, fields.length, form])
+  }, [firstChildLastName, fields.length])
 
   /**
    * Syncs first child's shift to all non-custom siblings.
@@ -135,14 +137,15 @@ export function DugsiRegisterForm() {
     if (firstChildShift && fields.length > 1) {
       for (let idx = 1; idx < fields.length; idx++) {
         const child = form.getValues(`children.${idx}`)
-        if (!child.useCustomShift) {
+        // Add safety check for child existence to prevent race conditions
+        if (child && !child.useCustomShift) {
           form.setValue(`children.${idx}.shift`, firstChildShift, {
             shouldValidate: false,
           })
         }
       }
     }
-  }, [firstChildShift, fields.length, form])
+  }, [firstChildShift, fields.length])
 
   /**
    * Toggles custom last name override for a child.
@@ -364,11 +367,11 @@ export function DugsiRegisterForm() {
                             placeholder={t('placeholders.childFirstName')}
                             aria-invalid={!!fieldState.error}
                             className={getInputClassNames(!!fieldState.error)}
-                            onBlur={(e) => {
+                            onChange={(e) => {
                               const capitalized = capitalizeName(e.target.value)
                               field.onChange(capitalized)
-                              field.onBlur()
                             }}
+                            onBlur={field.onBlur}
                           />
                         )}
                       </FormFieldWrapper>
@@ -409,13 +412,13 @@ export function DugsiRegisterForm() {
                                         ? 'bg-muted'
                                         : ''
                                     )}
-                                    onBlur={(e) => {
+                                    onChange={(e) => {
                                       const capitalized = capitalizeName(
                                         e.target.value
                                       )
                                       field.onChange(capitalized)
-                                      field.onBlur()
                                     }}
+                                    onBlur={field.onBlur}
                                   />
                                 </div>
 

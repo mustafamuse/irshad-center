@@ -40,11 +40,11 @@ export function NameFields<T extends FieldValues>({
             placeholder={firstNamePlaceholder}
             aria-invalid={!!fieldState.error}
             className={getInputClassNames(!!fieldState.error)}
-            onBlur={(e) => {
+            onChange={(e) => {
               const capitalized = capitalizeName(e.target.value)
               field.onChange(capitalized)
-              field.onBlur()
             }}
+            onBlur={field.onBlur}
           />
         )}
       </FormFieldWrapper>
@@ -61,11 +61,11 @@ export function NameFields<T extends FieldValues>({
             placeholder={lastNamePlaceholder}
             aria-invalid={!!fieldState.error}
             className={getInputClassNames(!!fieldState.error)}
-            onBlur={(e) => {
+            onChange={(e) => {
               const capitalized = capitalizeName(e.target.value)
               field.onChange(capitalized)
-              field.onBlur()
             }}
+            onBlur={field.onBlur}
           />
         )}
       </FormFieldWrapper>
