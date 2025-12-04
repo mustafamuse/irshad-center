@@ -93,6 +93,27 @@ export const SUBSCRIPTION_STATUS_BADGES = {
   },
 } as const
 
+// Shift Badge Styles
+export const SHIFT_BADGES = {
+  MORNING: {
+    className: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+    label: 'Morning',
+  },
+  AFTERNOON: {
+    className: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
+    label: 'Afternoon',
+  },
+} as const
+
+// Shift Indicator Colors (for dots/icons)
+export const SHIFT_COLORS = {
+  MORNING: 'bg-blue-500',
+  AFTERNOON: 'bg-orange-500',
+} as const
+
+// Shift Filter Constants
+export const SHIFT_FILTER_ALL = 'all' as const
+
 // Error Messages
 export const ERROR_MESSAGES = {
   STUDENT_NOT_FOUND: 'Student not found',

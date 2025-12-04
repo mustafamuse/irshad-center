@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 import {
   ChevronDown,
@@ -80,6 +80,21 @@ export function FamilyGridView({
       setIsSheetOpen(true)
     },
   })
+
+  const handleFamilyUpdate = useCallback(
+    (shift: 'MORNING' | 'AFTERNOON') => {
+      if (selectedFamily) {
+        setSelectedFamily({
+          ...selectedFamily,
+          members: selectedFamily.members.map((member) => ({
+            ...member,
+            shift,
+          })),
+        })
+      }
+    },
+    [selectedFamily]
+  )
 
   const toggleFamily = (familyKey: string) => {
     const newExpanded = new Set(expandedFamilies)
@@ -304,6 +319,7 @@ export function FamilyGridView({
         family={selectedFamily}
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
+        onFamilyUpdate={handleFamilyUpdate}
         onVerifyBankAccount={(paymentIntentId, parentEmail) => {
           setVerifyBankDialogData({ paymentIntentId, parentEmail })
           setDialogOpen('verifyBank', true)

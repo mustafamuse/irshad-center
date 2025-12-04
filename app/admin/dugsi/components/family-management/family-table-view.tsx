@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 
 import {
   Users,
@@ -44,6 +44,7 @@ import { formatParentName, hasSecondParent } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
+import { ShiftBadge } from '../shared/shift-badge'
 
 interface FamilyTableViewProps {
   families: Family[]
@@ -72,6 +73,21 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
     setSelectedFamily(family)
     setIsSheetOpen(true)
   }
+
+  const handleFamilyUpdate = useCallback(
+    (shift: 'MORNING' | 'AFTERNOON') => {
+      if (selectedFamily) {
+        setSelectedFamily({
+          ...selectedFamily,
+          members: selectedFamily.members.map((member) => ({
+            ...member,
+            shift,
+          })),
+        })
+      }
+    },
+    [selectedFamily]
+  )
 
   if (families.length === 0) {
     return (
@@ -119,6 +135,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                     {family.members.length}{' '}
                     {family.members.length === 1 ? 'Kid' : 'Kids'}
                   </Badge>
+                  <ShiftBadge shift={family.members[0]?.shift ?? null} />
                 </div>
               </div>
 
@@ -194,10 +211,13 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="gap-1">
-                      <Users className="h-3 w-3" />
-                      {family.members.length}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="gap-1">
+                        <Users className="h-3 w-3" />
+                        {family.members.length}
+                      </Badge>
+                      <ShiftBadge shift={family.members[0]?.shift ?? null} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Tooltip>
@@ -281,6 +301,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
         family={selectedFamily}
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
+        onFamilyUpdate={handleFamilyUpdate}
         onVerifyBankAccount={(paymentIntentId, parentEmail) => {
           setVerifyBankDialogData({ paymentIntentId, parentEmail })
           setDialogOpen('verifyBank', true)

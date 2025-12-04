@@ -48,6 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
@@ -64,6 +65,7 @@ import {
   getDeleteFamilyPreview,
 } from '../../actions'
 import { PaymentStatusSection } from '../payment-status-section'
+import { ShiftBadge } from '../shared/shift-badge'
 
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]
@@ -198,12 +200,11 @@ export function DugsiRegistrationsTable({
               <TableHeader>
                 <TableRow>
                   <TableHead>Child Name</TableHead>
+                  <TableHead>Shift</TableHead>
                   <TableHead className="w-16">Gender</TableHead>
                   <TableHead>Parent</TableHead>
-                  <TableHead>Phone</TableHead>
                   <TableHead>Bank Info</TableHead>
                   <TableHead>Subscription</TableHead>
-                  <TableHead>Registered</TableHead>
                   <TableHead className="w-12"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -211,7 +212,7 @@ export function DugsiRegistrationsTable({
                 {registrations.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={6}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
                       No registrations found.
@@ -224,7 +225,7 @@ export function DugsiRegistrationsTable({
                       {/* Group Header Row */}
                       <TableRow className="bg-muted/30 hover:bg-muted/30">
                         <TableCell
-                          colSpan={8}
+                          colSpan={6}
                           className="py-3 text-sm font-semibold"
                         >
                           <div className="flex items-center gap-2">
@@ -245,6 +246,9 @@ export function DugsiRegistrationsTable({
                         >
                           <TableCell className="font-medium">
                             {registration.name}
+                          </TableCell>
+                          <TableCell>
+                            <ShiftBadge shift={registration.shift} />
                           </TableCell>
                           <TableCell className="w-16">
                             <GenderIcon
@@ -278,25 +282,6 @@ export function DugsiRegistrationsTable({
                               <span className="text-muted-foreground">?</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {registration.parentPhone ? (
-                              <div className="flex items-center gap-2">
-                                <span>{registration.parentPhone}</span>
-                                {registration.parent2Phone && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="px-1.5 text-[10px]"
-                                  >
-                                    +1
-                                  </Badge>
-                                )}
-                              </div>
-                            ) : registration.parent2Phone ? (
-                              <span>{registration.parent2Phone}</span>
-                            ) : (
-                              <span className="text-muted-foreground">?</span>
-                            )}
-                          </TableCell>
                           <TableCell>
                             {registration.paymentMethodCaptured ? (
                               <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -324,9 +309,6 @@ export function DugsiRegistrationsTable({
                               </Badge>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {formatRegistrationDate(registration.createdAt)}
-                          </TableCell>
                           <TableCell className="w-12">
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           </TableCell>
@@ -344,6 +326,9 @@ export function DugsiRegistrationsTable({
                     >
                       <TableCell className="font-medium">
                         {registration.name}
+                      </TableCell>
+                      <TableCell>
+                        <ShiftBadge shift={registration.shift} />
                       </TableCell>
                       <TableCell className="w-16">
                         <GenderIcon gender={registration.gender} size="lg" />
@@ -374,25 +359,6 @@ export function DugsiRegistrationsTable({
                           <span className="text-muted-foreground">?</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {registration.parentPhone ? (
-                          <div className="flex items-center gap-2">
-                            <span>{registration.parentPhone}</span>
-                            {registration.parent2Phone && (
-                              <Badge
-                                variant="secondary"
-                                className="px-1.5 text-[10px]"
-                              >
-                                +1
-                              </Badge>
-                            )}
-                          </div>
-                        ) : registration.parent2Phone ? (
-                          <span>{registration.parent2Phone}</span>
-                        ) : (
-                          <span className="text-muted-foreground">?</span>
-                        )}
-                      </TableCell>
                       <TableCell>
                         {registration.paymentMethodCaptured ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -419,9 +385,6 @@ export function DugsiRegistrationsTable({
                             None
                           </Badge>
                         )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatRegistrationDate(registration.createdAt)}
                       </TableCell>
                       <TableCell className="w-12">
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -735,6 +698,25 @@ export function DugsiRegistrationsTable({
                                   </div>
                                 </div>
 
+                                {child.shift && (
+                                  <div className="flex items-start gap-2">
+                                    <div className="mt-0.5 h-4 w-4" />
+                                    <div>
+                                      <p className="text-xs text-muted-foreground">
+                                        Shift
+                                      </p>
+                                      <Badge
+                                        variant="outline"
+                                        className={
+                                          SHIFT_BADGES[child.shift].className
+                                        }
+                                      >
+                                        {SHIFT_BADGES[child.shift].label}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                )}
+
                                 {child.schoolName && (
                                   <div className="flex items-start gap-2">
                                     <School className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -901,6 +883,21 @@ function MobileRegistrationCard({
               </p>
             </div>
 
+            {/* Shift */}
+            <div>
+              <p className="text-[11px] text-muted-foreground">Shift</p>
+              {registration.shift ? (
+                <Badge
+                  variant="outline"
+                  className={SHIFT_BADGES[registration.shift].className}
+                >
+                  {SHIFT_BADGES[registration.shift].label}
+                </Badge>
+              ) : (
+                <span className="text-xs text-muted-foreground">Not Set</span>
+              )}
+            </div>
+
             {/* Gender */}
             {registration.gender && (
               <div>
@@ -931,25 +928,6 @@ function MobileRegistrationCard({
                     </Badge>
                   )}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">?</p>
-              )}
-            </div>
-
-            {/* Phone */}
-            <div>
-              <p className="text-[11px] text-muted-foreground">Phone</p>
-              {registration.parentPhone ? (
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">{registration.parentPhone}</p>
-                  {registration.parent2Phone && (
-                    <Badge variant="secondary" className="px-1 text-[10px]">
-                      +1
-                    </Badge>
-                  )}
-                </div>
-              ) : registration.parent2Phone ? (
-                <p className="text-sm">{registration.parent2Phone}</p>
               ) : (
                 <p className="text-sm text-muted-foreground">?</p>
               )}
@@ -988,14 +966,6 @@ function MobileRegistrationCard({
                   </Badge>
                 )}
               </div>
-            </div>
-
-            {/* Registration Date */}
-            <div>
-              <p className="text-[11px] text-muted-foreground">Registered</p>
-              <p className="text-sm">
-                {formatRegistrationDate(registration.createdAt)}
-              </p>
             </div>
           </div>
           <ChevronRight className="ml-2 mt-1 h-5 w-5 flex-shrink-0 text-muted-foreground" />

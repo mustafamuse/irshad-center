@@ -25,6 +25,7 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logWarning } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
+import { DugsiRegistrationFiltersSchema } from '@/lib/validations/dugsi'
 
 const logger = createServiceLogger('dugsi-registration')
 
@@ -42,14 +43,21 @@ const logger = createServiceLogger('dugsi-registration')
  * @security Authorization must be enforced at the API route/action layer.
  *
  * @param limit - Optional limit on number of registrations to return (for performance)
+ * @param filters - Optional filters to apply (shift)
  * @returns Array of DugsiRegistration DTOs
  */
 export async function getAllDugsiRegistrations(
-  limit?: number
+  limit?: number,
+  filters?: { shift?: 'MORNING' | 'AFTERNOON' }
 ): Promise<DugsiRegistration[]> {
+  const validatedFilters = filters
+    ? DugsiRegistrationFiltersSchema.parse(filters)
+    : undefined
+
   const profiles = await prisma.programProfile.findMany({
     where: {
       program: DUGSI_PROGRAM,
+      ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
     },
     include: programProfileFullInclude,
     orderBy: {
@@ -58,16 +66,9 @@ export async function getAllDugsiRegistrations(
     ...(limit && { take: limit }),
   })
 
-  // Map to DTOs
-  const registrations: DugsiRegistration[] = []
-  for (const profile of profiles) {
-    const registration = mapProfileToDugsiRegistration(profile)
-    if (registration) {
-      registrations.push(registration)
-    }
-  }
-
-  return registrations
+  return profiles
+    .map(mapProfileToDugsiRegistration)
+    .filter(Boolean) as DugsiRegistration[]
 }
 
 /**

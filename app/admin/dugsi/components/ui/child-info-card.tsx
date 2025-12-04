@@ -15,6 +15,7 @@ import { GenderDisplay } from '@/components/ui/gender-display'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { DugsiRegistration } from '../../_types'
+import { ShiftBadge } from '../shared/shift-badge'
 
 interface ChildInfoCardProps {
   child: DugsiRegistration
@@ -54,6 +55,7 @@ export function ChildInfoCard({
               {formatGradeLevel(child.gradeLevel)}
             </span>
           )}
+          <ShiftBadge shift={child.shift} />
         </div>
         {showSchool && child.schoolName && (
           <div className="text-xs text-muted-foreground">

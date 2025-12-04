@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 
 import { GradeLevel } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+import { prisma } from '@/lib/db'
 import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import {
@@ -31,6 +33,10 @@ import {
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
 import {
+  UpdateFamilyShiftSchema,
+  type UpdateFamilyShiftInput,
+} from '@/lib/validations/dugsi'
+import {
   formatPhoneForVCard,
   generateVCardsContent,
   getDateString,
@@ -53,8 +59,10 @@ const logger = createServiceLogger('dugsi-admin-actions')
 /**
  * Get all Dugsi registrations.
  */
-export async function getDugsiRegistrations(): Promise<DugsiRegistration[]> {
-  return await getAllDugsiRegistrations()
+export async function getDugsiRegistrations(filters?: {
+  shift?: 'MORNING' | 'AFTERNOON'
+}): Promise<DugsiRegistration[]> {
+  return await getAllDugsiRegistrations(undefined, filters)
 }
 
 /**
@@ -424,6 +432,46 @@ export async function updateChildInfo(params: {
         error instanceof Error
           ? error.message
           : 'Failed to update child information',
+    }
+  }
+}
+
+/**
+ * Update shift for all children in a family.
+ */
+export async function updateFamilyShift(
+  params: UpdateFamilyShiftInput
+): Promise<ActionResult> {
+  try {
+    const validated = UpdateFamilyShiftSchema.parse(params)
+
+    await prisma.programProfile.updateMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        familyReferenceId: validated.familyReferenceId,
+      },
+      data: {
+        shift: validated.shift,
+      },
+    })
+
+    revalidatePath('/admin/dugsi', 'layout')
+
+    return {
+      success: true,
+      message: 'Successfully updated family shift',
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to update family shift', {
+      familyReferenceId: params.familyReferenceId,
+      attemptedShift: params.shift,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to update family shift',
     }
   }
 }

@@ -40,6 +40,7 @@ import {
   DUGSI_DEFAULT_FORM_VALUES,
   DEFAULT_CHILD_VALUES,
   DUGSI_GRADE_OPTIONS,
+  SHIFT_OPTIONS,
   SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
 import {
@@ -290,6 +291,40 @@ export function DugsiRegisterForm() {
                         )
                       }}
                     />
+
+                    {/* Shift Selection */}
+                    <FormFieldWrapper
+                      name={`children.${index}.shift`}
+                      control={form.control}
+                      label={t('fields.shift')}
+                      required
+                    >
+                      {(field, fieldState) => (
+                        <Select
+                          value={field.value || ''}
+                          onValueChange={(value) => field.onChange(value)}
+                        >
+                          <SelectTrigger
+                            aria-invalid={!!fieldState.error}
+                            className={getInputClassNames(!!fieldState.error)}
+                          >
+                            <SelectValue
+                              placeholder={t('placeholders.selectShift')}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {SHIFT_OPTIONS.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </FormFieldWrapper>
 
                     {/* Grade & School Fields - controlled by SHOW_GRADE_SCHOOL feature flag */}
                     {SHOW_GRADE_SCHOOL && (
