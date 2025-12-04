@@ -4,6 +4,7 @@ import { StudentShift } from '@prisma/client'
 
 import { Badge } from '@/components/ui/badge'
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
+import { cn } from '@/lib/utils'
 
 interface ShiftBadgeProps {
   shift: StudentShift | null
@@ -18,7 +19,7 @@ export function ShiftBadge({ shift, className }: ShiftBadgeProps) {
   return (
     <Badge
       variant="outline"
-      className={`${SHIFT_BADGES[shift].className} ${className || ''}`}
+      className={cn(SHIFT_BADGES[shift].className, className)}
     >
       {SHIFT_BADGES[shift].label}
     </Badge>

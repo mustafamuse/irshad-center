@@ -111,6 +111,9 @@ export const SHIFT_COLORS = {
   AFTERNOON: 'bg-orange-500',
 } as const
 
+// Shift Filter Constants
+export const SHIFT_FILTER_ALL = 'all' as const
+
 // Error Messages
 export const ERROR_MESSAGES = {
   STUDENT_NOT_FOUND: 'Student not found',

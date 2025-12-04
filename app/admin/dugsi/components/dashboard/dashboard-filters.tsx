@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useDebounce } from '@/hooks/use-debounce'
+import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
 
 import { AdvancedFilters } from './advanced-filters'
 import { MobileFilterDrawer } from './mobile-filter-drawer'
@@ -52,7 +53,10 @@ export function DashboardFilters() {
     useLegacyActions()
 
   const shiftFromUrl =
-    (searchParams.get('shift') as 'MORNING' | 'AFTERNOON' | 'all') || 'all'
+    (searchParams.get('shift') as
+      | 'MORNING'
+      | 'AFTERNOON'
+      | typeof SHIFT_FILTER_ALL) || SHIFT_FILTER_ALL
 
   // Local state for immediate input value
   const [localSearchQuery, setLocalSearchQuery] = useState(
@@ -74,9 +78,11 @@ export function DashboardFilters() {
    * and optimal - we want fresh data from database with the new shift filter
    * applied, taking advantage of the [program, shift] composite index.
    */
-  const handleShiftChange = (shift: 'MORNING' | 'AFTERNOON' | 'all') => {
+  const handleShiftChange = (
+    shift: 'MORNING' | 'AFTERNOON' | typeof SHIFT_FILTER_ALL
+  ) => {
     const params = new URLSearchParams(searchParams.toString())
-    if (shift === 'all') {
+    if (shift === SHIFT_FILTER_ALL) {
       params.delete('shift')
     } else {
       params.set('shift', shift)
@@ -92,13 +98,13 @@ export function DashboardFilters() {
   const hasActiveAdvancedFilters =
     advancedFilters.dateFilter !== 'all' ||
     advancedFilters.hasHealthInfo ||
-    shiftFromUrl !== 'all'
+    shiftFromUrl !== SHIFT_FILTER_ALL
 
   // Count active filters for mobile drawer badge
   const activeFilterCount =
     (advancedFilters.dateFilter !== 'all' ? 1 : 0) +
     (advancedFilters.hasHealthInfo ? 1 : 0) +
-    (shiftFromUrl !== 'all' ? 1 : 0)
+    (shiftFromUrl !== SHIFT_FILTER_ALL ? 1 : 0)
 
   return (
     <>

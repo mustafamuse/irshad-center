@@ -12,14 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
 
 import { FamilyFilters, DateFilter } from '../../_types'
 
 interface AdvancedFiltersProps {
   filters: FamilyFilters
   onFiltersChange: (filters: FamilyFilters) => void
-  shift: 'MORNING' | 'AFTERNOON' | 'all'
-  onShiftChange: (shift: 'MORNING' | 'AFTERNOON' | 'all') => void
+  shift: 'MORNING' | 'AFTERNOON' | typeof SHIFT_FILTER_ALL
+  onShiftChange: (
+    shift: 'MORNING' | 'AFTERNOON' | typeof SHIFT_FILTER_ALL
+  ) => void
 }
 
 const DATE_FILTER_OPTIONS: Array<{
@@ -44,11 +47,13 @@ export function AdvancedFilters({
       dateFilter: 'all',
       hasHealthInfo: false,
     })
-    onShiftChange('all')
+    onShiftChange(SHIFT_FILTER_ALL)
   }
 
   const hasActiveFilters =
-    filters.dateFilter !== 'all' || filters.hasHealthInfo || shift !== 'all'
+    filters.dateFilter !== 'all' ||
+    filters.hasHealthInfo ||
+    shift !== SHIFT_FILTER_ALL
 
   return (
     <Card>
@@ -96,14 +101,16 @@ export function AdvancedFilters({
             <Select
               value={shift}
               onValueChange={(value) =>
-                onShiftChange(value as 'MORNING' | 'AFTERNOON' | 'all')
+                onShiftChange(
+                  value as 'MORNING' | 'AFTERNOON' | typeof SHIFT_FILTER_ALL
+                )
               }
             >
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Shifts</SelectItem>
+                <SelectItem value={SHIFT_FILTER_ALL}>All Shifts</SelectItem>
                 <SelectItem value="MORNING">Morning</SelectItem>
                 <SelectItem value="AFTERNOON">Afternoon</SelectItem>
               </SelectContent>

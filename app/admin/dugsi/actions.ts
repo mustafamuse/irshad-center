@@ -455,7 +455,7 @@ export async function updateFamilyShift(
       },
     })
 
-    revalidatePath('/admin/dugsi', 'page')
+    revalidatePath('/admin/dugsi', 'layout')
 
     return {
       success: true,

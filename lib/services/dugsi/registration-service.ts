@@ -66,16 +66,9 @@ export async function getAllDugsiRegistrations(
     ...(limit && { take: limit }),
   })
 
-  // Map to DTOs
-  const registrations: DugsiRegistration[] = []
-  for (const profile of profiles) {
-    const registration = mapProfileToDugsiRegistration(profile)
-    if (registration) {
-      registrations.push(registration)
-    }
-  }
-
-  return registrations
+  return profiles
+    .map(mapProfileToDugsiRegistration)
+    .filter(Boolean) as DugsiRegistration[]
 }
 
 /**

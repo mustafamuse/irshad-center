@@ -7,6 +7,8 @@
 import { StudentShift } from '@prisma/client'
 import { z } from 'zod'
 
+import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
+
 // ============================================================================
 // FAMILY SHIFT VALIDATION
 // ============================================================================
@@ -26,10 +28,10 @@ export const UpdateFamilyShiftSchema = z.object({
 // ============================================================================
 
 export const ShiftFilterSchema = z
-  .enum([StudentShift.MORNING, StudentShift.AFTERNOON, 'all'])
+  .enum([StudentShift.MORNING, StudentShift.AFTERNOON, SHIFT_FILTER_ALL])
   .optional()
   .transform((val) => {
-    if (!val || val === 'all') return undefined
+    if (!val || val === SHIFT_FILTER_ALL) return undefined
     return val
   })
 
