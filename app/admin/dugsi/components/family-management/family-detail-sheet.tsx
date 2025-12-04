@@ -168,13 +168,14 @@ export function FamilyDetailSheet({
 
   const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
     if (firstMember.familyReferenceId) {
-      setIsShiftPopoverOpen(false)
-      await executeUpdateFamilyShift({
+      const result = await executeUpdateFamilyShift({
         familyReferenceId: firstMember.familyReferenceId,
         shift,
       })
-      if (onFamilyUpdate) {
-        onFamilyUpdate(shift)
+
+      if (result?.success) {
+        setIsShiftPopoverOpen(false)
+        onFamilyUpdate?.(shift)
       }
     }
   }

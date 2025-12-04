@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { GradeLevel, StudentShift } from '@prisma/client'
+import { GradeLevel } from '@prisma/client'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -32,6 +32,10 @@ import {
 } from '@/lib/services/dugsi'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
+import {
+  UpdateFamilyShiftSchema,
+  type UpdateFamilyShiftInput,
+} from '@/lib/validations/dugsi'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -433,19 +437,22 @@ export async function updateChildInfo(params: {
 /**
  * Update shift for all children in a family.
  */
-export async function updateFamilyShift(params: {
-  familyReferenceId: string
-  shift: StudentShift
-}): Promise<ActionResult> {
+export async function updateFamilyShift(
+  params: UpdateFamilyShiftInput
+): Promise<ActionResult> {
   try {
-    await prisma.programProfile.updateMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        familyReferenceId: params.familyReferenceId,
-      },
-      data: {
-        shift: params.shift,
-      },
+    const validated = UpdateFamilyShiftSchema.parse(params)
+
+    await prisma.$transaction(async (tx) => {
+      await tx.programProfile.updateMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: validated.familyReferenceId,
+        },
+        data: {
+          shift: validated.shift,
+        },
+      })
     })
 
     revalidatePath('/admin/dugsi')

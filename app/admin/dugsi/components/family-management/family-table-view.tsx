@@ -76,18 +76,14 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
 
   const handleFamilyUpdate = useCallback(
     (shift: 'MORNING' | 'AFTERNOON') => {
-      try {
-        if (selectedFamily?.members) {
-          setSelectedFamily({
-            ...selectedFamily,
-            members: selectedFamily.members.map((member) => ({
-              ...member,
-              shift,
-            })),
-          })
-        }
-      } catch (error) {
-        console.error('Failed to update family shift in UI:', error)
+      if (selectedFamily) {
+        setSelectedFamily({
+          ...selectedFamily,
+          members: selectedFamily.members.map((member) => ({
+            ...member,
+            shift,
+          })),
+        })
       }
     },
     [selectedFamily]
