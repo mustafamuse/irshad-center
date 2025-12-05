@@ -201,6 +201,7 @@ export function DugsiRegistrationsTable({
                 <TableRow>
                   <TableHead>Child Name</TableHead>
                   <TableHead>Shift</TableHead>
+                  <TableHead>Teacher</TableHead>
                   <TableHead className="w-16">Gender</TableHead>
                   <TableHead>Parent</TableHead>
                   <TableHead>Bank Info</TableHead>
@@ -212,7 +213,7 @@ export function DugsiRegistrationsTable({
                 {registrations.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={7}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
                       No registrations found.
@@ -249,6 +250,11 @@ export function DugsiRegistrationsTable({
                           </TableCell>
                           <TableCell>
                             <ShiftBadge shift={registration.shift} />
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {registration.teacherName || '—'}
+                            </span>
                           </TableCell>
                           <TableCell className="w-16">
                             <GenderIcon
