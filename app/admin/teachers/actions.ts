@@ -61,6 +61,7 @@ export interface PersonSearchResult {
   phone: string | null
   isTeacher: boolean
   teacherId: string | null
+  roles: string[]
 }
 
 // ============================================================================
@@ -464,6 +465,24 @@ export async function searchPeopleAction(
         teacher: {
           select: { id: true },
         },
+        guardianRelationships: {
+          where: { isActive: true },
+          select: { id: true },
+        },
+        programProfiles: {
+          where: {
+            enrollments: {
+              some: {
+                status: { in: ['REGISTERED', 'ENROLLED'] },
+                endDate: null,
+              },
+            },
+          },
+          select: {
+            id: true,
+            program: true,
+          },
+        },
       },
       take: 20,
       orderBy: { name: 'asc' },
@@ -477,6 +496,32 @@ export async function searchPeopleAction(
           (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
         )?.value ?? null
 
+      const roles: string[] = []
+
+      if (person.teacher) {
+        roles.push('Teacher')
+      }
+
+      if (person.guardianRelationships.length > 0) {
+        roles.push('Parent')
+      }
+
+      if (person.programProfiles.length > 0) {
+        const programs = person.programProfiles.map((p) => {
+          switch (p.program) {
+            case 'MAHAD_PROGRAM':
+              return 'Mahad Student'
+            case 'DUGSI_PROGRAM':
+              return 'Dugsi Student'
+            case 'YOUTH_EVENTS':
+              return 'Youth Events'
+            default:
+              return 'Student'
+          }
+        })
+        roles.push(...programs)
+      }
+
       return {
         id: person.id,
         name: person.name,
@@ -484,6 +529,7 @@ export async function searchPeopleAction(
         phone,
         isTeacher: !!person.teacher,
         teacherId: person.teacher?.id ?? null,
+        roles: roles.length > 0 ? roles : ['No roles assigned'],
       }
     })
 

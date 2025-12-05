@@ -116,6 +116,13 @@ export function SearchPersonTab({ onSuccess }: Props) {
                       </Badge>
                     )}
                   </div>
+                  <div className="flex flex-wrap gap-1">
+                    {person.roles.map((role) => (
+                      <Badge key={role} variant="outline" className="text-xs">
+                        {role}
+                      </Badge>
+                    ))}
+                  </div>
                   {person.email && (
                     <p className="text-sm text-muted-foreground">
                       {person.email}
