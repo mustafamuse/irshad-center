@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import { Program } from '@prisma/client'
 
 import { Badge } from '@/components/ui/badge'
@@ -14,9 +16,11 @@ import {
 } from '@/components/ui/table'
 
 import { TeacherWithDetails } from '../actions'
+import { ManageTeacherDialog } from './manage-teacher-dialog'
 
 interface Props {
   teachers: TeacherWithDetails[]
+  onTeacherUpdated?: () => void
 }
 
 const PROGRAM_LABELS: Record<Program, string> = {
@@ -36,7 +40,10 @@ const PROGRAM_COLORS: Record<
   GENERAL_DONATION: 'outline',
 }
 
-export function TeacherList({ teachers }: Props) {
+export function TeacherList({ teachers, onTeacherUpdated }: Props) {
+  const [selectedTeacher, setSelectedTeacher] =
+    useState<TeacherWithDetails | null>(null)
+
   if (teachers.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center">
@@ -93,7 +100,11 @@ export function TeacherList({ teachers }: Props) {
                 <span className="text-sm">{teacher.studentCount}</span>
               </TableCell>
               <TableCell className="text-right">
-                <Button variant="outline" size="sm">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedTeacher(teacher)}
+                >
                   Manage
                 </Button>
               </TableCell>
@@ -101,6 +112,18 @@ export function TeacherList({ teachers }: Props) {
           ))}
         </TableBody>
       </Table>
+
+      {selectedTeacher && (
+        <ManageTeacherDialog
+          open={!!selectedTeacher}
+          onOpenChange={(open) => !open && setSelectedTeacher(null)}
+          teacher={selectedTeacher}
+          onSuccess={() => {
+            setSelectedTeacher(null)
+            onTeacherUpdated?.()
+          }}
+        />
+      )}
     </div>
   )
 }

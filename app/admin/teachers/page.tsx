@@ -1,7 +1,5 @@
-import { Suspense } from 'react'
-
 import { getTeachers } from './actions'
-import { TeacherList } from './components/teacher-list'
+import { TeachersPageClient } from './components/teachers-page-client'
 
 export default async function TeachersPage() {
   const result = await getTeachers()
@@ -20,16 +18,7 @@ export default async function TeachersPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Teachers</h1>
-        <p className="mt-2 text-muted-foreground">
-          Manage teachers and their program assignments
-        </p>
-      </div>
-
-      <Suspense fallback={<div>Loading teachers...</div>}>
-        <TeacherList teachers={result.data} />
-      </Suspense>
+      <TeachersPageClient teachers={result.data} />
     </div>
   )
 }

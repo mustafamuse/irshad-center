@@ -38,6 +38,12 @@ export interface CreateTeacherInput {
   personId: string
 }
 
+export interface CreateTeacherWithPersonInput {
+  name: string
+  email?: string
+  phone?: string
+}
+
 export interface ProgramAssignmentInput {
   teacherId: string
   program: Program
@@ -143,6 +149,71 @@ export async function createTeacherAction(
         error: 'This person is already a teacher',
       }
     }
+
+    return {
+      success: false,
+      error: 'Failed to create teacher',
+    }
+  }
+}
+
+/**
+ * Create a new teacher by first creating a person.
+ */
+export async function createTeacherWithPersonAction(
+  input: CreateTeacherWithPersonInput
+): Promise<ActionResult<{ teacherId: string }>> {
+  try {
+    const contactPoints: Array<{
+      type: 'EMAIL' | 'PHONE'
+      value: string
+      isPrimary: boolean
+    }> = []
+
+    if (input.email) {
+      contactPoints.push({
+        type: 'EMAIL',
+        value: input.email,
+        isPrimary: true,
+      })
+    }
+
+    if (input.phone) {
+      contactPoints.push({
+        type: 'PHONE',
+        value: input.phone,
+        isPrimary: !input.email,
+      })
+    }
+
+    const person = await prisma.person.create({
+      data: {
+        name: input.name,
+        contactPoints: {
+          create: contactPoints,
+        },
+      },
+    })
+
+    const teacher = await createTeacher(person.id)
+
+    revalidatePath('/admin/teachers')
+
+    logger.info(
+      {
+        teacherId: teacher.id,
+        personId: person.id,
+        name: person.name,
+      },
+      'Teacher created with new person'
+    )
+
+    return {
+      success: true,
+      data: { teacherId: teacher.id },
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to create teacher with person', input)
 
     return {
       success: false,
