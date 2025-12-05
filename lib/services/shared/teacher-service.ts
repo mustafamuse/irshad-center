@@ -83,7 +83,7 @@ export async function createTeacher(
   client: DatabaseClient = prisma
 ) {
   // Validate using existing validation function
-  await validateTeacherCreation(personId, client)
+  await validateTeacherCreation({ personId })
 
   // Create teacher record
   const teacher = await client.teacher.create({

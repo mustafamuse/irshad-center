@@ -215,6 +215,24 @@ export async function createTeacherWithPersonAction(
   } catch (error) {
     await logError(logger, error, 'Failed to create teacher with person', input)
 
+    if (error instanceof Error) {
+      if (error.message.includes('Unique constraint failed')) {
+        if (error.message.includes('type') && error.message.includes('value')) {
+          return {
+            success: false,
+            error: 'A person with this email or phone already exists',
+          }
+        }
+      }
+
+      if (error.message.includes('already has a teacher record')) {
+        return {
+          success: false,
+          error: 'This person is already a teacher',
+        }
+      }
+    }
+
     return {
       success: false,
       error: 'Failed to create teacher',
