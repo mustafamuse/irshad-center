@@ -54,6 +54,15 @@ export interface BulkProgramAssignmentInput {
   programs: Program[]
 }
 
+export interface PersonSearchResult {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  isTeacher: boolean
+  teacherId: string | null
+}
+
 // ============================================================================
 // Teacher CRUD Actions
 // ============================================================================
@@ -409,6 +418,81 @@ export async function getTeacherProgramsAction(
     return {
       success: false,
       error: 'Failed to load teacher programs',
+    }
+  }
+}
+
+/**
+ * Search for people by name, email, or phone.
+ */
+export async function searchPeopleAction(
+  query: string
+): Promise<ActionResult<PersonSearchResult[]>> {
+  try {
+    if (!query || query.trim().length < 2) {
+      return { success: true, data: [] }
+    }
+
+    const searchTerm = query.trim().toLowerCase()
+
+    const people = await prisma.person.findMany({
+      where: {
+        OR: [
+          { name: { contains: searchTerm, mode: 'insensitive' } },
+          {
+            contactPoints: {
+              some: {
+                OR: [
+                  {
+                    type: 'EMAIL',
+                    value: { contains: searchTerm, mode: 'insensitive' },
+                  },
+                  {
+                    type: 'PHONE',
+                    value: { contains: searchTerm },
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      },
+      include: {
+        contactPoints: {
+          where: { isActive: true },
+        },
+        teacher: {
+          select: { id: true },
+        },
+      },
+      take: 20,
+      orderBy: { name: 'asc' },
+    })
+
+    const results: PersonSearchResult[] = people.map((person) => {
+      const email =
+        person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ?? null
+      const phone =
+        person.contactPoints.find(
+          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+        )?.value ?? null
+
+      return {
+        id: person.id,
+        name: person.name,
+        email,
+        phone,
+        isTeacher: !!person.teacher,
+        teacherId: person.teacher?.id ?? null,
+      }
+    })
+
+    return { success: true, data: results }
+  } catch (error) {
+    await logError(logger, error, 'Failed to search people', { query })
+    return {
+      success: false,
+      error: 'Failed to search people',
     }
   }
 }
