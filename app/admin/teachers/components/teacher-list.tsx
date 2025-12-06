@@ -2,8 +2,6 @@
 
 import { useState } from 'react'
 
-import { Program } from '@prisma/client'
-
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,6 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  PROGRAM_LABELS,
+  PROGRAM_BADGE_COLORS,
+} from '@/lib/constants/program-ui'
 
 import { TeacherWithDetails } from '../actions'
 import { ManageTeacherDialog } from './manage-teacher-dialog'
@@ -21,23 +23,6 @@ import { ManageTeacherDialog } from './manage-teacher-dialog'
 interface Props {
   teachers: TeacherWithDetails[]
   onTeacherUpdated?: () => void
-}
-
-const PROGRAM_LABELS: Record<Program, string> = {
-  MAHAD_PROGRAM: 'Mahad',
-  DUGSI_PROGRAM: 'Dugsi',
-  YOUTH_EVENTS: 'Youth',
-  GENERAL_DONATION: 'Donation',
-}
-
-const PROGRAM_COLORS: Record<
-  Program,
-  'default' | 'secondary' | 'destructive' | 'outline'
-> = {
-  MAHAD_PROGRAM: 'default',
-  DUGSI_PROGRAM: 'secondary',
-  YOUTH_EVENTS: 'outline',
-  GENERAL_DONATION: 'outline',
 }
 
 export function TeacherList({ teachers, onTeacherUpdated }: Props) {
@@ -83,7 +68,7 @@ export function TeacherList({ teachers, onTeacherUpdated }: Props) {
                     teacher.programs.map((program) => (
                       <Badge
                         key={program}
-                        variant={PROGRAM_COLORS[program]}
+                        variant={PROGRAM_BADGE_COLORS[program]}
                         className="text-xs"
                       >
                         {PROGRAM_LABELS[program]}

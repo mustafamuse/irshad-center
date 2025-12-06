@@ -1,30 +1,15 @@
 'use client'
 
-import { Program } from '@prisma/client'
-
 import { Badge } from '@/components/ui/badge'
+import {
+  PROGRAM_LABELS,
+  PROGRAM_BADGE_COLORS,
+} from '@/lib/constants/program-ui'
 
 import { TeacherWithDetails } from '../actions'
 
 interface Props {
   teacher: TeacherWithDetails
-}
-
-const PROGRAM_LABELS: Record<Program, string> = {
-  MAHAD_PROGRAM: 'Mahad',
-  DUGSI_PROGRAM: 'Dugsi',
-  YOUTH_EVENTS: 'Youth',
-  GENERAL_DONATION: 'Donation',
-}
-
-const PROGRAM_COLORS: Record<
-  Program,
-  'default' | 'secondary' | 'destructive' | 'outline'
-> = {
-  MAHAD_PROGRAM: 'default',
-  DUGSI_PROGRAM: 'secondary',
-  YOUTH_EVENTS: 'outline',
-  GENERAL_DONATION: 'outline',
 }
 
 export function TeacherDetailsTab({ teacher }: Props) {
@@ -57,7 +42,7 @@ export function TeacherDetailsTab({ teacher }: Props) {
               teacher.programs.map((program) => (
                 <Badge
                   key={program}
-                  variant={PROGRAM_COLORS[program]}
+                  variant={PROGRAM_BADGE_COLORS[program]}
                   className="text-xs"
                 >
                   {PROGRAM_LABELS[program]}

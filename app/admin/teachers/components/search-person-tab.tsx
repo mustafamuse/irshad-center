@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 
 import { Loader2, Search, User } from 'lucide-react'
 
@@ -18,6 +18,92 @@ interface Props {
   onSuccess?: () => void
 }
 
+/**
+ * Displays role badges and details for a person search result.
+ * Shows:
+ * - Teacher: programs they teach
+ * - Student: enrolled programs and status
+ * - Parent: number of children and their program breakdown
+ *
+ * @param person - Person search result with role details
+ */
+const RoleDisplay = memo(function RoleDisplay({
+  person,
+}: {
+  person: PersonSearchResult
+}) {
+  const { roleDetails } = person
+
+  return (
+    <div className="space-y-1">
+      {roleDetails.teacher && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Teacher:</span>
+          <div className="flex gap-1">
+            {roleDetails.teacher.programs.map((program) => (
+              <Badge key={program} variant="default" className="text-xs">
+                {program.replace('_PROGRAM', '')}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {roleDetails.student && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Student:</span>
+          <div className="flex gap-1">
+            {roleDetails.student.programs.map(({ program, status }) => (
+              <Badge
+                key={program}
+                variant={status === 'ENROLLED' ? 'default' : 'secondary'}
+                className="text-xs"
+              >
+                {program.replace('_PROGRAM', '')}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {roleDetails.parent && (
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Parent:</span>
+          <span className="text-xs text-muted-foreground">
+            {roleDetails.parent.childCount}{' '}
+            {roleDetails.parent.childCount === 1 ? 'child' : 'children'}
+            {roleDetails.parent.programBreakdown.length > 0 && (
+              <>
+                {' '}
+                in{' '}
+                {roleDetails.parent.programBreakdown
+                  .map(
+                    (pb) =>
+                      `${pb.program.replace('_PROGRAM', '')} (${pb.count})`
+                  )
+                  .join(', ')}
+              </>
+            )}
+          </span>
+        </div>
+      )}
+
+      {!roleDetails.teacher && !roleDetails.student && !roleDetails.parent && (
+        <Badge variant="outline" className="text-xs">
+          No roles assigned
+        </Badge>
+      )}
+    </div>
+  )
+})
+
+/**
+ * Search tab for finding people by name, email, or phone.
+ * Displays search results with role information (teacher, student, parent).
+ * Allows promoting non-teachers to teacher role.
+ *
+ * @param onSuccess - Callback fired when a person is promoted to teacher
+ */
 export function SearchPersonTab({ onSuccess }: Props) {
   const [query, setQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
@@ -116,13 +202,7 @@ export function SearchPersonTab({ onSuccess }: Props) {
                       </Badge>
                     )}
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {person.roles.map((role) => (
-                      <Badge key={role} variant="outline" className="text-xs">
-                        {role}
-                      </Badge>
-                    ))}
-                  </div>
+                  <RoleDisplay person={person} />
                   {person.email && (
                     <p className="text-sm text-muted-foreground">
                       {person.email}

@@ -16,6 +16,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import {
+  PROGRAM_LABELS,
+  PROGRAM_DESCRIPTIONS,
+  TEACHER_PROGRAMS,
+} from '@/lib/constants/program-ui'
 
 import { bulkAssignProgramsAction } from '../actions'
 
@@ -29,28 +34,6 @@ interface Props {
   }
   onSuccess?: () => void
 }
-
-const PROGRAM_OPTIONS: Array<{
-  value: Program
-  label: string
-  description: string
-}> = [
-  {
-    value: 'MAHAD_PROGRAM',
-    label: 'Mahad',
-    description: 'Mahad Islamic Institute program',
-  },
-  {
-    value: 'DUGSI_PROGRAM',
-    label: 'Dugsi',
-    description: 'Weekend Islamic school program',
-  },
-  {
-    value: 'YOUTH_EVENTS',
-    label: 'Youth Events',
-    description: 'Youth activities and events',
-  },
-]
 
 export function ManageProgramsDialog({
   open,
@@ -102,36 +85,36 @@ export function ManageProgramsDialog({
 
         <div className="space-y-4">
           <div className="space-y-3">
-            {PROGRAM_OPTIONS.map((program) => {
-              const isChecked = selectedPrograms.includes(program.value)
+            {TEACHER_PROGRAMS.map((program) => {
+              const isChecked = selectedPrograms.includes(program)
 
               return (
                 <div
-                  key={program.value}
+                  key={program}
                   className="flex items-start space-x-3 rounded-lg border p-3 hover:bg-accent/50"
                 >
                   <Checkbox
-                    id={program.value}
+                    id={program}
                     checked={isChecked}
                     onCheckedChange={(checked) =>
-                      handleProgramToggle(program.value, checked === true)
+                      handleProgramToggle(program, checked === true)
                     }
                     disabled={isSubmitting}
                   />
                   <div className="flex-1 space-y-1">
                     <Label
-                      htmlFor={program.value}
+                      htmlFor={program}
                       className="flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
-                      {program.label}
-                      {teacher.programs.includes(program.value) && (
+                      {PROGRAM_LABELS[program]}
+                      {teacher.programs.includes(program) && (
                         <Badge variant="secondary" className="text-xs">
                           Current
                         </Badge>
                       )}
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      {program.description}
+                      {PROGRAM_DESCRIPTIONS[program]}
                     </p>
                   </div>
                 </div>

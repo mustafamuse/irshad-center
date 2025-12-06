@@ -7,6 +7,10 @@ import { Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
+  mapPersonToSearchResult,
+  PersonSearchResult,
+} from '@/lib/mappers/person-mapper'
+import {
   createTeacher,
   deleteTeacher,
   assignTeacherToProgram,
@@ -15,9 +19,15 @@ import {
   getAllTeachers,
   getTeacherPrograms,
 } from '@/lib/services/shared/teacher-service'
+import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
+import { extractContactInfo } from '@/lib/utils/contact-helpers'
 
 const logger = createServiceLogger('teacher-admin-actions')
+
+// Search configuration
+const SEARCH_MIN_LENGTH = 2
+const SEARCH_MAX_RESULTS = 20
 
 // ============================================================================
 // Types
@@ -54,16 +64,6 @@ export interface BulkProgramAssignmentInput {
   programs: Program[]
 }
 
-export interface PersonSearchResult {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  isTeacher: boolean
-  teacherId: string | null
-  roles: string[]
-}
-
 // ============================================================================
 // Teacher CRUD Actions
 // ============================================================================
@@ -78,38 +78,43 @@ export async function getTeachers(
   try {
     const teachers = await getAllTeachers(program)
 
-    // Map to DTO with student counts
-    const teachersWithDetails = await Promise.all(
-      teachers.map(async (teacher) => {
-        const studentCount = await prisma.teacherAssignment.count({
-          where: {
-            teacherId: teacher.id,
-            isActive: true,
-          },
-        })
+    // Get all teacher IDs
+    const teacherIds = teachers.map((t) => t.id)
 
-        const email =
-          teacher.person.contactPoints?.find((cp) => cp.type === 'EMAIL')
-            ?.value ?? null
-        const phone =
-          teacher.person.contactPoints?.find(
-            (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-          )?.value ?? null
+    // Get all student counts in ONE query (fixes N+1)
+    const studentCounts = await prisma.teacherAssignment.groupBy({
+      by: ['teacherId'],
+      where: {
+        teacherId: { in: teacherIds },
+        isActive: true,
+      },
+      _count: { id: true },
+    })
 
-        return {
-          id: teacher.id,
-          personId: teacher.personId,
-          name: teacher.person.name,
-          email,
-          phone,
-          programs: teacher.programs
-            .filter((p) => p.isActive)
-            .map((p) => p.program),
-          studentCount,
-          createdAt: teacher.createdAt,
-        }
-      })
+    // Create lookup map
+    const countMap = new Map(
+      studentCounts.map((sc) => [sc.teacherId, sc._count.id])
     )
+
+    // Map teachers (synchronous - no async needed)
+    const teachersWithDetails = teachers.map((teacher) => {
+      const { email, phone } = extractContactInfo(
+        teacher.person.contactPoints || []
+      )
+
+      return {
+        id: teacher.id,
+        personId: teacher.personId,
+        name: teacher.person.name,
+        email,
+        phone,
+        programs: teacher.programs
+          .filter((p) => p.isActive)
+          .map((p) => p.program),
+        studentCount: countMap.get(teacher.id) ?? 0,
+        createdAt: teacher.createdAt,
+      }
+    })
 
     return { success: true, data: teachersWithDetails }
   } catch (error) {
@@ -189,31 +194,37 @@ export async function createTeacherWithPersonAction(
     }
 
     if (input.phone) {
-      contactPoints.push({
-        type: 'PHONE',
-        value: input.phone,
-        isPrimary: !input.email,
-      })
+      const normalizedPhone = normalizePhone(input.phone)
+      if (normalizedPhone) {
+        contactPoints.push({
+          type: 'PHONE',
+          value: normalizedPhone,
+          isPrimary: !input.email,
+        })
+      }
     }
 
-    const person = await prisma.person.create({
-      data: {
-        name: input.name,
-        contactPoints: {
-          create: contactPoints,
+    // Use transaction to ensure atomicity (prevents orphaned Person on failure)
+    const teacher = await prisma.$transaction(async (tx) => {
+      const person = await tx.person.create({
+        data: {
+          name: input.name,
+          contactPoints: {
+            create: contactPoints,
+          },
         },
-      },
-    })
+      })
 
-    const teacher = await createTeacher(person.id)
+      return createTeacher(person.id, tx)
+    })
 
     revalidatePath('/admin/teachers')
 
     logger.info(
       {
         teacherId: teacher.id,
-        personId: person.id,
-        name: person.name,
+        personId: teacher.personId,
+        name: teacher.person.name,
       },
       'Teacher created with new person'
     )
@@ -430,11 +441,12 @@ export async function searchPeopleAction(
   query: string
 ): Promise<ActionResult<PersonSearchResult[]>> {
   try {
-    if (!query || query.trim().length < 2) {
+    if (!query || query.trim().length < SEARCH_MIN_LENGTH) {
       return { success: true, data: [] }
     }
 
     const searchTerm = query.trim().toLowerCase()
+    const normalizedSearchTerm = normalizePhone(query.trim())
 
     const people = await prisma.person.findMany({
       where: {
@@ -448,10 +460,14 @@ export async function searchPeopleAction(
                     type: 'EMAIL',
                     value: { contains: searchTerm, mode: 'insensitive' },
                   },
-                  {
-                    type: 'PHONE',
-                    value: { contains: searchTerm },
-                  },
+                  ...(normalizedSearchTerm
+                    ? [
+                        {
+                          type: { in: ['PHONE', 'WHATSAPP'] } as const,
+                          value: normalizedSearchTerm,
+                        },
+                      ]
+                    : []),
                 ],
               },
             },
@@ -463,11 +479,27 @@ export async function searchPeopleAction(
           where: { isActive: true },
         },
         teacher: {
-          select: { id: true },
+          select: {
+            id: true,
+            programs: {
+              where: { isActive: true },
+              select: { program: true },
+            },
+          },
         },
         guardianRelationships: {
           where: { isActive: true },
-          select: { id: true },
+          select: {
+            id: true,
+            dependentId: true,
+            dependent: {
+              select: {
+                programProfiles: {
+                  select: { program: true },
+                },
+              },
+            },
+          },
         },
         programProfiles: {
           where: {
@@ -481,57 +513,26 @@ export async function searchPeopleAction(
           select: {
             id: true,
             program: true,
+            enrollments: {
+              where: {
+                status: { in: ['REGISTERED', 'ENROLLED'] },
+                endDate: null,
+              },
+              select: {
+                status: true,
+              },
+              take: 1,
+            },
           },
         },
       },
-      take: 20,
+      take: SEARCH_MAX_RESULTS,
       orderBy: { name: 'asc' },
     })
 
-    const results: PersonSearchResult[] = people.map((person) => {
-      const email =
-        person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ?? null
-      const phone =
-        person.contactPoints.find(
-          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-        )?.value ?? null
-
-      const roles: string[] = []
-
-      if (person.teacher) {
-        roles.push('Teacher')
-      }
-
-      if (person.guardianRelationships.length > 0) {
-        roles.push('Parent')
-      }
-
-      if (person.programProfiles.length > 0) {
-        const programs = person.programProfiles.map((p) => {
-          switch (p.program) {
-            case 'MAHAD_PROGRAM':
-              return 'Mahad Student'
-            case 'DUGSI_PROGRAM':
-              return 'Dugsi Student'
-            case 'YOUTH_EVENTS':
-              return 'Youth Events'
-            default:
-              return 'Student'
-          }
-        })
-        roles.push(...programs)
-      }
-
-      return {
-        id: person.id,
-        name: person.name,
-        email,
-        phone,
-        isTeacher: !!person.teacher,
-        teacherId: person.teacher?.id ?? null,
-        roles: roles.length > 0 ? roles : ['No roles assigned'],
-      }
-    })
+    const results: PersonSearchResult[] = people.map((person) =>
+      mapPersonToSearchResult(person)
+    )
 
     return { success: true, data: results }
   } catch (error) {

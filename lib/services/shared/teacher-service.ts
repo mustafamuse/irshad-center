@@ -102,11 +102,14 @@ export async function createTeacher(
 
   logger.info(
     {
+      event: 'ROLE_ADDED',
       teacherId: teacher.id,
       personId,
       personName: teacher.person.name,
+      role: 'TEACHER',
+      timestamp: new Date().toISOString(),
     },
-    'Teacher created'
+    'Person promoted to teacher'
   )
 
   return teacher
@@ -276,6 +279,7 @@ export async function getTeacherPrograms(
 /**
  * Bulk assign programs to a teacher.
  * Creates multiple TeacherProgram records in a single transaction.
+ * Deactivates programs not in the input array (with validation).
  *
  * @param teacherId - Teacher ID
  * @param programs - Array of programs to assign
@@ -286,31 +290,115 @@ export async function bulkAssignPrograms(
   programs: Program[],
   client: DatabaseClient = prisma
 ) {
-  await client.$transaction(
-    programs.map((program) =>
-      client.teacherProgram.upsert({
+  if (!programs || programs.length === 0) {
+    throw new ValidationError(
+      'At least one program is required',
+      'EMPTY_PROGRAMS',
+      { teacherId }
+    )
+  }
+
+  const uniquePrograms = new Set(programs)
+  if (uniquePrograms.size !== programs.length) {
+    throw new ValidationError(
+      'Duplicate programs provided',
+      'DUPLICATE_PROGRAMS',
+      { teacherId, programs }
+    )
+  }
+
+  // Validate teacher exists before starting transaction
+  const teacher = await client.teacher.findUnique({
+    where: { id: teacherId },
+    select: { id: true },
+  })
+
+  if (!teacher) {
+    throw new ValidationError('Teacher not found', 'TEACHER_NOT_FOUND', {
+      teacherId,
+    })
+  }
+
+  await client.$transaction(async (tx) => {
+    const currentPrograms = await tx.teacherProgram.findMany({
+      where: {
+        teacherId,
+        isActive: true,
+      },
+      select: { program: true },
+    })
+
+    const currentProgramSet = new Set(currentPrograms.map((p) => p.program))
+    const newProgramSet = new Set(programs)
+
+    const programsToRemove = currentPrograms
+      .map((p) => p.program)
+      .filter((p) => !newProgramSet.has(p))
+
+    for (const program of programsToRemove) {
+      const activeAssignments = await tx.teacherAssignment.count({
         where: {
-          teacherId_program: {
-            teacherId,
+          teacherId,
+          isActive: true,
+          programProfile: {
             program,
           },
         },
-        create: {
+      })
+
+      if (activeAssignments > 0) {
+        throw new ValidationError(
+          `Cannot remove teacher from ${program}. They have ${activeAssignments} active student assignment(s). Please reassign students first.`,
+          'TEACHER_HAS_ACTIVE_STUDENTS',
+          { teacherId, program, activeAssignments }
+        )
+      }
+    }
+
+    if (programsToRemove.length > 0) {
+      await tx.teacherProgram.updateMany({
+        where: {
           teacherId,
-          program,
+          program: { in: programsToRemove },
           isActive: true,
         },
-        update: {
-          isActive: true,
+        data: {
+          isActive: false,
         },
       })
-    )
-  )
+    }
 
-  logger.info(
-    { teacherId, programs, count: programs.length },
-    'Bulk programs assigned to teacher'
-  )
+    await Promise.all(
+      programs.map((program) =>
+        tx.teacherProgram.upsert({
+          where: {
+            teacherId_program: {
+              teacherId,
+              program,
+            },
+          },
+          create: {
+            teacherId,
+            program,
+            isActive: true,
+          },
+          update: {
+            isActive: true,
+          },
+        })
+      )
+    )
+
+    logger.info(
+      {
+        teacherId,
+        added: programs.filter((p) => !currentProgramSet.has(p)),
+        removed: programsToRemove,
+        total: programs.length,
+      },
+      'Bulk programs assigned to teacher'
+    )
+  })
 }
 
 // ============================================================================

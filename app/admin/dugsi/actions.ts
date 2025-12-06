@@ -30,6 +30,12 @@ import {
   // Checkout service
   createDugsiCheckoutSession,
 } from '@/lib/services/dugsi'
+import {
+  assignTeacherToStudent as assignTeacherToStudentService,
+  reassignStudent as reassignStudentService,
+  removeTeacherAssignment as removeTeacherAssignmentService,
+  getTeachersByProgram as getTeachersByProgramService,
+} from '@/lib/services/shared/teacher-service'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
 import {
@@ -776,11 +782,7 @@ export async function assignTeacherToStudent(input: {
   shift: 'MORNING' | 'AFTERNOON'
 }): Promise<ActionResult<void>> {
   try {
-    const { assignTeacherToStudent: assignService } = await import(
-      '@/lib/services/shared/teacher-service'
-    )
-
-    await assignService({
+    await assignTeacherToStudentService({
       teacherId: input.teacherId,
       programProfileId: input.studentProfileId,
       shift: input.shift as Shift, // Convert from StudentShift to Shift enum
@@ -832,11 +834,7 @@ export async function reassignStudentToTeacher(
   newTeacherId: string
 ): Promise<ActionResult<void>> {
   try {
-    const { reassignStudent } = await import(
-      '@/lib/services/shared/teacher-service'
-    )
-
-    await reassignStudent(assignmentId, newTeacherId)
+    await reassignStudentService(assignmentId, newTeacherId)
 
     revalidatePath('/admin/dugsi')
 
@@ -865,11 +863,7 @@ export async function removeTeacherFromStudent(
   assignmentId: string
 ): Promise<ActionResult<void>> {
   try {
-    const { removeTeacherAssignment } = await import(
-      '@/lib/services/shared/teacher-service'
-    )
-
-    await removeTeacherAssignment(assignmentId)
+    await removeTeacherAssignmentService(assignmentId)
 
     revalidatePath('/admin/dugsi')
 
@@ -901,11 +895,7 @@ export async function getAvailableDugsiTeachers(): Promise<
   >
 > {
   try {
-    const { getTeachersByProgram } = await import(
-      '@/lib/services/shared/teacher-service'
-    )
-
-    const teachers = await getTeachersByProgram(DUGSI_PROGRAM)
+    const teachers = await getTeachersByProgramService(DUGSI_PROGRAM)
 
     const teacherList = teachers.map((t) => ({
       id: t.id,
