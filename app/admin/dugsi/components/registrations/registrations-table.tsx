@@ -51,6 +51,7 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
+import { AssignTeacherDialog } from './assign-teacher-dialog'
 import { useActionHandler } from '../../_hooks/use-action-handler'
 import { DugsiRegistration } from '../../_types'
 import { groupRegistrationsByDate } from '../../_utils/date-grouping'
@@ -85,6 +86,8 @@ export function DugsiRegistrationsTable({
   } | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [groupByDate] = useState(false)
+  const [assignTeacherStudent, setAssignTeacherStudent] =
+    useState<DugsiRegistration | null>(null)
 
   // Hook for handling family deletion with automatic error handling
   const { execute: deleteFamily, isPending: isDeleting } = useActionHandler(
@@ -201,6 +204,7 @@ export function DugsiRegistrationsTable({
                 <TableRow>
                   <TableHead>Child Name</TableHead>
                   <TableHead>Shift</TableHead>
+                  <TableHead>Teacher</TableHead>
                   <TableHead className="w-16">Gender</TableHead>
                   <TableHead>Parent</TableHead>
                   <TableHead>Bank Info</TableHead>
@@ -212,7 +216,7 @@ export function DugsiRegistrationsTable({
                 {registrations.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={6}
+                      colSpan={7}
                       className="py-10 text-center text-sm text-muted-foreground"
                     >
                       No registrations found.
@@ -249,6 +253,11 @@ export function DugsiRegistrationsTable({
                           </TableCell>
                           <TableCell>
                             <ShiftBadge shift={registration.shift} />
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {registration.teacherName || '—'}
+                            </span>
                           </TableCell>
                           <TableCell className="w-16">
                             <GenderIcon
@@ -717,6 +726,33 @@ export function DugsiRegistrationsTable({
                                   </div>
                                 )}
 
+                                <div className="flex items-start gap-2">
+                                  <User className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                                  <div className="flex-1">
+                                    <p className="text-xs text-muted-foreground">
+                                      Teacher
+                                    </p>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-sm font-medium">
+                                        {child.teacherName || 'Not assigned'}
+                                      </p>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          setAssignTeacherStudent(child)
+                                        }}
+                                      >
+                                        {child.teacherName
+                                          ? 'Change'
+                                          : 'Assign'}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+
                                 {child.schoolName && (
                                   <div className="flex items-start gap-2">
                                     <School className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -854,6 +890,27 @@ export function DugsiRegistrationsTable({
           ) : null}
         </AlertDialogContent>
       </AlertDialog>
+
+      {assignTeacherStudent && (
+        <AssignTeacherDialog
+          open={!!assignTeacherStudent}
+          onOpenChange={(open) => !open && setAssignTeacherStudent(null)}
+          student={{
+            id: assignTeacherStudent.id,
+            name: assignTeacherStudent.name,
+            shift: assignTeacherStudent.shift,
+          }}
+          onSuccess={() => {
+            setAssignTeacherStudent(null)
+            if (selectedRegistration) {
+              startTransition(async () => {
+                const family = await getFamilyMembers(selectedRegistration.id)
+                setFamilyMembers(family)
+              })
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

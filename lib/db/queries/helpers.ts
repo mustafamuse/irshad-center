@@ -247,17 +247,26 @@ export async function createBillingAssignmentWithValidation(
 
 /**
  * Create teacher assignment for Dugsi student
- * Convenience wrapper that validates program
+ * Convenience wrapper that validates program and uses teacher service
  */
-export async function createDugsiTeacherAssignment(_data: {
+export async function createDugsiTeacherAssignment(data: {
   teacherId: string
   programProfileId: string
   shift: Shift
   startDate?: Date
   notes?: string | null
 }) {
-  // TODO: Implement createTeacherAssignment when teacher assignment model is ready
-  throw new Error('createTeacherAssignment not yet implemented')
+  const { assignTeacherToStudent } = await import(
+    '@/lib/services/shared/teacher-service'
+  )
+
+  return assignTeacherToStudent({
+    teacherId: data.teacherId,
+    programProfileId: data.programProfileId,
+    shift: data.shift,
+    startDate: data.startDate,
+    notes: data.notes ?? undefined,
+  })
 }
 
 /**

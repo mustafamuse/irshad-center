@@ -69,6 +69,22 @@ export const programProfileFullInclude =
         },
       },
     },
+    teacherAssignments: {
+      where: {
+        isActive: true,
+      },
+      include: {
+        teacher: {
+          include: {
+            person: {
+              include: {
+                contactPoints: true,
+              },
+            },
+          },
+        },
+      },
+    },
   })
 
 export type ProgramProfileFull = Prisma.ProgramProfileGetPayload<{
