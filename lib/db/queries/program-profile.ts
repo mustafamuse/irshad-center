@@ -195,9 +195,19 @@ export async function getProgramProfileById(
         include: {
           subscription: {
             include: {
-              billingAccount: {
+              billingAccount: true,
+            },
+          },
+        },
+      },
+      teacherAssignments: {
+        where: { isActive: true },
+        include: {
+          teacher: {
+            include: {
+              person: {
                 include: {
-                  person: true,
+                  contactPoints: true,
                 },
               },
             },
@@ -382,12 +392,22 @@ export async function getProgramProfilesByFamilyId(
         where: { isActive: true },
         include: {
           subscription: {
-            select: {
-              id: true,
-              stripeSubscriptionId: true,
-              status: true,
-              amount: true,
-              stripeCustomerId: true,
+            include: {
+              billingAccount: true,
+            },
+          },
+        },
+      },
+      teacherAssignments: {
+        where: { isActive: true },
+        include: {
+          teacher: {
+            include: {
+              person: {
+                include: {
+                  contactPoints: true,
+                },
+              },
             },
           },
         },

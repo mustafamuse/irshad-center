@@ -14,13 +14,13 @@
  * - Handle shift requirements per program (Dugsi requires shift, Mahad does not)
  */
 
-import { Program, Shift } from '@prisma/client'
+import { Prisma, Program, Shift } from '@prisma/client'
 
-import { prisma, DatabaseClient } from '@/lib/db'
+import { prisma } from '@/lib/db'
+import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import {
   ValidationError,
-  validateTeacherAssignment,
   validateTeacherCreation,
 } from '@/lib/services/validation-service'
 
@@ -126,7 +126,7 @@ export async function deleteTeacher(
   teacherId: string,
   client: DatabaseClient = prisma
 ) {
-  await client.$transaction(async (tx) => {
+  const doDelete = async (tx: DatabaseClient) => {
     // Deactivate all program enrollments
     await tx.teacherProgram.updateMany({
       where: { teacherId },
@@ -141,7 +141,13 @@ export async function deleteTeacher(
         endDate: new Date(),
       },
     })
-  })
+  }
+
+  if (isPrismaClient(client)) {
+    await client.$transaction(async (tx) => doDelete(tx))
+  } else {
+    await doDelete(client)
+  }
 
   logger.info({ teacherId }, 'Teacher soft deleted')
 }
@@ -264,7 +270,9 @@ export async function removeTeacherFromProgram(
 export async function getTeacherPrograms(
   teacherId: string,
   client: DatabaseClient = prisma
-) {
+): Promise<
+  { id: string; teacherId: string; program: Program; isActive: boolean }[]
+> {
   return client.teacherProgram.findMany({
     where: {
       teacherId,
@@ -319,7 +327,7 @@ export async function bulkAssignPrograms(
     })
   }
 
-  await client.$transaction(async (tx) => {
+  const doBulkAssign = async (tx: DatabaseClient) => {
     const currentPrograms = await tx.teacherProgram.findMany({
       where: {
         teacherId,
@@ -398,12 +406,33 @@ export async function bulkAssignPrograms(
       },
       'Bulk programs assigned to teacher'
     )
-  })
+  }
+
+  if (isPrismaClient(client)) {
+    await client.$transaction(async (tx) => doBulkAssign(tx))
+  } else {
+    await doBulkAssign(client)
+  }
 }
 
 // ============================================================================
 // Teacher Queries
 // ============================================================================
+
+const teacherWithDetailsInclude = {
+  person: {
+    include: {
+      contactPoints: true,
+    },
+  },
+  programs: {
+    where: { isActive: true },
+  },
+} satisfies Prisma.TeacherInclude
+
+export type TeacherWithDetails = Prisma.TeacherGetPayload<{
+  include: typeof teacherWithDetailsInclude
+}>
 
 /**
  * Get all teachers, optionally filtered by program.
@@ -415,7 +444,7 @@ export async function bulkAssignPrograms(
 export async function getAllTeachers(
   program?: Program,
   client: DatabaseClient = prisma
-) {
+): Promise<TeacherWithDetails[]> {
   if (program) {
     // Get teachers enrolled in specific program
     const teacherPrograms = await client.teacherProgram.findMany({
@@ -425,16 +454,7 @@ export async function getAllTeachers(
       },
       include: {
         teacher: {
-          include: {
-            person: {
-              include: {
-                contactPoints: true,
-              },
-            },
-            programs: {
-              where: { isActive: true },
-            },
-          },
+          include: teacherWithDetailsInclude,
         },
       },
     })
@@ -444,16 +464,7 @@ export async function getAllTeachers(
 
   // Get all teachers
   return client.teacher.findMany({
-    include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
-      programs: {
-        where: { isActive: true },
-      },
-    },
+    include: teacherWithDetailsInclude,
     orderBy: {
       person: {
         name: 'asc',
@@ -472,7 +483,7 @@ export async function getAllTeachers(
 export async function getTeachersByProgram(
   program: Program,
   client: DatabaseClient = prisma
-) {
+): Promise<TeacherWithDetails[]> {
   return getAllTeachers(program, client)
 }
 
@@ -571,15 +582,24 @@ export async function assignTeacherToStudent(
   // Validate shift requirement
   validateShiftRequirement(profile.program, shift ?? null)
 
-  // Use existing validation function
-  await validateTeacherAssignment(
-    {
-      programProfileId,
-      teacherId,
-      shift: shift ?? null,
-    },
-    client
-  )
+  // Check for existing active assignment for same shift
+  if (shift) {
+    const existingAssignment = await client.teacherAssignment.findFirst({
+      where: {
+        programProfileId,
+        shift,
+        isActive: true,
+      },
+    })
+
+    if (existingAssignment) {
+      throw new ValidationError(
+        `Student already has an active ${shift} shift assignment`,
+        'DUPLICATE_SHIFT_ASSIGNMENT',
+        { programProfileId, shift, existingAssignmentId: existingAssignment.id }
+      )
+    }
+  }
 
   // Create assignment
   const assignment = await client.teacherAssignment.create({
@@ -637,7 +657,7 @@ export async function reassignStudent(
   newTeacherId: string,
   client: DatabaseClient = prisma
 ) {
-  return client.$transaction(async (tx) => {
+  const doReassign = async (tx: DatabaseClient) => {
     // Get existing assignment
     const oldAssignment = await tx.teacherAssignment.findUnique({
       where: { id: assignmentId },
@@ -686,7 +706,13 @@ export async function reassignStudent(
     )
 
     return newAssignment
-  })
+  }
+
+  if (isPrismaClient(client)) {
+    return client.$transaction(async (tx) => doReassign(tx))
+  } else {
+    return doReassign(client)
+  }
 }
 
 /**

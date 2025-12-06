@@ -87,15 +87,15 @@ export function mapProfileToDugsiRegistration(
   const morningAssignment = teacherAssignments.find(
     (a) => a.shift === 'MORNING' && a.isActive
   )
-  const afternoonAssignment = teacherAssignments.find(
-    (a) => a.shift === 'AFTERNOON' && a.isActive
+  const eveningAssignment = teacherAssignments.find(
+    (a) => a.shift === 'EVENING' && a.isActive
   )
 
   // Determine primary teacher (prefer student's shift, fallback to any)
   const primaryAssignment =
     profile.shift === 'MORNING'
-      ? morningAssignment || afternoonAssignment
-      : afternoonAssignment || morningAssignment
+      ? morningAssignment || eveningAssignment
+      : eveningAssignment || morningAssignment
 
   const primaryTeacher = primaryAssignment?.teacher?.person
   const primaryTeacherEmail = primaryTeacher?.contactPoints?.find(
@@ -153,7 +153,7 @@ export function mapProfileToDugsiRegistration(
     teacherEmail: primaryTeacherEmail ?? null,
     teacherPhone: primaryTeacherPhone ?? null,
     morningTeacher: morningAssignment?.teacher?.person?.name ?? null,
-    afternoonTeacher: afternoonAssignment?.teacher?.person?.name ?? null,
+    afternoonTeacher: eveningAssignment?.teacher?.person?.name ?? null,
     hasTeacherAssigned: teacherAssignments.some((a) => a.isActive),
   }
 }

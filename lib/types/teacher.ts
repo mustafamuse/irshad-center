@@ -36,7 +36,7 @@ export interface TeacherAssignment {
   id: string
   teacherId: string
   programProfileId: string // Must be DUGSI_PROGRAM ProgramProfile
-  shift: Shift
+  shift: Shift | null
   startDate: Date
   endDate: Date | null
   isActive: boolean

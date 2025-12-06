@@ -51,7 +51,7 @@ interface Props {
   student: {
     id: string
     name: string
-    shift: 'MORNING' | 'AFTERNOON'
+    shift: 'MORNING' | 'AFTERNOON' | null
   }
   onSuccess?: () => void
 }
@@ -64,7 +64,12 @@ export function AssignTeacherDialog({
 }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [teachers, setTeachers] = useState<
-    Array<{ id: string; name: string; email: string | null }>
+    Array<{
+      id: string
+      name: string
+      email: string | null
+      phone: string | null
+    }>
   >([])
   const [loadingTeachers, setLoadingTeachers] = useState(true)
 
@@ -72,7 +77,7 @@ export function AssignTeacherDialog({
     resolver: zodResolver(assignTeacherSchema),
     defaultValues: {
       teacherId: '',
-      shift: student.shift,
+      shift: student.shift ?? undefined,
     },
   })
 
@@ -85,7 +90,7 @@ export function AssignTeacherDialog({
   async function loadTeachers() {
     setLoadingTeachers(true)
     const result = await getAvailableDugsiTeachers()
-    if (result.success) {
+    if (result.success && result.data) {
       setTeachers(result.data)
     }
     setLoadingTeachers(false)
@@ -119,8 +124,8 @@ export function AssignTeacherDialog({
         <DialogHeader>
           <DialogTitle>Assign Teacher</DialogTitle>
           <DialogDescription>
-            Assign a teacher to {student.name} for the{' '}
-            {student.shift.toLowerCase()} shift.
+            Assign a teacher to {student.name}
+            {student.shift && ` for the ${student.shift.toLowerCase()} shift`}.
           </DialogDescription>
         </DialogHeader>
 

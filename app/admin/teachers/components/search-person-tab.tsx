@@ -122,9 +122,9 @@ export function SearchPersonTab({ onSuccess }: Props) {
       setError(null)
       const result = await searchPeopleAction(query)
 
-      if (result.success) {
+      if (result.success && result.data) {
         setResults(result.data)
-      } else {
+      } else if (!result.success) {
         setError(result.error || 'Search failed')
       }
       setIsSearching(false)

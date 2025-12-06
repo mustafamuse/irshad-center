@@ -29,6 +29,9 @@ const logger = createServiceLogger('teacher-admin-actions')
 const SEARCH_MIN_LENGTH = 2
 const SEARCH_MAX_RESULTS = 20
 
+// Re-export PersonSearchResult for client components
+export type { PersonSearchResult }
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -234,7 +237,9 @@ export async function createTeacherWithPersonAction(
       data: { teacherId: teacher.id },
     }
   } catch (error) {
-    await logError(logger, error, 'Failed to create teacher with person', input)
+    await logError(logger, error, 'Failed to create teacher with person', {
+      ...input,
+    })
 
     if (error instanceof Error) {
       if (error.message.includes('Unique constraint failed')) {
@@ -309,7 +314,9 @@ export async function assignTeacherToProgramAction(
 
     return { success: true, data: undefined }
   } catch (error) {
-    await logError(logger, error, 'Failed to assign teacher to program', input)
+    await logError(logger, error, 'Failed to assign teacher to program', {
+      ...input,
+    })
 
     if (error instanceof Error && error.message.includes('already enrolled')) {
       return {
@@ -364,12 +371,9 @@ export async function removeTeacherFromProgramAction(
 
     return { success: true, data: undefined }
   } catch (error) {
-    await logError(
-      logger,
-      error,
-      'Failed to remove teacher from program',
-      input
-    )
+    await logError(logger, error, 'Failed to remove teacher from program', {
+      ...input,
+    })
     return {
       success: false,
       error: 'Failed to remove teacher from program',
@@ -402,7 +406,9 @@ export async function bulkAssignProgramsAction(
 
     return { success: true, data: undefined }
   } catch (error) {
-    await logError(logger, error, 'Failed to bulk assign programs', input)
+    await logError(logger, error, 'Failed to bulk assign programs', {
+      ...input,
+    })
     return {
       success: false,
       error: 'Failed to assign programs to teacher',
@@ -463,7 +469,12 @@ export async function searchPeopleAction(
                   ...(normalizedSearchTerm
                     ? [
                         {
-                          type: { in: ['PHONE', 'WHATSAPP'] } as const,
+                          type: {
+                            in: ['PHONE', 'WHATSAPP'] as (
+                              | 'PHONE'
+                              | 'WHATSAPP'
+                            )[],
+                          },
                           value: normalizedSearchTerm,
                         },
                       ]
@@ -479,21 +490,17 @@ export async function searchPeopleAction(
           where: { isActive: true },
         },
         teacher: {
-          select: {
-            id: true,
+          include: {
             programs: {
               where: { isActive: true },
-              select: { program: true },
             },
           },
         },
         guardianRelationships: {
           where: { isActive: true },
-          select: {
-            id: true,
-            dependentId: true,
+          include: {
             dependent: {
-              select: {
+              include: {
                 programProfiles: {
                   select: { program: true },
                 },
@@ -510,9 +517,7 @@ export async function searchPeopleAction(
               },
             },
           },
-          select: {
-            id: true,
-            program: true,
+          include: {
             enrollments: {
               where: {
                 status: { in: ['REGISTERED', 'ENROLLED'] },
