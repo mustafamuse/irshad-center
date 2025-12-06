@@ -582,7 +582,7 @@ export async function assignTeacherToStudent(
   // Validate shift requirement
   validateShiftRequirement(profile.program, shift ?? null)
 
-  // Check for existing active assignment for same shift
+  // Check for existing active assignment for same shift (early validation)
   if (shift) {
     const existingAssignment = await client.teacherAssignment.findFirst({
       where: {
@@ -601,33 +601,48 @@ export async function assignTeacherToStudent(
     }
   }
 
-  // Create assignment
-  const assignment = await client.teacherAssignment.create({
-    data: {
-      teacherId,
-      programProfileId,
-      shift: shift ?? null,
-      startDate: startDate ?? new Date(),
-      notes,
-      isActive: true,
-    },
-    include: {
-      teacher: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
+  // Create assignment - catch P2002 (unique constraint) to handle race condition
+  let assignment
+  try {
+    assignment = await client.teacherAssignment.create({
+      data: {
+        teacherId,
+        programProfileId,
+        shift: shift ?? null,
+        startDate: startDate ?? new Date(),
+        notes,
+        isActive: true,
+      },
+      include: {
+        teacher: {
+          include: {
+            person: {
+              include: {
+                contactPoints: true,
+              },
             },
           },
         },
-      },
-      programProfile: {
-        include: {
-          person: true,
+        programProfile: {
+          include: {
+            person: true,
+          },
         },
       },
-    },
-  })
+    })
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ValidationError(
+        'Assignment already exists for this teacher, student, and shift combination',
+        'DUPLICATE_ASSIGNMENT',
+        { teacherId, programProfileId, shift }
+      )
+    }
+    throw error
+  }
 
   logger.info(
     {

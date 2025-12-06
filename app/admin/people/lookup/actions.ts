@@ -1,5 +1,7 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
+
 import { Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
@@ -125,6 +127,12 @@ export async function deletePersonAction(
     })
 
     logger.info({ personId }, 'Person and all related records deleted entirely')
+
+    revalidatePath('/admin/people/lookup')
+    revalidatePath('/admin/people')
+    revalidatePath('/admin/teachers')
+    revalidatePath('/admin/dugsi')
+    revalidatePath('/admin/mahad')
 
     return { success: true, data: undefined }
   } catch (error) {

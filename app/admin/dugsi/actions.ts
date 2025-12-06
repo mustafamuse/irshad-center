@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { GradeLevel, Shift } from '@prisma/client'
+import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -772,20 +773,39 @@ export async function generateDugsiVCardContent(): Promise<
 // Teacher Assignment Actions (Dugsi-specific)
 // ============================================================================
 
+const assignTeacherSchema = z.object({
+  teacherId: z.string().uuid(),
+  studentProfileId: z.string().uuid(),
+  shift: z.enum(['MORNING', 'EVENING']),
+})
+
+const reassignStudentSchema = z.object({
+  assignmentId: z.string().uuid(),
+  newTeacherId: z.string().uuid(),
+})
+
+const removeTeacherSchema = z.object({
+  assignmentId: z.string().uuid(),
+})
+
 /**
  * Assign a teacher to a Dugsi student.
- * Requires shift (MORNING or AFTERNOON).
+ * Requires shift (MORNING or EVENING).
  */
-export async function assignTeacherToStudent(input: {
-  teacherId: string
-  studentProfileId: string
-  shift: 'MORNING' | 'AFTERNOON'
-}): Promise<ActionResult<void>> {
+export async function assignTeacherToStudent(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = assignTeacherSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+  }
+  const input = parsed.data
+
   try {
     await assignTeacherToStudentService({
       teacherId: input.teacherId,
       programProfileId: input.studentProfileId,
-      shift: input.shift as Shift, // Convert from StudentShift to Shift enum
+      shift: input.shift as Shift,
     })
 
     revalidatePath('/admin/dugsi')
@@ -830,9 +850,14 @@ export async function assignTeacherToStudent(input: {
  * Reassign a student to a different teacher.
  */
 export async function reassignStudentToTeacher(
-  assignmentId: string,
-  newTeacherId: string
+  rawInput: unknown
 ): Promise<ActionResult<void>> {
+  const parsed = reassignStudentSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+  }
+  const { assignmentId, newTeacherId } = parsed.data
+
   try {
     await reassignStudentService(assignmentId, newTeacherId)
 
@@ -860,8 +885,14 @@ export async function reassignStudentToTeacher(
  * Remove a teacher assignment from a student.
  */
 export async function removeTeacherFromStudent(
-  assignmentId: string
+  rawInput: unknown
 ): Promise<ActionResult<void>> {
+  const parsed = removeTeacherSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+  }
+  const { assignmentId } = parsed.data
+
   try {
     await removeTeacherAssignmentService(assignmentId)
 
