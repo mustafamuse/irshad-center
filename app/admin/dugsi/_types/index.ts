@@ -6,7 +6,7 @@
 import {
   Gender,
   GradeLevel,
-  StudentShift,
+  Shift,
   SubscriptionStatus,
   StripeAccountType,
 } from '@prisma/client'
@@ -26,7 +26,7 @@ export interface DugsiRegistration {
   gender: Gender | null
   dateOfBirth: Date | null
   gradeLevel: GradeLevel | null // K-12 grade level for Dugsi students
-  shift: StudentShift | null
+  shift: Shift | null
   schoolName: string | null
   healthInfo: string | null
   createdAt: Date
@@ -61,6 +61,14 @@ export interface DugsiRegistration {
   // Family tracking
   familyReferenceId: string | null
   stripeAccountType: StripeAccountType | null
+
+  // Teacher info (from TeacherAssignment -> Teacher -> Person)
+  teacherName: string | null // Primary teacher name (based on student's shift)
+  teacherEmail: string | null // Primary teacher email
+  teacherPhone: string | null // Primary teacher phone
+  morningTeacher: string | null // Morning shift teacher name
+  afternoonTeacher: string | null // Afternoon shift teacher name
+  hasTeacherAssigned: boolean // Quick check for UI
 }
 
 // Family type
