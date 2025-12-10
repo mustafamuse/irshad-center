@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { SHIFT_OPTIONS } from '@/lib/constants/dugsi'
 
 import {
   assignTeacherToStudent,
@@ -198,8 +199,11 @@ export function AssignTeacherDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="MORNING">Morning</SelectItem>
-                      <SelectItem value="AFTERNOON">Afternoon</SelectItem>
+                      {SHIFT_OPTIONS.map((shift) => (
+                        <SelectItem key={shift.value} value={shift.value}>
+                          {shift.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

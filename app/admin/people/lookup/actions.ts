@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { Program } from '@prisma/client'
+import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -61,9 +62,19 @@ export interface PersonLookupResult {
   updatedAt: Date
 }
 
+const deletePersonSchema = z.object({
+  personId: z.string().uuid('Invalid person ID'),
+})
+
 export async function deletePersonAction(
-  personId: string
+  rawInput: unknown
 ): Promise<ActionResult<void>> {
+  const parsed = deletePersonSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input' }
+  }
+  const { personId } = parsed.data
+
   try {
     await prisma.$transaction(async (tx) => {
       const teachers = await tx.teacher.findMany({
