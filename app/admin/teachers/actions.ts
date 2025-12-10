@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Program } from '@prisma/client'
+import { Prisma, Program } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
@@ -20,6 +20,7 @@ import {
   getAllTeachers,
   getTeacherPrograms,
 } from '@/lib/services/shared/teacher-service'
+import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
 import { extractContactInfo } from '@/lib/utils/contact-helpers'
@@ -184,8 +185,8 @@ export async function createTeacherAction(
     })
 
     if (
-      error instanceof Error &&
-      error.message.includes('already has a teacher record')
+      error instanceof ValidationError &&
+      error.code === 'TEACHER_ALREADY_EXISTS'
     ) {
       return {
         success: false,
@@ -266,21 +267,25 @@ export async function createTeacherWithPersonAction(
       ...input,
     })
 
-    if (error instanceof Error) {
-      if (error.message.includes('Unique constraint failed')) {
-        if (error.message.includes('type') && error.message.includes('value')) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        const target = error.meta?.target as string[] | undefined
+        if (target?.includes('type') && target?.includes('value')) {
           return {
             success: false,
             error: 'A person with this email or phone already exists',
           }
         }
       }
+    }
 
-      if (error.message.includes('already has a teacher record')) {
-        return {
-          success: false,
-          error: 'This person is already a teacher',
-        }
+    if (
+      error instanceof ValidationError &&
+      error.code === 'TEACHER_ALREADY_EXISTS'
+    ) {
+      return {
+        success: false,
+        error: 'This person is already a teacher',
       }
     }
 
@@ -349,7 +354,10 @@ export async function assignTeacherToProgramAction(
       ...input,
     })
 
-    if (error instanceof Error && error.message.includes('already enrolled')) {
+    if (
+      error instanceof ValidationError &&
+      error.code === 'DUPLICATE_PROGRAM_ENROLLMENT'
+    ) {
       return {
         success: false,
         error: 'Teacher is already enrolled in this program',

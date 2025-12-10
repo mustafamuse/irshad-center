@@ -4,18 +4,8 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import { AlertTriangle, Search, Trash2 } from 'lucide-react'
+import { Search, Trash2 } from 'lucide-react'
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,6 +17,9 @@ import {
   lookupPersonAction,
   PersonLookupResult,
 } from '../actions'
+import { BillingCard } from './billing-card'
+import { DeletePersonDialog } from './delete-person-dialog'
+import { ParentRoleCard, StudentRoleCard, TeacherRoleCard } from './role-cards'
 
 export function PersonLookupClient() {
   const router = useRouter()
@@ -173,174 +166,18 @@ export function PersonLookupClient() {
           </Card>
 
           {result.roles.teacher && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Teacher Role</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="text-muted-foreground">Programs</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {result.roles.teacher.programs.map((program) => (
-                      <Badge key={program} variant="default">
-                        {program.replace('_PROGRAM', '')}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Student Count</Label>
-                  <p className="text-2xl font-bold">
-                    {result.roles.teacher.studentCount}
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <TeacherRoleCard teacher={result.roles.teacher} />
           )}
 
           {result.roles.student && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Student Role</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {result.roles.student.profiles.map((profile) => (
-                    <div
-                      key={profile.id}
-                      className="rounded-md border bg-muted/50 p-4"
-                    >
-                      <div className="mb-2 flex items-center justify-between">
-                        <Badge variant="default">
-                          {profile.program.replace('_PROGRAM', '')}
-                        </Badge>
-                        <Badge
-                          variant={
-                            profile.status === 'ENROLLED'
-                              ? 'default'
-                              : 'secondary'
-                          }
-                        >
-                          {profile.status}
-                        </Badge>
-                      </div>
-                      <div className="space-y-1 text-sm">
-                        {profile.levelGroup && (
-                          <div>
-                            <span className="text-muted-foreground">
-                              Level:{' '}
-                            </span>
-                            {profile.levelGroup}
-                          </div>
-                        )}
-                        {profile.shift && (
-                          <div>
-                            <span className="text-muted-foreground">
-                              Shift:{' '}
-                            </span>
-                            {profile.shift}
-                          </div>
-                        )}
-                        {profile.teacherName && (
-                          <div>
-                            <span className="text-muted-foreground">
-                              Teacher:{' '}
-                            </span>
-                            {profile.teacherName}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <StudentRoleCard student={result.roles.student} />
           )}
 
           {result.roles.parent && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Parent Role</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {result.roles.parent.children.map((child) => (
-                    <div
-                      key={child.id}
-                      className="rounded-md border bg-muted/50 p-4"
-                    >
-                      <div className="mb-2 font-semibold">{child.name}</div>
-                      <div className="flex flex-wrap gap-2">
-                        {child.programs.map((prog, idx) => (
-                          <Badge
-                            key={idx}
-                            variant={
-                              prog.status === 'ENROLLED' ? 'default' : 'outline'
-                            }
-                          >
-                            {prog.program.replace('_PROGRAM', '')} -{' '}
-                            {prog.status}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <ParentRoleCard parent={result.roles.parent} />
           )}
 
-          {result.billingAccounts.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Billing</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {result.billingAccounts.map((account) => (
-                    <div key={account.id}>
-                      {account.stripeCustomerId && (
-                        <div className="mb-3 text-sm text-muted-foreground">
-                          Stripe Customer: {account.stripeCustomerId}
-                        </div>
-                      )}
-                      {account.subscriptions.length > 0 && (
-                        <div className="space-y-2">
-                          <Label className="text-muted-foreground">
-                            Active Subscriptions
-                          </Label>
-                          {account.subscriptions.map((sub) => (
-                            <div
-                              key={sub.id}
-                              className="flex items-center justify-between rounded-md border p-3"
-                            >
-                              <div className="flex items-center gap-3">
-                                <Badge variant="outline">
-                                  {sub.program.replace('_PROGRAM', '')}
-                                </Badge>
-                                <Badge
-                                  variant={
-                                    sub.status === 'active'
-                                      ? 'default'
-                                      : 'secondary'
-                                  }
-                                >
-                                  {sub.status}
-                                </Badge>
-                              </div>
-                              <div className="font-semibold">
-                                ${(sub.amount / 100).toFixed(2)}/mo
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <BillingCard billingAccounts={result.billingAccounts} />
 
           {!result.roles.teacher &&
             !result.roles.student &&
@@ -357,44 +194,13 @@ export function PersonLookupClient() {
         </div>
       )}
 
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-600" />
-              Delete Person Entirely?
-            </AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>
-                  This will <strong>permanently delete</strong> {result?.name}{' '}
-                  and all associated data:
-                </p>
-                <ul className="list-inside list-disc space-y-1 text-sm">
-                  <li>All contact information</li>
-                  <li>Teacher role and student assignments</li>
-                  <li>Student enrollments and program profiles</li>
-                  <li>Parent relationships with children</li>
-                  <li>Billing accounts and subscriptions</li>
-                </ul>
-                <p className="font-semibold text-red-600">
-                  This action cannot be undone.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleting ? 'Deleting...' : 'Delete Permanently'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeletePersonDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        personName={result?.name ?? ''}
+        onConfirm={handleDelete}
+        deleting={deleting}
+      />
     </div>
   )
 }

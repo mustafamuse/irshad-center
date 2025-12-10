@@ -5,10 +5,10 @@ import { memo, useEffect, useState } from 'react'
 import { Loader2, Search, User } from 'lucide-react'
 
 import { ErrorAlert } from '@/app/admin/_components/error-alert'
+import { ProgramBadges } from '@/app/admin/_components/program-badges'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
 
 import {
   createTeacherAction,
@@ -41,30 +41,20 @@ const RoleDisplay = memo(function RoleDisplay({
       {roleDetails.teacher && (
         <div className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">Teacher:</span>
-          <div className="flex gap-1">
-            {roleDetails.teacher.programs.map((program) => (
-              <Badge key={program} variant="default" className="text-xs">
-                {program.replace('_PROGRAM', '')}
-              </Badge>
-            ))}
-          </div>
+          <ProgramBadges programs={roleDetails.teacher.programs} size="sm" />
         </div>
       )}
 
       {roleDetails.student && (
         <div className="flex items-center gap-2 text-sm">
           <span className="text-muted-foreground">Student:</span>
-          <div className="flex gap-1">
-            {roleDetails.student.programs.map(({ program, status }) => (
-              <Badge
-                key={program}
-                variant={status === 'ENROLLED' ? 'default' : 'secondary'}
-                className="text-xs"
-              >
-                {program.replace('_PROGRAM', '')}
-              </Badge>
-            ))}
-          </div>
+          <ProgramBadges
+            programs={roleDetails.student.programs.map((p) => p.program)}
+            statusMap={Object.fromEntries(
+              roleDetails.student.programs.map((p) => [p.program, p.status])
+            )}
+            size="sm"
+          />
         </div>
       )}
 
