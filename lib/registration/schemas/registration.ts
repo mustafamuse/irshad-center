@@ -1,4 +1,4 @@
-import { GradeLevel, Gender, StudentShift } from '@prisma/client'
+import { GradeLevel, Gender, Shift } from '@prisma/client'
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -186,7 +186,7 @@ export const childInfoSchema = z.object({
   gradeLevel: SHOW_GRADE_SCHOOL
     ? z.nativeEnum(GradeLevel, { required_error: 'Please select grade level' })
     : z.nativeEnum(GradeLevel).nullable().optional(),
-  shift: z.nativeEnum(StudentShift, {
+  shift: z.nativeEnum(Shift, {
     required_error: 'Please select a shift (Morning or Afternoon)',
   }),
   schoolName: SHOW_GRADE_SCHOOL
@@ -295,7 +295,7 @@ export const DEFAULT_CHILD_VALUES: ChildInfo = {
   gender: undefined as unknown as Gender,
   dateOfBirth: null as unknown as Date,
   gradeLevel: undefined,
-  shift: undefined as unknown as StudentShift,
+  shift: undefined as unknown as Shift,
   schoolName: undefined,
   healthInfo: '',
   useCustomLastName: false,

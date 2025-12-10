@@ -4,7 +4,7 @@
  * Zod validation schemas for Dugsi program operations.
  */
 
-import { StudentShift } from '@prisma/client'
+import { Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
@@ -18,7 +18,7 @@ export const UpdateFamilyShiftSchema = z.object({
     .string()
     .uuid('Invalid family reference ID format')
     .min(1, 'Family reference ID is required'),
-  shift: z.nativeEnum(StudentShift, {
+  shift: z.nativeEnum(Shift, {
     errorMap: () => ({ message: 'Shift must be MORNING or AFTERNOON' }),
   }),
 })
@@ -28,7 +28,7 @@ export const UpdateFamilyShiftSchema = z.object({
 // ============================================================================
 
 export const ShiftFilterSchema = z
-  .enum([StudentShift.MORNING, StudentShift.AFTERNOON, SHIFT_FILTER_ALL])
+  .enum([Shift.MORNING, Shift.AFTERNOON, SHIFT_FILTER_ALL])
   .optional()
   .transform((val) => {
     if (!val || val === SHIFT_FILTER_ALL) return undefined
@@ -40,7 +40,7 @@ export const ShiftFilterSchema = z
 // ============================================================================
 
 export const DugsiRegistrationFiltersSchema = z.object({
-  shift: z.enum([StudentShift.MORNING, StudentShift.AFTERNOON]).optional(),
+  shift: z.enum([Shift.MORNING, Shift.AFTERNOON]).optional(),
 })
 
 // ============================================================================

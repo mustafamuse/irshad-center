@@ -36,7 +36,7 @@ export interface TeacherAssignment {
   id: string
   teacherId: string
   programProfileId: string // Must be DUGSI_PROGRAM ProgramProfile
-  shift: Shift
+  shift: Shift | null
   startDate: Date
   endDate: Date | null
   isActive: boolean
@@ -88,5 +88,5 @@ export function isDugsiProfile(programProfile: { program: string }): boolean {
  * Validation: Check if shift is valid
  */
 export function isValidShift(shift: string): shift is Shift {
-  return shift === 'MORNING' || shift === 'EVENING'
+  return shift === 'MORNING' || shift === 'AFTERNOON'
 }
