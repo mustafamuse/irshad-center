@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { GradeLevel } from '@prisma/client'
+import { GradeLevel, Shift } from '@prisma/client'
+import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -30,6 +31,12 @@ import {
   // Checkout service
   createDugsiCheckoutSession,
 } from '@/lib/services/dugsi'
+import {
+  assignTeacherToStudent as assignTeacherToStudentService,
+  reassignStudent as reassignStudentService,
+  removeTeacherAssignment as removeTeacherAssignmentService,
+  getTeachersByProgram as getTeachersByProgramService,
+} from '@/lib/services/shared/teacher-service'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
 import {
@@ -759,5 +766,189 @@ export async function generateDugsiVCardContent(): Promise<
   } catch (error) {
     await logError(logger, error, 'Failed to generate Dugsi vCard content')
     return createErrorResult(error, 'Failed to generate vCard content')
+  }
+}
+
+// ============================================================================
+// Teacher Assignment Actions (Dugsi-specific)
+// ============================================================================
+
+const assignTeacherSchema = z.object({
+  teacherId: z.string().uuid(),
+  studentProfileId: z.string().uuid(),
+  shift: z.enum(['MORNING', 'AFTERNOON']),
+})
+
+const reassignStudentSchema = z.object({
+  assignmentId: z.string().uuid(),
+  newTeacherId: z.string().uuid(),
+})
+
+const removeTeacherSchema = z.object({
+  assignmentId: z.string().uuid(),
+})
+
+/**
+ * Assign a teacher to a Dugsi student.
+ * Requires shift (MORNING or AFTERNOON).
+ */
+export async function assignTeacherToStudent(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = assignTeacherSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+  }
+  const input = parsed.data
+
+  try {
+    await assignTeacherToStudentService({
+      teacherId: input.teacherId,
+      programProfileId: input.studentProfileId,
+      shift: input.shift as Shift,
+    })
+
+    revalidatePath('/admin/dugsi')
+    revalidatePath('/admin/teachers')
+
+    logger.info(
+      {
+        teacherId: input.teacherId,
+        studentProfileId: input.studentProfileId,
+        shift: input.shift,
+      },
+      'Teacher assigned to Dugsi student'
+    )
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    await logError(logger, error, 'Failed to assign teacher to student', input)
+
+    if (error instanceof Error && error.message.includes('not enrolled')) {
+      return {
+        success: false,
+        error:
+          'Teacher is not enrolled in Dugsi program. Please enroll them first.',
+      }
+    }
+
+    if (error instanceof Error && error.message.includes('already assigned')) {
+      return {
+        success: false,
+        error:
+          'This teacher is already assigned to this student for this shift',
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Failed to assign teacher to student',
+    }
+  }
+}
+
+/**
+ * Reassign a student to a different teacher.
+ */
+export async function reassignStudentToTeacher(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = reassignStudentSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+  }
+  const { assignmentId, newTeacherId } = parsed.data
+
+  try {
+    await reassignStudentService(assignmentId, newTeacherId)
+
+    revalidatePath('/admin/dugsi')
+    revalidatePath('/admin/teachers')
+
+    logger.info(
+      { assignmentId, newTeacherId },
+      'Student reassigned to new teacher'
+    )
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    await logError(logger, error, 'Failed to reassign student', {
+      assignmentId,
+      newTeacherId,
+    })
+    return {
+      success: false,
+      error: 'Failed to reassign student to new teacher',
+    }
+  }
+}
+
+/**
+ * Remove a teacher assignment from a student.
+ */
+export async function removeTeacherFromStudent(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = removeTeacherSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+  }
+  const { assignmentId } = parsed.data
+
+  try {
+    await removeTeacherAssignmentService(assignmentId)
+
+    revalidatePath('/admin/dugsi')
+    revalidatePath('/admin/teachers')
+
+    logger.info({ assignmentId }, 'Teacher removed from student')
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    await logError(logger, error, 'Failed to remove teacher from student', {
+      assignmentId,
+    })
+    return {
+      success: false,
+      error: 'Failed to remove teacher assignment',
+    }
+  }
+}
+
+/**
+ * Get teachers available for Dugsi (enrolled in DUGSI_PROGRAM).
+ */
+export async function getAvailableDugsiTeachers(): Promise<
+  ActionResult<
+    Array<{
+      id: string
+      name: string
+      email: string | null
+      phone: string | null
+    }>
+  >
+> {
+  try {
+    const teachers = await getTeachersByProgramService(DUGSI_PROGRAM)
+
+    const teacherList = teachers.map((t) => ({
+      id: t.id,
+      name: t.person.name,
+      email:
+        t.person.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value ??
+        null,
+      phone:
+        t.person.contactPoints?.find(
+          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+        )?.value ?? null,
+    }))
+
+    return { success: true, data: teacherList }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get available Dugsi teachers')
+    return {
+      success: false,
+      error: 'Failed to load available teachers',
+    }
   }
 }
