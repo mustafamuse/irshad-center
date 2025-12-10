@@ -523,9 +523,10 @@ export function validateShiftRequirement(
   }
 
   if (program !== 'DUGSI_PROGRAM' && shift) {
-    logger.warn(
-      { program, shift },
-      'Shift provided for non-Dugsi program (will be ignored)'
+    throw new ValidationError(
+      'Shift should not be provided for non-Dugsi programs',
+      'SHIFT_NOT_ALLOWED',
+      { program, shift }
     )
   }
 }

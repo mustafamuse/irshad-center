@@ -316,9 +316,9 @@ describe('validateShiftRequirement', () => {
     ).not.toThrow()
   })
 
-  it('should allow shift for Mahad but log warning', () => {
+  it('should throw error when shift provided for Mahad', () => {
     expect(() =>
       validateShiftRequirement(Program.MAHAD_PROGRAM, Shift.MORNING)
-    ).not.toThrow()
+    ).toThrow('Shift should not be provided for non-Dugsi programs')
   })
 })
