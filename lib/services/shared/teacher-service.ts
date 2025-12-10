@@ -338,23 +338,45 @@ export async function bulkAssignPrograms(
       .map((p) => p.program)
       .filter((p) => !newProgramSet.has(p))
 
-    for (const program of programsToRemove) {
-      const activeAssignments = await tx.teacherAssignment.count({
+    // Check all programs at once instead of N queries
+    if (programsToRemove.length > 0) {
+      const assignmentCounts = await tx.teacherAssignment.groupBy({
+        by: ['programProfileId'],
         where: {
           teacherId,
           isActive: true,
           programProfile: {
-            program,
+            program: { in: programsToRemove },
           },
         },
+        _count: { _all: true },
       })
 
-      if (activeAssignments > 0) {
-        throw new ValidationError(
-          `Cannot remove teacher from ${program}. They have ${activeAssignments} active student assignment(s). Please reassign students first.`,
-          'TEACHER_HAS_ACTIVE_STUDENTS',
-          { teacherId, program, activeAssignments }
-        )
+      // Get the program for each profile that has assignments
+      if (assignmentCounts.length > 0) {
+        const profileIds = assignmentCounts.map((a) => a.programProfileId)
+        const profiles = await tx.programProfile.findMany({
+          where: { id: { in: profileIds } },
+          select: { id: true, program: true },
+        })
+
+        const programCounts: Record<string, number> = {}
+        for (const count of assignmentCounts) {
+          const profile = profiles.find((p) => p.id === count.programProfileId)
+          if (profile) {
+            programCounts[profile.program] =
+              (programCounts[profile.program] || 0) + count._count._all
+          }
+        }
+
+        for (const program of Object.keys(programCounts)) {
+          const activeAssignments = programCounts[program]
+          throw new ValidationError(
+            `Cannot remove teacher from ${program}. They have ${activeAssignments} active student assignment(s). Please reassign students first.`,
+            'TEACHER_HAS_ACTIVE_STUDENTS',
+            { teacherId, program, activeAssignments }
+          )
+        }
       }
     }
 

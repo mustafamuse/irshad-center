@@ -33,7 +33,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-
 import {
   assignTeacherToStudent,
   getAvailableDugsiTeachers,
@@ -144,6 +143,7 @@ export function AssignTeacherDialog({
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                     disabled={loadingTeachers || isSubmitting}
+                    aria-busy={loadingTeachers}
                   >
                     <FormControl>
                       <SelectTrigger>

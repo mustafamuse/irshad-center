@@ -7,14 +7,16 @@ const {
   mockFindMany,
   mockUpdateMany,
   mockUpsert,
-  mockCount,
+  mockGroupBy,
+  mockProfileFindMany,
   mockTransaction,
   mockTeacherFindUnique,
 } = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
   mockUpdateMany: vi.fn(),
   mockUpsert: vi.fn(),
-  mockCount: vi.fn(),
+  mockGroupBy: vi.fn(),
+  mockProfileFindMany: vi.fn(),
   mockTransaction: vi.fn(),
   mockTeacherFindUnique: vi.fn(),
 }))
@@ -30,7 +32,10 @@ vi.mock('@/lib/db', () => ({
       upsert: (...args: unknown[]) => mockUpsert(...args),
     },
     teacherAssignment: {
-      count: (...args: unknown[]) => mockCount(...args),
+      groupBy: (...args: unknown[]) => mockGroupBy(...args),
+    },
+    programProfile: {
+      findMany: (...args: unknown[]) => mockProfileFindMany(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
@@ -66,7 +71,10 @@ describe('bulkAssignPrograms', () => {
             upsert: mockUpsert,
           },
           teacherAssignment: {
-            count: mockCount,
+            groupBy: mockGroupBy,
+          },
+          programProfile: {
+            findMany: mockProfileFindMany,
           },
         }
         return callbackOrArray(tx)
@@ -77,7 +85,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should activate programs in the input array', async () => {
     mockFindMany.mockResolvedValue([])
-    mockCount.mockResolvedValue(0)
+    mockGroupBy.mockResolvedValue([])
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
       teacherId: 'teacher-1',
@@ -112,7 +120,7 @@ describe('bulkAssignPrograms', () => {
       { program: Program.DUGSI_PROGRAM },
       { program: Program.MAHAD_PROGRAM },
     ])
-    mockCount.mockResolvedValue(0)
+    mockGroupBy.mockResolvedValue([]) // No active assignments
     mockUpdateMany.mockResolvedValue({ count: 1 })
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
@@ -141,7 +149,14 @@ describe('bulkAssignPrograms', () => {
 
   it('should throw error when removing program with active students', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.DUGSI_PROGRAM }])
-    mockCount.mockResolvedValue(5)
+    // Mock groupBy returning active assignments
+    mockGroupBy.mockResolvedValue([
+      { programProfileId: 'profile-1', _count: { _all: 5 } },
+    ])
+    // Mock programProfile.findMany to return the program for the profile
+    mockProfileFindMany.mockResolvedValue([
+      { id: 'profile-1', program: Program.DUGSI_PROGRAM },
+    ])
 
     await expect(
       bulkAssignPrograms('teacher-1', [Program.MAHAD_PROGRAM])
@@ -155,7 +170,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should handle add and remove in single operation', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.MAHAD_PROGRAM }])
-    mockCount.mockResolvedValue(0)
+    mockGroupBy.mockResolvedValue([]) // No active assignments
     mockUpdateMany.mockResolvedValue({ count: 1 })
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
@@ -184,7 +199,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should reactivate previously removed program', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.MAHAD_PROGRAM }])
-    mockCount.mockResolvedValue(0)
+    mockGroupBy.mockResolvedValue([])
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
       teacherId: 'teacher-1',
@@ -216,7 +231,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should not call updateMany if no programs to remove', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.DUGSI_PROGRAM }])
-    mockCount.mockResolvedValue(0)
+    mockGroupBy.mockResolvedValue([])
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
       teacherId: 'teacher-1',
