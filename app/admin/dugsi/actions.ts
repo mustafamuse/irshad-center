@@ -802,6 +802,23 @@ export async function assignTeacherToStudent(
   const input = parsed.data
 
   try {
+    // Validate shift matches student's profile shift
+    const profile = await prisma.programProfile.findUnique({
+      where: { id: input.studentProfileId },
+      select: { shift: true },
+    })
+
+    if (!profile) {
+      return { success: false, error: 'Student profile not found' }
+    }
+
+    if (profile.shift && profile.shift !== input.shift) {
+      return {
+        success: false,
+        error: `Cannot assign ${input.shift} teacher to ${profile.shift} student`,
+      }
+    }
+
     await assignTeacherToStudentService({
       teacherId: input.teacherId,
       programProfileId: input.studentProfileId,
