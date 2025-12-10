@@ -7,6 +7,7 @@ import { Shift } from '@prisma/client'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 
+import { ErrorAlert } from '@/app/admin/_components/error-alert'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -31,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+
 
 import {
   assignTeacherToStudent,
@@ -206,11 +208,7 @@ export function AssignTeacherDialog({
             />
 
             {form.formState.errors.root && (
-              <div className="rounded-md border border-red-200 bg-red-50 p-3">
-                <p className="text-sm text-red-800">
-                  {form.formState.errors.root.message}
-                </p>
-              </div>
+              <ErrorAlert message={form.formState.errors.root.message} />
             )}
 
             <DialogFooter>

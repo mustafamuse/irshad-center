@@ -4,9 +4,11 @@ import { memo, useEffect, useState } from 'react'
 
 import { Loader2, Search, User } from 'lucide-react'
 
+import { ErrorAlert } from '@/app/admin/_components/error-alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+
 
 import {
   createTeacherAction,
@@ -237,11 +239,7 @@ export function SearchPersonTab({ onSuccess }: Props) {
         </div>
       )}
 
-      {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
+      {error && <ErrorAlert message={error} />}
     </div>
   )
 }

@@ -300,13 +300,12 @@ export type TeacherWithRelations = Prisma.TeacherGetPayload<{
 // Utility Types
 // ============================================================================
 
+import type { DatabaseClient, TransactionClient as TxClient } from './types'
+
 /**
- * Type for Prisma transaction client
+ * @deprecated Use TransactionClient from './types' instead
  */
-export type TransactionClient = Omit<
-  typeof import('@prisma/client').PrismaClient.prototype,
-  '$connect' | '$disconnect' | '$on' | '$transaction' | '$use'
->
+export type TransactionClient = TxClient
 
 /**
  * Helper type for service return values
@@ -319,3 +318,31 @@ export type ServiceResult<T> =
  * Helper type for async service return values
  */
 export type AsyncServiceResult<T> = Promise<ServiceResult<T>>
+
+// ============================================================================
+// Transaction Helpers
+// ============================================================================
+
+/**
+ * Execute a callback within a transaction context.
+ *
+ * If the client is a PrismaClient, wraps in $transaction.
+ *
+ * @example
+ * async function createTeacher(personId: string, client: DatabaseClient = prisma) {
+ *   return executeInTransaction(client, async (tx) => {
+ *     const teacher = await tx.teacher.create({ data: { personId } })
+ *     await tx.teacherProgram.create({ data: { teacherId: teacher.id } })
+ *     return teacher
+ *   })
+ * }
+ */
+export async function executeInTransaction<T>(
+  client: DatabaseClient,
+  callback: (tx: TxClient) => Promise<T>
+): Promise<T> {
+  if ('$transaction' in client) {
+    return client.$transaction(callback)
+  }
+  return callback(client as TxClient)
+}

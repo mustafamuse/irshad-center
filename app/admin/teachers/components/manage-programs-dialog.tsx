@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { Program } from '@prisma/client'
 
+import { ErrorAlert } from '@/app/admin/_components/error-alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -21,6 +22,7 @@ import {
   PROGRAM_DESCRIPTIONS,
   TEACHER_PROGRAMS,
 } from '@/lib/constants/program-ui'
+
 
 import { bulkAssignProgramsAction } from '../actions'
 
@@ -122,11 +124,7 @@ export function ManageProgramsDialog({
             })}
           </div>
 
-          {error && (
-            <div className="rounded-md border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-800">{error}</p>
-            </div>
-          )}
+          {error && <ErrorAlert message={error} />}
         </div>
 
         <DialogFooter>

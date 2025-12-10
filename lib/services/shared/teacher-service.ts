@@ -17,7 +17,8 @@
 import { Prisma, Program, Shift } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
+import { executeInTransaction } from '@/lib/db/prisma-helpers'
+import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import {
   ValidationError,
@@ -126,7 +127,7 @@ export async function deleteTeacher(
   teacherId: string,
   client: DatabaseClient = prisma
 ) {
-  const doDelete = async (tx: DatabaseClient) => {
+  await executeInTransaction(client, async (tx) => {
     // Deactivate all program enrollments
     await tx.teacherProgram.updateMany({
       where: { teacherId },
@@ -141,13 +142,7 @@ export async function deleteTeacher(
         endDate: new Date(),
       },
     })
-  }
-
-  if (isPrismaClient(client)) {
-    await client.$transaction(async (tx) => doDelete(tx))
-  } else {
-    await doDelete(client)
-  }
+  })
 
   logger.info({ teacherId }, 'Teacher soft deleted')
 }
@@ -327,7 +322,7 @@ export async function bulkAssignPrograms(
     })
   }
 
-  const doBulkAssign = async (tx: DatabaseClient) => {
+  await executeInTransaction(client, async (tx) => {
     const currentPrograms = await tx.teacherProgram.findMany({
       where: {
         teacherId,
@@ -406,13 +401,7 @@ export async function bulkAssignPrograms(
       },
       'Bulk programs assigned to teacher'
     )
-  }
-
-  if (isPrismaClient(client)) {
-    await client.$transaction(async (tx) => doBulkAssign(tx))
-  } else {
-    await doBulkAssign(client)
-  }
+  })
 }
 
 // ============================================================================
@@ -681,7 +670,7 @@ export async function reassignStudent(
   newTeacherId: string,
   client: DatabaseClient = prisma
 ) {
-  const doReassign = async (tx: DatabaseClient) => {
+  return executeInTransaction(client, async (tx) => {
     // Get existing assignment
     const oldAssignment = await tx.teacherAssignment.findUnique({
       where: { id: assignmentId },
@@ -730,13 +719,7 @@ export async function reassignStudent(
     )
 
     return newAssignment
-  }
-
-  if (isPrismaClient(client)) {
-    return client.$transaction(async (tx) => doReassign(tx))
-  } else {
-    return doReassign(client)
-  }
+  })
 }
 
 /**
