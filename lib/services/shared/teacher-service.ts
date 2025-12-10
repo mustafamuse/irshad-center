@@ -593,23 +593,24 @@ export async function assignTeacherToStudent(
   // Validate shift requirement
   validateShiftRequirement(profile.program, shift ?? null)
 
-  // Check for existing active assignment for same shift (early validation)
-  if (shift) {
-    const existingAssignment = await client.teacherAssignment.findFirst({
-      where: {
-        programProfileId,
-        shift,
-        isActive: true,
-      },
-    })
+  // Check for existing active assignment (early validation)
+  const existingAssignment = await client.teacherAssignment.findFirst({
+    where: {
+      programProfileId,
+      isActive: true,
+      ...(shift ? { shift } : { shift: null }),
+    },
+  })
 
-    if (existingAssignment) {
-      throw new ValidationError(
-        `Student already has an active ${shift} shift assignment`,
-        'DUPLICATE_SHIFT_ASSIGNMENT',
-        { programProfileId, shift, existingAssignmentId: existingAssignment.id }
-      )
-    }
+  if (existingAssignment) {
+    const message = shift
+      ? `Student already has an active ${shift} shift assignment`
+      : 'Student already has an active assignment for this program'
+    throw new ValidationError(message, 'DUPLICATE_ASSIGNMENT', {
+      programProfileId,
+      shift,
+      existingAssignmentId: existingAssignment.id,
+    })
   }
 
   // Create assignment - catch P2002 (unique constraint) to handle race condition
