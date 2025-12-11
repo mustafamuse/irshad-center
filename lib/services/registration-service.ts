@@ -13,7 +13,7 @@ import {
   GuardianRole,
   Gender,
   GradeLevel,
-  StudentShift,
+  Shift,
   GraduationStatus,
   PaymentFrequency,
   StudentBillingType,
@@ -109,7 +109,7 @@ const childDataSchema = z.object({
     .optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
   gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
-  shift: z.nativeEnum(StudentShift).nullable().optional(),
+  shift: z.nativeEnum(Shift).nullable().optional(),
   schoolName: z
     .string()
     .max(255, 'School name is too long')
@@ -136,7 +136,7 @@ const programProfileDataSchema = z.object({
     .optional(),
   gender: z.nativeEnum(Gender).nullable().optional(),
   gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
-  shift: z.nativeEnum(StudentShift).nullable().optional(),
+  shift: z.nativeEnum(Shift).nullable().optional(),
   schoolName: z
     .string()
     .max(255, 'School name is too long')
@@ -500,7 +500,6 @@ export async function createProgramProfileWithEnrollment(
  * Due to Supavisor connection pooling constraints, this function uses sequential
  * operations without interactive transactions. Each phase is idempotent:
  *
- * 1. **Parents** - Find or create parent Person records (upsert pattern)
  *
  * ## Recovery Strategy for Partial Failures
  *
@@ -789,6 +788,20 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               status: 'REGISTERED',
             },
           })
+
+          // Log student role addition
+          logger.info(
+            {
+              event: 'ROLE_ADDED',
+              personId: childPerson.id,
+              personName: childFullName,
+              role: 'STUDENT',
+              program: 'DUGSI_PROGRAM',
+              profileId: profile.id,
+              timestamp: new Date().toISOString(),
+            },
+            'Person enrolled as Dugsi student'
+          )
         }
 
         return {
@@ -829,6 +842,21 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     }
 
     await createGuardianRelationshipsBatch(guardianRelationships)
+
+    // Log parent role additions
+    for (const rel of guardianRelationships) {
+      logger.info(
+        {
+          event: 'ROLE_ADDED',
+          personId: rel.guardianPersonId,
+          role: 'PARENT',
+          dependentId: rel.dependentPersonId,
+          program: 'DUGSI_PROGRAM',
+          timestamp: new Date().toISOString(),
+        },
+        'Person became parent via Dugsi registration'
+      )
+    }
 
     // Phase 5: Create sibling relationships (batch with skipDuplicates)
     currentPhase = 'siblings'
@@ -933,6 +961,33 @@ export async function createFamilyRegistration(data: unknown): Promise<{
 }
 
 /**
+ * Helper function to determine if a new name is more complete than the old name
+ * Returns true if the new name should replace the old name
+ */
+function isNameMoreComplete(oldName: string, newName: string): boolean {
+  const oldWords = oldName.trim().split(/\s+/)
+  const newWords = newName.trim().split(/\s+/)
+
+  // More words = more complete
+  if (newWords.length > oldWords.length) return true
+
+  // Check for initial expansion (J. → John)
+  if (newWords.length === oldWords.length) {
+    for (let i = 0; i < oldWords.length; i++) {
+      const oldWord = oldWords[i]
+      const newWord = newWords[i]
+
+      // Old is initial (1-2 chars with period), new is full word
+      if (oldWord.length <= 2 && oldWord.includes('.') && newWord.length > 2) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+/**
  * Find or create a Person with contact points
  * Reuses existing Person if found by email/phone, otherwise creates new one
  */
@@ -975,7 +1030,23 @@ async function findOrCreatePersonWithContact(
     )
 
     if (existingPerson) {
-      // Found existing person - add missing contact points
+      // Found existing person - update name if more complete and add missing contact points
+      const shouldUpdateName = isNameMoreComplete(existingPerson.name, name)
+      if (shouldUpdateName) {
+        await client.person.update({
+          where: { id: existingPerson.id },
+          data: { name },
+        })
+        logger.info(
+          {
+            personId: existingPerson.id,
+            oldName: existingPerson.name,
+            newName: name,
+          },
+          'Updated person name to more complete version'
+        )
+      }
+
       const contactPointsToCreate: Prisma.ContactPointCreateManyInput[] = []
       const existingEmails = existingPerson.contactPoints
         .filter((cp) => cp.type === 'EMAIL')

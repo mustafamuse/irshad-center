@@ -114,6 +114,12 @@ export const SHIFT_COLORS = {
 // Shift Filter Constants
 export const SHIFT_FILTER_ALL = 'all' as const
 
+// Shift Select Options (for dropdowns)
+export const SHIFT_OPTIONS = [
+  { value: 'MORNING', label: 'Morning' },
+  { value: 'AFTERNOON', label: 'Afternoon' },
+] as const
+
 // Error Messages
 export const ERROR_MESSAGES = {
   STUDENT_NOT_FOUND: 'Student not found',

@@ -65,21 +65,41 @@ model Teacher {
 
   // Relations
   person      Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
-  assignments TeacherAssignment[] // Assignments to Dugsi students (and future Mahad assignments)
+  programs    TeacherProgram[]    // Programs this teacher is authorized to teach
+  assignments TeacherAssignment[] // Student assignments across all programs
 
   @@index([personId])
 }
 
-// TeacherAssignment - Links teachers to Dugsi students with shift information
-// Dugsi students can have assigned teachers with morning/evening shifts
-// IMPORTANT: TeacherAssignment is currently Dugsi-only (programProfile.program must be DUGSI_PROGRAM)
-// Application-level validation required: Only create assignments for Dugsi ProgramProfiles
-// Future: May extend to support Mahad or other programs via program field or separate models
+// TeacherProgram - Links teachers to programs they are authorized to teach
+// Explicit program enrollment: Admin assigns which programs (Dugsi, Mahad, etc.) each teacher can teach
+// Before assigning students to a teacher, the teacher must have an active TeacherProgram record for that program
+model TeacherProgram {
+  id        String   @id @default(uuid())
+  teacherId String
+  program   Program // MAHAD_PROGRAM, DUGSI_PROGRAM, etc.
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, program]) // One record per teacher per program
+  @@index([teacherId])
+  @@index([program])
+  @@index([isActive])
+}
+
+// TeacherAssignment - Links teachers to students across all programs
+// Supports multi-program assignments: Dugsi (with shifts), Mahad (no shifts), etc.
+// Shift is required for Dugsi students (MORNING/AFTERNOON), nullable for other programs
+// Teacher must have TeacherProgram enrollment before student assignment
 model TeacherAssignment {
   id               String    @id @default(uuid())
   teacherId        String
-  programProfileId String // References Dugsi ProgramProfile (must be DUGSI_PROGRAM)
-  shift            Shift // Morning or Evening shift
+  programProfileId String // References any ProgramProfile (Dugsi, Mahad, etc.)
+  shift            Shift? // Required for Dugsi, null for Mahad and other programs
   startDate        DateTime  @default(now())
   endDate          DateTime? // Null if currently active
   isActive         Boolean   @default(true)
@@ -91,7 +111,7 @@ model TeacherAssignment {
   teacher        Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   programProfile ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
 
-  @@unique([teacherId, programProfileId, shift]) // One teacher per student per shift
+  @@unique([teacherId, programProfileId, shift]) // One teacher per student per shift (shift can be null)
   @@index([teacherId])
   @@index([programProfileId])
   @@index([isActive])
@@ -99,11 +119,6 @@ model TeacherAssignment {
 }
 
 enum Shift {
-  MORNING
-  EVENING
-}
-
-enum StudentShift {
   MORNING
   AFTERNOON
 }
@@ -337,7 +352,7 @@ model ProgramProfile {
   // Dugsi-specific fields (K-12 program)
   healthInfo        String? // Health information for student
   familyReferenceId String? // Family tracking ID for Dugsi families
-  shift             StudentShift? // Student's preferred shift (MORNING or AFTERNOON)
+  shift             Shift? // Student's preferred shift (MORNING or AFTERNOON)
 
   // Metadata for initiative-specific fields (JSONB)
   // Flexible JSONB column for program-specific fields without requiring schema migrations

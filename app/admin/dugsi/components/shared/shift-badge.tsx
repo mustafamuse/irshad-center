@@ -1,13 +1,13 @@
 'use client'
 
-import { StudentShift } from '@prisma/client'
+import { Shift } from '@prisma/client'
 
 import { Badge } from '@/components/ui/badge'
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
 interface ShiftBadgeProps {
-  shift: StudentShift | null
+  shift: Shift | null
   className?: string
 }
 

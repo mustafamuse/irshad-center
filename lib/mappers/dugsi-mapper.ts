@@ -82,6 +82,29 @@ export function mapProfileToDugsiRegistration(
   const subscription = activeAssignment?.subscription
   const billingAccount = subscription?.billingAccount
 
+  // Extract teacher assignments
+  const teacherAssignments = profile.teacherAssignments || []
+  const morningAssignment = teacherAssignments.find(
+    (a) => a.shift === 'MORNING' && a.isActive
+  )
+  const afternoonAssignment = teacherAssignments.find(
+    (a) => a.shift === 'AFTERNOON' && a.isActive
+  )
+
+  // Determine primary teacher (prefer student's shift, fallback to any)
+  const primaryAssignment =
+    profile.shift === 'MORNING'
+      ? morningAssignment || afternoonAssignment
+      : afternoonAssignment || morningAssignment
+
+  const primaryTeacher = primaryAssignment?.teacher?.person
+  const primaryTeacherEmail = primaryTeacher?.contactPoints?.find(
+    (cp) => cp.type === 'EMAIL'
+  )?.value
+  const primaryTeacherPhone = primaryTeacher?.contactPoints?.find(
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )?.value
+
   return {
     id: profile.id,
     name: person.name,
@@ -124,6 +147,14 @@ export function mapProfileToDugsiRegistration(
     familyReferenceId: profile.familyReferenceId,
     stripeAccountType:
       (billingAccount?.accountType as StripeAccountType) ?? null,
+
+    // Teacher info
+    teacherName: primaryTeacher?.name ?? null,
+    teacherEmail: primaryTeacherEmail ?? null,
+    teacherPhone: primaryTeacherPhone ?? null,
+    morningTeacher: morningAssignment?.teacher?.person?.name ?? null,
+    afternoonTeacher: afternoonAssignment?.teacher?.person?.name ?? null,
+    hasTeacherAssigned: teacherAssignments.some((a) => a.isActive),
   }
 }
 
@@ -150,6 +181,12 @@ export function mapProfileToSimpleDugsiRegistration(
   | 'currentPeriodStart'
   | 'currentPeriodEnd'
   | 'stripeAccountType'
+  | 'teacherName'
+  | 'teacherEmail'
+  | 'teacherPhone'
+  | 'morningTeacher'
+  | 'afternoonTeacher'
+  | 'hasTeacherAssigned'
 > {
   if (!profile || profile.program !== DUGSI_PROGRAM) {
     throw new Error('Invalid profile: must be DUGSI_PROGRAM')
