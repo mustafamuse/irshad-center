@@ -197,10 +197,9 @@ export function AdminSidebar({
                 {item.items?.length ? (
                   <SidebarMenuSub>
                     {item.items.map((subItem) => {
-                      const isActive = subItem.items?.length
-                        ? pathname === subItem.url
-                        : pathname === subItem.url ||
-                          pathname.startsWith(`${subItem.url}/`)
+                      const isActive =
+                        pathname === subItem.url ||
+                        pathname.startsWith(`${subItem.url}/`)
 
                       return (
                         <SidebarMenuSubItem key={subItem.title}>
@@ -242,10 +241,10 @@ export function AdminSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center justify-between px-2 py-1">
-              <span className="text-sm text-muted-foreground">Theme</span>
+            <SidebarMenuButton className="flex items-center justify-between">
+              <span className="text-sm">Theme</span>
               <ThemeToggle />
-            </div>
+            </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
