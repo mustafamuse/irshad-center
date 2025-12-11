@@ -78,9 +78,10 @@ export async function validateTeacherAssignment(data: {
     })
   }
 
-  // Check for existing active assignment for same shift
+  // Check for existing active assignment for same teacher + shift
   const existingAssignment = await prisma.teacherAssignment.findFirst({
     where: {
+      teacherId: data.teacherId,
       programProfileId: data.programProfileId,
       shift: data.shift,
       isActive: true,
