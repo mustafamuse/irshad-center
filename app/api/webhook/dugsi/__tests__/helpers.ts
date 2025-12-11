@@ -68,7 +68,10 @@ export function installTransaction(tx: {
   student: Partial<TransactionSpies['student']>
 }): () => void {
   const mock = vi.mocked(prisma.$transaction)
-  mock.mockImplementation(async (fn) => fn(tx as any))
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock requires flexible typing for partial Prisma client
+  mock.mockImplementation(async (fn) =>
+    fn(tx as unknown as Parameters<typeof fn>[0])
+  )
   return () => mock.mockReset()
 }
 

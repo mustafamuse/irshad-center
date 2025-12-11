@@ -2,7 +2,13 @@
 
 import { ReactNode } from 'react'
 
-import { FieldPath, FieldValues, Control } from 'react-hook-form'
+import {
+  FieldPath,
+  FieldValues,
+  Control,
+  ControllerRenderProps,
+  ControllerFieldState,
+} from 'react-hook-form'
 
 import {
   FormControl,
@@ -21,7 +27,10 @@ interface FormFieldWrapperProps<
   name: TName
   label: string
   required?: boolean
-  children: (field: any, fieldState: any) => ReactNode
+  children: (
+    field: ControllerRenderProps<TFieldValues, TName>,
+    fieldState: ControllerFieldState
+  ) => ReactNode
   className?: string
 }
 

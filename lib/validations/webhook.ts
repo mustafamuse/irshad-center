@@ -49,7 +49,7 @@ export function validateWebhookData<T>(
   data: unknown,
   schema: z.ZodSchema<T>,
   fieldName: string
-): T extends string | undefined ? string | null : T | null {
+): NonNullable<T> | null {
   const result = schema.safeParse(data)
 
   if (!result.success) {
@@ -59,13 +59,13 @@ export function validateWebhookData<T>(
       'Errors:',
       result.error.issues.map((i) => i.message).join(', ')
     )
-    return null as any
+    return null
   }
 
   // Handle optional schemas that might return undefined
   if (result.data === undefined) {
-    return null as any
+    return null
   }
 
-  return result.data as any
+  return result.data as NonNullable<T>
 }
