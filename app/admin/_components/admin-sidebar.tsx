@@ -61,12 +61,12 @@ export function AdminSidebar({
             <SidebarMenu>
               {group.items.map((item) => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuSubButton
+                  <SidebarMenuButton
                     asChild
                     isActive={isActiveRoute(pathname, item.url)}
                   >
                     <Link href={item.url}>{item.title}</Link>
-                  </SidebarMenuSubButton>
+                  </SidebarMenuButton>
                   {item.items?.length ? (
                     <SidebarMenuSub>
                       {item.items.map((nestedItem) => (
@@ -92,7 +92,11 @@ export function AdminSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <div className="flex items-center justify-between px-2 py-1.5">
+            <div
+              role="group"
+              aria-label="Theme settings"
+              className="flex items-center justify-between px-2 py-1.5"
+            >
               <span className="text-sm text-sidebar-foreground">Theme</span>
               <ThemeToggle />
             </div>
