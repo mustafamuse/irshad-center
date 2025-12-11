@@ -12,6 +12,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -22,143 +23,10 @@ import {
   SidebarRail,
 } from '@/components/ui/sidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-
-interface NavItem {
-  title: string
-  url: string
-  items?: NavItem[]
-}
-
-interface SidebarData {
-  navMain: NavItem[]
-}
-
-const data: SidebarData = {
-  navMain: [
-    {
-      title: 'Programs',
-      url: '#',
-      items: [
-        {
-          title: 'Dugsi',
-          url: '/admin/dugsi',
-        },
-        {
-          title: 'Mahad',
-          url: '/admin/mahad',
-        },
-      ],
-    },
-    {
-      title: 'People',
-      url: '#',
-      items: [
-        {
-          title: 'People Lookup',
-          url: '/admin/people/lookup',
-        },
-        {
-          title: 'Multi-role People',
-          url: '/admin/people/multi-role',
-        },
-        {
-          title: 'Teachers',
-          url: '/admin/teachers',
-        },
-      ],
-    },
-    {
-      title: 'Financial',
-      url: '#',
-      items: [
-        {
-          title: 'Payments',
-          url: '/admin/payments',
-        },
-        {
-          title: 'Link Subscriptions',
-          url: '/admin/link-subscriptions',
-        },
-        {
-          title: 'Profit Share',
-          url: '/admin/profit-share',
-        },
-      ],
-    },
-    {
-      title: 'Operations',
-      url: '#',
-      items: [
-        {
-          title: 'Attendance',
-          url: '/admin/shared/attendance',
-        },
-      ],
-    },
-    {
-      title: 'Public Pages',
-      url: '#',
-      items: [
-        {
-          title: 'Home',
-          url: '/',
-        },
-        {
-          title: 'Mahad',
-          url: '/mahad',
-          items: [
-            {
-              title: 'Landing',
-              url: '/mahad',
-            },
-            {
-              title: 'Register',
-              url: '/mahad/register',
-            },
-            {
-              title: 'Programs',
-              url: '/mahad/programs',
-            },
-            {
-              title: 'Scholarship',
-              url: '/mahad/scholarship',
-            },
-            {
-              title: 'Autopay',
-              url: '/mahad/autopay',
-            },
-            {
-              title: 'Payment FAQ',
-              url: '/mahad/payment-faq',
-            },
-            {
-              title: 'Privacy',
-              url: '/mahad/privacy',
-            },
-            {
-              title: 'Terms',
-              url: '/mahad/terms',
-            },
-          ],
-        },
-        {
-          title: 'Dugsi',
-          url: '/dugsi',
-          items: [
-            {
-              title: 'Landing',
-              url: '/dugsi',
-            },
-            {
-              title: 'Register',
-              url: '/dugsi/register',
-            },
-          ],
-        },
-      ],
-    },
-  ],
-}
+import {
+  ADMIN_NAVIGATION,
+  isActiveRoute,
+} from '@/lib/constants/admin-navigation'
 
 export function AdminSidebar({
   ...props
@@ -187,56 +55,39 @@ export function AdminSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarMenu>
-            {data.navMain.map((item) => (
-              <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton className="cursor-default font-medium">
-                  {item.title}
-                </SidebarMenuButton>
-                {item.items?.length ? (
-                  <SidebarMenuSub>
-                    {item.items.map((subItem) => {
-                      const isActive =
-                        pathname === subItem.url ||
-                        pathname.startsWith(`${subItem.url}/`)
-
-                      return (
-                        <SidebarMenuSubItem key={subItem.title}>
-                          <SidebarMenuSubButton asChild isActive={isActive}>
-                            <Link href={subItem.url}>{subItem.title}</Link>
+        {ADMIN_NAVIGATION.map((group) => (
+          <SidebarGroup key={group.title}>
+            <SidebarGroupLabel>{group.title}</SidebarGroupLabel>
+            <SidebarMenu>
+              {group.items.map((item) => (
+                <SidebarMenuItem key={item.url}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={isActiveRoute(pathname, item.url)}
+                  >
+                    <Link href={item.url}>{item.title}</Link>
+                  </SidebarMenuSubButton>
+                  {item.items?.length ? (
+                    <SidebarMenuSub>
+                      {item.items.map((nestedItem) => (
+                        <SidebarMenuSubItem key={nestedItem.url}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={isActiveRoute(pathname, nestedItem.url)}
+                          >
+                            <Link href={nestedItem.url}>
+                              {nestedItem.title}
+                            </Link>
                           </SidebarMenuSubButton>
-                          {subItem.items?.length ? (
-                            <SidebarMenuSub>
-                              {subItem.items.map((nestedItem) => {
-                                const isNestedActive =
-                                  pathname === nestedItem.url ||
-                                  pathname.startsWith(`${nestedItem.url}/`)
-
-                                return (
-                                  <SidebarMenuSubItem key={nestedItem.title}>
-                                    <SidebarMenuSubButton
-                                      asChild
-                                      isActive={isNestedActive}
-                                    >
-                                      <Link href={nestedItem.url}>
-                                        {nestedItem.title}
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                )
-                              })}
-                            </SidebarMenuSub>
-                          ) : null}
                         </SidebarMenuSubItem>
-                      )
-                    })}
-                  </SidebarMenuSub>
-                ) : null}
-              </SidebarMenuItem>
-            ))}
-          </SidebarMenu>
-        </SidebarGroup>
+                      ))}
+                    </SidebarMenuSub>
+                  ) : null}
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
