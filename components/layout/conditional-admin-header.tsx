@@ -1,14 +1,17 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
-
-import { GlobalHeader } from './global-header'
+import { Logo } from '@/components/ui/logo'
+import { Separator } from '@/components/ui/separator'
+import { SidebarTrigger } from '@/components/ui/sidebar'
 
 export function ConditionalAdminHeader() {
-  const pathname = usePathname()
-  const isDugsiAdmin = pathname === '/admin/dugsi'
-
-  if (isDugsiAdmin) return null
-
-  return <GlobalHeader variant="admin" />
+  return (
+    <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="mr-2 h-4" />
+      <div className="flex items-center gap-2">
+        <Logo size="xs" className="h-8 w-auto" />
+      </div>
+    </header>
+  )
 }
