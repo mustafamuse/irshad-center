@@ -28,9 +28,7 @@ import {
   isActiveRoute,
 } from '@/lib/constants/admin-navigation'
 
-export function AdminSidebar({
-  ...props
-}: React.ComponentProps<typeof Sidebar>) {
+export function AdminSidebar(props: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
   return (

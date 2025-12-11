@@ -1,4 +1,4 @@
-import { ConditionalAdminHeader } from '@/components/layout/conditional-admin-header'
+import { AdminHeader } from '@/components/layout/admin-header'
 import { Separator } from '@/components/ui/separator'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 
@@ -9,7 +9,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AdminSidebar />
       <SidebarInset>
-        <ConditionalAdminHeader />
+        <AdminHeader />
         <Separator />
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <main className="flex-1">{children}</main>
