@@ -10,6 +10,7 @@ import { Home } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
@@ -20,8 +21,19 @@ import {
   SidebarMenuSubItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
+import { ThemeToggle } from '@/components/ui/theme-toggle'
 
-const data = {
+interface NavItem {
+  title: string
+  url: string
+  items?: NavItem[]
+}
+
+interface SidebarData {
+  navMain: NavItem[]
+}
+
+const data: SidebarData = {
   navMain: [
     {
       title: 'Programs',
@@ -165,7 +177,9 @@ export function AdminSidebar({
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-semibold">Admin Dashboard</span>
-                  <span className="">Irshad Center</span>
+                  <span className="text-xs text-muted-foreground">
+                    Irshad Center
+                  </span>
                 </div>
               </Link>
             </SidebarMenuButton>
@@ -177,17 +191,16 @@ export function AdminSidebar({
           <SidebarMenu>
             {data.navMain.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild>
-                  <Link href={item.url} className="font-medium">
-                    {item.title}
-                  </Link>
+                <SidebarMenuButton className="cursor-default font-medium">
+                  {item.title}
                 </SidebarMenuButton>
                 {item.items?.length ? (
                   <SidebarMenuSub>
                     {item.items.map((subItem) => {
-                      const isActive =
-                        pathname === subItem.url ||
-                        pathname.startsWith(`${subItem.url}/`)
+                      const isActive = subItem.items?.length
+                        ? pathname === subItem.url
+                        : pathname === subItem.url ||
+                          pathname.startsWith(`${subItem.url}/`)
 
                       return (
                         <SidebarMenuSubItem key={subItem.title}>
@@ -226,6 +239,16 @@ export function AdminSidebar({
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <div className="flex items-center justify-between px-2 py-1">
+              <span className="text-sm text-muted-foreground">Theme</span>
+              <ThemeToggle />
+            </div>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )

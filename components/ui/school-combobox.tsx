@@ -26,7 +26,7 @@ export interface School {
 }
 
 interface SchoolComboboxProps {
-  value?: string
+  value?: string | null
   onChange?: (value: string) => void
   onBlur?: () => void
   placeholder?: string
@@ -35,7 +35,7 @@ interface SchoolComboboxProps {
 }
 
 export function SchoolCombobox({
-  value = '',
+  value,
   onChange,
   onBlur,
   placeholder = 'Select school...',
