@@ -92,10 +92,10 @@ export function AdminSidebar({
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className="flex items-center justify-between">
-              <span className="text-sm">Theme</span>
+            <div className="flex items-center justify-between px-2 py-1.5">
+              <span className="text-sm text-sidebar-foreground">Theme</span>
               <ThemeToggle />
-            </SidebarMenuButton>
+            </div>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
