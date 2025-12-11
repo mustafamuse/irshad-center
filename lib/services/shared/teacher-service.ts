@@ -594,9 +594,10 @@ export async function assignTeacherToStudent(
   // Validate shift requirement
   validateShiftRequirement(profile.program, shift ?? null)
 
-  // Check for existing active assignment (early validation)
+  // Check for existing active assignment by this teacher (early validation)
   const existingAssignment = await client.teacherAssignment.findFirst({
     where: {
+      teacherId,
       programProfileId,
       isActive: true,
       ...(shift ? { shift } : { shift: null }),
