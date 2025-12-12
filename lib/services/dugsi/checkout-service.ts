@@ -33,6 +33,8 @@ export interface CreateDugsiCheckoutInput {
   familyId: string
   /** Optional admin override amount in cents */
   overrideAmount?: number
+  /** ISO date string for delayed billing start */
+  billingStartDate?: string
   /** Custom success URL (defaults to /dugsi?payment=success) */
   successUrl?: string
   /** Custom cancel URL (defaults to /dugsi?payment=canceled) */
@@ -76,7 +78,7 @@ export interface DugsiCheckoutResult {
 export async function createDugsiCheckoutSession(
   input: CreateDugsiCheckoutInput
 ): Promise<DugsiCheckoutResult> {
-  const { familyId, overrideAmount } = input
+  const { familyId, overrideAmount, billingStartDate } = input
 
   // Get app URL for default success/cancel URLs
   let appUrl: string
@@ -232,6 +234,26 @@ export async function createDugsiCheckoutSession(
   // Build child names for metadata
   const childNames = familyProfiles.map((p) => p.person.name).join(', ')
 
+  // Calculate billing_cycle_anchor if start date provided
+  let billingCycleAnchor: number | undefined
+  if (billingStartDate) {
+    const startDate = new Date(billingStartDate)
+    billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
+  }
+
+  // DEBUG: Log billing configuration
+  console.log('[Dugsi Payment Link] Billing config:', {
+    familyId,
+    billingStartDate: billingStartDate || 'immediate',
+    billingCycleAnchor: billingCycleAnchor
+      ? new Date(billingCycleAnchor * 1000).toISOString()
+      : 'none',
+    billingCycleAnchorUnix: billingCycleAnchor,
+    finalRate: rateInCents / 100,
+    childCount: actualChildCount,
+    isOverride,
+  })
+
   // Create the checkout session
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -250,6 +272,10 @@ export async function createDugsiCheckoutSession(
       },
     ],
     subscription_data: {
+      ...(billingCycleAnchor && {
+        billing_cycle_anchor: billingCycleAnchor,
+        proration_behavior: 'none' as const,
+      }),
       metadata: {
         // Human-readable (for Stripe dashboard)
         Family: primaryGuardian.name,
@@ -264,6 +290,7 @@ export async function createDugsiCheckoutSession(
         profileIds: familyProfiles.map((p) => p.id).join(','),
         calculatedRate: calculatedRate.toString(),
         overrideUsed: isOverride ? 'true' : 'false',
+        billingStartDate: billingStartDate || 'immediate',
         source: 'dugsi-admin-payment-link',
       },
     },

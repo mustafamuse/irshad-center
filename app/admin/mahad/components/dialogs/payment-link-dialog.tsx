@@ -4,7 +4,14 @@ import { useEffect, useState, useTransition } from 'react'
 
 import Link from 'next/link'
 
-import { Check, Copy, ExternalLink, Link2, Loader2 } from 'lucide-react'
+import {
+  Check,
+  Copy,
+  DollarSign,
+  ExternalLink,
+  Link2,
+  Loader2,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -19,18 +26,31 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import {
+  getWhatsAppPaymentMessage,
+  MAX_EXPECTED_MAHAD_RATE,
+} from '@/lib/constants/mahad'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 import {
-  generatePaymentLinkAction,
-  type PaymentLinkResult,
+  generatePaymentLinkWithOverrideAction,
+  type PaymentLinkWithOverrideResult,
 } from '../../_actions'
 
 interface PaymentLinkDialogProps {
   profileId: string
   studentName: string
+  studentPhone?: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  generateLink?: (profileId: string) => Promise<PaymentLinkResult>
   errorActionHref?: string
 }
 
@@ -41,47 +61,86 @@ function formatCurrency(cents: number): string {
   }).format(cents / 100)
 }
 
+function formatOrdinal(day: number): string {
+  if (day === 1 || day === 21 || day === 31) return `${day}st`
+  if (day === 2 || day === 22) return `${day}nd`
+  if (day === 3 || day === 23) return `${day}rd`
+  return `${day}th`
+}
+
+function getNextBillingDate(day: number): string {
+  const now = new Date()
+  let target = new Date(now.getFullYear(), now.getMonth(), day)
+  if (target <= now) {
+    target = new Date(now.getFullYear(), now.getMonth() + 1, day)
+  }
+  return target.toISOString()
+}
+
 export function PaymentLinkDialog({
   profileId,
   studentName,
+  studentPhone,
   open,
   onOpenChange,
-  generateLink,
   errorActionHref,
 }: PaymentLinkDialogProps) {
   const [isPending, startTransition] = useTransition()
-  const [result, setResult] = useState<{
-    url?: string
-    amount?: number
-    billingPeriod?: string
-    error?: string
-  } | null>(null)
+  const [result, setResult] = useState<PaymentLinkWithOverrideResult | null>(
+    null
+  )
   const [copied, setCopied] = useState(false)
-
-  const generateLinkFn = generateLink ?? generatePaymentLinkAction
+  const [useOverride, setUseOverride] = useState(false)
+  const [overrideAmount, setOverrideAmount] = useState('')
+  const [billingStartDay, setBillingStartDay] = useState('')
+  const [selectedBillingDate, setSelectedBillingDate] = useState<string | null>(
+    null
+  )
 
   useEffect(() => {
     if (!open) {
       setResult(null)
       setCopied(false)
+      setUseOverride(false)
+      setOverrideAmount('')
+      setBillingStartDay('')
+      setSelectedBillingDate(null)
     }
   }, [open])
 
   const handleGenerateLink = () => {
+    let overrideAmountCents: number | undefined
+    if (useOverride && overrideAmount) {
+      const parsed = parseFloat(overrideAmount)
+      if (isNaN(parsed) || parsed <= 0) {
+        toast.error('Please enter a valid override amount')
+        return
+      }
+      overrideAmountCents = Math.round(parsed * 100)
+
+      if (overrideAmountCents > MAX_EXPECTED_MAHAD_RATE) {
+        toast.warning('Amount exceeds typical max rate. Please verify.')
+      }
+    }
+
+    const billingDate = billingStartDay
+      ? getNextBillingDate(parseInt(billingStartDay))
+      : undefined
+
     startTransition(async () => {
-      const response = await generateLinkFn(profileId)
-      if (response.success) {
-        setResult({
-          url: response.url,
-          amount: response.amount,
-          billingPeriod: response.billingPeriod,
-        })
+      const response = await generatePaymentLinkWithOverrideAction({
+        profileId,
+        overrideAmount: overrideAmountCents,
+        billingStartDate: billingDate,
+      })
+
+      if (response.success && response.url) {
+        setResult(response)
+        setSelectedBillingDate(billingDate || null)
         toast.success('Payment link generated successfully')
       } else {
         toast.error(response.error || 'Failed to generate payment link')
-        setResult({
-          error: response.error || 'Unable to generate payment link',
-        })
+        setResult(response)
       }
     })
   }
@@ -99,11 +158,34 @@ export function PaymentLinkDialog({
     }
   }
 
+  const handleOpenWhatsApp = () => {
+    if (!result?.url) return
+
+    const phone = result.studentPhone || studentPhone
+    if (!phone) {
+      toast.error('No phone number available for WhatsApp')
+      return
+    }
+
+    let phoneNumber = normalizePhone(phone) ?? ''
+    if (phoneNumber.length === 10 && !phoneNumber.startsWith('1')) {
+      phoneNumber = `1${phoneNumber}`
+    }
+
+    const message = encodeURIComponent(getWhatsAppPaymentMessage(result.url))
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
+  }
+
   const handleOpenLink = () => {
     if (result?.url) {
       window.open(result.url, '_blank')
     }
   }
+
+  const displayOverrideAmount =
+    useOverride && overrideAmount
+      ? Math.round(parseFloat(overrideAmount || '0') * 100)
+      : undefined
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -111,10 +193,10 @@ export function PaymentLinkDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5" />
-            Payment Link
+            Generate Payment Link
           </DialogTitle>
           <DialogDescription>
-            Generate a payment link for <strong>{studentName}</strong> based on
+            Create a payment link for <strong>{studentName}</strong> based on
             their billing configuration.
           </DialogDescription>
         </DialogHeader>
@@ -134,13 +216,79 @@ export function PaymentLinkDialog({
             </Alert>
           )}
 
-          {!result && (
-            <div className="py-4 text-center">
-              <p className="mb-4 text-sm text-muted-foreground">
-                Click below to generate a payment link using the student&apos;s
-                current billing configuration.
-              </p>
-              <Button onClick={handleGenerateLink} disabled={isPending}>
+          {!result?.url && !result?.error && (
+            <>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="use-override" className="text-sm font-medium">
+                    Use Custom Rate
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Override the calculated rate
+                  </p>
+                </div>
+                <Switch
+                  id="use-override"
+                  checked={useOverride}
+                  onCheckedChange={setUseOverride}
+                />
+              </div>
+
+              {useOverride && (
+                <div className="space-y-2">
+                  <Label htmlFor="override-amount">Custom Amount (USD)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="override-amount"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={overrideAmount}
+                      onChange={(e) => setOverrideAmount(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {useOverride && displayOverrideAmount && (
+                <Alert>
+                  <AlertDescription className="text-sm">
+                    Custom rate:{' '}
+                    <strong>{formatCurrency(displayOverrideAmount)}</strong>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="billing-start-day">Billing Start Date</Label>
+                <Select
+                  value={billingStartDay}
+                  onValueChange={setBillingStartDay}
+                >
+                  <SelectTrigger id="billing-start-day">
+                    <SelectValue placeholder="Start immediately (default)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 15 }, (_, i) => i + 1).map((day) => (
+                      <SelectItem key={day} value={day.toString()}>
+                        {formatOrdinal(day)} of the month
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to start billing immediately.
+                </p>
+              </div>
+
+              <Button
+                onClick={handleGenerateLink}
+                disabled={isPending}
+                className="w-full"
+              >
                 {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -153,21 +301,41 @@ export function PaymentLinkDialog({
                   </>
                 )}
               </Button>
-            </div>
+            </>
           )}
 
           {result?.url && (
             <>
               <div className="rounded-lg border bg-muted/50 p-4">
                 <Label className="text-xs text-muted-foreground">
-                  Calculated Amount
+                  {result.isOverride ? 'Custom Rate' : 'Calculated Rate'}
                 </Label>
                 <p className="text-2xl font-bold text-primary">
-                  {formatCurrency(result.amount || 0)}
+                  {formatCurrency(result.finalAmount || 0)}
                   <span className="text-sm font-normal text-muted-foreground">
                     {result.billingPeriod}
                   </span>
                 </p>
+                {result.isOverride && result.calculatedAmount && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Original: {formatCurrency(result.calculatedAmount)}
+                  </p>
+                )}
+                {selectedBillingDate && (
+                  <p className="mt-2 text-sm font-medium text-muted-foreground">
+                    Billing starts:{' '}
+                    <span className="text-foreground">
+                      {new Date(selectedBillingDate).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )}
+                    </span>
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -200,8 +368,8 @@ export function PaymentLinkDialog({
 
               <Alert>
                 <AlertDescription className="text-sm">
-                  Copy this link and send it to the student via WhatsApp, SMS,
-                  or email. The link expires in 24 hours.
+                  Send this link to the student via WhatsApp or copy to
+                  clipboard. The link expires in 24 hours.
                 </AlertDescription>
               </Alert>
             </>
@@ -210,10 +378,15 @@ export function PaymentLinkDialog({
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
           {result?.url && (
-            <Button variant="outline" onClick={handleOpenLink}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Open Link
-            </Button>
+            <>
+              <Button variant="outline" onClick={handleOpenWhatsApp}>
+                Send via WhatsApp
+              </Button>
+              <Button variant="outline" onClick={handleOpenLink}>
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open Link
+              </Button>
+            </>
           )}
           <Button
             variant={result?.url ? 'default' : 'outline'}

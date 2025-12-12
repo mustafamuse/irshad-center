@@ -5,10 +5,10 @@ import { useEffect, useState, useTransition } from 'react'
 import {
   Check,
   Copy,
+  DollarSign,
   ExternalLink,
   Link2,
   Loader2,
-  DollarSign,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -24,6 +24,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { getWhatsAppPaymentMessage } from '@/lib/constants/dugsi'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
@@ -46,6 +53,22 @@ interface PaymentLinkDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
+function formatOrdinal(day: number): string {
+  if (day === 1 || day === 21 || day === 31) return `${day}st`
+  if (day === 2 || day === 22) return `${day}nd`
+  if (day === 3 || day === 23) return `${day}rd`
+  return `${day}th`
+}
+
+function getNextBillingDate(day: number): string {
+  const now = new Date()
+  let target = new Date(now.getFullYear(), now.getMonth(), day)
+  if (target <= now) {
+    target = new Date(now.getFullYear(), now.getMonth() + 1, day)
+  }
+  return target.toISOString()
+}
+
 export function PaymentLinkDialog({
   family,
   open,
@@ -57,6 +80,10 @@ export function PaymentLinkDialog({
   const [copied, setCopied] = useState(false)
   const [useOverride, setUseOverride] = useState(false)
   const [overrideAmount, setOverrideAmount] = useState('')
+  const [billingStartDay, setBillingStartDay] = useState('')
+  const [selectedBillingDate, setSelectedBillingDate] = useState<string | null>(
+    null
+  )
 
   const childCount = family.members.length
   const calculatedRate = calculateDugsiRate(childCount)
@@ -70,6 +97,8 @@ export function PaymentLinkDialog({
       setCopied(false)
       setUseOverride(false)
       setOverrideAmount('')
+      setBillingStartDay('')
+      setSelectedBillingDate(null)
     }
   }, [open])
 
@@ -88,22 +117,27 @@ export function PaymentLinkDialog({
       }
       overrideAmountCents = Math.round(parsed * 100)
 
-      // Warn admin if override exceeds typical max rate
       if (overrideAmountCents > MAX_EXPECTED_FAMILY_RATE) {
         toast.warning('Amount exceeds typical max rate. Please verify.')
       }
     }
+
+    const billingDate = billingStartDay
+      ? getNextBillingDate(parseInt(billingStartDay))
+      : undefined
 
     startTransition(async () => {
       const response = await generateFamilyPaymentLinkAction({
         familyId,
         childCount,
         overrideAmount: overrideAmountCents,
+        billingStartDate: billingDate,
       })
 
       if (response.success && response.data) {
         setResult(response.data)
         setError(null)
+        setSelectedBillingDate(billingDate || null)
         toast.success('Payment link generated successfully')
       } else {
         setError(response.error || 'Failed to generate payment link')
@@ -134,7 +168,6 @@ export function PaymentLinkDialog({
       return
     }
 
-    // Normalize phone and add US country code if needed for WhatsApp
     let phoneNumber = normalizePhone(parentPhone) ?? ''
     if (phoneNumber.length === 10 && !phoneNumber.startsWith('1')) {
       phoneNumber = `1${phoneNumber}`
@@ -246,6 +279,28 @@ export function PaymentLinkDialog({
                 </Alert>
               )}
 
+              <div className="space-y-2">
+                <Label htmlFor="billing-start-day">Billing Start Date</Label>
+                <Select
+                  value={billingStartDay}
+                  onValueChange={setBillingStartDay}
+                >
+                  <SelectTrigger id="billing-start-day">
+                    <SelectValue placeholder="Start immediately (default)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 15 }, (_, i) => i + 1).map((day) => (
+                      <SelectItem key={day} value={day.toString()}>
+                        {formatOrdinal(day)} of the month
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Leave empty to start billing immediately.
+                </p>
+              </div>
+
               <Button
                 onClick={handleGenerateLink}
                 disabled={isPending}
@@ -281,6 +336,21 @@ export function PaymentLinkDialog({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {result.tierDescription}
                 </p>
+                {selectedBillingDate && (
+                  <p className="mt-2 text-sm font-medium text-muted-foreground">
+                    Billing starts:{' '}
+                    <span className="text-foreground">
+                      {new Date(selectedBillingDate).toLocaleDateString(
+                        'en-US',
+                        {
+                          month: 'long',
+                          day: 'numeric',
+                          year: 'numeric',
+                        }
+                      )}
+                    </span>
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
