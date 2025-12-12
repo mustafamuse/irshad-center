@@ -56,6 +56,13 @@ export const BillingDaySchema = z
   )
 
 /**
+ * Hard cap for override amounts in cents.
+ * This is a sanity check to catch typos, not a business rule.
+ * Program-specific limits (Mahad $220, Dugsi $650) are enforced separately.
+ */
+export const MAX_OVERRIDE_AMOUNT_CENTS = 100000
+
+/**
  * Schema for validating override amounts in cents.
  * Used for custom rate validation.
  */
@@ -63,7 +70,10 @@ export const OverrideAmountSchema = z
   .number()
   .int('Override amount must be in cents (whole number)')
   .positive('Override amount must be positive')
-  .max(100000, 'Override amount cannot exceed $1,000') // $1000 max as sanity check
+  .max(
+    MAX_OVERRIDE_AMOUNT_CENTS,
+    `Override amount cannot exceed $${MAX_OVERRIDE_AMOUNT_CENTS / 100}`
+  )
 
 /**
  * Combined schema for payment link generation input.

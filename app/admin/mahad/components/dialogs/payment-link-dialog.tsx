@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { BillingPreview } from '@/components/admin/billing-preview'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -274,16 +275,7 @@ export function PaymentLinkDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {parseBillingDay(billingStartDay) && (
-                  <p className="text-sm text-muted-foreground">
-                    Billing will start:{' '}
-                    <span className="font-medium text-foreground">
-                      {formatBillingDate(
-                        getNextBillingDate(parseBillingDay(billingStartDay)!)
-                      )}
-                    </span>
-                  </p>
-                )}
+                <BillingPreview billingStartDay={billingStartDay} />
                 {!billingStartDay && (
                   <p className="text-xs text-muted-foreground">
                     Leave empty to start billing immediately.
