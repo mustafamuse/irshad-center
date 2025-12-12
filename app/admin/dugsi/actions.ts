@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { ActionError } from '@/lib/errors/action-error'
-import { createServiceLogger, logError, logWarning } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -37,7 +37,6 @@ import {
   getTeachersByProgram as getTeachersByProgramService,
 } from '@/lib/services/shared/teacher-service'
 import { createErrorResult } from '@/lib/utils/action-helpers'
-import { validateOverrideAmount } from '@/lib/utils/dugsi-tuition'
 import {
   UpdateFamilyShiftSchema,
   type UpdateFamilyShiftInput,
@@ -520,10 +519,12 @@ export async function addChildToFamily(params: {
 
 /**
  * Input for generating family payment link with calculated/override rate
+ *
+ * NOTE: childCount is NOT included - the service queries the database
+ * for the authoritative child count to prevent billing manipulation.
  */
 export interface GenerateFamilyPaymentLinkInput {
   familyId: string
-  childCount: number
   overrideAmount?: number
   billingStartDate?: string // ISO date string for delayed start
 }
@@ -553,34 +554,19 @@ export interface FamilyPaymentLinkData {
  * SECURITY: Uses createDugsiCheckoutSession service which always
  * gets child count from database, preventing billing manipulation.
  *
- * @param input - Family ID, child count (for display only), and optional override amount (in cents)
+ * @param input - Family ID and optional override amount (in cents)
  * @returns Payment link data with rate information
  */
 export async function generateFamilyPaymentLinkAction(
   input: GenerateFamilyPaymentLinkInput
 ): Promise<ActionResult<FamilyPaymentLinkData>> {
-  const { familyId, childCount, overrideAmount, billingStartDate } = input
+  const { familyId, overrideAmount, billingStartDate } = input
 
   try {
-    // Validate override amount if provided (early validation before service call)
-    if (overrideAmount !== undefined) {
-      const validation = validateOverrideAmount(overrideAmount, childCount)
-      if (!validation.valid) {
-        return {
-          success: false,
-          error: validation.reason || 'Invalid override amount',
-        }
-      }
-      if (validation.reason) {
-        await logWarning(logger, validation.reason, {
-          familyId,
-          childCount,
-          overrideAmount,
-        })
-      }
-    }
+    // Override validation is handled by the checkout service (Zod schema)
+    // Service also queries DB for authoritative child count
 
-    // Call the checkout service (uses DB child count for security)
+    // Call the checkout service
     const result = await createDugsiCheckoutSession({
       familyId,
       overrideAmount,
@@ -611,7 +597,6 @@ export async function generateFamilyPaymentLinkAction(
 
     await logError(logger, error, 'Failed to generate family payment link', {
       familyId,
-      childCount,
       overrideAmount,
     })
     return {

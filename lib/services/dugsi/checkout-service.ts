@@ -289,6 +289,7 @@ export async function createDugsiCheckoutSession(
   logger.info(
     {
       familyId,
+      familyName: primaryGuardian.name,
       billingStartDate: billingStartDate || 'immediate',
       billingCycleAnchor: billingCycleAnchor
         ? new Date(billingCycleAnchor * 1000).toISOString()
