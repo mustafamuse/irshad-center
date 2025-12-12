@@ -5,12 +5,26 @@
  * Used by both Mahad and Dugsi payment flows.
  */
 
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+
 /**
  * Maximum day of month allowed for billing start.
  * Limited to 15th to ensure billing always falls within a calendar month
  * and to align with typical business billing cycles.
  */
 export const MAX_BILLING_START_DAY = 15
+
+/**
+ * Maximum days in the future for billing_cycle_anchor.
+ * Stripe requires anchor to be within ~1 year.
+ */
+export const MAX_BILLING_ANCHOR_DAYS = 365
+
+/**
+ * Default timezone for billing calculations.
+ * Minneapolis-based organization uses Central Time.
+ */
+export const BILLING_TIMEZONE = 'America/Chicago'
 
 /**
  * Format a day number as an ordinal string (1st, 2nd, 3rd, 4th, etc.)
@@ -26,18 +40,50 @@ export function formatOrdinal(day: number): string {
  * Calculate the next occurrence of a given day of month.
  * If the day has already passed this month, returns next month's date.
  *
- * @param day - Day of month (1-31)
- * @returns Date object for the next occurrence
+ * Uses explicit timezone (America/Chicago) to avoid midnight boundary issues.
+ * Returns a UTC Date that represents midnight on the target day in Central Time.
+ *
+ * @param day - Day of month (1-15)
+ * @param timezone - Optional timezone override (defaults to America/Chicago)
+ * @returns Date object for the next occurrence (in UTC)
+ * @throws Error if day is invalid
  */
-export function getNextBillingDate(day: number): Date {
-  const now = new Date()
-  let target = new Date(now.getFullYear(), now.getMonth(), day)
-
-  if (target <= now) {
-    target = new Date(now.getFullYear(), now.getMonth() + 1, day)
+export function getNextBillingDate(
+  day: number,
+  timezone: string = BILLING_TIMEZONE
+): Date {
+  if (!Number.isInteger(day) || day < 1 || day > MAX_BILLING_START_DAY) {
+    throw new Error(
+      `Invalid billing day: ${day}. Must be integer 1-${MAX_BILLING_START_DAY}`
+    )
   }
 
-  return target
+  const now = new Date()
+  const nowInTz = toZonedTime(now, timezone)
+
+  let target = new Date(
+    nowInTz.getFullYear(),
+    nowInTz.getMonth(),
+    day,
+    0,
+    0,
+    0,
+    0
+  )
+
+  if (target <= nowInTz) {
+    target = new Date(
+      nowInTz.getFullYear(),
+      nowInTz.getMonth() + 1,
+      day,
+      0,
+      0,
+      0,
+      0
+    )
+  }
+
+  return fromZonedTime(target, timezone)
 }
 
 /**
@@ -54,22 +100,40 @@ export function formatBillingDate(date: Date): string {
 /**
  * Validate that a billing cycle anchor timestamp is valid for Stripe.
  * - Must be in the future
- * - Must be within 1 year
+ * - Must be within MAX_BILLING_ANCHOR_DAYS
  *
  * @param timestamp - Unix timestamp in seconds
  * @throws Error if validation fails
  */
 export function validateBillingCycleAnchor(timestamp: number): void {
   const nowSeconds = Math.floor(Date.now() / 1000)
-  const oneYearFromNow = nowSeconds + 365 * 24 * 60 * 60
+  const maxFutureSeconds = nowSeconds + MAX_BILLING_ANCHOR_DAYS * 24 * 60 * 60
 
   if (timestamp <= nowSeconds) {
     throw new Error('Billing start date must be in the future')
   }
 
-  if (timestamp > oneYearFromNow) {
+  if (timestamp > maxFutureSeconds) {
     throw new Error('Billing start date must be within 1 year')
   }
+}
+
+/**
+ * Parse and validate a billing day string from form input.
+ * Returns the parsed day number or null if invalid.
+ *
+ * @param value - String value from form input
+ * @returns Parsed day number (1-15) or null if invalid/empty
+ */
+export function parseBillingDay(value: string | undefined): number | null {
+  if (!value) return null
+
+  const parsed = parseInt(value, 10)
+  if (isNaN(parsed) || parsed < 1 || parsed > MAX_BILLING_START_DAY) {
+    return null
+  }
+
+  return parsed
 }
 
 /**

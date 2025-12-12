@@ -37,6 +37,7 @@ import {
   formatBillingDate,
   getBillingDayOptions,
   getNextBillingDate,
+  parseBillingDay,
 } from '@/lib/utils/billing-date'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 import {
@@ -111,8 +112,13 @@ export function PaymentLinkDialog({
       }
     }
 
-    const billingDate = billingStartDay
-      ? getNextBillingDate(parseInt(billingStartDay))
+    const billingDayNum = parseBillingDay(billingStartDay)
+    if (billingStartDay && billingDayNum === null) {
+      toast.error('Invalid billing day selected')
+      return
+    }
+    const billingDate = billingDayNum
+      ? getNextBillingDate(billingDayNum)
       : undefined
     const billingDateISO = billingDate?.toISOString()
 
@@ -286,12 +292,12 @@ export function PaymentLinkDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {billingStartDay && (
+                {parseBillingDay(billingStartDay) && (
                   <p className="text-sm text-muted-foreground">
                     Billing will start:{' '}
                     <span className="font-medium text-foreground">
                       {formatBillingDate(
-                        getNextBillingDate(parseInt(billingStartDay))
+                        getNextBillingDate(parseBillingDay(billingStartDay)!)
                       )}
                     </span>
                   </p>

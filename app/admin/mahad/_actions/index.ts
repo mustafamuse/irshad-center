@@ -1149,7 +1149,17 @@ export async function generatePaymentLinkWithOverrideAction(
     if (billingStartDate) {
       const startDate = new Date(billingStartDate)
       billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
-      validateBillingCycleAnchor(billingCycleAnchor)
+      try {
+        validateBillingCycleAnchor(billingCycleAnchor)
+      } catch (error) {
+        return {
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Invalid billing start date',
+        }
+      }
     }
 
     logger.info(

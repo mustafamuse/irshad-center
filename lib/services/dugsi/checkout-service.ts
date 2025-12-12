@@ -238,9 +238,18 @@ export async function createDugsiCheckoutSession(
   // Calculate and validate billing_cycle_anchor if start date provided
   let billingCycleAnchor: number | undefined
   if (billingStartDate) {
-    const startDate = new Date(billingStartDate)
-    billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
-    validateBillingCycleAnchor(billingCycleAnchor)
+    try {
+      const startDate = new Date(billingStartDate)
+      billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
+      validateBillingCycleAnchor(billingCycleAnchor)
+    } catch (error) {
+      throw new ActionError(
+        error instanceof Error ? error.message : 'Invalid billing start date',
+        ERROR_CODES.VALIDATION_ERROR,
+        'billingStartDate',
+        400
+      )
+    }
   }
 
   logger.info(
