@@ -5,7 +5,25 @@
  * data matches expected TypeScript interfaces.
  */
 
+import { Prisma } from '@prisma/client'
+
 import { STRIPE_WEBHOOK_EVENTS } from '@/lib/constants/stripe'
+
+export const PRISMA_ERRORS = {
+  UNIQUE_CONSTRAINT: 'P2002',
+  RECORD_NOT_FOUND: 'P2025',
+  FOREIGN_KEY_CONSTRAINT: 'P2003',
+} as const
+
+export function isPrismaError(
+  error: unknown
+): error is Prisma.PrismaClientKnownRequestError {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof (error as { code: unknown }).code === 'string'
+  )
+}
 
 /**
  * Type guard for PaymentStatusData from getDugsiPaymentStatus action

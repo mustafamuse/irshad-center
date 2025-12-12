@@ -114,6 +114,21 @@ export const SHIFT_COLORS = {
 // Shift Filter Constants
 export const SHIFT_FILTER_ALL = 'all' as const
 
+// Geofencing Constants
+export const DUGSI_CENTER_COORDINATES = {
+  lat: 44.9778,
+  lng: -93.265,
+} as const
+
+export const GEOFENCE_RADIUS_METERS = 150
+
+export const SHIFT_START_TIMES = {
+  MORNING: { hour: 8, minute: 30 },
+  AFTERNOON: { hour: 13, minute: 30 },
+} as const
+
+export const LATE_GRACE_PERIOD_MINUTES = 10
+
 // Shift Select Options (for dropdowns)
 export const SHIFT_OPTIONS = [
   { value: 'MORNING', label: 'Morning' },

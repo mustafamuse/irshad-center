@@ -64,9 +64,11 @@ model Teacher {
   updatedAt DateTime @updatedAt
 
   // Relations
-  person      Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
-  programs    TeacherProgram[]    // Programs this teacher is authorized to teach
-  assignments TeacherAssignment[] // Student assignments across all programs
+  person             Person                   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  programs           TeacherProgram[] // Programs this teacher is authorized to teach
+  assignments        TeacherAssignment[] // Student assignments across all programs
+  attendanceSessions DugsiAttendanceSession[]
+  checkIns           DugsiTeacherCheckIn[]
 
   @@index([personId])
 }
@@ -78,6 +80,7 @@ model TeacherProgram {
   id        String   @id @default(uuid())
   teacherId String
   program   Program // MAHAD_PROGRAM, DUGSI_PROGRAM, etc.
+  shifts    Shift[] // Dugsi: can be [MORNING], [AFTERNOON], or both
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -123,6 +126,13 @@ enum Shift {
   AFTERNOON
 }
 
+enum DugsiAttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
 // AttendanceStatus and CheckInMethod enums removed - incomplete feature
 
 // DayOfWeek enum removed - was only used by ClassSchedule (removed)
@@ -132,19 +142,19 @@ enum Shift {
 
 enum GraduationStatus {
   NON_GRADUATE // Still in school (higher base rate: $120/month or $110 bi-monthly)
-  GRADUATE     // Finished education (lower base rate: $95/month or $90 bi-monthly)
+  GRADUATE // Finished education (lower base rate: $95/month or $90 bi-monthly)
 }
 
 enum PaymentFrequency {
-  MONTHLY    // Charged monthly ($120 or $95)
+  MONTHLY // Charged monthly ($120 or $95)
   BI_MONTHLY // Charged every 2 months ($220 or $180)
 }
 
 enum StudentBillingType {
-  FULL_TIME              // Standard rate
-  FULL_TIME_SCHOLARSHIP  // Full schedule, $30 off (mutually exclusive with PART_TIME)
-  PART_TIME              // Half rate - one day/week (mutually exclusive with SCHOLARSHIP)
-  EXEMPT                 // $0 - TA, financial hardship, etc. (no subscription created)
+  FULL_TIME // Standard rate
+  FULL_TIME_SCHOLARSHIP // Full schedule, $30 off (mutually exclusive with PART_TIME)
+  PART_TIME // Half rate - one day/week (mutually exclusive with SCHOLARSHIP)
+  EXEMPT // $0 - TA, financial hardship, etc. (no subscription created)
 }
 
 enum GradeLevel {
@@ -280,17 +290,17 @@ model ContactPoint {
 }
 
 model GuardianRelationship {
-  id          String       @id @default(uuid())
-  guardianId  String // Person ID of the guardian (parent, sponsor, etc.)
-  dependentId String // Person ID of the dependent (child/student)
-  role        GuardianRole @default(PARENT) // PARENT, GUARDIAN, SPONSOR, or DONOR
-  startDate   DateTime     @default(now()) // When relationship started
-  endDate     DateTime? // When relationship ended (null if active)
-  isActive    Boolean      @default(true) // Currently active relationship
-  notes       String? // Optional notes about the relationship
-  isPrimaryPayer Boolean @default(false) // True if this guardian is responsible for tuition payments
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id             String       @id @default(uuid())
+  guardianId     String // Person ID of the guardian (parent, sponsor, etc.)
+  dependentId    String // Person ID of the dependent (child/student)
+  role           GuardianRole @default(PARENT) // PARENT, GUARDIAN, SPONSOR, or DONOR
+  startDate      DateTime     @default(now()) // When relationship started
+  endDate        DateTime? // When relationship ended (null if active)
+  isActive       Boolean      @default(true) // Currently active relationship
+  notes          String? // Optional notes about the relationship
+  isPrimaryPayer Boolean      @default(false) // True if this guardian is responsible for tuition payments
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   // Relations
   // IMPORTANT: guardianId !== dependentId (enforced by database CHECK constraint)
@@ -363,11 +373,13 @@ model ProgramProfile {
   updatedAt DateTime @updatedAt
 
   // Relations
-  person             Person              @relation(fields: [personId], references: [id], onDelete: Cascade)
-  enrollments        Enrollment[]
-  assignments        BillingAssignment[]
-  payments           StudentPayment[]
-  teacherAssignments TeacherAssignment[] // Dugsi teacher assignments with shifts
+  person               Person                  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  enrollments          Enrollment[]
+  assignments          BillingAssignment[]
+  payments             StudentPayment[]
+  teacherAssignments   TeacherAssignment[]
+  dugsiClassEnrollment DugsiClassEnrollment?
+  attendanceRecords    DugsiAttendanceRecord[]
 
   @@unique([personId, program])
   @@index([personId])
@@ -534,4 +546,108 @@ model WebhookEvent {
   @@unique([eventId, source])
   @@index([processedAt])
   @@index([eventType])
+}
+
+model DugsiClass {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  shift       Shift
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  students DugsiClassEnrollment[]
+  sessions DugsiAttendanceSession[]
+
+  @@index([shift])
+  @@index([isActive])
+}
+
+model DugsiClassEnrollment {
+  id               String    @id @default(uuid())
+  classId          String
+  programProfileId String    @unique
+  startDate        DateTime  @default(now())
+  endDate          DateTime?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  class          DugsiClass     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  programProfile ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+
+  @@index([classId])
+  @@index([isActive])
+  @@index([classId, isActive])
+}
+
+model DugsiAttendanceSession {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  classId   String
+  teacherId String
+  notes     String?
+  isClosed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class   DugsiClass              @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher Teacher                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  records DugsiAttendanceRecord[]
+
+  @@unique([date, classId])
+  @@index([date])
+  @@index([classId])
+  @@index([teacherId, date])
+}
+
+model DugsiAttendanceRecord {
+  id               String                @id @default(uuid())
+  sessionId        String
+  programProfileId String
+  status           DugsiAttendanceStatus
+  lessonCompleted  Boolean               @default(false)
+  surahName        String?
+  ayatFrom         Int?
+  ayatTo           Int?
+  lessonNotes      String?
+  notes            String?
+  markedAt         DateTime              @default(now())
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  session DugsiAttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  profile ProgramProfile         @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, programProfileId])
+  @@index([sessionId])
+  @@index([programProfileId])
+  @@index([status])
+  @@index([programProfileId, status])
+}
+
+model DugsiTeacherCheckIn {
+  id           String    @id @default(uuid())
+  teacherId    String
+  date         DateTime  @db.Date
+  shift        Shift
+  clockInTime  DateTime
+  clockInLat   Float?
+  clockInLng   Float?
+  clockInValid Boolean
+  clockOutTime DateTime?
+  clockOutLat  Float?
+  clockOutLng  Float?
+  isLate       Boolean   @default(false)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, date, shift])
+  @@index([teacherId])
+  @@index([date])
+  @@index([shift])
 }
