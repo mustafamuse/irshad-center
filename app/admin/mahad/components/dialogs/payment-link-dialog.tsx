@@ -4,9 +4,18 @@ import { useEffect, useState, useTransition } from 'react'
 
 import Link from 'next/link'
 
-import { Check, Copy, ExternalLink, Link2, Loader2 } from 'lucide-react'
+import { Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import {
+  BillingStartDateSelect,
+  copyPaymentLink,
+  GenerateButton,
+  OverrideAmountInput,
+  PaymentLinkActions,
+  PaymentLinkDisplay,
+  validateOverrideInput,
+} from '@/components/admin/payment-link-shared'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -17,20 +26,28 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  getWhatsAppPaymentMessage,
+  MAX_EXPECTED_MAHAD_RATE,
+} from '@/lib/constants/mahad'
+import {
+  formatBillingDate,
+  getNextBillingDate,
+  parseBillingDay,
+} from '@/lib/utils/billing-date'
 
 import {
-  generatePaymentLinkAction,
-  type PaymentLinkResult,
+  generatePaymentLinkWithOverrideAction,
+  type PaymentLinkWithOverrideResult,
 } from '../../_actions'
 
 interface PaymentLinkDialogProps {
   profileId: string
   studentName: string
+  studentPhone?: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  generateLink?: (profileId: string) => Promise<PaymentLinkResult>
   errorActionHref?: string
 }
 
@@ -44,66 +61,82 @@ function formatCurrency(cents: number): string {
 export function PaymentLinkDialog({
   profileId,
   studentName,
+  studentPhone,
   open,
   onOpenChange,
-  generateLink,
   errorActionHref,
 }: PaymentLinkDialogProps) {
   const [isPending, startTransition] = useTransition()
-  const [result, setResult] = useState<{
-    url?: string
-    amount?: number
-    billingPeriod?: string
-    error?: string
-  } | null>(null)
+  const [result, setResult] = useState<PaymentLinkWithOverrideResult | null>(
+    null
+  )
   const [copied, setCopied] = useState(false)
-
-  const generateLinkFn = generateLink ?? generatePaymentLinkAction
+  const [useOverride, setUseOverride] = useState(false)
+  const [overrideAmount, setOverrideAmount] = useState('')
+  const [billingStartDay, setBillingStartDay] = useState('')
+  const [selectedBillingDate, setSelectedBillingDate] = useState<string | null>(
+    null
+  )
 
   useEffect(() => {
     if (!open) {
       setResult(null)
       setCopied(false)
+      setUseOverride(false)
+      setOverrideAmount('')
+      setBillingStartDay('')
+      setSelectedBillingDate(null)
     }
   }, [open])
 
   const handleGenerateLink = () => {
+    let overrideAmountCents: number | undefined
+    if (useOverride && overrideAmount) {
+      const validation = validateOverrideInput(
+        overrideAmount,
+        MAX_EXPECTED_MAHAD_RATE
+      )
+      if (validation.error) {
+        toast.error(validation.error)
+        return
+      }
+      overrideAmountCents = validation.cents
+      if (validation.showWarning) {
+        toast.warning('Amount exceeds typical max rate. Please verify.')
+      }
+    }
+
+    const billingDayNum = parseBillingDay(billingStartDay)
+    if (billingStartDay && billingDayNum === null) {
+      toast.error('Invalid billing day selected')
+      return
+    }
+    const billingDate = billingDayNum
+      ? getNextBillingDate(billingDayNum)
+      : undefined
+    const billingDateISO = billingDate?.toISOString()
+
     startTransition(async () => {
-      const response = await generateLinkFn(profileId)
-      if (response.success) {
-        setResult({
-          url: response.url,
-          amount: response.amount,
-          billingPeriod: response.billingPeriod,
-        })
+      const response = await generatePaymentLinkWithOverrideAction({
+        profileId,
+        overrideAmount: overrideAmountCents,
+        billingStartDate: billingDateISO,
+      })
+
+      if (response.success && response.url) {
+        setResult(response)
+        setSelectedBillingDate(billingDateISO || null)
         toast.success('Payment link generated successfully')
       } else {
         toast.error(response.error || 'Failed to generate payment link')
-        setResult({
-          error: response.error || 'Unable to generate payment link',
-        })
       }
     })
   }
 
-  const handleCopy = async () => {
-    if (!result?.url) return
-
-    try {
-      await navigator.clipboard.writeText(result.url)
-      setCopied(true)
-      toast.success('Payment link copied to clipboard')
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      toast.error('Failed to copy link')
-    }
-  }
-
-  const handleOpenLink = () => {
-    if (result?.url) {
-      window.open(result.url, '_blank')
-    }
-  }
+  const displayOverrideAmount =
+    useOverride && overrideAmount
+      ? Math.round(parseFloat(overrideAmount || '0') * 100)
+      : undefined
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -111,10 +144,10 @@ export function PaymentLinkDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5" />
-            Payment Link
+            Generate Payment Link
           </DialogTitle>
           <DialogDescription>
-            Generate a payment link for <strong>{studentName}</strong> based on
+            Create a payment link for <strong>{studentName}</strong> based on
             their billing configuration.
           </DialogDescription>
         </DialogHeader>
@@ -134,74 +167,66 @@ export function PaymentLinkDialog({
             </Alert>
           )}
 
-          {!result && (
-            <div className="py-4 text-center">
-              <p className="mb-4 text-sm text-muted-foreground">
-                Click below to generate a payment link using the student&apos;s
-                current billing configuration.
-              </p>
-              <Button onClick={handleGenerateLink} disabled={isPending}>
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Link2 className="mr-2 h-4 w-4" />
-                    Generate Payment Link
-                  </>
-                )}
-              </Button>
-            </div>
+          {!result?.url && !result?.error && (
+            <>
+              <OverrideAmountInput
+                useOverride={useOverride}
+                onUseOverrideChange={setUseOverride}
+                overrideAmount={overrideAmount}
+                onOverrideAmountChange={setOverrideAmount}
+                displayAmount={displayOverrideAmount}
+                formatAmount={formatCurrency}
+              />
+
+              <BillingStartDateSelect
+                billingStartDay={billingStartDay}
+                onBillingStartDayChange={setBillingStartDay}
+              />
+
+              <GenerateButton
+                isPending={isPending}
+                onClick={handleGenerateLink}
+              />
+            </>
           )}
 
           {result?.url && (
             <>
               <div className="rounded-lg border bg-muted/50 p-4">
                 <Label className="text-xs text-muted-foreground">
-                  Calculated Amount
+                  {result.isOverride ? 'Custom Rate' : 'Calculated Rate'}
                 </Label>
                 <p className="text-2xl font-bold text-primary">
-                  {formatCurrency(result.amount || 0)}
+                  {formatCurrency(result.finalAmount || 0)}
                   <span className="text-sm font-normal text-muted-foreground">
                     {result.billingPeriod}
                   </span>
                 </p>
+                {result.isOverride && result.calculatedAmount && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Original: {formatCurrency(result.calculatedAmount)}
+                  </p>
+                )}
+                {selectedBillingDate && (
+                  <p className="mt-2 text-sm font-medium text-muted-foreground">
+                    Billing starts:{' '}
+                    <span className="text-foreground">
+                      {formatBillingDate(new Date(selectedBillingDate))}
+                    </span>
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="payment-link">Payment Link</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="payment-link"
-                    value={result.url}
-                    readOnly
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    onClick={handleCopy}
-                    className="shrink-0"
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                    <span className="sr-only">
-                      {copied ? 'Copied' : 'Copy link'}
-                    </span>
-                  </Button>
-                </div>
-              </div>
+              <PaymentLinkDisplay
+                url={result.url}
+                copied={copied}
+                onCopy={() => copyPaymentLink(result.url!, setCopied)}
+              />
 
               <Alert>
                 <AlertDescription className="text-sm">
-                  Copy this link and send it to the student via WhatsApp, SMS,
-                  or email. The link expires in 24 hours.
+                  Send this link to the student via WhatsApp or copy to
+                  clipboard. The link expires in 24 hours.
                 </AlertDescription>
               </Alert>
             </>
@@ -209,18 +234,13 @@ export function PaymentLinkDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
-          {result?.url && (
-            <Button variant="outline" onClick={handleOpenLink}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Open Link
-            </Button>
-          )}
-          <Button
-            variant={result?.url ? 'default' : 'outline'}
-            onClick={() => onOpenChange(false)}
-          >
-            {result?.url ? 'Done' : 'Cancel'}
-          </Button>
+          <PaymentLinkActions
+            url={result?.url || ''}
+            phone={result?.studentPhone || studentPhone}
+            getWhatsAppMessage={getWhatsAppPaymentMessage}
+            hasResult={!!result?.url}
+            onClose={() => onOpenChange(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>

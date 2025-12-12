@@ -13,6 +13,7 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
 import {
   calculateDugsiRate,
   formatRate,
@@ -22,6 +23,10 @@ import {
   MAX_EXPECTED_FAMILY_RATE,
 } from '@/lib/utils/dugsi-tuition'
 import { getAppUrl } from '@/lib/utils/env'
+import {
+  BillingStartDateSchema,
+  OverrideAmountSchema,
+} from '@/lib/validations/billing'
 
 const logger = createServiceLogger('dugsi-checkout-service')
 
@@ -33,6 +38,8 @@ export interface CreateDugsiCheckoutInput {
   familyId: string
   /** Optional admin override amount in cents */
   overrideAmount?: number
+  /** ISO date string for delayed billing start */
+  billingStartDate?: string
   /** Custom success URL (defaults to /dugsi?payment=success) */
   successUrl?: string
   /** Custom cancel URL (defaults to /dugsi?payment=canceled) */
@@ -69,6 +76,10 @@ export interface DugsiCheckoutResult {
  * SECURITY: Always uses database child count for pricing calculation,
  * never client-provided values. This prevents billing manipulation.
  *
+ * NOTE: This service creates a Stripe checkout session - it does not modify
+ * database state. The actual subscription/billing updates happen via webhook
+ * after payment completion. Callers should not call revalidatePath().
+ *
  * @param input - Checkout configuration
  * @returns Checkout session data
  * @throws ActionError on validation failure or Stripe errors
@@ -76,7 +87,33 @@ export interface DugsiCheckoutResult {
 export async function createDugsiCheckoutSession(
   input: CreateDugsiCheckoutInput
 ): Promise<DugsiCheckoutResult> {
-  const { familyId, overrideAmount } = input
+  const { familyId, overrideAmount, billingStartDate } = input
+
+  // Validate billingStartDate if provided (Zod validation per CLAUDE.md Rule 8)
+  if (billingStartDate) {
+    const dateResult = BillingStartDateSchema.safeParse(billingStartDate)
+    if (!dateResult.success) {
+      throw new ActionError(
+        dateResult.error.errors[0]?.message || 'Invalid billing start date',
+        ERROR_CODES.VALIDATION_ERROR,
+        'billingStartDate',
+        400
+      )
+    }
+  }
+
+  // Validate override amount if provided
+  if (overrideAmount !== undefined) {
+    const amountResult = OverrideAmountSchema.safeParse(overrideAmount)
+    if (!amountResult.success) {
+      throw new ActionError(
+        amountResult.error.errors[0]?.message || 'Invalid override amount',
+        ERROR_CODES.VALIDATION_ERROR,
+        'overrideAmount',
+        400
+      )
+    }
+  }
 
   // Get app URL for default success/cancel URLs
   let appUrl: string
@@ -232,6 +269,38 @@ export async function createDugsiCheckoutSession(
   // Build child names for metadata
   const childNames = familyProfiles.map((p) => p.person.name).join(', ')
 
+  // Calculate and validate billing_cycle_anchor if start date provided
+  let billingCycleAnchor: number | undefined
+  if (billingStartDate) {
+    try {
+      const startDate = new Date(billingStartDate)
+      billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
+      validateBillingCycleAnchor(billingCycleAnchor)
+    } catch (error) {
+      throw new ActionError(
+        error instanceof Error ? error.message : 'Invalid billing start date',
+        ERROR_CODES.VALIDATION_ERROR,
+        'billingStartDate',
+        400
+      )
+    }
+  }
+
+  logger.info(
+    {
+      familyId,
+      familyName: primaryGuardian.name,
+      billingStartDate: billingStartDate || 'immediate',
+      billingCycleAnchor: billingCycleAnchor
+        ? new Date(billingCycleAnchor * 1000).toISOString()
+        : 'none',
+      finalRate: rateInCents / 100,
+      childCount: actualChildCount,
+      isOverride,
+    },
+    'Creating checkout session with billing config'
+  )
+
   // Create the checkout session
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
@@ -250,6 +319,10 @@ export async function createDugsiCheckoutSession(
       },
     ],
     subscription_data: {
+      ...(billingCycleAnchor && {
+        billing_cycle_anchor: billingCycleAnchor,
+        proration_behavior: 'none' as const,
+      }),
       metadata: {
         // Human-readable (for Stripe dashboard)
         Family: primaryGuardian.name,
@@ -264,6 +337,7 @@ export async function createDugsiCheckoutSession(
         profileIds: familyProfiles.map((p) => p.id).join(','),
         calculatedRate: calculatedRate.toString(),
         overrideUsed: isOverride ? 'true' : 'false',
+        billingStartDate: billingStartDate || 'immediate',
         source: 'dugsi-admin-payment-link',
       },
     },

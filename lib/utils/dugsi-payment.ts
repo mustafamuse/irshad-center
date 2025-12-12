@@ -61,8 +61,3 @@ export function parseDugsiReferenceId(referenceId: string): {
     childCount: parseInt(match[2], 10),
   }
 }
-
-/**
- * Export the constructDugsiPaymentUrl from stripe-dugsi for convenience
- */
-export { constructDugsiPaymentUrl } from '@/lib/stripe-dugsi'

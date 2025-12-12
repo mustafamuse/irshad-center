@@ -34,6 +34,7 @@ import { Family } from '../../_types'
 import { formatParentName } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
+import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 import { ChildInfoCard } from '../ui/child-info-card'
 import { ParentInfo } from '../ui/parent-info'
@@ -58,6 +59,9 @@ export function FamilyGridView({
   const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
+    null
+  )
+  const [paymentLinkFamily, setPaymentLinkFamily] = useState<Family | null>(
     null
   )
 
@@ -239,15 +243,10 @@ export function FamilyGridView({
                         )}
                         {!family.hasPayment && (
                           <DropdownMenuItem
-                            onClick={() =>
-                              familyActions.handleSendPaymentLink(family)
-                            }
-                            disabled={familyActions.isPending}
+                            onClick={() => setPaymentLinkFamily(family)}
                           >
                             <Send className="mr-2 h-4 w-4" />
-                            {familyActions.isPending
-                              ? 'Generating...'
-                              : 'Send Payment Link'}
+                            Send Payment Link
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuItem
@@ -351,6 +350,17 @@ export function FamilyGridView({
           open={!!deleteDialogFamily}
           onOpenChange={(open) => {
             if (!open) setDeleteDialogFamily(null)
+          }}
+        />
+      )}
+
+      {/* Payment Link Dialog */}
+      {paymentLinkFamily && (
+        <PaymentLinkDialog
+          family={paymentLinkFamily}
+          open={!!paymentLinkFamily}
+          onOpenChange={(open) => {
+            if (!open) setPaymentLinkFamily(null)
           }}
         />
       )}

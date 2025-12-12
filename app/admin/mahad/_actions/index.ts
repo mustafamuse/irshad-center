@@ -36,6 +36,7 @@ import {
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
+import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
 import {
   calculateMahadRate,
   getStripeInterval,
@@ -47,6 +48,10 @@ import {
   BatchTransferSchema,
   UpdateStudentSchema,
 } from '@/lib/validations/batch'
+import {
+  BillingStartDateSchema,
+  OverrideAmountSchema,
+} from '@/lib/validations/billing'
 import { MAX_EXPECTED_RATE_CENTS } from '@/lib/validations/checkout'
 
 import type { UpdateStudentPayload } from '../_types/student-form'
@@ -970,6 +975,315 @@ export async function generatePaymentLinkWithDefaultsAction(
     const message =
       error instanceof Error ? error.message : 'Failed to generate payment link'
 
+    return { success: false, error: message }
+  }
+}
+
+// ============================================================================
+// PAYMENT LINK WITH OVERRIDE
+// ============================================================================
+
+/**
+ * Input for generating payment link with optional override
+ */
+export interface GeneratePaymentLinkInput {
+  profileId: string
+  overrideAmount?: number // in cents
+  billingStartDate?: string // ISO date string for delayed start
+}
+
+/**
+ * Extended result type for payment link with override info
+ */
+export interface PaymentLinkWithOverrideResult {
+  success: boolean
+  url?: string
+  calculatedAmount?: number
+  finalAmount?: number
+  isOverride?: boolean
+  billingPeriod?: string
+  billingConfig?: {
+    graduationStatus: GraduationStatus | null
+    paymentFrequency: PaymentFrequency | null
+    billingType: StudentBillingType | null
+  }
+  studentName?: string
+  studentPhone?: string | null
+  error?: string
+}
+
+/**
+ * Generate a Stripe checkout payment link with optional override amount.
+ *
+ * This action allows admins to:
+ * - Generate payment links with calculated rate based on billing config
+ * - Override the rate with a custom amount
+ * - Get billing config info for display in the UI
+ *
+ * NOTE: No revalidatePath() is called because this action only creates a
+ * Stripe checkout session - it does not modify database state. The actual
+ * subscription/billing updates happen via webhook after payment completion.
+ *
+ * @param input - Profile ID and optional override amount (in cents)
+ * @returns Payment link URL, amounts, and billing info
+ */
+export async function generatePaymentLinkWithOverrideAction(
+  input: GeneratePaymentLinkInput
+): Promise<PaymentLinkWithOverrideResult> {
+  const { profileId, overrideAmount, billingStartDate } = input
+
+  // Validate billingStartDate if provided (Zod validation per CLAUDE.md Rule 8)
+  if (billingStartDate) {
+    const dateResult = BillingStartDateSchema.safeParse(billingStartDate)
+    if (!dateResult.success) {
+      return {
+        success: false,
+        error:
+          dateResult.error.errors[0]?.message || 'Invalid billing start date',
+      }
+    }
+  }
+
+  // Validate override amount if provided
+  if (overrideAmount !== undefined) {
+    const amountResult = OverrideAmountSchema.safeParse(overrideAmount)
+    if (!amountResult.success) {
+      return {
+        success: false,
+        error:
+          amountResult.error.errors[0]?.message || 'Invalid override amount',
+      }
+    }
+  }
+
+  try {
+    // 1. Fetch profile with billing config and contact info
+    const profile = await prisma.programProfile.findUnique({
+      where: { id: profileId },
+      include: {
+        person: {
+          include: {
+            contactPoints: {
+              where: { isActive: true },
+              orderBy: { isPrimary: 'desc' },
+            },
+          },
+        },
+      },
+    })
+
+    if (!profile) {
+      return { success: false, error: 'Student profile not found' }
+    }
+
+    // 2. Validate billing config is complete
+    if (
+      !profile.graduationStatus ||
+      !profile.paymentFrequency ||
+      !profile.billingType
+    ) {
+      return {
+        success: false,
+        error:
+          'Billing configuration incomplete. Please set Graduation Status, Payment Frequency, and Billing Type first.',
+        billingConfig: {
+          graduationStatus: profile.graduationStatus,
+          paymentFrequency: profile.paymentFrequency,
+          billingType: profile.billingType,
+        },
+      }
+    }
+
+    // 3. Check if EXEMPT
+    if (profile.billingType === 'EXEMPT') {
+      return {
+        success: false,
+        error: 'Exempt students do not need payment setup.',
+      }
+    }
+
+    // 4. Calculate rate
+    const calculatedAmount = calculateMahadRate(
+      profile.graduationStatus,
+      profile.paymentFrequency,
+      profile.billingType
+    )
+
+    if (calculatedAmount <= 0) {
+      return {
+        success: false,
+        error: 'Invalid rate calculation. Please verify billing configuration.',
+      }
+    }
+
+    // 5. Determine final amount (override or calculated)
+    const isOverride = overrideAmount !== undefined && overrideAmount > 0
+    const finalAmount = isOverride ? overrideAmount : calculatedAmount
+
+    // 6. Validate override amount if provided
+    if (isOverride) {
+      if (finalAmount <= 0) {
+        return {
+          success: false,
+          error: 'Override amount must be greater than 0',
+        }
+      }
+      if (finalAmount > MAX_EXPECTED_RATE_CENTS * 2) {
+        logger.warn(
+          { finalAmount, profileId },
+          'Override amount exceeds 2x max expected rate'
+        )
+      }
+    }
+
+    // 7. Validate email exists
+    const emailContact = profile.person.contactPoints.find(
+      (cp) => cp.type === 'EMAIL'
+    )
+    const phoneContact = profile.person.contactPoints.find(
+      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )
+    const email = emailContact?.value
+
+    if (!email) {
+      return {
+        success: false,
+        error:
+          'Student email address is required for payment setup. Please add an email first.',
+      }
+    }
+
+    // 8. Validate app URL configuration
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+    if (!appUrl) {
+      return {
+        success: false,
+        error: 'App URL not configured. Please set NEXT_PUBLIC_APP_URL.',
+      }
+    }
+
+    // 9. Get validated product ID
+    const { productId } = getMahadKeys()
+    if (!productId) {
+      return {
+        success: false,
+        error:
+          'Stripe product not configured. Please set STRIPE_MAHAD_PRODUCT_ID.',
+      }
+    }
+
+    // 10. Create Stripe checkout session
+    const stripe = getMahadStripeClient()
+    const intervalConfig = getStripeInterval(profile.paymentFrequency)
+
+    // Calculate and validate billing_cycle_anchor if start date provided
+    let billingCycleAnchor: number | undefined
+    if (billingStartDate) {
+      const startDate = new Date(billingStartDate)
+      billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
+      try {
+        validateBillingCycleAnchor(billingCycleAnchor)
+      } catch (error) {
+        return {
+          success: false,
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Invalid billing start date',
+        }
+      }
+    }
+
+    logger.info(
+      {
+        profileId,
+        billingStartDate: billingStartDate || 'immediate',
+        billingCycleAnchor: billingCycleAnchor
+          ? new Date(billingCycleAnchor * 1000).toISOString()
+          : 'none',
+        finalAmount: finalAmount / 100,
+        isOverride,
+      },
+      'Creating payment link with billing config'
+    )
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card', 'us_bank_account'],
+      customer_email: email,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product: productId,
+            unit_amount: finalAmount,
+            recurring: intervalConfig,
+          },
+          quantity: 1,
+        },
+      ],
+      subscription_data: {
+        ...(billingCycleAnchor && {
+          billing_cycle_anchor: billingCycleAnchor,
+          proration_behavior: 'none' as const,
+        }),
+        metadata: {
+          profileId: profile.id,
+          personId: profile.personId,
+          studentName: profile.person.name,
+          graduationStatus: profile.graduationStatus,
+          paymentFrequency: profile.paymentFrequency,
+          billingType: profile.billingType,
+          calculatedRate: calculatedAmount.toString(),
+          finalRate: finalAmount.toString(),
+          isOverride: isOverride.toString(),
+          billingStartDate: billingStartDate || 'immediate',
+          source: 'admin-generated-link',
+        },
+      },
+      metadata: {
+        profileId: profile.id,
+        personId: profile.personId,
+        studentName: profile.person.name,
+        source: 'admin-generated-link',
+      },
+      success_url: `${appUrl}/mahad/register?success=true`,
+      cancel_url: `${appUrl}/mahad/register?canceled=true`,
+      allow_promotion_codes: true,
+    })
+
+    const billingPeriod =
+      profile.paymentFrequency === 'BI_MONTHLY' ? '/2 months' : '/month'
+
+    if (!session.url) {
+      return {
+        success: false,
+        error: 'Failed to generate checkout URL. Please try again.',
+      }
+    }
+
+    return {
+      success: true,
+      url: session.url,
+      calculatedAmount,
+      finalAmount,
+      isOverride,
+      billingPeriod,
+      billingConfig: {
+        graduationStatus: profile.graduationStatus,
+        paymentFrequency: profile.paymentFrequency,
+        billingType: profile.billingType,
+      },
+      studentName: profile.person.name,
+      studentPhone: phoneContact?.value ?? null,
+    }
+  } catch (error) {
+    logger.error(
+      { err: error, profileId, overrideAmount },
+      'Error generating payment link with override'
+    )
+    const message =
+      error instanceof Error ? error.message : 'Failed to generate payment link'
     return { success: false, error: message }
   }
 }

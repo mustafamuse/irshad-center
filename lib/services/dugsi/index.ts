@@ -8,7 +8,7 @@
  * - Subscription: Stripe subscription linking and validation
  * - Child: Student-specific operations
  * - Family: Parent/guardian and child updates
- * - Payment: Bank verification and payment links
+ * - Payment: Bank verification and payment status
  * - Checkout: Stripe checkout session creation
  */
 

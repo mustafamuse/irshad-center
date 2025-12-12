@@ -2,18 +2,19 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  Link2,
-  Loader2,
-  DollarSign,
-} from 'lucide-react'
+import { Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import {
+  BillingStartDateSelect,
+  copyPaymentLink,
+  GenerateButton,
+  OverrideAmountInput,
+  PaymentLinkActions,
+  PaymentLinkDisplay,
+  validateOverrideInput,
+} from '@/components/admin/payment-link-shared'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -22,11 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { getWhatsAppPaymentMessage } from '@/lib/constants/dugsi'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  formatBillingDate,
+  getNextBillingDate,
+  parseBillingDay,
+} from '@/lib/utils/billing-date'
 import {
   calculateDugsiRate,
   formatRate,
@@ -57,6 +60,10 @@ export function PaymentLinkDialog({
   const [copied, setCopied] = useState(false)
   const [useOverride, setUseOverride] = useState(false)
   const [overrideAmount, setOverrideAmount] = useState('')
+  const [billingStartDay, setBillingStartDay] = useState('')
+  const [selectedBillingDate, setSelectedBillingDate] = useState<string | null>(
+    null
+  )
 
   const childCount = family.members.length
   const calculatedRate = calculateDugsiRate(childCount)
@@ -70,6 +77,8 @@ export function PaymentLinkDialog({
       setCopied(false)
       setUseOverride(false)
       setOverrideAmount('')
+      setBillingStartDay('')
+      setSelectedBillingDate(null)
     }
   }, [open])
 
@@ -81,29 +90,42 @@ export function PaymentLinkDialog({
 
     let overrideAmountCents: number | undefined
     if (useOverride && overrideAmount) {
-      const parsed = parseFloat(overrideAmount)
-      if (isNaN(parsed) || parsed <= 0) {
-        toast.error('Please enter a valid override amount')
+      const validation = validateOverrideInput(
+        overrideAmount,
+        MAX_EXPECTED_FAMILY_RATE
+      )
+      if (validation.error) {
+        toast.error(validation.error)
         return
       }
-      overrideAmountCents = Math.round(parsed * 100)
-
-      // Warn admin if override exceeds typical max rate
-      if (overrideAmountCents > MAX_EXPECTED_FAMILY_RATE) {
+      overrideAmountCents = validation.cents
+      if (validation.showWarning) {
         toast.warning('Amount exceeds typical max rate. Please verify.')
       }
     }
 
+    const billingDayNum = parseBillingDay(billingStartDay)
+    if (billingStartDay && billingDayNum === null) {
+      toast.error('Invalid billing day selected')
+      return
+    }
+    const billingDate = billingDayNum
+      ? getNextBillingDate(billingDayNum)
+      : undefined
+    const billingDateISO = billingDate?.toISOString()
+
     startTransition(async () => {
+      // Note: childCount is NOT passed - service queries DB for authoritative count
       const response = await generateFamilyPaymentLinkAction({
         familyId,
-        childCount,
         overrideAmount: overrideAmountCents,
+        billingStartDate: billingDateISO,
       })
 
       if (response.success && response.data) {
         setResult(response.data)
         setError(null)
+        setSelectedBillingDate(billingDateISO || null)
         toast.success('Payment link generated successfully')
       } else {
         setError(response.error || 'Failed to generate payment link')
@@ -112,51 +134,12 @@ export function PaymentLinkDialog({
     })
   }
 
-  const handleCopy = async () => {
-    if (!result?.paymentUrl) return
-
-    try {
-      await navigator.clipboard.writeText(result.paymentUrl)
-      setCopied(true)
-      toast.success('Payment link copied to clipboard')
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      toast.error('Failed to copy link')
-    }
-  }
-
-  const handleOpenWhatsApp = () => {
-    if (!result?.paymentUrl) return
-
-    const parentPhone = family.parentPhone || family.members[0]?.parentPhone
-    if (!parentPhone) {
-      toast.error('No phone number available for WhatsApp')
-      return
-    }
-
-    // Normalize phone and add US country code if needed for WhatsApp
-    let phoneNumber = normalizePhone(parentPhone) ?? ''
-    if (phoneNumber.length === 10 && !phoneNumber.startsWith('1')) {
-      phoneNumber = `1${phoneNumber}`
-    }
-
-    const message = encodeURIComponent(
-      getWhatsAppPaymentMessage(result.paymentUrl)
-    )
-
-    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
-  }
-
-  const handleOpenLink = () => {
-    if (result?.paymentUrl) {
-      window.open(result.paymentUrl, '_blank')
-    }
-  }
-
   const displayRate =
     useOverride && overrideAmount
       ? Math.round(parseFloat(overrideAmount || '0') * 100)
       : calculatedRate
+
+  const parentPhone = family.parentPhone || family.members[0]?.parentPhone
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -197,72 +180,41 @@ export function PaymentLinkDialog({
                 </p>
               </div>
 
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="use-override" className="text-sm font-medium">
-                    Use Custom Rate
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Override the calculated rate
-                  </p>
-                </div>
-                <Switch
-                  id="use-override"
-                  checked={useOverride}
-                  onCheckedChange={setUseOverride}
-                />
-              </div>
+              <OverrideAmountInput
+                useOverride={useOverride}
+                onUseOverrideChange={setUseOverride}
+                overrideAmount={overrideAmount}
+                onOverrideAmountChange={setOverrideAmount}
+                displayAmount={
+                  useOverride && overrideAmount ? displayRate : undefined
+                }
+                formatAmount={(cents) => `${formatRate(cents)}/month`}
+              />
 
-              {useOverride && (
-                <div className="space-y-2">
-                  <Label htmlFor="override-amount">Custom Amount (USD)</Label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="override-amount"
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={overrideAmount}
-                      onChange={(e) => setOverrideAmount(e.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {useOverride && overrideAmount && (
-                <Alert>
-                  <AlertDescription className="text-sm">
-                    Final rate: <strong>{formatRate(displayRate)}/month</strong>
-                    {displayRate !== calculatedRate && (
+              {useOverride &&
+                overrideAmount &&
+                displayRate !== calculatedRate && (
+                  <Alert>
+                    <AlertDescription className="text-sm">
+                      Final rate:{' '}
+                      <strong>{formatRate(displayRate)}/month</strong>
                       <span className="text-muted-foreground">
                         {' '}
                         (was {formatRate(calculatedRate)})
                       </span>
-                    )}
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              <Button
-                onClick={handleGenerateLink}
-                disabled={isPending}
-                className="w-full"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Link2 className="mr-2 h-4 w-4" />
-                    Generate Payment Link
-                  </>
+                    </AlertDescription>
+                  </Alert>
                 )}
-              </Button>
+
+              <BillingStartDateSelect
+                billingStartDay={billingStartDay}
+                onBillingStartDayChange={setBillingStartDay}
+              />
+
+              <GenerateButton
+                isPending={isPending}
+                onClick={handleGenerateLink}
+              />
             </>
           )}
 
@@ -281,35 +233,21 @@ export function PaymentLinkDialog({
                 <p className="mt-1 text-xs text-muted-foreground">
                   {result.tierDescription}
                 </p>
+                {selectedBillingDate && (
+                  <p className="mt-2 text-sm font-medium text-muted-foreground">
+                    Billing starts:{' '}
+                    <span className="text-foreground">
+                      {formatBillingDate(new Date(selectedBillingDate))}
+                    </span>
+                  </p>
+                )}
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="payment-link">Payment Link</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="payment-link"
-                    value={result.paymentUrl}
-                    readOnly
-                    className="font-mono text-xs"
-                  />
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="outline"
-                    onClick={handleCopy}
-                    className="shrink-0"
-                  >
-                    {copied ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Copy className="h-4 w-4" />
-                    )}
-                    <span className="sr-only">
-                      {copied ? 'Copied' : 'Copy link'}
-                    </span>
-                  </Button>
-                </div>
-              </div>
+              <PaymentLinkDisplay
+                url={result.paymentUrl}
+                copied={copied}
+                onCopy={() => copyPaymentLink(result.paymentUrl, setCopied)}
+              />
 
               <Alert>
                 <AlertDescription className="text-sm">
@@ -322,23 +260,13 @@ export function PaymentLinkDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
-          {result && (
-            <>
-              <Button variant="outline" onClick={handleOpenWhatsApp}>
-                Send via WhatsApp
-              </Button>
-              <Button variant="outline" onClick={handleOpenLink}>
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open Link
-              </Button>
-            </>
-          )}
-          <Button
-            variant={result ? 'default' : 'outline'}
-            onClick={() => onOpenChange(false)}
-          >
-            {result ? 'Done' : 'Cancel'}
-          </Button>
+          <PaymentLinkActions
+            url={result?.paymentUrl || ''}
+            phone={parentPhone}
+            getWhatsAppMessage={getWhatsAppPaymentMessage}
+            hasResult={!!result}
+            onClose={() => onOpenChange(false)}
+          />
         </DialogFooter>
       </DialogContent>
     </Dialog>
