@@ -29,6 +29,7 @@ function createTeacherProgram(program: Program, isActive = true) {
     program,
     shifts: [],
     isActive,
+    shifts: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   }

@@ -5,7 +5,11 @@
  * and standardize error handling patterns.
  */
 
+import { z } from 'zod'
+
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 const logger = createActionLogger('action-helpers')
 
@@ -105,5 +109,52 @@ export function assertNotEmpty<T>(
 ): asserts array is [T, ...T[]] {
   if (array.length === 0) {
     throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Handles common action errors (Zod, ActionError, Prisma) with optional custom handlers.
+ *
+ * @param error - The caught error
+ * @param action - Name of the action for logging
+ * @param actionLogger - Logger instance for the action
+ * @param context - Optional context with custom Prisma error handlers
+ * @returns ActionResult with appropriate error information
+ */
+export function handleActionError<T = void>(
+  error: unknown,
+  action: string,
+  actionLogger: ReturnType<typeof createActionLogger>,
+  context?: { handlers?: Record<string, string> }
+): ActionResult<T> {
+  if (error instanceof z.ZodError) {
+    return {
+      success: false,
+      errors: error.flatten().fieldErrors,
+    }
+  }
+
+  if (error instanceof ActionError) {
+    return {
+      success: false,
+      error: error.message,
+    }
+  }
+
+  actionLogger.error(
+    { err: error, action, context },
+    `Action failed: ${action}`
+  )
+
+  if (isPrismaError(error) && context?.handlers?.[error.code]) {
+    return {
+      success: false,
+      error: context.handlers[error.code],
+    }
+  }
+
+  return {
+    success: false,
+    error: error instanceof Error ? error.message : `Failed to ${action}`,
   }
 }
