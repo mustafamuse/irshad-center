@@ -10,7 +10,6 @@ import Stripe from 'stripe'
 
 import { getDugsiKeys } from '@/lib/keys/stripe'
 import { createServiceLogger } from '@/lib/logger'
-import { isValidEmail } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('stripe-dugsi')
 
@@ -32,69 +31,6 @@ export function getDugsiStripeClient(): Stripe {
   }
 
   return dugsiStripeClient
-}
-
-/**
- * Construct a payment URL for Dugsi registration.
- * This creates a URL to the Stripe payment link with metadata
- * for tracking the family and number of children.
- *
- * @param params - The parameters for constructing the payment URL
- * @returns The complete payment URL with query parameters
- */
-export function constructDugsiPaymentUrl(params: {
-  parentEmail: string
-  familyId: string
-  childCount: number
-}): string {
-  // Validate inputs
-  if (!params.parentEmail || typeof params.parentEmail !== 'string') {
-    throw new Error('Parent email is required and must be a string')
-  }
-
-  // Use improved email validation
-  if (!isValidEmail(params.parentEmail)) {
-    throw new Error('Invalid parent email format')
-  }
-
-  if (!params.familyId || typeof params.familyId !== 'string') {
-    throw new Error('Family ID is required and must be a string')
-  }
-
-  if (!params.childCount || typeof params.childCount !== 'number') {
-    throw new Error('Child count is required and must be a number')
-  }
-
-  if (params.childCount < 1 || params.childCount > 20) {
-    throw new Error('Child count must be between 1 and 20')
-  }
-
-  if (!Number.isInteger(params.childCount)) {
-    throw new Error('Child count must be a whole number')
-  }
-
-  const { paymentLink } = getDugsiKeys()
-
-  if (!paymentLink) {
-    throw new Error(
-      'Dugsi payment link not configured. Please set NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK in your environment variables.'
-    )
-  }
-
-  const baseUrl = paymentLink
-
-  const url = new URL(baseUrl)
-
-  // Add metadata for tracking
-  url.searchParams.set('prefilled_email', params.parentEmail)
-
-  // Create a reference ID that includes family ID and child count
-  const referenceId = `dugsi_${params.familyId}_${params.childCount}kid${
-    params.childCount > 1 ? 's' : ''
-  }`
-  url.searchParams.set('client_reference_id', referenceId)
-
-  return url.toString()
 }
 
 /**
