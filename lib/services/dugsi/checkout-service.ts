@@ -13,6 +13,7 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
 import {
   calculateDugsiRate,
   formatRate,
@@ -234,25 +235,27 @@ export async function createDugsiCheckoutSession(
   // Build child names for metadata
   const childNames = familyProfiles.map((p) => p.person.name).join(', ')
 
-  // Calculate billing_cycle_anchor if start date provided
+  // Calculate and validate billing_cycle_anchor if start date provided
   let billingCycleAnchor: number | undefined
   if (billingStartDate) {
     const startDate = new Date(billingStartDate)
     billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
+    validateBillingCycleAnchor(billingCycleAnchor)
   }
 
-  // DEBUG: Log billing configuration
-  console.log('[Dugsi Payment Link] Billing config:', {
-    familyId,
-    billingStartDate: billingStartDate || 'immediate',
-    billingCycleAnchor: billingCycleAnchor
-      ? new Date(billingCycleAnchor * 1000).toISOString()
-      : 'none',
-    billingCycleAnchorUnix: billingCycleAnchor,
-    finalRate: rateInCents / 100,
-    childCount: actualChildCount,
-    isOverride,
-  })
+  logger.info(
+    {
+      familyId,
+      billingStartDate: billingStartDate || 'immediate',
+      billingCycleAnchor: billingCycleAnchor
+        ? new Date(billingCycleAnchor * 1000).toISOString()
+        : 'none',
+      finalRate: rateInCents / 100,
+      childCount: actualChildCount,
+      isOverride,
+    },
+    'Creating checkout session with billing config'
+  )
 
   // Create the checkout session
   const session = await stripe.checkout.sessions.create({

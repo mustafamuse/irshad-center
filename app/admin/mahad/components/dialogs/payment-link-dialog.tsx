@@ -38,6 +38,11 @@ import {
   getWhatsAppPaymentMessage,
   MAX_EXPECTED_MAHAD_RATE,
 } from '@/lib/constants/mahad'
+import {
+  formatBillingDate,
+  getBillingDayOptions,
+  getNextBillingDate,
+} from '@/lib/utils/billing-date'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 import {
@@ -59,22 +64,6 @@ function formatCurrency(cents: number): string {
     style: 'currency',
     currency: 'USD',
   }).format(cents / 100)
-}
-
-function formatOrdinal(day: number): string {
-  if (day === 1 || day === 21 || day === 31) return `${day}st`
-  if (day === 2 || day === 22) return `${day}nd`
-  if (day === 3 || day === 23) return `${day}rd`
-  return `${day}th`
-}
-
-function getNextBillingDate(day: number): string {
-  const now = new Date()
-  let target = new Date(now.getFullYear(), now.getMonth(), day)
-  if (target <= now) {
-    target = new Date(now.getFullYear(), now.getMonth() + 1, day)
-  }
-  return target.toISOString()
 }
 
 export function PaymentLinkDialog({
@@ -126,21 +115,21 @@ export function PaymentLinkDialog({
     const billingDate = billingStartDay
       ? getNextBillingDate(parseInt(billingStartDay))
       : undefined
+    const billingDateISO = billingDate?.toISOString()
 
     startTransition(async () => {
       const response = await generatePaymentLinkWithOverrideAction({
         profileId,
         overrideAmount: overrideAmountCents,
-        billingStartDate: billingDate,
+        billingStartDate: billingDateISO,
       })
 
       if (response.success && response.url) {
         setResult(response)
-        setSelectedBillingDate(billingDate || null)
+        setSelectedBillingDate(billingDateISO || null)
         toast.success('Payment link generated successfully')
       } else {
         toast.error(response.error || 'Failed to generate payment link')
-        setResult(response)
       }
     })
   }
@@ -272,16 +261,28 @@ export function PaymentLinkDialog({
                     <SelectValue placeholder="Start immediately (default)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 15 }, (_, i) => i + 1).map((day) => (
-                      <SelectItem key={day} value={day.toString()}>
-                        {formatOrdinal(day)} of the month
+                    {getBillingDayOptions().map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Leave empty to start billing immediately.
-                </p>
+                {billingStartDay && (
+                  <p className="text-sm text-muted-foreground">
+                    Billing will start:{' '}
+                    <span className="font-medium text-foreground">
+                      {formatBillingDate(
+                        getNextBillingDate(parseInt(billingStartDay))
+                      )}
+                    </span>
+                  </p>
+                )}
+                {!billingStartDay && (
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty to start billing immediately.
+                  </p>
+                )}
               </div>
 
               <Button

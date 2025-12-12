@@ -36,6 +36,7 @@ import {
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
+import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
 import {
   calculateMahadRate,
   getStripeInterval,
@@ -1143,24 +1144,26 @@ export async function generatePaymentLinkWithOverrideAction(
     const stripe = getMahadStripeClient()
     const intervalConfig = getStripeInterval(profile.paymentFrequency)
 
-    // Calculate billing_cycle_anchor if start date provided
+    // Calculate and validate billing_cycle_anchor if start date provided
     let billingCycleAnchor: number | undefined
     if (billingStartDate) {
       const startDate = new Date(billingStartDate)
       billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
+      validateBillingCycleAnchor(billingCycleAnchor)
     }
 
-    // DEBUG: Log billing configuration
-    console.log('[Mahad Payment Link] Billing config:', {
-      profileId,
-      billingStartDate: billingStartDate || 'immediate',
-      billingCycleAnchor: billingCycleAnchor
-        ? new Date(billingCycleAnchor * 1000).toISOString()
-        : 'none',
-      billingCycleAnchorUnix: billingCycleAnchor,
-      finalAmount: finalAmount / 100,
-      isOverride,
-    })
+    logger.info(
+      {
+        profileId,
+        billingStartDate: billingStartDate || 'immediate',
+        billingCycleAnchor: billingCycleAnchor
+          ? new Date(billingCycleAnchor * 1000).toISOString()
+          : 'none',
+        finalAmount: finalAmount / 100,
+        isOverride,
+      },
+      'Creating payment link with billing config'
+    )
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
