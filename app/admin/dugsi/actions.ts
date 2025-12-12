@@ -27,7 +27,6 @@ import {
   // Payment service
   verifyBankAccount,
   getPaymentStatus,
-  generatePaymentLink as generatePaymentLinkService,
   // Checkout service
   createDugsiCheckoutSession,
 } from '@/lib/services/dugsi'
@@ -520,47 +519,13 @@ export async function addChildToFamily(params: {
 }
 
 /**
- * Generate a payment link for a Dugsi family.
- */
-export async function generatePaymentLink(
-  studentId: string,
-  familyMembers?: DugsiRegistration[]
-): Promise<
-  ActionResult<{
-    paymentUrl: string
-    parentEmail: string
-    parentPhone: string | null
-    childCount: number
-    familyReferenceId: string
-  }>
-> {
-  try {
-    const result = await generatePaymentLinkService(studentId, familyMembers)
-    return {
-      success: true,
-      data: result,
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to generate payment link', {
-      studentId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to generate payment link',
-    }
-  }
-}
-
-/**
  * Input for generating family payment link with calculated/override rate
  */
 export interface GenerateFamilyPaymentLinkInput {
   familyId: string
   childCount: number
   overrideAmount?: number
+  billingStartDate?: string // ISO date string for delayed start
 }
 
 /**
@@ -594,7 +559,7 @@ export interface FamilyPaymentLinkData {
 export async function generateFamilyPaymentLinkAction(
   input: GenerateFamilyPaymentLinkInput
 ): Promise<ActionResult<FamilyPaymentLinkData>> {
-  const { familyId, childCount, overrideAmount } = input
+  const { familyId, childCount, overrideAmount, billingStartDate } = input
 
   try {
     // Validate override amount if provided (early validation before service call)
@@ -619,6 +584,7 @@ export async function generateFamilyPaymentLinkAction(
     const result = await createDugsiCheckoutSession({
       familyId,
       overrideAmount,
+      billingStartDate,
     })
 
     return {
