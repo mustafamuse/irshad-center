@@ -348,14 +348,7 @@ export function PaymentLinkDialog({
                   <p className="mt-2 text-sm font-medium text-muted-foreground">
                     Billing starts:{' '}
                     <span className="text-foreground">
-                      {new Date(selectedBillingDate).toLocaleDateString(
-                        'en-US',
-                        {
-                          month: 'long',
-                          day: 'numeric',
-                          year: 'numeric',
-                        }
-                      )}
+                      {formatBillingDate(new Date(selectedBillingDate))}
                     </span>
                   </p>
                 )}
