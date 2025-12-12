@@ -23,6 +23,10 @@ import {
   MAX_EXPECTED_FAMILY_RATE,
 } from '@/lib/utils/dugsi-tuition'
 import { getAppUrl } from '@/lib/utils/env'
+import {
+  BillingStartDateSchema,
+  OverrideAmountSchema,
+} from '@/lib/validations/billing'
 
 const logger = createServiceLogger('dugsi-checkout-service')
 
@@ -72,6 +76,10 @@ export interface DugsiCheckoutResult {
  * SECURITY: Always uses database child count for pricing calculation,
  * never client-provided values. This prevents billing manipulation.
  *
+ * NOTE: This service creates a Stripe checkout session - it does not modify
+ * database state. The actual subscription/billing updates happen via webhook
+ * after payment completion. Callers should not call revalidatePath().
+ *
  * @param input - Checkout configuration
  * @returns Checkout session data
  * @throws ActionError on validation failure or Stripe errors
@@ -80,6 +88,32 @@ export async function createDugsiCheckoutSession(
   input: CreateDugsiCheckoutInput
 ): Promise<DugsiCheckoutResult> {
   const { familyId, overrideAmount, billingStartDate } = input
+
+  // Validate billingStartDate if provided (Zod validation per CLAUDE.md Rule 8)
+  if (billingStartDate) {
+    const dateResult = BillingStartDateSchema.safeParse(billingStartDate)
+    if (!dateResult.success) {
+      throw new ActionError(
+        dateResult.error.errors[0]?.message || 'Invalid billing start date',
+        ERROR_CODES.VALIDATION_ERROR,
+        'billingStartDate',
+        400
+      )
+    }
+  }
+
+  // Validate override amount if provided
+  if (overrideAmount !== undefined) {
+    const amountResult = OverrideAmountSchema.safeParse(overrideAmount)
+    if (!amountResult.success) {
+      throw new ActionError(
+        amountResult.error.errors[0]?.message || 'Invalid override amount',
+        ERROR_CODES.VALIDATION_ERROR,
+        'overrideAmount',
+        400
+      )
+    }
+  }
 
   // Get app URL for default success/cancel URLs
   let appUrl: string

@@ -48,6 +48,10 @@ import {
   BatchTransferSchema,
   UpdateStudentSchema,
 } from '@/lib/validations/batch'
+import {
+  BillingStartDateSchema,
+  OverrideAmountSchema,
+} from '@/lib/validations/billing'
 import { MAX_EXPECTED_RATE_CENTS } from '@/lib/validations/checkout'
 
 import type { UpdateStudentPayload } from '../_types/student-form'
@@ -1016,6 +1020,10 @@ export interface PaymentLinkWithOverrideResult {
  * - Override the rate with a custom amount
  * - Get billing config info for display in the UI
  *
+ * NOTE: No revalidatePath() is called because this action only creates a
+ * Stripe checkout session - it does not modify database state. The actual
+ * subscription/billing updates happen via webhook after payment completion.
+ *
  * @param input - Profile ID and optional override amount (in cents)
  * @returns Payment link URL, amounts, and billing info
  */
@@ -1023,6 +1031,30 @@ export async function generatePaymentLinkWithOverrideAction(
   input: GeneratePaymentLinkInput
 ): Promise<PaymentLinkWithOverrideResult> {
   const { profileId, overrideAmount, billingStartDate } = input
+
+  // Validate billingStartDate if provided (Zod validation per CLAUDE.md Rule 8)
+  if (billingStartDate) {
+    const dateResult = BillingStartDateSchema.safeParse(billingStartDate)
+    if (!dateResult.success) {
+      return {
+        success: false,
+        error:
+          dateResult.error.errors[0]?.message || 'Invalid billing start date',
+      }
+    }
+  }
+
+  // Validate override amount if provided
+  if (overrideAmount !== undefined) {
+    const amountResult = OverrideAmountSchema.safeParse(overrideAmount)
+    if (!amountResult.success) {
+      return {
+        success: false,
+        error:
+          amountResult.error.errors[0]?.message || 'Invalid override amount',
+      }
+    }
+  }
 
   try {
     // 1. Fetch profile with billing config and contact info

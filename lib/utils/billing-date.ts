@@ -43,6 +43,11 @@ export function formatOrdinal(day: number): string {
  * Uses explicit timezone (America/Chicago) to avoid midnight boundary issues.
  * Returns a UTC Date that represents midnight on the target day in Central Time.
  *
+ * The conversion works as follows:
+ * 1. Get current time and convert to America/Chicago timezone
+ * 2. Calculate target date (this month or next) in local terms
+ * 3. Use fromZonedTime to convert "midnight in Chicago" to UTC
+ *
  * @param day - Day of month (1-15)
  * @param timezone - Optional timezone override (defaults to America/Chicago)
  * @returns Date object for the next occurrence (in UTC)
@@ -61,29 +66,28 @@ export function getNextBillingDate(
   const now = new Date()
   const nowInTz = toZonedTime(now, timezone)
 
-  let target = new Date(
-    nowInTz.getFullYear(),
-    nowInTz.getMonth(),
-    day,
-    0,
-    0,
-    0,
-    0
-  )
+  // Extract year, month from the timezone-adjusted "now"
+  const year = nowInTz.getFullYear()
+  const month = nowInTz.getMonth()
+  const currentDay = nowInTz.getDate()
 
-  if (target <= nowInTz) {
-    target = new Date(
-      nowInTz.getFullYear(),
-      nowInTz.getMonth() + 1,
-      day,
-      0,
-      0,
-      0,
-      0
-    )
+  // Determine target month: if day has passed, use next month
+  let targetYear = year
+  let targetMonth = month
+  if (day <= currentDay) {
+    targetMonth = month + 1
+    if (targetMonth > 11) {
+      targetMonth = 0
+      targetYear = year + 1
+    }
   }
 
-  return fromZonedTime(target, timezone)
+  // Create a date string representing midnight on target day in the timezone
+  // Format: "YYYY-MM-DD 00:00:00" which fromZonedTime interprets as that time in the given timezone
+  const dateStr = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`
+
+  // Convert "midnight in Chicago" to UTC
+  return fromZonedTime(dateStr, timezone)
 }
 
 /**
