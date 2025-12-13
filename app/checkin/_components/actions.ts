@@ -4,22 +4,14 @@ import { revalidatePath } from 'next/cache'
 
 import { Shift } from '@prisma/client'
 
-import {
-  getTeacherCheckIns,
-  getTodaysCheckInsForTeacher,
-} from '@/lib/db/queries/dugsi-teacher-checkin'
+import { getTodaysCheckInsForTeacher } from '@/lib/db/queries/dugsi-teacher-checkin'
 import { createActionLogger } from '@/lib/logger'
 import {
-  adminClockIn,
-  autoClockOutStaleCheckIns,
   clockIn,
   clockOut,
   getCheckInWindowStatus,
-  getNoShowTeachers,
   getTeacherShifts,
-  type AdminClockInInput,
   type CheckInWindowStatus,
-  type NoShowTeacher,
 } from '@/lib/services/dugsi/teacher-checkin-service'
 import type { TeacherCheckInDTO } from '@/lib/types/dugsi-attendance'
 import { ActionResult, handleActionError } from '@/lib/utils/action-helpers'
@@ -29,7 +21,7 @@ import {
   ClockOutSchema,
 } from '@/lib/validations/dugsi-attendance'
 
-const logger = createActionLogger('dugsi-teacher-checkin')
+const logger = createActionLogger('teacher-checkin')
 
 export async function clockInAction(data: {
   teacherId: string
@@ -48,8 +40,8 @@ export async function clockInAction(data: {
     const validated = ClockInSchema.parse(data)
     const result = await clockIn(validated)
 
+    revalidatePath('/checkin')
     revalidatePath('/admin/dugsi/teacher-checkin')
-    revalidatePath('/admin/dugsi/teacher-attendance')
 
     return {
       success: true,
@@ -75,8 +67,8 @@ export async function clockOutAction(data: {
     const validated = ClockOutSchema.parse(data)
     const result = await clockOut(validated)
 
+    revalidatePath('/checkin')
     revalidatePath('/admin/dugsi/teacher-checkin')
-    revalidatePath('/admin/dugsi/teacher-attendance')
 
     return {
       success: true,
@@ -102,18 +94,6 @@ export async function getTodaysCheckInsAction(
   }
 }
 
-export async function getTeacherCheckInsAction(dateRange?: {
-  startDate?: Date
-  endDate?: Date
-}): Promise<ActionResult<TeacherCheckInDTO[]>> {
-  try {
-    const checkIns = await getTeacherCheckIns(dateRange)
-    return { success: true, data: checkIns }
-  } catch (error) {
-    return handleActionError(error, 'getTeacherCheckInsAction', logger)
-  }
-}
-
 export async function getTeacherShiftsAction(
   teacherId: string
 ): Promise<ActionResult<Shift[]>> {
@@ -133,48 +113,5 @@ export async function getCheckInWindowStatusAction(
     return { success: true, data: status }
   } catch (error) {
     return handleActionError(error, 'getCheckInWindowStatusAction', logger)
-  }
-}
-
-export async function adminClockInAction(
-  data: AdminClockInInput
-): Promise<
-  ActionResult<{ checkInId: string; clockInTime: Date; isLate: boolean }>
-> {
-  try {
-    const result = await adminClockIn(data)
-
-    revalidatePath('/admin/dugsi/teacher-checkin')
-
-    return { success: true, data: result }
-  } catch (error) {
-    return handleActionError(error, 'adminClockInAction', logger)
-  }
-}
-
-export async function autoClockOutAction(): Promise<
-  ActionResult<{ count: number }>
-> {
-  try {
-    const count = await autoClockOutStaleCheckIns()
-
-    if (count > 0) {
-      revalidatePath('/admin/dugsi/teacher-checkin')
-    }
-
-    return { success: true, data: { count } }
-  } catch (error) {
-    return handleActionError(error, 'autoClockOutAction', logger)
-  }
-}
-
-export async function getNoShowTeachersAction(
-  shift: Shift
-): Promise<ActionResult<NoShowTeacher[]>> {
-  try {
-    const noShows = await getNoShowTeachers(shift)
-    return { success: true, data: noShows }
-  } catch (error) {
-    return handleActionError(error, 'getNoShowTeachersAction', logger)
   }
 }

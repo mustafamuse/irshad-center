@@ -9,6 +9,8 @@ import {
   getAllDugsiClasses,
   getDugsiClassById,
   getStudentsInClass,
+  getUnassignedDugsiStudents,
+  type UnassignedStudentDTO,
 } from '@/lib/db/queries/dugsi-class'
 import { createActionLogger } from '@/lib/logger'
 import {
@@ -188,6 +190,17 @@ export async function removeStudentFromClassAction(
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Enrollment not found',
       },
     })
+  }
+}
+
+export async function getUnassignedStudentsAction(): Promise<
+  ActionResult<UnassignedStudentDTO[]>
+> {
+  try {
+    const students = await getUnassignedDugsiStudents()
+    return { success: true, data: students }
+  } catch (error) {
+    return handleActionError(error, 'getUnassignedStudentsAction', logger)
   }
 }
 

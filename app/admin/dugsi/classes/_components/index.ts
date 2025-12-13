@@ -1,0 +1,7 @@
+export { ClassesDashboard } from './classes-dashboard'
+export { ClassList } from './class-list'
+export { ClassStats } from './class-stats'
+export { ShiftFilter } from './shift-filter'
+export { CreateClassDialog } from './create-class-dialog'
+export { EditClassDialog } from './edit-class-dialog'
+export { ManageStudentsDialog } from './manage-students-dialog'
