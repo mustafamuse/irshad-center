@@ -875,8 +875,8 @@ export async function generatePaymentLinkAction(
         studentName: profile.person.name,
         source: 'admin-generated-link',
       },
-      success_url: `${appUrl}/mahad/register?success=true`,
-      cancel_url: `${appUrl}/mahad/register?canceled=true`,
+      success_url: `${appUrl}/mahad/payment-complete?payment=success`,
+      cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
       allow_promotion_codes: true,
     })
 
@@ -1247,8 +1247,8 @@ export async function generatePaymentLinkWithOverrideAction(
         studentName: profile.person.name,
         source: 'admin-generated-link',
       },
-      success_url: `${appUrl}/mahad/register?success=true`,
-      cancel_url: `${appUrl}/mahad/register?canceled=true`,
+      success_url: `${appUrl}/mahad/payment-complete?payment=success`,
+      cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
       allow_promotion_codes: true,
     })
 

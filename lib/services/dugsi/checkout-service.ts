@@ -40,9 +40,9 @@ export interface CreateDugsiCheckoutInput {
   overrideAmount?: number
   /** ISO date string for delayed billing start */
   billingStartDate?: string
-  /** Custom success URL (defaults to /dugsi?payment=success) */
+  /** Custom success URL (defaults to /dugsi/payment-complete?payment=success) */
   successUrl?: string
-  /** Custom cancel URL (defaults to /dugsi?payment=canceled) */
+  /** Custom cancel URL (defaults to /dugsi/payment-complete?payment=canceled) */
   cancelUrl?: string
 }
 
@@ -128,8 +128,10 @@ export async function createDugsiCheckoutSession(
     )
   }
 
-  const successUrl = input.successUrl ?? `${appUrl}/dugsi?payment=success`
-  const cancelUrl = input.cancelUrl ?? `${appUrl}/dugsi?payment=canceled`
+  const successUrl =
+    input.successUrl ?? `${appUrl}/dugsi/payment-complete?payment=success`
+  const cancelUrl =
+    input.cancelUrl ?? `${appUrl}/dugsi/payment-complete?payment=canceled`
 
   // Get family profiles with guardian information
   const familyProfiles = await prisma.programProfile.findMany({

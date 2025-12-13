@@ -52,8 +52,8 @@ export async function POST(request: NextRequest) {
       graduationStatus,
       paymentFrequency,
       billingType = 'FULL_TIME',
-      successUrl = `${appUrl}/mahad/register?success=true`,
-      cancelUrl = `${appUrl}/mahad/register?canceled=true`,
+      successUrl = `${appUrl}/mahad/payment-complete?payment=success`,
+      cancelUrl = `${appUrl}/mahad/payment-complete?payment=canceled`,
     } = parseResult.data
 
     requestContext = { profileId, graduationStatus, paymentFrequency }
