@@ -139,7 +139,12 @@ export function PaymentLinkDialog({
       ? Math.round(parseFloat(overrideAmount || '0') * 100)
       : calculatedRate
 
-  const parentPhone = family.parentPhone || family.members[0]?.parentPhone
+  const member = family.members[0]
+  const primaryPayerPhone =
+    member?.primaryPayerParentNumber === 2
+      ? member.parent2Phone
+      : member?.parentPhone
+  const parentPhone = primaryPayerPhone || family.parentPhone
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
