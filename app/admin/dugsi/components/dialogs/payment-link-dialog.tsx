@@ -142,7 +142,7 @@ export function PaymentLinkDialog({
   const member = family.members[0]
   const primaryPayerPhone =
     member?.primaryPayerParentNumber === 2
-      ? member.parent2Phone
+      ? member.parent2Phone || member.parentPhone
       : member?.parentPhone
   const parentPhone = primaryPayerPhone || family.parentPhone
 
