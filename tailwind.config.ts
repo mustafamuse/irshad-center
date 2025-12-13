@@ -146,6 +146,32 @@ const config: Config = {
             transform: 'translateY(0)',
           },
         },
+        'scale-in': {
+          '0%': {
+            opacity: '0',
+            transform: 'scale(0.5)',
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'scale(1)',
+          },
+        },
+        'bounce-in': {
+          '0%': {
+            opacity: '0',
+            transform: 'scale(0.3)',
+          },
+          '50%': {
+            transform: 'scale(1.1)',
+          },
+          '70%': {
+            transform: 'scale(0.9)',
+          },
+          '100%': {
+            opacity: '1',
+            transform: 'scale(1)',
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -153,7 +179,9 @@ const config: Config = {
         'gradient-slow': 'gradient-slow 15s ease-in-out infinite',
         'gradient-fast': 'gradient-fast 10s ease-in-out infinite',
         'fade-in': 'fade-in 0.5s ease-out',
-        'fade-in-up': 'fade-in-up 0.5s ease-out',
+        'fade-in-up': 'fade-in-up 0.6s ease-out forwards',
+        'scale-in': 'scale-in 0.5s ease-out forwards',
+        'bounce-in': 'bounce-in 0.6s ease-out forwards',
       },
     },
   },
