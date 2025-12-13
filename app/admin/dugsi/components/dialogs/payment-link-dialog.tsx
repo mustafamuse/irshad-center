@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import { Link2 } from 'lucide-react'
+import { AlertTriangle, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -38,6 +38,7 @@ import {
 } from '@/lib/utils/dugsi-tuition'
 
 import { Family } from '../../_types'
+import { getPrimaryPayerPhone } from '../../_utils/family'
 import {
   generateFamilyPaymentLinkAction,
   type FamilyPaymentLinkData,
@@ -139,12 +140,15 @@ export function PaymentLinkDialog({
       ? Math.round(parseFloat(overrideAmount || '0') * 100)
       : calculatedRate
 
-  const member = family.members[0]
-  const primaryPayerPhone =
-    member?.primaryPayerParentNumber === 2
-      ? member.parent2Phone || member.parentPhone
-      : member?.parentPhone || member?.parent2Phone
-  const parentPhone = primaryPayerPhone || family.parentPhone
+  const phoneResult = getPrimaryPayerPhone(family)
+  const parentPhone = phoneResult.phone
+
+  if (phoneResult.usedFallback && phoneResult.fallbackReason) {
+    console.warn(
+      `[PaymentLinkDialog] Primary payer phone fallback used for family ${family.familyKey}:`,
+      phoneResult.fallbackReason
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -165,6 +169,15 @@ export function PaymentLinkDialog({
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {phoneResult.fallbackReason === 'primary_payer_not_set' && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Primary payer not set. WhatsApp will default to Parent 1.
+              </AlertDescription>
             </Alert>
           )}
 

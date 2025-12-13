@@ -153,3 +153,67 @@ export function getFamilyStatus(family: Family): FamilyStatus {
   if (family.hasPayment) return 'pending'
   return 'no-payment'
 }
+
+/**
+ * Result of primary payer phone resolution
+ */
+export interface PrimaryPayerPhoneResult {
+  phone: string | null
+  usedFallback: boolean
+  fallbackReason?: 'primary_payer_not_set' | 'primary_payer_phone_missing'
+}
+
+/**
+ * Get the primary payer's phone number for WhatsApp payment links.
+ *
+ * Resolution order:
+ * 1. If primaryPayerParentNumber === 2: use parent2Phone, fallback to parentPhone
+ * 2. If primaryPayerParentNumber === 1 or null: use parentPhone, fallback to parent2Phone
+ * 3. Final fallback: family.parentPhone
+ *
+ * @param family - The family object containing members with phone data
+ * @returns The resolved phone number and metadata about fallback usage
+ */
+export function getPrimaryPayerPhone(family: Family): PrimaryPayerPhoneResult {
+  const member = family.members[0]
+
+  if (!member) {
+    return {
+      phone: family.parentPhone,
+      usedFallback: true,
+      fallbackReason: 'primary_payer_not_set',
+    }
+  }
+
+  const { primaryPayerParentNumber, parentPhone, parent2Phone } = member
+  const isPrimaryPayerParent2 = primaryPayerParentNumber === 2
+
+  if (isPrimaryPayerParent2) {
+    if (parent2Phone) {
+      return { phone: parent2Phone, usedFallback: false }
+    }
+    return {
+      phone: parentPhone || family.parentPhone,
+      usedFallback: true,
+      fallbackReason: 'primary_payer_phone_missing',
+    }
+  }
+
+  if (primaryPayerParentNumber === null) {
+    return {
+      phone: parentPhone || parent2Phone || family.parentPhone,
+      usedFallback: true,
+      fallbackReason: 'primary_payer_not_set',
+    }
+  }
+
+  if (parentPhone) {
+    return { phone: parentPhone, usedFallback: false }
+  }
+
+  return {
+    phone: parent2Phone || family.parentPhone,
+    usedFallback: true,
+    fallbackReason: 'primary_payer_phone_missing',
+  }
+}

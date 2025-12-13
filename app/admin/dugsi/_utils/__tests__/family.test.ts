@@ -7,10 +7,12 @@
 import { describe, it, expect } from 'vitest'
 
 import { DugsiRegistration } from '../../_types'
+import { Family } from '../../_types'
 import {
   getFamilyKey,
   groupRegistrationsByFamily,
   getFamilyStatus,
+  getPrimaryPayerPhone,
 } from '../family'
 
 describe('getFamilyKey', () => {
@@ -274,5 +276,197 @@ describe('groupRegistrationsByFamily', () => {
   it('should handle empty registrations array', () => {
     const families = groupRegistrationsByFamily([])
     expect(families).toEqual([])
+  })
+})
+
+describe('getPrimaryPayerPhone', () => {
+  const createFamily = (
+    overrides: Partial<DugsiRegistration> = {},
+    familyOverrides: Partial<Family> = {}
+  ): Family => ({
+    familyKey: 'family-1',
+    members: [
+      {
+        id: 'id-1',
+        name: 'Child',
+        gender: null,
+        dateOfBirth: null,
+        gradeLevel: null,
+        shift: null,
+        schoolName: null,
+        healthInfo: null,
+        createdAt: new Date(),
+        parentFirstName: 'Parent1',
+        parentLastName: 'Last',
+        parentEmail: 'parent1@example.com',
+        parentPhone: '5551111111',
+        parent2FirstName: 'Parent2',
+        parent2LastName: 'Last',
+        parent2Email: 'parent2@example.com',
+        parent2Phone: '5552222222',
+        primaryPayerParentNumber: 1,
+        paymentMethodCaptured: false,
+        paymentMethodCapturedAt: null,
+        stripeCustomerIdDugsi: null,
+        stripeSubscriptionIdDugsi: null,
+        paymentIntentIdDugsi: null,
+        subscriptionStatus: null,
+        subscriptionAmount: null,
+        paidUntil: null,
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        familyReferenceId: 'family-1',
+        stripeAccountType: null,
+        teacherName: null,
+        teacherEmail: null,
+        teacherPhone: null,
+        morningTeacher: null,
+        afternoonTeacher: null,
+        hasTeacherAssigned: false,
+        ...overrides,
+      },
+    ],
+    hasPayment: false,
+    hasSubscription: false,
+    parentEmail: 'parent1@example.com',
+    parentPhone: '5551111111',
+    ...familyOverrides,
+  })
+
+  describe('when primaryPayerParentNumber is 1', () => {
+    it('should return parentPhone', () => {
+      const family = createFamily({ primaryPayerParentNumber: 1 })
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5551111111')
+      expect(result.usedFallback).toBe(false)
+    })
+
+    it('should fallback to parent2Phone when parentPhone is missing', () => {
+      const family = createFamily({
+        primaryPayerParentNumber: 1,
+        parentPhone: null,
+      })
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5552222222')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_phone_missing')
+    })
+
+    it('should fallback to family.parentPhone when both parent phones are missing', () => {
+      const family = createFamily(
+        {
+          primaryPayerParentNumber: 1,
+          parentPhone: null,
+          parent2Phone: null,
+        },
+        { parentPhone: '5553333333' }
+      )
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5553333333')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_phone_missing')
+    })
+  })
+
+  describe('when primaryPayerParentNumber is 2', () => {
+    it('should return parent2Phone', () => {
+      const family = createFamily({ primaryPayerParentNumber: 2 })
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5552222222')
+      expect(result.usedFallback).toBe(false)
+    })
+
+    it('should fallback to parentPhone when parent2Phone is missing', () => {
+      const family = createFamily({
+        primaryPayerParentNumber: 2,
+        parent2Phone: null,
+      })
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5551111111')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_phone_missing')
+    })
+
+    it('should fallback to family.parentPhone when both parent phones are missing', () => {
+      const family = createFamily(
+        {
+          primaryPayerParentNumber: 2,
+          parentPhone: null,
+          parent2Phone: null,
+        },
+        { parentPhone: '5553333333' }
+      )
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5553333333')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_phone_missing')
+    })
+  })
+
+  describe('when primaryPayerParentNumber is null', () => {
+    it('should default to parentPhone', () => {
+      const family = createFamily({ primaryPayerParentNumber: null })
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5551111111')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_not_set')
+    })
+
+    it('should fallback to parent2Phone when parentPhone is missing', () => {
+      const family = createFamily({
+        primaryPayerParentNumber: null,
+        parentPhone: null,
+      })
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5552222222')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_not_set')
+    })
+
+    it('should fallback to family.parentPhone when both parent phones are missing', () => {
+      const family = createFamily(
+        {
+          primaryPayerParentNumber: null,
+          parentPhone: null,
+          parent2Phone: null,
+        },
+        { parentPhone: '5553333333' }
+      )
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5553333333')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_not_set')
+    })
+  })
+
+  describe('edge cases', () => {
+    it('should handle empty members array', () => {
+      const family: Family = {
+        familyKey: 'family-1',
+        members: [],
+        hasPayment: false,
+        hasSubscription: false,
+        parentEmail: 'parent@example.com',
+        parentPhone: '5553333333',
+      }
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBe('5553333333')
+      expect(result.usedFallback).toBe(true)
+      expect(result.fallbackReason).toBe('primary_payer_not_set')
+    })
+
+    it('should return null when no phones are available', () => {
+      const family = createFamily(
+        {
+          primaryPayerParentNumber: 1,
+          parentPhone: null,
+          parent2Phone: null,
+        },
+        { parentPhone: null }
+      )
+      const result = getPrimaryPayerPhone(family)
+      expect(result.phone).toBeNull()
+      expect(result.usedFallback).toBe(true)
+    })
   })
 })
