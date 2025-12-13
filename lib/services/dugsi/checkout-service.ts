@@ -128,8 +128,10 @@ export async function createDugsiCheckoutSession(
     )
   }
 
-  const successUrl = input.successUrl ?? `${appUrl}/dugsi?payment=success`
-  const cancelUrl = input.cancelUrl ?? `${appUrl}/dugsi?payment=canceled`
+  const successUrl =
+    input.successUrl ?? `${appUrl}/dugsi/payment-complete?payment=success`
+  const cancelUrl =
+    input.cancelUrl ?? `${appUrl}/dugsi/payment-complete?payment=canceled`
 
   // Get family profiles with guardian information
   const familyProfiles = await prisma.programProfile.findMany({
