@@ -286,11 +286,13 @@ export async function getTeacherPrograms(
  *
  * @param teacherId - Teacher ID
  * @param programs - Array of programs to assign
+ * @param dugsiShifts - Optional shifts for DUGSI_PROGRAM (required if DUGSI_PROGRAM is in programs)
  * @param client - Optional database client
  */
 export async function bulkAssignPrograms(
   teacherId: string,
   programs: Program[],
+  dugsiShifts?: Shift[],
   client: DatabaseClient = prisma
 ) {
   if (!programs || programs.length === 0) {
@@ -307,6 +309,17 @@ export async function bulkAssignPrograms(
       'Duplicate programs provided',
       'DUPLICATE_PROGRAMS',
       { teacherId, programs }
+    )
+  }
+
+  if (
+    programs.includes('DUGSI_PROGRAM') &&
+    (!dugsiShifts || dugsiShifts.length === 0)
+  ) {
+    throw new ValidationError(
+      'At least one shift is required for Dugsi program',
+      'SHIFTS_REQUIRED',
+      { teacherId, program: 'DUGSI_PROGRAM' }
     )
   }
 
@@ -394,8 +407,9 @@ export async function bulkAssignPrograms(
     }
 
     await Promise.all(
-      programs.map((program) =>
-        tx.teacherProgram.upsert({
+      programs.map((program) => {
+        const shifts = program === 'DUGSI_PROGRAM' ? dugsiShifts : undefined
+        return tx.teacherProgram.upsert({
           where: {
             teacherId_program: {
               teacherId,
@@ -406,12 +420,14 @@ export async function bulkAssignPrograms(
             teacherId,
             program,
             isActive: true,
+            ...(shifts && { shifts }),
           },
           update: {
             isActive: true,
+            ...(shifts && { shifts }),
           },
         })
-      )
+      })
     )
 
     logger.info(

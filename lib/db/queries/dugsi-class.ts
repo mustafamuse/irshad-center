@@ -108,3 +108,39 @@ export async function getClassByStudentProfile(
 
   return enrollments[0] ?? null
 }
+
+export interface UnassignedStudentDTO {
+  programProfileId: string
+  studentName: string
+  parentName: string
+  shift: Shift | null
+}
+
+export async function getUnassignedDugsiStudents(
+  client: DatabaseClient = prisma
+): Promise<UnassignedStudentDTO[]> {
+  const profiles = await client.programProfile.findMany({
+    where: {
+      program: 'DUGSI_PROGRAM',
+      dugsiClassEnrollment: null,
+    },
+    include: {
+      person: {
+        select: { id: true, name: true },
+      },
+      teacherAssignments: {
+        where: { isActive: true },
+        select: { shift: true },
+        take: 1,
+      },
+    },
+    orderBy: { person: { name: 'asc' } },
+  })
+
+  return profiles.map((p) => ({
+    programProfileId: p.id,
+    studentName: p.person.name,
+    parentName: '',
+    shift: p.teacherAssignments[0]?.shift ?? null,
+  }))
+}

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma, Program } from '@prisma/client'
+import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
@@ -45,6 +45,7 @@ export interface TeacherWithDetails {
   email: string | null
   phone: string | null
   programs: Program[]
+  dugsiShifts: Shift[]
   studentCount: number
   createdAt: Date
 }
@@ -67,6 +68,7 @@ export interface ProgramAssignmentInput {
 export interface BulkProgramAssignmentInput {
   teacherId: string
   programs: Program[]
+  dugsiShifts?: Shift[]
 }
 
 // ============================================================================
@@ -125,6 +127,10 @@ export async function getTeachers(
         teacher.person.contactPoints || []
       )
 
+      const dugsiProgram = teacher.programs.find(
+        (p) => p.program === 'DUGSI_PROGRAM' && p.isActive
+      )
+
       return {
         id: teacher.id,
         personId: teacher.personId,
@@ -134,6 +140,7 @@ export async function getTeachers(
         programs: teacher.programs
           .filter((p) => p.isActive)
           .map((p) => p.program),
+        dugsiShifts: dugsiProgram?.shifts ?? [],
         studentCount: countMap.get(teacher.id) ?? 0,
         createdAt: teacher.createdAt,
       }
@@ -427,7 +434,7 @@ export async function bulkAssignProgramsAction(
   input: BulkProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
-    await bulkAssignPrograms(input.teacherId, input.programs)
+    await bulkAssignPrograms(input.teacherId, input.programs, input.dugsiShifts)
 
     revalidatePath('/admin/teachers')
     input.programs.forEach((program) => {
@@ -448,6 +455,22 @@ export async function bulkAssignProgramsAction(
     await logError(logger, error, 'Failed to bulk assign programs', {
       ...input,
     })
+
+    if (error instanceof ValidationError) {
+      if (error.code === 'SHIFTS_REQUIRED') {
+        return {
+          success: false,
+          error: 'At least one shift is required for Dugsi program',
+        }
+      }
+      if (error.code === 'TEACHER_HAS_ACTIVE_STUDENTS') {
+        return {
+          success: false,
+          error: error.message,
+        }
+      }
+    }
+
     return {
       success: false,
       error: 'Failed to assign programs to teacher',

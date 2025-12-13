@@ -5,31 +5,22 @@ import { revalidatePath } from 'next/cache'
 import { DugsiAttendanceStatus } from '@prisma/client'
 
 import {
-  getSessionsByClass,
   getTodaysSessionForClass,
   getAttendanceRecordsBySession,
-  getClassAttendanceStats,
 } from '@/lib/db/queries/dugsi-attendance'
 import {
   getAllDugsiClasses,
   getStudentsInClass,
 } from '@/lib/db/queries/dugsi-class'
-import {
-  getDugsiTeachers,
-  type DugsiTeacherDTO,
-} from '@/lib/db/queries/teacher'
 import { createActionLogger } from '@/lib/logger'
 import {
   createAttendanceSession,
   markAttendance,
   closeSession,
-  getStudentStats,
 } from '@/lib/services/dugsi/attendance-service'
 import type {
   AttendanceSessionDTO,
   AttendanceRecordDTO,
-  StudentAttendanceStats,
-  ClassAttendanceStats,
   DugsiClassDTO,
   ClassStudentDTO,
 } from '@/lib/types/dugsi-attendance'
@@ -40,38 +31,7 @@ import {
   MarkAttendanceSchema,
 } from '@/lib/validations/dugsi-attendance'
 
-const logger = createActionLogger('dugsi-attendance')
-
-function mapSessionToDTO(
-  session: Awaited<ReturnType<typeof getSessionsByClass>>[0]
-): AttendanceSessionDTO {
-  return {
-    id: session.id,
-    date: session.date,
-    classId: session.classId,
-    className: session.class.name,
-    teacherId: session.teacherId,
-    teacherName: session.teacher.person.name,
-    notes: session.notes,
-    isClosed: session.isClosed,
-    recordCount: session._count.records,
-    presentCount: 0,
-    absentCount: 0,
-  }
-}
-
-export async function getSessionsForClassAction(
-  classId: string,
-  dateRange?: { startDate?: Date; endDate?: Date }
-): Promise<ActionResult<AttendanceSessionDTO[]>> {
-  try {
-    const sessions = await getSessionsByClass(classId, dateRange)
-    const dtos = sessions.map(mapSessionToDTO)
-    return { success: true, data: dtos }
-  } catch (error) {
-    return handleActionError(error, 'getSessionsForClassAction', logger)
-  }
-}
+const logger = createActionLogger('attendance')
 
 export async function getTodaysSessionAction(
   classId: string
@@ -147,6 +107,7 @@ export async function createSessionAction(data: {
     const validated = CreateSessionSchema.parse(data)
     const session = await createAttendanceSession(validated)
 
+    revalidatePath('/attendance')
     revalidatePath('/admin/dugsi/attendance')
 
     return {
@@ -157,7 +118,7 @@ export async function createSessionAction(data: {
     return handleActionError(error, 'createSessionAction', logger, {
       handlers: {
         [PRISMA_ERRORS.UNIQUE_CONSTRAINT]:
-          'A session already exists for this class on this date',
+          'A session already exists for this class today',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Invalid class or teacher reference',
       },
@@ -182,6 +143,7 @@ export async function markAttendanceAction(data: {
     const validated = MarkAttendanceSchema.parse(data)
     const result = await markAttendance(validated)
 
+    revalidatePath('/attendance')
     revalidatePath('/admin/dugsi/attendance')
 
     return {
@@ -204,6 +166,7 @@ export async function closeSessionAction(
   try {
     await closeSession(sessionId)
 
+    revalidatePath('/attendance')
     revalidatePath('/admin/dugsi/attendance')
 
     return { success: true }
@@ -216,30 +179,6 @@ export async function closeSessionAction(
   }
 }
 
-export async function getStudentStatsAction(
-  programProfileId: string,
-  dateRange?: { startDate?: Date; endDate?: Date }
-): Promise<ActionResult<StudentAttendanceStats>> {
-  try {
-    const stats = await getStudentStats(programProfileId, dateRange || {})
-    return { success: true, data: stats }
-  } catch (error) {
-    return handleActionError(error, 'getStudentStatsAction', logger)
-  }
-}
-
-export async function getClassStatsAction(
-  classId: string,
-  dateRange?: { startDate?: Date; endDate?: Date }
-): Promise<ActionResult<ClassAttendanceStats>> {
-  try {
-    const stats = await getClassAttendanceStats(classId, dateRange || {})
-    return { success: true, data: stats }
-  } catch (error) {
-    return handleActionError(error, 'getClassStatsAction', logger)
-  }
-}
-
 export async function getClassesAction(): Promise<
   ActionResult<DugsiClassDTO[]>
 > {
@@ -248,17 +187,6 @@ export async function getClassesAction(): Promise<
     return { success: true, data: classes }
   } catch (error) {
     return handleActionError(error, 'getClassesAction', logger)
-  }
-}
-
-export async function getTeachersAction(): Promise<
-  ActionResult<DugsiTeacherDTO[]>
-> {
-  try {
-    const teachers = await getDugsiTeachers()
-    return { success: true, data: teachers }
-  } catch (error) {
-    return handleActionError(error, 'getTeachersAction', logger)
   }
 }
 

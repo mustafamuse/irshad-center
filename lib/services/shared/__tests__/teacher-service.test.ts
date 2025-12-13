@@ -96,7 +96,7 @@ describe('bulkAssignPrograms', () => {
       updatedAt: new Date(),
     })
 
-    await bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM])
+    await bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM], ['MORNING'])
 
     expect(mockUpsert).toHaveBeenCalledWith({
       where: {
@@ -109,9 +109,11 @@ describe('bulkAssignPrograms', () => {
         teacherId: 'teacher-1',
         program: Program.DUGSI_PROGRAM,
         isActive: true,
+        shifts: ['MORNING'],
       },
       update: {
         isActive: true,
+        shifts: ['MORNING'],
       },
     })
   })
@@ -184,7 +186,7 @@ describe('bulkAssignPrograms', () => {
       updatedAt: new Date(),
     })
 
-    await bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM])
+    await bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM], ['MORNING'])
 
     expect(mockUpdateMany).toHaveBeenCalledWith({
       where: {
@@ -213,10 +215,11 @@ describe('bulkAssignPrograms', () => {
       updatedAt: new Date(),
     })
 
-    await bulkAssignPrograms('teacher-1', [
-      Program.MAHAD_PROGRAM,
-      Program.DUGSI_PROGRAM,
-    ])
+    await bulkAssignPrograms(
+      'teacher-1',
+      [Program.MAHAD_PROGRAM, Program.DUGSI_PROGRAM],
+      ['MORNING', 'AFTERNOON']
+    )
 
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -228,6 +231,7 @@ describe('bulkAssignPrograms', () => {
         },
         update: {
           isActive: true,
+          shifts: ['MORNING', 'AFTERNOON'],
         },
       })
     )
@@ -246,7 +250,7 @@ describe('bulkAssignPrograms', () => {
       updatedAt: new Date(),
     })
 
-    await bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM])
+    await bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM], ['MORNING'])
 
     expect(mockUpdateMany).not.toHaveBeenCalled()
     expect(mockUpsert).toHaveBeenCalled()
@@ -262,12 +266,33 @@ describe('bulkAssignPrograms', () => {
     expect(mockUpsert).not.toHaveBeenCalled()
   })
 
+  it('should throw error when Dugsi is selected without shifts', async () => {
+    await expect(
+      bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM])
+    ).rejects.toThrow('At least one shift is required for Dugsi program')
+
+    expect(mockFindMany).not.toHaveBeenCalled()
+    expect(mockUpdateMany).not.toHaveBeenCalled()
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
+  it('should throw error when Dugsi shifts array is empty', async () => {
+    await expect(
+      bulkAssignPrograms('teacher-1', [Program.DUGSI_PROGRAM], [])
+    ).rejects.toThrow('At least one shift is required for Dugsi program')
+
+    expect(mockFindMany).not.toHaveBeenCalled()
+    expect(mockUpdateMany).not.toHaveBeenCalled()
+    expect(mockUpsert).not.toHaveBeenCalled()
+  })
+
   it('should throw error when duplicate programs provided', async () => {
     await expect(
-      bulkAssignPrograms('teacher-1', [
-        Program.DUGSI_PROGRAM,
-        Program.DUGSI_PROGRAM,
-      ])
+      bulkAssignPrograms(
+        'teacher-1',
+        [Program.DUGSI_PROGRAM, Program.DUGSI_PROGRAM],
+        ['MORNING']
+      )
     ).rejects.toThrow('Duplicate programs provided')
 
     expect(mockFindMany).not.toHaveBeenCalled()
@@ -279,7 +304,7 @@ describe('bulkAssignPrograms', () => {
     mockTeacherFindUnique.mockResolvedValue(null)
 
     await expect(
-      bulkAssignPrograms('non-existent-teacher', [Program.DUGSI_PROGRAM])
+      bulkAssignPrograms('non-existent-teacher', [Program.MAHAD_PROGRAM])
     ).rejects.toThrow('Teacher not found')
 
     expect(mockTransaction).not.toHaveBeenCalled()

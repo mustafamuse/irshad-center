@@ -13,7 +13,22 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
   {
     title: 'Programs',
     items: [
-      { title: 'Dugsi', url: '/admin/dugsi' },
+      {
+        title: 'Dugsi',
+        url: '/admin/dugsi',
+        items: [
+          { title: 'Families', url: '/admin/dugsi' },
+          { title: 'Classes', url: '/admin/dugsi/classes' },
+          {
+            title: 'Attendance Reports',
+            url: '/admin/dugsi/attendance/reports',
+          },
+          {
+            title: 'Teacher Check-In History',
+            url: '/admin/dugsi/teacher-checkin',
+          },
+        ],
+      },
       { title: 'Mahad', url: '/admin/mahad' },
     ],
   },
@@ -35,7 +50,14 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
   },
   {
     title: 'Operations',
-    items: [{ title: 'Attendance', url: '/admin/shared/attendance' }],
+    items: [{ title: 'Weekend Attendance', url: '/admin/shared/attendance' }],
+  },
+  {
+    title: 'Teacher Pages',
+    items: [
+      { title: 'Teacher Check-In', url: '/checkin' },
+      { title: 'Take Attendance', url: '/attendance' },
+    ],
   },
   {
     title: 'Public Pages',
