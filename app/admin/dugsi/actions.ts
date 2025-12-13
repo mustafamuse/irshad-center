@@ -681,7 +681,7 @@ export async function generateDugsiVCardContent(): Promise<
             [firstName, lastName].filter(Boolean).join(' ') || 'Dugsi Parent',
           phone: formattedPhone,
           email: email || undefined,
-          organization: 'Dugsi',
+          organization: 'Irshad Dugsi',
           note: `Children: ${childNames}`,
         })
       }

@@ -40,9 +40,9 @@ export interface CreateDugsiCheckoutInput {
   overrideAmount?: number
   /** ISO date string for delayed billing start */
   billingStartDate?: string
-  /** Custom success URL (defaults to /dugsi?payment=success) */
+  /** Custom success URL (defaults to /dugsi/payment-complete?payment=success) */
   successUrl?: string
-  /** Custom cancel URL (defaults to /dugsi?payment=canceled) */
+  /** Custom cancel URL (defaults to /dugsi/payment-complete?payment=canceled) */
   cancelUrl?: string
 }
 
