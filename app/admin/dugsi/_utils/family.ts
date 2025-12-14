@@ -193,7 +193,7 @@ export function getPrimaryPayerPhone(family: Family): PrimaryPayerPhoneResult {
       return { phone: parent2Phone, usedFallback: false }
     }
     return {
-      phone: parentPhone || family.parentPhone,
+      phone: parentPhone,
       usedFallback: true,
       fallbackReason: 'primary_payer_phone_missing',
     }
@@ -201,7 +201,7 @@ export function getPrimaryPayerPhone(family: Family): PrimaryPayerPhoneResult {
 
   if (primaryPayerParentNumber === null) {
     return {
-      phone: parentPhone || parent2Phone || family.parentPhone,
+      phone: parentPhone || parent2Phone,
       usedFallback: true,
       fallbackReason: 'primary_payer_not_set',
     }
@@ -212,7 +212,7 @@ export function getPrimaryPayerPhone(family: Family): PrimaryPayerPhoneResult {
   }
 
   return {
-    phone: parent2Phone || family.parentPhone,
+    phone: parent2Phone,
     usedFallback: true,
     fallbackReason: 'primary_payer_phone_missing',
   }

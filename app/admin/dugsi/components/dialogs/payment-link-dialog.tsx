@@ -181,6 +181,16 @@ export function PaymentLinkDialog({
             </Alert>
           )}
 
+          {phoneResult.fallbackReason === 'primary_payer_phone_missing' && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                Primary payer&apos;s phone missing. Using alternate
+                parent&apos;s phone.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {!result && (
             <>
               <div className="rounded-lg border bg-muted/50 p-4">
