@@ -6,6 +6,7 @@
  */
 
 import {
+  Prisma,
   Program,
   WhatsAppMessageType,
   WhatsAppRecipientType,
@@ -29,6 +30,10 @@ import {
 
 const logger = createServiceLogger('whatsapp-service')
 
+// ============================================================================
+// FORMATTING UTILITIES
+// ============================================================================
+
 export function formatCurrency(amount: number, currency = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -45,49 +50,56 @@ export function formatDate(date: Date): string {
   }).format(date)
 }
 
-export interface SendPaymentLinkInput {
-  phone: string
-  parentName: string
-  amount: number
-  childCount: number
-  paymentUrl: string
-  program: Program
-  personId?: string
-  familyId?: string
-}
+// ============================================================================
+// SHARED TYPES
+// ============================================================================
 
-export interface SendPaymentLinkResult {
+export interface SendMessageResult {
   success: boolean
   waMessageId?: string
   error?: string
 }
 
-export async function sendPaymentLink(
-  input: SendPaymentLinkInput
-): Promise<SendPaymentLinkResult> {
-  const {
-    phone,
-    parentName,
-    amount,
-    childCount,
-    paymentUrl,
-    program,
-    personId,
-    familyId,
-  } = input
+interface BaseMessageInput {
+  phone: string
+  program: Program
+  personId?: string
+  familyId?: string
+}
 
+interface MessageContext {
+  templateName: string
+  formattedPhone: string
+  messageType: WhatsAppMessageType
+  recipientType: WhatsAppRecipientType
+  bodyParams: string[]
+  buttonParams?: string[]
+  metadata: Prisma.InputJsonValue
+  batchId?: string
+}
+
+// ============================================================================
+// CORE MESSAGE SENDING (DRY extraction)
+// ============================================================================
+
+async function validateAndPreparePhone(
+  phone: string,
+  logContext: Record<string, unknown>
+): Promise<
+  { valid: false; error: string } | { valid: true; formattedPhone: string }
+> {
   if (!isValidPhoneNumber(phone)) {
-    await logWarning(logger, 'Invalid phone number for WhatsApp', {
-      phone,
-      parentName,
-      program,
-    })
-    return { success: false, error: 'Invalid phone number format' }
+    await logWarning(logger, 'Invalid phone number for WhatsApp', logContext)
+    return { valid: false, error: 'Invalid phone number format' }
   }
+  return { valid: true, formattedPhone: formatPhoneForWhatsApp(phone) }
+}
 
-  const templateName = getPaymentLinkTemplate(program)
-  const formattedPhone = formatPhoneForWhatsApp(phone)
-
+async function checkDuplicateMessage(
+  formattedPhone: string,
+  templateName: string,
+  program: Program
+): Promise<{ isDuplicate: boolean; error?: string }> {
   const isDuplicate = await hasRecentMessage(formattedPhone, templateName, 1)
   if (isDuplicate) {
     await logWarning(logger, 'Duplicate WhatsApp message blocked', {
@@ -96,9 +108,126 @@ export async function sendPaymentLink(
       program,
     })
     return {
-      success: false,
+      isDuplicate: true,
       error: 'Message already sent within the last hour',
     }
+  }
+  return { isDuplicate: false }
+}
+
+async function createMessageRecord(
+  context: MessageContext,
+  input: BaseMessageInput,
+  waMessageId: string | undefined,
+  status: 'sent' | 'failed',
+  failureReason?: string
+) {
+  await prisma.whatsAppMessage.create({
+    data: {
+      waMessageId,
+      phoneNumber: context.formattedPhone,
+      templateName: context.templateName,
+      program: input.program,
+      recipientType: context.recipientType,
+      personId: input.personId,
+      familyId: input.familyId,
+      batchId: context.batchId,
+      messageType: context.messageType,
+      status,
+      ...(status === 'failed' && {
+        failedAt: new Date(),
+        failureReason,
+      }),
+      metadata: context.metadata,
+    },
+  })
+}
+
+async function sendTemplateMessage(
+  context: MessageContext,
+  input: BaseMessageInput,
+  logMessage: string
+): Promise<SendMessageResult> {
+  try {
+    const client = createWhatsAppClient()
+    const response = await client.sendTemplate(
+      context.formattedPhone,
+      context.templateName,
+      'en',
+      context.bodyParams,
+      context.buttonParams
+    )
+
+    const waMessageId = response.messages[0]?.id
+
+    await createMessageRecord(context, input, waMessageId, 'sent')
+
+    logger.info(
+      {
+        waMessageId,
+        phone: context.formattedPhone,
+        program: input.program,
+        templateName: context.templateName,
+      },
+      logMessage
+    )
+
+    return { success: true, waMessageId }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
+
+    await logError(
+      logger,
+      error,
+      `Failed to send WhatsApp ${context.templateName}`,
+      {
+        phone: context.formattedPhone,
+        program: input.program,
+      }
+    )
+
+    await createMessageRecord(context, input, undefined, 'failed', errorMessage)
+
+    return { success: false, error: errorMessage }
+  }
+}
+
+// ============================================================================
+// PUBLIC API: Payment Link
+// ============================================================================
+
+export interface SendPaymentLinkInput extends BaseMessageInput {
+  parentName: string
+  amount: number
+  childCount: number
+  paymentUrl: string
+}
+
+export async function sendPaymentLink(
+  input: SendPaymentLinkInput
+): Promise<SendMessageResult> {
+  const { phone, parentName, amount, childCount, paymentUrl, program } = input
+
+  const phoneResult = await validateAndPreparePhone(phone, {
+    phone,
+    parentName,
+    program,
+  })
+  if (!phoneResult.valid) {
+    return { success: false, error: phoneResult.error }
+  }
+  const { formattedPhone } = phoneResult
+
+  const templateName = getPaymentLinkTemplate(program)
+
+  const duplicateCheck = await checkDuplicateMessage(
+    formattedPhone,
+    templateName,
+    program
+  )
+  if (duplicateCheck.isDuplicate) {
+    return { success: false, error: duplicateCheck.error }
   }
 
   const sessionIdMatch = paymentUrl.match(/cs_[a-zA-Z0-9_]+/)
@@ -114,362 +243,151 @@ export async function sendPaymentLink(
     )
     return { success: false, error: 'Invalid payment URL format' }
   }
-  const buttonParams = [sessionIdMatch[0]]
 
-  const formattedAmount = formatCurrency(amount)
   const firstName = parentName.split(' ')[0] || parentName
-  const bodyParams = [firstName, formattedAmount, childCount.toString()]
 
-  try {
-    const client = createWhatsAppClient()
-    const response = await client.sendTemplate(
-      formattedPhone,
+  return sendTemplateMessage(
+    {
       templateName,
-      'en',
-      bodyParams,
-      buttonParams
-    )
-
-    const waMessageId = response.messages[0]?.id
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        waMessageId,
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType: WhatsAppRecipientType.PARENT,
-        personId,
-        familyId,
-        messageType: WhatsAppMessageType.TRANSACTIONAL,
-        status: 'sent',
-        metadata: {
-          parentName,
-          amount,
-          childCount,
-          paymentUrl,
-        },
-      },
-    })
-
-    logger.info(
-      {
-        waMessageId,
-        phone: formattedPhone,
-        parentName,
-        program,
-        templateName,
-      },
-      'Payment link sent via WhatsApp'
-    )
-
-    return { success: true, waMessageId }
-  } catch (error) {
-    await logError(logger, error, 'Failed to send WhatsApp payment link', {
-      phone: formattedPhone,
-      parentName,
-      program,
-    })
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType: WhatsAppRecipientType.PARENT,
-        personId,
-        familyId,
-        messageType: WhatsAppMessageType.TRANSACTIONAL,
-        status: 'failed',
-        failedAt: new Date(),
-        failureReason: error instanceof Error ? error.message : 'Unknown error',
-        metadata: {
-          parentName,
-          amount,
-          childCount,
-          paymentUrl,
-        },
-      },
-    })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message',
-    }
-  }
+      formattedPhone,
+      messageType: WhatsAppMessageType.TRANSACTIONAL,
+      recipientType: WhatsAppRecipientType.PARENT,
+      bodyParams: [firstName, formatCurrency(amount), childCount.toString()],
+      buttonParams: [sessionIdMatch[0]],
+      metadata: { parentName, amount, childCount, paymentUrl },
+    },
+    input,
+    'Payment link sent via WhatsApp'
+  )
 }
 
-export interface SendPaymentConfirmationInput {
-  phone: string
+// ============================================================================
+// PUBLIC API: Payment Confirmation
+// ============================================================================
+
+export interface SendPaymentConfirmationInput extends BaseMessageInput {
   parentName: string
   amount: number
   nextPaymentDate: Date
   studentNames: string[]
-  program: Program
-  personId?: string
-  familyId?: string
 }
 
 export async function sendPaymentConfirmation(
   input: SendPaymentConfirmationInput
-): Promise<SendPaymentLinkResult> {
-  const {
+): Promise<SendMessageResult> {
+  const { phone, parentName, amount, nextPaymentDate, studentNames, program } =
+    input
+
+  const phoneResult = await validateAndPreparePhone(phone, {
     phone,
     parentName,
-    amount,
-    nextPaymentDate,
-    studentNames,
     program,
-    personId,
-    familyId,
-  } = input
-
-  if (!isValidPhoneNumber(phone)) {
-    return { success: false, error: 'Invalid phone number format' }
+  })
+  if (!phoneResult.valid) {
+    return { success: false, error: phoneResult.error }
   }
+  const { formattedPhone } = phoneResult
 
   const templateName = getPaymentConfirmedTemplate(program)
-  const formattedPhone = formatPhoneForWhatsApp(phone)
 
-  const isDuplicate = await hasRecentMessage(formattedPhone, templateName, 1)
-  if (isDuplicate) {
-    await logWarning(logger, 'Duplicate WhatsApp message blocked', {
-      phone: formattedPhone,
-      templateName,
-      program,
-    })
-    return {
-      success: false,
-      error: 'Message already sent within the last hour',
-    }
+  const duplicateCheck = await checkDuplicateMessage(
+    formattedPhone,
+    templateName,
+    program
+  )
+  if (duplicateCheck.isDuplicate) {
+    return { success: false, error: duplicateCheck.error }
   }
-
-  const formattedAmount = formatCurrency(amount)
-  const formattedDate = formatDate(nextPaymentDate)
 
   const firstName = parentName.split(' ')[0] || parentName
-  const bodyParams = [
-    firstName,
-    formattedAmount,
-    formattedDate,
-    studentNames.join(', '),
-  ]
 
-  try {
-    const client = createWhatsAppClient()
-    const response = await client.sendTemplate(
-      formattedPhone,
+  return sendTemplateMessage(
+    {
       templateName,
-      'en',
-      bodyParams
-    )
-
-    const waMessageId = response.messages[0]?.id
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        waMessageId,
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType: WhatsAppRecipientType.PARENT,
-        personId,
-        familyId,
-        messageType: WhatsAppMessageType.NOTIFICATION,
-        status: 'sent',
-        metadata: {
-          parentName,
-          amount,
-          nextPaymentDate: nextPaymentDate.toISOString(),
-          studentNames,
-        },
-      },
-    })
-
-    logger.info(
-      {
-        waMessageId,
-        phone: formattedPhone,
+      formattedPhone,
+      messageType: WhatsAppMessageType.NOTIFICATION,
+      recipientType: WhatsAppRecipientType.PARENT,
+      bodyParams: [
+        firstName,
+        formatCurrency(amount),
+        formatDate(nextPaymentDate),
+        studentNames.join(', '),
+      ],
+      metadata: {
         parentName,
-        program,
-        templateName,
+        amount,
+        nextPaymentDate: nextPaymentDate.toISOString(),
+        studentNames,
       },
-      'Payment confirmation sent via WhatsApp'
-    )
-
-    return { success: true, waMessageId }
-  } catch (error) {
-    await logError(
-      logger,
-      error,
-      'Failed to send WhatsApp payment confirmation',
-      {
-        phone: formattedPhone,
-        parentName,
-        program,
-      }
-    )
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType: WhatsAppRecipientType.PARENT,
-        personId,
-        familyId,
-        messageType: WhatsAppMessageType.NOTIFICATION,
-        status: 'failed',
-        failedAt: new Date(),
-        failureReason: error instanceof Error ? error.message : 'Unknown error',
-        metadata: {
-          parentName,
-          amount,
-          nextPaymentDate: nextPaymentDate.toISOString(),
-          studentNames,
-        },
-      },
-    })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message',
-    }
-  }
+    },
+    input,
+    'Payment confirmation sent via WhatsApp'
+  )
 }
 
-export interface SendPaymentReminderInput {
-  phone: string
+// ============================================================================
+// PUBLIC API: Payment Reminder
+// ============================================================================
+
+export interface SendPaymentReminderInput extends BaseMessageInput {
   parentName: string
   amount: number
   dueDate: Date
   billingUrl: string
-  program: Program
-  personId?: string
-  familyId?: string
 }
 
 export async function sendPaymentReminder(
   input: SendPaymentReminderInput
-): Promise<SendPaymentLinkResult> {
-  const {
+): Promise<SendMessageResult> {
+  const { phone, parentName, amount, dueDate, billingUrl, program } = input
+
+  const phoneResult = await validateAndPreparePhone(phone, {
     phone,
     parentName,
-    amount,
-    dueDate,
-    billingUrl,
     program,
-    personId,
-    familyId,
-  } = input
-
-  if (!isValidPhoneNumber(phone)) {
-    return { success: false, error: 'Invalid phone number format' }
+  })
+  if (!phoneResult.valid) {
+    return { success: false, error: phoneResult.error }
   }
+  const { formattedPhone } = phoneResult
 
   const templateName = getPaymentReminderTemplate(program)
-  const formattedPhone = formatPhoneForWhatsApp(phone)
 
-  const isDuplicate = await hasRecentMessage(formattedPhone, templateName, 1)
-  if (isDuplicate) {
-    await logWarning(logger, 'Duplicate WhatsApp message blocked', {
-      phone: formattedPhone,
-      templateName,
-      program,
-    })
-    return {
-      success: false,
-      error: 'Message already sent within the last hour',
-    }
+  const duplicateCheck = await checkDuplicateMessage(
+    formattedPhone,
+    templateName,
+    program
+  )
+  if (duplicateCheck.isDuplicate) {
+    return { success: false, error: duplicateCheck.error }
   }
-
-  const formattedAmount = formatCurrency(amount)
-  const formattedDate = formatDate(dueDate)
 
   const firstName = parentName.split(' ')[0] || parentName
-  const bodyParams = [firstName, formattedAmount, formattedDate]
-
   const urlSuffix = billingUrl.split('/').pop() || ''
-  const buttonParams = urlSuffix ? [urlSuffix] : undefined
 
-  try {
-    const client = createWhatsAppClient()
-    const response = await client.sendTemplate(
-      formattedPhone,
+  return sendTemplateMessage(
+    {
       templateName,
-      'en',
-      bodyParams,
-      buttonParams
-    )
-
-    const waMessageId = response.messages[0]?.id
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        waMessageId,
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType: WhatsAppRecipientType.PARENT,
-        personId,
-        familyId,
-        messageType: WhatsAppMessageType.REMINDER,
-        status: 'sent',
-        metadata: {
-          parentName,
-          amount,
-          dueDate: dueDate.toISOString(),
-          billingUrl,
-        },
-      },
-    })
-
-    logger.info(
-      {
-        waMessageId,
-        phone: formattedPhone,
+      formattedPhone,
+      messageType: WhatsAppMessageType.REMINDER,
+      recipientType: WhatsAppRecipientType.PARENT,
+      bodyParams: [firstName, formatCurrency(amount), formatDate(dueDate)],
+      buttonParams: urlSuffix ? [urlSuffix] : undefined,
+      metadata: {
         parentName,
-        program,
-        templateName,
+        amount,
+        dueDate: dueDate.toISOString(),
+        billingUrl,
       },
-      'Payment reminder sent via WhatsApp'
-    )
-
-    return { success: true, waMessageId }
-  } catch (error) {
-    await logError(logger, error, 'Failed to send WhatsApp payment reminder', {
-      phone: formattedPhone,
-      parentName,
-      program,
-    })
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType: WhatsAppRecipientType.PARENT,
-        personId,
-        familyId,
-        messageType: WhatsAppMessageType.REMINDER,
-        status: 'failed',
-        failedAt: new Date(),
-        failureReason: error instanceof Error ? error.message : 'Unknown error',
-        metadata: {
-          parentName,
-          amount,
-          dueDate: dueDate.toISOString(),
-          billingUrl,
-        },
-      },
-    })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message',
-    }
-  }
+    },
+    input,
+    'Payment reminder sent via WhatsApp'
+  )
 }
+
+// ============================================================================
+// PUBLIC API: Class Announcement
+// ============================================================================
 
 export interface SendClassAnnouncementInput {
   phone: string
@@ -483,7 +401,7 @@ export interface SendClassAnnouncementInput {
 
 export async function sendClassAnnouncement(
   input: SendClassAnnouncementInput
-): Promise<SendPaymentLinkResult> {
+): Promise<SendMessageResult> {
   const {
     phone,
     message,
@@ -494,92 +412,36 @@ export async function sendClassAnnouncement(
     batchId,
   } = input
 
-  if (!isValidPhoneNumber(phone)) {
-    return { success: false, error: 'Invalid phone number format' }
+  const phoneResult = await validateAndPreparePhone(phone, {
+    phone,
+    program,
+    recipientType,
+  })
+  if (!phoneResult.valid) {
+    return { success: false, error: phoneResult.error }
   }
+  const { formattedPhone } = phoneResult
 
   const templateName = WHATSAPP_TEMPLATES.DUGSI_CLASS_ANNOUNCEMENT
-  const formattedPhone = formatPhoneForWhatsApp(phone)
-  const bodyParams = [message]
 
-  try {
-    const client = createWhatsAppClient()
-    const response = await client.sendTemplate(
-      formattedPhone,
+  return sendTemplateMessage(
+    {
       templateName,
-      'en',
-      bodyParams
-    )
-
-    const waMessageId = response.messages[0]?.id
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        waMessageId,
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType,
-        personId,
-        familyId,
-        batchId,
-        messageType: WhatsAppMessageType.ANNOUNCEMENT,
-        status: 'sent',
-        metadata: {
-          message,
-        },
-      },
-    })
-
-    logger.info(
-      {
-        waMessageId,
-        phone: formattedPhone,
-        program,
-        recipientType,
-        templateName,
-      },
-      'Class announcement sent via WhatsApp'
-    )
-
-    return { success: true, waMessageId }
-  } catch (error) {
-    await logError(
-      logger,
-      error,
-      'Failed to send WhatsApp class announcement',
-      {
-        phone: formattedPhone,
-        program,
-        recipientType,
-      }
-    )
-
-    await prisma.whatsAppMessage.create({
-      data: {
-        phoneNumber: formattedPhone,
-        templateName,
-        program,
-        recipientType,
-        personId,
-        familyId,
-        batchId,
-        messageType: WhatsAppMessageType.ANNOUNCEMENT,
-        status: 'failed',
-        failedAt: new Date(),
-        failureReason: error instanceof Error ? error.message : 'Unknown error',
-        metadata: {
-          message,
-        },
-      },
-    })
-
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to send message',
-    }
-  }
+      formattedPhone,
+      messageType: WhatsAppMessageType.ANNOUNCEMENT,
+      recipientType,
+      bodyParams: [message],
+      batchId,
+      metadata: { message },
+    },
+    { phone, program, personId, familyId },
+    'Class announcement sent via WhatsApp'
+  )
 }
+
+// ============================================================================
+// PUBLIC API: Bulk Announcement
+// ============================================================================
 
 export interface BulkSendResult {
   total: number
@@ -653,3 +515,6 @@ export async function sendBulkAnnouncement(
     results,
   }
 }
+
+// Re-export the result type for backwards compatibility
+export type SendPaymentLinkResult = SendMessageResult

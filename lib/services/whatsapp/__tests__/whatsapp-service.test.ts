@@ -305,7 +305,8 @@ describe('sendPaymentConfirmation', () => {
       '15551234567',
       'dugsi_payment_confirmed',
       'en',
-      ['John', '$160.00', 'Jan 14, 2025', 'Child 1, Child 2']
+      ['John', '$160.00', 'Jan 14, 2025', 'Child 1, Child 2'],
+      undefined
     )
   })
 
