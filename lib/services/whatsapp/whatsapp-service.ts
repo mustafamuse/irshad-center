@@ -19,10 +19,13 @@ import {
   getPaymentReminderTemplate,
   getDuplicateWindowHours,
   BULK_MESSAGE_DELAY_MS,
+  MAX_BULK_RECIPIENTS,
+  WHATSAPP_DEFAULT_LANGUAGE,
 } from '@/lib/constants/whatsapp'
 import { prisma } from '@/lib/db'
 import { hasRecentMessage } from '@/lib/db/queries/whatsapp'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 import {
   createWhatsAppClient,
@@ -173,14 +176,25 @@ async function sendTemplateMessage(
     const response = await client.sendTemplate(
       context.formattedPhone,
       context.templateName,
-      'en',
+      WHATSAPP_DEFAULT_LANGUAGE,
       context.bodyParams,
       context.buttonParams
     )
 
     const waMessageId = response.messages[0]?.id
 
-    await createMessageRecord(context, input, waMessageId, 'sent')
+    try {
+      await createMessageRecord(context, input, waMessageId, 'sent')
+    } catch (dbError) {
+      if (isPrismaError(dbError) && dbError.code === 'P2002') {
+        await logWarning(logger, 'Duplicate message record detected', {
+          waMessageId,
+          phone: context.formattedPhone,
+        })
+        return { success: false, error: 'Duplicate message detected' }
+      }
+      throw dbError
+    }
 
     logger.info(
       {
@@ -250,15 +264,18 @@ export async function sendPaymentLink(
     return { success: false, error: duplicateCheck.error }
   }
 
+  const isStripeUrl = paymentUrl.includes('checkout.stripe.com')
   const sessionIdMatch = paymentUrl.match(/cs_[a-zA-Z0-9_]+/)
-  if (!sessionIdMatch) {
+  if (!isStripeUrl || !sessionIdMatch) {
     await logWarning(
       logger,
-      'Invalid Stripe checkout URL - no session ID found',
+      'Invalid Stripe checkout URL - missing domain or session ID',
       {
         paymentUrl,
         phone: formattedPhone,
         program,
+        isStripeUrl,
+        hasSessionId: !!sessionIdMatch,
       }
     )
     return { success: false, error: 'Invalid payment URL format' }
@@ -486,6 +503,24 @@ export async function sendBulkAnnouncement(
   recipientType: WhatsAppRecipientType,
   batchId?: string
 ): Promise<BulkSendResult> {
+  if (recipients.length > MAX_BULK_RECIPIENTS) {
+    await logWarning(logger, 'Bulk send recipients exceeds limit', {
+      recipientCount: recipients.length,
+      maxAllowed: MAX_BULK_RECIPIENTS,
+      program,
+    })
+    return {
+      total: recipients.length,
+      sent: 0,
+      failed: recipients.length,
+      results: recipients.map((r) => ({
+        phone: r.phone,
+        success: false,
+        error: `Batch size ${recipients.length} exceeds limit of ${MAX_BULK_RECIPIENTS}`,
+      })),
+    }
+  }
+
   const results: BulkSendResult['results'] = []
   let sent = 0
   let failed = 0

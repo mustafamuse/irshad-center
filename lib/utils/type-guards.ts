@@ -262,3 +262,20 @@ export function extractPeriodDates(subscription: unknown): {
     periodEnd: extractPeriodEnd(subscription),
   }
 }
+
+/**
+ * Type guard for Prisma errors
+ * Checks if an error is a Prisma client error with an error code
+ */
+export interface PrismaError extends Error {
+  code: string
+  meta?: Record<string, unknown>
+}
+
+export function isPrismaError(error: unknown): error is PrismaError {
+  return (
+    error instanceof Error &&
+    'code' in error &&
+    typeof (error as PrismaError).code === 'string'
+  )
+}

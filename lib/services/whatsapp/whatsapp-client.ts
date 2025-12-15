@@ -94,8 +94,19 @@ export interface TemplateComponent {
  * Format phone number for WhatsApp API
  * WhatsApp requires E.164 format without the + prefix
  *
- * NOTE: This function assumes US numbers for 10-digit inputs (adds country code 1).
- * For international support, consider using libphonenumber-js library.
+ * ============================================================================
+ * WARNING: US-CENTRIC IMPLEMENTATION
+ * ============================================================================
+ * This function assumes 10-digit numbers are US numbers and adds country code 1.
+ * International numbers MUST include their country code (11-15 digits total).
+ *
+ * Examples:
+ * - "5551234567" -> "15551234567" (US assumed)
+ * - "15551234567" -> "15551234567" (US with code)
+ * - "447911123456" -> "447911123456" (UK number)
+ *
+ * For full international support, consider libphonenumber-js library.
+ * ============================================================================
  *
  * @param phone - Phone number in any format
  * @returns Phone number in WhatsApp format (country code + number, no +)

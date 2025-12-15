@@ -41,6 +41,13 @@ export const WHATSAPP_API_BASE_URL = 'https://graph.facebook.com'
 // Rate limiting: delay between bulk messages (WhatsApp recommends max 80 msgs/sec)
 export const BULK_MESSAGE_DELAY_MS = 1000
 
+// Max recipients per bulk send to prevent timeouts and memory issues
+export const MAX_BULK_RECIPIENTS = 50
+
+// Default language for templates (can be overridden via env)
+export const WHATSAPP_DEFAULT_LANGUAGE =
+  process.env.WHATSAPP_DEFAULT_LANGUAGE || 'en'
+
 // Duplicate message prevention windows (in hours) per template type
 export const DUPLICATE_WINDOWS_HOURS: Record<string, number> = {
   [WHATSAPP_TEMPLATES.DUGSI_PAYMENT_LINK]: 24,

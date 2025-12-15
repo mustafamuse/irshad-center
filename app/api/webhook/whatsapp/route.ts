@@ -89,23 +89,25 @@ export async function POST(request: NextRequest) {
     return new NextResponse('OK', { status: 200 })
   }
 
-  try {
-    for (const entry of payload.entry || []) {
-      for (const change of entry.changes || []) {
-        if (change.field !== 'messages') continue
+  for (const entry of payload.entry || []) {
+    for (const change of entry.changes || []) {
+      if (change.field !== 'messages') continue
 
-        const statuses = change.value.statuses || []
-        for (const status of statuses) {
+      const statuses = change.value.statuses || []
+      for (const status of statuses) {
+        try {
           await processStatusUpdate(status)
+        } catch (error) {
+          await logError(logger, error, 'Failed to process status update', {
+            waMessageId: status.id,
+            status: status.status,
+          })
         }
       }
     }
-
-    return new NextResponse('OK', { status: 200 })
-  } catch (error) {
-    await logError(logger, error, 'Error processing WhatsApp webhook')
-    return new NextResponse('Internal Server Error', { status: 500 })
   }
+
+  return new NextResponse('OK', { status: 200 })
 }
 
 async function processStatusUpdate(status: WhatsAppStatus): Promise<void> {

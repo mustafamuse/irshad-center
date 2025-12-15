@@ -979,41 +979,29 @@ export async function sendPaymentLinkViaWhatsAppAction(
   }
   const input = parseResult.data
 
-  try {
-    const result = await sendPaymentLink({
-      phone: input.phone,
-      parentName: input.parentName,
-      amount: input.amount,
-      childCount: input.childCount,
-      paymentUrl: input.paymentUrl,
-      program: DUGSI_PROGRAM,
-      personId: input.personId,
-      familyId: input.familyId,
-    })
+  const result = await sendPaymentLink({
+    phone: input.phone,
+    parentName: input.parentName,
+    amount: input.amount,
+    childCount: input.childCount,
+    paymentUrl: input.paymentUrl,
+    program: DUGSI_PROGRAM,
+    personId: input.personId,
+    familyId: input.familyId,
+  })
 
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error || 'Failed to send WhatsApp message',
-      }
-    }
-
-    return {
-      success: true,
-      data: { waMessageId: result.waMessageId },
-      message: 'Payment link sent via WhatsApp',
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to send payment link via WhatsApp', {
-      phone: input.phone,
-      familyId: input.familyId,
-    })
+  if (!result.success) {
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to send WhatsApp message',
+      error: result.error || 'Failed to send WhatsApp message',
     }
+  }
+
+  revalidatePath('/admin/dugsi')
+
+  return {
+    success: true,
+    data: { waMessageId: result.waMessageId },
+    message: 'Payment link sent via WhatsApp',
   }
 }

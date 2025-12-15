@@ -359,6 +359,7 @@ describe('getRecentMessagesToPhone', () => {
         createdAt: { gte: expect.any(Date) },
       },
       orderBy: { createdAt: 'desc' },
+      take: 100,
     })
 
     vi.useRealTimers()

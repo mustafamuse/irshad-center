@@ -27,6 +27,10 @@ export interface WhatsAppMessageFilters {
   endDate?: Date
 }
 
+/**
+ * Get WhatsApp messages with filters.
+ * NOTE: Includes person relation. If called in a loop, consider batch loading to avoid N+1.
+ */
 export async function getWhatsAppMessages(
   filters: WhatsAppMessageFilters = {},
   options: { limit?: number; offset?: number } = {},
@@ -170,6 +174,7 @@ export async function getMessagesByPerson(
 export async function getRecentMessagesToPhone(
   phoneNumber: string,
   withinHours: number = 24,
+  limit: number = 100,
   client: DatabaseClient = prisma
 ) {
   const cutoff = new Date()
@@ -181,6 +186,7 @@ export async function getRecentMessagesToPhone(
       createdAt: { gte: cutoff },
     },
     orderBy: { createdAt: 'desc' },
+    take: limit,
   })
 }
 
