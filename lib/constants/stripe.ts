@@ -44,3 +44,9 @@ export const STRIPE_WEBHOOK_EVENTS = {
   PAYMENT_SUCCEEDED: 'payment_intent.succeeded',
   PAYMENT_FAILED: 'payment_intent.payment_failed',
 } as const
+
+/**
+ * Stripe URL patterns for validation
+ */
+export const STRIPE_CHECKOUT_DOMAIN = 'checkout.stripe.com'
+export const STRIPE_SESSION_ID_PATTERN = /cs_[a-zA-Z0-9_]+/

@@ -36,6 +36,7 @@ import {
   removeTeacherAssignment as removeTeacherAssignmentService,
   getTeachersByProgram as getTeachersByProgramService,
 } from '@/lib/services/shared/teacher-service'
+import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import {
   UpdateFamilyShiftSchema,
@@ -918,5 +919,89 @@ export async function getAvailableDugsiTeachers(): Promise<
       success: false,
       error: 'Failed to load available teachers',
     }
+  }
+}
+
+// ============================================================================
+// WhatsApp Actions
+// ============================================================================
+
+const SendPaymentLinkViaWhatsAppSchema = z.object({
+  phone: z
+    .string()
+    .min(10, 'Phone number too short')
+    .max(15, 'Phone number too long'),
+  parentName: z
+    .string()
+    .min(1, 'Parent name required')
+    .max(100, 'Parent name too long'),
+  amount: z
+    .number()
+    .int('Amount must be an integer')
+    .positive('Amount must be positive'),
+  childCount: z
+    .number()
+    .int('Child count must be an integer')
+    .positive('Child count must be positive'),
+  paymentUrl: z.string().url('Invalid payment URL'),
+  familyId: z.string().optional(),
+  personId: z.string().optional(),
+})
+
+export type SendPaymentLinkViaWhatsAppInput = z.infer<
+  typeof SendPaymentLinkViaWhatsAppSchema
+>
+
+export interface WhatsAppSendResult {
+  waMessageId?: string
+}
+
+/**
+ * Send a payment link to a parent via WhatsApp API.
+ *
+ * Uses the WhatsApp Cloud API to send a pre-approved template message
+ * with the payment link. Message is logged to WhatsAppMessage table.
+ *
+ * Design decision: This action intentionally does NOT use a database transaction.
+ * The WhatsApp message record should persist for audit trail purposes even if
+ * any caller's subsequent operations fail. The message has already been sent
+ * to WhatsApp's servers at that point.
+ */
+export async function sendPaymentLinkViaWhatsAppAction(
+  rawInput: unknown
+): Promise<ActionResult<WhatsAppSendResult>> {
+  const parseResult = SendPaymentLinkViaWhatsAppSchema.safeParse(rawInput)
+  if (!parseResult.success) {
+    return {
+      success: false,
+      error: parseResult.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const input = parseResult.data
+
+  const result = await sendPaymentLink({
+    phone: input.phone,
+    parentName: input.parentName,
+    amount: input.amount,
+    childCount: input.childCount,
+    paymentUrl: input.paymentUrl,
+    program: DUGSI_PROGRAM,
+    personId: input.personId,
+    familyId: input.familyId,
+  })
+
+  if (!result.success) {
+    return {
+      success: false,
+      error: result.error || 'Failed to send WhatsApp message',
+    }
+  }
+
+  revalidatePath('/admin/dugsi')
+
+  return {
+    success: true,
+    data: { waMessageId: result.waMessageId },
+    message: 'Payment link sent via WhatsApp',
   }
 }
