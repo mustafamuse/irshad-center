@@ -217,36 +217,3 @@ export function getPrimaryPayerPhone(family: Family): PrimaryPayerPhoneResult {
     fallbackReason: 'primary_payer_phone_missing',
   }
 }
-
-/**
- * Get the primary payer's full name for WhatsApp messages.
- *
- * Resolution order:
- * 1. If primaryPayerParentNumber === 2: use parent2 name
- * 2. If primaryPayerParentNumber === 1 or null: use parent1 name
- *
- * @param family - The family object containing members with parent data
- * @returns The resolved parent name
- */
-export function getPrimaryPayerName(family: Family): string {
-  const member = family.members[0]
-  if (!member) {
-    return 'Parent'
-  }
-
-  const {
-    primaryPayerParentNumber,
-    parentFirstName,
-    parentLastName,
-    parent2FirstName,
-    parent2LastName,
-  } = member
-
-  if (primaryPayerParentNumber === 2 && (parent2FirstName || parent2LastName)) {
-    return (
-      [parent2FirstName, parent2LastName].filter(Boolean).join(' ') || 'Parent'
-    )
-  }
-
-  return [parentFirstName, parentLastName].filter(Boolean).join(' ') || 'Parent'
-}

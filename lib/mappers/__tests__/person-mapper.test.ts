@@ -27,7 +27,6 @@ function createTeacherProgram(program: Program, isActive = true) {
     id: `tp-${program}`,
     teacherId: 'teacher-1',
     program,
-    shifts: [],
     isActive,
     createdAt: new Date(),
     updatedAt: new Date(),
