@@ -38,7 +38,25 @@ export const REACTION_EMOJIS = {
 export const WHATSAPP_API_VERSION = 'v21.0'
 export const WHATSAPP_API_BASE_URL = 'https://graph.facebook.com'
 
-// Template parameter mappings
+// Rate limiting: delay between bulk messages (WhatsApp recommends max 80 msgs/sec)
+export const BULK_MESSAGE_DELAY_MS = 1000
+
+// Duplicate message prevention windows (in hours) per template type
+export const DUPLICATE_WINDOWS_HOURS: Record<string, number> = {
+  [WHATSAPP_TEMPLATES.DUGSI_PAYMENT_LINK]: 24,
+  [WHATSAPP_TEMPLATES.DUGSI_PAYMENT_REMINDER]: 168, // 1 week
+  [WHATSAPP_TEMPLATES.MAHAD_PAYMENT_LINK]: 24,
+  [WHATSAPP_TEMPLATES.MAHAD_PAYMENT_REMINDER]: 168,
+  default: 1,
+}
+
+export function getDuplicateWindowHours(templateName: string): number {
+  return (
+    DUPLICATE_WINDOWS_HOURS[templateName] ?? DUPLICATE_WINDOWS_HOURS.default
+  )
+}
+
+// Template parameter mappings (documentation only - describes expected params)
 // Maps template names to their expected parameters
 export const TEMPLATE_PARAMS = {
   [WHATSAPP_TEMPLATES.DUGSI_PAYMENT_LINK]: {

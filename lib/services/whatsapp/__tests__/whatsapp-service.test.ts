@@ -5,13 +5,13 @@ import {
 } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-const { mockSendTemplate, mockCreate, mockHasRecentMessage } = vi.hoisted(
-  () => ({
+const { mockSendTemplate, mockCreate, mockUpsert, mockHasRecentMessage } =
+  vi.hoisted(() => ({
     mockSendTemplate: vi.fn(),
     mockCreate: vi.fn(),
+    mockUpsert: vi.fn(),
     mockHasRecentMessage: vi.fn(),
-  })
-)
+  }))
 
 vi.mock('../whatsapp-client', () => ({
   createWhatsAppClient: vi.fn(() => ({
@@ -31,6 +31,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     whatsAppMessage: {
       create: mockCreate,
+      upsert: mockUpsert,
     },
   },
 }))
@@ -96,6 +97,7 @@ describe('sendPaymentLink', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockHasRecentMessage.mockResolvedValue(false)
+    mockUpsert.mockResolvedValue({})
   })
 
   const validInput = {
@@ -123,7 +125,7 @@ describe('sendPaymentLink', () => {
     expect(mockSendTemplate).not.toHaveBeenCalled()
   })
 
-  it('should return error for duplicate message within 1 hour', async () => {
+  it('should return error for duplicate message within window', async () => {
     const { isValidPhoneNumber } = await import('../whatsapp-client')
     vi.mocked(isValidPhoneNumber).mockReturnValue(true)
     mockHasRecentMessage.mockResolvedValue(true)
@@ -131,7 +133,9 @@ describe('sendPaymentLink', () => {
     const result = await sendPaymentLink(validInput)
 
     expect(result.success).toBe(false)
-    expect(result.error).toBe('Message already sent within the last hour')
+    expect(result.error).toMatch(
+      /Message already sent within the last \d+ hour/
+    )
     expect(mockSendTemplate).not.toHaveBeenCalled()
   })
 
@@ -199,7 +203,7 @@ describe('sendPaymentLink', () => {
     )
   })
 
-  it('should create WhatsAppMessage record with normalized phone on success', async () => {
+  it('should upsert WhatsAppMessage record with normalized phone on success', async () => {
     const { isValidPhoneNumber } = await import('../whatsapp-client')
     vi.mocked(isValidPhoneNumber).mockReturnValue(true)
 
@@ -207,12 +211,11 @@ describe('sendPaymentLink', () => {
       messages: [{ id: 'wamid.success' }],
     })
 
-    mockCreate.mockResolvedValue({})
-
     await sendPaymentLink(validInput)
 
-    expect(mockCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(mockUpsert).toHaveBeenCalledWith({
+      where: { waMessageId: 'wamid.success' },
+      create: expect.objectContaining({
         waMessageId: 'wamid.success',
         phoneNumber: '15551234567',
         templateName: 'dugsi_payment_link',
@@ -221,6 +224,9 @@ describe('sendPaymentLink', () => {
         personId: 'person-123',
         familyId: 'family-123',
         messageType: WhatsAppMessageType.TRANSACTIONAL,
+        status: 'sent',
+      }),
+      update: expect.objectContaining({
         status: 'sent',
       }),
     })
@@ -275,6 +281,7 @@ describe('sendPaymentConfirmation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockHasRecentMessage.mockResolvedValue(false)
+    mockUpsert.mockResolvedValue({})
   })
 
   const validInput = {
@@ -318,15 +325,15 @@ describe('sendPaymentConfirmation', () => {
       messages: [{ id: 'wamid.conf' }],
     })
 
-    mockCreate.mockResolvedValue({})
-
     await sendPaymentConfirmation(validInput)
 
-    expect(mockCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        messageType: WhatsAppMessageType.NOTIFICATION,
-      }),
-    })
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          messageType: WhatsAppMessageType.NOTIFICATION,
+        }),
+      })
+    )
   })
 })
 
@@ -334,6 +341,7 @@ describe('sendPaymentReminder', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockHasRecentMessage.mockResolvedValue(false)
+    mockUpsert.mockResolvedValue({})
   })
 
   const validInput = {
@@ -377,14 +385,14 @@ describe('sendPaymentReminder', () => {
       messages: [{ id: 'wamid.reminder' }],
     })
 
-    mockCreate.mockResolvedValue({})
-
     await sendPaymentReminder(validInput)
 
-    expect(mockCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        messageType: WhatsAppMessageType.REMINDER,
-      }),
-    })
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          messageType: WhatsAppMessageType.REMINDER,
+        }),
+      })
+    )
   })
 })

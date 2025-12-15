@@ -961,6 +961,11 @@ export interface WhatsAppSendResult {
  *
  * Uses the WhatsApp Cloud API to send a pre-approved template message
  * with the payment link. Message is logged to WhatsAppMessage table.
+ *
+ * Design decision: This action intentionally does NOT use a database transaction.
+ * The WhatsApp message record should persist for audit trail purposes even if
+ * any caller's subsequent operations fail. The message has already been sent
+ * to WhatsApp's servers at that point.
  */
 export async function sendPaymentLinkViaWhatsAppAction(
   rawInput: unknown

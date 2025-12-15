@@ -93,13 +93,18 @@ export interface TemplateComponent {
 /**
  * Format phone number for WhatsApp API
  * WhatsApp requires E.164 format without the + prefix
+ *
+ * NOTE: This function assumes US numbers for 10-digit inputs (adds country code 1).
+ * For international support, consider using libphonenumber-js library.
+ *
  * @param phone - Phone number in any format
  * @returns Phone number in WhatsApp format (country code + number, no +)
+ * @throws Error if phone number length is invalid (<10 or >15 digits)
  */
 export function formatPhoneForWhatsApp(phone: string): string {
   const digits = phone.replace(/\D/g, '')
 
-  // US numbers: 10 digits -> add country code
+  // US numbers: 10 digits -> add country code 1
   if (digits.length === 10) {
     return `1${digits}`
   }
@@ -149,6 +154,21 @@ export function verifyWebhookSignature(
 }
 
 // ============================================================================
+// RETRY CONFIGURATION
+// ============================================================================
+
+const MAX_RETRIES = 3
+const INITIAL_RETRY_DELAY_MS = 1000
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status < 600)
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// ============================================================================
 // WHATSAPP CLIENT CLASS (based on Midday's pattern)
 // ============================================================================
 
@@ -164,28 +184,46 @@ export class WhatsAppClient {
   }
 
   /**
-   * Make authenticated request to WhatsApp API
+   * Make authenticated request to WhatsApp API with exponential backoff retry
+   * Retries on 5xx errors and 429 (rate limit) with exponential backoff
    */
-  private async request<T>(endpoint: string, body: unknown): Promise<T> {
+  private async request<T>(
+    endpoint: string,
+    body: unknown,
+    retries = MAX_RETRIES
+  ): Promise<T> {
     const url = `${WHATSAPP_API_BASE_URL}/${this.apiVersion}/${this.phoneNumberId}${endpoint}`
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      })
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}))
+      if (response.ok) {
+        return response.json()
+      }
+
+      const errorBody = await response.json().catch(() => ({}))
+      const isRetryable = isRetryableStatus(response.status)
+      const hasRetriesLeft = attempt < retries
+
+      if (isRetryable && hasRetriesLeft) {
+        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt)
+        await sleep(delay)
+        continue
+      }
+
       throw new Error(
-        `WhatsApp API error: ${response.status} - ${JSON.stringify(error)}`
+        `WhatsApp API error: ${response.status} - ${JSON.stringify(errorBody)}`
       )
     }
 
-    return response.json()
+    throw new Error('Unexpected error in request retry loop')
   }
 
   /**
@@ -320,6 +358,45 @@ export class WhatsAppClient {
 }
 
 // ============================================================================
+// ENVIRONMENT VALIDATION
+// ============================================================================
+
+const REQUIRED_ENV_VARS = [
+  'WHATSAPP_PHONE_NUMBER_ID',
+  'WHATSAPP_ACCESS_TOKEN',
+] as const
+
+const WEBHOOK_ENV_VARS = [
+  'WHATSAPP_APP_SECRET',
+  'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+] as const
+
+export interface WhatsAppEnvValidationResult {
+  valid: boolean
+  missing: string[]
+}
+
+/**
+ * Validate WhatsApp environment variables
+ * Call at startup or in middleware to catch configuration issues early
+ * @param includeWebhook - Also validate webhook-related env vars
+ */
+export function validateWhatsAppEnv(
+  includeWebhook = false
+): WhatsAppEnvValidationResult {
+  const requiredVars = includeWebhook
+    ? [...REQUIRED_ENV_VARS, ...WEBHOOK_ENV_VARS]
+    : [...REQUIRED_ENV_VARS]
+
+  const missing = requiredVars.filter((key) => !process.env[key])
+
+  return {
+    valid: missing.length === 0,
+    missing,
+  }
+}
+
+// ============================================================================
 // FACTORY FUNCTION
 // ============================================================================
 
@@ -328,14 +405,15 @@ export class WhatsAppClient {
  * Validates required configuration is present
  */
 export function createWhatsAppClient(): WhatsAppClient {
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN
-
-  if (!phoneNumberId || !accessToken) {
+  const validation = validateWhatsAppEnv()
+  if (!validation.valid) {
     throw new Error(
-      'Missing WhatsApp configuration: WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN are required'
+      `Missing WhatsApp configuration: ${validation.missing.join(', ')}`
     )
   }
 
-  return new WhatsAppClient({ phoneNumberId, accessToken })
+  return new WhatsAppClient({
+    phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID!,
+    accessToken: process.env.WHATSAPP_ACCESS_TOKEN!,
+  })
 }

@@ -4,9 +4,12 @@ import { describe, it, expect } from 'vitest'
 import {
   WHATSAPP_TEMPLATES,
   REACTION_EMOJIS,
+  BULK_MESSAGE_DELAY_MS,
+  DUPLICATE_WINDOWS_HOURS,
   getPaymentLinkTemplate,
   getPaymentConfirmedTemplate,
   getPaymentReminderTemplate,
+  getDuplicateWindowHours,
 } from '../whatsapp'
 
 describe('WHATSAPP_TEMPLATES', () => {
@@ -97,5 +100,47 @@ describe('getPaymentReminderTemplate', () => {
   it('should default to DUGSI_PAYMENT_REMINDER for unknown program', () => {
     const result = getPaymentReminderTemplate('UNKNOWN' as Program)
     expect(result).toBe(WHATSAPP_TEMPLATES.DUGSI_PAYMENT_REMINDER)
+  })
+})
+
+describe('BULK_MESSAGE_DELAY_MS', () => {
+  it('should be 1000ms for safe rate limiting', () => {
+    expect(BULK_MESSAGE_DELAY_MS).toBe(1000)
+  })
+})
+
+describe('DUPLICATE_WINDOWS_HOURS', () => {
+  it('should have correct windows for payment templates', () => {
+    expect(DUPLICATE_WINDOWS_HOURS[WHATSAPP_TEMPLATES.DUGSI_PAYMENT_LINK]).toBe(
+      24
+    )
+    expect(
+      DUPLICATE_WINDOWS_HOURS[WHATSAPP_TEMPLATES.DUGSI_PAYMENT_REMINDER]
+    ).toBe(168)
+    expect(DUPLICATE_WINDOWS_HOURS[WHATSAPP_TEMPLATES.MAHAD_PAYMENT_LINK]).toBe(
+      24
+    )
+    expect(
+      DUPLICATE_WINDOWS_HOURS[WHATSAPP_TEMPLATES.MAHAD_PAYMENT_REMINDER]
+    ).toBe(168)
+  })
+
+  it('should have a default fallback', () => {
+    expect(DUPLICATE_WINDOWS_HOURS.default).toBe(1)
+  })
+})
+
+describe('getDuplicateWindowHours', () => {
+  it('should return template-specific window', () => {
+    expect(getDuplicateWindowHours(WHATSAPP_TEMPLATES.DUGSI_PAYMENT_LINK)).toBe(
+      24
+    )
+    expect(
+      getDuplicateWindowHours(WHATSAPP_TEMPLATES.DUGSI_PAYMENT_REMINDER)
+    ).toBe(168)
+  })
+
+  it('should return default for unknown template', () => {
+    expect(getDuplicateWindowHours('unknown_template')).toBe(1)
   })
 })

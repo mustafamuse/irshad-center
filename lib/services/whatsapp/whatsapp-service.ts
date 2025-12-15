@@ -17,6 +17,8 @@ import {
   getPaymentLinkTemplate,
   getPaymentConfirmedTemplate,
   getPaymentReminderTemplate,
+  getDuplicateWindowHours,
+  BULK_MESSAGE_DELAY_MS,
 } from '@/lib/constants/whatsapp'
 import { prisma } from '@/lib/db'
 import { hasRecentMessage } from '@/lib/db/queries/whatsapp'
@@ -100,16 +102,22 @@ async function checkDuplicateMessage(
   templateName: string,
   program: Program
 ): Promise<{ isDuplicate: boolean; error?: string }> {
-  const isDuplicate = await hasRecentMessage(formattedPhone, templateName, 1)
+  const windowHours = getDuplicateWindowHours(templateName)
+  const isDuplicate = await hasRecentMessage(
+    formattedPhone,
+    templateName,
+    windowHours
+  )
   if (isDuplicate) {
     await logWarning(logger, 'Duplicate WhatsApp message blocked', {
       phone: formattedPhone,
       templateName,
       program,
+      windowHours,
     })
     return {
       isDuplicate: true,
-      error: 'Message already sent within the last hour',
+      error: `Message already sent within the last ${windowHours} hour(s)`,
     }
   }
   return { isDuplicate: false }
@@ -122,25 +130,37 @@ async function createMessageRecord(
   status: 'sent' | 'failed',
   failureReason?: string
 ) {
-  await prisma.whatsAppMessage.create({
-    data: {
-      waMessageId,
-      phoneNumber: context.formattedPhone,
-      templateName: context.templateName,
-      program: input.program,
-      recipientType: context.recipientType,
-      personId: input.personId,
-      familyId: input.familyId,
-      batchId: context.batchId,
-      messageType: context.messageType,
-      status,
-      ...(status === 'failed' && {
-        failedAt: new Date(),
-        failureReason,
-      }),
-      metadata: context.metadata,
-    },
-  })
+  const messageData = {
+    phoneNumber: context.formattedPhone,
+    templateName: context.templateName,
+    program: input.program,
+    recipientType: context.recipientType,
+    personId: input.personId,
+    familyId: input.familyId,
+    batchId: context.batchId,
+    messageType: context.messageType,
+    status,
+    ...(status === 'failed' && {
+      failedAt: new Date(),
+      failureReason,
+    }),
+    metadata: context.metadata,
+  }
+
+  if (waMessageId) {
+    await prisma.whatsAppMessage.upsert({
+      where: { waMessageId },
+      create: { waMessageId, ...messageData },
+      update: {
+        status,
+        ...(status === 'failed' && { failedAt: new Date(), failureReason }),
+      },
+    })
+  } else {
+    await prisma.whatsAppMessage.create({
+      data: { waMessageId, ...messageData },
+    })
+  }
 }
 
 async function sendTemplateMessage(
@@ -494,7 +514,7 @@ export async function sendBulkAnnouncement(
       failed++
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    await new Promise((resolve) => setTimeout(resolve, BULK_MESSAGE_DELAY_MS))
   }
 
   logger.info(
