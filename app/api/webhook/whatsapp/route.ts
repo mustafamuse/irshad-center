@@ -8,6 +8,9 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
+import { Prisma } from '@prisma/client'
+
+import { prisma } from '@/lib/db'
 import {
   updateMessageStatus,
   getWhatsAppMessageByWaId,
@@ -112,6 +115,24 @@ export async function POST(request: NextRequest) {
 
 async function processStatusUpdate(status: WhatsAppStatus): Promise<void> {
   const { id: waMessageId, status: messageStatus, timestamp, errors } = status
+  const eventId = `wa_status_${waMessageId}_${messageStatus}_${timestamp}`
+
+  const existingEvent = await prisma.webhookEvent.findUnique({
+    where: { eventId_source: { eventId, source: 'whatsapp' } },
+  })
+  if (existingEvent) {
+    logger.debug({ eventId }, 'Duplicate webhook event, skipping')
+    return
+  }
+
+  await prisma.webhookEvent.create({
+    data: {
+      eventId,
+      eventType: `whatsapp.message.${messageStatus}`,
+      source: 'whatsapp',
+      payload: status as unknown as Prisma.JsonObject,
+    },
+  })
 
   const existingMessage = await getWhatsAppMessageByWaId(waMessageId)
   if (!existingMessage) {
@@ -127,7 +148,14 @@ async function processStatusUpdate(status: WhatsAppStatus): Promise<void> {
     failureReason = errors.map((e) => `${e.code}: ${e.title}`).join('; ')
   }
 
-  await updateMessageStatus(waMessageId, messageStatus, failureReason)
+  try {
+    await updateMessageStatus(waMessageId, messageStatus, failureReason)
+  } catch (error) {
+    await prisma.webhookEvent.delete({
+      where: { eventId_source: { eventId, source: 'whatsapp' } },
+    })
+    throw error
+  }
 
   logger.info(
     {

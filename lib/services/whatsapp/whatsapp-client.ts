@@ -171,7 +171,9 @@ export function verifyWebhookSignature(
 const MAX_RETRIES = 3
 const INITIAL_RETRY_DELAY_MS = 1000
 
-function isRetryableStatus(status: number): boolean {
+type RetryableHttpStatus = 429 | 500 | 502 | 503 | 504
+
+function isRetryableStatus(status: number): status is RetryableHttpStatus {
   return status === 429 || (status >= 500 && status < 600)
 }
 

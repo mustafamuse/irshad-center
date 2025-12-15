@@ -13,6 +13,10 @@ import {
 } from '@prisma/client'
 
 import {
+  STRIPE_CHECKOUT_DOMAIN,
+  STRIPE_SESSION_ID_PATTERN,
+} from '@/lib/constants/stripe'
+import {
   WHATSAPP_TEMPLATES,
   getPaymentLinkTemplate,
   getPaymentConfirmedTemplate,
@@ -264,8 +268,8 @@ export async function sendPaymentLink(
     return { success: false, error: duplicateCheck.error }
   }
 
-  const isStripeUrl = paymentUrl.includes('checkout.stripe.com')
-  const sessionIdMatch = paymentUrl.match(/cs_[a-zA-Z0-9_]+/)
+  const isStripeUrl = paymentUrl.includes(STRIPE_CHECKOUT_DOMAIN)
+  const sessionIdMatch = paymentUrl.match(STRIPE_SESSION_ID_PATTERN)
   if (!isStripeUrl || !sessionIdMatch) {
     await logWarning(
       logger,

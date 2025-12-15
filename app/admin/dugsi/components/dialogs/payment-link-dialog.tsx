@@ -349,6 +349,7 @@ export function PaymentLinkDialog({
                 variant="outline"
                 onClick={handleSendViaWhatsAppAPI}
                 disabled={isSendingWhatsApp || whatsAppSent || !parentPhone}
+                aria-label="Send payment link via WhatsApp API"
               >
                 {isSendingWhatsApp ? (
                   <>
@@ -364,7 +365,11 @@ export function PaymentLinkDialog({
                   </>
                 )}
               </Button>
-              <Button variant="outline" onClick={handleOpenWhatsApp}>
+              <Button
+                variant="outline"
+                onClick={handleOpenWhatsApp}
+                aria-label="Open WhatsApp with payment link"
+              >
                 Open WhatsApp
               </Button>
             </>
