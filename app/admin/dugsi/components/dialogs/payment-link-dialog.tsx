@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import { AlertTriangle, Link2 } from 'lucide-react'
+import { AlertTriangle, Link2, Loader2, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
 import {
@@ -10,11 +10,11 @@ import {
   copyPaymentLink,
   GenerateButton,
   OverrideAmountInput,
-  PaymentLinkActions,
   PaymentLinkDisplay,
   validateOverrideInput,
 } from '@/components/admin/payment-link-shared'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -30,6 +30,7 @@ import {
   getNextBillingDate,
   parseBillingDay,
 } from '@/lib/utils/billing-date'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 import {
   calculateDugsiRate,
   formatRate,
@@ -38,9 +39,10 @@ import {
 } from '@/lib/utils/dugsi-tuition'
 
 import { Family } from '../../_types'
-import { getPrimaryPayerPhone } from '../../_utils/family'
+import { getPrimaryPayerPhone, getPrimaryPayerName } from '../../_utils/family'
 import {
   generateFamilyPaymentLinkAction,
+  sendPaymentLinkViaWhatsAppAction,
   type FamilyPaymentLinkData,
 } from '../../actions'
 
@@ -56,6 +58,8 @@ export function PaymentLinkDialog({
   onOpenChange,
 }: PaymentLinkDialogProps) {
   const [isPending, startTransition] = useTransition()
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false)
+  const [whatsAppSent, setWhatsAppSent] = useState(false)
   const [result, setResult] = useState<FamilyPaymentLinkData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -80,6 +84,8 @@ export function PaymentLinkDialog({
       setOverrideAmount('')
       setBillingStartDay('')
       setSelectedBillingDate(null)
+      setWhatsAppSent(false)
+      setIsSendingWhatsApp(false)
     }
   }, [open])
 
@@ -133,6 +139,55 @@ export function PaymentLinkDialog({
         toast.error(response.error || 'Failed to generate payment link')
       }
     })
+  }
+
+  const handleSendViaWhatsAppAPI = async () => {
+    if (!result || !parentPhone) {
+      toast.error('No phone number available for WhatsApp')
+      return
+    }
+
+    setIsSendingWhatsApp(true)
+
+    try {
+      const parentName = getPrimaryPayerName(family)
+      const response = await sendPaymentLinkViaWhatsAppAction({
+        phone: parentPhone,
+        parentName,
+        amount: result.finalRate,
+        childCount: result.childCount,
+        paymentUrl: result.paymentUrl,
+        familyId: familyId || undefined,
+      })
+
+      if (response.success) {
+        setWhatsAppSent(true)
+        toast.success('Payment link sent via WhatsApp')
+      } else {
+        toast.error(response.error || 'Failed to send WhatsApp message')
+      }
+    } catch {
+      toast.error('Failed to send WhatsApp message')
+    } finally {
+      setIsSendingWhatsApp(false)
+    }
+  }
+
+  const handleOpenWhatsApp = () => {
+    if (!result?.paymentUrl || !parentPhone) {
+      toast.error('No phone number available for WhatsApp')
+      return
+    }
+
+    let phoneNumber = normalizePhone(parentPhone) ?? ''
+    if (phoneNumber.length === 10 && !phoneNumber.startsWith('1')) {
+      phoneNumber = `1${phoneNumber}`
+    }
+
+    const message = encodeURIComponent(
+      getWhatsAppPaymentMessage(result.paymentUrl)
+    )
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank')
   }
 
   const displayRate =
@@ -288,13 +343,38 @@ export function PaymentLinkDialog({
         </div>
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
-          <PaymentLinkActions
-            url={result?.paymentUrl || ''}
-            phone={parentPhone}
-            getWhatsAppMessage={getWhatsAppPaymentMessage}
-            hasResult={!!result}
-            onClose={() => onOpenChange(false)}
-          />
+          {result && (
+            <>
+              <Button
+                variant="outline"
+                onClick={handleSendViaWhatsAppAPI}
+                disabled={isSendingWhatsApp || whatsAppSent || !parentPhone}
+              >
+                {isSendingWhatsApp ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : whatsAppSent ? (
+                  'Sent via API'
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Send via API
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" onClick={handleOpenWhatsApp}>
+                Open WhatsApp
+              </Button>
+            </>
+          )}
+          <Button
+            variant={result ? 'default' : 'outline'}
+            onClick={() => onOpenChange(false)}
+          >
+            {result ? 'Done' : 'Cancel'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
