@@ -53,11 +53,13 @@ export function exportFamiliesToCSV(
       const payerName = isPrimaryPayerParent2
         ? formatFullName(
             firstMember.parent2FirstName,
-            firstMember.parent2LastName
+            firstMember.parent2LastName,
+            ''
           )
         : formatFullName(
             firstMember.parentFirstName,
-            firstMember.parentLastName
+            firstMember.parentLastName,
+            ''
           )
 
       const primaryPayerPhoneResult = getPrimaryPayerPhone(family)
@@ -68,11 +70,13 @@ export function exportFamiliesToCSV(
       const otherParentName = isPrimaryPayerParent2
         ? formatFullName(
             firstMember.parentFirstName,
-            firstMember.parentLastName
+            firstMember.parentLastName,
+            ''
           )
         : formatFullName(
             firstMember.parent2FirstName,
-            firstMember.parent2LastName
+            firstMember.parent2LastName,
+            ''
           )
 
       const otherParentPhone = isPrimaryPayerParent2

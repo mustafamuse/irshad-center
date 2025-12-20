@@ -6,6 +6,7 @@
 import { format } from 'date-fns'
 
 import { DATE_FORMAT } from '@/lib/constants/dugsi'
+import { formatFullName } from '@/lib/utils/formatters'
 
 import { DugsiRegistration } from '../_types'
 
@@ -16,7 +17,7 @@ export function formatParentName(
   firstName: string | null,
   lastName: string | null
 ): string {
-  return [firstName, lastName].filter(Boolean).join(' ') || 'Not provided'
+  return formatFullName(firstName, lastName, 'Not provided')
 }
 
 /**
