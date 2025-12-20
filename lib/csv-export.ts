@@ -3,8 +3,12 @@
  * Exports family/registration data to CSV format
  */
 import { Family } from '@/app/admin/dugsi/_types'
-import { getFamilyStatus } from '@/app/admin/dugsi/_utils/family'
+import {
+  getFamilyStatus,
+  getPrimaryPayerPhone,
+} from '@/app/admin/dugsi/_utils/family'
 import { formatParentName } from '@/app/admin/dugsi/_utils/format'
+import { formatPhoneNumber, formatCurrency } from '@/lib/utils/formatters'
 
 /**
  * Export families to CSV file
@@ -17,18 +21,16 @@ export function exportFamiliesToCSV(
   const defaultFilename = `dugsi-families-${timestamp}.csv`
 
   const headers = [
-    'Family Key',
+    'Primary Payer Indicator',
+    'Primary Payer Phone',
     'Parent Name',
-    'Parent Email',
     'Parent Phone',
     'Parent 2 Name',
-    'Parent 2 Email',
     'Parent 2 Phone',
     'Children Count',
-    'Children Names',
+    'Subscription Status',
+    'Subscription Amount',
     'Status',
-    'Customer ID',
-    'Subscription ID',
     'Registration Date',
   ]
 
@@ -36,22 +38,38 @@ export function exportFamiliesToCSV(
     const firstMember = family.members[0]
     if (!firstMember) return []
 
+    const primaryPayerIndicator =
+      firstMember.primaryPayerParentNumber === 2
+        ? 'Parent 2'
+        : firstMember.primaryPayerParentNumber === 1
+          ? 'Parent 1'
+          : 'Not Set'
+
+    const primaryPayerPhoneResult = getPrimaryPayerPhone(family)
+    const primaryPayerPhone = formatPhoneNumber(primaryPayerPhoneResult.phone)
+
+    const parent1Phone = formatPhoneNumber(firstMember.parentPhone)
+    const parent2Phone = formatPhoneNumber(firstMember.parent2Phone)
+
+    const subscriptionStatus = firstMember.subscriptionStatus || '—'
+    const subscriptionAmount = firstMember.subscriptionAmount
+      ? formatCurrency(firstMember.subscriptionAmount)
+      : '—'
+
     return [
-      family.familyKey,
+      primaryPayerIndicator,
+      primaryPayerPhone,
       formatParentName(firstMember.parentFirstName, firstMember.parentLastName),
-      firstMember.parentEmail || '',
-      firstMember.parentPhone || '',
+      parent1Phone,
       formatParentName(
         firstMember.parent2FirstName,
         firstMember.parent2LastName
       ),
-      firstMember.parent2Email || '',
-      firstMember.parent2Phone || '',
+      parent2Phone,
       family.members.length,
-      family.members.map((m) => m.name).join('; '),
+      subscriptionStatus,
+      subscriptionAmount,
       getFamilyStatus(family),
-      firstMember.stripeCustomerIdDugsi || '',
-      firstMember.stripeSubscriptionIdDugsi || '',
       new Date(firstMember.createdAt).toLocaleDateString(),
     ]
   })
