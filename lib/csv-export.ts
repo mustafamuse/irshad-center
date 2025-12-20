@@ -1,6 +1,6 @@
 /**
  * CSV Export Utility
- * Exports family/registration data to CSV format
+ * Generates CSV content from family/registration data
  */
 import { Family } from '@/app/admin/dugsi/_types'
 import {
@@ -14,15 +14,10 @@ import {
 } from '@/lib/utils/formatters'
 
 /**
- * Export families to CSV file
+ * Generate CSV content from families data
+ * Pure function - returns CSV string without side effects
  */
-export function exportFamiliesToCSV(
-  families: Family[],
-  filename?: string
-): void {
-  const timestamp = new Date().toISOString().split('T')[0]
-  const defaultFilename = `dugsi-families-${timestamp}.csv`
-
+export function generateFamiliesCSV(families: Family[]): string {
   const headers = [
     'Primary Payer',
     'Payer Name',
@@ -99,45 +94,20 @@ export function exportFamiliesToCSV(
         payerPhone,
         otherParentName,
         otherParentPhone,
-        family.members.length,
+        family.members.length.toString(),
         subscriptionStatus,
         subscriptionAmount,
         getFamilyStatus(family),
         new Date(firstMember.createdAt).toLocaleDateString(),
       ]
     })
-    .filter((row): row is Array<string | number> => row !== null)
+    .filter((row): row is Array<string> => row !== null)
 
   // Convert to CSV string
-  const csvContent = [
+  return [
     headers.join(','),
     ...rows.map((row) =>
-      row
-        .map((cell) => {
-          // Don't quote numbers to preserve numeric type in Excel/Google Sheets
-          if (typeof cell === 'number') {
-            return String(cell)
-          }
-          // Quote strings and escape existing quotes
-          return `"${String(cell).replace(/"/g, '""')}"`
-        })
-        .join(',')
+      row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')
     ),
   ].join('\n')
-
-  // Create and download file
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-
-  link.setAttribute('href', url)
-  link.setAttribute('download', filename || defaultFilename)
-  link.style.visibility = 'hidden'
-
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-
-  // Clean up
-  URL.revokeObjectURL(url)
 }

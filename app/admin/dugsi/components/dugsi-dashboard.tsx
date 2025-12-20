@@ -15,8 +15,9 @@ import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { exportFamiliesToCSV } from '@/lib/csv-export'
+import { generateFamiliesCSV } from '@/lib/csv-export'
 
+import { downloadCSV } from '../hooks/use-csv-download'
 import { LiveRegion } from './accessibility/live-region'
 import { SkipLink } from './accessibility/skip-link'
 import { CommandPalette } from './command-palette'
@@ -173,8 +174,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           open={commandPaletteOpen}
           onOpenChange={setCommandPaletteOpen}
           onExport={() => {
-            // Export all filtered families
-            exportFamiliesToCSV(filteredFamilies)
+            const csvContent = generateFamiliesCSV(filteredFamilies)
+            downloadCSV(csvContent)
             toast.success(
               `Exported ${filteredFamilies.length} ${filteredFamilies.length === 1 ? 'family' : 'families'} to CSV`
             )
