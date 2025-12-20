@@ -24,6 +24,7 @@ export function exportFamiliesToCSV(
   const defaultFilename = `dugsi-families-${timestamp}.csv`
 
   const headers = [
+    'Primary Payer',
     'Payer Name',
     'Payer Phone',
     'Other Parent Name',
@@ -41,6 +42,13 @@ export function exportFamiliesToCSV(
       if (!firstMember) return null
 
       const isPrimaryPayerParent2 = firstMember.primaryPayerParentNumber === 2
+
+      const primaryPayerIndicator =
+        firstMember.primaryPayerParentNumber === 2
+          ? 'Parent 2'
+          : firstMember.primaryPayerParentNumber === 1
+            ? 'Parent 1'
+            : 'Not Set'
 
       const payerName = isPrimaryPayerParent2
         ? formatFullName(
@@ -82,6 +90,7 @@ export function exportFamiliesToCSV(
           : ''
 
       return [
+        primaryPayerIndicator,
         payerName,
         payerPhone,
         otherParentName,
@@ -99,7 +108,16 @@ export function exportFamiliesToCSV(
   const csvContent = [
     headers.join(','),
     ...rows.map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      row
+        .map((cell) => {
+          // Don't quote numbers to preserve numeric type in Excel/Google Sheets
+          if (typeof cell === 'number') {
+            return String(cell)
+          }
+          // Quote strings and escape existing quotes
+          return `"${String(cell).replace(/"/g, '""')}"`
+        })
+        .join(',')
     ),
   ].join('\n')
 
