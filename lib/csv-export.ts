@@ -21,12 +21,10 @@ export function exportFamiliesToCSV(
   const defaultFilename = `dugsi-families-${timestamp}.csv`
 
   const headers = [
-    'Primary Payer Indicator',
-    'Primary Payer Phone',
-    'Parent Name',
-    'Parent Phone',
-    'Parent 2 Name',
-    'Parent 2 Phone',
+    'Payer Name',
+    'Payer Phone',
+    'Other Parent Name',
+    'Other Parent Phone',
     'Children Count',
     'Subscription Status',
     'Subscription Amount',
@@ -38,34 +36,51 @@ export function exportFamiliesToCSV(
     const firstMember = family.members[0]
     if (!firstMember) return []
 
-    const primaryPayerIndicator =
-      firstMember.primaryPayerParentNumber === 2
-        ? 'Parent 2'
-        : firstMember.primaryPayerParentNumber === 1
-          ? 'Parent 1'
-          : 'Not Set'
+    const isPrimaryPayerParent2 = firstMember.primaryPayerParentNumber === 2
+
+    const payerName = isPrimaryPayerParent2
+      ? formatParentName(
+          firstMember.parent2FirstName,
+          firstMember.parent2LastName
+        )
+      : formatParentName(
+          firstMember.parentFirstName,
+          firstMember.parentLastName
+        )
 
     const primaryPayerPhoneResult = getPrimaryPayerPhone(family)
-    const primaryPayerPhone = formatPhoneNumber(primaryPayerPhoneResult.phone)
+    const payerPhone = primaryPayerPhoneResult.phone
+      ? formatPhoneNumber(primaryPayerPhoneResult.phone)
+      : ''
 
-    const parent1Phone = formatPhoneNumber(firstMember.parentPhone)
-    const parent2Phone = formatPhoneNumber(firstMember.parent2Phone)
+    const otherParentName = isPrimaryPayerParent2
+      ? formatParentName(
+          firstMember.parentFirstName,
+          firstMember.parentLastName
+        )
+      : formatParentName(
+          firstMember.parent2FirstName,
+          firstMember.parent2LastName
+        )
+
+    const otherParentPhone = isPrimaryPayerParent2
+      ? firstMember.parentPhone
+        ? formatPhoneNumber(firstMember.parentPhone)
+        : ''
+      : firstMember.parent2Phone
+        ? formatPhoneNumber(firstMember.parent2Phone)
+        : ''
 
     const subscriptionStatus = firstMember.subscriptionStatus || '—'
     const subscriptionAmount = firstMember.subscriptionAmount
       ? formatCurrency(firstMember.subscriptionAmount)
-      : '—'
+      : '$0.00'
 
     return [
-      primaryPayerIndicator,
-      primaryPayerPhone,
-      formatParentName(firstMember.parentFirstName, firstMember.parentLastName),
-      parent1Phone,
-      formatParentName(
-        firstMember.parent2FirstName,
-        firstMember.parent2LastName
-      ),
-      parent2Phone,
+      payerName,
+      payerPhone,
+      otherParentName,
+      otherParentPhone,
       family.members.length,
       subscriptionStatus,
       subscriptionAmount,
