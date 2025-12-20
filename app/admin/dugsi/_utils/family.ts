@@ -4,6 +4,7 @@
  */
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+import { formatFullName } from '@/lib/utils/formatters'
 
 import { DugsiRegistration, Family, FamilyStatus } from '../_types'
 
@@ -243,10 +244,8 @@ export function getPrimaryPayerName(family: Family): string {
   } = member
 
   if (primaryPayerParentNumber === 2 && (parent2FirstName || parent2LastName)) {
-    return (
-      [parent2FirstName, parent2LastName].filter(Boolean).join(' ') || 'Parent'
-    )
+    return formatFullName(parent2FirstName, parent2LastName, 'Parent')
   }
 
-  return [parentFirstName, parentLastName].filter(Boolean).join(' ') || 'Parent'
+  return formatFullName(parentFirstName, parentLastName, 'Parent')
 }

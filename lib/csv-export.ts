@@ -7,7 +7,11 @@ import {
   getFamilyStatus,
   getPrimaryPayerPhone,
 } from '@/app/admin/dugsi/_utils/family'
-import { formatPhoneNumber, formatCurrency } from '@/lib/utils/formatters'
+import {
+  formatPhoneNumber,
+  formatCurrency,
+  formatFullName,
+} from '@/lib/utils/formatters'
 
 /**
  * Export families to CSV file
@@ -31,53 +35,65 @@ export function exportFamiliesToCSV(
     'Registration Date',
   ]
 
-  const rows = families.map((family) => {
-    const firstMember = family.members[0]
-    if (!firstMember) return []
+  const rows = families
+    .map((family) => {
+      const firstMember = family.members[0]
+      if (!firstMember) return null
 
-    const isPrimaryPayerParent2 = firstMember.primaryPayerParentNumber === 2
+      const isPrimaryPayerParent2 = firstMember.primaryPayerParentNumber === 2
 
-    const formatName = (firstName: string | null, lastName: string | null) =>
-      [firstName, lastName].filter(Boolean).join(' ') || ''
+      const payerName = isPrimaryPayerParent2
+        ? formatFullName(
+            firstMember.parent2FirstName,
+            firstMember.parent2LastName
+          )
+        : formatFullName(
+            firstMember.parentFirstName,
+            firstMember.parentLastName
+          )
 
-    const payerName = isPrimaryPayerParent2
-      ? formatName(firstMember.parent2FirstName, firstMember.parent2LastName)
-      : formatName(firstMember.parentFirstName, firstMember.parentLastName)
-
-    const primaryPayerPhoneResult = getPrimaryPayerPhone(family)
-    const payerPhone = primaryPayerPhoneResult.phone
-      ? formatPhoneNumber(primaryPayerPhoneResult.phone)
-      : ''
-
-    const otherParentName = isPrimaryPayerParent2
-      ? formatName(firstMember.parentFirstName, firstMember.parentLastName)
-      : formatName(firstMember.parent2FirstName, firstMember.parent2LastName)
-
-    const otherParentPhone = isPrimaryPayerParent2
-      ? firstMember.parentPhone
-        ? formatPhoneNumber(firstMember.parentPhone)
-        : ''
-      : firstMember.parent2Phone
-        ? formatPhoneNumber(firstMember.parent2Phone)
+      const primaryPayerPhoneResult = getPrimaryPayerPhone(family)
+      const payerPhone = primaryPayerPhoneResult.phone
+        ? formatPhoneNumber(primaryPayerPhoneResult.phone)
         : ''
 
-    const subscriptionStatus = firstMember.subscriptionStatus || '—'
-    const subscriptionAmount = firstMember.subscriptionAmount
-      ? formatCurrency(firstMember.subscriptionAmount)
-      : '$0.00'
+      const otherParentName = isPrimaryPayerParent2
+        ? formatFullName(
+            firstMember.parentFirstName,
+            firstMember.parentLastName
+          )
+        : formatFullName(
+            firstMember.parent2FirstName,
+            firstMember.parent2LastName
+          )
 
-    return [
-      payerName,
-      payerPhone,
-      otherParentName,
-      otherParentPhone,
-      family.members.length,
-      subscriptionStatus,
-      subscriptionAmount,
-      getFamilyStatus(family),
-      new Date(firstMember.createdAt).toLocaleDateString(),
-    ]
-  })
+      const otherParentPhone = isPrimaryPayerParent2
+        ? firstMember.parentPhone
+          ? formatPhoneNumber(firstMember.parentPhone)
+          : ''
+        : firstMember.parent2Phone
+          ? formatPhoneNumber(firstMember.parent2Phone)
+          : ''
+
+      const subscriptionStatus = firstMember.subscriptionStatus || ''
+      const subscriptionAmount =
+        firstMember.subscriptionAmount != null
+          ? formatCurrency(firstMember.subscriptionAmount)
+          : ''
+
+      return [
+        payerName,
+        payerPhone,
+        otherParentName,
+        otherParentPhone,
+        family.members.length,
+        subscriptionStatus,
+        subscriptionAmount,
+        getFamilyStatus(family),
+        new Date(firstMember.createdAt).toLocaleDateString(),
+      ]
+    })
+    .filter((row): row is Array<string | number> => row !== null)
 
   // Convert to CSV string
   const csvContent = [

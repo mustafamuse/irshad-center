@@ -127,6 +127,23 @@ export function truncateString(str: string, length: number): string {
 }
 
 /**
+ * Format full name from first and last name
+ * @param firstName - First name or null
+ * @param lastName - Last name or null
+ * @param fallback - Value to return if both names are missing (default: '')
+ * @returns Formatted full name or fallback
+ * @example
+ * formatFullName(null, null, 'Parent') // 'Parent'
+ */
+export function formatFullName(
+  firstName: string | null,
+  lastName: string | null,
+  fallback: string = ''
+): string {
+  return [firstName, lastName].filter(Boolean).join(' ') || fallback
+}
+
+/**
  * Get initials from name
  * @param name - Full name
  * @returns Initials (up to 2 characters)
@@ -151,8 +168,6 @@ export function getInitials(name: string): string {
  * @param notSpecifiedText - Text to display when value is null/empty
  * @returns Formatted string
  * @example
- * formatEnumValue('MIDDLE_SCHOOL') // 'Middle School'
- * formatEnumValue('HIGH_SCHOOL') // 'High School'
  * formatEnumValue(null) // 'Not specified'
  */
 export function formatEnumValue(
