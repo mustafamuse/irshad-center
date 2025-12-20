@@ -7,7 +7,6 @@ import {
   getFamilyStatus,
   getPrimaryPayerPhone,
 } from '@/app/admin/dugsi/_utils/family'
-import { formatParentName } from '@/app/admin/dugsi/_utils/format'
 import { formatPhoneNumber, formatCurrency } from '@/lib/utils/formatters'
 
 /**
@@ -38,15 +37,12 @@ export function exportFamiliesToCSV(
 
     const isPrimaryPayerParent2 = firstMember.primaryPayerParentNumber === 2
 
+    const formatName = (firstName: string | null, lastName: string | null) =>
+      [firstName, lastName].filter(Boolean).join(' ') || ''
+
     const payerName = isPrimaryPayerParent2
-      ? formatParentName(
-          firstMember.parent2FirstName,
-          firstMember.parent2LastName
-        )
-      : formatParentName(
-          firstMember.parentFirstName,
-          firstMember.parentLastName
-        )
+      ? formatName(firstMember.parent2FirstName, firstMember.parent2LastName)
+      : formatName(firstMember.parentFirstName, firstMember.parentLastName)
 
     const primaryPayerPhoneResult = getPrimaryPayerPhone(family)
     const payerPhone = primaryPayerPhoneResult.phone
@@ -54,14 +50,8 @@ export function exportFamiliesToCSV(
       : ''
 
     const otherParentName = isPrimaryPayerParent2
-      ? formatParentName(
-          firstMember.parentFirstName,
-          firstMember.parentLastName
-        )
-      : formatParentName(
-          firstMember.parent2FirstName,
-          firstMember.parent2LastName
-        )
+      ? formatName(firstMember.parentFirstName, firstMember.parentLastName)
+      : formatName(firstMember.parent2FirstName, firstMember.parent2LastName)
 
     const otherParentPhone = isPrimaryPayerParent2
       ? firstMember.parentPhone
