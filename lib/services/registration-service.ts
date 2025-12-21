@@ -1246,7 +1246,7 @@ export async function findExistingChildren(
   children: Array<{
     firstName: string
     lastName: string
-    dateOfBirth: Date | null | undefined
+    dateOfBirth?: Date | null | undefined
   }>
 ): Promise<Map<string, { id: string; name: string }>> {
   const childrenWithDob = children.filter((c) => c.dateOfBirth)
