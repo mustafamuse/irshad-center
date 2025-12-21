@@ -640,147 +640,144 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       })
     }
 
-    // Phase 3: Create children in parallel (each operation is idempotent)
+    // Phase 3: Create children sequentially with batch lookups
+    // OPTIMIZATION: Batch lookups reduce N queries to 1 query each
+    // Sequential processing avoids connection pool exhaustion
     currentPhase = 'children'
-    const childResults = await Promise.all(
-      children.map(async (child) => {
-        const childFullName = `${child.firstName} ${child.lastName}`
 
-        const existingChild = await findExistingChild(
-          child.firstName,
-          child.lastName,
-          child.dateOfBirth
-        )
+    // OPTIMIZATION 1: Batch lookup all existing children (1 query instead of N)
+    const existingChildrenMap = await findExistingChildren(children)
 
-        let childPerson: { id: string; name: string }
-        if (existingChild) {
-          childPerson = existingChild
-        } else {
-          try {
-            const newChildPerson = await prisma.person.create({
-              data: {
-                name: childFullName,
-                dateOfBirth: child.dateOfBirth,
-              },
-            })
-            childPerson = { id: newChildPerson.id, name: newChildPerson.name }
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              logger.info(
-                { name: childFullName, dateOfBirth: child.dateOfBirth },
-                'Child person already exists (race condition), fetching existing'
-              )
-              const raceConditionChild = await findExistingChild(
-                child.firstName,
-                child.lastName,
-                child.dateOfBirth
-              )
-              if (raceConditionChild) {
-                childPerson = raceConditionChild
-              } else {
-                logger.error(
-                  {
-                    name: childFullName,
-                    dateOfBirth: child.dateOfBirth,
-                    familyReferenceId,
-                    prismaError: error.meta,
-                  },
-                  'P2002 but child not found - possible constraint mismatch'
-                )
-                throw new Error(
-                  `Registration temporarily unavailable for ${childFullName}. ` +
-                    `Please retry. If the problem persists, contact support with reference: ${familyReferenceId}`
-                )
-              }
+    // Track person IDs for batch profile lookup
+    const childPersonIds: string[] = []
+
+    // Build person ID list from existing children
+    for (const child of children) {
+      const childFullName = `${child.firstName} ${child.lastName}`
+      const lookupKey = `${childFullName}|${child.dateOfBirth?.toISOString()}`
+
+      const existingChild = existingChildrenMap.get(lookupKey)
+      if (existingChild) {
+        childPersonIds.push(existingChild.id)
+      }
+    }
+
+    // OPTIMIZATION 2: Batch lookup all existing profiles (1 query instead of N)
+    const existingProfilesMap = await findExistingProfiles(childPersonIds)
+
+    // Process each child sequentially (avoids connection pool exhaustion)
+    const childResults: Array<{
+      id: string
+      name: string
+      personId: string
+    }> = []
+
+    for (const child of children) {
+      const childFullName = `${child.firstName} ${child.lastName}`
+      const lookupKey = `${childFullName}|${child.dateOfBirth?.toISOString()}`
+
+      // Get or create child Person using batched lookup
+      let childPerson = existingChildrenMap.get(lookupKey)
+
+      if (!childPerson) {
+        try {
+          const newChildPerson = await prisma.person.create({
+            data: {
+              name: childFullName,
+              dateOfBirth: child.dateOfBirth,
+            },
+          })
+          childPerson = { id: newChildPerson.id, name: newChildPerson.name }
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            logger.info(
+              { name: childFullName, dateOfBirth: child.dateOfBirth },
+              'Child person already exists (race condition), fetching existing'
+            )
+            const raceConditionChild = await findExistingChild(
+              child.firstName,
+              child.lastName,
+              child.dateOfBirth
+            )
+            if (raceConditionChild) {
+              childPerson = raceConditionChild
             } else {
-              throw error
+              logger.error(
+                {
+                  name: childFullName,
+                  dateOfBirth: child.dateOfBirth,
+                  familyReferenceId,
+                  prismaError: error.meta,
+                },
+                'P2002 but child not found - possible constraint mismatch'
+              )
+              throw new Error(
+                `Registration temporarily unavailable for ${childFullName}. ` +
+                  `Please retry. If the problem persists, contact support with reference: ${familyReferenceId}`
+              )
             }
+          } else {
+            throw error
           }
         }
+      }
 
-        const existingProfile = await prisma.programProfile.findFirst({
-          where: {
-            personId: childPerson.id,
-            program: 'DUGSI_PROGRAM',
+      // Get or create profile using batched lookup
+      const existingProfile = existingProfilesMap.get(childPerson.id)
+
+      /**
+       * Update existing profile - only update fields that are explicitly provided.
+       *
+       * Uses !== undefined && !== null checks intentionally:
+       * - undefined: Field was not included in form submission (e.g., SHOW_GRADE_SCHOOL=false)
+       * - null: Field was explicitly cleared (we still skip to preserve existing data)
+       *
+       * This prevents overwriting existing demographic data with empty form fields
+       * when re-registering or updating a child's profile.
+       */
+      let profile
+      if (existingProfile) {
+        // Prevent reassigning child to a different family
+        if (
+          existingProfile.familyReferenceId &&
+          existingProfile.familyReferenceId !== familyReferenceId
+        ) {
+          throw new Error(
+            `Child ${childFullName} is already registered under a different family. ` +
+              `Contact support to update family relationships.`
+          )
+        }
+
+        profile = await prisma.programProfile.update({
+          where: { id: existingProfile.id },
+          data: {
+            ...(child.gender !== undefined &&
+              child.gender !== null && { gender: child.gender }),
+            ...(child.gradeLevel !== undefined &&
+              child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
+            ...(child.shift !== undefined &&
+              child.shift !== null && { shift: child.shift }),
+            ...(child.schoolName !== undefined &&
+              child.schoolName !== null && { schoolName: child.schoolName }),
+            ...(child.healthInfo !== undefined &&
+              child.healthInfo !== null && { healthInfo: child.healthInfo }),
+            familyReferenceId,
           },
         })
 
-        /**
-         * Update existing profile - only update fields that are explicitly provided.
-         *
-         * Uses !== undefined && !== null checks intentionally:
-         * - undefined: Field was not included in form submission (e.g., SHOW_GRADE_SCHOOL=false)
-         * - null: Field was explicitly cleared (we still skip to preserve existing data)
-         *
-         * This prevents overwriting existing demographic data with empty form fields
-         * when re-registering or updating a child's profile.
-         */
-        let profile
-        if (existingProfile) {
-          // Prevent reassigning child to a different family
-          if (
-            existingProfile.familyReferenceId &&
-            existingProfile.familyReferenceId !== familyReferenceId
-          ) {
-            throw new Error(
-              `Child ${childFullName} is already registered under a different family. ` +
-                `Contact support to update family relationships.`
-            )
-          }
+        // Ensure active enrollment exists for re-registering students
+        const activeEnrollment = await prisma.enrollment.findFirst({
+          where: {
+            programProfileId: profile.id,
+            status: { in: ['REGISTERED', 'ENROLLED'] },
+            endDate: null,
+          },
+        })
 
-          profile = await prisma.programProfile.update({
-            where: { id: existingProfile.id },
-            data: {
-              ...(child.gender !== undefined &&
-                child.gender !== null && { gender: child.gender }),
-              ...(child.gradeLevel !== undefined &&
-                child.gradeLevel !== null && { gradeLevel: child.gradeLevel }),
-              ...(child.shift !== undefined &&
-                child.shift !== null && { shift: child.shift }),
-              ...(child.schoolName !== undefined &&
-                child.schoolName !== null && { schoolName: child.schoolName }),
-              ...(child.healthInfo !== undefined &&
-                child.healthInfo !== null && { healthInfo: child.healthInfo }),
-              familyReferenceId,
-            },
-          })
-
-          // Ensure active enrollment exists for re-registering students
-          const activeEnrollment = await prisma.enrollment.findFirst({
-            where: {
-              programProfileId: profile.id,
-              status: { in: ['REGISTERED', 'ENROLLED'] },
-              endDate: null,
-            },
-          })
-
-          if (!activeEnrollment) {
-            await prisma.enrollment.create({
-              data: {
-                programProfileId: profile.id,
-                batchId: null,
-                status: 'REGISTERED',
-              },
-            })
-          }
-        } else {
-          profile = await prisma.programProfile.create({
-            data: {
-              personId: childPerson.id,
-              program: 'DUGSI_PROGRAM',
-              status: 'REGISTERED',
-              gender: child.gender,
-              gradeLevel: child.gradeLevel,
-              shift: child.shift,
-              schoolName: child.schoolName,
-              healthInfo: child.healthInfo,
-              familyReferenceId,
-            },
-          })
-
+        if (!activeEnrollment) {
           await prisma.enrollment.create({
             data: {
               programProfileId: profile.id,
@@ -788,29 +785,51 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               status: 'REGISTERED',
             },
           })
-
-          // Log student role addition
-          logger.info(
-            {
-              event: 'ROLE_ADDED',
-              personId: childPerson.id,
-              personName: childFullName,
-              role: 'STUDENT',
-              program: 'DUGSI_PROGRAM',
-              profileId: profile.id,
-              timestamp: new Date().toISOString(),
-            },
-            'Person enrolled as Dugsi student'
-          )
         }
+      } else {
+        profile = await prisma.programProfile.create({
+          data: {
+            personId: childPerson.id,
+            program: 'DUGSI_PROGRAM',
+            status: 'REGISTERED',
+            gender: child.gender,
+            gradeLevel: child.gradeLevel,
+            shift: child.shift,
+            schoolName: child.schoolName,
+            healthInfo: child.healthInfo,
+            familyReferenceId,
+          },
+        })
 
-        return {
-          id: profile.id,
-          name: childFullName,
-          personId: childPerson.id,
-        }
+        await prisma.enrollment.create({
+          data: {
+            programProfileId: profile.id,
+            batchId: null,
+            status: 'REGISTERED',
+          },
+        })
+
+        // Log student role addition
+        logger.info(
+          {
+            event: 'ROLE_ADDED',
+            personId: childPerson.id,
+            personName: childFullName,
+            role: 'STUDENT',
+            program: 'DUGSI_PROGRAM',
+            profileId: profile.id,
+            timestamp: new Date().toISOString(),
+          },
+          'Person enrolled as Dugsi student'
+        )
+      }
+
+      childResults.push({
+        id: profile.id,
+        name: childFullName,
+        personId: childPerson.id,
       })
-    )
+    }
 
     createdProfiles.push(...childResults)
 
@@ -1215,6 +1234,79 @@ async function findOrCreatePersonWithContact(
     // Re-throw if not a unique constraint error or person not found
     throw error
   }
+}
+
+/**
+ * Batch lookup existing children by name and DOB
+ * Reduces N individual queries to 1 query with OR conditions
+ *
+ * Optimization for Phase 3 of family registration to prevent connection pool exhaustion
+ */
+export async function findExistingChildren(
+  children: Array<{
+    firstName: string
+    lastName: string
+    dateOfBirth: Date | null | undefined
+  }>
+): Promise<Map<string, { id: string; name: string }>> {
+  const childrenWithDob = children.filter((c) => c.dateOfBirth)
+
+  if (childrenWithDob.length === 0) {
+    return new Map()
+  }
+
+  const whereConditions = childrenWithDob.map((child) => ({
+    name: {
+      equals: `${child.firstName} ${child.lastName}`.trim(),
+      mode: 'insensitive' as const,
+    },
+    dateOfBirth: {
+      equals: child.dateOfBirth!,
+    },
+  }))
+
+  const existingPeople = await prisma.person.findMany({
+    where: { OR: whereConditions },
+    select: { id: true, name: true, dateOfBirth: true },
+  })
+
+  const map = new Map<string, { id: string; name: string }>()
+  for (const person of existingPeople) {
+    const key = `${person.name}|${person.dateOfBirth?.toISOString()}`
+    map.set(key, { id: person.id, name: person.name })
+  }
+
+  return map
+}
+
+/**
+ * Batch lookup existing profiles for children
+ * Reduces N individual queries to 1 query
+ *
+ * Optimization for Phase 3 of family registration to prevent connection pool exhaustion
+ */
+export async function findExistingProfiles(
+  personIds: string[]
+): Promise<
+  Map<string, Awaited<ReturnType<typeof prisma.programProfile.findFirst>>>
+> {
+  if (personIds.length === 0) {
+    return new Map()
+  }
+
+  const profiles = await prisma.programProfile.findMany({
+    where: {
+      personId: { in: personIds },
+      program: 'DUGSI_PROGRAM',
+    },
+  })
+
+  const map = new Map<string, (typeof profiles)[0]>()
+  for (const profile of profiles) {
+    map.set(profile.personId, profile)
+  }
+
+  return map
 }
 
 /**
