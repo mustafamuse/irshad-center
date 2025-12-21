@@ -1010,7 +1010,7 @@ function isNameMoreComplete(oldName: string, newName: string): boolean {
  * Find or create a Person with contact points
  * Reuses existing Person if found by email/phone, otherwise creates new one
  */
-async function findOrCreatePersonWithContact(
+export async function findOrCreatePersonWithContact(
   data: {
     name: string
     dateOfBirth?: Date | null
