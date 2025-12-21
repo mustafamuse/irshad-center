@@ -1,82 +1,116 @@
 /**
  * CSV Export Utility
- * Exports family/registration data to CSV format
+ * Generates CSV content from family/registration data
  */
+import { format } from 'date-fns'
+
 import { Family } from '@/app/admin/dugsi/_types'
-import { getFamilyStatus } from '@/app/admin/dugsi/_utils/family'
-import { formatParentName } from '@/app/admin/dugsi/_utils/format'
+import {
+  getFamilyStatus,
+  getPrimaryPayerPhone,
+} from '@/app/admin/dugsi/_utils/family'
+import {
+  formatPhoneNumber,
+  formatCurrency,
+  formatFullName,
+} from '@/lib/utils/formatters'
 
 /**
- * Export families to CSV file
+ * Generate CSV content from families data
+ * Pure function - returns CSV string without side effects
  */
-export function exportFamiliesToCSV(
-  families: Family[],
-  filename?: string
-): void {
-  const timestamp = new Date().toISOString().split('T')[0]
-  const defaultFilename = `dugsi-families-${timestamp}.csv`
-
+export function generateFamiliesCSV(families: Family[]): string {
   const headers = [
-    'Family Key',
-    'Parent Name',
-    'Parent Email',
-    'Parent Phone',
-    'Parent 2 Name',
-    'Parent 2 Email',
-    'Parent 2 Phone',
+    'Primary Payer',
+    'Payer Name',
+    'Payer Phone',
+    'Other Parent Name',
+    'Other Parent Phone',
     'Children Count',
-    'Children Names',
+    'Subscription Status',
+    'Subscription Amount',
     'Status',
-    'Customer ID',
-    'Subscription ID',
     'Registration Date',
   ]
 
-  const rows = families.map((family) => {
-    const firstMember = family.members[0]
-    if (!firstMember) return []
+  const rows = families
+    .map((family) => {
+      const firstMember = family.members[0]
+      if (!firstMember) return null
 
-    return [
-      family.familyKey,
-      formatParentName(firstMember.parentFirstName, firstMember.parentLastName),
-      firstMember.parentEmail || '',
-      firstMember.parentPhone || '',
-      formatParentName(
-        firstMember.parent2FirstName,
-        firstMember.parent2LastName
-      ),
-      firstMember.parent2Email || '',
-      firstMember.parent2Phone || '',
-      family.members.length,
-      family.members.map((m) => m.name).join('; '),
-      getFamilyStatus(family),
-      firstMember.stripeCustomerIdDugsi || '',
-      firstMember.stripeSubscriptionIdDugsi || '',
-      new Date(firstMember.createdAt).toLocaleDateString(),
-    ]
-  })
+      const isPrimaryPayerParent2 = firstMember.primaryPayerParentNumber === 2
+
+      const primaryPayerIndicator =
+        firstMember.primaryPayerParentNumber === 2
+          ? 'Parent 2'
+          : firstMember.primaryPayerParentNumber === 1
+            ? 'Parent 1'
+            : 'Not Set'
+
+      const payerName = isPrimaryPayerParent2
+        ? formatFullName(
+            firstMember.parent2FirstName,
+            firstMember.parent2LastName,
+            ''
+          )
+        : formatFullName(
+            firstMember.parentFirstName,
+            firstMember.parentLastName,
+            ''
+          )
+
+      const primaryPayerPhoneResult = getPrimaryPayerPhone(family)
+      const payerPhone = primaryPayerPhoneResult.phone
+        ? formatPhoneNumber(primaryPayerPhoneResult.phone)
+        : ''
+
+      const otherParentName = isPrimaryPayerParent2
+        ? formatFullName(
+            firstMember.parentFirstName,
+            firstMember.parentLastName,
+            ''
+          )
+        : formatFullName(
+            firstMember.parent2FirstName,
+            firstMember.parent2LastName,
+            ''
+          )
+
+      const otherParentPhone = isPrimaryPayerParent2
+        ? firstMember.parentPhone
+          ? formatPhoneNumber(firstMember.parentPhone)
+          : ''
+        : firstMember.parent2Phone
+          ? formatPhoneNumber(firstMember.parent2Phone)
+          : ''
+
+      // Subscription data is family-level (shared across all members)
+      const subscriptionStatus = firstMember.subscriptionStatus || ''
+      const subscriptionAmount =
+        firstMember.subscriptionAmount != null
+          ? formatCurrency(firstMember.subscriptionAmount)
+          : ''
+
+      return [
+        primaryPayerIndicator,
+        payerName,
+        payerPhone,
+        otherParentName,
+        otherParentPhone,
+        family.members.length.toString(),
+        subscriptionStatus,
+        subscriptionAmount,
+        getFamilyStatus(family),
+        format(new Date(firstMember.createdAt), 'MMM d, yyyy'),
+      ]
+    })
+    .filter((row): row is Array<string> => row !== null)
 
   // Convert to CSV string
-  const csvContent = [
+  return [
     headers.join(','),
     ...rows.map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+      row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')
     ),
   ].join('\n')
-
-  // Create and download file
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-
-  link.setAttribute('href', url)
-  link.setAttribute('download', filename || defaultFilename)
-  link.style.visibility = 'hidden'
-
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-
-  // Clean up
-  URL.revokeObjectURL(url)
 }
