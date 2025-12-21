@@ -2,6 +2,8 @@
  * CSV Export Utility
  * Generates CSV content from family/registration data
  */
+import { format } from 'date-fns'
+
 import { Family } from '@/app/admin/dugsi/_types'
 import {
   getFamilyStatus,
@@ -82,6 +84,7 @@ export function generateFamiliesCSV(families: Family[]): string {
           ? formatPhoneNumber(firstMember.parent2Phone)
           : ''
 
+      // Subscription data is family-level (shared across all members)
       const subscriptionStatus = firstMember.subscriptionStatus || ''
       const subscriptionAmount =
         firstMember.subscriptionAmount != null
@@ -98,7 +101,7 @@ export function generateFamiliesCSV(families: Family[]): string {
         subscriptionStatus,
         subscriptionAmount,
         getFamilyStatus(family),
-        new Date(firstMember.createdAt).toLocaleDateString(),
+        format(new Date(firstMember.createdAt), 'MMM d, yyyy'),
       ]
     })
     .filter((row): row is Array<string> => row !== null)
