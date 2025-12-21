@@ -30,6 +30,56 @@ import { normalizePhone } from '@/lib/utils/contact-normalization'
 const logger = createServiceLogger('registration')
 
 // ============================================================================
+// Internal Types for Registration Pipeline
+// ============================================================================
+
+/**
+ * Normalized child identity key used for lookups
+ * Format: "normalized_name|iso_date_string"
+ */
+type ChildLookupKey = string
+
+/**
+ * Child person record (minimal fields needed for registration)
+ * @internal Used for type documentation
+ */
+interface _ChildPerson {
+  id: string
+  name: string
+}
+
+/**
+ * Child profile result (returned from registration)
+ * @internal Used for type documentation
+ */
+interface _ChildProfileResult {
+  id: string
+  name: string
+  personId: string
+}
+
+// ============================================================================
+// Key Normalization Helpers
+// ============================================================================
+
+/**
+ * Generate normalized lookup key for child identity matching
+ * Normalizes name (lowercase, trimmed, collapsed whitespace) and DOB (ISO string)
+ *
+ * @param fullName - Full name (e.g., "John Doe")
+ * @param dateOfBirth - Optional date of birth
+ * @returns Normalized key string
+ */
+function getChildLookupKey(
+  fullName: string,
+  dateOfBirth?: Date | null
+): ChildLookupKey {
+  const normalizedName = fullName.trim().replace(/\s+/g, ' ').toLowerCase()
+  const dobKey = dateOfBirth ? dateOfBirth.toISOString() : ''
+  return `${normalizedName}|${dobKey}`
+}
+
+// ============================================================================
 // Zod Validation Schemas
 // ============================================================================
 
@@ -582,6 +632,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     const parent1FullName = `${parent1FirstName} ${parent1LastName}`
     const hasParent2 =
       parent2FirstName && parent2LastName && parent2Email && parent2Phone
+    const resolvedPrimaryPayer = hasParent2 ? primaryPayer : 'parent1'
 
     const [parent1Person, parent2Person] = await Promise.all([
       findOrCreatePersonWithContact({
@@ -655,7 +706,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     // Get or create all children sequentially
     for (const child of children) {
       const childFullName = `${child.firstName} ${child.lastName}`
-      const lookupKey = `${childFullName}|${child.dateOfBirth?.toISOString()}`
+      const lookupKey = getChildLookupKey(childFullName, child.dateOfBirth)
 
       let childPerson = existingChildrenMap.get(lookupKey)
 
@@ -719,6 +770,8 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       name: string
       personId: string
     }> = []
+    const profilesToCheckEnrollments: Array<{ id: string; personId: string }> =
+      []
 
     for (let i = 0; i < children.length; i++) {
       const child = children[i]
@@ -768,24 +821,11 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           },
         })
 
-        // Ensure active enrollment exists for re-registering students
-        const activeEnrollment = await prisma.enrollment.findFirst({
-          where: {
-            programProfileId: profile.id,
-            status: { in: ['REGISTERED', 'ENROLLED'] },
-            endDate: null,
-          },
+        // Track for batch enrollment check
+        profilesToCheckEnrollments.push({
+          id: profile.id,
+          personId: childPerson.id,
         })
-
-        if (!activeEnrollment) {
-          await prisma.enrollment.create({
-            data: {
-              programProfileId: profile.id,
-              batchId: null,
-              status: 'REGISTERED',
-            },
-          })
-        }
       } else {
         profile = await prisma.programProfile.create({
           data: {
@@ -801,12 +841,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           },
         })
 
-        await prisma.enrollment.create({
-          data: {
-            programProfileId: profile.id,
-            batchId: null,
-            status: 'REGISTERED',
-          },
+        // Track for batch enrollment creation
+        profilesToCheckEnrollments.push({
+          id: profile.id,
+          personId: childPerson.id,
         })
 
         // Log student role addition
@@ -831,6 +869,51 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       })
     }
 
+    // OPTIMIZATION: Batch check and create enrollments (1 query + 1 createMany instead of N queries + N creates)
+    if (profilesToCheckEnrollments.length > 0) {
+      const profileIds = profilesToCheckEnrollments.map((p) => p.id)
+
+      // Batch lookup existing active enrollments
+      const existingEnrollments = await prisma.enrollment.findMany({
+        where: {
+          programProfileId: { in: profileIds },
+          status: { in: ['REGISTERED', 'ENROLLED'] },
+          endDate: null,
+        },
+        select: {
+          programProfileId: true,
+        },
+      })
+
+      const profilesWithEnrollments = new Set(
+        existingEnrollments.map((e) => e.programProfileId)
+      )
+
+      // Batch create missing enrollments
+      const enrollmentsToCreate = profilesToCheckEnrollments
+        .filter((p) => !profilesWithEnrollments.has(p.id))
+        .map((p) => ({
+          programProfileId: p.id,
+          batchId: null,
+          status: 'REGISTERED' as EnrollmentStatus,
+        }))
+
+      if (enrollmentsToCreate.length > 0) {
+        await prisma.enrollment.createMany({
+          data: enrollmentsToCreate,
+          skipDuplicates: true,
+        })
+
+        logger.info(
+          {
+            createdCount: enrollmentsToCreate.length,
+            profileIds: enrollmentsToCreate.map((e) => e.programProfileId),
+          },
+          'Batch created missing enrollments'
+        )
+      }
+    }
+
     createdProfiles.push(...childResults)
 
     // Phase 4: Batch create guardian relationships (idempotent with skipDuplicates)
@@ -847,7 +930,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
         guardianPersonId: parent1Person.id,
         dependentPersonId: profile.personId,
         role: 'PARENT',
-        isPrimaryPayer: primaryPayer === 'parent1',
+        isPrimaryPayer: resolvedPrimaryPayer === 'parent1',
       })
 
       if (parent2Person) {
@@ -855,7 +938,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           guardianPersonId: parent2Person.id,
           dependentPersonId: profile.personId,
           role: 'PARENT',
-          isPrimaryPayer: primaryPayer === 'parent2',
+          isPrimaryPayer: resolvedPrimaryPayer === 'parent2',
         })
       }
     }
@@ -1249,7 +1332,10 @@ export async function findExistingChildren(
     dateOfBirth?: Date | null | undefined
   }>
 ): Promise<Map<string, { id: string; name: string }>> {
-  const childrenWithDob = children.filter((c) => c.dateOfBirth)
+  const childrenWithDob = children.filter(
+    (c): c is { firstName: string; lastName: string; dateOfBirth: Date } =>
+      c.dateOfBirth instanceof Date
+  )
 
   if (childrenWithDob.length === 0) {
     return new Map()
@@ -1272,7 +1358,7 @@ export async function findExistingChildren(
 
   const map = new Map<string, { id: string; name: string }>()
   for (const person of existingPeople) {
-    const key = `${person.name}|${person.dateOfBirth?.toISOString()}`
+    const key = getChildLookupKey(person.name, person.dateOfBirth)
     map.set(key, { id: person.id, name: person.name })
   }
 
@@ -1288,7 +1374,10 @@ export async function findExistingChildren(
 export async function findExistingProfiles(
   personIds: string[]
 ): Promise<
-  Map<string, Awaited<ReturnType<typeof prisma.programProfile.findFirst>>>
+  Map<
+    string,
+    Awaited<ReturnType<typeof prisma.programProfile.findMany>>[number]
+  >
 > {
   if (personIds.length === 0) {
     return new Map()
@@ -1347,28 +1436,35 @@ async function findExistingChild(
  * Pre-flight validation to catch family conflicts before any writes.
  * This prevents orphaned data when a child is already registered
  * under a different family.
+ *
+ * OPTIMIZATION: Uses batched lookups instead of per-child queries
  */
 async function validateFamilyConflicts(
   children: Array<z.infer<typeof childDataSchema>>,
   familyReferenceId: string
 ): Promise<void> {
-  for (const child of children) {
-    const existingChild = await findExistingChild(
-      child.firstName,
-      child.lastName,
-      child.dateOfBirth
-    )
+  // Batch lookup all existing children (1 query instead of N)
+  const existingChildrenMap = await findExistingChildren(children)
 
+  if (existingChildrenMap.size === 0) {
+    // No existing children, no conflicts possible
+    return
+  }
+
+  // Batch lookup profiles for all existing children (1 query instead of N)
+  const existingPersonIds = Array.from(existingChildrenMap.values()).map(
+    (p) => p.id
+  )
+  const existingProfilesMap = await findExistingProfiles(existingPersonIds)
+
+  // Check for conflicts using the maps
+  for (const child of children) {
+    const childFullName = `${child.firstName} ${child.lastName}`
+    const lookupKey = getChildLookupKey(childFullName, child.dateOfBirth)
+
+    const existingChild = existingChildrenMap.get(lookupKey)
     if (existingChild) {
-      const profile = await prisma.programProfile.findFirst({
-        where: {
-          personId: existingChild.id,
-          program: 'DUGSI_PROGRAM',
-        },
-        select: {
-          familyReferenceId: true,
-        },
-      })
+      const profile = existingProfilesMap.get(existingChild.id)
 
       if (
         profile?.familyReferenceId &&
