@@ -286,5 +286,46 @@ describe('Batch Lookup Helpers', () => {
       expect(result.get('person-2')).toBeUndefined()
       expect(result.get('person-3')).toBeUndefined()
     })
+
+    it('should batch lookup profiles for both existing and newly created children', async () => {
+      const { findExistingProfiles } = await import('../registration-service')
+
+      mockProgramProfileFindMany.mockResolvedValue([
+        {
+          id: 'profile-1',
+          personId: 'existing-person-1',
+          program: 'DUGSI_PROGRAM',
+        },
+        {
+          id: 'profile-2',
+          personId: 'existing-person-2',
+          program: 'DUGSI_PROGRAM',
+        },
+        { id: 'profile-3', personId: 'new-person-1', program: 'DUGSI_PROGRAM' },
+      ])
+
+      const allPersonIds = [
+        'existing-person-1',
+        'existing-person-2',
+        'new-person-1',
+        'new-person-2',
+      ]
+
+      const result = await findExistingProfiles(allPersonIds)
+
+      expect(mockProgramProfileFindMany).toHaveBeenCalledTimes(1)
+      expect(mockProgramProfileFindMany).toHaveBeenCalledWith({
+        where: {
+          personId: { in: allPersonIds },
+          program: 'DUGSI_PROGRAM',
+        },
+      })
+
+      expect(result.size).toBe(3)
+      expect(result.get('existing-person-1')).toBeDefined()
+      expect(result.get('existing-person-2')).toBeDefined()
+      expect(result.get('new-person-1')).toBeDefined()
+      expect(result.get('new-person-2')).toBeUndefined()
+    })
   })
 })

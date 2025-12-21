@@ -645,38 +645,18 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     // Sequential processing avoids connection pool exhaustion
     currentPhase = 'children'
 
+    // PHASE 1: Get or create all children, collect ALL person IDs
     // OPTIMIZATION 1: Batch lookup all existing children (1 query instead of N)
     const existingChildrenMap = await findExistingChildren(children)
 
-    // Track person IDs for batch profile lookup
-    const childPersonIds: string[] = []
+    // Track ALL person IDs (both existing and newly created)
+    const allChildPersons: Array<{ id: string; name: string }> = []
 
-    // Build person ID list from existing children
+    // Get or create all children sequentially
     for (const child of children) {
       const childFullName = `${child.firstName} ${child.lastName}`
       const lookupKey = `${childFullName}|${child.dateOfBirth?.toISOString()}`
 
-      const existingChild = existingChildrenMap.get(lookupKey)
-      if (existingChild) {
-        childPersonIds.push(existingChild.id)
-      }
-    }
-
-    // OPTIMIZATION 2: Batch lookup all existing profiles (1 query instead of N)
-    const existingProfilesMap = await findExistingProfiles(childPersonIds)
-
-    // Process each child sequentially (avoids connection pool exhaustion)
-    const childResults: Array<{
-      id: string
-      name: string
-      personId: string
-    }> = []
-
-    for (const child of children) {
-      const childFullName = `${child.firstName} ${child.lastName}`
-      const lookupKey = `${childFullName}|${child.dateOfBirth?.toISOString()}`
-
-      // Get or create child Person using batched lookup
       let childPerson = existingChildrenMap.get(lookupKey)
 
       if (!childPerson) {
@@ -725,7 +705,27 @@ export async function createFamilyRegistration(data: unknown): Promise<{
         }
       }
 
-      // Get or create profile using batched lookup
+      allChildPersons.push(childPerson)
+    }
+
+    // PHASE 2: Batch lookup profiles for ALL children, then process
+    // OPTIMIZATION 2: Batch lookup profiles for ALL children (1 query instead of N)
+    const allPersonIds = allChildPersons.map((p) => p.id)
+    const existingProfilesMap = await findExistingProfiles(allPersonIds)
+
+    // Process each child's profile sequentially
+    const childResults: Array<{
+      id: string
+      name: string
+      personId: string
+    }> = []
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i]
+      const childPerson = allChildPersons[i]
+      const childFullName = childPerson.name
+
+      // Get profile from batch lookup
       const existingProfile = existingProfilesMap.get(childPerson.id)
 
       /**
