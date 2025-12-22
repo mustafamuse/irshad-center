@@ -11,8 +11,13 @@ function getSessionSecret(): string {
 }
 
 /**
- * Compare input password against plain text env var password.
- * Uses timing-safe comparison to prevent timing attacks.
+ * Compare input password against env var password using timing-safe comparison.
+ *
+ * SECURITY NOTE: Using plain text in env vars is acceptable here because:
+ * 1. Env vars are not exposed to clients and are secure on Vercel/server environments
+ * 2. This is a single shared admin password, not user credentials
+ * 3. Timing-safe comparison prevents timing attacks
+ * 4. For user passwords stored in a database, use bcrypt/argon2 instead
  */
 export function verifyEnvPassword(input: string, expected: string): boolean {
   if (!input || !expected) return false
@@ -109,4 +114,26 @@ export async function requireAdminSession(): Promise<boolean> {
   const cookieStore = await cookies()
   const token = cookieStore.get('admin_session')?.value
   return isValidSessionToken(token)
+}
+
+/**
+ * Higher-order function to protect server actions with admin authentication.
+ * Wraps an action and returns unauthorized error if session is invalid.
+ *
+ * @example
+ * export const myProtectedAction = withAdminAuth(async (input: Input) => {
+ *   // Action logic here - only runs if authenticated
+ *   return { success: true, data: result }
+ * })
+ */
+export function withAdminAuth<TInput, TOutput>(
+  action: (input: TInput) => Promise<{ success: true; data: TOutput } | { success: false; error: string }>
+) {
+  return async (input: TInput): Promise<{ success: true; data: TOutput } | { success: false; error: string }> => {
+    const isAuthed = await requireAdminSession()
+    if (!isAuthed) {
+      return { success: false, error: 'Unauthorized' }
+    }
+    return action(input)
+  }
 }

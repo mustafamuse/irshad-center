@@ -2,8 +2,28 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 /**
+ * SECURITY MODEL:
+ * ----------------
+ * Edge middleware cannot perform HMAC signature verification because Node.js
+ * crypto APIs are not available in the Edge runtime. This is an intentional
+ * limitation of the Edge runtime for performance reasons.
+ *
+ * The security boundary is therefore the SERVER, not the middleware:
+ * 1. Middleware: Fast format/expiration checks to redirect obviously invalid requests
+ * 2. Server Actions: Full cryptographic validation via requireAdminSession() or withAdminAuth()
+ *
+ * An attacker could forge a token with valid format, but:
+ * - They cannot forge a valid HMAC signature without ADMIN_SESSION_SECRET
+ * - All data-mutating operations go through Server Actions which validate cryptographically
+ * - The middleware is a UX optimization, not a security boundary
+ *
+ * IMPORTANT: All admin Server Actions MUST use requireAdminSession() or withAdminAuth()
+ * from lib/utils/admin-auth.ts to enforce authentication.
+ */
+
+/**
  * Basic token format validation for Edge middleware.
- * Full cryptographic validation happens in server actions.
+ * This is NOT a security check - it's a UX optimization to redirect invalid sessions.
  * Token format: timestamp.randomData.signature
  */
 function hasValidTokenFormat(token: string | undefined): boolean {
