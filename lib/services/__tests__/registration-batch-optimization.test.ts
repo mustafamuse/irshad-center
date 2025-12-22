@@ -216,9 +216,9 @@ describe('Batch Lookup Helpers', () => {
     })
   })
 
-  describe('findExistingProfiles', () => {
+  describe('findExistingDugsiProfiles', () => {
     it('should batch lookup profiles for multiple person IDs', async () => {
-      const { findExistingProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import('../registration-service')
 
       mockProgramProfileFindMany.mockResolvedValue([
         { id: 'profile-1', personId: 'person-1', program: 'DUGSI_PROGRAM' },
@@ -228,7 +228,7 @@ describe('Batch Lookup Helpers', () => {
 
       const personIds = ['person-1', 'person-2', 'person-3']
 
-      const result = await findExistingProfiles(personIds)
+      const result = await findExistingDugsiProfiles(personIds)
 
       expect(mockProgramProfileFindMany).toHaveBeenCalledTimes(1)
       expect(mockProgramProfileFindMany).toHaveBeenCalledWith({
@@ -247,13 +247,13 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should only return DUGSI_PROGRAM profiles', async () => {
-      const { findExistingProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import('../registration-service')
 
       mockProgramProfileFindMany.mockResolvedValue([
         { id: 'profile-1', personId: 'person-1', program: 'DUGSI_PROGRAM' },
       ])
 
-      const result = await findExistingProfiles(['person-1'])
+      const result = await findExistingDugsiProfiles(['person-1'])
 
       expect(mockProgramProfileFindMany).toHaveBeenCalledWith({
         where: {
@@ -266,22 +266,22 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should return empty Map for empty person IDs array', async () => {
-      const { findExistingProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import('../registration-service')
 
-      const result = await findExistingProfiles([])
+      const result = await findExistingDugsiProfiles([])
 
       expect(mockProgramProfileFindMany).not.toHaveBeenCalled()
       expect(result.size).toBe(0)
     })
 
     it('should handle partial matches correctly', async () => {
-      const { findExistingProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import('../registration-service')
 
       mockProgramProfileFindMany.mockResolvedValue([
         { id: 'profile-1', personId: 'person-1', program: 'DUGSI_PROGRAM' },
       ])
 
-      const result = await findExistingProfiles([
+      const result = await findExistingDugsiProfiles([
         'person-1',
         'person-2',
         'person-3',
@@ -294,7 +294,7 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should batch lookup profiles for both existing and newly created children', async () => {
-      const { findExistingProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import('../registration-service')
 
       mockProgramProfileFindMany.mockResolvedValue([
         {
@@ -317,7 +317,7 @@ describe('Batch Lookup Helpers', () => {
         'new-person-2',
       ]
 
-      const result = await findExistingProfiles(allPersonIds)
+      const result = await findExistingDugsiProfiles(allPersonIds)
 
       expect(mockProgramProfileFindMany).toHaveBeenCalledTimes(1)
       expect(mockProgramProfileFindMany).toHaveBeenCalledWith({
@@ -398,7 +398,7 @@ describe('Batch Lookup Helpers', () => {
 
     it('should detect family conflicts using batched lookups', async () => {
       // This test validates the batched conflict detection pattern used in validateFamilyConflicts
-      const { findExistingChildren, findExistingProfiles } = await import(
+      const { findExistingChildren, findExistingDugsiProfiles } = await import(
         '../registration-service'
       )
 
@@ -434,7 +434,7 @@ describe('Batch Lookup Helpers', () => {
       const existingPersonIds = Array.from(existingChildrenMap.values()).map(
         (p) => p.id
       )
-      const existingProfilesMap = await findExistingProfiles(existingPersonIds)
+      const existingProfilesMap = await findExistingDugsiProfiles(existingPersonIds)
 
       // Simulate conflict detection logic
       const incomingFamilyId = 'new-family-id'
@@ -481,7 +481,7 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should pass validation when no conflicts exist', async () => {
-      const { findExistingChildren, findExistingProfiles } = await import(
+      const { findExistingChildren, findExistingDugsiProfiles } = await import(
         '../registration-service'
       )
 
@@ -509,7 +509,7 @@ describe('Batch Lookup Helpers', () => {
       const existingPersonIds = Array.from(existingChildrenMap.values()).map(
         (p) => p.id
       )
-      const existingProfilesMap = await findExistingProfiles(existingPersonIds)
+      const existingProfilesMap = await findExistingDugsiProfiles(existingPersonIds)
 
       // Simulate conflict detection
       const incomingFamilyId = 'same-family-id'

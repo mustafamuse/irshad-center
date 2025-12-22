@@ -30,7 +30,7 @@ import { normalizePhone } from '@/lib/utils/contact-normalization'
 const logger = createServiceLogger('registration')
 
 // ============================================================================
-// Internal Types for Registration Pipeline
+// Key Normalization Helpers
 // ============================================================================
 
 /**
@@ -38,29 +38,6 @@ const logger = createServiceLogger('registration')
  * Format: "normalized_name|iso_date_string"
  */
 type ChildLookupKey = string
-
-/**
- * Child person record (minimal fields needed for registration)
- * @internal Used for type documentation
- */
-interface _ChildPerson {
-  id: string
-  name: string
-}
-
-/**
- * Child profile result (returned from registration)
- * @internal Used for type documentation
- */
-interface _ChildProfileResult {
-  id: string
-  name: string
-  personId: string
-}
-
-// ============================================================================
-// Key Normalization Helpers
-// ============================================================================
 
 /**
  * Generate normalized lookup key for child identity matching
@@ -762,7 +739,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
     // PHASE 2: Batch lookup profiles for ALL children, then process
     // OPTIMIZATION 2: Batch lookup profiles for ALL children (1 query instead of N)
     const allPersonIds = allChildPersons.map((p) => p.id)
-    const existingProfilesMap = await findExistingProfiles(allPersonIds)
+    const existingProfilesMap = await findExistingDugsiProfiles(allPersonIds)
 
     // Process each child's profile sequentially
     const childResults: Array<{
@@ -1341,15 +1318,21 @@ export async function findExistingChildren(
     return new Map()
   }
 
-  const whereConditions = childrenWithDob.map((child) => ({
-    name: {
-      equals: `${child.firstName} ${child.lastName}`.trim(),
-      mode: 'insensitive' as const,
-    },
-    dateOfBirth: {
-      equals: child.dateOfBirth!,
-    },
-  }))
+  const whereConditions = childrenWithDob.map((child) => {
+    // Normalize whitespace consistently with getChildLookupKey()
+    const normalizedName = `${child.firstName} ${child.lastName}`
+      .trim()
+      .replace(/\s+/g, ' ')
+    return {
+      name: {
+        equals: normalizedName,
+        mode: 'insensitive' as const,
+      },
+      dateOfBirth: {
+        equals: child.dateOfBirth!,
+      },
+    }
+  })
 
   const existingPeople = await prisma.person.findMany({
     where: { OR: whereConditions },
@@ -1366,12 +1349,15 @@ export async function findExistingChildren(
 }
 
 /**
- * Batch lookup existing profiles for children
+ * Batch lookup existing Dugsi profiles for children
  * Reduces N individual queries to 1 query
+ *
+ * Note: This function is Dugsi-specific (hardcoded DUGSI_PROGRAM filter).
+ * For other programs, create a program-specific variant or a generic function with a program parameter.
  *
  * Optimization for Phase 3 of family registration to prevent connection pool exhaustion
  */
-export async function findExistingProfiles(
+export async function findExistingDugsiProfiles(
   personIds: string[]
 ): Promise<
   Map<
@@ -1455,7 +1441,7 @@ async function validateFamilyConflicts(
   const existingPersonIds = Array.from(existingChildrenMap.values()).map(
     (p) => p.id
   )
-  const existingProfilesMap = await findExistingProfiles(existingPersonIds)
+  const existingProfilesMap = await findExistingDugsiProfiles(existingPersonIds)
 
   // Check for conflicts using the maps
   for (const child of children) {
