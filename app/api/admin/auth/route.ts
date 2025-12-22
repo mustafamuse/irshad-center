@@ -1,8 +1,7 @@
-import { cookies, headers } from 'next/headers'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 import { createActionLogger, logError } from '@/lib/logger'
-import { checkAdminLoginRateLimit } from '@/lib/ratelimit'
 import {
   createSessionToken,
   getSessionCookieOptions,
@@ -14,22 +13,6 @@ const logger = createActionLogger('admin-auth')
 
 export async function POST(request: Request) {
   try {
-    const headersList = await headers()
-    const ip = headersList.get('x-forwarded-for')?.split(',')[0] ?? 'unknown'
-
-    const rateLimit = await checkAdminLoginRateLimit(ip)
-    if (!rateLimit.success) {
-      return NextResponse.json(
-        { error: 'Too many login attempts. Please try again later.' },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(Math.ceil((rateLimit.reset ?? 0) / 1000)),
-          },
-        }
-      )
-    }
-
     const body = await request.json()
     const parseResult = AdminLoginSchema.safeParse(body)
     if (!parseResult.success) {
@@ -51,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     if (!verifyEnvPassword(password, adminPassword)) {
-      logger.warn({ ip }, 'Failed login attempt')
+      logger.warn('Failed login attempt')
       return NextResponse.json({ error: 'Incorrect password' }, { status: 401 })
     }
 
