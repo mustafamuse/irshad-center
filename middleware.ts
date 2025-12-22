@@ -1,18 +1,38 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+function isValidSessionToken(token: string | undefined): boolean {
+  if (!token) return false
+  return token.length === 64
+}
+
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  // Protected routes that require authentication/authorization
-  const protectedRoutes = ['/admin-access', '/dashboard', '/admin/dashboard']
+  // Admin login page - redirect to admin if already authenticated
+  if (path === '/admin/login') {
+    const session = request.cookies.get('admin_session')
+    if (session && isValidSessionToken(session.value)) {
+      return NextResponse.redirect(new URL('/admin/dugsi', request.url))
+    }
+    return NextResponse.next()
+  }
 
-  // Check if the current path is a protected route
+  // Protected admin routes - require valid session
+  if (path.startsWith('/admin')) {
+    const session = request.cookies.get('admin_session')
+
+    if (!session || !isValidSessionToken(session.value)) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
+  }
+
+  // Legacy protected routes
+  const protectedRoutes = ['/admin-access', '/dashboard', '/admin/dashboard']
   const isProtectedRoute = protectedRoutes.some((route) =>
     path.startsWith(route)
   )
 
-  // If it's not a protected route, allow access
   if (!isProtectedRoute) {
     return NextResponse.next()
   }
@@ -21,11 +41,9 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Only apply middleware to specific protected routes
-  // This ensures webhook and other API routes are completely excluded
   matcher: [
+    '/admin/:path*',
     '/admin-access/:path*',
     '/dashboard/:path*',
-    '/admin/dashboard/:path*',
   ],
 }
