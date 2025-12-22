@@ -1,9 +1,4 @@
-import {
-  createHmac,
-  randomBytes,
-  scryptSync,
-  timingSafeEqual,
-} from 'crypto'
+import { createHmac, randomBytes, timingSafeEqual } from 'crypto'
 
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
@@ -30,38 +25,6 @@ export function verifyEnvPassword(input: string, expected: string): boolean {
   }
 
   return timingSafeEqual(inputBuffer, expectedBuffer)
-}
-
-/**
- * Hash a password using scrypt (secure key derivation function).
- * Returns format: salt:hash (both hex encoded)
- * Use for database-stored passwords.
- */
-export function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString('hex')
-  const hash = scryptSync(password, salt, 64).toString('hex')
-  return `${salt}:${hash}`
-}
-
-/**
- * Verify a password against a stored scrypt hash.
- * Uses timing-safe comparison to prevent timing attacks.
- * Use for database-stored passwords.
- */
-export function verifyPassword(input: string, storedHash: string): boolean {
-  const [salt, hash] = storedHash.split(':')
-  if (!salt || !hash) {
-    return false
-  }
-
-  const inputHash = scryptSync(input, salt, 64)
-  const storedHashBuffer = Buffer.from(hash, 'hex')
-
-  if (inputHash.length !== storedHashBuffer.length) {
-    return false
-  }
-
-  return timingSafeEqual(inputHash, storedHashBuffer)
 }
 
 /**
@@ -134,4 +97,16 @@ export function getSessionCookieOptions() {
     path: '/',
     maxAge: Math.floor(SESSION_DURATION_MS / 1000),
   }
+}
+
+/**
+ * Server-side session validation for protected routes.
+ * Validates the session cookie with full cryptographic verification.
+ * Use this in Server Actions or API routes to verify admin access.
+ */
+export async function requireAdminSession(): Promise<boolean> {
+  const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
+  const token = cookieStore.get('admin_session')?.value
+  return isValidSessionToken(token)
 }
