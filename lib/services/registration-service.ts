@@ -1334,7 +1334,7 @@ export async function findExistingChildren(
         mode: 'insensitive' as const,
       },
       dateOfBirth: {
-        equals: child.dateOfBirth!,
+        equals: child.dateOfBirth,
       },
     }
   })
