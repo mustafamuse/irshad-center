@@ -696,6 +696,8 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             },
           })
           childPerson = { id: newChildPerson.id, name: newChildPerson.name }
+          // Update map so duplicate child entries in the same request reuse this person
+          existingChildrenMap.set(lookupKey, childPerson)
         } catch (error) {
           if (
             error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -817,6 +819,9 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             familyReferenceId,
           },
         })
+
+        // Update map so duplicate child entries in the same request reuse this profile
+        existingProfilesMap.set(childPerson.id, profile)
 
         // Track for batch enrollment creation
         profilesToCheckEnrollments.push({
