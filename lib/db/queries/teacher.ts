@@ -366,6 +366,50 @@ export async function isPersonATeacher(
 }
 
 /**
+ * DTO for Dugsi teacher with their assigned shifts
+ */
+export interface DugsiTeacherDTO {
+  id: string
+  personId: string
+  name: string
+  shifts: Shift[]
+}
+
+/**
+ * Get all active Dugsi teachers with their assigned shifts
+ * @param client - Optional database client (for transaction support)
+ */
+export async function getDugsiTeachers(
+  client: DatabaseClient = prisma
+): Promise<DugsiTeacherDTO[]> {
+  const teachers = await client.teacher.findMany({
+    where: {
+      programs: {
+        some: {
+          program: 'DUGSI_PROGRAM',
+          isActive: true,
+        },
+      },
+    },
+    include: {
+      person: { select: { id: true, name: true } },
+      programs: {
+        where: { program: 'DUGSI_PROGRAM', isActive: true },
+        select: { shifts: true },
+      },
+    },
+    orderBy: { person: { name: 'asc' } },
+  })
+
+  return teachers.map((t) => ({
+    id: t.id,
+    personId: t.person.id,
+    name: t.person.name,
+    shifts: t.programs[0]?.shifts ?? [],
+  }))
+}
+
+/**
  * Get all roles for a Person (teacher, student, parent, payer)
  * @param client - Optional database client (for transaction support)
  */
