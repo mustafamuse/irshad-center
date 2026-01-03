@@ -68,6 +68,15 @@ import {
 import { PaymentStatusSection } from '../payment-status-section'
 import { ShiftBadge } from '../shared/shift-badge'
 
+function getOrderedParents(reg: DugsiRegistration) {
+  const parent1 = formatParentName(reg.parentFirstName, reg.parentLastName)
+  const parent2 = formatParentName(reg.parent2FirstName, reg.parent2LastName)
+  if (reg.primaryPayerParentNumber === 2 && parent2) {
+    return { payer: parent2, other: parent1 }
+  }
+  return { payer: parent1, other: parent2 }
+}
+
 interface DugsiRegistrationsTableProps {
   registrations: DugsiRegistration[]
 }
@@ -206,7 +215,8 @@ export function DugsiRegistrationsTable({
                   <TableHead>Shift</TableHead>
                   <TableHead>Teacher</TableHead>
                   <TableHead className="w-16">Gender</TableHead>
-                  <TableHead>Parent</TableHead>
+                  <TableHead>Parent 1</TableHead>
+                  <TableHead>Parent 2</TableHead>
                   <TableHead>Bank Info</TableHead>
                   <TableHead>Subscription</TableHead>
                   <TableHead className="w-12"></TableHead>
@@ -265,32 +275,20 @@ export function DugsiRegistrationsTable({
                               size="lg"
                             />
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {registration.parentFirstName ||
-                            registration.parentLastName ? (
-                              <div className="flex items-center gap-2">
-                                <span>
-                                  {[
-                                    registration.parentFirstName,
-                                    registration.parentLastName,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(' ')}
-                                </span>
-                                {(registration.parent2FirstName ||
-                                  registration.parent2LastName) && (
-                                  <Badge
-                                    variant="secondary"
-                                    className="px-1.5 text-[10px]"
-                                  >
-                                    +1
-                                  </Badge>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground">?</span>
-                            )}
-                          </TableCell>
+                          {(() => {
+                            const { payer, other } =
+                              getOrderedParents(registration)
+                            return (
+                              <>
+                                <TableCell className="text-sm font-medium">
+                                  {payer || '-'}
+                                </TableCell>
+                                <TableCell className="text-sm font-medium">
+                                  {other || '-'}
+                                </TableCell>
+                              </>
+                            )
+                          })()}
                           <TableCell>
                             {registration.paymentMethodCaptured ? (
                               <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -343,31 +341,23 @@ export function DugsiRegistrationsTable({
                         <GenderIcon gender={registration.gender} size="lg" />
                       </TableCell>
                       <TableCell className="text-sm">
-                        {registration.parentFirstName ||
-                        registration.parentLastName ? (
-                          <div className="flex items-center gap-2">
-                            <span>
-                              {[
-                                registration.parentFirstName,
-                                registration.parentLastName,
-                              ]
-                                .filter(Boolean)
-                                .join(' ')}
-                            </span>
-                            {(registration.parent2FirstName ||
-                              registration.parent2LastName) && (
-                              <Badge
-                                variant="secondary"
-                                className="px-1.5 text-[10px]"
-                              >
-                                +1
-                              </Badge>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">?</span>
-                        )}
+                        <span className="text-sm text-muted-foreground">
+                          {registration.teacherName || '—'}
+                        </span>
                       </TableCell>
+                      {(() => {
+                        const { payer, other } = getOrderedParents(registration)
+                        return (
+                          <>
+                            <TableCell className="text-sm font-medium">
+                              {payer || '-'}
+                            </TableCell>
+                            <TableCell className="text-sm font-medium">
+                              {other || '-'}
+                            </TableCell>
+                          </>
+                        )
+                      })()}
                       <TableCell>
                         {registration.paymentMethodCaptured ? (
                           <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
@@ -967,28 +957,26 @@ function MobileRegistrationCard({
               </div>
             )}
 
-            {/* Parent */}
-            <div>
-              <p className="text-[11px] text-muted-foreground">Parent</p>
-              {registration.parentFirstName || registration.parentLastName ? (
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm">
-                    {formatParentName(
-                      registration.parentFirstName,
-                      registration.parentLastName
-                    )}
-                  </p>
-                  {(registration.parent2FirstName ||
-                    registration.parent2LastName) && (
-                    <Badge variant="secondary" className="px-1 text-[10px]">
-                      +1
-                    </Badge>
-                  )}
+            {/* Parents */}
+            {(() => {
+              const { payer, other } = getOrderedParents(registration)
+              return (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Parent 1
+                    </p>
+                    <p className="text-sm">{payer || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Parent 2
+                    </p>
+                    <p className="text-sm">{other || '-'}</p>
+                  </div>
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">?</p>
-              )}
-            </div>
+              )
+            })()}
 
             {/* Payment Status */}
             <div className="flex items-center gap-2">

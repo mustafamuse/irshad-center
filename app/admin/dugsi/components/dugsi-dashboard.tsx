@@ -61,6 +61,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
   const filteredFamilies = useFamilyFilters(familyGroups, {
     tab: activeTab,
     searchQuery: filters.search?.query || '',
+    searchField: filters.search?.field || 'all',
     advancedFilters: filters.advanced || {
       dateFilter: 'all',
       hasHealthInfo: false,

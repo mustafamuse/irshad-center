@@ -3,7 +3,13 @@
  * Centralized filtering logic for consistent filtering behavior
  */
 
-import { Family, FamilyFilters, DateFilter, TabValue } from '../_types'
+import {
+  Family,
+  FamilyFilters,
+  DateFilter,
+  TabValue,
+  SearchField,
+} from '../_types'
 
 /**
  * Get date range from filter type
@@ -46,56 +52,85 @@ export function getDateRange(
   }
 }
 
-/**
- * Filter families by search query with smart detection
- */
 export function filterFamiliesBySearch(
   families: Family[],
-  query: string
+  query: string,
+  field: SearchField = 'all'
 ): Family[] {
   if (!query) return families
 
   const normalizedQuery = query.toLowerCase().trim()
-
-  // Smart detection based on query pattern
-  const isEmailSearch = normalizedQuery.includes('@')
   const searchDigits = query.replace(/\D/g, '')
-  const isPhoneSearch = searchDigits.length >= 4
 
   return families.filter((family) => {
     return family.members.some((member) => {
-      // 1. Email search (if contains @)
-      if (isEmailSearch) {
-        return (
-          member.parentEmail?.toLowerCase().includes(normalizedQuery) ||
-          member.parent2Email?.toLowerCase().includes(normalizedQuery)
-        )
+      switch (field) {
+        case 'email':
+          return (
+            member.parentEmail?.toLowerCase().includes(normalizedQuery) ||
+            member.parent2Email?.toLowerCase().includes(normalizedQuery)
+          )
+
+        case 'phone': {
+          const searchLast4 = searchDigits.slice(-4)
+          if (searchLast4.length < 4) return false
+          const parent1Digits = member.parentPhone?.replace(/\D/g, '') || ''
+          const parent2Digits = member.parent2Phone?.replace(/\D/g, '') || ''
+          return (
+            parent1Digits.endsWith(searchLast4) ||
+            parent2Digits.endsWith(searchLast4)
+          )
+        }
+
+        case 'childName':
+          return (member.name?.toLowerCase() || '').includes(normalizedQuery)
+
+        case 'parentName': {
+          const parent1Name =
+            `${member.parentFirstName || ''} ${member.parentLastName || ''}`.toLowerCase()
+          const parent2Name =
+            `${member.parent2FirstName || ''} ${member.parent2LastName || ''}`.toLowerCase()
+          return (
+            parent1Name.includes(normalizedQuery) ||
+            parent2Name.includes(normalizedQuery)
+          )
+        }
+
+        case 'all':
+        default: {
+          const isEmailSearch = normalizedQuery.includes('@')
+          const isPhoneSearch = searchDigits.length >= 4
+
+          if (isEmailSearch) {
+            return (
+              member.parentEmail?.toLowerCase().includes(normalizedQuery) ||
+              member.parent2Email?.toLowerCase().includes(normalizedQuery)
+            )
+          }
+
+          if (isPhoneSearch) {
+            const searchLast4 = searchDigits.slice(-4)
+            const parent1Digits = member.parentPhone?.replace(/\D/g, '') || ''
+            const parent2Digits = member.parent2Phone?.replace(/\D/g, '') || ''
+            return (
+              parent1Digits.endsWith(searchLast4) ||
+              parent2Digits.endsWith(searchLast4)
+            )
+          }
+
+          const childName = member.name?.toLowerCase() || ''
+          const parent1Name =
+            `${member.parentFirstName || ''} ${member.parentLastName || ''}`.toLowerCase()
+          const parent2Name =
+            `${member.parent2FirstName || ''} ${member.parent2LastName || ''}`.toLowerCase()
+
+          return (
+            childName.includes(normalizedQuery) ||
+            parent1Name.includes(normalizedQuery) ||
+            parent2Name.includes(normalizedQuery)
+          )
+        }
       }
-
-      // 2. Phone search (if 4+ digits) - match last 4 digits
-      if (isPhoneSearch) {
-        const searchLast4 = searchDigits.slice(-4)
-        const parent1Digits = member.parentPhone?.replace(/\D/g, '') || ''
-        const parent2Digits = member.parent2Phone?.replace(/\D/g, '') || ''
-
-        return (
-          parent1Digits.endsWith(searchLast4) ||
-          parent2Digits.endsWith(searchLast4)
-        )
-      }
-
-      // 3. Name search (default) - searches child + both parents
-      const childName = member.name?.toLowerCase() || ''
-      const parent1Name =
-        `${member.parentFirstName || ''} ${member.parentLastName || ''}`.toLowerCase()
-      const parent2Name =
-        `${member.parent2FirstName || ''} ${member.parent2LastName || ''}`.toLowerCase()
-
-      return (
-        childName.includes(normalizedQuery) ||
-        parent1Name.includes(normalizedQuery) ||
-        parent2Name.includes(normalizedQuery)
-      )
     })
   })
 }
@@ -185,14 +220,12 @@ export function sortFamiliesByParentName(families: Family[]): Family[] {
   })
 }
 
-/**
- * Composite filter function
- */
 export function applyAllFilters(
   families: Family[],
   options: {
     tab?: TabValue
     searchQuery?: string
+    searchField?: SearchField
     advancedFilters?: FamilyFilters
   }
 ): Family[] {
@@ -203,14 +236,17 @@ export function applyAllFilters(
   }
 
   if (options.searchQuery) {
-    filtered = filterFamiliesBySearch(filtered, options.searchQuery)
+    filtered = filterFamiliesBySearch(
+      filtered,
+      options.searchQuery,
+      options.searchField
+    )
   }
 
   if (options.advancedFilters) {
     filtered = filterFamiliesByAdvanced(filtered, options.advancedFilters)
   }
 
-  // Sort by parent name (ascending alphabetical order)
   filtered = sortFamiliesByParentName(filtered)
 
   return filtered
