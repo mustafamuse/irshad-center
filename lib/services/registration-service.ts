@@ -110,7 +110,7 @@ export const sanitizedNameSchema = (fieldName: string) =>
     .string()
     .min(1, `${fieldName} is required`)
     .max(255, `${fieldName} is too long`)
-    .transform((str) => str.trim())
+    .transform((str) => str.trim().replace(/\s+/g, ' ')) // Normalize whitespace
     .refine((str) => !/[<>]/.test(str), {
       message: `${fieldName} cannot contain angle brackets`,
     })

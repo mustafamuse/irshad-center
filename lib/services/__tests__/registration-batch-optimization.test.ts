@@ -722,10 +722,14 @@ describe('Validation Schemas', () => {
       expect(sanitizedNameSchema('Name').parse('Jose')).toBe('Jose')
     })
 
-    it('should trim whitespace', async () => {
+    it('should trim and normalize whitespace', async () => {
       const { sanitizedNameSchema } = await import('../registration-service')
 
       expect(sanitizedNameSchema('Name').parse('  John  ')).toBe('John')
+      expect(sanitizedNameSchema('Name').parse('Mary  Ann')).toBe('Mary Ann')
+      expect(sanitizedNameSchema('Name').parse('  Mary   Ann  ')).toBe(
+        'Mary Ann'
+      )
     })
   })
 
