@@ -743,11 +743,13 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             const fromMap = existingChildrenMap.get(lookupKey)
             const raceConditionChild = fromMap
               ? fromMap
-              : await findExistingChild(
-                  child.firstName,
-                  child.lastName,
-                  child.dateOfBirth
-                )
+              : await prisma.person.findFirst({
+                  where: {
+                    name: { equals: childFullName, mode: 'insensitive' },
+                    dateOfBirth: { equals: child.dateOfBirth },
+                  },
+                  select: { id: true, name: true },
+                })
             if (raceConditionChild) {
               childPerson = raceConditionChild
             } else {
@@ -1480,40 +1482,6 @@ export async function findExistingDugsiProfiles(
   }
 
   return map
-}
-
-/**
- * Find existing child Person by name and date of birth
- */
-async function findExistingChild(
-  firstName: string,
-  lastName: string,
-  dateOfBirth: Date | null | undefined
-): Promise<{ id: string; name: string } | null> {
-  const fullName = `${firstName} ${lastName}`.trim()
-
-  if (!dateOfBirth) {
-    return null
-  }
-
-  // Find person by name and DOB
-  const existing = await prisma.person.findFirst({
-    where: {
-      name: {
-        equals: fullName,
-        mode: 'insensitive',
-      },
-      dateOfBirth: {
-        equals: dateOfBirth,
-      },
-    },
-    select: {
-      id: true,
-      name: true,
-    },
-  })
-
-  return existing
 }
 
 /**

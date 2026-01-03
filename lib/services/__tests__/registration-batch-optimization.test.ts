@@ -817,6 +817,43 @@ describe('Duplicate Child Validation', () => {
       'Duplicate child in submission'
     )
   })
+
+  it('should reject duplicate children with different casing in same submission', async () => {
+    mockPersonFindMany.mockResolvedValue([])
+
+    const { createFamilyRegistration } = await import('../registration-service')
+
+    const duplicateChildData = {
+      parent1FirstName: 'Parent',
+      parent1LastName: 'One',
+      parent1Email: 'parent@example.com',
+      parent1Phone: '612-555-1234',
+      primaryPayer: 'parent1' as const,
+      familyReferenceId: '123e4567-e89b-12d3-a456-426614174000',
+      children: [
+        {
+          firstName: 'John',
+          lastName: 'Doe',
+          dateOfBirth: new Date('2015-01-01'),
+          gender: 'MALE' as const,
+          gradeLevel: 'GRADE_1' as const,
+          shift: 'MORNING' as const,
+        },
+        {
+          firstName: 'john',
+          lastName: 'doe',
+          dateOfBirth: new Date('2015-01-01'),
+          gender: 'MALE' as const,
+          gradeLevel: 'GRADE_1' as const,
+          shift: 'MORNING' as const,
+        },
+      ],
+    }
+
+    await expect(createFamilyRegistration(duplicateChildData)).rejects.toThrow(
+      'Duplicate child in submission'
+    )
+  })
 })
 
 describe('Error Reference Generation', () => {
