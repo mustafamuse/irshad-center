@@ -63,14 +63,17 @@ function getChildLookupKey(
 
 /**
  * Generate a short error reference from a UUID
- * Format: ERR-XXXXXXXX (8 hex characters derived from UUID)
+ * Format: ERR-XXXXXXXXXXXX (12 hex characters derived from UUID)
  * Used to hide internal UUIDs from users while still enabling support lookups
+ *
+ * 12 chars provides 16^12 = 281 trillion combinations, sufficient to avoid
+ * collisions even at scale. The full UUID is logged server-side for lookups.
  *
  * @param uuid - Full UUID to hash
  * @returns Short error reference string
  */
 function generateErrorRef(uuid: string): string {
-  const hash = uuid.replace(/-/g, '').slice(0, 8).toUpperCase()
+  const hash = uuid.replace(/-/g, '').slice(0, 12).toUpperCase()
   return `ERR-${hash}`
 }
 
@@ -102,7 +105,7 @@ const phoneRegex = /^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/
  * @example
  * sanitizedNameSchema('Name').parse("Name<")         // Throws
  */
-const sanitizedNameSchema = (fieldName: string) =>
+export const sanitizedNameSchema = (fieldName: string) =>
   z
     .string()
     .min(1, `${fieldName} is required`)
@@ -143,7 +146,7 @@ const personDataSchema = z.object({
 /**
  * Schema for child in family registration
  */
-const childDataSchema = z.object({
+export const childDataSchema = z.object({
   firstName: sanitizedNameSchema('First name'),
   lastName: sanitizedNameSchema('Last name'),
   dateOfBirth: z
@@ -159,11 +162,15 @@ const childDataSchema = z.object({
     .max(255, 'School name is too long')
     .nullable()
     .optional(),
+  // Health info uses relaxed pattern /<[^>]+>/ to allow comparison operators
+  // (e.g., "weight > 50kg", "age < 18") while still blocking HTML tags.
+  // Name fields use stricter /[<>]/ since names never need angle brackets.
   healthInfo: z
     .string()
     .max(5000, 'Health information is too long (max 5000 characters)')
     .refine((str) => !str || !/<[^>]+>/.test(str), {
-      message: 'Health information cannot contain HTML tags',
+      message:
+        'Health information cannot contain HTML tags (e.g., <script>, <div>)',
     })
     .nullable()
     .optional(),
@@ -189,11 +196,13 @@ const programProfileDataSchema = z.object({
     .max(255, 'School name is too long')
     .nullable()
     .optional(),
+  // See childSchema comment for XSS pattern rationale
   healthInfo: z
     .string()
     .max(5000, 'Health information is too long (max 5000 characters)')
     .refine((str) => !str || !/<[^>]+>/.test(str), {
-      message: 'Health information cannot contain HTML tags',
+      message:
+        'Health information cannot contain HTML tags (e.g., <script>, <div>)',
     })
     .nullable()
     .optional(),
@@ -743,6 +752,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                   name: childFullName,
                   dateOfBirth: child.dateOfBirth,
                   familyReferenceId,
+                  errorRef: generateErrorRef(familyReferenceId),
                   prismaError: error.meta,
                 },
                 'P2002 but child not found - possible constraint mismatch'
@@ -870,6 +880,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                 {
                   personId: childPerson.id,
                   familyReferenceId,
+                  errorRef: generateErrorRef(familyReferenceId),
                   prismaError: error.meta,
                 },
                 'P2002 but profile not found - possible constraint mismatch'
