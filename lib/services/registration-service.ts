@@ -739,11 +739,15 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               { name: childFullName, dateOfBirth: child.dateOfBirth },
               'Child person already exists (race condition), fetching existing'
             )
-            const raceConditionChild = await findExistingChild(
-              child.firstName,
-              child.lastName,
-              child.dateOfBirth
-            )
+            // Check batch map first (optimization), then query if not found
+            const fromMap = existingChildrenMap.get(lookupKey)
+            const raceConditionChild = fromMap
+              ? fromMap
+              : await findExistingChild(
+                  child.firstName,
+                  child.lastName,
+                  child.dateOfBirth
+                )
             if (raceConditionChild) {
               childPerson = raceConditionChild
             } else {
@@ -957,14 +961,25 @@ export async function createFamilyRegistration(data: unknown): Promise<{
         }))
 
       if (enrollmentsToCreate.length > 0) {
-        await prisma.enrollment.createMany({
+        const result = await prisma.enrollment.createMany({
           data: enrollmentsToCreate,
           skipDuplicates: true,
         })
 
+        if (result.count < enrollmentsToCreate.length) {
+          logger.warn(
+            {
+              expected: enrollmentsToCreate.length,
+              actual: result.count,
+              familyReferenceId,
+            },
+            'Some enrollments were skipped (duplicates or constraint violations)'
+          )
+        }
+
         logger.info(
           {
-            createdCount: enrollmentsToCreate.length,
+            createdCount: result.count,
             profileIds: enrollmentsToCreate.map((e) => e.programProfileId),
           },
           'Batch created missing enrollments'
