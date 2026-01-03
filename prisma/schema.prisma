@@ -258,12 +258,8 @@ model Person {
   teacher                Teacher? // Optional: Person can be a teacher (staff role)
   whatsAppMessages       WhatsAppMessage[] // WhatsApp messages sent to this person
 
-  @@index([name]) // For name-only lookups
+  @@index([name])
   @@index([createdAt])
-  // Composite index for findExistingChildren batch lookup (name + dateOfBirth).
-  // Note: Case-insensitive name matching may limit index usage, but dateOfBirth
-  // filtering still benefits. Monitor query plans if performance degrades.
-  @@index([name, dateOfBirth])
 }
 
 model ContactPoint {
