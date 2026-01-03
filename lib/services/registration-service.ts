@@ -145,6 +145,9 @@ const childDataSchema = z.object({
   healthInfo: z
     .string()
     .max(5000, 'Health information is too long (max 5000 characters)')
+    .refine((str) => !str || !/<[^>]+>/.test(str), {
+      message: 'Health information cannot contain HTML tags',
+    })
     .nullable()
     .optional(),
 })
@@ -172,6 +175,9 @@ const programProfileDataSchema = z.object({
   healthInfo: z
     .string()
     .max(5000, 'Health information is too long (max 5000 characters)')
+    .refine((str) => !str || !/<[^>]+>/.test(str), {
+      message: 'Health information cannot contain HTML tags',
+    })
     .nullable()
     .optional(),
   familyReferenceId: z
@@ -805,19 +811,67 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           id: profile.id,
           personId: childPerson.id,
         })
+        // Track result immediately after update (before any other operations)
+        childResults.push({
+          id: profile.id,
+          name: childFullName,
+          personId: childPerson.id,
+        })
       } else {
-        profile = await prisma.programProfile.create({
-          data: {
-            personId: childPerson.id,
-            program: 'DUGSI_PROGRAM',
-            status: 'REGISTERED',
-            gender: child.gender,
-            gradeLevel: child.gradeLevel,
-            shift: child.shift,
-            schoolName: child.schoolName,
-            healthInfo: child.healthInfo,
-            familyReferenceId,
-          },
+        // Create new profile with P2002 race condition handling
+        try {
+          profile = await prisma.programProfile.create({
+            data: {
+              personId: childPerson.id,
+              program: 'DUGSI_PROGRAM',
+              status: 'REGISTERED',
+              gender: child.gender,
+              gradeLevel: child.gradeLevel,
+              shift: child.shift,
+              schoolName: child.schoolName,
+              healthInfo: child.healthInfo,
+              familyReferenceId,
+            },
+          })
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Race condition: profile was created by concurrent request
+            logger.info(
+              { personId: childPerson.id, program: 'DUGSI_PROGRAM' },
+              'Profile already exists (race condition), fetching existing'
+            )
+            const existingProfile = await prisma.programProfile.findFirst({
+              where: { personId: childPerson.id, program: 'DUGSI_PROGRAM' },
+            })
+            if (existingProfile) {
+              profile = existingProfile
+            } else {
+              logger.error(
+                {
+                  personId: childPerson.id,
+                  familyReferenceId,
+                  prismaError: error.meta,
+                },
+                'P2002 but profile not found - possible constraint mismatch'
+              )
+              throw new Error(
+                `Unable to register ${childFullName}. This may indicate a data conflict. ` +
+                  `Please contact support with reference: ${familyReferenceId}`
+              )
+            }
+          } else {
+            throw error
+          }
+        }
+
+        // Track result immediately after create (before any other operations)
+        childResults.push({
+          id: profile.id,
+          name: childFullName,
+          personId: childPerson.id,
         })
 
         // Update map so duplicate child entries in the same request reuse this profile
@@ -843,12 +897,6 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           'Person enrolled as Dugsi student'
         )
       }
-
-      childResults.push({
-        id: profile.id,
-        name: childFullName,
-        personId: childPerson.id,
-      })
     }
 
     // OPTIMIZATION: Batch check and create enrollments (1 query + 1 createMany instead of N queries + N creates)
@@ -1434,6 +1482,20 @@ async function validateFamilyConflicts(
   children: Array<z.infer<typeof childDataSchema>>,
   familyReferenceId: string
 ): Promise<void> {
+  // Check for duplicate children within the same submission
+  const seenChildren = new Set<string>()
+  for (const child of children) {
+    const childFullName = `${child.firstName} ${child.lastName}`
+    const lookupKey = getChildLookupKey(childFullName, child.dateOfBirth)
+    if (seenChildren.has(lookupKey)) {
+      throw new Error(
+        `Duplicate child in submission: ${child.firstName} ${child.lastName}. ` +
+          `Each child can only be registered once per submission.`
+      )
+    }
+    seenChildren.add(lookupKey)
+  }
+
   // Batch lookup all existing children (1 query instead of N)
   const existingChildrenMap = await findExistingChildren(children)
 
