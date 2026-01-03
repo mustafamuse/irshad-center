@@ -23,6 +23,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
@@ -1376,7 +1377,8 @@ export async function findExistingChildren(
     firstName: string
     lastName: string
     dateOfBirth?: Date | null | undefined
-  }>
+  }>,
+  client: DatabaseClient = prisma
 ): Promise<Map<string, { id: string; name: string }>> {
   const childrenWithDob = children.filter(
     (c): c is { firstName: string; lastName: string; dateOfBirth: Date } =>
@@ -1403,7 +1405,7 @@ export async function findExistingChildren(
     }
   })
 
-  const existingPeople = await prisma.person.findMany({
+  const existingPeople = await client.person.findMany({
     where: { OR: whereConditions },
     select: { id: true, name: true, dateOfBirth: true },
   })
@@ -1427,7 +1429,8 @@ export async function findExistingChildren(
  * Optimization for Phase 3 of family registration to prevent connection pool exhaustion
  */
 export async function findExistingDugsiProfiles(
-  personIds: string[]
+  personIds: string[],
+  client: DatabaseClient = prisma
 ): Promise<
   Map<
     string,
@@ -1438,7 +1441,7 @@ export async function findExistingDugsiProfiles(
     return new Map()
   }
 
-  const profiles = await prisma.programProfile.findMany({
+  const profiles = await client.programProfile.findMany({
     where: {
       personId: { in: personIds },
       program: 'DUGSI_PROGRAM',
@@ -1496,7 +1499,8 @@ async function findExistingChild(
  */
 async function validateFamilyConflicts(
   children: Array<z.infer<typeof childDataSchema>>,
-  familyReferenceId: string
+  familyReferenceId: string,
+  client: DatabaseClient = prisma
 ): Promise<void> {
   // Check for duplicate children within the same submission
   const seenChildren = new Set<string>()
@@ -1513,7 +1517,7 @@ async function validateFamilyConflicts(
   }
 
   // Batch lookup all existing children (1 query instead of N)
-  const existingChildrenMap = await findExistingChildren(children)
+  const existingChildrenMap = await findExistingChildren(children, client)
 
   if (existingChildrenMap.size === 0) {
     // No existing children, no conflicts possible
@@ -1524,7 +1528,10 @@ async function validateFamilyConflicts(
   const existingPersonIds = Array.from(existingChildrenMap.values()).map(
     (p) => p.id
   )
-  const existingProfilesMap = await findExistingDugsiProfiles(existingPersonIds)
+  const existingProfilesMap = await findExistingDugsiProfiles(
+    existingPersonIds,
+    client
+  )
 
   // Check for conflicts using the maps
   for (const child of children) {
