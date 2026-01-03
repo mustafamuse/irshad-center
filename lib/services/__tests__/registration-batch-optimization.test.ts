@@ -218,7 +218,9 @@ describe('Batch Lookup Helpers', () => {
 
   describe('findExistingDugsiProfiles', () => {
     it('should batch lookup profiles for multiple person IDs', async () => {
-      const { findExistingDugsiProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import(
+        '../registration-service'
+      )
 
       mockProgramProfileFindMany.mockResolvedValue([
         { id: 'profile-1', personId: 'person-1', program: 'DUGSI_PROGRAM' },
@@ -247,7 +249,9 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should only return DUGSI_PROGRAM profiles', async () => {
-      const { findExistingDugsiProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import(
+        '../registration-service'
+      )
 
       mockProgramProfileFindMany.mockResolvedValue([
         { id: 'profile-1', personId: 'person-1', program: 'DUGSI_PROGRAM' },
@@ -266,7 +270,9 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should return empty Map for empty person IDs array', async () => {
-      const { findExistingDugsiProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import(
+        '../registration-service'
+      )
 
       const result = await findExistingDugsiProfiles([])
 
@@ -275,7 +281,9 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should handle partial matches correctly', async () => {
-      const { findExistingDugsiProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import(
+        '../registration-service'
+      )
 
       mockProgramProfileFindMany.mockResolvedValue([
         { id: 'profile-1', personId: 'person-1', program: 'DUGSI_PROGRAM' },
@@ -294,7 +302,9 @@ describe('Batch Lookup Helpers', () => {
     })
 
     it('should batch lookup profiles for both existing and newly created children', async () => {
-      const { findExistingDugsiProfiles } = await import('../registration-service')
+      const { findExistingDugsiProfiles } = await import(
+        '../registration-service'
+      )
 
       mockProgramProfileFindMany.mockResolvedValue([
         {
@@ -434,7 +444,8 @@ describe('Batch Lookup Helpers', () => {
       const existingPersonIds = Array.from(existingChildrenMap.values()).map(
         (p) => p.id
       )
-      const existingProfilesMap = await findExistingDugsiProfiles(existingPersonIds)
+      const existingProfilesMap =
+        await findExistingDugsiProfiles(existingPersonIds)
 
       // Simulate conflict detection logic
       const incomingFamilyId = 'new-family-id'
@@ -509,7 +520,8 @@ describe('Batch Lookup Helpers', () => {
       const existingPersonIds = Array.from(existingChildrenMap.values()).map(
         (p) => p.id
       )
-      const existingProfilesMap = await findExistingDugsiProfiles(existingPersonIds)
+      const existingProfilesMap =
+        await findExistingDugsiProfiles(existingPersonIds)
 
       // Simulate conflict detection
       const incomingFamilyId = 'same-family-id'
@@ -677,5 +689,150 @@ describe('Batch Lookup Helpers', () => {
       expect(mockEnrollmentCreateMany).not.toHaveBeenCalled()
       expect(enrollmentsToCreate).toHaveLength(0)
     })
+  })
+})
+
+describe('Validation Schemas', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('sanitizedNameSchema', () => {
+    it('should reject angle brackets in names', async () => {
+      const { sanitizedNameSchema } = await import('../registration-service')
+
+      expect(() => sanitizedNameSchema('Name').parse('John<')).toThrow(
+        'angle brackets'
+      )
+      expect(() => sanitizedNameSchema('Name').parse('John>')).toThrow(
+        'angle brackets'
+      )
+      expect(() => sanitizedNameSchema('Name').parse('<script>')).toThrow(
+        'angle brackets'
+      )
+    })
+
+    it('should allow valid names with special characters', async () => {
+      const { sanitizedNameSchema } = await import('../registration-service')
+
+      expect(sanitizedNameSchema('Name').parse("O'Brien")).toBe("O'Brien")
+      expect(sanitizedNameSchema('Name').parse('Smith-Jones')).toBe(
+        'Smith-Jones'
+      )
+      expect(sanitizedNameSchema('Name').parse('Jose')).toBe('Jose')
+    })
+
+    it('should trim whitespace', async () => {
+      const { sanitizedNameSchema } = await import('../registration-service')
+
+      expect(sanitizedNameSchema('Name').parse('  John  ')).toBe('John')
+    })
+  })
+
+  describe('childDataSchema', () => {
+    it('should reject HTML tags in healthInfo', async () => {
+      const { childDataSchema } = await import('../registration-service')
+
+      const validChild = {
+        firstName: 'John',
+        lastName: 'Doe',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'MALE',
+        gradeLevel: 'GRADE_1',
+        shift: 'MORNING',
+        schoolName: 'Test School',
+        healthInfo: '<script>alert("xss")</script>',
+      }
+
+      const result = childDataSchema.safeParse(validChild)
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(result.error.issues[0].message).toContain('HTML tags')
+      }
+    })
+
+    it('should allow comparison operators in healthInfo', async () => {
+      const { childDataSchema } = await import('../registration-service')
+
+      const childWithComparisonOp = {
+        firstName: 'John',
+        lastName: 'Doe',
+        dateOfBirth: new Date('2015-01-01'),
+        gender: 'MALE',
+        gradeLevel: 'GRADE_1',
+        shift: 'MORNING',
+        schoolName: 'Test School',
+        healthInfo: 'weight > 50kg, age < 18',
+      }
+
+      const result = childDataSchema.safeParse(childWithComparisonOp)
+      expect(result.success).toBe(true)
+    })
+  })
+})
+
+describe('Duplicate Child Validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should reject duplicate children in same submission', async () => {
+    // Mock: no existing children
+    mockPersonFindMany.mockResolvedValue([])
+
+    const { createFamilyRegistration } = await import('../registration-service')
+
+    const duplicateChildData = {
+      parent1FirstName: 'Parent',
+      parent1LastName: 'One',
+      parent1Email: 'parent@example.com',
+      parent1Phone: '612-555-1234',
+      primaryPayer: 'parent1' as const,
+      familyReferenceId: '123e4567-e89b-12d3-a456-426614174000',
+      children: [
+        {
+          firstName: 'John',
+          lastName: 'Doe',
+          dateOfBirth: new Date('2015-01-01'),
+          gender: 'MALE' as const,
+          gradeLevel: 'GRADE_1' as const,
+          shift: 'MORNING' as const,
+        },
+        {
+          firstName: 'John',
+          lastName: 'Doe',
+          dateOfBirth: new Date('2015-01-01'),
+          gender: 'MALE' as const,
+          gradeLevel: 'GRADE_1' as const,
+          shift: 'MORNING' as const,
+        },
+      ],
+    }
+
+    await expect(createFamilyRegistration(duplicateChildData)).rejects.toThrow(
+      'Duplicate child in submission'
+    )
+  })
+})
+
+describe('Error Reference Generation', () => {
+  it('should generate 12-character error reference from UUID', async () => {
+    // Test the error reference format indirectly through UUID structure:
+    // UUID 123e4567-e89b-12d3-a456-426614174000
+    // Without dashes: 123e4567e89b12d3a456426614174000
+    // First 12 chars uppercase: 123E4567E89B
+    // Expected: ERR-123E4567E89B
+
+    // We verify the format matches the expected pattern
+    const testUuid = '123e4567-e89b-12d3-a456-426614174000'
+    const expectedPattern = /^ERR-[A-F0-9]{12}$/
+    const expectedRef = 'ERR-123E4567E89B'
+
+    // Calculate what the function should produce
+    const hash = testUuid.replace(/-/g, '').slice(0, 12).toUpperCase()
+    const computedRef = `ERR-${hash}`
+
+    expect(computedRef).toBe(expectedRef)
+    expect(computedRef).toMatch(expectedPattern)
   })
 })

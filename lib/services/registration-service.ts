@@ -23,6 +23,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
@@ -57,6 +58,26 @@ function getChildLookupKey(
 }
 
 // ============================================================================
+// Error Reference Helpers
+// ============================================================================
+
+/**
+ * Generate a short error reference from a UUID
+ * Format: ERR-XXXXXXXXXXXX (12 hex characters derived from UUID)
+ * Used to hide internal UUIDs from users while still enabling support lookups
+ *
+ * 12 chars provides 16^12 = 281 trillion combinations, sufficient to avoid
+ * collisions even at scale. The full UUID is logged server-side for lookups.
+ *
+ * @param uuid - Full UUID to hash
+ * @returns Short error reference string
+ */
+function generateErrorRef(uuid: string): string {
+  const hash = uuid.replace(/-/g, '').slice(0, 12).toUpperCase()
+  return `ERR-${hash}`
+}
+
+// ============================================================================
 // Zod Validation Schemas
 // ============================================================================
 
@@ -75,24 +96,23 @@ function getChildLookupKey(
 const phoneRegex = /^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/
 
 /**
- * Sanitized name schema - prevents XSS by rejecting HTML tags
+ * Sanitized name schema - prevents XSS by rejecting angle brackets
  * Trims whitespace and validates length
  *
  * @note Allows apostrophes, hyphens, accented characters, and math symbols
- * @note Rejects HTML-like patterns: <script>, <div>, <!-- -->
- * @note Allows single < or > when not forming HTML tags (e.g., "Name < Smith")
+ * @note Rejects any < or > characters to prevent XSS attacks
  *
  * @example
- * sanitizedNameSchema('Name').parse("<script>")      // Throws
+ * sanitizedNameSchema('Name').parse("Name<")         // Throws
  */
-const sanitizedNameSchema = (fieldName: string) =>
+export const sanitizedNameSchema = (fieldName: string) =>
   z
     .string()
     .min(1, `${fieldName} is required`)
     .max(255, `${fieldName} is too long`)
     .transform((str) => str.trim())
-    .refine((str) => !/<[^>]+>/.test(str), {
-      message: `${fieldName} cannot contain HTML tags`,
+    .refine((str) => !/[<>]/.test(str), {
+      message: `${fieldName} cannot contain angle brackets`,
     })
 
 /**
@@ -126,7 +146,7 @@ const personDataSchema = z.object({
 /**
  * Schema for child in family registration
  */
-const childDataSchema = z.object({
+export const childDataSchema = z.object({
   firstName: sanitizedNameSchema('First name'),
   lastName: sanitizedNameSchema('Last name'),
   dateOfBirth: z
@@ -142,9 +162,16 @@ const childDataSchema = z.object({
     .max(255, 'School name is too long')
     .nullable()
     .optional(),
+  // Health info uses relaxed pattern /<[^>]+>/ to allow comparison operators
+  // (e.g., "weight > 50kg", "age < 18") while still blocking HTML tags.
+  // Name fields use stricter /[<>]/ since names never need angle brackets.
   healthInfo: z
     .string()
     .max(5000, 'Health information is too long (max 5000 characters)')
+    .refine((str) => !str || !/<[^>]+>/.test(str), {
+      message:
+        'Health information cannot contain HTML tags (e.g., <script>, <div>)',
+    })
     .nullable()
     .optional(),
 })
@@ -169,9 +196,14 @@ const programProfileDataSchema = z.object({
     .max(255, 'School name is too long')
     .nullable()
     .optional(),
+  // See childSchema comment for XSS pattern rationale
   healthInfo: z
     .string()
     .max(5000, 'Health information is too long (max 5000 characters)')
+    .refine((str) => !str || !/<[^>]+>/.test(str), {
+      message:
+        'Health information cannot contain HTML tags (e.g., <script>, <div>)',
+    })
     .nullable()
     .optional(),
   familyReferenceId: z
@@ -720,13 +752,14 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                   name: childFullName,
                   dateOfBirth: child.dateOfBirth,
                   familyReferenceId,
+                  errorRef: generateErrorRef(familyReferenceId),
                   prismaError: error.meta,
                 },
                 'P2002 but child not found - possible constraint mismatch'
               )
               throw new Error(
                 `Registration temporarily unavailable for ${childFullName}. ` +
-                  `Please retry. If the problem persists, contact support with reference: ${familyReferenceId}`
+                  `Please retry. If the problem persists, contact support with reference: ${generateErrorRef(familyReferenceId)}`
               )
             }
           } else {
@@ -805,19 +838,68 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           id: profile.id,
           personId: childPerson.id,
         })
+        // Track result immediately after update (before any other operations)
+        childResults.push({
+          id: profile.id,
+          name: childFullName,
+          personId: childPerson.id,
+        })
       } else {
-        profile = await prisma.programProfile.create({
-          data: {
-            personId: childPerson.id,
-            program: 'DUGSI_PROGRAM',
-            status: 'REGISTERED',
-            gender: child.gender,
-            gradeLevel: child.gradeLevel,
-            shift: child.shift,
-            schoolName: child.schoolName,
-            healthInfo: child.healthInfo,
-            familyReferenceId,
-          },
+        // Create new profile with P2002 race condition handling
+        try {
+          profile = await prisma.programProfile.create({
+            data: {
+              personId: childPerson.id,
+              program: 'DUGSI_PROGRAM',
+              status: 'REGISTERED',
+              gender: child.gender,
+              gradeLevel: child.gradeLevel,
+              shift: child.shift,
+              schoolName: child.schoolName,
+              healthInfo: child.healthInfo,
+              familyReferenceId,
+            },
+          })
+        } catch (error) {
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Race condition: profile was created by concurrent request
+            logger.info(
+              { personId: childPerson.id, program: 'DUGSI_PROGRAM' },
+              'Profile already exists (race condition), fetching existing'
+            )
+            const existingProfile = await prisma.programProfile.findFirst({
+              where: { personId: childPerson.id, program: 'DUGSI_PROGRAM' },
+            })
+            if (existingProfile) {
+              profile = existingProfile
+            } else {
+              logger.error(
+                {
+                  personId: childPerson.id,
+                  familyReferenceId,
+                  errorRef: generateErrorRef(familyReferenceId),
+                  prismaError: error.meta,
+                },
+                'P2002 but profile not found - possible constraint mismatch'
+              )
+              throw new Error(
+                `Unable to register ${childFullName}. This may indicate a data conflict. ` +
+                  `Please contact support with reference: ${generateErrorRef(familyReferenceId)}`
+              )
+            }
+          } else {
+            throw error
+          }
+        }
+
+        // Track result immediately after create (before any other operations)
+        childResults.push({
+          id: profile.id,
+          name: childFullName,
+          personId: childPerson.id,
         })
 
         // Update map so duplicate child entries in the same request reuse this profile
@@ -843,12 +925,6 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           'Person enrolled as Dugsi student'
         )
       }
-
-      childResults.push({
-        id: profile.id,
-        name: childFullName,
-        personId: childPerson.id,
-      })
     }
 
     // OPTIMIZATION: Batch check and create enrollments (1 query + 1 createMany instead of N queries + N creates)
@@ -1312,7 +1388,8 @@ export async function findExistingChildren(
     firstName: string
     lastName: string
     dateOfBirth?: Date | null | undefined
-  }>
+  }>,
+  client: DatabaseClient = prisma
 ): Promise<Map<string, { id: string; name: string }>> {
   const childrenWithDob = children.filter(
     (c): c is { firstName: string; lastName: string; dateOfBirth: Date } =>
@@ -1339,7 +1416,7 @@ export async function findExistingChildren(
     }
   })
 
-  const existingPeople = await prisma.person.findMany({
+  const existingPeople = await client.person.findMany({
     where: { OR: whereConditions },
     select: { id: true, name: true, dateOfBirth: true },
   })
@@ -1363,7 +1440,8 @@ export async function findExistingChildren(
  * Optimization for Phase 3 of family registration to prevent connection pool exhaustion
  */
 export async function findExistingDugsiProfiles(
-  personIds: string[]
+  personIds: string[],
+  client: DatabaseClient = prisma
 ): Promise<
   Map<
     string,
@@ -1374,7 +1452,7 @@ export async function findExistingDugsiProfiles(
     return new Map()
   }
 
-  const profiles = await prisma.programProfile.findMany({
+  const profiles = await client.programProfile.findMany({
     where: {
       personId: { in: personIds },
       program: 'DUGSI_PROGRAM',
@@ -1432,10 +1510,25 @@ async function findExistingChild(
  */
 async function validateFamilyConflicts(
   children: Array<z.infer<typeof childDataSchema>>,
-  familyReferenceId: string
+  familyReferenceId: string,
+  client: DatabaseClient = prisma
 ): Promise<void> {
+  // Check for duplicate children within the same submission
+  const seenChildren = new Set<string>()
+  for (const child of children) {
+    const childFullName = `${child.firstName} ${child.lastName}`
+    const lookupKey = getChildLookupKey(childFullName, child.dateOfBirth)
+    if (seenChildren.has(lookupKey)) {
+      throw new Error(
+        `Duplicate child in submission: ${child.firstName} ${child.lastName}. ` +
+          `Each child can only be registered once per submission.`
+      )
+    }
+    seenChildren.add(lookupKey)
+  }
+
   // Batch lookup all existing children (1 query instead of N)
-  const existingChildrenMap = await findExistingChildren(children)
+  const existingChildrenMap = await findExistingChildren(children, client)
 
   if (existingChildrenMap.size === 0) {
     // No existing children, no conflicts possible
@@ -1446,7 +1539,10 @@ async function validateFamilyConflicts(
   const existingPersonIds = Array.from(existingChildrenMap.values()).map(
     (p) => p.id
   )
-  const existingProfilesMap = await findExistingDugsiProfiles(existingPersonIds)
+  const existingProfilesMap = await findExistingDugsiProfiles(
+    existingPersonIds,
+    client
+  )
 
   // Check for conflicts using the maps
   for (const child of children) {
