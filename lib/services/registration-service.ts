@@ -57,6 +57,23 @@ function getChildLookupKey(
 }
 
 // ============================================================================
+// Error Reference Helpers
+// ============================================================================
+
+/**
+ * Generate a short error reference from a UUID
+ * Format: ERR-XXXXXXXX (8 hex characters derived from UUID)
+ * Used to hide internal UUIDs from users while still enabling support lookups
+ *
+ * @param uuid - Full UUID to hash
+ * @returns Short error reference string
+ */
+function generateErrorRef(uuid: string): string {
+  const hash = uuid.replace(/-/g, '').slice(0, 8).toUpperCase()
+  return `ERR-${hash}`
+}
+
+// ============================================================================
 // Zod Validation Schemas
 // ============================================================================
 
@@ -75,15 +92,14 @@ function getChildLookupKey(
 const phoneRegex = /^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/
 
 /**
- * Sanitized name schema - prevents XSS by rejecting HTML tags
+ * Sanitized name schema - prevents XSS by rejecting angle brackets
  * Trims whitespace and validates length
  *
  * @note Allows apostrophes, hyphens, accented characters, and math symbols
- * @note Rejects HTML-like patterns: <script>, <div>, <!-- -->
- * @note Allows single < or > when not forming HTML tags (e.g., "Name < Smith")
+ * @note Rejects any < or > characters to prevent XSS attacks
  *
  * @example
- * sanitizedNameSchema('Name').parse("<script>")      // Throws
+ * sanitizedNameSchema('Name').parse("Name<")         // Throws
  */
 const sanitizedNameSchema = (fieldName: string) =>
   z
@@ -91,8 +107,8 @@ const sanitizedNameSchema = (fieldName: string) =>
     .min(1, `${fieldName} is required`)
     .max(255, `${fieldName} is too long`)
     .transform((str) => str.trim())
-    .refine((str) => !/<[^>]+>/.test(str), {
-      message: `${fieldName} cannot contain HTML tags`,
+    .refine((str) => !/[<>]/.test(str), {
+      message: `${fieldName} cannot contain angle brackets`,
     })
 
 /**
@@ -732,7 +748,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               )
               throw new Error(
                 `Registration temporarily unavailable for ${childFullName}. ` +
-                  `Please retry. If the problem persists, contact support with reference: ${familyReferenceId}`
+                  `Please retry. If the problem persists, contact support with reference: ${generateErrorRef(familyReferenceId)}`
               )
             }
           } else {
@@ -859,7 +875,7 @@ export async function createFamilyRegistration(data: unknown): Promise<{
               )
               throw new Error(
                 `Unable to register ${childFullName}. This may indicate a data conflict. ` +
-                  `Please contact support with reference: ${familyReferenceId}`
+                  `Please contact support with reference: ${generateErrorRef(familyReferenceId)}`
               )
             }
           } else {
