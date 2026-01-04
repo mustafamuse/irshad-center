@@ -307,6 +307,9 @@ export async function createDugsiCheckoutSession(
   // Create the checkout session
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
+    // Feature flag: Toggle card payments to manage transaction fees
+    // ACH only: Lower fees for the organization
+    // Card + ACH: More convenience for families
     payment_method_types: isDugsiCardPaymentsEnabled()
       ? ['card', 'us_bank_account']
       : ['us_bank_account'],
