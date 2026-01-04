@@ -32,8 +32,6 @@ const logger = createServiceLogger('teacher-checkin')
 
 export interface ClockInResult {
   checkIn: TeacherCheckinWithRelations
-  isLate: boolean
-  clockInValid: boolean
 }
 
 export interface ClockOutResult {
@@ -124,7 +122,7 @@ export async function clockIn(
     `Teacher clocked in${isLate ? ' (LATE)' : ''}`
   )
 
-  return { checkIn, isLate, clockInValid }
+  return { checkIn }
 }
 
 export async function clockOut(
