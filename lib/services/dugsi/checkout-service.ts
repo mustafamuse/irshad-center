@@ -8,6 +8,7 @@
  * never client-provided values.
  */
 
+import { isDugsiCardPaymentsEnabled } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
@@ -306,7 +307,9 @@ export async function createDugsiCheckoutSession(
   // Create the checkout session
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
-    payment_method_types: ['card', 'us_bank_account'],
+    payment_method_types: isDugsiCardPaymentsEnabled()
+      ? ['card', 'us_bank_account']
+      : ['us_bank_account'],
     customer: customerId,
     customer_email: customerId ? undefined : guardianEmail,
     line_items: [
