@@ -306,7 +306,7 @@ export async function createDugsiCheckoutSession(
   // Create the checkout session
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
-    payment_method_types: ['us_bank_account'], // ACH only
+    payment_method_types: ['card', 'us_bank_account'],
     customer: customerId,
     customer_email: customerId ? undefined : guardianEmail,
     line_items: [
