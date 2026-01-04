@@ -38,13 +38,29 @@ import {
 
 import { FamilyDetailSheet } from './family-detail-sheet'
 import { FamilyStatusBadge } from './family-status-badge'
-import { Family } from '../../_types'
+import { DugsiRegistration, Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
-import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { formatParentName } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 import { ShiftBadge } from '../shared/shift-badge'
+
+function getOrderedParents(member: DugsiRegistration | undefined) {
+  if (!member) return { payer: '', other: '' }
+  const parent1 = formatParentName(
+    member.parentFirstName,
+    member.parentLastName
+  )
+  const parent2 = formatParentName(
+    member.parent2FirstName,
+    member.parent2LastName
+  )
+  if (member.primaryPayerParentNumber === 2 && parent2) {
+    return { payer: parent2, other: parent1 }
+  }
+  return { payer: parent1, other: parent2 }
+}
 
 interface FamilyTableViewProps {
   families: Family[]
@@ -104,12 +120,8 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
       {/* Mobile Card Layout */}
       <div className="block space-y-4 lg:hidden">
         {families.map((family) => {
-          const parentName = formatParentName(
-            family.members[0]?.parentFirstName,
-            family.members[0]?.parentLastName
-          )
+          const { payer, other } = getOrderedParents(family.members[0])
           const status = getFamilyStatus(family)
-          const hasSecond = hasSecondParent(family.members[0])
 
           return (
             <div
@@ -117,16 +129,11 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
               className="cursor-pointer rounded-lg border bg-card p-4 transition-colors hover:bg-muted/50"
               onClick={() => handleRowClick(family)}
             >
-              {/* Parent Name and Family Info */}
+              {/* Parent Names and Family Info */}
               <div className="mb-3 flex flex-wrap items-center gap-1.5">
-                <h3 className="font-semibold">{parentName}</h3>
+                <h3 className="font-semibold">{payer}</h3>
+                {other && <span>/ {other}</span>}
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <Badge
-                    variant="outline"
-                    className="whitespace-nowrap px-1.5 text-xs"
-                  >
-                    {hasSecond ? '2 Parents' : '1 Parent'}
-                  </Badge>
                   <Badge
                     variant="secondary"
                     className="gap-1 whitespace-nowrap px-1.5 text-xs"
@@ -178,7 +185,8 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Parent Name</TableHead>
+              <TableHead>Parent 1</TableHead>
+              <TableHead>Parent 2</TableHead>
               <TableHead># Kids</TableHead>
               <TableHead>Bank Info</TableHead>
               <TableHead>Subscription</TableHead>
@@ -187,12 +195,8 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
           </TableHeader>
           <TableBody>
             {families.map((family) => {
-              const parentName = formatParentName(
-                family.members[0]?.parentFirstName,
-                family.members[0]?.parentLastName
-              )
+              const { payer, other } = getOrderedParents(family.members[0])
               const status = getFamilyStatus(family)
-              const hasSecond = hasSecondParent(family.members[0])
 
               return (
                 <TableRow
@@ -200,16 +204,8 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                   className="cursor-pointer hover:bg-muted/50"
                   onClick={() => handleRowClick(family)}
                 >
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      <span>{parentName}</span>
-                      {hasSecond && (
-                        <Badge variant="outline" className="text-xs">
-                          2 Parents
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
+                  <TableCell className="font-medium">{payer}</TableCell>
+                  <TableCell className="font-medium">{other || '-'}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Badge variant="secondary" className="gap-1">

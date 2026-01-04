@@ -98,6 +98,7 @@ export type TabValue =
 export type ViewMode = 'grid' | 'table'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
 export type FamilyStatus = 'active' | 'pending' | 'no-payment'
+export type SearchField = 'all' | 'childName' | 'parentName' | 'email' | 'phone'
 
 // Re-export ActionResult from canonical location
 export type { ActionResult } from '@/lib/utils/action-helpers'

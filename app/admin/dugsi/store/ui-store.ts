@@ -3,7 +3,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
-import { FamilyFilters, TabValue, ViewMode } from '../_types'
+import { FamilyFilters, TabValue, ViewMode, SearchField } from '../_types'
 
 enableMapSet()
 
@@ -14,7 +14,7 @@ enableMapSet()
 export interface DugsiFilters {
   search?: {
     query: string
-    fields: ('name' | 'email' | 'phone' | 'school')[]
+    field: SearchField
   }
   advanced?: FamilyFilters
   tab?: TabValue
@@ -44,6 +44,7 @@ interface DugsiUIStore {
   // Filter actions
   updateFilters: (updates: Partial<DugsiFilters>) => void
   setSearchQuery: (query: string) => void
+  setSearchField: (field: SearchField) => void
   setAdvancedFilters: (filters: FamilyFilters) => void
   resetFilters: () => void
 
@@ -75,7 +76,7 @@ interface DugsiUIStore {
 const defaultFilters: DugsiFilters = {
   search: {
     query: '',
-    fields: ['name', 'email', 'phone'],
+    field: 'all',
   },
   advanced: {
     dateFilter: 'all',
@@ -113,12 +114,17 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       setSearchQuery: (query) =>
         set((state) => {
           if (!state.filters.search) {
-            state.filters.search = {
-              query: '',
-              fields: ['name', 'email', 'phone', 'school'],
-            }
+            state.filters.search = { query: '', field: 'all' }
           }
           state.filters.search.query = query
+        }),
+
+      setSearchField: (field) =>
+        set((state) => {
+          if (!state.filters.search) {
+            state.filters.search = { query: '', field: 'all' }
+          }
+          state.filters.search.field = field
         }),
 
       setAdvancedFilters: (filters) =>
@@ -221,6 +227,7 @@ export const useLegacyActions = () => {
   const store = useDugsiUIStore()
   return {
     setSearchQuery: (query: string) => store.setSearchQuery(query),
+    setSearchField: (field: SearchField) => store.setSearchField(field),
     setAdvancedFilters: (filters: FamilyFilters) =>
       store.setAdvancedFilters(filters),
     resetFilters: () => store.resetFilters(),

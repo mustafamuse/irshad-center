@@ -7,7 +7,7 @@
 
 import { useMemo } from 'react'
 
-import { Family, FamilyFilters, TabValue } from '../_types'
+import { Family, FamilyFilters, TabValue, SearchField } from '../_types'
 import { applyAllFilters } from '../_utils/filters'
 
 export function useFamilyFilters(
@@ -15,6 +15,7 @@ export function useFamilyFilters(
   options: {
     tab: TabValue
     searchQuery: string
+    searchField?: SearchField
     advancedFilters: FamilyFilters
   }
 ): Family[] {

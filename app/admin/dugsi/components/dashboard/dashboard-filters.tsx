@@ -9,11 +9,20 @@ import { Search, Filter } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useDebounce } from '@/hooks/use-debounce'
 import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
 
+
 import { AdvancedFilters } from './advanced-filters'
 import { MobileFilterDrawer } from './mobile-filter-drawer'
+import { SearchField } from '../../_types'
 import {
   useAdvancedFiltersState,
   useDugsiFilters,
@@ -49,8 +58,12 @@ export function DashboardFilters() {
   const searchParams = useSearchParams()
   const showAdvancedFilters = useAdvancedFiltersState()
   const filters = useDugsiFilters()
-  const { setSearchQuery, setAdvancedFilters, setAdvancedFiltersOpen } =
-    useLegacyActions()
+  const {
+    setSearchQuery,
+    setSearchField,
+    setAdvancedFilters,
+    setAdvancedFiltersOpen,
+  } = useLegacyActions()
 
   const shiftFromUrl =
     (searchParams.get('shift') as
@@ -58,18 +71,38 @@ export function DashboardFilters() {
       | 'AFTERNOON'
       | typeof SHIFT_FILTER_ALL) || SHIFT_FILTER_ALL
 
-  // Local state for immediate input value
   const [localSearchQuery, setLocalSearchQuery] = useState(
     filters.search?.query || ''
   )
+  const [localSearchField, setLocalSearchField] = useState<SearchField>(
+    filters.search?.field || 'all'
+  )
 
-  // Debounced value
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300)
 
-  // Update Zustand store when debounced value changes
   useEffect(() => {
     setSearchQuery(debouncedSearchQuery)
   }, [debouncedSearchQuery, setSearchQuery])
+
+  const handleFieldChange = (field: SearchField) => {
+    setLocalSearchField(field)
+    setSearchField(field)
+  }
+
+  const getPlaceholder = () => {
+    switch (localSearchField) {
+      case 'childName':
+        return 'Search by child name...'
+      case 'parentName':
+        return 'Search by parent name...'
+      case 'email':
+        return 'Search by email...'
+      case 'phone':
+        return 'Search by phone...'
+      default:
+        return 'Search by name, email, or phone...'
+    }
+  }
 
   /**
    * Updates shift filter via URL query parameters.
@@ -109,16 +142,30 @@ export function DashboardFilters() {
   return (
     <>
       <div className="flex flex-col gap-4 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search by name, email, or phone..."
-            value={localSearchQuery}
-            onChange={(e) => setLocalSearchQuery(e.target.value)}
-            className="pl-9"
-            aria-label="Search families by name, email, or phone"
-          />
+        <div className="flex flex-1 gap-2">
+          <Select value={localSearchField} onValueChange={handleFieldChange}>
+            <SelectTrigger className="w-[130px] shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Fields</SelectItem>
+              <SelectItem value="childName">Child Name</SelectItem>
+              <SelectItem value="parentName">Parent Name</SelectItem>
+              <SelectItem value="email">Email</SelectItem>
+              <SelectItem value="phone">Phone</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder={getPlaceholder()}
+              value={localSearchQuery}
+              onChange={(e) => setLocalSearchQuery(e.target.value)}
+              className="pl-9"
+              aria-label="Search families"
+            />
+          </div>
         </div>
 
         {/* Desktop: Inline Advanced Filters Toggle */}
