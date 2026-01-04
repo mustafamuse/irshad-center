@@ -20,14 +20,20 @@ export const ClockInSchema = z.object({
   shift: z.nativeEnum(Shift, {
     errorMap: () => ({ message: 'Shift must be MORNING or AFTERNOON' }),
   }),
-  latitude: z.number({
-    required_error: 'GPS location is required',
-    invalid_type_error: 'Invalid latitude',
-  }),
-  longitude: z.number({
-    required_error: 'GPS location is required',
-    invalid_type_error: 'Invalid longitude',
-  }),
+  latitude: z
+    .number({
+      required_error: 'GPS location is required',
+      invalid_type_error: 'Invalid latitude',
+    })
+    .min(-90, 'Latitude must be between -90 and 90')
+    .max(90, 'Latitude must be between -90 and 90'),
+  longitude: z
+    .number({
+      required_error: 'GPS location is required',
+      invalid_type_error: 'Invalid longitude',
+    })
+    .min(-180, 'Longitude must be between -180 and 180')
+    .max(180, 'Longitude must be between -180 and 180'),
 })
 
 /**
@@ -36,8 +42,18 @@ export const ClockInSchema = z.object({
  */
 export const ClockOutSchema = z.object({
   checkInId: z.string().uuid('Invalid check-in ID format'),
-  latitude: z.number().nullable().optional(),
-  longitude: z.number().nullable().optional(),
+  latitude: z
+    .number()
+    .min(-90, 'Latitude must be between -90 and 90')
+    .max(90, 'Latitude must be between -90 and 90')
+    .nullable()
+    .optional(),
+  longitude: z
+    .number()
+    .min(-180, 'Longitude must be between -180 and 180')
+    .max(180, 'Longitude must be between -180 and 180')
+    .nullable()
+    .optional(),
 })
 
 // ============================================================================
