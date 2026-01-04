@@ -19,11 +19,6 @@ export const STRIPE_CHECKOUT_SESSION_PREFIX = 'cs_'
 export const DUGSI_PROGRAM = 'DUGSI_PROGRAM' as const
 export const DUGSI_WEBHOOK_SOURCE = 'dugsi' as const
 
-// Feature Flags
-export function isDugsiCardPaymentsEnabled(): boolean {
-  return process.env.DUGSI_CARD_PAYMENTS_ENABLED === 'true'
-}
-
 // Dashboard URLs
 export const STRIPE_DASHBOARD_BASE_URL = 'https://dashboard.stripe.com'
 

@@ -636,5 +636,63 @@ describe('Payment Link Actions', () => {
       expect(result.success).toBe(false)
       expect(result.error).toBe('Student profile not found')
     })
+
+    describe('payment method types', () => {
+      const mockProfile = {
+        id: 'profile-1',
+        personId: 'person-1',
+        graduationStatus: 'NON_GRADUATE',
+        paymentFrequency: 'MONTHLY',
+        billingType: 'FULL_TIME',
+        person: {
+          name: 'Test Student',
+          contactPoints: [{ value: 'test@example.com', type: 'EMAIL' }],
+        },
+      }
+
+      beforeEach(() => {
+        mockPrismaFindUnique.mockResolvedValue(mockProfile)
+        mockStripeSessionCreate.mockResolvedValue({
+          id: 'sess_123',
+          url: 'https://checkout.stripe.com/test',
+        })
+      })
+
+      it('should include card and ACH when feature flag is enabled', async () => {
+        vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', 'true')
+
+        await generatePaymentLinkAction('profile-1')
+
+        expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            payment_method_types: ['card', 'us_bank_account'],
+          })
+        )
+      })
+
+      it('should only include ACH when feature flag is disabled', async () => {
+        vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', 'false')
+
+        await generatePaymentLinkAction('profile-1')
+
+        expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            payment_method_types: ['us_bank_account'],
+          })
+        )
+      })
+
+      it('should only include ACH when feature flag is not set', async () => {
+        vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', '')
+
+        await generatePaymentLinkAction('profile-1')
+
+        expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            payment_method_types: ['us_bank_account'],
+          })
+        )
+      })
+    })
   })
 })

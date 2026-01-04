@@ -12,11 +12,6 @@
 export const MAHAD_PROGRAM = 'MAHAD_PROGRAM' as const
 export const MAHAD_WEBHOOK_SOURCE = 'mahad' as const
 
-// Feature Flags
-export function isMahadCardPaymentsEnabled(): boolean {
-  return process.env.MAHAD_CARD_PAYMENTS_ENABLED === 'true'
-}
-
 // Maximum expected rate in cents ($220 bi-monthly for non-graduate full-time)
 export const MAX_EXPECTED_MAHAD_RATE = 22000
 

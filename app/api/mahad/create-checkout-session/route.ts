@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { z } from 'zod'
 
-import { isMahadCardPaymentsEnabled } from '@/lib/constants/mahad'
+import { featureFlags } from '@/lib/config/feature-flags'
 import { prisma } from '@/lib/db'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
       // Feature flag: Toggle card payments to manage transaction fees
       // ACH only: Lower fees for the organization
       // Card + ACH: More convenience for families
-      payment_method_types: isMahadCardPaymentsEnabled()
+      payment_method_types: featureFlags.mahadCardPayments()
         ? ['card', 'us_bank_account']
         : ['us_bank_account'],
       customer: customerId,
