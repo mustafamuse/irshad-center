@@ -47,12 +47,18 @@ vi.mock('@/lib/db/queries/teacher-checkin', async (importOriginal) => {
   }
 })
 
+const { mockIsWithinGeofence, mockIsGeofenceConfigured } = vi.hoisted(() => ({
+  mockIsWithinGeofence: vi.fn(() => true),
+  mockIsGeofenceConfigured: vi.fn(() => true),
+}))
+
 vi.mock('@/lib/constants/teacher-checkin', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@/lib/constants/teacher-checkin')>()
   return {
     ...actual,
-    isWithinGeofence: vi.fn(() => true),
+    isWithinGeofence: (...args: unknown[]) => mockIsWithinGeofence(...args),
+    isGeofenceConfigured: () => mockIsGeofenceConfigured(),
     isLateForShift: vi.fn(() => false),
   }
 })
@@ -111,6 +117,8 @@ describe('clockIn', () => {
     mockIsEnrolled.mockResolvedValue(true)
     mockGetShifts.mockResolvedValue([Shift.MORNING, Shift.AFTERNOON])
     mockCreate.mockResolvedValue(mockCheckin)
+    mockIsWithinGeofence.mockReturnValue(true)
+    mockIsGeofenceConfigured.mockReturnValue(true)
   })
 
   it('should create check-in for enrolled teacher', async () => {
@@ -177,6 +185,23 @@ describe('clockIn', () => {
     await expect(clockIn(input)).rejects.toThrow(ValidationError)
     await expect(clockIn(input)).rejects.toMatchObject({
       code: CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+    })
+  })
+
+  it('should throw error if geofence is not configured', async () => {
+    mockIsWithinGeofence.mockReturnValue(false)
+    mockIsGeofenceConfigured.mockReturnValue(false)
+
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await expect(clockIn(input)).rejects.toThrow(ValidationError)
+    await expect(clockIn(input)).rejects.toMatchObject({
+      code: CHECKIN_ERROR_CODES.SYSTEM_NOT_CONFIGURED,
     })
   })
 })

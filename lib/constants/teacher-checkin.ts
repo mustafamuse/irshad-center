@@ -190,6 +190,14 @@ export function validateCenterLocationConfig(): void {
   }
 }
 
+/**
+ * Checks if geofence location is configured.
+ * Used to determine if check-ins should be blocked due to misconfiguration.
+ */
+export function isGeofenceConfigured(): boolean {
+  return !(IRSHAD_CENTER_LOCATION.lat === 0 && IRSHAD_CENTER_LOCATION.lng === 0)
+}
+
 // ============================================================================
 // ERROR CODES
 // ============================================================================
@@ -202,4 +210,5 @@ export const CHECKIN_ERROR_CODES = {
   CHECKIN_NOT_FOUND: 'CHECKIN_NOT_FOUND',
   ALREADY_CLOCKED_OUT: 'ALREADY_CLOCKED_OUT',
   GPS_REQUIRED: 'GPS_REQUIRED',
+  SYSTEM_NOT_CONFIGURED: 'SYSTEM_NOT_CONFIGURED',
 } as const

@@ -6,11 +6,14 @@
  */
 
 import { Prisma } from '@prisma/client'
+import { formatInTimeZone } from 'date-fns-tz'
 
 import {
   isWithinGeofence,
   isLateForShift,
+  isGeofenceConfigured,
   CHECKIN_ERROR_CODES,
+  SCHOOL_TIMEZONE,
 } from '@/lib/constants/teacher-checkin'
 import { prisma } from '@/lib/db'
 import {
@@ -64,9 +67,19 @@ export async function clockIn(
   }
 
   const now = new Date()
-  const dateOnly = new Date(now.toISOString().split('T')[0])
+  const dateOnly = new Date(
+    formatInTimeZone(now, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+  )
 
   const clockInValid = isWithinGeofence(latitude, longitude)
+
+  if (!clockInValid && !isGeofenceConfigured()) {
+    throw new ValidationError(
+      'Check-in system is not configured. Please contact administrator.',
+      CHECKIN_ERROR_CODES.SYSTEM_NOT_CONFIGURED
+    )
+  }
+
   const isLate = isLateForShift(now, shift)
 
   let checkIn: TeacherCheckinWithRelations
