@@ -1,0 +1,130 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+
+import { Shift } from '@prisma/client'
+import { formatInTimeZone } from 'date-fns-tz'
+
+import { SCHOOL_TIMEZONE } from '@/lib/constants/teacher-checkin'
+import {
+  getDugsiTeachersForDropdown,
+  getTeacherCheckin,
+} from '@/lib/db/queries/teacher-checkin'
+import { createServiceLogger, logError } from '@/lib/logger'
+import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
+import { ValidationError } from '@/lib/services/validation-service'
+import type {
+  ClockInInput,
+  ClockOutInput,
+} from '@/lib/validations/teacher-checkin'
+
+const logger = createServiceLogger('teacher-checkin-actions')
+
+export interface ActionResult<T = void> {
+  success: boolean
+  data?: T
+  error?: string
+  message?: string
+}
+
+export interface TeacherForDropdown {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  shifts: Shift[]
+}
+
+export interface TeacherCurrentStatus {
+  morningCheckinId: string | null
+  morningClockInTime: Date | null
+  morningClockOutTime: Date | null
+  afternoonCheckinId: string | null
+  afternoonClockInTime: Date | null
+  afternoonClockOutTime: Date | null
+}
+
+export async function getDugsiTeachers(): Promise<TeacherForDropdown[]> {
+  return getDugsiTeachersForDropdown()
+}
+
+export async function getTeacherCurrentStatus(
+  teacherId: string
+): Promise<TeacherCurrentStatus> {
+  const now = new Date()
+  const dateString = formatInTimeZone(now, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+  const dateOnly = new Date(dateString)
+
+  const [morningCheckin, afternoonCheckin] = await Promise.all([
+    getTeacherCheckin(teacherId, dateOnly, Shift.MORNING),
+    getTeacherCheckin(teacherId, dateOnly, Shift.AFTERNOON),
+  ])
+
+  return {
+    morningCheckinId: morningCheckin?.id ?? null,
+    morningClockInTime: morningCheckin?.clockInTime ?? null,
+    morningClockOutTime: morningCheckin?.clockOutTime ?? null,
+    afternoonCheckinId: afternoonCheckin?.id ?? null,
+    afternoonClockInTime: afternoonCheckin?.clockInTime ?? null,
+    afternoonClockOutTime: afternoonCheckin?.clockOutTime ?? null,
+  }
+}
+
+export async function teacherClockInAction(
+  input: ClockInInput
+): Promise<ActionResult<{ checkInId: string }>> {
+  try {
+    const result = await clockIn(input)
+    revalidatePath('/teacher/checkin')
+    revalidatePath('/admin/dugsi/teacher-checkins')
+
+    return {
+      success: true,
+      data: { checkInId: result.checkIn.id },
+      message: result.checkIn.isLate
+        ? 'Clocked in (Late)'
+        : 'Clocked in successfully',
+    }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+
+    await logError(logger, error, 'Clock-in failed', { input })
+    return {
+      success: false,
+      error: 'Failed to clock in. Please try again.',
+    }
+  }
+}
+
+export async function teacherClockOutAction(
+  input: ClockOutInput
+): Promise<ActionResult> {
+  try {
+    await clockOut(input)
+    revalidatePath('/teacher/checkin')
+    revalidatePath('/admin/dugsi/teacher-checkins')
+
+    return {
+      success: true,
+      message: 'Clocked out successfully',
+    }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+
+    await logError(logger, error, 'Clock-out failed', { input })
+    return {
+      success: false,
+      error: 'Failed to clock out. Please try again.',
+    }
+  }
+}
