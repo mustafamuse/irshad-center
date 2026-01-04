@@ -6,6 +6,13 @@
  */
 
 import { Shift } from '@prisma/client'
+import { toZonedTime } from 'date-fns-tz'
+
+// ============================================================================
+// TIMEZONE CONFIGURATION
+// ============================================================================
+
+export const SCHOOL_TIMEZONE = 'America/Chicago'
 
 // ============================================================================
 // GEOFENCE CONFIGURATION
@@ -97,6 +104,7 @@ export const LOCATION_STATUS_BADGES = {
 
 /**
  * Determines if a check-in time is late for a given shift.
+ * Uses school timezone (America/Chicago) for consistent evaluation.
  *
  * @param clockInTime - The time the teacher clocked in
  * @param shift - The shift being checked into
@@ -104,8 +112,9 @@ export const LOCATION_STATUS_BADGES = {
  */
 export function isLateForShift(clockInTime: Date, shift: Shift): boolean {
   const shiftStart = SHIFT_START_TIMES[shift]
-  const clockInHour = clockInTime.getHours()
-  const clockInMinute = clockInTime.getMinutes()
+  const zonedTime = toZonedTime(clockInTime, SCHOOL_TIMEZONE)
+  const clockInHour = zonedTime.getHours()
+  const clockInMinute = zonedTime.getMinutes()
 
   if (clockInHour > shiftStart.hour) return true
   if (clockInHour === shiftStart.hour && clockInMinute > shiftStart.minute)
