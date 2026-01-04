@@ -36,11 +36,16 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-vi.mock('@/lib/db/queries/teacher-checkin', () => ({
-  isTeacherEnrolledInDugsi: (...args: unknown[]) => mockIsEnrolled(...args),
-  getTeacherShifts: (...args: unknown[]) => mockGetShifts(...args),
-  getCheckinById: (...args: unknown[]) => mockGetCheckinById(...args),
-}))
+vi.mock('@/lib/db/queries/teacher-checkin', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/db/queries/teacher-checkin')>()
+  return {
+    ...actual,
+    isTeacherEnrolledInDugsi: (...args: unknown[]) => mockIsEnrolled(...args),
+    getTeacherShifts: (...args: unknown[]) => mockGetShifts(...args),
+    getCheckinById: (...args: unknown[]) => mockGetCheckinById(...args),
+  }
+})
 
 vi.mock('@/lib/constants/teacher-checkin', async (importOriginal) => {
   const actual =

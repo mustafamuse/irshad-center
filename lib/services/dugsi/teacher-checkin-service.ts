@@ -17,6 +17,7 @@ import {
   getCheckinById,
   isTeacherEnrolledInDugsi,
   getTeacherShifts,
+  teacherCheckinInclude,
   TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
 import { DatabaseClient } from '@/lib/db/types'
@@ -82,17 +83,7 @@ export async function clockIn(
         clockInValid,
         isLate,
       },
-      include: {
-        teacher: {
-          include: {
-            person: {
-              include: {
-                contactPoints: true,
-              },
-            },
-          },
-        },
-      },
+      include: teacherCheckinInclude,
     })
   } catch (error) {
     if (
@@ -157,17 +148,7 @@ export async function clockOut(
       clockOutLat: latitude ?? null,
       clockOutLng: longitude ?? null,
     },
-    include: {
-      teacher: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-    },
+    include: teacherCheckinInclude,
   })
 
   logger.info(
@@ -222,17 +203,7 @@ export async function updateCheckin(
   const checkIn = await client.dugsiTeacherCheckIn.update({
     where: { id: checkInId },
     data: updateData,
-    include: {
-      teacher: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-    },
+    include: teacherCheckinInclude,
   })
 
   logger.info(
