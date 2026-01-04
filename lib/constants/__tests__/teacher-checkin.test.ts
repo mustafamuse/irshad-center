@@ -76,6 +76,24 @@ describe('calculateDistance', () => {
     expect(distance).toBeGreaterThan(110000)
     expect(distance).toBeLessThan(112000)
   })
+
+  it('should handle negative coordinates (southern hemisphere)', () => {
+    const distance = calculateDistance(-33.8688, 151.2093, -33.8698, 151.2103)
+    expect(distance).toBeGreaterThan(0)
+    expect(distance).toBeLessThan(200)
+  })
+
+  it('should handle negative coordinates (western hemisphere)', () => {
+    const distance = calculateDistance(40.7128, -74.006, 40.7138, -74.007)
+    expect(distance).toBeGreaterThan(0)
+    expect(distance).toBeLessThan(200)
+  })
+
+  it('should handle crossing the prime meridian', () => {
+    const distance = calculateDistance(51.5074, -0.001, 51.5074, 0.001)
+    expect(distance).toBeGreaterThan(0)
+    expect(distance).toBeLessThan(500)
+  })
 })
 
 describe('isWithinGeofence', () => {

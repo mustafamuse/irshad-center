@@ -7,6 +7,7 @@
 
 import { Prisma, Shift } from '@prisma/client'
 
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
@@ -228,7 +229,7 @@ export async function getAllDugsiTeachersWithTodayStatus(
         some: {
           isActive: true,
           programProfile: {
-            program: 'DUGSI_PROGRAM',
+            program: DUGSI_PROGRAM,
           },
         },
       },
@@ -243,7 +244,7 @@ export async function getAllDugsiTeachersWithTodayStatus(
         where: {
           isActive: true,
           programProfile: {
-            program: 'DUGSI_PROGRAM',
+            program: DUGSI_PROGRAM,
           },
         },
         select: {
@@ -311,7 +312,7 @@ export async function getDugsiTeachersForDropdown(
         some: {
           isActive: true,
           programProfile: {
-            program: 'DUGSI_PROGRAM',
+            program: DUGSI_PROGRAM,
           },
         },
       },
@@ -326,7 +327,7 @@ export async function getDugsiTeachersForDropdown(
         where: {
           isActive: true,
           programProfile: {
-            program: 'DUGSI_PROGRAM',
+            program: DUGSI_PROGRAM,
           },
         },
         select: {
@@ -373,7 +374,7 @@ export async function isTeacherEnrolledInDugsi(
       teacherId,
       isActive: true,
       programProfile: {
-        program: 'DUGSI_PROGRAM',
+        program: DUGSI_PROGRAM,
       },
     },
   })
@@ -390,7 +391,7 @@ export async function getTeacherShifts(
       teacherId,
       isActive: true,
       programProfile: {
-        program: 'DUGSI_PROGRAM',
+        program: DUGSI_PROGRAM,
       },
     },
     select: {

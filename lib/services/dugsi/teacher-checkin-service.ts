@@ -13,9 +13,7 @@ import {
   CHECKIN_ERROR_CODES,
 } from '@/lib/constants/teacher-checkin'
 import { prisma } from '@/lib/db'
-import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import {
-  getTeacherCheckin,
   getCheckinById,
   isTeacherEnrolledInDugsi,
   getTeacherShifts,
@@ -68,20 +66,6 @@ export async function clockIn(
 
   const now = new Date()
   const dateOnly = new Date(now.toISOString().split('T')[0])
-
-  const existingCheckin = await getTeacherCheckin(
-    teacherId,
-    dateOnly,
-    shift,
-    client
-  )
-  if (existingCheckin) {
-    throw new ValidationError(
-      'Teacher has already checked in for this shift today',
-      CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
-      { teacherId, shift, date: dateOnly.toISOString() }
-    )
-  }
 
   const clockInValid = isWithinGeofence(latitude, longitude)
   const isLate = isLateForShift(now, shift)
@@ -271,30 +255,28 @@ export async function deleteCheckin(
   checkInId: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
-  return executeInTransaction(client, async (tx) => {
-    const existingCheckin = await getCheckinById(checkInId, tx)
-    if (!existingCheckin) {
-      throw new ValidationError(
-        'Check-in record not found',
-        CHECKIN_ERROR_CODES.CHECKIN_NOT_FOUND,
-        { checkInId }
-      )
-    }
-
-    await tx.dugsiTeacherCheckIn.delete({
-      where: { id: checkInId },
-    })
-
-    logger.info(
-      {
-        event: 'CHECKIN_DELETED',
-        checkInId,
-        teacherId: existingCheckin.teacherId,
-        teacherName: existingCheckin.teacher.person.name,
-        date: existingCheckin.date.toISOString(),
-        shift: existingCheckin.shift,
-      },
-      'Check-in record deleted by admin'
+  const existingCheckin = await getCheckinById(checkInId, client)
+  if (!existingCheckin) {
+    throw new ValidationError(
+      'Check-in record not found',
+      CHECKIN_ERROR_CODES.CHECKIN_NOT_FOUND,
+      { checkInId }
     )
+  }
+
+  await client.dugsiTeacherCheckIn.delete({
+    where: { id: checkInId },
   })
+
+  logger.info(
+    {
+      event: 'CHECKIN_DELETED',
+      checkInId,
+      teacherId: existingCheckin.teacherId,
+      teacherName: existingCheckin.teacher.person.name,
+      date: existingCheckin.date.toISOString(),
+      shift: existingCheckin.shift,
+    },
+    'Check-in record deleted by admin'
+  )
 }

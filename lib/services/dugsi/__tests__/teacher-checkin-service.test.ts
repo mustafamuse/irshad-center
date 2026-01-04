@@ -4,7 +4,7 @@
  * Tests for clock-in, clock-out, update, and delete operations.
  */
 
-import { Shift } from '@prisma/client'
+import { Prisma, Shift } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 import { CHECKIN_ERROR_CODES } from '@/lib/constants/teacher-checkin'
@@ -13,21 +13,17 @@ import { ValidationError } from '@/lib/services/validation-service'
 const {
   mockIsEnrolled,
   mockGetShifts,
-  mockGetTeacherCheckin,
   mockGetCheckinById,
   mockCreate,
   mockUpdate,
   mockDelete,
-  mockTransaction,
 } = vi.hoisted(() => ({
   mockIsEnrolled: vi.fn(),
   mockGetShifts: vi.fn(),
-  mockGetTeacherCheckin: vi.fn(),
   mockGetCheckinById: vi.fn(),
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
-  mockTransaction: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -37,14 +33,12 @@ vi.mock('@/lib/db', () => ({
       update: (...args: unknown[]) => mockUpdate(...args),
       delete: (...args: unknown[]) => mockDelete(...args),
     },
-    $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
 }))
 
 vi.mock('@/lib/db/queries/teacher-checkin', () => ({
   isTeacherEnrolledInDugsi: (...args: unknown[]) => mockIsEnrolled(...args),
   getTeacherShifts: (...args: unknown[]) => mockGetShifts(...args),
-  getTeacherCheckin: (...args: unknown[]) => mockGetTeacherCheckin(...args),
   getCheckinById: (...args: unknown[]) => mockGetCheckinById(...args),
 }))
 
@@ -65,17 +59,6 @@ vi.mock('@/lib/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   })),
-}))
-
-vi.mock('@/lib/db/prisma-helpers', () => ({
-  executeInTransaction: vi.fn(async (client, callback) => {
-    const tx = {
-      dugsiTeacherCheckIn: {
-        delete: mockDelete,
-      },
-    }
-    return callback(tx)
-  }),
 }))
 
 import {
@@ -122,7 +105,6 @@ describe('clockIn', () => {
     vi.clearAllMocks()
     mockIsEnrolled.mockResolvedValue(true)
     mockGetShifts.mockResolvedValue([Shift.MORNING, Shift.AFTERNOON])
-    mockGetTeacherCheckin.mockResolvedValue(null)
     mockCreate.mockResolvedValue(mockCheckin)
   })
 
@@ -173,8 +155,12 @@ describe('clockIn', () => {
     })
   })
 
-  it('should throw error if teacher already checked in for this shift', async () => {
-    mockGetTeacherCheckin.mockResolvedValue(mockCheckin)
+  it('should throw error if teacher already checked in for this shift (P2002)', async () => {
+    const prismaError = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      { code: 'P2002', clientVersion: '5.0.0' }
+    )
+    mockCreate.mockRejectedValue(prismaError)
 
     const input = {
       teacherId: 'teacher-1',
