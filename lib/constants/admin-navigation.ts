@@ -13,7 +13,14 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
   {
     title: 'Programs',
     items: [
-      { title: 'Dugsi', url: '/admin/dugsi' },
+      {
+        title: 'Dugsi',
+        url: '/admin/dugsi',
+        items: [
+          { title: 'Registrations', url: '/admin/dugsi' },
+          { title: 'Teacher Check-ins', url: '/admin/dugsi/teacher-checkins' },
+        ],
+      },
       { title: 'Mahad', url: '/admin/mahad' },
     ],
   },
