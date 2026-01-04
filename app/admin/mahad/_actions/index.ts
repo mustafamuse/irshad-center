@@ -19,6 +19,7 @@ import {
 } from '@prisma/client'
 import { z } from 'zod'
 
+import { featureFlags } from '@/lib/config/feature-flags'
 import { prisma } from '@/lib/db'
 import {
   createBatch,
@@ -842,9 +843,12 @@ export async function generatePaymentLinkAction(
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      // Admin links support both card and ACH for flexibility (e.g., failed ACH retry).
-      // User self-service checkout only allows ACH to enforce lower-fee payment method.
-      payment_method_types: ['card', 'us_bank_account'],
+      // Feature flag: Toggle card payments to manage transaction fees
+      // ACH only: Lower fees for the organization
+      // Card + ACH: More convenience for families
+      payment_method_types: featureFlags.mahadCardPayments()
+        ? ['card', 'us_bank_account']
+        : ['us_bank_account'],
       customer_email: email,
       line_items: [
         {
@@ -1209,7 +1213,12 @@ export async function generatePaymentLinkWithOverrideAction(
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      payment_method_types: ['card', 'us_bank_account'],
+      // Feature flag: Toggle card payments to manage transaction fees
+      // ACH only: Lower fees for the organization
+      // Card + ACH: More convenience for families
+      payment_method_types: featureFlags.mahadCardPayments()
+        ? ['card', 'us_bank_account']
+        : ['us_bank_account'],
       customer_email: email,
       line_items: [
         {

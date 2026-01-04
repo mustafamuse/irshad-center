@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { z } from 'zod'
 
+import { featureFlags } from '@/lib/config/feature-flags'
 import { prisma } from '@/lib/db'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
@@ -169,7 +170,12 @@ export async function POST(request: NextRequest) {
     // Create the checkout session
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
-      payment_method_types: ['us_bank_account'],
+      // Feature flag: Toggle card payments to manage transaction fees
+      // ACH only: Lower fees for the organization
+      // Card + ACH: More convenience for families
+      payment_method_types: featureFlags.mahadCardPayments()
+        ? ['card', 'us_bank_account']
+        : ['us_bank_account'],
       customer: customerId,
       customer_email: customerId ? undefined : email,
       line_items: [

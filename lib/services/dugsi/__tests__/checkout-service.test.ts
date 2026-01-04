@@ -239,4 +239,63 @@ describe('createDugsiCheckoutSession', () => {
       })
     })
   })
+
+  describe('payment method types', () => {
+    const mockGuardianWithEmail = {
+      id: 'guardian-1',
+      name: 'Test Parent',
+      contactPoints: [{ value: 'test@example.com', type: 'EMAIL' }],
+      billingAccounts: [],
+    }
+
+    const mockProfile = {
+      id: 'profile-1',
+      person: {
+        name: 'Child 1',
+        dependentRelationships: [
+          { isPrimaryPayer: true, guardian: mockGuardianWithEmail },
+        ],
+      },
+    }
+
+    beforeEach(() => {
+      mockPrismaFindMany.mockResolvedValue([mockProfile])
+    })
+
+    it('should include card and ACH when feature flag is enabled', async () => {
+      vi.stubEnv('DUGSI_CARD_PAYMENTS_ENABLED', 'true')
+
+      await createDugsiCheckoutSession({ familyId: 'family-123' })
+
+      expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payment_method_types: ['card', 'us_bank_account'],
+        })
+      )
+    })
+
+    it('should only include ACH when feature flag is disabled', async () => {
+      vi.stubEnv('DUGSI_CARD_PAYMENTS_ENABLED', 'false')
+
+      await createDugsiCheckoutSession({ familyId: 'family-123' })
+
+      expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payment_method_types: ['us_bank_account'],
+        })
+      )
+    })
+
+    it('should only include ACH when feature flag is not set', async () => {
+      vi.stubEnv('DUGSI_CARD_PAYMENTS_ENABLED', '')
+
+      await createDugsiCheckoutSession({ familyId: 'family-123' })
+
+      expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payment_method_types: ['us_bank_account'],
+        })
+      )
+    })
+  })
 })
