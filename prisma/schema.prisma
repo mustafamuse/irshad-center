@@ -69,6 +69,7 @@ model Teacher {
   assignments        TeacherAssignment[] // Student assignments across all programs
   attendanceSessions DugsiAttendanceSession[]
   checkIns           DugsiTeacherCheckIn[]
+  dugsiClasses       DugsiClassTeacher[]
 
   @@index([personId])
 }
@@ -564,9 +565,26 @@ model DugsiClass {
 
   students DugsiClassEnrollment[]
   sessions DugsiAttendanceSession[]
+  teachers DugsiClassTeacher[]
 
   @@index([shift])
   @@index([isActive])
+}
+
+model DugsiClassTeacher {
+  id        String   @id @default(uuid())
+  classId   String
+  teacherId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class   DugsiClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  teacher Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, teacherId])
+  @@index([classId])
+  @@index([teacherId])
 }
 
 model DugsiClassEnrollment {

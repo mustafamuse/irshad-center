@@ -7,7 +7,21 @@ import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import {
+  getClassesWithDetails,
+  getAllTeachersForAssignment,
+  getAvailableStudentsForClass,
+  assignTeacherToClass,
+  removeTeacherFromClass,
+  enrollStudentInClass,
+  removeStudentFromClass,
+  bulkEnrollStudents,
+} from '@/lib/db/queries/dugsi-class'
 import { ActionError } from '@/lib/errors/action-error'
+import {
+  ClassNotFoundError,
+  TeacherNotAuthorizedError,
+} from '@/lib/errors/dugsi-class-errors'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   // Registration service
@@ -30,18 +44,20 @@ import {
   // Checkout service
   createDugsiCheckoutSession,
 } from '@/lib/services/dugsi'
-import {
-  assignTeacherToStudent as assignTeacherToStudentService,
-  reassignStudent as reassignStudentService,
-  removeTeacherAssignment as removeTeacherAssignmentService,
-  getTeachersByProgram as getTeachersByProgramService,
-} from '@/lib/services/shared/teacher-service'
+import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import {
   UpdateFamilyShiftSchema,
   type UpdateFamilyShiftInput,
 } from '@/lib/validations/dugsi'
+import {
+  AssignTeacherToClassSchema,
+  RemoveTeacherFromClassSchema,
+  EnrollStudentInClassSchema,
+  RemoveStudentFromClassSchema,
+  BulkEnrollStudentsSchema,
+} from '@/lib/validations/dugsi-class'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -58,6 +74,8 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
   Family,
+  ClassWithDetails,
+  StudentForEnrollment,
 } from './_types'
 
 const logger = createServiceLogger('dugsi-admin-actions')
@@ -721,169 +739,6 @@ export async function generateDugsiVCardContent(): Promise<
   }
 }
 
-// ============================================================================
-// Teacher Assignment Actions (Dugsi-specific)
-// ============================================================================
-
-const assignTeacherSchema = z.object({
-  teacherId: z.string().uuid(),
-  studentProfileId: z.string().uuid(),
-  shift: z.enum(['MORNING', 'AFTERNOON']),
-})
-
-const reassignStudentSchema = z.object({
-  assignmentId: z.string().uuid(),
-  newTeacherId: z.string().uuid(),
-})
-
-const removeTeacherSchema = z.object({
-  assignmentId: z.string().uuid(),
-})
-
-/**
- * Assign a teacher to a Dugsi student.
- * Requires shift (MORNING or AFTERNOON).
- */
-export async function assignTeacherToStudent(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  const parsed = assignTeacherSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const input = parsed.data
-
-  try {
-    // Validate shift matches student's profile shift
-    const profile = await prisma.programProfile.findUnique({
-      where: { id: input.studentProfileId },
-      select: { shift: true },
-    })
-
-    if (!profile) {
-      return { success: false, error: 'Student profile not found' }
-    }
-
-    if (profile.shift && profile.shift !== input.shift) {
-      return {
-        success: false,
-        error: `Cannot assign ${input.shift} teacher to ${profile.shift} student`,
-      }
-    }
-
-    await assignTeacherToStudentService({
-      teacherId: input.teacherId,
-      programProfileId: input.studentProfileId,
-      shift: input.shift as Shift,
-    })
-
-    revalidatePath('/admin/dugsi')
-    revalidatePath('/admin/teachers')
-
-    logger.info(
-      {
-        teacherId: input.teacherId,
-        studentProfileId: input.studentProfileId,
-        shift: input.shift,
-      },
-      'Teacher assigned to Dugsi student'
-    )
-
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to assign teacher to student', input)
-
-    if (error instanceof Error && error.message.includes('not enrolled')) {
-      return {
-        success: false,
-        error:
-          'Teacher is not enrolled in Dugsi program. Please enroll them first.',
-      }
-    }
-
-    if (error instanceof Error && error.message.includes('already assigned')) {
-      return {
-        success: false,
-        error:
-          'This teacher is already assigned to this student for this shift',
-      }
-    }
-
-    return {
-      success: false,
-      error: 'Failed to assign teacher to student',
-    }
-  }
-}
-
-/**
- * Reassign a student to a different teacher.
- */
-export async function reassignStudentToTeacher(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  const parsed = reassignStudentSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { assignmentId, newTeacherId } = parsed.data
-
-  try {
-    await reassignStudentService(assignmentId, newTeacherId)
-
-    revalidatePath('/admin/dugsi')
-    revalidatePath('/admin/teachers')
-
-    logger.info(
-      { assignmentId, newTeacherId },
-      'Student reassigned to new teacher'
-    )
-
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to reassign student', {
-      assignmentId,
-      newTeacherId,
-    })
-    return {
-      success: false,
-      error: 'Failed to reassign student to new teacher',
-    }
-  }
-}
-
-/**
- * Remove a teacher assignment from a student.
- */
-export async function removeTeacherFromStudent(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  const parsed = removeTeacherSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { assignmentId } = parsed.data
-
-  try {
-    await removeTeacherAssignmentService(assignmentId)
-
-    revalidatePath('/admin/dugsi')
-    revalidatePath('/admin/teachers')
-
-    logger.info({ assignmentId }, 'Teacher removed from student')
-
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to remove teacher from student', {
-      assignmentId,
-    })
-    return {
-      success: false,
-      error: 'Failed to remove teacher assignment',
-    }
-  }
-}
-
 /**
  * Get teachers available for Dugsi (enrolled in DUGSI_PROGRAM).
  */
@@ -918,6 +773,311 @@ export async function getAvailableDugsiTeachers(): Promise<
     return {
       success: false,
       error: 'Failed to load available teachers',
+    }
+  }
+}
+
+// ============================================================================
+// Class-Teacher Assignment Actions
+// ============================================================================
+
+/**
+ * Assign a teacher to a Dugsi class.
+ */
+export async function assignTeacherToClassAction(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = AssignTeacherToClassSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const { classId, teacherId } = parsed.data
+
+  try {
+    await assignTeacherToClass(classId, teacherId)
+
+    revalidatePath('/admin/dugsi/classes')
+    revalidatePath('/teacher/checkin')
+
+    logger.info({ classId, teacherId }, 'Teacher assigned to class')
+
+    return {
+      success: true,
+      data: undefined,
+      message: 'Teacher assigned to class',
+    }
+  } catch (error) {
+    if (error instanceof ClassNotFoundError) {
+      return {
+        success: false,
+        error: 'Class not found or has been deactivated',
+      }
+    }
+
+    if (error instanceof TeacherNotAuthorizedError) {
+      return {
+        success: false,
+        error: 'Teacher must be enrolled in Dugsi program before assignment',
+      }
+    }
+
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'P2002'
+    ) {
+      return {
+        success: false,
+        error: 'This teacher is already assigned to this class',
+      }
+    }
+
+    await logError(logger, error, 'Failed to assign teacher to class', {
+      classId,
+      teacherId,
+    })
+    return {
+      success: false,
+      error: 'Unable to assign teacher. Please try again.',
+    }
+  }
+}
+
+/**
+ * Remove a teacher from a Dugsi class.
+ */
+export async function removeTeacherFromClassAction(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = RemoveTeacherFromClassSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const { classId, teacherId } = parsed.data
+
+  try {
+    await removeTeacherFromClass(classId, teacherId)
+
+    revalidatePath('/admin/dugsi/classes')
+    revalidatePath('/teacher/checkin')
+
+    logger.info({ classId, teacherId }, 'Teacher removed from class')
+
+    return {
+      success: true,
+      data: undefined,
+      message: 'Teacher removed from class',
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to remove teacher from class', {
+      classId,
+      teacherId,
+    })
+    return {
+      success: false,
+      error: 'Unable to remove teacher. Please try again.',
+    }
+  }
+}
+
+/**
+ * Get all Dugsi classes with their teachers and student counts.
+ */
+export async function getClassesWithDetailsAction(): Promise<
+  ActionResult<ClassWithDetails[]>
+> {
+  try {
+    const classes = await getClassesWithDetails()
+
+    const result: ClassWithDetails[] = classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      shift: c.shift,
+      description: c.description,
+      isActive: c.isActive,
+      teachers: c.teachers.map((t) => ({
+        id: t.id,
+        teacherId: t.teacherId,
+        teacherName: t.teacher.person.name,
+      })),
+      studentCount: c.students.length,
+    }))
+
+    return { success: true, data: result }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get classes with details')
+    return {
+      success: false,
+      error: 'Unable to load classes. Please refresh the page.',
+    }
+  }
+}
+
+/**
+ * Get all teachers available for class assignment.
+ */
+export async function getAllTeachersForClassAssignmentAction(): Promise<
+  ActionResult<Array<{ id: string; name: string }>>
+> {
+  try {
+    const teachers = await getAllTeachersForAssignment()
+    return { success: true, data: teachers }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get teachers for class assignment')
+    return {
+      success: false,
+      error: 'Unable to load teachers. Please refresh the page.',
+    }
+  }
+}
+
+/**
+ * Get students available for enrollment in a class.
+ * Filters by shift and shows enrollment status.
+ */
+export async function getAvailableStudentsForClassAction(input: {
+  shift: Shift
+}): Promise<ActionResult<StudentForEnrollment[]>> {
+  try {
+    const students = await getAvailableStudentsForClass(input.shift)
+    return { success: true, data: students }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get available students for class')
+    return {
+      success: false,
+      error: 'Unable to load students. Please refresh the page.',
+    }
+  }
+}
+
+/**
+ * Enroll a student in a Dugsi class.
+ */
+export async function enrollStudentInClassAction(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = EnrollStudentInClassSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const { classId, programProfileId } = parsed.data
+
+  try {
+    await enrollStudentInClass(classId, programProfileId)
+
+    revalidatePath('/admin/dugsi/classes')
+
+    logger.info({ classId, programProfileId }, 'Student enrolled in class')
+
+    return {
+      success: true,
+      data: undefined,
+      message: 'Student enrolled in class',
+    }
+  } catch (error) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'P2002'
+    ) {
+      return {
+        success: false,
+        error: 'This student is already enrolled in a class',
+      }
+    }
+
+    await logError(logger, error, 'Failed to enroll student in class', {
+      classId,
+      programProfileId,
+    })
+    return {
+      success: false,
+      error: 'Unable to enroll student. Please try again.',
+    }
+  }
+}
+
+/**
+ * Remove a student from a Dugsi class.
+ */
+export async function removeStudentFromClassAction(
+  rawInput: unknown
+): Promise<ActionResult<void>> {
+  const parsed = RemoveStudentFromClassSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const { programProfileId } = parsed.data
+
+  try {
+    await removeStudentFromClass(programProfileId)
+
+    revalidatePath('/admin/dugsi/classes')
+
+    logger.info({ programProfileId }, 'Student removed from class')
+
+    return {
+      success: true,
+      data: undefined,
+      message: 'Student removed from class',
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to remove student from class', {
+      programProfileId,
+    })
+    return {
+      success: false,
+      error: 'Unable to remove student. Please try again.',
+    }
+  }
+}
+
+/**
+ * Bulk enroll students in a Dugsi class.
+ */
+export async function bulkEnrollStudentsAction(
+  rawInput: unknown
+): Promise<ActionResult<{ enrolled: number; skipped: number }>> {
+  const parsed = BulkEnrollStudentsSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const { classId, programProfileIds } = parsed.data
+
+  try {
+    const result = await bulkEnrollStudents(classId, programProfileIds)
+
+    revalidatePath('/admin/dugsi/classes')
+
+    logger.info({ classId, ...result }, 'Bulk enrollment completed')
+
+    return {
+      success: true,
+      data: result,
+      message: `Enrolled ${result.enrolled} students${result.skipped > 0 ? `, ${result.skipped} already enrolled` : ''}`,
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to bulk enroll students', { classId })
+    return {
+      success: false,
+      error: 'Unable to enroll students. Please try again.',
     }
   }
 }

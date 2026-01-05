@@ -200,14 +200,22 @@ export async function getProgramProfileById(
           },
         },
       },
-      teacherAssignments: {
-        where: { isActive: true },
+      dugsiClassEnrollment: {
         include: {
-          teacher: {
+          class: {
             include: {
-              person: {
+              teachers: {
+                where: { isActive: true },
                 include: {
-                  contactPoints: true,
+                  teacher: {
+                    include: {
+                      person: {
+                        include: {
+                          contactPoints: true,
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -398,14 +406,22 @@ export async function getProgramProfilesByFamilyId(
           },
         },
       },
-      teacherAssignments: {
-        where: { isActive: true },
+      dugsiClassEnrollment: {
         include: {
-          teacher: {
+          class: {
             include: {
-              person: {
+              teachers: {
+                where: { isActive: true },
                 include: {
-                  contactPoints: true,
+                  teacher: {
+                    include: {
+                      person: {
+                        include: {
+                          contactPoints: true,
+                        },
+                      },
+                    },
+                  },
                 },
               },
             },
