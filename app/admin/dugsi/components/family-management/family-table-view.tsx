@@ -2,14 +2,7 @@
 
 import { useState, useCallback } from 'react'
 
-import {
-  Users,
-  CheckCircle,
-  XCircle,
-  MoreHorizontal,
-  Eye,
-  Trash2,
-} from 'lucide-react'
+import { Users, MoreHorizontal, Eye, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,12 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
@@ -181,30 +169,8 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                 </div>
               </div>
 
-              {/* Combined Status */}
+              {/* Status */}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    Bank Info:
-                  </span>
-                  {family.hasPayment ? (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-green-600 text-green-600"
-                    >
-                      <CheckCircle className="h-3 w-3" />
-                      On File
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-red-600 text-red-600"
-                    >
-                      <XCircle className="h-3 w-3" />
-                      Needed
-                    </Badge>
-                  )}
-                </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">Status:</span>
                   <FamilyStatusBadge status={status} />
@@ -231,7 +197,6 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
               <TableHead>Parent 1</TableHead>
               <TableHead>Parent 2</TableHead>
               <TableHead># Kids</TableHead>
-              <TableHead>Bank Info</TableHead>
               <TableHead>Subscription</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -257,36 +222,6 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                       </Badge>
                       <ShiftBadge shift={family.members[0]?.shift ?? null} />
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="inline-flex">
-                          {family.hasPayment ? (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-green-600 text-green-600"
-                            >
-                              <CheckCircle className="h-3.5 w-3.5" />
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-red-600 text-red-600"
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                            </Badge>
-                          )}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>
-                          {family.hasPayment
-                            ? 'Bank info on file'
-                            : 'Bank info needed'}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
