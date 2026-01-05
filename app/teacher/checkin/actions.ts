@@ -5,7 +5,13 @@ import { revalidatePath } from 'next/cache'
 import { Shift } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
-import { SCHOOL_TIMEZONE } from '@/lib/constants/teacher-checkin'
+import {
+  GEOFENCE_RADIUS_METERS,
+  isWithinGeofence,
+  SCHOOL_TIMEZONE,
+  calculateDistance,
+  IRSHAD_CENTER_LOCATION,
+} from '@/lib/constants/teacher-checkin'
 import {
   getDugsiTeachersForDropdown,
   getTeacherCheckin,
@@ -13,27 +19,17 @@ import {
 import { createServiceLogger, logError } from '@/lib/logger'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { ValidationError } from '@/lib/services/validation-service'
-import type {
-  ClockInInput,
-  ClockOutInput,
+import { ActionResult } from '@/lib/utils/action-helpers'
+import {
+  ClockInSchema,
+  ClockOutSchema,
 } from '@/lib/validations/teacher-checkin'
 
 const logger = createServiceLogger('teacher-checkin-actions')
 
-export interface ActionResult<T = void> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-}
-
-export interface TeacherForDropdown {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  shifts: Shift[]
-}
+export type TeacherForDropdown = Awaited<
+  ReturnType<typeof getDugsiTeachersForDropdown>
+>[number]
 
 export interface TeacherCurrentStatus {
   morningCheckinId: string | null
@@ -71,10 +67,11 @@ export async function getTeacherCurrentStatus(
 }
 
 export async function teacherClockInAction(
-  input: ClockInInput
+  input: unknown
 ): Promise<ActionResult<{ checkInId: string }>> {
   try {
-    const result = await clockIn(input)
+    const validated = ClockInSchema.parse(input)
+    const result = await clockIn(validated)
     revalidatePath('/teacher/checkin')
     revalidatePath('/admin/dugsi/teacher-checkins')
 
@@ -102,10 +99,11 @@ export async function teacherClockInAction(
 }
 
 export async function teacherClockOutAction(
-  input: ClockOutInput
+  input: unknown
 ): Promise<ActionResult> {
   try {
-    await clockOut(input)
+    const validated = ClockOutSchema.parse(input)
+    await clockOut(validated)
     revalidatePath('/teacher/checkin')
     revalidatePath('/admin/dugsi/teacher-checkins')
 
@@ -126,5 +124,29 @@ export async function teacherClockOutAction(
       success: false,
       error: 'Failed to clock out. Please try again.',
     }
+  }
+}
+
+export interface GeofenceCheckResult {
+  isWithinGeofence: boolean
+  distanceMeters: number
+  allowedRadiusMeters: number
+}
+
+export async function checkGeofence(
+  latitude: number,
+  longitude: number
+): Promise<GeofenceCheckResult> {
+  const distance = calculateDistance(
+    latitude,
+    longitude,
+    IRSHAD_CENTER_LOCATION.lat,
+    IRSHAD_CENTER_LOCATION.lng
+  )
+
+  return {
+    isWithinGeofence: isWithinGeofence(latitude, longitude),
+    distanceMeters: Math.round(distance),
+    allowedRadiusMeters: GEOFENCE_RADIUS_METERS,
   }
 }

@@ -1,3 +1,19 @@
+/**
+ * Teacher Check-in Self-Service Page
+ *
+ * SECURITY NOTE: This page intentionally has no authentication.
+ * Design decision rationale:
+ * - Teachers select themselves from a dropdown (no login required)
+ * - GPS validation provides accountability (location is recorded)
+ * - Admin dashboard provides oversight and can edit/delete records
+ * - This mirrors existing paper sign-in sheet workflow
+ *
+ * If authentication is needed in the future, consider:
+ * - Adding PIN codes per teacher
+ * - Integrating with school's existing auth system
+ * - Using QR codes tied to teacher devices
+ */
+
 import { getDugsiTeachers } from './actions'
 import { CheckinForm } from './components/checkin-form'
 

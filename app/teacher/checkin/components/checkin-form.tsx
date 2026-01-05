@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
 import {
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Clock,
   Loader2,
@@ -27,9 +28,11 @@ import {
 import { SHIFT_TIME_LABELS } from '@/lib/constants/teacher-checkin'
 
 import {
+  checkGeofence,
   getTeacherCurrentStatus,
   teacherClockInAction,
   teacherClockOutAction,
+  type GeofenceCheckResult,
   type TeacherCurrentStatus,
   type TeacherForDropdown,
 } from '../actions'
@@ -47,9 +50,11 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
   const [status, setStatus] = useState<TeacherCurrentStatus | null>(null)
   const [message, setMessage] = useState<{
-    type: 'success' | 'error'
+    type: 'success' | 'error' | 'warning'
     text: string
   } | null>(null)
+  const [geofenceStatus, setGeofenceStatus] =
+    useState<GeofenceCheckResult | null>(null)
 
   const [isPending, startTransition] = useTransition()
   const {
@@ -61,7 +66,10 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
   } = useGeolocation()
 
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId)
-  const availableShifts = selectedTeacher?.shifts ?? []
+  const availableShifts = useMemo(
+    () => selectedTeacher?.shifts ?? [],
+    [selectedTeacher?.shifts]
+  )
 
   useEffect(() => {
     if (selectedTeacherId) {
@@ -79,17 +87,22 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       setStatus(null)
       setSelectedShift(null)
     }
-  }, [selectedTeacherId, availableShifts.length])
-
-  useEffect(() => {
-    if (selectedTeacherId && availableShifts.length === 1 && !selectedShift) {
-      setSelectedShift(availableShifts[0])
-    }
-  }, [availableShifts, selectedTeacherId, selectedShift])
+  }, [selectedTeacherId, availableShifts])
 
   const handleRequestLocation = useCallback(async () => {
     setMessage(null)
-    await requestLocation()
+    setGeofenceStatus(null)
+    const loc = await requestLocation()
+    if (loc.latitude && loc.longitude) {
+      const result = await checkGeofence(loc.latitude, loc.longitude)
+      setGeofenceStatus(result)
+      if (!result.isWithinGeofence) {
+        setMessage({
+          type: 'warning',
+          text: `You are ${result.distanceMeters}m away from the center. Check-in will be marked as invalid location.`,
+        })
+      }
+    }
   }, [requestLocation])
 
   const getCurrentCheckin = () => {
@@ -284,13 +297,39 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {hasLocation ? (
-                    <div className="flex items-center gap-2 text-sm text-green-600">
-                      <CheckCircle2 className="h-4 w-4" />
-                      <span>Location acquired</span>
-                      {location.accuracy && (
-                        <span className="text-muted-foreground">
-                          (accuracy: {Math.round(location.accuracy)}m)
-                        </span>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-green-600">
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>Location acquired</span>
+                        {location.accuracy && (
+                          <span className="text-muted-foreground">
+                            (accuracy: {Math.round(location.accuracy)}m)
+                          </span>
+                        )}
+                      </div>
+                      {geofenceStatus && (
+                        <div
+                          className={`flex items-center gap-2 text-sm ${
+                            geofenceStatus.isWithinGeofence
+                              ? 'text-green-600'
+                              : 'text-orange-600'
+                          }`}
+                        >
+                          {geofenceStatus.isWithinGeofence ? (
+                            <>
+                              <CheckCircle2 className="h-4 w-4" />
+                              <span>Within check-in range</span>
+                            </>
+                          ) : (
+                            <>
+                              <AlertTriangle className="h-4 w-4" />
+                              <span>
+                                {geofenceStatus.distanceMeters}m from center
+                                (max: {geofenceStatus.allowedRadiusMeters}m)
+                              </span>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                   ) : hasError ? (
@@ -334,9 +373,16 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
               {message && (
                 <Alert
                   variant={message.type === 'error' ? 'destructive' : 'default'}
+                  className={
+                    message.type === 'warning'
+                      ? 'border-orange-200 bg-orange-50 text-orange-800 [&>svg]:text-orange-600'
+                      : undefined
+                  }
                 >
                   {message.type === 'success' ? (
                     <CheckCircle2 className="h-4 w-4" />
+                  ) : message.type === 'warning' ? (
+                    <AlertTriangle className="h-4 w-4" />
                   ) : (
                     <AlertCircle className="h-4 w-4" />
                   )}
