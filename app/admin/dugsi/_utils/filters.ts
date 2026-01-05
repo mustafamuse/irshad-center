@@ -10,6 +10,7 @@ import {
   TabValue,
   SearchField,
 } from '../_types'
+import { hasBillingMismatch } from './billing'
 
 /**
  * Get date range from filter type
@@ -184,6 +185,10 @@ export function filterFamiliesByTab(
       return families.filter((f) => f.hasPayment && !f.hasSubscription)
     case 'needs-attention':
       return families.filter((f) => !f.hasPayment)
+    case 'billing-mismatch':
+      return families.filter(
+        (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))
+      )
     case 'all':
       return families
   }

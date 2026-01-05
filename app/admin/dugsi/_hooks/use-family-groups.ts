@@ -8,6 +8,7 @@
 import { useMemo } from 'react'
 
 import { DugsiRegistration, Family } from '../_types'
+import { hasBillingMismatch } from '../_utils/billing'
 import { groupRegistrationsByFamily } from '../_utils/family'
 
 export function useFamilyGroups(registrations: DugsiRegistration[]): Family[] {
@@ -25,6 +26,9 @@ export function useFamilyStats(families: Family[]) {
       pending: families.filter((f) => f.hasPayment && !f.hasSubscription)
         .length,
       needsAttention: families.filter((f) => !f.hasPayment).length,
+      billingMismatch: families.filter(
+        (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))
+      ).length,
     }),
     [families]
   )
