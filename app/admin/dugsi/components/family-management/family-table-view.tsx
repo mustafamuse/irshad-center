@@ -36,7 +36,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { calculateDugsiRate, formatRate } from '@/lib/utils/dugsi-tuition'
+import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
 import { FamilyDetailSheet } from './family-detail-sheet'
 import { FamilyStatusBadge } from './family-status-badge'
@@ -71,22 +71,28 @@ function BillingCell({ family }: { family: Family }) {
   const subscriptionAmount = member.subscriptionAmount
   const familyChildCount = member.familyChildCount || family.members.length
   const expected = calculateDugsiRate(familyChildCount)
-  const expectedStr = formatRate(expected)
+
+  const formatNoCents = (cents: number) => `$${Math.round(cents / 100)}`
 
   if (!subscriptionAmount) {
     return (
       <span className="text-xs text-muted-foreground">
-        Expected: {expectedStr}
+        Expected: {formatNoCents(expected)}
       </span>
     )
   }
 
-  const actual = formatRate(subscriptionAmount)
   const isMismatch = subscriptionAmount !== expected
 
   return (
-    <span className={cn('text-xs', isMismatch && 'text-amber-600')}>
-      {actual} / {expectedStr}
+    <span className="text-xs">
+      <span className={cn(isMismatch ? 'text-amber-600' : 'text-foreground')}>
+        {formatNoCents(subscriptionAmount)}
+      </span>
+      <span className="text-muted-foreground">
+        {' '}
+        / {formatNoCents(expected)}
+      </span>
     </span>
   )
 }
