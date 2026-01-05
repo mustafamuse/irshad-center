@@ -12,9 +12,9 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
 import { DugsiRegistration } from '../../_types'
+import { getBillingStatus } from '../../_utils/billing'
 import { groupRegistrationsByFamily } from '../../_utils/family'
 
 interface DugsiStatsProps {
@@ -52,13 +52,12 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
       const member = family.members[0]
       if (!member) return acc
 
-      const childCount = member.familyChildCount || family.members.length
-      const expected = calculateDugsiRate(childCount)
-      const actual = member.subscriptionAmount || 0
-
-      acc.expected += expected
-      acc.actual += actual
-      if (actual !== expected) acc.mismatchCount++
+      const billing = getBillingStatus(member)
+      acc.expected += billing.expected
+      acc.actual += billing.actual ?? 0
+      if (billing.status !== 'match' && billing.status !== 'no-subscription') {
+        acc.mismatchCount++
+      }
 
       return acc
     },
