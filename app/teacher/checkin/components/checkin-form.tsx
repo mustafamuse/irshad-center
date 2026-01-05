@@ -8,10 +8,14 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  HelpCircle,
   Loader2,
   LogIn,
   LogOut,
   MapPin,
+  Sun,
+  Sunset,
+  User,
 } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
@@ -36,7 +40,9 @@ import {
   type TeacherCurrentStatus,
   type TeacherForDropdown,
 } from '../actions'
+import { OnboardingModal } from './onboarding-modal'
 import { TeacherSelector } from './teacher-selector'
+import { useCheckinOnboarding } from './use-checkin-onboarding'
 import { useGeolocation } from './use-geolocation'
 
 interface CheckinFormProps {
@@ -64,6 +70,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     hasLocation,
     hasError,
   } = useGeolocation()
+  const { showOnboarding, dismissOnboarding, resetOnboarding } =
+    useCheckinOnboarding()
 
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId)
   const availableShifts = selectedTeacher?.shifts ?? []
@@ -87,7 +95,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       setStatus(null)
       setSelectedShift(null)
     }
-  }, [selectedTeacherId, teachers])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers is stable from server props
+  }, [selectedTeacherId])
 
   const handleRequestLocation = useCallback(async () => {
     setMessage(null)
@@ -197,10 +206,27 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Select Your Name</CardTitle>
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={resetOnboarding}
+          className="gap-1.5 text-muted-foreground hover:text-[#007078]"
+        >
+          <HelpCircle className="h-4 w-4" />
+          <span className="text-sm">Help</span>
+        </Button>
+      </div>
+
+      <Card className="border-0 shadow-md duration-300 animate-in fade-in slide-in-from-bottom-2">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+              <User className="h-4 w-4 text-[#007078]" />
+            </div>
+            Select Your Name
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <TeacherSelector
@@ -219,9 +245,14 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       {selectedTeacherId && (
         <>
           {availableShifts.length > 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Select Shift</CardTitle>
+            <Card className="border-0 shadow-md duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:50ms]">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+                    <Clock className="h-4 w-4 text-[#007078]" />
+                  </div>
+                  Select Shift
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <Select
@@ -235,7 +266,14 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                   <SelectContent>
                     {availableShifts.map((shift) => (
                       <SelectItem key={shift} value={shift} className="py-3">
-                        {shift} - {SHIFT_TIME_LABELS[shift]}
+                        <span className="flex items-center gap-2">
+                          {shift === 'MORNING' ? (
+                            <Sun className="h-4 w-4 text-[#deb43e]" />
+                          ) : (
+                            <Sunset className="h-4 w-4 text-[#007078]" />
+                          )}
+                          {shift} - {SHIFT_TIME_LABELS[shift]}
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -246,10 +284,12 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
 
           {selectedShift && (
             <>
-              <Card>
-                <CardHeader>
+              <Card className="border-0 shadow-md duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:100ms]">
+                <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Clock className="h-5 w-5" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+                      <Clock className="h-4 w-4 text-[#007078]" />
+                    </div>
                     Current Status
                   </CardTitle>
                 </CardHeader>
@@ -295,10 +335,12 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
+              <Card className="border-0 shadow-md duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:150ms]">
+                <CardHeader className="pb-3">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <MapPin className="h-5 w-5" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+                      <MapPin className="h-4 w-4 text-[#007078]" />
+                    </div>
                     Location
                   </CardTitle>
                 </CardHeader>
@@ -319,7 +361,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                           className={`flex items-center gap-2 text-sm ${
                             geofenceStatus.isWithinGeofence
                               ? 'text-green-600'
-                              : 'text-orange-600'
+                              : 'text-[#996b1d]'
                           }`}
                         >
                           {geofenceStatus.isWithinGeofence ? (
@@ -382,7 +424,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                   variant={message.type === 'error' ? 'destructive' : 'default'}
                   className={
                     message.type === 'warning'
-                      ? 'border-orange-200 bg-orange-50 text-orange-800 [&>svg]:text-orange-600'
+                      ? 'border-[#deb43e]/40 bg-[#deb43e]/10 text-[#996b1d] [&>svg]:text-[#deb43e]'
                       : undefined
                   }
                 >
@@ -401,7 +443,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                 {!isClockedIn ? (
                   <Button
                     size="lg"
-                    className="h-14 w-full text-lg"
+                    className="h-14 w-full bg-[#007078] text-lg shadow-lg shadow-[#007078]/25 transition-all hover:bg-[#005a61] hover:shadow-xl hover:shadow-[#007078]/30 hover:ring-2 hover:ring-[#deb43e]/50 hover:ring-offset-1 active:scale-[0.98]"
                     onClick={handleClockIn}
                     disabled={!hasLocation || isPending}
                   >
@@ -415,8 +457,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                 ) : !isClockedOut ? (
                   <Button
                     size="lg"
-                    variant="secondary"
-                    className="h-14 w-full text-lg"
+                    className="h-14 w-full border-2 border-[#007078] bg-white text-lg text-[#007078] shadow-md transition-all hover:bg-[#007078]/5 hover:shadow-lg active:scale-[0.98]"
                     onClick={handleClockOut}
                     disabled={!hasLocation || isPending}
                   >
@@ -428,15 +469,24 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                     Clock Out
                   </Button>
                 ) : (
-                  <p className="text-center text-muted-foreground">
-                    You have completed your {selectedShift.toLowerCase()} shift.
-                  </p>
+                  <div className="rounded-xl border-2 border-dashed border-green-200 bg-green-50/50 p-4 text-center">
+                    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    </div>
+                    <p className="font-medium text-green-800">Shift Complete</p>
+                    <p className="mt-1 text-sm text-green-600">
+                      You have completed your {selectedShift.toLowerCase()}{' '}
+                      shift.
+                    </p>
+                  </div>
                 )}
               </div>
             </>
           )}
         </>
       )}
+
+      <OnboardingModal open={showOnboarding} onDismiss={dismissOnboarding} />
     </div>
   )
 }

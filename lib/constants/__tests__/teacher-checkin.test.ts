@@ -1,9 +1,10 @@
 import { Shift } from '@prisma/client'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+import { calculateDistance } from '@/lib/services/geolocation-service'
+
 import {
   isLateForShift,
-  calculateDistance,
   isWithinGeofence,
   SHIFT_START_TIMES,
   GEOFENCE_RADIUS_METERS,

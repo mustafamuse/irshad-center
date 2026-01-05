@@ -9,7 +9,6 @@ import {
   GEOFENCE_RADIUS_METERS,
   isWithinGeofence,
   SCHOOL_TIMEZONE,
-  calculateDistance,
   IRSHAD_CENTER_LOCATION,
 } from '@/lib/constants/teacher-checkin'
 import {
@@ -18,6 +17,7 @@ import {
 } from '@/lib/db/queries/teacher-checkin'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
+import { calculateDistance } from '@/lib/services/geolocation-service'
 import { ValidationError } from '@/lib/services/validation-service'
 import { ActionResult } from '@/lib/utils/action-helpers'
 import {
