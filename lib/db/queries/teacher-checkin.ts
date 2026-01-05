@@ -7,7 +7,6 @@
 
 import { Prisma, Shift } from '@prisma/client'
 
-import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
@@ -225,11 +224,11 @@ export async function getAllDugsiTeachersWithTodayStatus(
 
   const teachers = await client.teacher.findMany({
     where: {
-      assignments: {
+      dugsiClasses: {
         some: {
           isActive: true,
-          programProfile: {
-            program: DUGSI_PROGRAM,
+          class: {
+            isActive: true,
           },
         },
       },
@@ -240,15 +239,19 @@ export async function getAllDugsiTeachersWithTodayStatus(
           contactPoints: true,
         },
       },
-      assignments: {
+      dugsiClasses: {
         where: {
           isActive: true,
-          programProfile: {
-            program: DUGSI_PROGRAM,
+          class: {
+            isActive: true,
           },
         },
-        select: {
-          shift: true,
+        include: {
+          class: {
+            select: {
+              shift: true,
+            },
+          },
         },
       },
       checkIns: {
@@ -273,9 +276,7 @@ export async function getAllDugsiTeachersWithTodayStatus(
       (cp) => cp.type === 'PHONE'
     )?.value
 
-    const shiftValues = teacher.assignments
-      .map((a) => a.shift)
-      .filter((s): s is Shift => s !== null)
+    const shiftValues = teacher.dugsiClasses.map((dc) => dc.class.shift)
     const shifts = Array.from(new Set(shiftValues))
     const morningCheckin =
       teacher.checkIns.find((c) => c.shift === 'MORNING') || null
@@ -308,11 +309,11 @@ export async function getDugsiTeachersForDropdown(
 > {
   const teachers = await client.teacher.findMany({
     where: {
-      assignments: {
+      dugsiClasses: {
         some: {
           isActive: true,
-          programProfile: {
-            program: DUGSI_PROGRAM,
+          class: {
+            isActive: true,
           },
         },
       },
@@ -323,15 +324,19 @@ export async function getDugsiTeachersForDropdown(
           contactPoints: true,
         },
       },
-      assignments: {
+      dugsiClasses: {
         where: {
           isActive: true,
-          programProfile: {
-            program: DUGSI_PROGRAM,
+          class: {
+            isActive: true,
           },
         },
-        select: {
-          shift: true,
+        include: {
+          class: {
+            select: {
+              shift: true,
+            },
+          },
         },
       },
     },
@@ -350,9 +355,7 @@ export async function getDugsiTeachersForDropdown(
       (cp) => cp.type === 'PHONE'
     )?.value
 
-    const shiftValues = teacher.assignments
-      .map((a) => a.shift)
-      .filter((s): s is Shift => s !== null)
+    const shiftValues = teacher.dugsiClasses.map((dc) => dc.class.shift)
     const shifts = Array.from(new Set(shiftValues))
 
     return {
@@ -369,38 +372,40 @@ export async function isTeacherEnrolledInDugsi(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<boolean> {
-  const assignment = await client.teacherAssignment.findFirst({
+  const classAssignment = await client.dugsiClassTeacher.findFirst({
     where: {
       teacherId,
       isActive: true,
-      programProfile: {
-        program: DUGSI_PROGRAM,
+      class: {
+        isActive: true,
       },
     },
   })
 
-  return assignment !== null
+  return classAssignment !== null
 }
 
 export async function getTeacherShifts(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<Shift[]> {
-  const assignments = await client.teacherAssignment.findMany({
+  const classAssignments = await client.dugsiClassTeacher.findMany({
     where: {
       teacherId,
       isActive: true,
-      programProfile: {
-        program: DUGSI_PROGRAM,
+      class: {
+        isActive: true,
       },
     },
-    select: {
-      shift: true,
+    include: {
+      class: {
+        select: {
+          shift: true,
+        },
+      },
     },
   })
 
-  const shiftValues = assignments
-    .map((a) => a.shift)
-    .filter((s): s is Shift => s !== null)
+  const shiftValues = classAssignments.map((ca) => ca.class.shift)
   return Array.from(new Set(shiftValues))
 }
