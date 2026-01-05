@@ -62,7 +62,7 @@ export interface DugsiRegistration {
   familyReferenceId: string | null
   stripeAccountType: StripeAccountType | null
 
-  // Teacher info (from TeacherAssignment -> Teacher -> Person)
+  // Teacher info (from DugsiClassEnrollment -> DugsiClass -> DugsiClassTeacher -> Teacher -> Person)
   teacherName: string | null // Primary teacher name (based on student's shift)
   teacherEmail: string | null // Primary teacher email
   teacherPhone: string | null // Primary teacher phone

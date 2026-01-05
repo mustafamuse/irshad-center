@@ -19,7 +19,6 @@ import type {
   BillingAssignment,
   Batch,
   Teacher,
-  TeacherAssignment,
   StudentPayment,
   Program,
   EnrollmentStatus,
@@ -68,13 +67,6 @@ export type StudentProfile = ProgramProfile & {
       }
     }
   >
-  teacherAssignments?: Array<
-    TeacherAssignment & {
-      teacher: Teacher & {
-        person: Person
-      }
-    }
-  >
   payments: StudentPayment[]
 }
 
@@ -103,7 +95,6 @@ export type FamilyProfile = {
           batch: Batch | null
         }
       >
-      teacherAssignments?: TeacherAssignment[]
     }
   >
   billingAccount: BillingAccount & {
@@ -126,16 +117,7 @@ export type FamilyProfile = {
  */
 export type TeacherProfile = Person & {
   contactPoints: ContactPoint[]
-  teacher: Teacher & {
-    assignments: Array<
-      TeacherAssignment & {
-        programProfile: ProgramProfile & {
-          person: Person
-        }
-      }
-    >
-  }
-  // Multi-role support
+  teacher: Teacher
   dependentRelationships?: Array<
     GuardianRelationship & {
       dependent: Person
@@ -414,15 +396,6 @@ export type IncludeStudentProfile = {
       subscription: {
         include: {
           billingAccount: true
-        }
-      }
-    }
-  }
-  teacherAssignments: {
-    include: {
-      teacher: {
-        include: {
-          person: true
         }
       }
     }

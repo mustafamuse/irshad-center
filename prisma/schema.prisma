@@ -66,7 +66,6 @@ model Teacher {
   // Relations
   person             Person                   @relation(fields: [personId], references: [id], onDelete: Cascade)
   programs           TeacherProgram[] // Programs this teacher is authorized to teach
-  assignments        TeacherAssignment[] // Student assignments across all programs
   attendanceSessions DugsiAttendanceSession[]
   checkIns           DugsiTeacherCheckIn[]
   dugsiClasses       DugsiClassTeacher[]
@@ -93,33 +92,6 @@ model TeacherProgram {
   @@index([teacherId])
   @@index([program])
   @@index([isActive])
-}
-
-// TeacherAssignment - Links teachers to students across all programs
-// Supports multi-program assignments: Dugsi (with shifts), Mahad (no shifts), etc.
-// Shift is required for Dugsi students (MORNING/AFTERNOON), nullable for other programs
-// Teacher must have TeacherProgram enrollment before student assignment
-model TeacherAssignment {
-  id               String    @id @default(uuid())
-  teacherId        String
-  programProfileId String // References any ProgramProfile (Dugsi, Mahad, etc.)
-  shift            Shift? // Required for Dugsi, null for Mahad and other programs
-  startDate        DateTime  @default(now())
-  endDate          DateTime? // Null if currently active
-  isActive         Boolean   @default(true)
-  notes            String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  // Relations
-  teacher        Teacher        @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  programProfile ProgramProfile @relation(fields: [programProfileId], references: [id], onDelete: Cascade)
-
-  @@unique([teacherId, programProfileId, shift]) // One teacher per student per shift (shift can be null)
-  @@index([teacherId])
-  @@index([programProfileId])
-  @@index([isActive])
-  @@index([shift])
 }
 
 enum Shift {
@@ -383,7 +355,6 @@ model ProgramProfile {
   enrollments          Enrollment[]
   assignments          BillingAssignment[]
   payments             StudentPayment[]
-  teacherAssignments   TeacherAssignment[]
   dugsiClassEnrollment DugsiClassEnrollment?
   attendanceRecords    DugsiAttendanceRecord[]
 

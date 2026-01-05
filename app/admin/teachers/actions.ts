@@ -104,8 +104,8 @@ export async function getTeachers(
     // Get all teacher IDs
     const teacherIds = teachers.map((t) => t.id)
 
-    // Get all student counts in ONE query (fixes N+1)
-    const studentCounts = await prisma.teacherAssignment.groupBy({
+    // Get class counts per teacher in ONE query
+    const classCounts = await prisma.dugsiClassTeacher.groupBy({
       by: ['teacherId'],
       where: {
         teacherId: { in: teacherIds },
@@ -114,9 +114,9 @@ export async function getTeachers(
       _count: { id: true },
     })
 
-    // Create lookup map
+    // Create lookup map (showing class count instead of student count)
     const countMap = new Map(
-      studentCounts.map((sc) => [sc.teacherId, sc._count.id])
+      classCounts.map((cc) => [cc.teacherId, cc._count.id])
     )
 
     // Map teachers (synchronous - no async needed)
@@ -378,21 +378,20 @@ export async function removeTeacherFromProgramAction(
   input: ProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
-    // Check for active student assignments
-    const activeAssignments = await prisma.teacherAssignment.count({
-      where: {
-        teacherId: input.teacherId,
-        isActive: true,
-        programProfile: {
-          program: input.program,
+    // For Dugsi, check for active class assignments
+    if (input.program === 'DUGSI_PROGRAM') {
+      const activeClasses = await prisma.dugsiClassTeacher.count({
+        where: {
+          teacherId: input.teacherId,
+          isActive: true,
         },
-      },
-    })
+      })
 
-    if (activeAssignments > 0) {
-      return {
-        success: false,
-        error: `Cannot remove teacher from ${input.program}. They have ${activeAssignments} active student assignment(s). Please reassign students first.`,
+      if (activeClasses > 0) {
+        return {
+          success: false,
+          error: `Cannot remove teacher from ${input.program}. They are assigned to ${activeClasses} class(es). Please remove class assignments first.`,
+        }
       }
     }
 

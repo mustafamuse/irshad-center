@@ -278,7 +278,7 @@ export type BatchWithEnrollments = Prisma.BatchGetPayload<{
 // ============================================================================
 
 /**
- * Teacher with Person and Assignments
+ * Teacher with Person and Programs
  */
 export const teacherWithRelationsInclude =
   Prisma.validator<Prisma.TeacherInclude>()({
@@ -287,13 +287,13 @@ export const teacherWithRelationsInclude =
         contactPoints: true,
       },
     },
-    assignments: {
+    programs: {
+      where: { isActive: true },
+    },
+    dugsiClasses: {
+      where: { isActive: true },
       include: {
-        programProfile: {
-          include: {
-            person: true,
-          },
-        },
+        class: true,
       },
     },
   })
