@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
 import {
@@ -66,19 +66,19 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
   } = useGeolocation()
 
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId)
-  const availableShifts = useMemo(
-    () => selectedTeacher?.shifts ?? [],
-    [selectedTeacher?.shifts]
-  )
+  const availableShifts = selectedTeacher?.shifts ?? []
 
   useEffect(() => {
     if (selectedTeacherId) {
+      const teacher = teachers.find((t) => t.id === selectedTeacherId)
+      const shifts = teacher?.shifts ?? []
+
       startTransition(async () => {
         const currentStatus = await getTeacherCurrentStatus(selectedTeacherId)
         setStatus(currentStatus)
 
-        if (availableShifts.length === 1) {
-          setSelectedShift(availableShifts[0])
+        if (shifts.length === 1) {
+          setSelectedShift(shifts[0])
         } else {
           setSelectedShift(null)
         }
@@ -87,7 +87,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       setStatus(null)
       setSelectedShift(null)
     }
-  }, [selectedTeacherId, availableShifts])
+  }, [selectedTeacherId, teachers])
 
   const handleRequestLocation = useCallback(async () => {
     setMessage(null)

@@ -92,7 +92,7 @@ export async function teacherClockInAction(
       }
     }
 
-    await logError(logger, error, 'Clock-in failed', { input })
+    await logError(logger, error, 'Clock-in failed')
     return {
       success: false,
       error: 'Failed to clock in. Please try again.',
@@ -124,7 +124,7 @@ export async function teacherClockOutAction(
       }
     }
 
-    await logError(logger, error, 'Clock-out failed', { input })
+    await logError(logger, error, 'Clock-out failed')
     return {
       success: false,
       error: 'Failed to clock out. Please try again.',
