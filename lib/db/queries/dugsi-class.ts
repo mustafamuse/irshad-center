@@ -10,6 +10,10 @@ import { Prisma, Shift } from '@prisma/client'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import {
+  ClassNotFoundError,
+  TeacherNotAuthorizedError,
+} from '@/lib/errors/dugsi-class-errors'
 
 export const dugsiClassInclude = {
   teachers: {
@@ -114,11 +118,19 @@ export async function assignTeacherToClass(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
+  const dugsiClass = await client.dugsiClass.findUnique({
+    where: { id: classId },
+    select: { isActive: true },
+  })
+  if (!dugsiClass || !dugsiClass.isActive) {
+    throw new ClassNotFoundError()
+  }
+
   const authorized = await client.teacherProgram.findFirst({
     where: { teacherId, program: DUGSI_PROGRAM, isActive: true },
   })
   if (!authorized) {
-    throw new Error('Teacher not authorized for Dugsi program')
+    throw new TeacherNotAuthorizedError()
   }
 
   await client.dugsiClassTeacher.create({
@@ -171,10 +183,9 @@ export async function removeStudentFromClass(
   programProfileId: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
-  await client.dugsiClassEnrollment.delete({
-    where: {
-      programProfileId,
-    },
+  await client.dugsiClassEnrollment.update({
+    where: { programProfileId },
+    data: { isActive: false, endDate: new Date() },
   })
 }
 

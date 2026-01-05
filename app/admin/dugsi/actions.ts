@@ -18,6 +18,10 @@ import {
   bulkEnrollStudents,
 } from '@/lib/db/queries/dugsi-class'
 import { ActionError } from '@/lib/errors/action-error'
+import {
+  ClassNotFoundError,
+  TeacherNotAuthorizedError,
+} from '@/lib/errors/dugsi-class-errors'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   // Registration service
@@ -974,10 +978,14 @@ export async function assignTeacherToClassAction(
       message: 'Teacher assigned to class',
     }
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message === 'Teacher not authorized for Dugsi program'
-    ) {
+    if (error instanceof ClassNotFoundError) {
+      return {
+        success: false,
+        error: 'Class not found or has been deactivated',
+      }
+    }
+
+    if (error instanceof TeacherNotAuthorizedError) {
       return {
         success: false,
         error: 'Teacher must be enrolled in Dugsi program before assignment',
