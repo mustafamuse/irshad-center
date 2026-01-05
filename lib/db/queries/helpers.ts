@@ -246,30 +246,6 @@ export async function createBillingAssignmentWithValidation(
 }
 
 /**
- * Create teacher assignment for Dugsi student
- * Convenience wrapper that validates program and uses teacher service
- */
-export async function createDugsiTeacherAssignment(data: {
-  teacherId: string
-  programProfileId: string
-  shift: Shift
-  startDate?: Date
-  notes?: string | null
-}) {
-  const { assignTeacherToStudent } = await import(
-    '@/lib/services/shared/teacher-service'
-  )
-
-  return assignTeacherToStudent({
-    teacherId: data.teacherId,
-    programProfileId: data.programProfileId,
-    shift: data.shift,
-    startDate: data.startDate,
-    notes: data.notes ?? undefined,
-  })
-}
-
-/**
  * Create guardian relationship with validation
  * Convenience wrapper
  */

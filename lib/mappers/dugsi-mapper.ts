@@ -84,28 +84,25 @@ export function mapProfileToDugsiRegistration(
   const subscription = activeAssignment?.subscription
   const billingAccount = subscription?.billingAccount
 
-  // Extract teacher assignments
-  const teacherAssignments = profile.teacherAssignments || []
-  const morningAssignment = teacherAssignments.find(
-    (a) => a.shift === 'MORNING' && a.isActive
-  )
-  const afternoonAssignment = teacherAssignments.find(
-    (a) => a.shift === 'AFTERNOON' && a.isActive
-  )
-
-  // Determine primary teacher (prefer student's shift, fallback to any)
-  const primaryAssignment =
-    profile.shift === 'MORNING'
-      ? morningAssignment || afternoonAssignment
-      : afternoonAssignment || morningAssignment
-
-  const primaryTeacher = primaryAssignment?.teacher?.person
+  // Extract teacher from class enrollment (class-based model)
+  const classEnrollment = profile.dugsiClassEnrollment
+  const dugsiClass = classEnrollment?.class
+  const classTeachers = dugsiClass?.teachers || []
+  const primaryClassTeacher = classTeachers[0]?.teacher
+  const primaryTeacher = primaryClassTeacher?.person
   const primaryTeacherEmail = primaryTeacher?.contactPoints?.find(
     (cp) => cp.type === 'EMAIL'
   )?.value
   const primaryTeacherPhone = primaryTeacher?.contactPoints?.find(
     (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
   )?.value
+
+  // Set shift-specific teacher based on class shift
+  const classShift = dugsiClass?.shift
+  const morningTeacherName =
+    classShift === 'MORNING' ? primaryTeacher?.name : null
+  const afternoonTeacherName =
+    classShift === 'AFTERNOON' ? primaryTeacher?.name : null
 
   return {
     id: profile.id,
@@ -150,13 +147,13 @@ export function mapProfileToDugsiRegistration(
     stripeAccountType:
       (billingAccount?.accountType as StripeAccountType) ?? null,
 
-    // Teacher info
+    // Teacher info (from class enrollment)
     teacherName: primaryTeacher?.name ?? null,
     teacherEmail: primaryTeacherEmail ?? null,
     teacherPhone: primaryTeacherPhone ?? null,
-    morningTeacher: morningAssignment?.teacher?.person?.name ?? null,
-    afternoonTeacher: afternoonAssignment?.teacher?.person?.name ?? null,
-    hasTeacherAssigned: teacherAssignments.some((a) => a.isActive),
+    morningTeacher: morningTeacherName ?? null,
+    afternoonTeacher: afternoonTeacherName ?? null,
+    hasTeacherAssigned: classTeachers.length > 0,
 
     // Family billing
     familyChildCount: familyChildCount || 1,
