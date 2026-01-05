@@ -220,6 +220,7 @@ describe('clockOut', () => {
   it('should update check-in with clock-out time', async () => {
     const input = {
       checkInId: 'checkin-1',
+      teacherId: 'teacher-1',
       latitude: 44.9778,
       longitude: -93.265,
     }
@@ -235,6 +236,7 @@ describe('clockOut', () => {
 
     const input = {
       checkInId: 'nonexistent',
+      teacherId: 'teacher-1',
       latitude: 44.9778,
       longitude: -93.265,
     }
@@ -253,6 +255,7 @@ describe('clockOut', () => {
 
     const input = {
       checkInId: 'checkin-1',
+      teacherId: 'teacher-1',
       latitude: 44.9778,
       longitude: -93.265,
     }

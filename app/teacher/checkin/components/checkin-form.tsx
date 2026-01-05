@@ -93,7 +93,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     setMessage(null)
     setGeofenceStatus(null)
     const loc = await requestLocation()
-    if (loc.latitude && loc.longitude) {
+    if (loc.latitude !== null && loc.longitude !== null) {
       const result = await checkGeofence(loc.latitude, loc.longitude)
       setGeofenceStatus(result)
       if (!result.isWithinGeofence) {
@@ -149,10 +149,9 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
         longitude: location.longitude!,
       })
 
-      if (result.success) {
+      if (result.success && result.data) {
         setMessage({ type: 'success', text: result.message ?? 'Clocked in!' })
-        const newStatus = await getTeacherCurrentStatus(selectedTeacherId)
-        setStatus(newStatus)
+        setStatus(result.data.status)
       } else {
         setMessage({ type: 'error', text: result.error ?? 'Clock-in failed' })
       }
@@ -160,21 +159,28 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
   }
 
   const handleClockOut = async () => {
-    if (!currentCheckin?.id) return
+    if (
+      !currentCheckin?.id ||
+      !selectedTeacherId ||
+      !location.latitude ||
+      !location.longitude
+    ) {
+      return
+    }
 
     setMessage(null)
 
     startTransition(async () => {
       const result = await teacherClockOutAction({
         checkInId: currentCheckin.id,
-        latitude: location.latitude,
-        longitude: location.longitude,
+        teacherId: selectedTeacherId,
+        latitude: location.latitude!,
+        longitude: location.longitude!,
       })
 
-      if (result.success) {
+      if (result.success && result.data) {
         setMessage({ type: 'success', text: result.message ?? 'Clocked out!' })
-        const newStatus = await getTeacherCurrentStatus(selectedTeacherId!)
-        setStatus(newStatus)
+        setStatus(result.data.status)
       } else {
         setMessage({ type: 'error', text: result.error ?? 'Clock-out failed' })
       }
@@ -203,6 +209,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
             onSelect={(id) => {
               setSelectedTeacherId(id)
               setMessage(null)
+              setGeofenceStatus(null)
             }}
             disabled={isPending}
           />
@@ -411,7 +418,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                     variant="secondary"
                     className="h-14 w-full text-lg"
                     onClick={handleClockOut}
-                    disabled={isPending}
+                    disabled={!hasLocation || isPending}
                   >
                     {isPending ? (
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />

@@ -68,16 +68,18 @@ export async function getTeacherCurrentStatus(
 
 export async function teacherClockInAction(
   input: unknown
-): Promise<ActionResult<{ checkInId: string }>> {
+): Promise<ActionResult<{ checkInId: string; status: TeacherCurrentStatus }>> {
   try {
     const validated = ClockInSchema.parse(input)
     const result = await clockIn(validated)
     revalidatePath('/teacher/checkin')
     revalidatePath('/admin/dugsi/teacher-checkins')
 
+    const status = await getTeacherCurrentStatus(validated.teacherId)
+
     return {
       success: true,
-      data: { checkInId: result.checkIn.id },
+      data: { checkInId: result.checkIn.id, status },
       message: result.checkIn.isLate
         ? 'Clocked in (Late)'
         : 'Clocked in successfully',
@@ -100,15 +102,18 @@ export async function teacherClockInAction(
 
 export async function teacherClockOutAction(
   input: unknown
-): Promise<ActionResult> {
+): Promise<ActionResult<{ status: TeacherCurrentStatus }>> {
   try {
     const validated = ClockOutSchema.parse(input)
     await clockOut(validated)
     revalidatePath('/teacher/checkin')
     revalidatePath('/admin/dugsi/teacher-checkins')
 
+    const status = await getTeacherCurrentStatus(validated.teacherId)
+
     return {
       success: true,
+      data: { status },
       message: 'Clocked out successfully',
     }
   } catch (error) {
