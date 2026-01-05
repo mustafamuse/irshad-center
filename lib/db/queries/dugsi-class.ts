@@ -114,6 +114,13 @@ export async function assignTeacherToClass(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
+  const authorized = await client.teacherProgram.findFirst({
+    where: { teacherId, program: DUGSI_PROGRAM, isActive: true },
+  })
+  if (!authorized) {
+    throw new Error('Teacher not authorized for Dugsi program')
+  }
+
   await client.dugsiClassTeacher.create({
     data: {
       classId,
@@ -128,13 +135,14 @@ export async function removeTeacherFromClass(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
-  await client.dugsiClassTeacher.delete({
+  await client.dugsiClassTeacher.update({
     where: {
       classId_teacherId: {
         classId,
         teacherId,
       },
     },
+    data: { isActive: false },
   })
 }
 
@@ -152,6 +160,13 @@ export async function enrollStudentInClass(
   })
 }
 
+/**
+ * Remove a student from their enrolled class.
+ *
+ * Note: Students can only be enrolled in ONE class at a time
+ * (enforced by unique constraint on programProfileId).
+ * This function removes the student from whatever class they're in.
+ */
 export async function removeStudentFromClass(
   programProfileId: string,
   client: DatabaseClient = prisma
@@ -167,29 +182,17 @@ export async function bulkEnrollStudents(
   classId: string,
   programProfileIds: string[]
 ): Promise<{ enrolled: number; skipped: number }> {
-  let enrolled = 0
-  let skipped = 0
-
-  await prisma.$transaction(async (tx) => {
-    for (const programProfileId of programProfileIds) {
-      const existing = await tx.dugsiClassEnrollment.findUnique({
-        where: { programProfileId },
-      })
-
-      if (existing) {
-        skipped++
-      } else {
-        await tx.dugsiClassEnrollment.create({
-          data: {
-            classId,
-            programProfileId,
-            isActive: true,
-          },
-        })
-        enrolled++
-      }
-    }
+  const result = await prisma.dugsiClassEnrollment.createMany({
+    data: programProfileIds.map((id) => ({
+      classId,
+      programProfileId: id,
+      isActive: true,
+    })),
+    skipDuplicates: true,
   })
 
-  return { enrolled, skipped }
+  return {
+    enrolled: result.count,
+    skipped: programProfileIds.length - result.count,
+  }
 }

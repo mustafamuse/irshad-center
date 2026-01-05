@@ -975,6 +975,16 @@ export async function assignTeacherToClassAction(
     }
   } catch (error) {
     if (
+      error instanceof Error &&
+      error.message === 'Teacher not authorized for Dugsi program'
+    ) {
+      return {
+        success: false,
+        error: 'Teacher must be enrolled in Dugsi program before assignment',
+      }
+    }
+
+    if (
       error &&
       typeof error === 'object' &&
       'code' in error &&
