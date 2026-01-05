@@ -35,6 +35,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { calculateDugsiRate, formatRate } from '@/lib/utils/dugsi-tuition'
 
 import { FamilyDetailSheet } from './family-detail-sheet'
 import { FamilyStatusBadge } from './family-status-badge'
@@ -60,6 +62,33 @@ function getOrderedParents(member: DugsiRegistration | undefined) {
     return { payer: parent2, other: parent1 }
   }
   return { payer: parent1, other: parent2 }
+}
+
+function BillingCell({ family }: { family: Family }) {
+  const member = family.members[0]
+  if (!member) return null
+
+  const subscriptionAmount = member.subscriptionAmount
+  const familyChildCount = member.familyChildCount || family.members.length
+  const expected = calculateDugsiRate(familyChildCount)
+  const expectedStr = formatRate(expected)
+
+  if (!subscriptionAmount) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        Expected: {expectedStr}
+      </span>
+    )
+  }
+
+  const actual = formatRate(subscriptionAmount)
+  const isMismatch = subscriptionAmount !== expected
+
+  return (
+    <span className={cn('text-xs', isMismatch && 'text-amber-600')}>
+      {actual} / {expectedStr}
+    </span>
+  )
 }
 
 interface FamilyTableViewProps {
@@ -174,6 +203,14 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                   <span className="text-xs text-muted-foreground">Status:</span>
                   <FamilyStatusBadge status={status} />
                 </div>
+                {family.hasSubscription && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      Billing:
+                    </span>
+                    <BillingCell family={family} />
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -246,7 +283,12 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <FamilyStatusBadge status={status} showLabel={false} />
+                    <div className="space-y-1">
+                      <FamilyStatusBadge status={status} showLabel={false} />
+                      {family.hasSubscription && (
+                        <BillingCell family={family} />
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>

@@ -48,14 +48,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
-import { cn } from '@/lib/utils'
-import { calculateDugsiRate, formatRate } from '@/lib/utils/dugsi-tuition'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { AssignTeacherDialog } from './assign-teacher-dialog'
@@ -82,54 +75,6 @@ function getOrderedParents(reg: DugsiRegistration) {
     return { payer: parent2, other: parent1 }
   }
   return { payer: parent1, other: parent2 }
-}
-
-function BillingCell({
-  subscriptionAmount,
-  familyChildCount,
-}: {
-  subscriptionAmount: number | null
-  familyChildCount: number
-}) {
-  const expected = calculateDugsiRate(familyChildCount || 1)
-  const expectedStr = formatRate(expected)
-
-  if (!subscriptionAmount) {
-    return (
-      <span className="text-sm text-muted-foreground">
-        Expected: {expectedStr}
-      </span>
-    )
-  }
-
-  const actual = formatRate(subscriptionAmount)
-  const isMismatch = subscriptionAmount !== expected
-  const difference = subscriptionAmount - expected
-
-  const content = (
-    <span className={cn('text-sm', isMismatch && 'text-amber-600')}>
-      {actual} / {expectedStr}
-    </span>
-  )
-
-  if (isMismatch) {
-    const diffStr =
-      difference > 0
-        ? `+${formatRate(difference)} over`
-        : `${formatRate(Math.abs(difference))} short`
-
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent>
-          {diffStr} (based on {familyChildCount}{' '}
-          {familyChildCount === 1 ? 'child' : 'children'})
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
-
-  return content
 }
 
 interface DugsiRegistrationsTableProps {
@@ -357,28 +302,19 @@ export function DugsiRegistrationsTable({
                             )}
                           </TableCell>
                           <TableCell>
-                            <div className="space-y-1">
-                              {registration.subscriptionStatus === 'active' ? (
-                                <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                                  Active
-                                </Badge>
-                              ) : registration.stripeSubscriptionIdDugsi ? (
-                                <Badge variant="outline" className="text-xs">
-                                  {registration.subscriptionStatus ||
-                                    'Inactive'}
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-xs">
-                                  None
-                                </Badge>
-                              )}
-                              <BillingCell
-                                subscriptionAmount={
-                                  registration.subscriptionAmount
-                                }
-                                familyChildCount={registration.familyChildCount}
-                              />
-                            </div>
+                            {registration.subscriptionStatus === 'active' ? (
+                              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                                Active
+                              </Badge>
+                            ) : registration.stripeSubscriptionIdDugsi ? (
+                              <Badge variant="outline" className="text-xs">
+                                {registration.subscriptionStatus || 'Inactive'}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">
+                                None
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell className="w-12">
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -435,25 +371,19 @@ export function DugsiRegistrationsTable({
                         )}
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          {registration.subscriptionStatus === 'active' ? (
-                            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                              Active
-                            </Badge>
-                          ) : registration.stripeSubscriptionIdDugsi ? (
-                            <Badge variant="outline" className="text-xs">
-                              {registration.subscriptionStatus || 'Inactive'}
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary" className="text-xs">
-                              None
-                            </Badge>
-                          )}
-                          <BillingCell
-                            subscriptionAmount={registration.subscriptionAmount}
-                            familyChildCount={registration.familyChildCount}
-                          />
-                        </div>
+                        {registration.subscriptionStatus === 'active' ? (
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                            Active
+                          </Badge>
+                        ) : registration.stripeSubscriptionIdDugsi ? (
+                          <Badge variant="outline" className="text-xs">
+                            {registration.subscriptionStatus || 'Inactive'}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-xs">
+                            None
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="w-12">
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
@@ -1080,13 +1010,6 @@ function MobileRegistrationCard({
                     None
                   </Badge>
                 )}
-              </div>
-              <div>
-                <p className="text-[11px] text-muted-foreground">Billing</p>
-                <BillingCell
-                  subscriptionAmount={registration.subscriptionAmount}
-                  familyChildCount={registration.familyChildCount}
-                />
               </div>
             </div>
           </div>
