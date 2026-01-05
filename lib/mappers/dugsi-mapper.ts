@@ -26,10 +26,12 @@ import {
  * This is a pure data transformation - no database calls, no business logic.
  *
  * @param profile - ProgramProfile with guardians, enrollments, and billing data
+ * @param familyChildCount - Total enrolled children in the family (for billing calculation)
  * @returns DugsiRegistration DTO for UI display
  */
 export function mapProfileToDugsiRegistration(
-  profile: ProgramProfileFull
+  profile: ProgramProfileFull,
+  familyChildCount: number = 1
 ): DugsiRegistration | null {
   // Validate program type
   if (!profile || profile.program !== DUGSI_PROGRAM) {
@@ -155,6 +157,9 @@ export function mapProfileToDugsiRegistration(
     morningTeacher: morningAssignment?.teacher?.person?.name ?? null,
     afternoonTeacher: afternoonAssignment?.teacher?.person?.name ?? null,
     hasTeacherAssigned: teacherAssignments.some((a) => a.isActive),
+
+    // Family billing
+    familyChildCount: familyChildCount || 1,
   }
 }
 
@@ -187,6 +192,7 @@ export function mapProfileToSimpleDugsiRegistration(
   | 'morningTeacher'
   | 'afternoonTeacher'
   | 'hasTeacherAssigned'
+  | 'familyChildCount'
 > {
   if (!profile || profile.program !== DUGSI_PROGRAM) {
     throw new Error('Invalid profile: must be DUGSI_PROGRAM')

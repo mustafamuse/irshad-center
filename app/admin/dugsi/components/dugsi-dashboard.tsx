@@ -10,7 +10,13 @@
 
 import { useState } from 'react'
 
-import { Users, AlertCircle, CheckCircle2, Clock } from 'lucide-react'
+import {
+  Users,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -97,7 +103,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           onValueChange={(v) => setActiveTab(v as typeof activeTab)}
           aria-label="Family management tabs"
         >
-          <TabsList className="flex h-auto flex-wrap justify-start sm:grid sm:grid-cols-4">
+          <TabsList className="flex h-auto flex-wrap justify-start sm:grid sm:grid-cols-5">
             <TabsTrigger
               value="active"
               className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
@@ -139,6 +145,21 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
               </Badge>
             </TabsTrigger>
             <TabsTrigger
+              value="billing-mismatch"
+              className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
+            >
+              <DollarSign className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Billing</span>
+              {tabStats.billingMismatch > 0 && (
+                <Badge
+                  variant="secondary"
+                  className="ml-1 bg-amber-100 px-1 text-[10px] text-amber-800 sm:px-1.5 sm:text-xs"
+                >
+                  {tabStats.billingMismatch}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
               value="all"
               className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
             >
@@ -162,6 +183,10 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           </TabsContent>
 
           <TabsContent value="needs-attention" className="space-y-6">
+            <TabContent families={filteredFamilies} />
+          </TabsContent>
+
+          <TabsContent value="billing-mismatch" className="space-y-6">
             <TabContent families={filteredFamilies} />
           </TabsContent>
 

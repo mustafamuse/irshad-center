@@ -2,11 +2,19 @@
  * Dashboard Stats Component
  */
 
-import { AlertCircle, DollarSign, UserCheck, Users } from 'lucide-react'
+import {
+  AlertCircle,
+  DollarSign,
+  TrendingDown,
+  UserCheck,
+  Users,
+} from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 import { DugsiRegistration } from '../../_types'
+import { getBillingStatus } from '../../_utils/billing'
 import { groupRegistrationsByFamily } from '../../_utils/family'
 
 interface DugsiStatsProps {
@@ -37,8 +45,30 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
     currency: 'USD',
   }).format(monthlyRevenue / 100)
 
+  const revenueStats = families.reduce(
+    (acc, family) => {
+      if (!family.hasSubscription) return acc
+
+      const member = family.members[0]
+      if (!member) return acc
+
+      const billing = getBillingStatus(member)
+      acc.expected += billing.expected
+      acc.actual += billing.actual ?? 0
+      if (billing.status !== 'match' && billing.status !== 'no-subscription') {
+        acc.mismatchCount++
+      }
+
+      return acc
+    },
+    { expected: 0, actual: 0, mismatchCount: 0 }
+  )
+
+  const variance = revenueStats.actual - revenueStats.expected
+  const isUnder = variance < 0
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Families</CardTitle>
@@ -89,6 +119,41 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
           <div className="text-2xl font-bold">{formattedRevenue}</div>
           <p className="text-xs text-muted-foreground">
             From {payingFamilies} families
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">
+            Revenue Variance
+          </CardTitle>
+          <TrendingDown
+            className={cn(
+              'h-4 w-4',
+              variance === 0
+                ? 'text-muted-foreground'
+                : isUnder
+                  ? 'text-red-500'
+                  : 'text-green-500'
+            )}
+          />
+        </CardHeader>
+        <CardContent>
+          <div
+            className={cn(
+              'text-2xl font-bold',
+              variance === 0 ? '' : isUnder ? 'text-red-600' : 'text-green-600'
+            )}
+          >
+            {variance === 0
+              ? '$0'
+              : `${isUnder ? '-' : '+'}$${Math.abs(variance / 100).toFixed(0)}`}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {revenueStats.mismatchCount === 0
+              ? 'All families paying correct amount'
+              : `${revenueStats.mismatchCount} ${revenueStats.mismatchCount === 1 ? 'family' : 'families'} mismatched`}
           </p>
         </CardContent>
       </Card>

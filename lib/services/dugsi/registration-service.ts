@@ -30,6 +30,33 @@ import { DugsiRegistrationFiltersSchema } from '@/lib/validations/dugsi'
 const logger = createServiceLogger('dugsi-registration')
 
 /**
+ * Get family child counts for ALL Dugsi families (ignores shift filters).
+ * Used for billing calculations which must reflect total enrolled children.
+ *
+ * IMPORTANT: Only counts REGISTERED/ENROLLED children, not WITHDRAWN.
+ *
+ * @returns Map of familyReferenceId -> child count
+ */
+async function getFamilyChildCounts(): Promise<Map<string, number>> {
+  const counts = await prisma.programProfile.groupBy({
+    by: ['familyReferenceId'],
+    where: {
+      program: DUGSI_PROGRAM,
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+    },
+    _count: { id: true },
+  })
+
+  const map = new Map<string, number>()
+  for (const row of counts) {
+    if (row.familyReferenceId) {
+      map.set(row.familyReferenceId, row._count.id)
+    }
+  }
+  return map
+}
+
+/**
  * Fetch all Dugsi registrations with full relations.
  *
  * Returns all program profiles with:
@@ -54,6 +81,9 @@ export async function getAllDugsiRegistrations(
     ? DugsiRegistrationFiltersSchema.parse(filters)
     : undefined
 
+  // Get family counts FIRST (unfiltered - for billing accuracy)
+  const familyCounts = await getFamilyChildCounts()
+
   const profiles = await prisma.programProfile.findMany({
     where: {
       program: DUGSI_PROGRAM,
@@ -67,7 +97,12 @@ export async function getAllDugsiRegistrations(
   })
 
   return profiles
-    .map(mapProfileToDugsiRegistration)
+    .map((profile) => {
+      const count = profile.familyReferenceId
+        ? familyCounts.get(profile.familyReferenceId) || 1
+        : 1
+      return mapProfileToDugsiRegistration(profile, count)
+    })
     .filter(Boolean) as DugsiRegistration[]
 }
 
@@ -95,7 +130,7 @@ export async function getFamilyMembers(
 
   // No family reference - return just this student
   if (!familyId) {
-    const registration = mapProfileToDugsiRegistration(profile)
+    const registration = mapProfileToDugsiRegistration(profile, 1)
     return registration ? [registration] : []
   }
 
@@ -111,10 +146,16 @@ export async function getFamilyMembers(
     },
   })
 
+  // Count is derived from the family profiles we just fetched
+  const familyCount = familyProfiles.length
+
   // Map to DTOs
   const registrations: DugsiRegistration[] = []
   for (const familyProfile of familyProfiles) {
-    const registration = mapProfileToDugsiRegistration(familyProfile)
+    const registration = mapProfileToDugsiRegistration(
+      familyProfile,
+      familyCount
+    )
     if (registration) {
       registrations.push(registration)
     }
@@ -331,6 +372,9 @@ export async function searchDugsiRegistrationsByContact(
 ): Promise<DugsiRegistration[]> {
   const normalizedContact = contact.toLowerCase().trim()
 
+  // Get family counts for billing accuracy
+  const familyCounts = await getFamilyChildCounts()
+
   // Search for profiles where either:
   // 1. The student has this contact
   // 2. The parent (guardian) has this contact
@@ -375,7 +419,10 @@ export async function searchDugsiRegistrationsByContact(
   // Map to DTOs
   const registrations: DugsiRegistration[] = []
   for (const profile of profiles) {
-    const registration = mapProfileToDugsiRegistration(profile)
+    const count = profile.familyReferenceId
+      ? familyCounts.get(profile.familyReferenceId) || 1
+      : 1
+    const registration = mapProfileToDugsiRegistration(profile, count)
     if (registration) {
       registrations.push(registration)
     }

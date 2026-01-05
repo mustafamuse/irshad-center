@@ -69,6 +69,9 @@ export interface DugsiRegistration {
   morningTeacher: string | null // Morning shift teacher name
   afternoonTeacher: string | null // Afternoon shift teacher name
   hasTeacherAssigned: boolean // Quick check for UI
+
+  // Family billing (from aggregation query)
+  familyChildCount: number // Total enrolled children in family (for billing calculation)
 }
 
 // Family type
@@ -94,6 +97,7 @@ export type TabValue =
   | 'active'
   | 'pending'
   | 'needs-attention'
+  | 'billing-mismatch'
   | 'all'
 export type ViewMode = 'grid' | 'table'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'

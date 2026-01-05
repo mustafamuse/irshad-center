@@ -2,14 +2,7 @@
 
 import { useState, useCallback } from 'react'
 
-import {
-  Users,
-  CheckCircle,
-  XCircle,
-  MoreHorizontal,
-  Eye,
-  Trash2,
-} from 'lucide-react'
+import { Users, MoreHorizontal, Eye, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -29,12 +22,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
+import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
 import { FamilyDetailSheet } from './family-detail-sheet'
 import { FamilyStatusBadge } from './family-status-badge'
@@ -60,6 +50,39 @@ function getOrderedParents(member: DugsiRegistration | undefined) {
     return { payer: parent2, other: parent1 }
   }
   return { payer: parent1, other: parent2 }
+}
+
+function BillingCell({ family }: { family: Family }) {
+  const member = family.members[0]
+  if (!member) return null
+
+  const subscriptionAmount = member.subscriptionAmount
+  const familyChildCount = member.familyChildCount || family.members.length
+  const expected = calculateDugsiRate(familyChildCount)
+
+  const formatNoCents = (cents: number) => `$${Math.round(cents / 100)}`
+
+  if (!subscriptionAmount) {
+    return (
+      <span className="text-xs text-muted-foreground">
+        Expected: {formatNoCents(expected)}
+      </span>
+    )
+  }
+
+  const isMismatch = subscriptionAmount !== expected
+
+  return (
+    <span className="text-xs">
+      <span className={cn(isMismatch ? 'text-amber-600' : 'text-foreground')}>
+        {formatNoCents(subscriptionAmount)}
+      </span>
+      <span className="text-muted-foreground">
+        {' '}
+        / {formatNoCents(expected)}
+      </span>
+    </span>
+  )
 }
 
 interface FamilyTableViewProps {
@@ -146,34 +169,20 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                 </div>
               </div>
 
-              {/* Combined Status */}
+              {/* Status */}
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-muted-foreground">
-                    Bank Info:
-                  </span>
-                  {family.hasPayment ? (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-green-600 text-green-600"
-                    >
-                      <CheckCircle className="h-3 w-3" />
-                      On File
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="gap-1 border-red-600 text-red-600"
-                    >
-                      <XCircle className="h-3 w-3" />
-                      Needed
-                    </Badge>
-                  )}
-                </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs text-muted-foreground">Status:</span>
                   <FamilyStatusBadge status={status} />
                 </div>
+                {family.hasSubscription && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">
+                      Billing:
+                    </span>
+                    <BillingCell family={family} />
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -188,7 +197,6 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
               <TableHead>Parent 1</TableHead>
               <TableHead>Parent 2</TableHead>
               <TableHead># Kids</TableHead>
-              <TableHead>Bank Info</TableHead>
               <TableHead>Subscription</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -216,37 +224,12 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="inline-flex">
-                          {family.hasPayment ? (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-green-600 text-green-600"
-                            >
-                              <CheckCircle className="h-3.5 w-3.5" />
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="gap-1 border-red-600 text-red-600"
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                            </Badge>
-                          )}
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>
-                          {family.hasPayment
-                            ? 'Bank info on file'
-                            : 'Bank info needed'}
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TableCell>
-                  <TableCell>
-                    <FamilyStatusBadge status={status} showLabel={false} />
+                    <div className="space-y-1">
+                      <FamilyStatusBadge status={status} showLabel={false} />
+                      {family.hasSubscription && (
+                        <BillingCell family={family} />
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
