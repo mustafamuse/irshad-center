@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 
-import { Shift } from '@prisma/client'
+import { useRouter } from 'next/navigation'
+
 import { Users, GraduationCap, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -31,10 +32,10 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+import type { ClassWithDetails } from '../../_types'
 import {
   assignTeacherToClassAction,
   removeTeacherFromClassAction,
-  type ClassWithDetails,
 } from '../../actions'
 
 interface Teacher {
@@ -48,7 +49,10 @@ interface ClassManagementProps {
 }
 
 export function ClassManagement({ classes, teachers }: ClassManagementProps) {
-  const [selectedClass, setSelectedClass] = useState<ClassWithDetails | null>(null)
+  const router = useRouter()
+  const [selectedClass, setSelectedClass] = useState<ClassWithDetails | null>(
+    null
+  )
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('')
@@ -76,6 +80,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
         toast.success(result.message || 'Teacher assigned')
         setSelectedTeacherId('')
         setIsDialogOpen(false)
+        router.refresh()
       } else {
         toast.error(result.error)
       }
@@ -97,6 +102,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
       if (result.success) {
         toast.success(result.message || 'Teacher removed')
         setIsDialogOpen(false)
+        router.refresh()
       } else {
         toast.error(result.error)
       }
@@ -105,7 +111,8 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
     }
   }
 
-  const assignedTeacherIds = selectedClass?.teachers.map((t) => t.teacherId) ?? []
+  const assignedTeacherIds =
+    selectedClass?.teachers.map((t) => t.teacherId) ?? []
   const availableTeachers = teachers.filter(
     (t) => !assignedTeacherIds.includes(t.id)
   )
@@ -119,7 +126,9 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">{classItem.name}</CardTitle>
-          <Badge variant={classItem.shift === 'MORNING' ? 'default' : 'secondary'}>
+          <Badge
+            variant={classItem.shift === 'MORNING' ? 'default' : 'secondary'}
+          >
             {classItem.shift}
           </Badge>
         </div>

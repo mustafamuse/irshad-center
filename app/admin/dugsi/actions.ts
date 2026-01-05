@@ -7,6 +7,16 @@ import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import {
+  getClassesWithDetails,
+  getAllTeachersForAssignment,
+  getAvailableStudentsForClass,
+  assignTeacherToClass,
+  removeTeacherFromClass,
+  enrollStudentInClass,
+  removeStudentFromClass,
+  bulkEnrollStudents,
+} from '@/lib/db/queries/dugsi-class'
 import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -43,6 +53,13 @@ import {
   type UpdateFamilyShiftInput,
 } from '@/lib/validations/dugsi'
 import {
+  AssignTeacherToClassSchema,
+  RemoveTeacherFromClassSchema,
+  EnrollStudentInClassSchema,
+  RemoveStudentFromClassSchema,
+  BulkEnrollStudentsSchema,
+} from '@/lib/validations/dugsi-class'
+import {
   formatPhoneForVCard,
   generateVCardsContent,
   getDateString,
@@ -58,6 +75,8 @@ import {
   SubscriptionLinkData,
   DugsiRegistration,
   Family,
+  ClassWithDetails,
+  StudentForEnrollment,
 } from './_types'
 
 const logger = createServiceLogger('dugsi-admin-actions')
@@ -926,76 +945,34 @@ export async function getAvailableDugsiTeachers(): Promise<
 // Class-Teacher Assignment Actions
 // ============================================================================
 
-const assignTeacherToClassSchema = z.object({
-  classId: z.string().uuid(),
-  teacherId: z.string().uuid(),
-})
-
-const removeTeacherFromClassSchema = z.object({
-  classId: z.string().uuid(),
-  teacherId: z.string().uuid(),
-})
-
-const enrollStudentInClassSchema = z.object({
-  classId: z.string().uuid(),
-  programProfileId: z.string().uuid(),
-})
-
-const bulkEnrollStudentsSchema = z.object({
-  classId: z.string().uuid(),
-  programProfileIds: z.array(z.string().uuid()),
-})
-
-export interface ClassWithDetails {
-  id: string
-  name: string
-  shift: Shift
-  description: string | null
-  isActive: boolean
-  teachers: Array<{
-    id: string
-    teacherId: string
-    teacherName: string
-  }>
-  studentCount: number
-}
-
-export interface StudentForEnrollment {
-  id: string
-  programProfileId: string
-  name: string
-  shift: Shift | null
-  isEnrolledInClass: boolean
-  currentClassName: string | null
-}
-
 /**
  * Assign a teacher to a Dugsi class.
  */
 export async function assignTeacherToClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = assignTeacherToClassSchema.safeParse(rawInput)
+  const parsed = AssignTeacherToClassSchema.safeParse(rawInput)
   if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
   }
   const { classId, teacherId } = parsed.data
 
   try {
-    await prisma.dugsiClassTeacher.create({
-      data: {
-        classId,
-        teacherId,
-        isActive: true,
-      },
-    })
+    await assignTeacherToClass(classId, teacherId)
 
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
     logger.info({ classId, teacherId }, 'Teacher assigned to class')
 
-    return { success: true, data: undefined, message: 'Teacher assigned to class' }
+    return {
+      success: true,
+      data: undefined,
+      message: 'Teacher assigned to class',
+    }
   } catch (error) {
     if (
       error &&
@@ -1005,7 +982,7 @@ export async function assignTeacherToClassAction(
     ) {
       return {
         success: false,
-        error: 'Teacher is already assigned to this class',
+        error: 'This teacher is already assigned to this class',
       }
     }
 
@@ -1015,7 +992,7 @@ export async function assignTeacherToClassAction(
     })
     return {
       success: false,
-      error: 'Failed to assign teacher to class',
+      error: 'Unable to assign teacher. Please try again.',
     }
   }
 }
@@ -1026,28 +1003,28 @@ export async function assignTeacherToClassAction(
 export async function removeTeacherFromClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = removeTeacherFromClassSchema.safeParse(rawInput)
+  const parsed = RemoveTeacherFromClassSchema.safeParse(rawInput)
   if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
   }
   const { classId, teacherId } = parsed.data
 
   try {
-    await prisma.dugsiClassTeacher.delete({
-      where: {
-        classId_teacherId: {
-          classId,
-          teacherId,
-        },
-      },
-    })
+    await removeTeacherFromClass(classId, teacherId)
 
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
     logger.info({ classId, teacherId }, 'Teacher removed from class')
 
-    return { success: true, data: undefined, message: 'Teacher removed from class' }
+    return {
+      success: true,
+      data: undefined,
+      message: 'Teacher removed from class',
+    }
   } catch (error) {
     await logError(logger, error, 'Failed to remove teacher from class', {
       classId,
@@ -1055,7 +1032,7 @@ export async function removeTeacherFromClassAction(
     })
     return {
       success: false,
-      error: 'Failed to remove teacher from class',
+      error: 'Unable to remove teacher. Please try again.',
     }
   }
 }
@@ -1067,27 +1044,7 @@ export async function getClassesWithDetailsAction(): Promise<
   ActionResult<ClassWithDetails[]>
 > {
   try {
-    const classes = await prisma.dugsiClass.findMany({
-      where: { isActive: true },
-      include: {
-        teachers: {
-          where: { isActive: true },
-          include: {
-            teacher: {
-              include: {
-                person: {
-                  select: { name: true },
-                },
-              },
-            },
-          },
-        },
-        students: {
-          where: { isActive: true },
-        },
-      },
-      orderBy: [{ shift: 'asc' }, { name: 'asc' }],
-    })
+    const classes = await getClassesWithDetails()
 
     const result: ClassWithDetails[] = classes.map((c) => ({
       id: c.id,
@@ -1108,7 +1065,7 @@ export async function getClassesWithDetailsAction(): Promise<
     await logError(logger, error, 'Failed to get classes with details')
     return {
       success: false,
-      error: 'Failed to load classes',
+      error: 'Unable to load classes. Please refresh the page.',
     }
   }
 }
@@ -1120,29 +1077,13 @@ export async function getAllTeachersForClassAssignmentAction(): Promise<
   ActionResult<Array<{ id: string; name: string }>>
 > {
   try {
-    const teachers = await prisma.teacher.findMany({
-      include: {
-        person: {
-          select: { name: true },
-        },
-      },
-      orderBy: {
-        person: { name: 'asc' },
-      },
-    })
-
-    return {
-      success: true,
-      data: teachers.map((t) => ({
-        id: t.id,
-        name: t.person.name,
-      })),
-    }
+    const teachers = await getAllTeachersForAssignment()
+    return { success: true, data: teachers }
   } catch (error) {
     await logError(logger, error, 'Failed to get teachers for class assignment')
     return {
       success: false,
-      error: 'Failed to load teachers',
+      error: 'Unable to load teachers. Please refresh the page.',
     }
   }
 }
@@ -1153,47 +1094,15 @@ export async function getAllTeachersForClassAssignmentAction(): Promise<
  */
 export async function getAvailableStudentsForClassAction(input: {
   shift: Shift
-  excludeClassId?: string
 }): Promise<ActionResult<StudentForEnrollment[]>> {
   try {
-    const students = await prisma.programProfile.findMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        status: 'ENROLLED',
-        shift: input.shift,
-      },
-      include: {
-        person: {
-          select: { name: true },
-        },
-        dugsiClassEnrollment: {
-          include: {
-            class: {
-              select: { name: true },
-            },
-          },
-        },
-      },
-      orderBy: {
-        person: { name: 'asc' },
-      },
-    })
-
-    const result: StudentForEnrollment[] = students.map((s) => ({
-      id: s.id,
-      programProfileId: s.id,
-      name: s.person.name,
-      shift: s.shift,
-      isEnrolledInClass: !!s.dugsiClassEnrollment,
-      currentClassName: s.dugsiClassEnrollment?.class?.name ?? null,
-    }))
-
-    return { success: true, data: result }
+    const students = await getAvailableStudentsForClass(input.shift)
+    return { success: true, data: students }
   } catch (error) {
     await logError(logger, error, 'Failed to get available students for class')
     return {
       success: false,
-      error: 'Failed to load students',
+      error: 'Unable to load students. Please refresh the page.',
     }
   }
 }
@@ -1204,26 +1113,27 @@ export async function getAvailableStudentsForClassAction(input: {
 export async function enrollStudentInClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = enrollStudentInClassSchema.safeParse(rawInput)
+  const parsed = EnrollStudentInClassSchema.safeParse(rawInput)
   if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
   }
   const { classId, programProfileId } = parsed.data
 
   try {
-    await prisma.dugsiClassEnrollment.create({
-      data: {
-        classId,
-        programProfileId,
-        isActive: true,
-      },
-    })
+    await enrollStudentInClass(classId, programProfileId)
 
     revalidatePath('/admin/dugsi/classes')
 
     logger.info({ classId, programProfileId }, 'Student enrolled in class')
 
-    return { success: true, data: undefined, message: 'Student enrolled in class' }
+    return {
+      success: true,
+      data: undefined,
+      message: 'Student enrolled in class',
+    }
   } catch (error) {
     if (
       error &&
@@ -1233,7 +1143,7 @@ export async function enrollStudentInClassAction(
     ) {
       return {
         success: false,
-        error: 'Student is already enrolled in a class',
+        error: 'This student is already enrolled in a class',
       }
     }
 
@@ -1243,7 +1153,7 @@ export async function enrollStudentInClassAction(
     })
     return {
       success: false,
-      error: 'Failed to enroll student in class',
+      error: 'Unable to enroll student. Please try again.',
     }
   }
 }
@@ -1254,32 +1164,34 @@ export async function enrollStudentInClassAction(
 export async function removeStudentFromClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = enrollStudentInClassSchema.safeParse(rawInput)
+  const parsed = RemoveStudentFromClassSchema.safeParse(rawInput)
   if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
   }
-  const { classId, programProfileId } = parsed.data
+  const { programProfileId } = parsed.data
 
   try {
-    await prisma.dugsiClassEnrollment.delete({
-      where: {
-        programProfileId,
-      },
-    })
+    await removeStudentFromClass(programProfileId)
 
     revalidatePath('/admin/dugsi/classes')
 
-    logger.info({ classId, programProfileId }, 'Student removed from class')
+    logger.info({ programProfileId }, 'Student removed from class')
 
-    return { success: true, data: undefined, message: 'Student removed from class' }
+    return {
+      success: true,
+      data: undefined,
+      message: 'Student removed from class',
+    }
   } catch (error) {
     await logError(logger, error, 'Failed to remove student from class', {
-      classId,
       programProfileId,
     })
     return {
       success: false,
-      error: 'Failed to remove student from class',
+      error: 'Unable to remove student. Please try again.',
     }
   }
 }
@@ -1290,54 +1202,32 @@ export async function removeStudentFromClassAction(
 export async function bulkEnrollStudentsAction(
   rawInput: unknown
 ): Promise<ActionResult<{ enrolled: number; skipped: number }>> {
-  const parsed = bulkEnrollStudentsSchema.safeParse(rawInput)
+  const parsed = BulkEnrollStudentsSchema.safeParse(rawInput)
   if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
   }
   const { classId, programProfileIds } = parsed.data
 
   try {
-    let enrolled = 0
-    let skipped = 0
-
-    for (const programProfileId of programProfileIds) {
-      try {
-        await prisma.dugsiClassEnrollment.create({
-          data: {
-            classId,
-            programProfileId,
-            isActive: true,
-          },
-        })
-        enrolled++
-      } catch (error) {
-        if (
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'P2002'
-        ) {
-          skipped++
-        } else {
-          throw error
-        }
-      }
-    }
+    const result = await bulkEnrollStudents(classId, programProfileIds)
 
     revalidatePath('/admin/dugsi/classes')
 
-    logger.info({ classId, enrolled, skipped }, 'Bulk enrollment completed')
+    logger.info({ classId, ...result }, 'Bulk enrollment completed')
 
     return {
       success: true,
-      data: { enrolled, skipped },
-      message: `Enrolled ${enrolled} students${skipped > 0 ? `, skipped ${skipped} already enrolled` : ''}`,
+      data: result,
+      message: `Enrolled ${result.enrolled} students${result.skipped > 0 ? `, ${result.skipped} already enrolled` : ''}`,
     }
   } catch (error) {
     await logError(logger, error, 'Failed to bulk enroll students', { classId })
     return {
       success: false,
-      error: 'Failed to bulk enroll students',
+      error: 'Unable to enroll students. Please try again.',
     }
   }
 }

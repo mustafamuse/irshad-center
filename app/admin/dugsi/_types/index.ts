@@ -138,3 +138,29 @@ export interface BankVerificationData {
 export interface SubscriptionLinkData {
   updated: number
 }
+
+// Class management types
+export interface ClassTeacher {
+  id: string
+  teacherId: string
+  teacherName: string
+}
+
+export interface ClassWithDetails {
+  id: string
+  name: string
+  shift: Shift
+  description: string | null
+  isActive: boolean
+  teachers: ClassTeacher[]
+  studentCount: number
+}
+
+export interface StudentForEnrollment {
+  id: string
+  programProfileId: string
+  name: string
+  shift: Shift | null
+  isEnrolledInClass: boolean
+  currentClassName: string | null
+}
