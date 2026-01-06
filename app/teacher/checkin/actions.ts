@@ -143,6 +143,14 @@ export async function checkGeofence(
   latitude: number,
   longitude: number
 ): Promise<GeofenceCheckResult> {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return {
+      isWithinGeofence: false,
+      distanceMeters: 0,
+      allowedRadiusMeters: GEOFENCE_RADIUS_METERS,
+    }
+  }
+
   const distance = calculateDistance(
     latitude,
     longitude,

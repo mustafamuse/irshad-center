@@ -71,12 +71,20 @@ export async function clockIn(
     formatInTimeZone(now, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
   )
 
-  const clockInValid = isWithinGeofence(latitude, longitude)
-
-  if (!clockInValid && !isGeofenceConfigured()) {
+  if (!isGeofenceConfigured()) {
     throw new ValidationError(
       'Check-in system is not configured. Please contact administrator.',
       CHECKIN_ERROR_CODES.SYSTEM_NOT_CONFIGURED
+    )
+  }
+
+  const clockInValid = isWithinGeofence(latitude, longitude)
+
+  if (!clockInValid) {
+    throw new ValidationError(
+      'You must be at the center to check in. Please move closer and try again.',
+      CHECKIN_ERROR_CODES.OUTSIDE_GEOFENCE,
+      { latitude, longitude }
     )
   }
 

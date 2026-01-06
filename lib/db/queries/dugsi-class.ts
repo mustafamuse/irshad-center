@@ -194,11 +194,13 @@ export async function bulkEnrollStudents(
   classId: string,
   programProfileIds: string[]
 ): Promise<{ enrolled: number; moved: number }> {
+  const uniqueIds = Array.from(new Set(programProfileIds))
+
   return prisma.$transaction(async (tx) => {
     let enrolled = 0
     let moved = 0
 
-    for (const programProfileId of programProfileIds) {
+    for (const programProfileId of uniqueIds) {
       const existing = await tx.dugsiClassEnrollment.findFirst({
         where: { programProfileId, isActive: true },
       })
