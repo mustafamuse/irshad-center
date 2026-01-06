@@ -49,8 +49,8 @@ export async function createTeacher(
   personId: string,
   client: DatabaseClient = prisma
 ) {
-  // Validate using existing validation function
-  await validateTeacherCreation({ personId })
+  // Validate using existing validation function (pass client for transaction support)
+  await validateTeacherCreation({ personId }, client)
 
   // Create teacher record
   const teacher = await client.teacher.create({
@@ -396,6 +396,13 @@ export async function getAllTeachers(
       include: {
         teacher: {
           include: teacherWithDetailsInclude,
+        },
+      },
+      orderBy: {
+        teacher: {
+          person: {
+            name: 'asc',
+          },
         },
       },
     })

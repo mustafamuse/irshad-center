@@ -420,23 +420,15 @@ export async function getTeacherShifts(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<Shift[]> {
-  const classAssignments = await client.dugsiClassTeacher.findMany({
+  // Get shifts from TeacherProgram.shifts (directly assigned by admin)
+  const teacherProgram = await client.teacherProgram.findFirst({
     where: {
       teacherId,
+      program: 'DUGSI_PROGRAM',
       isActive: true,
-      class: {
-        isActive: true,
-      },
     },
-    include: {
-      class: {
-        select: {
-          shift: true,
-        },
-      },
-    },
+    select: { shifts: true },
   })
 
-  const shiftValues = classAssignments.map((ca) => ca.class.shift)
-  return Array.from(new Set(shiftValues))
+  return teacherProgram?.shifts ?? []
 }

@@ -2,10 +2,14 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { Prisma, Program } from '@prisma/client'
+import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
+import {
+  getAllDugsiTeachersWithTodayStatus,
+  getCheckinHistory,
+} from '@/lib/db/queries/teacher-checkin'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   mapPersonToSearchResult,
@@ -38,6 +42,12 @@ export type { PersonSearchResult }
 // Types
 // ============================================================================
 
+export interface CheckinStatus {
+  clockInTime: Date | null
+  clockOutTime: Date | null
+  isLate: boolean
+}
+
 export interface TeacherWithDetails {
   id: string
   personId: string
@@ -45,7 +55,10 @@ export interface TeacherWithDetails {
   email: string | null
   phone: string | null
   programs: Program[]
-  studentCount: number
+  classCount: number
+  shifts: Shift[]
+  morningCheckin: CheckinStatus | null
+  afternoonCheckin: CheckinStatus | null
   createdAt: Date
 }
 
@@ -69,6 +82,18 @@ export interface BulkProgramAssignmentInput {
   programs: Program[]
 }
 
+export interface UpdateTeacherDetailsInput {
+  teacherId: string
+  name: string
+  email?: string
+  phone?: string
+}
+
+export interface UpdateTeacherShiftsInput {
+  teacherId: string
+  shifts: Shift[]
+}
+
 // ============================================================================
 // Validation Schemas
 // ============================================================================
@@ -87,24 +112,111 @@ const getTeacherProgramsSchema = z.object({
   teacherId: uuidSchema,
 })
 
+const updateTeacherDetailsSchema = z.object({
+  teacherId: uuidSchema,
+  name: z.string().min(1, 'Name is required').max(100),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional(),
+})
+
+const updateTeacherShiftsSchema = z.object({
+  teacherId: uuidSchema,
+  shifts: z.array(z.enum(['MORNING', 'AFTERNOON'])),
+})
+
 // ============================================================================
 // Teacher CRUD Actions
 // ============================================================================
 
 /**
- * Get all teachers with their details.
- * Optionally filter by program.
+ * Get all Dugsi teachers with their details and today's check-in status.
+ * When filtering by DUGSI_PROGRAM, includes check-in data.
  */
 export async function getTeachers(
   program?: Program
 ): Promise<ActionResult<TeacherWithDetails[]>> {
   try {
-    const teachers = await getAllTeachers(program)
+    if (program === 'DUGSI_PROGRAM') {
+      // Get ALL teachers enrolled in Dugsi (not just those with class assignments)
+      const teachers = await getAllTeachers('DUGSI_PROGRAM')
+      const teacherIds = teachers.map((t) => t.id)
 
-    // Get all teacher IDs
+      // Get check-in status for teachers with class assignments
+      const teachersWithStatus = await getAllDugsiTeachersWithTodayStatus()
+      const statusMap = new Map(
+        teachersWithStatus.map((t) => [
+          t.id,
+          {
+            shifts: t.shifts,
+            morningCheckin: t.morningCheckin,
+            afternoonCheckin: t.afternoonCheckin,
+          },
+        ])
+      )
+
+      // Get class counts
+      const classCounts = await prisma.dugsiClassTeacher.groupBy({
+        by: ['teacherId'],
+        where: {
+          teacherId: { in: teacherIds },
+          isActive: true,
+        },
+        _count: { id: true },
+      })
+
+      const classCountMap = new Map<string, number>(
+        classCounts.map((cc) => [cc.teacherId, cc._count.id])
+      )
+
+      const teachersWithDetails: TeacherWithDetails[] = teachers.map(
+        (teacher) => {
+          const { email, phone } = extractContactInfo(
+            teacher.person.contactPoints || []
+          )
+          const status = statusMap.get(teacher.id)
+
+          // Get shifts from TeacherProgram.shifts (directly assigned)
+          const dugsiProgram = teacher.programs.find(
+            (p) => p.program === 'DUGSI_PROGRAM' && p.isActive
+          )
+          const assignedShifts = dugsiProgram?.shifts ?? []
+
+          return {
+            id: teacher.id,
+            personId: teacher.personId,
+            name: teacher.person.name,
+            email,
+            phone,
+            programs: teacher.programs
+              .filter((p) => p.isActive)
+              .map((p) => p.program),
+            classCount: classCountMap.get(teacher.id) ?? 0,
+            shifts: assignedShifts,
+            morningCheckin: status?.morningCheckin
+              ? {
+                  clockInTime: status.morningCheckin.clockInTime,
+                  clockOutTime: status.morningCheckin.clockOutTime,
+                  isLate: status.morningCheckin.isLate,
+                }
+              : null,
+            afternoonCheckin: status?.afternoonCheckin
+              ? {
+                  clockInTime: status.afternoonCheckin.clockInTime,
+                  clockOutTime: status.afternoonCheckin.clockOutTime,
+                  isLate: status.afternoonCheckin.isLate,
+                }
+              : null,
+            createdAt: teacher.createdAt,
+          }
+        }
+      )
+
+      return { success: true, data: teachersWithDetails }
+    }
+
+    const teachers = await getAllTeachers(program)
     const teacherIds = teachers.map((t) => t.id)
 
-    // Get class counts per teacher in ONE query
     const classCounts = await prisma.dugsiClassTeacher.groupBy({
       by: ['teacherId'],
       where: {
@@ -114,12 +226,10 @@ export async function getTeachers(
       _count: { id: true },
     })
 
-    // Create lookup map (showing class count instead of student count)
     const countMap = new Map(
       classCounts.map((cc) => [cc.teacherId, cc._count.id])
     )
 
-    // Map teachers (synchronous - no async needed)
     const teachersWithDetails = teachers.map((teacher) => {
       const { email, phone } = extractContactInfo(
         teacher.person.contactPoints || []
@@ -134,7 +244,10 @@ export async function getTeachers(
         programs: teacher.programs
           .filter((p) => p.isActive)
           .map((p) => p.program),
-        studentCount: countMap.get(teacher.id) ?? 0,
+        classCount: countMap.get(teacher.id) ?? 0,
+        shifts: [] as Shift[],
+        morningCheckin: null,
+        afternoonCheckin: null,
         createdAt: teacher.createdAt,
       }
     })
@@ -162,9 +275,22 @@ export async function createTeacherAction(
   const input = parsed.data
 
   try {
-    const teacher = await createTeacher(input.personId)
+    // Use transaction to create teacher and enroll in Dugsi atomically
+    const teacher = await prisma.$transaction(async (tx) => {
+      const newTeacher = await createTeacher(input.personId, tx)
 
-    revalidatePath('/admin/teachers')
+      // Auto-enroll in Dugsi since this is the Dugsi teachers page
+      await tx.teacherProgram.create({
+        data: {
+          teacherId: newTeacher.id,
+          program: 'DUGSI_PROGRAM',
+        },
+      })
+
+      return newTeacher
+    })
+
+    revalidatePath('/admin/dugsi/teachers')
 
     logger.info(
       {
@@ -172,7 +298,7 @@ export async function createTeacherAction(
         personId: input.personId,
         name: teacher.person.name,
       },
-      'Teacher created'
+      'Teacher created and enrolled in Dugsi'
     )
 
     return {
@@ -244,10 +370,20 @@ export async function createTeacherWithPersonAction(
         },
       })
 
-      return createTeacher(person.id, tx)
+      const newTeacher = await createTeacher(person.id, tx)
+
+      // Auto-enroll in Dugsi since this is the Dugsi teachers page
+      await tx.teacherProgram.create({
+        data: {
+          teacherId: newTeacher.id,
+          program: 'DUGSI_PROGRAM',
+        },
+      })
+
+      return newTeacher
     })
 
-    revalidatePath('/admin/teachers')
+    revalidatePath('/admin/dugsi/teachers')
 
     logger.info(
       {
@@ -321,6 +457,266 @@ export async function deleteTeacherAction(
     return {
       success: false,
       error: 'Failed to delete teacher',
+    }
+  }
+}
+
+/**
+ * Update teacher details (name, email, phone).
+ * Updates the underlying Person record and ContactPoints.
+ */
+export async function updateTeacherDetailsAction(
+  input: UpdateTeacherDetailsInput
+): Promise<ActionResult<TeacherWithDetails>> {
+  const parsed = updateTeacherDetailsSchema.safeParse(input)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  const { teacherId, name, email, phone } = parsed.data
+
+  try {
+    const teacher = await prisma.teacher.findUnique({
+      where: { id: teacherId },
+      include: { person: { include: { contactPoints: true } } },
+    })
+
+    if (!teacher) {
+      return { success: false, error: 'Teacher not found' }
+    }
+
+    const normalizedPhone = phone ? normalizePhone(phone) : null
+
+    await prisma.$transaction(async (tx) => {
+      await tx.person.update({
+        where: { id: teacher.personId },
+        data: { name },
+      })
+
+      const existingEmail = teacher.person.contactPoints.find(
+        (cp) => cp.type === 'EMAIL' && cp.isActive
+      )
+      const existingPhone = teacher.person.contactPoints.find(
+        (cp) => cp.type === 'PHONE' && cp.isActive
+      )
+
+      if (email && email.trim()) {
+        if (existingEmail) {
+          await tx.contactPoint.update({
+            where: { id: existingEmail.id },
+            data: { value: email.trim().toLowerCase() },
+          })
+        } else {
+          await tx.contactPoint.create({
+            data: {
+              personId: teacher.personId,
+              type: 'EMAIL',
+              value: email.trim().toLowerCase(),
+              isPrimary: true,
+            },
+          })
+        }
+      } else if (existingEmail) {
+        await tx.contactPoint.update({
+          where: { id: existingEmail.id },
+          data: { isActive: false },
+        })
+      }
+
+      if (normalizedPhone) {
+        if (existingPhone) {
+          await tx.contactPoint.update({
+            where: { id: existingPhone.id },
+            data: { value: normalizedPhone },
+          })
+        } else {
+          await tx.contactPoint.create({
+            data: {
+              personId: teacher.personId,
+              type: 'PHONE',
+              value: normalizedPhone,
+              isPrimary: !email,
+            },
+          })
+        }
+      } else if (existingPhone) {
+        await tx.contactPoint.update({
+          where: { id: existingPhone.id },
+          data: { isActive: false },
+        })
+      }
+    })
+
+    revalidatePath('/admin/dugsi/teachers')
+
+    logger.info({ teacherId, name }, 'Teacher details updated')
+
+    const result = await getTeachers('DUGSI_PROGRAM')
+    if (result.success && result.data) {
+      const updated = result.data.find((t) => t.id === teacherId)
+      if (updated) {
+        return { success: true, data: updated }
+      }
+    }
+
+    return { success: false, error: 'Failed to fetch updated teacher' }
+  } catch (error) {
+    await logError(logger, error, 'Failed to update teacher details', {
+      teacherId,
+    })
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2002') {
+        return {
+          success: false,
+          error: 'This email or phone is already in use',
+        }
+      }
+    }
+
+    return {
+      success: false,
+      error: 'Failed to update teacher details',
+    }
+  }
+}
+
+/**
+ * Update teacher shift assignments.
+ * Updates TeacherProgram.shifts for DUGSI_PROGRAM.
+ */
+export async function updateTeacherShiftsAction(
+  input: UpdateTeacherShiftsInput
+): Promise<ActionResult<Shift[]>> {
+  const parsed = updateTeacherShiftsSchema.safeParse(input)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  const { teacherId, shifts } = parsed.data
+
+  try {
+    const teacherProgram = await prisma.teacherProgram.findFirst({
+      where: {
+        teacherId,
+        program: 'DUGSI_PROGRAM',
+        isActive: true,
+      },
+    })
+
+    if (!teacherProgram) {
+      return { success: false, error: 'Teacher is not enrolled in Dugsi' }
+    }
+
+    await prisma.teacherProgram.update({
+      where: { id: teacherProgram.id },
+      data: { shifts },
+    })
+
+    revalidatePath('/admin/dugsi/teachers')
+
+    logger.info({ teacherId, shifts }, 'Teacher shifts updated')
+
+    return { success: true, data: shifts as Shift[] }
+  } catch (error) {
+    await logError(logger, error, 'Failed to update teacher shifts', {
+      teacherId,
+    })
+    return {
+      success: false,
+      error: 'Failed to update teacher shifts',
+    }
+  }
+}
+
+/**
+ * Get teacher's assigned shifts for Dugsi.
+ */
+export async function getTeacherShiftsAction(
+  teacherId: string
+): Promise<ActionResult<Shift[]>> {
+  try {
+    const teacherProgram = await prisma.teacherProgram.findFirst({
+      where: {
+        teacherId,
+        program: 'DUGSI_PROGRAM',
+        isActive: true,
+      },
+      select: { shifts: true },
+    })
+
+    return { success: true, data: teacherProgram?.shifts ?? [] }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get teacher shifts', { teacherId })
+    return {
+      success: false,
+      error: 'Failed to load shifts',
+    }
+  }
+}
+
+/**
+ * Deactivate a teacher from Dugsi.
+ * Requires all class assignments to be removed first.
+ */
+export async function deactivateTeacherAction(
+  teacherId: string
+): Promise<ActionResult<void>> {
+  try {
+    // Check for active class assignments
+    const activeClasses = await prisma.dugsiClassTeacher.findMany({
+      where: {
+        teacherId,
+        isActive: true,
+      },
+      include: {
+        class: {
+          select: { name: true, shift: true },
+        },
+      },
+    })
+
+    if (activeClasses.length > 0) {
+      const classNames = activeClasses
+        .map((c) => `${c.class.name} (${c.class.shift})`)
+        .join(', ')
+      return {
+        success: false,
+        error: `Cannot deactivate. Teacher is still assigned to: ${classNames}. Please reassign these classes first.`,
+      }
+    }
+
+    // Deactivate: clear shifts and mark program enrollment inactive
+    await prisma.$transaction(async (tx) => {
+      await tx.teacherProgram.updateMany({
+        where: {
+          teacherId,
+          program: 'DUGSI_PROGRAM',
+          isActive: true,
+        },
+        data: {
+          shifts: [],
+          isActive: false,
+        },
+      })
+    })
+
+    revalidatePath('/admin/dugsi/teachers')
+
+    logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    await logError(logger, error, 'Failed to deactivate teacher', { teacherId })
+    return {
+      success: false,
+      error: 'Failed to deactivate teacher',
     }
   }
 }
@@ -589,6 +985,76 @@ export async function searchPeopleAction(
     return {
       success: false,
       error: 'Failed to search people',
+    }
+  }
+}
+
+// ============================================================================
+// Check-in History Actions
+// ============================================================================
+
+export interface CheckinHistoryItem {
+  id: string
+  date: Date
+  shift: Shift
+  clockInTime: Date
+  clockOutTime: Date | null
+  isLate: boolean
+  clockInValid: boolean
+}
+
+export interface CheckinHistoryResult {
+  data: CheckinHistoryItem[]
+  total: number
+  page: number
+  totalPages: number
+}
+
+/**
+ * Get check-in history for a teacher (last 30 days by default).
+ */
+export async function getTeacherCheckinHistoryAction(
+  teacherId: string,
+  page: number = 1
+): Promise<ActionResult<CheckinHistoryResult>> {
+  try {
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const result = await getCheckinHistory(
+      {
+        teacherId,
+        dateFrom: thirtyDaysAgo,
+      },
+      { page, limit: 10 }
+    )
+
+    const items: CheckinHistoryItem[] = result.data.map((checkin) => ({
+      id: checkin.id,
+      date: checkin.date,
+      shift: checkin.shift,
+      clockInTime: checkin.clockInTime,
+      clockOutTime: checkin.clockOutTime,
+      isLate: checkin.isLate,
+      clockInValid: checkin.clockInValid,
+    }))
+
+    return {
+      success: true,
+      data: {
+        data: items,
+        total: result.total,
+        page: result.page,
+        totalPages: result.totalPages,
+      },
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get check-in history', {
+      teacherId,
+    })
+    return {
+      success: false,
+      error: 'Failed to load check-in history',
     }
   }
 }

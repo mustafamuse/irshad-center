@@ -11,31 +11,28 @@ export interface NavGroup {
 
 export const ADMIN_NAVIGATION: NavGroup[] = [
   {
-    title: 'Programs',
+    title: 'Dugsi',
     items: [
-      { title: 'Dugsi', url: '/admin/dugsi' },
-      { title: 'Mahad', url: '/admin/mahad' },
+      { title: 'Dashboard', url: '/admin/dugsi' },
+      { title: 'Classes', url: '/admin/dugsi/classes' },
+      { title: 'Teachers', url: '/admin/dugsi/teachers' },
+      { title: 'Attendance', url: '/admin/dugsi/attendance' },
     ],
   },
   {
-    title: 'People',
+    title: 'Mahad',
+    items: [
+      { title: 'Dashboard', url: '/admin/mahad' },
+      { title: 'Payments', url: '/admin/mahad/payments' },
+    ],
+  },
+  {
+    title: 'Utilities',
     items: [
       { title: 'People Lookup', url: '/admin/people/lookup' },
       { title: 'Multi-role People', url: '/admin/people/multi-role' },
-      { title: 'Teachers', url: '/admin/teachers' },
-    ],
-  },
-  {
-    title: 'Financial',
-    items: [
-      { title: 'Payments', url: '/admin/payments' },
       { title: 'Link Subscriptions', url: '/admin/link-subscriptions' },
-      { title: 'Profit Share', url: '/admin/profit-share' },
     ],
-  },
-  {
-    title: 'Operations',
-    items: [{ title: 'Attendance', url: '/admin/shared/attendance' }],
   },
   {
     title: 'Public Pages',
@@ -61,6 +58,7 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
         items: [
           { title: 'Landing', url: '/dugsi' },
           { title: 'Register', url: '/dugsi/register' },
+          { title: 'Teacher Check-in', url: '/teacher/checkin' },
         ],
       },
     ],

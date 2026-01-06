@@ -8,6 +8,7 @@
 import { Program, GuardianRole, EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 
 const logger = createServiceLogger('validation')
@@ -385,10 +386,16 @@ export async function validateBillingAssignment(data: {
 /**
  * Validate Teacher creation
  * Ensures one teacher per person
+ *
+ * @param data - Validation data with personId
+ * @param client - Optional database client for transaction support
  */
-export async function validateTeacherCreation(data: { personId: string }) {
+export async function validateTeacherCreation(
+  data: { personId: string },
+  client: DatabaseClient = prisma
+) {
   // Check if person exists
-  const person = await prisma.person.findUnique({
+  const person = await client.person.findUnique({
     where: { id: data.personId },
     select: { id: true, name: true },
   })
@@ -400,7 +407,7 @@ export async function validateTeacherCreation(data: { personId: string }) {
   }
 
   // Check if teacher already exists for this person
-  const existingTeacher = await prisma.teacher.findUnique({
+  const existingTeacher = await client.teacher.findUnique({
     where: { personId: data.personId },
     select: { id: true },
   })

@@ -259,17 +259,17 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
           )}
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          <div className="flex flex-col gap-1.5 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-4">
             <div className="flex items-center gap-1.5">
-              <GraduationCap className="h-4 w-4" />
-              <span>
+              <GraduationCap className="h-4 w-4 shrink-0" />
+              <span className="truncate">
                 {classItem.teachers.length === 0
                   ? 'No teachers'
                   : classItem.teachers.map((t) => t.teacherName).join(', ')}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <Users className="h-4 w-4" />
+              <Users className="h-4 w-4 shrink-0" />
               <span>{classItem.studentCount} students</span>
             </div>
           </div>
@@ -303,8 +303,13 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between">
-        <div />
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold sm:text-3xl">Class Management</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
+            Assign teachers to classes and manage student enrollment
+          </p>
+        </div>
         <Button
           onClick={handleCreateClass}
           className="bg-[#007078] hover:bg-[#005a61]"
@@ -346,7 +351,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
       </Tabs>
 
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{selectedClass?.name}</DialogTitle>
             <DialogDescription>
@@ -385,12 +390,12 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
 
             <div>
               <h4 className="mb-2 text-sm font-medium">Add Teacher</h4>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Select
                   value={selectedTeacherId}
                   onValueChange={setSelectedTeacherId}
                 >
-                  <SelectTrigger className="flex-1">
+                  <SelectTrigger className="w-full sm:flex-1">
                     <SelectValue placeholder="Select a teacher" />
                   </SelectTrigger>
                   <SelectContent>
@@ -410,8 +415,10 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
                 <Button
                   onClick={handleAssignTeacher}
                   disabled={!selectedTeacherId || isLoading}
+                  className="w-full sm:w-auto"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="mr-2 h-4 w-4 sm:mr-0" />
+                  <span className="sm:hidden">Add Teacher</span>
                 </Button>
               </div>
             </div>
@@ -421,9 +428,10 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
             </div>
           </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
             <Button
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (selectedClass) {
                   setIsDetailDialogOpen(false)
@@ -436,6 +444,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
             </Button>
             <Button
               variant="outline"
+              className="w-full sm:w-auto"
               onClick={() => {
                 if (selectedClass) {
                   setIsDetailDialogOpen(false)

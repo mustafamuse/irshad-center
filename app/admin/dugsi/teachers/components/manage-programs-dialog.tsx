@@ -23,7 +23,6 @@ import {
   TEACHER_PROGRAMS,
 } from '@/lib/constants/program-ui'
 
-
 import { bulkAssignProgramsAction } from '../actions'
 
 interface Props {

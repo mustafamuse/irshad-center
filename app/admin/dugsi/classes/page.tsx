@@ -32,16 +32,7 @@ export default async function ClassManagementPage() {
   }
 
   return (
-    <main className="container mx-auto space-y-6 p-4 sm:p-6 lg:p-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Class Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Assign teachers to classes and manage student enrollment
-          </p>
-        </div>
-      </div>
-
+    <main className="container mx-auto p-4 sm:p-6 lg:p-8">
       <ClassManagement
         classes={classesResult.data ?? []}
         teachers={teachersResult.data ?? []}

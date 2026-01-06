@@ -217,7 +217,7 @@ export function StudentEnrollmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -229,7 +229,7 @@ export function StudentEnrollmentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid items-start gap-4 py-4 md:grid-cols-2">
+        <div className="grid items-start gap-6 py-4 md:grid-cols-2 md:gap-4">
           <div className="space-y-2">
             <div className="flex h-9 items-center justify-between">
               <Label className="text-sm font-medium">
@@ -265,7 +265,7 @@ export function StudentEnrollmentDialog({
                 </p>
               </div>
             ) : (
-              <ScrollArea className="h-64 rounded-md border">
+              <ScrollArea className="h-48 rounded-md border sm:h-64">
                 <div className="space-y-1 p-2">
                   {availableStudents.map((student) => (
                     <div
@@ -351,11 +351,16 @@ export function StudentEnrollmentDialog({
                   No students enrolled yet
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Select students from the left to enroll
+                  <span className="md:hidden">
+                    Select students above to enroll
+                  </span>
+                  <span className="hidden md:inline">
+                    Select students from the left to enroll
+                  </span>
                 </p>
               </div>
             ) : (
-              <ScrollArea className="h-64 rounded-md border">
+              <ScrollArea className="h-48 rounded-md border sm:h-64">
                 <div className="space-y-1 p-2">
                   {enrolledStudents.map((student) => (
                     <div
