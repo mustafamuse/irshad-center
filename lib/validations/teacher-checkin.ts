@@ -38,22 +38,26 @@ export const ClockInSchema = z.object({
 
 /**
  * Schema for teacher clock-out requests.
- * GPS coordinates are optional for clock-out.
+ * GPS coordinates are required for clock-out (teacher must be at center).
+ * teacherId is included for status refresh after clock-out.
  */
 export const ClockOutSchema = z.object({
   checkInId: z.string().uuid('Invalid check-in ID format'),
+  teacherId: z.string().uuid('Invalid teacher ID format'),
   latitude: z
-    .number()
+    .number({
+      required_error: 'GPS location is required',
+      invalid_type_error: 'Invalid latitude',
+    })
     .min(-90, 'Latitude must be between -90 and 90')
-    .max(90, 'Latitude must be between -90 and 90')
-    .nullable()
-    .optional(),
+    .max(90, 'Latitude must be between -90 and 90'),
   longitude: z
-    .number()
+    .number({
+      required_error: 'GPS location is required',
+      invalid_type_error: 'Invalid longitude',
+    })
     .min(-180, 'Longitude must be between -180 and 180')
-    .max(180, 'Longitude must be between -180 and 180')
-    .nullable()
-    .optional(),
+    .max(180, 'Longitude must be between -180 and 180'),
 })
 
 // ============================================================================

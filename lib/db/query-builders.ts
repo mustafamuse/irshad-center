@@ -67,13 +67,6 @@ export const ACTIVE_BILLING_ASSIGNMENT_WHERE = {
 } satisfies Prisma.BillingAssignmentWhereInput
 
 /**
- * Filter for active teacher assignments
- */
-export const ACTIVE_TEACHER_ASSIGNMENT_WHERE = {
-  isActive: true,
-} satisfies Prisma.TeacherAssignmentWhereInput
-
-/**
  * Filter for active guardian relationships
  */
 export const ACTIVE_GUARDIAN_WHERE = {
@@ -190,27 +183,6 @@ export const TEACHER_WITH_PERSON_INCLUDE =
     person: {
       include: {
         contactPoints: true,
-      },
-    },
-  })
-
-/**
- * Teacher assignment with full relations
- */
-export const TEACHER_ASSIGNMENT_FULL_INCLUDE =
-  Prisma.validator<Prisma.TeacherAssignmentInclude>()({
-    teacher: {
-      include: {
-        person: {
-          include: {
-            contactPoints: true,
-          },
-        },
-      },
-    },
-    programProfile: {
-      include: {
-        person: true,
       },
     },
   })

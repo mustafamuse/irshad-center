@@ -5,15 +5,10 @@
  * These validations enforce rules that cannot be enforced at the database level.
  */
 
-import {
-  Program,
-  Shift,
-  GuardianRole,
-  EnrollmentStatus,
-  Prisma,
-} from '@prisma/client'
+import { Program, GuardianRole, EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 
 const logger = createServiceLogger('validation')
@@ -29,75 +24,6 @@ export class ValidationError extends Error {
   ) {
     super(message)
     this.name = 'ValidationError'
-  }
-}
-
-/**
- * Validate TeacherAssignment creation/update
- * Ensures TeacherAssignment is only for Dugsi program profiles
- */
-export async function validateTeacherAssignment(data: {
-  programProfileId: string
-  teacherId: string
-  shift: Shift
-}) {
-  // Check if program profile exists and is Dugsi
-  const programProfile = await prisma.programProfile.findUnique({
-    where: { id: data.programProfileId },
-    select: { program: true, personId: true },
-  })
-
-  if (!programProfile) {
-    throw new ValidationError(
-      'Program profile not found',
-      'PROFILE_NOT_FOUND',
-      { programProfileId: data.programProfileId }
-    )
-  }
-
-  if (programProfile.program !== 'DUGSI_PROGRAM') {
-    throw new ValidationError(
-      'Teacher assignments are only allowed for Dugsi program students',
-      'TEACHER_ASSIGNMENT_DUGSI_ONLY',
-      {
-        programProfileId: data.programProfileId,
-        actualProgram: programProfile.program,
-      }
-    )
-  }
-
-  // Check if teacher exists
-  const teacher = await prisma.teacher.findUnique({
-    where: { id: data.teacherId },
-    select: { id: true },
-  })
-
-  if (!teacher) {
-    throw new ValidationError('Teacher not found', 'TEACHER_NOT_FOUND', {
-      teacherId: data.teacherId,
-    })
-  }
-
-  // Check for existing active assignment for same teacher + shift
-  const existingAssignment = await prisma.teacherAssignment.findFirst({
-    where: {
-      teacherId: data.teacherId,
-      programProfileId: data.programProfileId,
-      shift: data.shift,
-      isActive: true,
-    },
-  })
-
-  if (existingAssignment) {
-    throw new ValidationError(
-      `Student already has an active ${data.shift} shift assignment`,
-      'DUPLICATE_SHIFT_ASSIGNMENT',
-      {
-        programProfileId: data.programProfileId,
-        shift: data.shift,
-        existingAssignmentId: existingAssignment.id,
-      }
-    )
   }
 }
 
@@ -460,10 +386,16 @@ export async function validateBillingAssignment(data: {
 /**
  * Validate Teacher creation
  * Ensures one teacher per person
+ *
+ * @param data - Validation data with personId
+ * @param client - Optional database client for transaction support
  */
-export async function validateTeacherCreation(data: { personId: string }) {
+export async function validateTeacherCreation(
+  data: { personId: string },
+  client: DatabaseClient = prisma
+) {
   // Check if person exists
-  const person = await prisma.person.findUnique({
+  const person = await client.person.findUnique({
     where: { id: data.personId },
     select: { id: true, name: true },
   })
@@ -475,7 +407,7 @@ export async function validateTeacherCreation(data: { personId: string }) {
   }
 
   // Check if teacher already exists for this person
-  const existingTeacher = await prisma.teacher.findUnique({
+  const existingTeacher = await client.teacher.findUnique({
     where: { personId: data.personId },
     select: { id: true },
   })

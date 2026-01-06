@@ -4,7 +4,7 @@
  * Convenience functions that combine validation and common query patterns.
  */
 
-import type { Program, EnrollmentStatus, Shift } from '@prisma/client'
+import type { Program, EnrollmentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -83,73 +83,6 @@ export async function getAllEnrollments(
         },
       },
       batch: true,
-    },
-    orderBy: {
-      startDate: 'desc',
-    },
-  })
-}
-
-/**
- * Get active teacher assignments for a Dugsi student
- */
-export async function getActiveTeacherAssignments(
-  programProfileId: string,
-  client: DatabaseClient = prisma
-) {
-  return client.teacherAssignment.findMany({
-    where: {
-      programProfileId,
-      isActive: true,
-    },
-    include: {
-      teacher: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-      programProfile: {
-        include: {
-          person: true,
-        },
-      },
-    },
-    orderBy: {
-      startDate: 'desc',
-    },
-  })
-}
-
-/**
- * Get all teacher assignments for a student (including inactive)
- */
-export async function getAllTeacherAssignments(
-  programProfileId: string,
-  client: DatabaseClient = prisma
-) {
-  return client.teacherAssignment.findMany({
-    where: {
-      programProfileId,
-    },
-    include: {
-      teacher: {
-        include: {
-          person: {
-            include: {
-              contactPoints: true,
-            },
-          },
-        },
-      },
-      programProfile: {
-        include: {
-          person: true,
-        },
-      },
     },
     orderBy: {
       startDate: 'desc',
@@ -343,18 +276,6 @@ export async function getPersonProgramProfiles(
           batch: true,
         },
       },
-      teacherAssignments: {
-        where: {
-          isActive: true,
-        },
-        include: {
-          teacher: {
-            include: {
-              person: true,
-            },
-          },
-        },
-      },
     },
     orderBy: {
       createdAt: 'desc',
@@ -466,45 +387,4 @@ export async function isPersonEnrolled(
   })
 
   return profile !== null && profile.enrollments.length > 0
-}
-
-/**
- * Get all active students for a teacher
- */
-export async function getTeacherStudents(
-  teacherId: string,
-  shift?: Shift,
-  client: DatabaseClient = prisma
-) {
-  return client.teacherAssignment.findMany({
-    where: {
-      teacherId,
-      isActive: true,
-      ...(shift && { shift }),
-      programProfile: {
-        enrollments: {
-          some: {
-            status: { in: ['REGISTERED', 'ENROLLED'] },
-            endDate: null,
-          },
-        },
-      },
-    },
-    include: {
-      programProfile: {
-        include: {
-          person: true,
-          enrollments: {
-            where: {
-              status: { in: ['REGISTERED', 'ENROLLED'] },
-              endDate: null,
-            },
-          },
-        },
-      },
-    },
-    orderBy: {
-      startDate: 'desc',
-    },
-  })
 }

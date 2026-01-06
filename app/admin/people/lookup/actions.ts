@@ -89,13 +89,9 @@ export async function deletePersonAction(
       })
       const profileIds = profiles.map((p) => p.id)
 
-      await tx.teacherAssignment.deleteMany({
-        where: {
-          OR: [
-            { teacherId: { in: teacherIds } },
-            { programProfileId: { in: profileIds } },
-          ],
-        },
+      // Clean up Dugsi class teacher assignments
+      await tx.dugsiClassTeacher.deleteMany({
+        where: { teacherId: { in: teacherIds } },
       })
 
       await tx.teacherProgram.deleteMany({
@@ -220,16 +216,23 @@ export async function lookupPersonAction(
               orderBy: { startDate: 'desc' },
               take: 1,
             },
-            teacherAssignments: {
+            dugsiClassEnrollment: {
               where: { isActive: true },
               include: {
-                teacher: {
+                class: {
                   include: {
-                    person: true,
+                    teachers: {
+                      where: { isActive: true },
+                      include: {
+                        teacher: {
+                          include: { person: true },
+                        },
+                      },
+                      take: 1,
+                    },
                   },
                 },
               },
-              take: 1,
             },
           },
         },
@@ -297,7 +300,8 @@ export async function lookupPersonAction(
     }
 
     if (person.teacher) {
-      const studentCount = await prisma.teacherAssignment.count({
+      // Count classes assigned to teacher
+      const classCount = await prisma.dugsiClassTeacher.count({
         where: {
           teacherId: person.teacher.id,
           isActive: true,
@@ -307,7 +311,7 @@ export async function lookupPersonAction(
       result.roles.teacher = {
         id: person.teacher.id,
         programs: person.teacher.programs.map((p) => p.program),
-        studentCount,
+        studentCount: classCount, // Now represents class count
       }
     }
 
@@ -319,7 +323,9 @@ export async function lookupPersonAction(
           status: profile.enrollments[0]?.status || 'REGISTERED',
           levelGroup: profile.gradeLevel ?? null,
           shift: profile.shift ?? null,
-          teacherName: profile.teacherAssignments[0]?.teacher.person.name,
+          teacherName:
+            profile.dugsiClassEnrollment?.class?.teachers?.[0]?.teacher.person
+              .name,
         })),
       }
     }

@@ -250,7 +250,6 @@ export interface DeleteFamilyResult {
  * - Enrollments
  * - BillingAssignments
  * - StudentPayments
- * - TeacherAssignments
  *
  * @security Authorization must be enforced at the API route/action layer.
  *           This is a destructive operation - verify user intent before calling.

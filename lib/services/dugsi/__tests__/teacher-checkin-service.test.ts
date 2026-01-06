@@ -48,7 +48,7 @@ vi.mock('@/lib/db/queries/teacher-checkin', async (importOriginal) => {
 })
 
 const { mockIsWithinGeofence, mockIsGeofenceConfigured } = vi.hoisted(() => ({
-  mockIsWithinGeofence: vi.fn(() => true),
+  mockIsWithinGeofence: vi.fn((_lat: number, _lng: number) => true),
   mockIsGeofenceConfigured: vi.fn(() => true),
 }))
 
@@ -57,7 +57,8 @@ vi.mock('@/lib/constants/teacher-checkin', async (importOriginal) => {
     await importOriginal<typeof import('@/lib/constants/teacher-checkin')>()
   return {
     ...actual,
-    isWithinGeofence: (...args: unknown[]) => mockIsWithinGeofence(...args),
+    isWithinGeofence: (lat: number, lng: number) =>
+      mockIsWithinGeofence(lat, lng),
     isGeofenceConfigured: () => mockIsGeofenceConfigured(),
     isLateForShift: vi.fn(() => false),
   }
@@ -219,6 +220,7 @@ describe('clockOut', () => {
   it('should update check-in with clock-out time', async () => {
     const input = {
       checkInId: 'checkin-1',
+      teacherId: 'teacher-1',
       latitude: 44.9778,
       longitude: -93.265,
     }
@@ -234,6 +236,7 @@ describe('clockOut', () => {
 
     const input = {
       checkInId: 'nonexistent',
+      teacherId: 'teacher-1',
       latitude: 44.9778,
       longitude: -93.265,
     }
@@ -252,6 +255,7 @@ describe('clockOut', () => {
 
     const input = {
       checkInId: 'checkin-1',
+      teacherId: 'teacher-1',
       latitude: 44.9778,
       longitude: -93.265,
     }

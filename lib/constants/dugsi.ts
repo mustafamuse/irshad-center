@@ -44,7 +44,13 @@ export const MAX_EMAIL_LENGTH = 320
 export const MAX_NAME_LENGTH = 100
 export const MAX_PHONE_LENGTH = 20
 
-// Colors and Themes
+// Brand Colors
+export const BRAND_COLORS = {
+  teal: '#007078',
+  gold: '#deb43e',
+} as const
+
+// Colors and Themes (legacy - use BRAND_COLORS instead)
 export const DUGSI_PRIMARY_COLOR = '#007078'
 
 // Status Colors
@@ -93,22 +99,24 @@ export const SUBSCRIPTION_STATUS_BADGES = {
   },
 } as const
 
-// Shift Badge Styles
+// Shift Badge Styles (Morning uses brand gold, Afternoon uses teal)
 export const SHIFT_BADGES = {
   MORNING: {
-    className: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+    className:
+      'bg-[#deb43e]/15 text-[#996b1d] border-[#deb43e]/30 hover:bg-[#deb43e]/20',
     label: 'Morning',
   },
   AFTERNOON: {
-    className: 'bg-orange-100 text-orange-800 hover:bg-orange-100',
+    className:
+      'bg-[#007078]/10 text-[#007078] border-[#007078]/20 hover:bg-[#007078]/15',
     label: 'Afternoon',
   },
 } as const
 
 // Shift Indicator Colors (for dots/icons)
 export const SHIFT_COLORS = {
-  MORNING: 'bg-blue-500',
-  AFTERNOON: 'bg-orange-500',
+  MORNING: 'bg-[#deb43e]',
+  AFTERNOON: 'bg-[#007078]',
 } as const
 
 // Shift Filter Constants

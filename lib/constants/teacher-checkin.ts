@@ -8,6 +8,8 @@
 import { Shift } from '@prisma/client'
 import { toZonedTime } from 'date-fns-tz'
 
+import { calculateDistance } from '@/lib/services/geolocation-service'
+
 // ============================================================================
 // TIMEZONE CONFIGURATION
 // ============================================================================
@@ -29,9 +31,9 @@ export const IRSHAD_CENTER_LOCATION = {
 
 /**
  * Maximum distance (in meters) from center to be considered a valid check-in.
- * 50 meters = strict, must be very close to building.
+ * 15 meters (~50ft) = must be at the building entrance.
  */
-export const GEOFENCE_RADIUS_METERS = 50
+export const GEOFENCE_RADIUS_METERS = 15
 
 // ============================================================================
 // SHIFT TIMING CONFIGURATION
@@ -123,38 +125,6 @@ export function isLateForShift(clockInTime: Date, shift: Shift): boolean {
 }
 
 /**
- * Calculates the distance between two geographic coordinates using the Haversine formula.
- *
- * @param lat1 - Latitude of first point
- * @param lng1 - Longitude of first point
- * @param lat2 - Latitude of second point
- * @param lng2 - Longitude of second point
- * @returns Distance in meters
- */
-export function calculateDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  const R = 6371e3 // Earth's radius in meters
-  const phi1 = (lat1 * Math.PI) / 180
-  const phi2 = (lat2 * Math.PI) / 180
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180
-  const deltaLambda = ((lng2 - lng1) * Math.PI) / 180
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) *
-      Math.cos(phi2) *
-      Math.sin(deltaLambda / 2) *
-      Math.sin(deltaLambda / 2)
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-
-  return R * c
-}
-
-/**
  * Checks if a location is within the geofence radius of Irshad Center.
  *
  * @param lat - Latitude of the location to check
@@ -211,4 +181,5 @@ export const CHECKIN_ERROR_CODES = {
   ALREADY_CLOCKED_OUT: 'ALREADY_CLOCKED_OUT',
   GPS_REQUIRED: 'GPS_REQUIRED',
   SYSTEM_NOT_CONFIGURED: 'SYSTEM_NOT_CONFIGURED',
+  OUTSIDE_GEOFENCE: 'OUTSIDE_GEOFENCE',
 } as const

@@ -1,22 +1,18 @@
-import { Program, Shift } from '@prisma/client'
+import { Program } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
-
-import { ValidationError } from '@/lib/services/validation-service'
 
 const {
   mockFindMany,
   mockUpdateMany,
   mockUpsert,
-  mockGroupBy,
-  mockProfileFindMany,
+  mockClassTeacherCount,
   mockTransaction,
   mockTeacherFindUnique,
 } = vi.hoisted(() => ({
   mockFindMany: vi.fn(),
   mockUpdateMany: vi.fn(),
   mockUpsert: vi.fn(),
-  mockGroupBy: vi.fn(),
-  mockProfileFindMany: vi.fn(),
+  mockClassTeacherCount: vi.fn(),
   mockTransaction: vi.fn(),
   mockTeacherFindUnique: vi.fn(),
 }))
@@ -31,11 +27,8 @@ vi.mock('@/lib/db', () => ({
       updateMany: (...args: unknown[]) => mockUpdateMany(...args),
       upsert: (...args: unknown[]) => mockUpsert(...args),
     },
-    teacherAssignment: {
-      groupBy: (...args: unknown[]) => mockGroupBy(...args),
-    },
-    programProfile: {
-      findMany: (...args: unknown[]) => mockProfileFindMany(...args),
+    dugsiClassTeacher: {
+      count: (...args: unknown[]) => mockClassTeacherCount(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
@@ -50,16 +43,12 @@ vi.mock('@/lib/logger', () => ({
   })),
 }))
 
-import {
-  bulkAssignPrograms,
-  validateShiftRequirement,
-} from '../teacher-service'
+import { bulkAssignPrograms } from '../teacher-service'
 
 describe('bulkAssignPrograms', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    // Default: teacher exists
     mockTeacherFindUnique.mockResolvedValue({ id: 'teacher-1' })
 
     mockTransaction.mockImplementation(async (callbackOrArray) => {
@@ -70,11 +59,8 @@ describe('bulkAssignPrograms', () => {
             updateMany: mockUpdateMany,
             upsert: mockUpsert,
           },
-          teacherAssignment: {
-            groupBy: mockGroupBy,
-          },
-          programProfile: {
-            findMany: mockProfileFindMany,
+          dugsiClassTeacher: {
+            count: mockClassTeacherCount,
           },
         }
         return callbackOrArray(tx)
@@ -85,7 +71,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should activate programs in the input array', async () => {
     mockFindMany.mockResolvedValue([])
-    mockGroupBy.mockResolvedValue([])
+    mockClassTeacherCount.mockResolvedValue(0)
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
       teacherId: 'teacher-1',
@@ -121,7 +107,7 @@ describe('bulkAssignPrograms', () => {
       { program: Program.DUGSI_PROGRAM },
       { program: Program.MAHAD_PROGRAM },
     ])
-    mockGroupBy.mockResolvedValue([]) // No active assignments
+    mockClassTeacherCount.mockResolvedValue(0)
     mockUpdateMany.mockResolvedValue({ count: 1 })
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
@@ -149,21 +135,14 @@ describe('bulkAssignPrograms', () => {
     expect(mockUpsert).toHaveBeenCalled()
   })
 
-  it('should throw error when removing program with active students', async () => {
+  it('should throw error when removing Dugsi program with active class assignments', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.DUGSI_PROGRAM }])
-    // Mock groupBy returning active assignments
-    mockGroupBy.mockResolvedValue([
-      { programProfileId: 'profile-1', _count: { _all: 5 } },
-    ])
-    // Mock programProfile.findMany to return the program for the profile
-    mockProfileFindMany.mockResolvedValue([
-      { id: 'profile-1', program: Program.DUGSI_PROGRAM },
-    ])
+    mockClassTeacherCount.mockResolvedValue(3)
 
     await expect(
       bulkAssignPrograms('teacher-1', [Program.MAHAD_PROGRAM])
     ).rejects.toThrow(
-      'Cannot remove teacher from DUGSI_PROGRAM. They have 5 active student assignment(s). Please reassign students first.'
+      'Cannot remove teacher from DUGSI_PROGRAM. They are assigned to 3 class(es). Please remove class assignments first.'
     )
 
     expect(mockUpdateMany).not.toHaveBeenCalled()
@@ -172,7 +151,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should handle add and remove in single operation', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.MAHAD_PROGRAM }])
-    mockGroupBy.mockResolvedValue([]) // No active assignments
+    mockClassTeacherCount.mockResolvedValue(0)
     mockUpdateMany.mockResolvedValue({ count: 1 })
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
@@ -202,7 +181,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should reactivate previously removed program', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.MAHAD_PROGRAM }])
-    mockGroupBy.mockResolvedValue([])
+    mockClassTeacherCount.mockResolvedValue(0)
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
       teacherId: 'teacher-1',
@@ -235,7 +214,7 @@ describe('bulkAssignPrograms', () => {
 
   it('should not call updateMany if no programs to remove', async () => {
     mockFindMany.mockResolvedValue([{ program: Program.DUGSI_PROGRAM }])
-    mockGroupBy.mockResolvedValue([])
+    mockClassTeacherCount.mockResolvedValue(0)
     mockUpsert.mockResolvedValue({
       id: 'tp-1',
       teacherId: 'teacher-1',
@@ -283,47 +262,5 @@ describe('bulkAssignPrograms', () => {
     ).rejects.toThrow('Teacher not found')
 
     expect(mockTransaction).not.toHaveBeenCalled()
-  })
-})
-
-describe('validateShiftRequirement', () => {
-  it('should throw ValidationError when Dugsi assignment has no shift', () => {
-    expect(() => validateShiftRequirement(Program.DUGSI_PROGRAM, null)).toThrow(
-      ValidationError
-    )
-
-    expect(() => validateShiftRequirement(Program.DUGSI_PROGRAM, null)).toThrow(
-      'Shift is required for Dugsi program assignments'
-    )
-  })
-
-  it('should throw ValidationError when Dugsi assignment has undefined shift', () => {
-    expect(() =>
-      validateShiftRequirement(Program.DUGSI_PROGRAM, undefined)
-    ).toThrow(ValidationError)
-  })
-
-  it('should accept MORNING shift for Dugsi assignments', () => {
-    expect(() =>
-      validateShiftRequirement(Program.DUGSI_PROGRAM, Shift.MORNING)
-    ).not.toThrow()
-  })
-
-  it('should accept AFTERNOON shift for Dugsi assignments', () => {
-    expect(() =>
-      validateShiftRequirement(Program.DUGSI_PROGRAM, Shift.AFTERNOON)
-    ).not.toThrow()
-  })
-
-  it('should allow null shift for Mahad assignments', () => {
-    expect(() =>
-      validateShiftRequirement(Program.MAHAD_PROGRAM, null)
-    ).not.toThrow()
-  })
-
-  it('should throw error when shift provided for Mahad', () => {
-    expect(() =>
-      validateShiftRequirement(Program.MAHAD_PROGRAM, Shift.MORNING)
-    ).toThrow('Shift should not be provided for non-Dugsi programs')
   })
 })

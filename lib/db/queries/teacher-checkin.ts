@@ -296,6 +296,8 @@ export async function getAllDugsiTeachersWithTodayStatus(
   })
 }
 
+export type TodayStatus = 'not_checked_in' | 'checked_in' | 'completed'
+
 export async function getDugsiTeachersForDropdown(
   client: DatabaseClient = prisma
 ): Promise<
@@ -305,8 +307,12 @@ export async function getDugsiTeachersForDropdown(
     email: string | null
     phone: string | null
     shifts: Shift[]
+    todayStatus: TodayStatus
   }>
 > {
+  const today = new Date()
+  const dateOnly = new Date(today.toISOString().split('T')[0])
+
   const teachers = await client.teacher.findMany({
     where: {
       dugsiClasses: {
@@ -339,6 +345,15 @@ export async function getDugsiTeachersForDropdown(
           },
         },
       },
+      checkIns: {
+        where: {
+          date: dateOnly,
+        },
+        select: {
+          shift: true,
+          clockOutTime: true,
+        },
+      },
     },
     orderBy: {
       person: {
@@ -356,7 +371,22 @@ export async function getDugsiTeachersForDropdown(
     )?.value
 
     const shiftValues = teacher.dugsiClasses.map((dc) => dc.class.shift)
-    const shifts = Array.from(new Set(shiftValues))
+    const shifts = Array.from(new Set(shiftValues)) as Shift[]
+
+    const relevantCheckins = teacher.checkIns.filter((c) =>
+      shifts.includes(c.shift)
+    )
+    const allShiftsComplete =
+      relevantCheckins.length === shifts.length &&
+      relevantCheckins.every((c) => c.clockOutTime !== null)
+    const hasAnyCheckin = relevantCheckins.length > 0
+
+    let todayStatus: TodayStatus = 'not_checked_in'
+    if (allShiftsComplete) {
+      todayStatus = 'completed'
+    } else if (hasAnyCheckin) {
+      todayStatus = 'checked_in'
+    }
 
     return {
       id: teacher.id,
@@ -364,6 +394,7 @@ export async function getDugsiTeachersForDropdown(
       email: email || null,
       phone: phone || null,
       shifts,
+      todayStatus,
     }
   })
 }
@@ -389,23 +420,15 @@ export async function getTeacherShifts(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<Shift[]> {
-  const classAssignments = await client.dugsiClassTeacher.findMany({
+  // Get shifts from TeacherProgram.shifts (directly assigned by admin)
+  const teacherProgram = await client.teacherProgram.findFirst({
     where: {
       teacherId,
+      program: 'DUGSI_PROGRAM',
       isActive: true,
-      class: {
-        isActive: true,
-      },
     },
-    include: {
-      class: {
-        select: {
-          shift: true,
-        },
-      },
-    },
+    select: { shifts: true },
   })
 
-  const shiftValues = classAssignments.map((ca) => ca.class.shift)
-  return Array.from(new Set(shiftValues))
+  return teacherProgram?.shifts ?? []
 }

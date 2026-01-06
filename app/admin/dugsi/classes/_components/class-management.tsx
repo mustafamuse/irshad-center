@@ -4,7 +4,17 @@ import { useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import { Users, GraduationCap, Plus, Trash2 } from 'lucide-react'
+import {
+  AlertCircle,
+  GraduationCap,
+  MoreVertical,
+  Pencil,
+  Plus,
+  Sun,
+  Sunset,
+  Trash2,
+  Users,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
@@ -20,9 +30,17 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Select,
   SelectContent,
@@ -32,6 +50,9 @@ import {
 } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+import { ClassFormDialog } from './class-form-dialog'
+import { DeleteClassDialog } from './delete-class-dialog'
+import { StudentEnrollmentDialog } from './student-enrollment-dialog'
 import type { ClassWithDetails } from '../../_types'
 import {
   assignTeacherToClassAction,
@@ -53,17 +74,58 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
   const [selectedClass, setSelectedClass] = useState<ClassWithDetails | null>(
     null
   )
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('')
+
+  const [classFormOpen, setClassFormOpen] = useState(false)
+  const [classFormMode, setClassFormMode] = useState<'create' | 'edit'>(
+    'create'
+  )
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [enrollmentDialogOpen, setEnrollmentDialogOpen] = useState(false)
 
   const morningClasses = classes.filter((c) => c.shift === 'MORNING')
   const afternoonClasses = classes.filter((c) => c.shift === 'AFTERNOON')
 
-  const handleOpenClass = (classItem: ClassWithDetails) => {
+  const handleOpenDetail = (classItem: ClassWithDetails) => {
     setSelectedClass(classItem)
-    setIsDialogOpen(true)
+    setIsDetailDialogOpen(true)
     setSelectedTeacherId('')
+  }
+
+  const handleCreateClass = () => {
+    setSelectedClass(null)
+    setClassFormMode('create')
+    setClassFormOpen(true)
+  }
+
+  const handleEditClass = (
+    classItem: ClassWithDetails,
+    e?: React.MouseEvent
+  ) => {
+    e?.stopPropagation()
+    setSelectedClass(classItem)
+    setClassFormMode('edit')
+    setClassFormOpen(true)
+  }
+
+  const handleDeleteClass = (
+    classItem: ClassWithDetails,
+    e?: React.MouseEvent
+  ) => {
+    e?.stopPropagation()
+    setSelectedClass(classItem)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleManageStudents = (
+    classItem: ClassWithDetails,
+    e?: React.MouseEvent
+  ) => {
+    e?.stopPropagation()
+    setSelectedClass(classItem)
+    setEnrollmentDialogOpen(true)
   }
 
   const handleAssignTeacher = async () => {
@@ -79,7 +141,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
       if (result.success) {
         toast.success(result.message || 'Teacher assigned')
         setSelectedTeacherId('')
-        setIsDialogOpen(false)
+        setIsDetailDialogOpen(false)
         router.refresh()
       } else {
         toast.error(result.error)
@@ -101,7 +163,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
 
       if (result.success) {
         toast.success(result.message || 'Teacher removed')
-        setIsDialogOpen(false)
+        setIsDetailDialogOpen(false)
         router.refresh()
       } else {
         toast.error(result.error)
@@ -117,51 +179,146 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
     (t) => !assignedTeacherIds.includes(t.id)
   )
 
-  const renderClassCard = (classItem: ClassWithDetails) => (
-    <Card
-      key={classItem.id}
-      className="cursor-pointer transition-colors hover:bg-muted/50"
-      onClick={() => handleOpenClass(classItem)}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{classItem.name}</CardTitle>
-          <Badge
-            variant={classItem.shift === 'MORNING' ? 'default' : 'secondary'}
-          >
-            {classItem.shift}
-          </Badge>
-        </div>
-        {classItem.description && (
-          <CardDescription>{classItem.description}</CardDescription>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <GraduationCap className="h-4 w-4" />
-            <span>
-              {classItem.teachers.length === 0
-                ? 'No teachers'
-                : classItem.teachers.map((t) => t.teacherName).join(', ')}
-            </span>
+  const renderClassCard = (classItem: ClassWithDetails, index: number) => {
+    const needsAttention = classItem.teachers.length === 0
+    const isMorning = classItem.shift === 'MORNING'
+    const ShiftIcon = isMorning ? Sun : Sunset
+
+    return (
+      <Card
+        key={classItem.id}
+        className={`cursor-pointer border-0 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${
+          needsAttention
+            ? 'ring-2 ring-[#deb43e]/40 hover:ring-[#deb43e]/60'
+            : 'hover:ring-2 hover:ring-[#007078]/20'
+        }`}
+        style={{ animationDelay: `${index * 50}ms` }}
+        onClick={() => handleOpenDetail(classItem)}
+      >
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div
+                className={`flex h-7 w-7 items-center justify-center rounded-full ${
+                  isMorning ? 'bg-[#deb43e]/15' : 'bg-[#007078]/10'
+                }`}
+              >
+                <ShiftIcon
+                  className={`h-4 w-4 ${isMorning ? 'text-[#deb43e]' : 'text-[#007078]'}`}
+                />
+              </div>
+              <CardTitle className="text-base">{classItem.name}</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge
+                variant="outline"
+                className={
+                  isMorning
+                    ? 'border-[#deb43e]/30 bg-[#deb43e]/10 text-[#996b1d]'
+                    : 'border-[#007078]/20 bg-[#007078]/10 text-[#007078]'
+                }
+              >
+                {classItem.shift}
+              </Badge>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  asChild
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={(e) => handleEditClass(classItem, e)}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit Class
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={(e) => handleManageStudents(classItem, e)}
+                  >
+                    <Users className="mr-2 h-4 w-4" />
+                    Manage Students
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={(e) => handleDeleteClass(classItem, e)}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Class
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Users className="h-4 w-4" />
-            <span>{classItem.studentCount} students</span>
+          {classItem.description && (
+            <CardDescription>{classItem.description}</CardDescription>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-1.5 text-sm text-muted-foreground sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex items-center gap-1.5">
+              <GraduationCap className="h-4 w-4 shrink-0" />
+              <span className="truncate">
+                {classItem.teachers.length === 0
+                  ? 'No teachers'
+                  : classItem.teachers.map((t) => t.teacherName).join(', ')}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Users className="h-4 w-4 shrink-0" />
+              <span>{classItem.studentCount} students</span>
+            </div>
           </div>
-        </div>
-        {classItem.teachers.length === 0 && (
-          <p className="mt-2 text-sm text-amber-600">
-            Assign a teacher to enable check-in
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          {needsAttention && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-[#deb43e]/10 px-3 py-2 text-sm text-[#996b1d]">
+              <AlertCircle className="h-4 w-4" />
+              <span>Assign a teacher to enable check-in</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const renderEmptyState = () => (
+    <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/20 py-12 text-center">
+      <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+        <GraduationCap className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <p className="text-muted-foreground">No classes</p>
+      <Button
+        variant="link"
+        className="mt-2 text-[#007078]"
+        onClick={handleCreateClass}
+      >
+        <Plus className="mr-1 h-4 w-4" />
+        Create your first class
+      </Button>
+    </div>
   )
 
   return (
     <>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold sm:text-3xl">Class Management</h1>
+          <p className="mt-1 text-sm text-muted-foreground sm:mt-2">
+            Assign teachers to classes and manage student enrollment
+          </p>
+        </div>
+        <Button
+          onClick={handleCreateClass}
+          className="bg-[#007078] hover:bg-[#005a61]"
+        >
+          <Plus className="mr-2 h-4 w-4" />
+          New Class
+        </Button>
+      </div>
+
       <Tabs defaultValue="morning">
         <TabsList>
           <TabsTrigger value="morning">
@@ -174,27 +331,27 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
 
         <TabsContent value="morning" className="mt-4">
           {morningClasses.length === 0 ? (
-            <p className="text-muted-foreground">No morning classes</p>
+            renderEmptyState()
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {morningClasses.map(renderClassCard)}
+              {morningClasses.map((c, i) => renderClassCard(c, i))}
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="afternoon" className="mt-4">
           {afternoonClasses.length === 0 ? (
-            <p className="text-muted-foreground">No afternoon classes</p>
+            renderEmptyState()
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {afternoonClasses.map(renderClassCard)}
+              {afternoonClasses.map((c, i) => renderClassCard(c, i))}
             </div>
           )}
         </TabsContent>
       </Tabs>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{selectedClass?.name}</DialogTitle>
             <DialogDescription>
@@ -233,12 +390,12 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
 
             <div>
               <h4 className="mb-2 text-sm font-medium">Add Teacher</h4>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Select
                   value={selectedTeacherId}
                   onValueChange={setSelectedTeacherId}
                 >
-                  <SelectTrigger className="flex-1">
+                  <SelectTrigger className="w-full sm:flex-1">
                     <SelectValue placeholder="Select a teacher" />
                   </SelectTrigger>
                   <SelectContent>
@@ -258,8 +415,10 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
                 <Button
                   onClick={handleAssignTeacher}
                   disabled={!selectedTeacherId || isLoading}
+                  className="w-full sm:w-auto"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="mr-2 h-4 w-4 sm:mr-0" />
+                  <span className="sm:hidden">Add Teacher</span>
                 </Button>
               </div>
             </div>
@@ -268,8 +427,57 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
               <p>Students enrolled: {selectedClass?.studentCount ?? 0}</p>
             </div>
           </div>
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:gap-2">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (selectedClass) {
+                  setIsDetailDialogOpen(false)
+                  handleManageStudents(selectedClass)
+                }
+              }}
+            >
+              <Users className="mr-2 h-4 w-4" />
+              Manage Students
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (selectedClass) {
+                  setIsDetailDialogOpen(false)
+                  handleEditClass(selectedClass)
+                }
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit Class
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ClassFormDialog
+        open={classFormOpen}
+        onOpenChange={setClassFormOpen}
+        mode={classFormMode}
+        classData={classFormMode === 'edit' ? selectedClass : null}
+      />
+
+      <DeleteClassDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        classData={selectedClass}
+        onSuccess={() => router.refresh()}
+      />
+
+      <StudentEnrollmentDialog
+        open={enrollmentDialogOpen}
+        onOpenChange={setEnrollmentDialogOpen}
+        classData={selectedClass}
+      />
     </>
   )
 }

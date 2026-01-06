@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -13,7 +13,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import { TeacherWithDetails } from '../actions'
+import { CheckinHistoryTab } from './checkin-history-tab'
 import { ManageProgramsDialog } from './manage-programs-dialog'
+import { ManageShiftsTab } from './manage-shifts-tab'
 import { TeacherDetailsTab } from './teacher-details-tab'
 
 interface Props {
@@ -26,11 +28,16 @@ interface Props {
 export function ManageTeacherDialog({
   open,
   onOpenChange,
-  teacher,
+  teacher: initialTeacher,
   onSuccess,
 }: Props) {
+  const [teacher, setTeacher] = useState(initialTeacher)
   const [showProgramsDialog, setShowProgramsDialog] = useState(false)
   const [activeTab, setActiveTab] = useState('details')
+
+  useEffect(() => {
+    setTeacher(initialTeacher)
+  }, [initialTeacher])
 
   return (
     <>
@@ -44,15 +51,40 @@ export function ManageTeacherDialog({
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="shifts">
+                Shifts ({teacher.shifts.length})
+              </TabsTrigger>
               <TabsTrigger value="programs">
                 Programs ({teacher.programs.length})
               </TabsTrigger>
+              <TabsTrigger value="checkins">Check-ins</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="space-y-4">
-              <TeacherDetailsTab teacher={teacher} />
+              <TeacherDetailsTab
+                teacher={teacher}
+                onUpdate={(updated) => {
+                  setTeacher(updated)
+                  onSuccess?.()
+                }}
+                onDeactivate={() => {
+                  onSuccess?.()
+                  onOpenChange(false)
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="shifts" className="space-y-4">
+              <ManageShiftsTab
+                teacherId={teacher.id}
+                currentShifts={teacher.shifts}
+                onUpdate={(shifts) => {
+                  setTeacher({ ...teacher, shifts })
+                  onSuccess?.()
+                }}
+              />
             </TabsContent>
 
             <TabsContent value="programs" className="space-y-4">
@@ -69,6 +101,10 @@ export function ManageTeacherDialog({
                   Manage Program Assignments
                 </Button>
               </div>
+            </TabsContent>
+
+            <TabsContent value="checkins" className="space-y-4">
+              <CheckinHistoryTab teacherId={teacher.id} />
             </TabsContent>
           </Tabs>
         </DialogContent>

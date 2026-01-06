@@ -28,7 +28,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-
 import { createTeacherWithPersonAction } from '../actions'
 import { SearchPersonTab } from './search-person-tab'
 

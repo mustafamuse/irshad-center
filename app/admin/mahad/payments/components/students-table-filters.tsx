@@ -13,7 +13,6 @@ import {
 } from 'lucide-react'
 import { useDebouncedCallback } from 'use-debounce'
 
-import { getBatchesForFilter } from '@/app/admin/payments/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+
+import { getBatchesForFilter } from '../actions'
 
 const studentStatuses = [
   {
