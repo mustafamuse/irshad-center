@@ -103,7 +103,10 @@ export function TeacherSelector({
                   <div className="flex flex-1 flex-col">
                     <span className="font-medium">{teacher.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      {teacher.shifts.join(' & ')} shift
+                      {teacher.shifts
+                        .map((s) => s.charAt(0) + s.slice(1).toLowerCase())
+                        .join(' & ')}{' '}
+                      shift
                     </span>
                   </div>
                   <StatusIndicator status={teacher.todayStatus} />

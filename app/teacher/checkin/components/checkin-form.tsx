@@ -274,7 +274,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                           ) : (
                             <Sunset className="h-4 w-4 text-[#007078]" />
                           )}
-                          {shift} - {SHIFT_TIME_LABELS[shift]}
+                          {shift.charAt(0) + shift.slice(1).toLowerCase()} -{' '}
+                          {SHIFT_TIME_LABELS[shift]}
                         </span>
                       </SelectItem>
                     ))}
@@ -459,7 +460,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                     disabled={
                       !hasLocation ||
                       isPending ||
-                      geofenceStatus?.isWithinGeofence === false
+                      geofenceStatus?.isWithinGeofence !== true
                     }
                   >
                     {isPending ? (
