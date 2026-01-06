@@ -182,7 +182,22 @@ describe('CheckinForm', () => {
     })
 
     it('should clear message when teacher is changed', async () => {
-      mockUseGeolocation.mockReturnValue(locationAcquired)
+      const mockRequestLocation = vi.fn().mockResolvedValue({
+        latitude: 44.9778,
+        longitude: -93.265,
+        accuracy: 10,
+        error: null,
+        timestamp: Date.now(),
+      })
+      mockUseGeolocation.mockReturnValue({
+        ...locationAcquired,
+        requestLocation: mockRequestLocation,
+      })
+      mockCheckGeofence.mockResolvedValue({
+        isWithinGeofence: true,
+        distanceMeters: 5,
+        allowedRadiusMeters: 50,
+      })
       mockTeacherClockInAction.mockResolvedValue({
         success: true,
         data: { checkInId: 'checkin-1', status: defaultStatus },
@@ -197,7 +212,18 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('option', { name: /bob johnson/i }))
 
       await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /update location/i })
+        ).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /update location/i }))
+
+      await waitFor(() => {
         expect(screen.getByText('Clock In')).toBeInTheDocument()
+        expect(
+          screen.getByRole('button', { name: /clock in/i })
+        ).not.toBeDisabled()
       })
 
       await user.click(screen.getByRole('button', { name: /clock in/i }))
@@ -401,8 +427,23 @@ describe('CheckinForm', () => {
       })
     })
 
-    it('should enable clock-in button when location is acquired', async () => {
-      mockUseGeolocation.mockReturnValue(locationAcquired)
+    it('should enable clock-in button when location is acquired and within geofence', async () => {
+      const mockRequestLocation = vi.fn().mockResolvedValue({
+        latitude: 44.9778,
+        longitude: -93.265,
+        accuracy: 10,
+        error: null,
+        timestamp: Date.now(),
+      })
+      mockUseGeolocation.mockReturnValue({
+        ...locationAcquired,
+        requestLocation: mockRequestLocation,
+      })
+      mockCheckGeofence.mockResolvedValue({
+        isWithinGeofence: true,
+        distanceMeters: 5,
+        allowedRadiusMeters: 50,
+      })
 
       const user = userEvent.setup()
       render(<CheckinForm teachers={mockTeachers} />)
@@ -410,6 +451,14 @@ describe('CheckinForm', () => {
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
       await user.click(screen.getByRole('option', { name: /bob johnson/i }))
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /update location/i })
+        ).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /update location/i }))
 
       await waitFor(() => {
         const clockInButton = screen.getByRole('button', { name: /clock in/i })
@@ -443,7 +492,22 @@ describe('CheckinForm', () => {
 
   describe('actions', () => {
     it('should call teacherClockInAction and show success message', async () => {
-      mockUseGeolocation.mockReturnValue(locationAcquired)
+      const mockRequestLocation = vi.fn().mockResolvedValue({
+        latitude: 44.9778,
+        longitude: -93.265,
+        accuracy: 10,
+        error: null,
+        timestamp: Date.now(),
+      })
+      mockUseGeolocation.mockReturnValue({
+        ...locationAcquired,
+        requestLocation: mockRequestLocation,
+      })
+      mockCheckGeofence.mockResolvedValue({
+        isWithinGeofence: true,
+        distanceMeters: 5,
+        allowedRadiusMeters: 50,
+      })
       mockTeacherClockInAction.mockResolvedValue({
         success: true,
         data: {
@@ -463,6 +527,14 @@ describe('CheckinForm', () => {
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
       await user.click(screen.getByRole('option', { name: /bob johnson/i }))
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /update location/i })
+        ).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /update location/i }))
 
       await waitFor(() => {
         expect(
@@ -487,7 +559,22 @@ describe('CheckinForm', () => {
     })
 
     it('should show error message when clock-in fails', async () => {
-      mockUseGeolocation.mockReturnValue(locationAcquired)
+      const mockRequestLocation = vi.fn().mockResolvedValue({
+        latitude: 44.9778,
+        longitude: -93.265,
+        accuracy: 10,
+        error: null,
+        timestamp: Date.now(),
+      })
+      mockUseGeolocation.mockReturnValue({
+        ...locationAcquired,
+        requestLocation: mockRequestLocation,
+      })
+      mockCheckGeofence.mockResolvedValue({
+        isWithinGeofence: true,
+        distanceMeters: 5,
+        allowedRadiusMeters: 50,
+      })
       mockTeacherClockInAction.mockResolvedValue({
         success: false,
         error: 'Not enrolled in Dugsi program',
@@ -499,6 +586,14 @@ describe('CheckinForm', () => {
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
       await user.click(screen.getByRole('option', { name: /bob johnson/i }))
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: /update location/i })
+        ).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /update location/i }))
 
       await waitFor(() => {
         expect(
