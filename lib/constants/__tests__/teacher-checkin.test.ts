@@ -114,8 +114,8 @@ describe('isWithinGeofence', () => {
     expect(result).toBe(false)
   })
 
-  it('should validate geofence radius is 50 meters', () => {
-    expect(GEOFENCE_RADIUS_METERS).toBe(50)
+  it('should validate geofence radius is 15 meters', () => {
+    expect(GEOFENCE_RADIUS_METERS).toBe(15)
   })
 
   it('should validate shift start times are correct', () => {
