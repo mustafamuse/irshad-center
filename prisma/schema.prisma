@@ -527,7 +527,7 @@ model WebhookEvent {
 
 model DugsiClass {
   id          String   @id @default(uuid())
-  name        String   @unique
+  name        String
   shift       Shift
   description String?
   isActive    Boolean  @default(true)
@@ -538,6 +538,7 @@ model DugsiClass {
   sessions DugsiAttendanceSession[]
   teachers DugsiClassTeacher[]
 
+  @@unique([name, shift])
   @@index([shift])
   @@index([isActive])
 }

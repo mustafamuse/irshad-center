@@ -31,9 +31,9 @@ export const IRSHAD_CENTER_LOCATION = {
 
 /**
  * Maximum distance (in meters) from center to be considered a valid check-in.
- * 50 meters = strict, must be very close to building.
+ * 15 meters (~50ft) = must be at the building entrance.
  */
-export const GEOFENCE_RADIUS_METERS = 50
+export const GEOFENCE_RADIUS_METERS = 15
 
 // ============================================================================
 // SHIFT TIMING CONFIGURATION

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
 import {
@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SHIFT_TIME_LABELS } from '@/lib/constants/teacher-checkin'
+import { METERS_TO_FEET } from '@/lib/services/geolocation-service'
 
 import {
   checkGeofence,
@@ -98,6 +99,15 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers is stable from server props
   }, [selectedTeacherId])
 
+  const formatDistance = (meters: number): string => {
+    const feet = meters * METERS_TO_FEET
+    if (feet >= 1000) {
+      const miles = feet / 5280
+      return `${miles.toFixed(1)} miles`
+    }
+    return `${Math.round(feet)}ft`
+  }
+
   const handleRequestLocation = useCallback(async () => {
     setMessage(null)
     setGeofenceStatus(null)
@@ -105,16 +115,10 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     if (loc.latitude !== null && loc.longitude !== null) {
       const result = await checkGeofence(loc.latitude, loc.longitude)
       setGeofenceStatus(result)
-      if (!result.isWithinGeofence) {
-        setMessage({
-          type: 'warning',
-          text: `You are ${result.distanceMeters}m away from the center. Check-in will be marked as invalid location.`,
-        })
-      }
     }
   }, [requestLocation])
 
-  const getCurrentCheckin = () => {
+  const currentCheckin = useMemo(() => {
     if (!status || !selectedShift) return null
     if (selectedShift === Shift.MORNING) {
       return status.morningCheckinId
@@ -132,9 +136,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
           clockOutTime: status.afternoonClockOutTime,
         }
       : null
-  }
-
-  const currentCheckin = getCurrentCheckin()
+  }, [status, selectedShift])
   const isClockedIn = currentCheckin !== null
   const isClockedOut = currentCheckin?.clockOutTime !== null
 
@@ -350,31 +352,40 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                       <div className="flex items-center gap-2 text-sm text-green-600">
                         <CheckCircle2 className="h-4 w-4" />
                         <span>Location acquired</span>
-                        {location.accuracy && (
-                          <span className="text-muted-foreground">
-                            (accuracy: {Math.round(location.accuracy)}m)
-                          </span>
-                        )}
                       </div>
                       {geofenceStatus && (
                         <div
-                          className={`flex items-center gap-2 text-sm ${
+                          className={`flex items-center gap-2 text-sm font-medium ${
                             geofenceStatus.isWithinGeofence
                               ? 'text-green-600'
-                              : 'text-[#996b1d]'
+                              : 'text-red-600'
                           }`}
                         >
                           {geofenceStatus.isWithinGeofence ? (
                             <>
                               <CheckCircle2 className="h-4 w-4" />
-                              <span>Within check-in range</span>
+                              <span>
+                                Within{' '}
+                                {Math.round(
+                                  geofenceStatus.allowedRadiusMeters *
+                                    METERS_TO_FEET
+                                )}
+                                ft of center
+                              </span>
                             </>
                           ) : (
                             <>
-                              <AlertTriangle className="h-4 w-4" />
+                              <AlertCircle className="h-4 w-4" />
                               <span>
-                                {geofenceStatus.distanceMeters}m from center
-                                (max: {geofenceStatus.allowedRadiusMeters}m)
+                                {formatDistance(geofenceStatus.distanceMeters)}{' '}
+                                away
+                                {' \u2022 '}
+                                Must be within{' '}
+                                {Math.round(
+                                  geofenceStatus.allowedRadiusMeters *
+                                    METERS_TO_FEET
+                                )}
+                                ft
                               </span>
                             </>
                           )}
@@ -445,7 +456,11 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                     size="lg"
                     className="h-14 w-full bg-[#007078] text-lg shadow-lg shadow-[#007078]/25 transition-all hover:bg-[#005a61] hover:shadow-xl hover:shadow-[#007078]/30 hover:ring-2 hover:ring-[#deb43e]/50 hover:ring-offset-1 active:scale-[0.98]"
                     onClick={handleClockIn}
-                    disabled={!hasLocation || isPending}
+                    disabled={
+                      !hasLocation ||
+                      isPending ||
+                      geofenceStatus?.isWithinGeofence === false
+                    }
                   >
                     {isPending ? (
                       <Loader2 className="mr-2 h-5 w-5 animate-spin" />

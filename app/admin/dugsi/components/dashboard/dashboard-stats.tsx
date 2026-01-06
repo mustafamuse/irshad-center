@@ -69,80 +69,144 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-      <Card>
+      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+        <div className="h-1 bg-[#007078]" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Families</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+            <Users className="h-4 w-4 text-[#007078]" />
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{totalFamilies}</div>
+          <div className="text-3xl font-bold tracking-tight">
+            {totalFamilies}
+          </div>
           <p className="text-xs text-muted-foreground">
             {totalStudents} total students
           </p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+        <div className="h-1 bg-green-500" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
             Enrolled & Paying
           </CardTitle>
-          <UserCheck className="h-4 w-4 text-muted-foreground" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
+            <UserCheck className="h-4 w-4 text-green-600" />
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{payingFamilies}</div>
+          <div className="text-3xl font-bold tracking-tight text-green-600">
+            {payingFamilies}
+          </div>
           <p className="text-xs text-muted-foreground">
             {payingRate}% of families
           </p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          actionNeeded > 0 && 'ring-2 ring-amber-200'
+        )}
+      >
+        <div
+          className={cn(
+            'h-1',
+            actionNeeded > 0 ? 'bg-amber-500' : 'bg-gray-200'
+          )}
+        />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Action Needed</CardTitle>
-          <AlertCircle
-            className={`h-4 w-4 ${actionNeeded > 0 ? 'text-amber-500' : 'text-muted-foreground'}`}
-          />
+          <div
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-lg',
+              actionNeeded > 0 ? 'bg-amber-100' : 'bg-gray-100'
+            )}
+          >
+            <AlertCircle
+              className={cn(
+                'h-4 w-4',
+                actionNeeded > 0 ? 'text-amber-600' : 'text-muted-foreground'
+              )}
+            />
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{actionNeeded}</div>
+          <div
+            className={cn(
+              'text-3xl font-bold tracking-tight',
+              actionNeeded > 0 ? 'text-amber-600' : ''
+            )}
+          >
+            {actionNeeded}
+          </div>
           <p className="text-xs text-muted-foreground">Send payment link</p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+        <div className="h-1 bg-blue-500" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
+            <DollarSign className="h-4 w-4 text-blue-600" />
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{formattedRevenue}</div>
+          <div className="text-3xl font-bold tracking-tight">
+            {formattedRevenue}
+          </div>
           <p className="text-xs text-muted-foreground">
             From {payingFamilies} families
           </p>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+        <div
+          className={cn(
+            'h-1',
+            variance === 0
+              ? 'bg-gray-200'
+              : isUnder
+                ? 'bg-red-500'
+                : 'bg-green-500'
+          )}
+        />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
             Revenue Variance
           </CardTitle>
-          <TrendingDown
+          <div
             className={cn(
-              'h-4 w-4',
+              'flex h-8 w-8 items-center justify-center rounded-lg',
               variance === 0
-                ? 'text-muted-foreground'
+                ? 'bg-gray-100'
                 : isUnder
-                  ? 'text-red-500'
-                  : 'text-green-500'
+                  ? 'bg-red-100'
+                  : 'bg-green-100'
             )}
-          />
+          >
+            <TrendingDown
+              className={cn(
+                'h-4 w-4',
+                variance === 0
+                  ? 'text-muted-foreground'
+                  : isUnder
+                    ? 'text-red-600'
+                    : 'text-green-600'
+              )}
+            />
+          </div>
         </CardHeader>
         <CardContent>
           <div
             className={cn(
-              'text-2xl font-bold',
+              'text-3xl font-bold tracking-tight',
               variance === 0 ? '' : isUnder ? 'text-red-600' : 'text-green-600'
             )}
           >

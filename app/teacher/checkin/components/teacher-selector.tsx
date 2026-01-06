@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-import { Check, ChevronsUpDown, User } from 'lucide-react'
+import { Check, CheckCircle2, Circle, ChevronsUpDown, User } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -27,6 +27,20 @@ interface TeacherSelectorProps {
   selectedTeacherId: string | null
   onSelect: (teacherId: string | null) => void
   disabled?: boolean
+}
+
+function StatusIndicator({
+  status,
+}: {
+  status: TeacherForDropdown['todayStatus']
+}) {
+  if (status === 'completed') {
+    return <CheckCircle2 className="h-4 w-4 text-blue-500" />
+  }
+  if (status === 'checked_in') {
+    return <Circle className="h-4 w-4 fill-green-500 text-green-500" />
+  }
+  return <Circle className="h-4 w-4 text-gray-300" />
 }
 
 export function TeacherSelector({
@@ -86,12 +100,13 @@ export function TeacherSelector({
                         : 'opacity-0'
                     )}
                   />
-                  <div className="flex flex-col">
+                  <div className="flex flex-1 flex-col">
                     <span className="font-medium">{teacher.name}</span>
                     <span className="text-xs text-muted-foreground">
                       {teacher.shifts.join(' & ')} shift
                     </span>
                   </div>
+                  <StatusIndicator status={teacher.todayStatus} />
                 </CommandItem>
               ))}
             </CommandGroup>

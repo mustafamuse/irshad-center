@@ -64,6 +64,11 @@ export const GPS_CONSTRAINTS = {
   MIN_ACCURACY_METERS: 100, // Warn if accuracy worse than this
 } as const
 
+/**
+ * Unit conversion constants
+ */
+export const METERS_TO_FEET = 3.28084
+
 // ============================================================================
 // ERROR HANDLING
 // ============================================================================

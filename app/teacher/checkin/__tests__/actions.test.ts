@@ -418,7 +418,7 @@ describe('checkGeofence', () => {
 
     expect(result.isWithinGeofence).toBe(true)
     expect(result.distanceMeters).toBe(25)
-    expect(result.allowedRadiusMeters).toBe(50)
+    expect(result.allowedRadiusMeters).toBe(15)
   })
 
   it('should return isWithinGeofence=false when location is outside radius', async () => {
@@ -429,7 +429,7 @@ describe('checkGeofence', () => {
 
     expect(result.isWithinGeofence).toBe(false)
     expect(result.distanceMeters).toBe(150)
-    expect(result.allowedRadiusMeters).toBe(50)
+    expect(result.allowedRadiusMeters).toBe(15)
   })
 
   it('should round distance to nearest meter', async () => {

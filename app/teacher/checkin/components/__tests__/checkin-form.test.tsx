@@ -46,6 +46,7 @@ const mockTeachers = [
     email: 'alice@test.com',
     phone: '612-555-0001',
     shifts: [Shift.MORNING, Shift.AFTERNOON],
+    todayStatus: 'not_checked_in' as const,
   },
   {
     id: '550e8400-e29b-41d4-a716-446655440002',
@@ -53,6 +54,7 @@ const mockTeachers = [
     email: 'bob@test.com',
     phone: '612-555-0002',
     shifts: [Shift.MORNING],
+    todayStatus: 'not_checked_in' as const,
   },
 ]
 
@@ -108,7 +110,7 @@ describe('CheckinForm', () => {
     mockCheckGeofence.mockResolvedValue({
       isWithinGeofence: true,
       distanceMeters: 25,
-      allowedRadiusMeters: 50,
+      allowedRadiusMeters: 15,
     })
     mockUseCheckinOnboarding.mockReturnValue({
       showOnboarding: false,
@@ -335,7 +337,7 @@ describe('CheckinForm', () => {
       mockCheckGeofence.mockResolvedValue({
         isWithinGeofence: false,
         distanceMeters: 150,
-        allowedRadiusMeters: 50,
+        allowedRadiusMeters: 15,
       })
 
       const user = userEvent.setup()
@@ -354,7 +356,7 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('button', { name: /update location/i }))
 
       await waitFor(() => {
-        expect(screen.getByText(/150m away/i)).toBeInTheDocument()
+        expect(screen.getByText(/492ft away/i)).toBeInTheDocument()
       })
     })
 
