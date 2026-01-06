@@ -12,6 +12,7 @@ import {
   IRSHAD_CENTER_LOCATION,
 } from '@/lib/constants/teacher-checkin'
 import {
+  getCheckinHistory,
   getDugsiTeachersForDropdown,
   getTeacherCheckin,
 } from '@/lib/db/queries/teacher-checkin'
@@ -153,5 +154,54 @@ export async function checkGeofence(
     isWithinGeofence: isWithinGeofence(latitude, longitude),
     distanceMeters: Math.round(distance),
     allowedRadiusMeters: GEOFENCE_RADIUS_METERS,
+  }
+}
+
+export interface CheckinHistoryItem {
+  id: string
+  date: Date
+  shift: Shift
+  clockInTime: Date
+  clockOutTime: Date | null
+  isLate: boolean
+}
+
+export interface CheckinHistoryResult {
+  data: CheckinHistoryItem[]
+  total: number
+}
+
+export async function getTeacherCheckinHistory(
+  teacherId: string
+): Promise<ActionResult<CheckinHistoryResult>> {
+  try {
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const result = await getCheckinHistory(
+      { teacherId, dateFrom: thirtyDaysAgo },
+      { page: 1, limit: 10 }
+    )
+
+    return {
+      success: true,
+      data: {
+        data: result.data.map((item) => ({
+          id: item.id,
+          date: item.date,
+          shift: item.shift,
+          clockInTime: item.clockInTime,
+          clockOutTime: item.clockOutTime,
+          isLate: item.isLate,
+        })),
+        total: result.total,
+      },
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to fetch check-in history')
+    return {
+      success: false,
+      error: 'Failed to load check-in history',
+    }
   }
 }

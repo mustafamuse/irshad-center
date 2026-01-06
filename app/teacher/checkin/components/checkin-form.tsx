@@ -41,6 +41,7 @@ import {
   type TeacherCurrentStatus,
   type TeacherForDropdown,
 } from '../actions'
+import { CheckinHistory } from './checkin-history'
 import { OnboardingModal } from './onboarding-modal'
 import { TeacherSelector } from './teacher-selector'
 import { useCheckinOnboarding } from './use-checkin-onboarding'
@@ -501,6 +502,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
           )}
         </>
       )}
+
+      <CheckinHistory teacherId={selectedTeacherId} />
 
       <OnboardingModal open={showOnboarding} onDismiss={dismissOnboarding} />
     </div>
