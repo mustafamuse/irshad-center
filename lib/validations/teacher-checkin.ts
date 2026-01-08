@@ -67,17 +67,37 @@ export const ClockOutSchema = z.object({
 /**
  * Schema for admin updates to check-in records.
  */
-export const UpdateCheckinSchema = z.object({
-  checkInId: z.string().uuid('Invalid check-in ID format'),
-  clockInTime: z.coerce.date().optional(),
-  clockOutTime: z.coerce.date().nullable().optional(),
-  isLate: z.boolean().optional(),
-  clockInValid: z.boolean().optional(),
-  notes: z
-    .string()
-    .max(500, 'Notes must be 500 characters or less')
-    .nullable()
-    .optional(),
+export const UpdateCheckinSchema = z
+  .object({
+    checkInId: z.string().uuid('Invalid check-in ID format'),
+    clockInTime: z.coerce.date().optional(),
+    clockOutTime: z.coerce.date().nullable().optional(),
+    isLate: z.boolean().optional(),
+    clockInValid: z.boolean().optional(),
+    notes: z
+      .string()
+      .max(500, 'Notes must be 500 characters or less')
+      .nullable()
+      .optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.clockOutTime && data.clockInTime) {
+        return new Date(data.clockOutTime) > new Date(data.clockInTime)
+      }
+      return true
+    },
+    {
+      message: 'Clock out time must be after clock in time',
+      path: ['clockOutTime'],
+    }
+  )
+
+/**
+ * Schema for deleting a check-in record.
+ */
+export const DeleteCheckinSchema = z.object({
+  checkInId: z.string().uuid('Invalid check-in ID'),
 })
 
 // ============================================================================
@@ -124,6 +144,7 @@ export const DateCheckinFiltersSchema = z.object({
 export type ClockInInput = z.infer<typeof ClockInSchema>
 export type ClockOutInput = z.infer<typeof ClockOutSchema>
 export type UpdateCheckinInput = z.infer<typeof UpdateCheckinSchema>
+export type DeleteCheckinInput = z.infer<typeof DeleteCheckinSchema>
 export type CheckinHistoryFilters = z.infer<typeof CheckinHistoryFiltersSchema>
 export type LateReportFilters = z.infer<typeof LateReportFiltersSchema>
 export type DateCheckinFilters = z.infer<typeof DateCheckinFiltersSchema>
