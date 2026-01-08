@@ -51,7 +51,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
+  const [dateRange, setDateRange] = useState<{ from: Date; to?: Date }>({
     from: subDays(new Date(), 7),
     to: new Date(),
   })
@@ -108,6 +108,8 @@ export function CheckinOverview({ onDataChanged }: Props) {
   }
 
   function loadHistory(page: number) {
+    const toDate = dateRange.to
+    if (!toDate) return
     startTransition(async () => {
       const filters: {
         dateFrom?: Date
@@ -118,7 +120,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
         limit?: number
       } = {
         dateFrom: startOfDay(dateRange.from),
-        dateTo: endOfDay(dateRange.to),
+        dateTo: endOfDay(toDate),
         page,
         limit: 20,
       }
@@ -209,19 +211,19 @@ export function CheckinOverview({ onDataChanged }: Props) {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
                   <CalendarIcon className="h-4 w-4" />
-                  {format(dateRange.from, 'MMM d')} -{' '}
-                  {format(dateRange.to, 'MMM d')}
+                  {format(dateRange.from, 'MMM d')}
+                  {dateRange.to && ` - ${format(dateRange.to, 'MMM d')}`}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
                   mode="range"
                   selected={{ from: dateRange.from, to: dateRange.to }}
-                  onSelect={(range) => {
-                    if (range?.from) {
+                  onSelect={(selected) => {
+                    if (selected?.from) {
                       setDateRange({
-                        from: range.from,
-                        to: range.to || range.from,
+                        from: selected.from,
+                        to: selected.to,
                       })
                     }
                   }}
