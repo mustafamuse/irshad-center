@@ -189,12 +189,12 @@ export function LateReport() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-1 items-center justify-end gap-2">
           <Select
             value={shiftFilter}
             onValueChange={(value) => setShiftFilter(value as Shift | 'all')}
           >
-            <SelectTrigger className="w-[100px] sm:w-[130px]">
+            <SelectTrigger className="w-[100px]">
               <SelectValue placeholder="Shift" />
             </SelectTrigger>
             <SelectContent>
@@ -208,7 +208,7 @@ export function LateReport() {
             value={teacherFilter}
             onValueChange={(value) => setTeacherFilter(value)}
           >
-            <SelectTrigger className="w-[120px] sm:w-[160px]">
+            <SelectTrigger className="min-w-[140px]">
               <SelectValue placeholder="Teacher" />
             </SelectTrigger>
             <SelectContent>
@@ -224,6 +224,7 @@ export function LateReport() {
           <Button
             variant="ghost"
             size="icon"
+            className="shrink-0"
             onClick={loadData}
             disabled={isPending}
           >
@@ -293,23 +294,22 @@ export function LateReport() {
                     {group.records.map((record) => (
                       <div
                         key={record.id}
-                        className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+                        className="flex items-center gap-2 rounded-lg bg-muted/50 p-3"
                       >
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'shrink-0 text-xs',
-                              SHIFT_BADGES[record.shift].className
-                            )}
-                          >
-                            {SHIFT_BADGES[record.shift].label}
-                          </Badge>
-                          <span className="text-sm">
-                            {formatDate(record.date)}
-                          </span>
-                        </div>
-                        <span className="text-xs text-muted-foreground sm:text-sm">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            'shrink-0 text-xs',
+                            SHIFT_BADGES[record.shift].className
+                          )}
+                        >
+                          {SHIFT_BADGES[record.shift].label}
+                        </Badge>
+                        <span className="text-sm">
+                          {formatDate(record.date)}
+                        </span>
+                        <span className="text-muted-foreground">•</span>
+                        <span className="text-sm text-muted-foreground">
                           {formatTime(record.clockInTime)}
                         </span>
                       </div>
