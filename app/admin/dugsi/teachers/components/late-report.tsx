@@ -189,12 +189,12 @@ export function LateReport() {
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
           <Select
             value={shiftFilter}
             onValueChange={(value) => setShiftFilter(value as Shift | 'all')}
           >
-            <SelectTrigger className="w-[130px]">
+            <SelectTrigger className="w-[100px] sm:w-[130px]">
               <SelectValue placeholder="Shift" />
             </SelectTrigger>
             <SelectContent>
@@ -208,7 +208,7 @@ export function LateReport() {
             value={teacherFilter}
             onValueChange={(value) => setTeacherFilter(value)}
           >
-            <SelectTrigger className="w-[160px]">
+            <SelectTrigger className="w-[120px] sm:w-[160px]">
               <SelectValue placeholder="Teacher" />
             </SelectTrigger>
             <SelectContent>
@@ -252,18 +252,20 @@ export function LateReport() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-4">
+          <div className="grid grid-cols-2 gap-4 rounded-lg border bg-muted/50 p-4">
             <div>
-              <p className="text-sm text-muted-foreground">
-                Total Late Arrivals
+              <p className="text-xs text-muted-foreground sm:text-sm">
+                Late Arrivals
               </p>
-              <p className="text-2xl font-bold">{records.length}</p>
+              <p className="text-xl font-bold sm:text-2xl">{records.length}</p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                Teachers with Late Arrivals
+            <div className="text-right sm:text-left">
+              <p className="text-xs text-muted-foreground sm:text-sm">
+                Teachers
               </p>
-              <p className="text-2xl font-bold">{groupedByTeacher.length}</p>
+              <p className="text-xl font-bold sm:text-2xl">
+                {groupedByTeacher.length}
+              </p>
             </div>
           </div>
 
@@ -291,13 +293,13 @@ export function LateReport() {
                     {group.records.map((record) => (
                       <div
                         key={record.id}
-                        className="flex items-center justify-between rounded-lg bg-muted/50 p-3"
+                        className="flex flex-col gap-1 rounded-lg bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <Badge
                             variant="outline"
                             className={cn(
-                              'text-xs',
+                              'shrink-0 text-xs',
                               SHIFT_BADGES[record.shift].className
                             )}
                           >
@@ -307,8 +309,8 @@ export function LateReport() {
                             {formatDate(record.date)}
                           </span>
                         </div>
-                        <span className="text-sm text-muted-foreground">
-                          Clocked in at {formatTime(record.clockInTime)}
+                        <span className="text-xs text-muted-foreground sm:text-sm">
+                          {formatTime(record.clockInTime)}
                         </span>
                       </div>
                     ))}
