@@ -11,6 +11,9 @@ import {
 } from 'date-fns'
 import { formatInTimeZone } from 'date-fns-tz'
 
+/**
+ * Represents a selectable weekend day option in the UI.
+ */
 export interface WeekendDayOption {
   value: string
   label: string
@@ -18,6 +21,9 @@ export interface WeekendDayOption {
   endDate?: Date
 }
 
+/**
+ * Represents a time period filter option (month or quarter).
+ */
 export interface FilterOption {
   value: string
   label: string
@@ -25,14 +31,37 @@ export interface FilterOption {
   end: Date
 }
 
+/**
+ * Formats a date for check-in display using UTC timezone to prevent
+ * off-by-one day errors in local timezones.
+ * @param date - The date to format
+ * @returns Formatted string like "Sat, Dec 27"
+ * @example formatCheckinDate(new Date('2025-12-27T00:00:00Z')) // "Sat, Dec 27"
+ */
 export function formatCheckinDate(date: Date): string {
   return formatInTimeZone(date, 'UTC', 'EEE, MMM d')
 }
 
+/**
+ * Formats a date as a time string in 12-hour format.
+ * @param date - The date to format
+ * @returns Formatted string like "8:30 AM"
+ * @example formatCheckinTime(new Date('2025-12-27T08:30:00')) // "8:30 AM"
+ */
 export function formatCheckinTime(date: Date): string {
   return format(new Date(date), 'h:mm a')
 }
 
+/**
+ * Calculates Saturday and Sunday dates for a given number of weeks ago.
+ * If called on Friday-Sunday, week 0 is the most recent Saturday/Sunday.
+ * If called Monday-Thursday, week 0 is the previous Saturday/Sunday.
+ * @param weeksAgo - Number of weeks back to calculate (0 = most recent weekend)
+ * @returns Object with start (Saturday) and end (Sunday) dates
+ * @example
+ * // Called on Friday Jan 9, 2026
+ * getWeekendDates(0) // { start: Jan 3, end: Jan 4 }
+ */
 export function getWeekendDates(weeksAgo: number): { start: Date; end: Date } {
   const now = new Date()
   const dayOfWeek = getDay(now)
@@ -55,6 +84,17 @@ export function getWeekendDates(weeksAgo: number): { start: Date; end: Date } {
   }
 }
 
+/**
+ * Generates UI options for weekend day selection with context-aware labels.
+ * Labels adapt based on current day: "This Weekend/Sat/Sun" on weekends,
+ * "Last Weekend/Sat/Sun" on weekdays.
+ * @param count - Number of past weekends to include (each weekend generates 2 options)
+ * @returns Array of weekend day options for dropdown selection
+ * @example
+ * // Called on Friday Jan 9, 2026
+ * generateWeekendDayOptions(2)
+ * // Returns: ["Last Weekend (Jan 3-4)", "Last Sat (Jan 3)", "Last Sun (Jan 4)", ...]
+ */
 export function generateWeekendDayOptions(count: number): WeekendDayOption[] {
   const options: WeekendDayOption[] = []
   const now = new Date()
@@ -107,6 +147,11 @@ export function generateWeekendDayOptions(count: number): WeekendDayOption[] {
   return options
 }
 
+/**
+ * Gets the start and end dates for the current month.
+ * @returns Object with start (first day) and end (last day) of current month
+ * @example getThisMonthRange() // { start: Jan 1 00:00, end: Jan 31 23:59 }
+ */
 export function getThisMonthRange(): { start: Date; end: Date } {
   const now = new Date()
   return {
@@ -115,6 +160,14 @@ export function getThisMonthRange(): { start: Date; end: Date } {
   }
 }
 
+/**
+ * Gets a date range spanning the last N months including the current month.
+ * @param n - Number of months to include
+ * @returns Object with start (first day of earliest month) and end (last day of current month)
+ * @example
+ * // Called in January 2026
+ * getLastNMonthsRange(2) // { start: Dec 1 2025, end: Jan 31 2026 }
+ */
 export function getLastNMonthsRange(n: number): { start: Date; end: Date } {
   const now = new Date()
   return {
@@ -123,6 +176,13 @@ export function getLastNMonthsRange(n: number): { start: Date; end: Date } {
   }
 }
 
+/**
+ * Calculates the start and end dates for a specific quarter.
+ * @param year - The year (e.g., 2026)
+ * @param quarter - The quarter number (1-4)
+ * @returns Object with start and end dates for the quarter
+ * @example getQuarterRange(2026, 1) // { start: Jan 1 00:00, end: Mar 31 23:59 }
+ */
 export function getQuarterRange(
   year: number,
   quarter: 1 | 2 | 3 | 4
@@ -133,6 +193,16 @@ export function getQuarterRange(
   return { start: startOfDay(start), end: endOfDay(end) }
 }
 
+/**
+ * Gets available quarters for selection based on current date.
+ * Returns current quarter (if more than 1 month complete), remaining quarters from
+ * current year, and all quarters from previous year.
+ * @returns Array of year/quarter objects ordered from most recent
+ * @example
+ * // Called in March 2026 (Q1, month 2)
+ * getAvailableQuarters()
+ * // Returns: [{ year: 2026, quarter: 1 }, { year: 2025, quarter: 4 }, ...]
+ */
 export function getAvailableQuarters(): {
   year: number
   quarter: 1 | 2 | 3 | 4
@@ -163,6 +233,17 @@ export function getAvailableQuarters(): {
   return quarters
 }
 
+/**
+ * Generates predefined filter options for history views.
+ * Returns month options (This Month, Last 2 Months) and available quarter options.
+ * @returns Object with arrays of month and quarter filter options
+ * @example
+ * generateHistoryFilterOptions()
+ * // {
+ * //   months: [{ value: 'this-month', label: 'This Month', start: ..., end: ... }],
+ * //   quarters: [{ value: 'q1-2026', label: 'Q1 2026', start: ..., end: ... }]
+ * // }
+ */
 export function generateHistoryFilterOptions(): {
   months: FilterOption[]
   quarters: FilterOption[]

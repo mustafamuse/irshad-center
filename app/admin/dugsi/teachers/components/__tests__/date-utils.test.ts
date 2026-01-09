@@ -4,6 +4,9 @@ import {
   getWeekendDates,
   generateWeekendDayOptions,
   formatCheckinDate,
+  formatCheckinTime,
+  getQuarterRange,
+  getAvailableQuarters,
 } from '../date-utils'
 
 describe('formatCheckinDate', () => {
@@ -138,5 +141,132 @@ describe('generateWeekendDayOptions', () => {
     expect(options[1].date.getDate()).toBe(3)
     expect(options[2].label).toContain('Jan 4')
     expect(options[2].date.getDate()).toBe(4)
+  })
+})
+
+describe('formatCheckinTime', () => {
+  it('formats morning time correctly', () => {
+    const date = new Date('2026-01-09T08:30:00')
+    expect(formatCheckinTime(date)).toBe('8:30 AM')
+  })
+
+  it('formats afternoon time correctly', () => {
+    const date = new Date('2026-01-09T14:15:00')
+    expect(formatCheckinTime(date)).toBe('2:15 PM')
+  })
+
+  it('formats noon correctly', () => {
+    const date = new Date('2026-01-09T12:00:00')
+    expect(formatCheckinTime(date)).toBe('12:00 PM')
+  })
+
+  it('formats midnight correctly', () => {
+    const date = new Date('2026-01-09T00:00:00')
+    expect(formatCheckinTime(date)).toBe('12:00 AM')
+  })
+})
+
+describe('getQuarterRange', () => {
+  it('returns correct dates for Q1', () => {
+    const { start, end } = getQuarterRange(2026, 1)
+
+    expect(start.getFullYear()).toBe(2026)
+    expect(start.getMonth()).toBe(0)
+    expect(start.getDate()).toBe(1)
+
+    expect(end.getFullYear()).toBe(2026)
+    expect(end.getMonth()).toBe(2)
+    expect(end.getDate()).toBe(31)
+  })
+
+  it('returns correct dates for Q2', () => {
+    const { start, end } = getQuarterRange(2026, 2)
+
+    expect(start.getMonth()).toBe(3)
+    expect(start.getDate()).toBe(1)
+
+    expect(end.getMonth()).toBe(5)
+    expect(end.getDate()).toBe(30)
+  })
+
+  it('returns correct dates for Q3', () => {
+    const { start, end } = getQuarterRange(2026, 3)
+
+    expect(start.getMonth()).toBe(6)
+    expect(start.getDate()).toBe(1)
+
+    expect(end.getMonth()).toBe(8)
+    expect(end.getDate()).toBe(30)
+  })
+
+  it('returns correct dates for Q4', () => {
+    const { start, end } = getQuarterRange(2026, 4)
+
+    expect(start.getMonth()).toBe(9)
+    expect(start.getDate()).toBe(1)
+
+    expect(end.getMonth()).toBe(11)
+    expect(end.getDate()).toBe(31)
+  })
+
+  it('sets start time to beginning of day', () => {
+    const { start } = getQuarterRange(2026, 1)
+
+    expect(start.getHours()).toBe(0)
+    expect(start.getMinutes()).toBe(0)
+    expect(start.getSeconds()).toBe(0)
+  })
+
+  it('sets end time to end of day', () => {
+    const { end } = getQuarterRange(2026, 1)
+
+    expect(end.getHours()).toBe(23)
+    expect(end.getMinutes()).toBe(59)
+    expect(end.getSeconds()).toBe(59)
+  })
+})
+
+describe('getAvailableQuarters', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('includes current quarter if more than 1 month complete', () => {
+    vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
+
+    const quarters = getAvailableQuarters()
+
+    expect(quarters[0]).toEqual({ year: 2026, quarter: 1 })
+  })
+
+  it('excludes current quarter if only 1 month complete', () => {
+    vi.setSystemTime(new Date('2026-01-15T12:00:00Z'))
+
+    const quarters = getAvailableQuarters()
+
+    expect(quarters[0]).not.toEqual({ year: 2026, quarter: 1 })
+  })
+
+  it('includes all quarters from previous year', () => {
+    vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
+
+    const quarters = getAvailableQuarters()
+    const previousYearQuarters = quarters.filter((q) => q.year === 2025)
+
+    expect(previousYearQuarters).toHaveLength(4)
+    expect(previousYearQuarters.map((q) => q.quarter)).toEqual([4, 3, 2, 1])
+  })
+
+  it('includes completed quarters from current year', () => {
+    vi.setSystemTime(new Date('2026-09-15T12:00:00Z'))
+
+    const quarters = getAvailableQuarters()
+    const currentYearQuarters = quarters.filter((q) => q.year === 2026)
+
+    expect(currentYearQuarters.map((q) => q.quarter)).toEqual([3, 2, 1])
   })
 })

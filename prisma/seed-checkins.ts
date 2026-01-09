@@ -12,6 +12,12 @@ const prisma = new PrismaClient()
 
 const SEED_MARKER = '[SEED]'
 
+const SEED_CONFIG = {
+  SKIP_RATE: 0.1,
+  LATE_RATE: 0.2,
+  CLOCKOUT_RATE: 0.7,
+} as const
+
 const SHIFT_CONFIG = {
   MORNING: {
     startHour: 8,
@@ -114,55 +120,52 @@ async function seedCheckins() {
   )
   console.log()
 
-  let created = 0
+  const checkins = []
   let skipped = 0
 
   for (const teacher of teachers) {
     for (const date of weekendDates) {
       for (const shift of [Shift.MORNING, Shift.AFTERNOON]) {
-        const skipCheckin = Math.random() < 0.1
+        const skipCheckin = Math.random() < SEED_CONFIG.SKIP_RATE
         if (skipCheckin) {
           skipped++
           continue
         }
 
-        const isLate = Math.random() < 0.2
-        const hasClockOut = Math.random() < 0.7
+        const isLate = Math.random() < SEED_CONFIG.LATE_RATE
+        const hasClockOut = Math.random() < SEED_CONFIG.CLOCKOUT_RATE
 
-        try {
-          await prisma.dugsiTeacherCheckIn.create({
-            data: {
-              teacherId: teacher.id,
-              date: date,
-              shift: shift,
-              clockInTime: generateClockInTime(date, shift, isLate),
-              clockInLat: 44.9537 + (Math.random() - 0.5) * 0.0001,
-              clockInLng: -93.09 + (Math.random() - 0.5) * 0.0001,
-              clockInValid: true,
-              clockOutTime: hasClockOut
-                ? generateClockOutTime(date, shift)
-                : null,
-              clockOutLat: hasClockOut
-                ? 44.9537 + (Math.random() - 0.5) * 0.0001
-                : null,
-              clockOutLng: hasClockOut
-                ? -93.09 + (Math.random() - 0.5) * 0.0001
-                : null,
-              isLate: isLate,
-              notes: SEED_MARKER,
-            },
-          })
-          created++
-        } catch {
-          skipped++
-        }
+        checkins.push({
+          teacherId: teacher.id,
+          date: date,
+          shift: shift,
+          clockInTime: generateClockInTime(date, shift, isLate),
+          clockInLat: 44.9537 + (Math.random() - 0.5) * 0.0001,
+          clockInLng: -93.09 + (Math.random() - 0.5) * 0.0001,
+          clockInValid: true,
+          clockOutTime: hasClockOut ? generateClockOutTime(date, shift) : null,
+          clockOutLat: hasClockOut
+            ? 44.9537 + (Math.random() - 0.5) * 0.0001
+            : null,
+          clockOutLng: hasClockOut
+            ? -93.09 + (Math.random() - 0.5) * 0.0001
+            : null,
+          isLate: isLate,
+          notes: SEED_MARKER,
+        })
       }
     }
   }
 
+  console.log(`Inserting ${checkins.length} check-in records...`)
+  const result = await prisma.dugsiTeacherCheckIn.createMany({
+    data: checkins,
+    skipDuplicates: true,
+  })
+
   console.log('Seed complete!')
-  console.log(`  Created: ${created} check-in records`)
-  console.log(`  Skipped: ${skipped} (random gaps or duplicates)`)
+  console.log(`  Created: ${result.count} check-in records`)
+  console.log(`  Skipped: ${skipped} (random gaps)`)
   console.log()
   console.log('To remove seeded data, run: npm run unseed:checkins')
 }
