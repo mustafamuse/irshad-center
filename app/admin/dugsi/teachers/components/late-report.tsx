@@ -149,8 +149,8 @@ export function LateReport() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-3 sm:flex sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:space-y-0">
+        <div className="flex items-center gap-2">
           <div className="flex rounded-lg border p-1">
             <Button
               variant={viewMode === 'grouped' ? 'secondary' : 'ghost'}
@@ -169,7 +169,7 @@ export function LateReport() {
           </div>
 
           <Select value={selectedFilter} onValueChange={handleFilterChange}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="flex-1 sm:w-[180px]">
               <SelectValue placeholder="Select period" />
             </SelectTrigger>
             <SelectContent>
@@ -193,12 +193,12 @@ export function LateReport() {
           </Select>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:items-center">
           <Select
             value={shiftFilter}
             onValueChange={(value) => setShiftFilter(value as Shift | 'all')}
           >
-            <SelectTrigger className="w-[100px]">
+            <SelectTrigger className="w-full sm:w-[120px]">
               <SelectValue placeholder="Shift" />
             </SelectTrigger>
             <SelectContent>
@@ -212,7 +212,7 @@ export function LateReport() {
             value={teacherFilter}
             onValueChange={(value) => setTeacherFilter(value)}
           >
-            <SelectTrigger className="min-w-[140px]">
+            <SelectTrigger className="w-full sm:w-[160px]">
               <SelectValue placeholder="Teacher" />
             </SelectTrigger>
             <SelectContent>
@@ -325,23 +325,27 @@ export function LateReport() {
               ))}
             </Accordion>
           ) : (
-            <div className="rounded-lg border">
+            <div className="overflow-x-auto rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Teacher</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Shift</TableHead>
-                    <TableHead>Clock In</TableHead>
+                    <TableHead className="whitespace-nowrap">Teacher</TableHead>
+                    <TableHead className="whitespace-nowrap">Date</TableHead>
+                    <TableHead className="whitespace-nowrap">Shift</TableHead>
+                    <TableHead className="whitespace-nowrap">
+                      Clock In
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {records.map((record) => (
                     <TableRow key={record.id}>
-                      <TableCell className="font-medium">
+                      <TableCell className="whitespace-nowrap font-medium">
                         {record.teacherName}
                       </TableCell>
-                      <TableCell>{formatCheckinDate(record.date)}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {formatCheckinDate(record.date)}
+                      </TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -353,7 +357,7 @@ export function LateReport() {
                           {SHIFT_BADGES[record.shift].label}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatCheckinTime(record.clockInTime)}
                       </TableCell>
                     </TableRow>
