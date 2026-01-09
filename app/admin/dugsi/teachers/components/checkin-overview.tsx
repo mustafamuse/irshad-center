@@ -7,6 +7,9 @@ import {
   format,
   startOfDay,
   endOfDay,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
   subDays,
   addDays,
   getDay,
@@ -17,7 +20,9 @@ import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -45,7 +50,7 @@ interface WeekendDayOption {
   date: Date
 }
 
-interface WeekendRangeOption {
+interface FilterOption {
   value: string
   label: string
   start: Date
@@ -74,15 +79,6 @@ function getWeekendDates(weeksAgo: number): { start: Date; end: Date } {
   }
 }
 
-function getLastNWeekends(n: number): { start: Date; end: Date } {
-  const oldest = getWeekendDates(n - 1)
-  const newest = getWeekendDates(0)
-  return {
-    start: oldest.start,
-    end: newest.end,
-  }
-}
-
 function generateWeekendDayOptions(count: number): WeekendDayOption[] {
   const options: WeekendDayOption[] = []
   for (let i = 0; i < count; i++) {
@@ -106,19 +102,84 @@ function generateWeekendDayOptions(count: number): WeekendDayOption[] {
   return options
 }
 
-function generateWeekendRangeOptions(count: number): WeekendRangeOption[] {
-  const options: WeekendRangeOption[] = []
-  for (let i = 0; i < count; i++) {
-    const { start, end } = getWeekendDates(i)
-    const label =
-      i === 0
-        ? `This Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
-        : i === 1
-          ? `Last Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
-          : `${format(start, 'MMM d')}-${format(end, 'd')}`
-    options.push({ value: i.toString(), label, start, end })
+function getThisMonthRange(): { start: Date; end: Date } {
+  const now = new Date()
+  return {
+    start: startOfMonth(now),
+    end: endOfMonth(now),
   }
-  return options
+}
+
+function getLastNMonthsRange(n: number): { start: Date; end: Date } {
+  const now = new Date()
+  return {
+    start: startOfMonth(subMonths(now, n - 1)),
+    end: endOfMonth(now),
+  }
+}
+
+function getQuarterRange(
+  year: number,
+  quarter: 1 | 2 | 3 | 4
+): { start: Date; end: Date } {
+  const startMonth = (quarter - 1) * 3
+  const start = new Date(year, startMonth, 1)
+  const end = endOfMonth(new Date(year, startMonth + 2, 1))
+  return { start: startOfDay(start), end: endOfDay(end) }
+}
+
+function getAvailableQuarters(): { year: number; quarter: 1 | 2 | 3 | 4 }[] {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth()
+  const currentQuarter = Math.floor(currentMonth / 3) + 1
+
+  const quarters: { year: number; quarter: 1 | 2 | 3 | 4 }[] = []
+
+  const monthInQuarter = currentMonth % 3
+  if (monthInQuarter >= 1) {
+    quarters.push({
+      year: currentYear,
+      quarter: currentQuarter as 1 | 2 | 3 | 4,
+    })
+  }
+
+  for (let q = currentQuarter - 1; q >= 1; q--) {
+    quarters.push({ year: currentYear, quarter: q as 1 | 2 | 3 | 4 })
+  }
+
+  for (let q = 4; q >= 1; q--) {
+    quarters.push({ year: currentYear - 1, quarter: q as 1 | 2 | 3 | 4 })
+  }
+
+  return quarters
+}
+
+function generateHistoryFilterOptions(): {
+  months: FilterOption[]
+  quarters: FilterOption[]
+} {
+  const months: FilterOption[] = [
+    {
+      value: 'this-month',
+      label: 'This Month',
+      ...getThisMonthRange(),
+    },
+    {
+      value: 'last-2-months',
+      label: 'Last 2 Months',
+      ...getLastNMonthsRange(2),
+    },
+  ]
+
+  const availableQuarters = getAvailableQuarters()
+  const quarters: FilterOption[] = availableQuarters.map((q) => ({
+    value: `q${q.quarter}-${q.year}`,
+    label: `Q${q.quarter} ${q.year}`,
+    ...getQuarterRange(q.year, q.quarter),
+  }))
+
+  return { months, quarters }
 }
 
 export function CheckinOverview({ onDataChanged }: Props) {
@@ -129,14 +190,19 @@ export function CheckinOverview({ onDataChanged }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const weekendDayOptions = useMemo(() => generateWeekendDayOptions(4), [])
-  const weekendRangeOptions = useMemo(() => generateWeekendRangeOptions(8), [])
+  const historyFilterOptions = useMemo(() => generateHistoryFilterOptions(), [])
+  const allHistoryOptions = useMemo(
+    () => [...historyFilterOptions.months, ...historyFilterOptions.quarters],
+    [historyFilterOptions]
+  )
 
   const [selectedDay, setSelectedDay] = useState('sat-0')
   const [selectedDate, setSelectedDate] = useState(
     () => getWeekendDates(0).start
   )
-  const [selectedWeekend, setSelectedWeekend] = useState('0')
-  const [dateRange, setDateRange] = useState(() => getWeekendDates(0))
+  const [selectedHistoryFilter, setSelectedHistoryFilter] =
+    useState('this-month')
+  const [dateRange, setDateRange] = useState(() => getThisMonthRange())
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
 
@@ -251,15 +317,12 @@ export function CheckinOverview({ onDataChanged }: Props) {
     }
   }
 
-  function handleWeekendChange(value: string) {
-    setSelectedWeekend(value)
-    const weeksAgo = parseInt(value, 10)
-    setDateRange(getWeekendDates(weeksAgo))
-  }
-
-  function handleLastN(n: number) {
-    setSelectedWeekend('custom')
-    setDateRange(getLastNWeekends(n))
+  function handleHistoryFilterChange(value: string) {
+    setSelectedHistoryFilter(value)
+    const option = allHistoryOptions.find((o) => o.value === value)
+    if (option) {
+      setDateRange({ start: option.start, end: option.end })
+    }
   }
 
   function handleToday() {
@@ -315,37 +378,32 @@ export function CheckinOverview({ onDataChanged }: Props) {
               </Button>
             </>
           ) : (
-            <>
-              <Select
-                value={selectedWeekend}
-                onValueChange={handleWeekendChange}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select weekend" />
-                </SelectTrigger>
-                <SelectContent>
-                  {weekendRangeOptions.map((opt) => (
+            <Select
+              value={selectedHistoryFilter}
+              onValueChange={handleHistoryFilterChange}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Select period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Months</SelectLabel>
+                  {historyFilterOptions.months.map((opt) => (
                     <SelectItem key={opt.value} value={opt.value}>
                       {opt.label}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleLastN(4)}
-              >
-                Last 4
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleLastN(8)}
-              >
-                Last 8
-              </Button>
-            </>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Quarters</SelectLabel>
+                  {historyFilterOptions.quarters.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           )}
         </div>
 

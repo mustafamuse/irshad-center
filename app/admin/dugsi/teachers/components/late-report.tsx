@@ -7,9 +7,9 @@ import {
   format,
   startOfDay,
   endOfDay,
-  subDays,
-  addDays,
-  getDay,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
 } from 'date-fns'
 import { AlertCircle, Clock, Loader2, RefreshCw } from 'lucide-react'
 
@@ -24,7 +24,9 @@ import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
@@ -45,7 +47,7 @@ interface TeacherLateGroup {
   records: CheckinRecord[]
 }
 
-interface WeekendOption {
+interface FilterOption {
   value: string
   label: string
   start: Date
@@ -60,56 +62,84 @@ function formatDate(date: Date): string {
   return format(new Date(date), 'EEE, MMM d')
 }
 
-function getWeekendDates(weeksAgo: number): { start: Date; end: Date } {
+function getThisMonthRange(): { start: Date; end: Date } {
   const now = new Date()
-  const dayOfWeek = getDay(now)
-
-  // Find most recent Saturday (0=Sun, 6=Sat)
-  let daysToSaturday: number
-  if (dayOfWeek === 6) {
-    daysToSaturday = 0
-  } else if (dayOfWeek === 0) {
-    daysToSaturday = 1
-  } else {
-    daysToSaturday = dayOfWeek + 1
-  }
-
-  const saturday = subDays(now, daysToSaturday + weeksAgo * 7)
-  const sunday = addDays(saturday, 1)
-
   return {
-    start: startOfDay(saturday),
-    end: endOfDay(sunday),
+    start: startOfMonth(now),
+    end: endOfMonth(now),
   }
 }
 
-function getLastNWeekends(n: number): { start: Date; end: Date } {
-  const oldest = getWeekendDates(n - 1)
-  const newest = getWeekendDates(0)
+function getLastNMonthsRange(n: number): { start: Date; end: Date } {
+  const now = new Date()
   return {
-    start: oldest.start,
-    end: newest.end,
+    start: startOfMonth(subMonths(now, n - 1)),
+    end: endOfMonth(now),
   }
 }
 
-function generateWeekendOptions(count: number): WeekendOption[] {
-  const options: WeekendOption[] = []
-  for (let i = 0; i < count; i++) {
-    const { start, end } = getWeekendDates(i)
-    const label =
-      i === 0
-        ? `This Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
-        : i === 1
-          ? `Last Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
-          : `${format(start, 'MMM d')}-${format(end, 'd')}`
-    options.push({
-      value: i.toString(),
-      label,
-      start,
-      end,
+function getQuarterRange(
+  year: number,
+  quarter: 1 | 2 | 3 | 4
+): { start: Date; end: Date } {
+  const startMonth = (quarter - 1) * 3
+  const start = new Date(year, startMonth, 1)
+  const end = endOfMonth(new Date(year, startMonth + 2, 1))
+  return { start: startOfDay(start), end: endOfDay(end) }
+}
+
+function getAvailableQuarters(): { year: number; quarter: 1 | 2 | 3 | 4 }[] {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth()
+  const currentQuarter = Math.floor(currentMonth / 3) + 1
+
+  const quarters: { year: number; quarter: 1 | 2 | 3 | 4 }[] = []
+
+  const monthInQuarter = currentMonth % 3
+  if (monthInQuarter >= 1) {
+    quarters.push({
+      year: currentYear,
+      quarter: currentQuarter as 1 | 2 | 3 | 4,
     })
   }
-  return options
+
+  for (let q = currentQuarter - 1; q >= 1; q--) {
+    quarters.push({ year: currentYear, quarter: q as 1 | 2 | 3 | 4 })
+  }
+
+  for (let q = 4; q >= 1; q--) {
+    quarters.push({ year: currentYear - 1, quarter: q as 1 | 2 | 3 | 4 })
+  }
+
+  return quarters
+}
+
+function generateFilterOptions(): {
+  months: FilterOption[]
+  quarters: FilterOption[]
+} {
+  const months: FilterOption[] = [
+    {
+      value: 'this-month',
+      label: 'This Month',
+      ...getThisMonthRange(),
+    },
+    {
+      value: 'last-2-months',
+      label: 'Last 2 Months',
+      ...getLastNMonthsRange(2),
+    },
+  ]
+
+  const availableQuarters = getAvailableQuarters()
+  const quarters: FilterOption[] = availableQuarters.map((q) => ({
+    value: `q${q.quarter}-${q.year}`,
+    label: `Q${q.quarter} ${q.year}`,
+    ...getQuarterRange(q.year, q.quarter),
+  }))
+
+  return { months, quarters }
 }
 
 export function LateReport() {
@@ -118,9 +148,14 @@ export function LateReport() {
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const weekendOptions = useMemo(() => generateWeekendOptions(8), [])
-  const [selectedWeekend, setSelectedWeekend] = useState('0')
-  const [dateRange, setDateRange] = useState(() => getWeekendDates(0))
+  const filterOptions = useMemo(() => generateFilterOptions(), [])
+  const allOptions = useMemo(
+    () => [...filterOptions.months, ...filterOptions.quarters],
+    [filterOptions]
+  )
+
+  const [selectedFilter, setSelectedFilter] = useState('this-month')
+  const [dateRange, setDateRange] = useState(() => getThisMonthRange())
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
 
@@ -190,49 +225,40 @@ export function LateReport() {
     })
   }
 
-  function handleWeekendChange(value: string) {
-    setSelectedWeekend(value)
-    const weeksAgo = parseInt(value, 10)
-    setDateRange(getWeekendDates(weeksAgo))
-  }
-
-  function handleLastN(n: number) {
-    setSelectedWeekend('custom')
-    setDateRange(getLastNWeekends(n))
+  function handleFilterChange(value: string) {
+    setSelectedFilter(value)
+    const option = allOptions.find((o) => o.value === value)
+    if (option) {
+      setDateRange({ start: option.start, end: option.end })
+    }
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={selectedWeekend} onValueChange={handleWeekendChange}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Select weekend" />
-            </SelectTrigger>
-            <SelectContent>
-              {weekendOptions.map((opt) => (
+        <Select value={selectedFilter} onValueChange={handleFilterChange}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Select period" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectLabel>Months</SelectLabel>
+              {filterOptions.months.map((opt) => (
                 <SelectItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant={selectedWeekend === 'custom' ? 'secondary' : 'outline'}
-            size="sm"
-            onClick={() => handleLastN(4)}
-          >
-            Last 4
-          </Button>
-          <Button
-            variant={selectedWeekend === 'custom' ? 'secondary' : 'outline'}
-            size="sm"
-            onClick={() => handleLastN(8)}
-          >
-            Last 8
-          </Button>
-        </div>
+            </SelectGroup>
+            <SelectGroup>
+              <SelectLabel>Quarters</SelectLabel>
+              {filterOptions.quarters.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
 
         <div className="flex flex-1 items-center justify-end gap-2">
           <Select
