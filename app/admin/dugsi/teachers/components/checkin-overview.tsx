@@ -3,17 +3,6 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
-import {
-  format,
-  startOfDay,
-  endOfDay,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-  subDays,
-  addDays,
-  getDay,
-} from 'date-fns'
 import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -37,150 +26,18 @@ import {
 } from '../actions'
 import { CheckinCard } from './checkin-card'
 import { CheckinTable } from './checkin-table'
+import {
+  generateWeekendDayOptions,
+  generateHistoryFilterOptions,
+  getWeekendDates,
+  getThisMonthRange,
+} from './date-utils'
 
 interface Props {
   onDataChanged?: () => void
 }
 
 type ViewMode = 'today' | 'history'
-
-interface WeekendDayOption {
-  value: string
-  label: string
-  date: Date
-}
-
-interface FilterOption {
-  value: string
-  label: string
-  start: Date
-  end: Date
-}
-
-function getWeekendDates(weeksAgo: number): { start: Date; end: Date } {
-  const now = new Date()
-  const dayOfWeek = getDay(now)
-
-  let daysToSaturday: number
-  if (dayOfWeek === 6) {
-    daysToSaturday = 0
-  } else if (dayOfWeek === 0) {
-    daysToSaturday = 1
-  } else {
-    daysToSaturday = dayOfWeek + 1
-  }
-
-  const saturday = subDays(now, daysToSaturday + weeksAgo * 7)
-  const sunday = addDays(saturday, 1)
-
-  return {
-    start: startOfDay(saturday),
-    end: endOfDay(sunday),
-  }
-}
-
-function generateWeekendDayOptions(count: number): WeekendDayOption[] {
-  const options: WeekendDayOption[] = []
-  for (let i = 0; i < count; i++) {
-    const { start, end } = getWeekendDates(i)
-    const satLabel =
-      i === 0
-        ? `This Sat (${format(start, 'MMM d')})`
-        : i === 1
-          ? `Last Sat (${format(start, 'MMM d')})`
-          : `Sat ${format(start, 'MMM d')}`
-    const sunLabel =
-      i === 0
-        ? `This Sun (${format(end, 'MMM d')})`
-        : i === 1
-          ? `Last Sun (${format(end, 'MMM d')})`
-          : `Sun ${format(end, 'MMM d')}`
-
-    options.push({ value: `sat-${i}`, label: satLabel, date: start })
-    options.push({ value: `sun-${i}`, label: sunLabel, date: startOfDay(end) })
-  }
-  return options
-}
-
-function getThisMonthRange(): { start: Date; end: Date } {
-  const now = new Date()
-  return {
-    start: startOfMonth(now),
-    end: endOfMonth(now),
-  }
-}
-
-function getLastNMonthsRange(n: number): { start: Date; end: Date } {
-  const now = new Date()
-  return {
-    start: startOfMonth(subMonths(now, n - 1)),
-    end: endOfMonth(now),
-  }
-}
-
-function getQuarterRange(
-  year: number,
-  quarter: 1 | 2 | 3 | 4
-): { start: Date; end: Date } {
-  const startMonth = (quarter - 1) * 3
-  const start = new Date(year, startMonth, 1)
-  const end = endOfMonth(new Date(year, startMonth + 2, 1))
-  return { start: startOfDay(start), end: endOfDay(end) }
-}
-
-function getAvailableQuarters(): { year: number; quarter: 1 | 2 | 3 | 4 }[] {
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = now.getMonth()
-  const currentQuarter = Math.floor(currentMonth / 3) + 1
-
-  const quarters: { year: number; quarter: 1 | 2 | 3 | 4 }[] = []
-
-  const monthInQuarter = currentMonth % 3
-  if (monthInQuarter >= 1) {
-    quarters.push({
-      year: currentYear,
-      quarter: currentQuarter as 1 | 2 | 3 | 4,
-    })
-  }
-
-  for (let q = currentQuarter - 1; q >= 1; q--) {
-    quarters.push({ year: currentYear, quarter: q as 1 | 2 | 3 | 4 })
-  }
-
-  for (let q = 4; q >= 1; q--) {
-    quarters.push({ year: currentYear - 1, quarter: q as 1 | 2 | 3 | 4 })
-  }
-
-  return quarters
-}
-
-function generateHistoryFilterOptions(): {
-  months: FilterOption[]
-  quarters: FilterOption[]
-} {
-  const months: FilterOption[] = [
-    {
-      value: 'this-month',
-      label: 'This Month',
-      ...getThisMonthRange(),
-    },
-    {
-      value: 'last-2-months',
-      label: 'Last 2 Months',
-      ...getLastNMonthsRange(2),
-    },
-  ]
-
-  const availableQuarters = getAvailableQuarters()
-  const quarters: FilterOption[] = availableQuarters.map((q) => ({
-    value: `q${q.quarter}-${q.year}`,
-    label: `Q${q.quarter} ${q.year}`,
-    ...getQuarterRange(q.year, q.quarter),
-  }))
-
-  return { months, quarters }
-}
 
 export function CheckinOverview({ onDataChanged }: Props) {
   const [isPending, startTransition] = useTransition()
@@ -196,9 +53,12 @@ export function CheckinOverview({ onDataChanged }: Props) {
     [historyFilterOptions]
   )
 
-  const [selectedDay, setSelectedDay] = useState('sat-0')
+  const [selectedDay, setSelectedDay] = useState('this-weekend')
   const [selectedDate, setSelectedDate] = useState(
     () => getWeekendDates(0).start
+  )
+  const [selectedEndDate, setSelectedEndDate] = useState<Date | undefined>(
+    () => getWeekendDates(0).end
   )
   const [selectedHistoryFilter, setSelectedHistoryFilter] =
     useState('this-month')
@@ -222,7 +82,14 @@ export function CheckinOverview({ onDataChanged }: Props) {
     } else {
       loadHistory(1)
     }
-  }, [viewMode, selectedDate, dateRange, shiftFilter, teacherFilter])
+  }, [
+    viewMode,
+    selectedDate,
+    selectedEndDate,
+    dateRange,
+    shiftFilter,
+    teacherFilter,
+  ])
 
   function loadTeachers() {
     startTransition(async () => {
@@ -235,8 +102,16 @@ export function CheckinOverview({ onDataChanged }: Props) {
 
   function loadTodayCheckins() {
     startTransition(async () => {
-      const filters: { date?: Date; shift?: Shift; teacherId?: string } = {
+      const filters: {
+        date?: Date
+        dateTo?: Date
+        shift?: Shift
+        teacherId?: string
+      } = {
         date: selectedDate,
+      }
+      if (selectedEndDate) {
+        filters.dateTo = selectedEndDate
       }
       if (shiftFilter !== 'all') {
         filters.shift = shiftFilter
@@ -314,6 +189,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
     const option = weekendDayOptions.find((o) => o.value === value)
     if (option) {
       setSelectedDate(option.date)
+      setSelectedEndDate(option.endDate)
     }
   }
 
@@ -323,19 +199,6 @@ export function CheckinOverview({ onDataChanged }: Props) {
     if (option) {
       setDateRange({ start: option.start, end: option.end })
     }
-  }
-
-  function handleToday() {
-    const { start } = getWeekendDates(0)
-    const dayOfWeek = getDay(new Date())
-    if (dayOfWeek === 0) {
-      setSelectedDay('sun-0')
-      setSelectedDate(addDays(start, 1))
-    } else {
-      setSelectedDay('sat-0')
-      setSelectedDate(start)
-    }
-    setViewMode('today')
   }
 
   return (
@@ -360,23 +223,18 @@ export function CheckinOverview({ onDataChanged }: Props) {
           </div>
 
           {viewMode === 'today' ? (
-            <>
-              <Select value={selectedDay} onValueChange={handleDayChange}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Select day" />
-                </SelectTrigger>
-                <SelectContent>
-                  {weekendDayOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="sm" onClick={handleToday}>
-                Today
-              </Button>
-            </>
+            <Select value={selectedDay} onValueChange={handleDayChange}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select day" />
+              </SelectTrigger>
+              <SelectContent>
+                {weekendDayOptions.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           ) : (
             <Select
               value={selectedHistoryFilter}

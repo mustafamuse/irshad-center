@@ -129,10 +129,11 @@ export const LateReportFiltersSchema = z.object({
 })
 
 /**
- * Schema for single date check-in query.
+ * Schema for single date or date range check-in query.
  */
 export const DateCheckinFiltersSchema = z.object({
   date: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
   shift: z.nativeEnum(Shift).optional(),
   teacherId: z.string().uuid().optional(),
 })

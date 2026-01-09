@@ -22,6 +22,7 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
+import { formatCheckinDate } from './date-utils'
 import { CheckinRecord } from '../actions'
 import { DeleteCheckinDialog } from './delete-checkin-dialog'
 import { EditCheckinDialog } from './edit-checkin-dialog'
@@ -36,10 +37,6 @@ function formatTime(date: Date): string {
   return format(new Date(date), 'h:mm a')
 }
 
-function formatDate(date: Date): string {
-  return format(new Date(date), 'EEE, MMM d')
-}
-
 export function CheckinCard({ checkin, onUpdated, onDeleted }: Props) {
   const [showEdit, setShowEdit] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
@@ -51,7 +48,7 @@ export function CheckinCard({ checkin, onUpdated, onDeleted }: Props) {
           <div>
             <p className="font-medium">{checkin.teacherName}</p>
             <p className="text-sm text-muted-foreground">
-              {formatDate(checkin.date)}
+              {formatCheckinDate(checkin.date)}
             </p>
           </div>
           <div className="flex items-center gap-2">

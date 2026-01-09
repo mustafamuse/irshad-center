@@ -30,6 +30,7 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
+import { formatCheckinDate } from './date-utils'
 import { CheckinRecord } from '../actions'
 import { DeleteCheckinDialog } from './delete-checkin-dialog'
 import { EditCheckinDialog } from './edit-checkin-dialog'
@@ -42,10 +43,6 @@ interface Props {
 
 function formatTime(date: Date): string {
   return format(new Date(date), 'h:mm a')
-}
-
-function formatDate(date: Date): string {
-  return format(new Date(date), 'EEE, MMM d')
 }
 
 export function CheckinTable({ checkins, onUpdated, onDeleted }: Props) {
@@ -77,7 +74,7 @@ export function CheckinTable({ checkins, onUpdated, onDeleted }: Props) {
                 <TableCell className="font-medium">
                   {checkin.teacherName}
                 </TableCell>
-                <TableCell>{formatDate(checkin.date)}</TableCell>
+                <TableCell>{formatCheckinDate(checkin.date)}</TableCell>
                 <TableCell>
                   <Badge
                     variant="outline"
