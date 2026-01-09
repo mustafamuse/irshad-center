@@ -1,5 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async rewrites() {
+    return [
+      {
+        source: '/clockin',
+        destination: '/teacher/checkin',
+      },
+    ]
+  },
   async headers() {
     return [
       {
