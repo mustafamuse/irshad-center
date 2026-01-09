@@ -2,17 +2,19 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
+import { getLocalTimeZone, today } from '@internationalized/date'
 import { Shift } from '@prisma/client'
-import { format, startOfDay, endOfDay, subDays } from 'date-fns'
+import { format, startOfDay, endOfDay } from 'date-fns'
 import {
   AlertCircle,
   Calendar as CalendarIcon,
   Loader2,
   RefreshCw,
 } from 'lucide-react'
+import { DateValue } from 'react-aria-components'
 
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
+import { Calendar, RangeCalendar } from '@/components/ui/calendar-rac'
 import {
   Popover,
   PopoverContent,
@@ -43,6 +45,10 @@ interface Props {
 
 type ViewMode = 'today' | 'history'
 
+function calendarDateToDate(calDate: DateValue): Date {
+  return calDate.toDate(getLocalTimeZone())
+}
+
 export function CheckinOverview({ onDataChanged }: Props) {
   const [isPending, startTransition] = useTransition()
   const [viewMode, setViewMode] = useState<ViewMode>('today')
@@ -50,10 +56,14 @@ export function CheckinOverview({ onDataChanged }: Props) {
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date())
-  const [dateRange, setDateRange] = useState<{ from: Date; to?: Date }>({
-    from: subDays(new Date(), 7),
-    to: new Date(),
+  const tz = getLocalTimeZone()
+  const [selectedDate, setSelectedDate] = useState<DateValue>(today(tz))
+  const [dateRange, setDateRange] = useState<{
+    start: DateValue
+    end: DateValue
+  }>({
+    start: today(tz).subtract({ days: 7 }),
+    end: today(tz),
   })
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
@@ -88,7 +98,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
   function loadTodayCheckins() {
     startTransition(async () => {
       const filters: { date?: Date; shift?: Shift; teacherId?: string } = {
-        date: selectedDate,
+        date: calendarDateToDate(selectedDate),
       }
       if (shiftFilter !== 'all') {
         filters.shift = shiftFilter
@@ -108,8 +118,6 @@ export function CheckinOverview({ onDataChanged }: Props) {
   }
 
   function loadHistory(page: number) {
-    const toDate = dateRange.to
-    if (!toDate) return
     startTransition(async () => {
       const filters: {
         dateFrom?: Date
@@ -119,8 +127,8 @@ export function CheckinOverview({ onDataChanged }: Props) {
         page?: number
         limit?: number
       } = {
-        dateFrom: startOfDay(dateRange.from),
-        dateTo: endOfDay(toDate),
+        dateFrom: startOfDay(calendarDateToDate(dateRange.start)),
+        dateTo: endOfDay(calendarDateToDate(dateRange.end)),
         page,
         limit: 20,
       }
@@ -164,7 +172,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
   }
 
   function handleToday() {
-    setSelectedDate(new Date())
+    setSelectedDate(today(tz))
     setViewMode('today')
   }
 
@@ -194,16 +202,11 @@ export function CheckinOverview({ onDataChanged }: Props) {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
                   <CalendarIcon className="h-4 w-4" />
-                  {format(selectedDate, 'MMM d, yyyy')}
+                  {format(calendarDateToDate(selectedDate), 'MMM d, yyyy')}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  initialFocus
-                />
+              <PopoverContent className="w-auto p-3" align="start">
+                <Calendar value={selectedDate} onChange={setSelectedDate} />
               </PopoverContent>
             </Popover>
           ) : (
@@ -211,25 +214,12 @@ export function CheckinOverview({ onDataChanged }: Props) {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2">
                   <CalendarIcon className="h-4 w-4" />
-                  {format(dateRange.from, 'MMM d')}
-                  {dateRange.to && ` - ${format(dateRange.to, 'MMM d')}`}
+                  {format(calendarDateToDate(dateRange.start), 'MMM d')} -{' '}
+                  {format(calendarDateToDate(dateRange.end), 'MMM d')}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="range"
-                  selected={{ from: dateRange.from, to: dateRange.to }}
-                  onSelect={(selected) => {
-                    if (selected?.from) {
-                      setDateRange({
-                        from: selected.from,
-                        to: selected.to,
-                      })
-                    }
-                  }}
-                  initialFocus
-                  numberOfMonths={2}
-                />
+              <PopoverContent className="w-auto p-3" align="start">
+                <RangeCalendar value={dateRange} onChange={setDateRange} />
               </PopoverContent>
             </Popover>
           )}

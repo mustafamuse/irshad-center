@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 
+import { getLocalTimeZone, today } from '@internationalized/date'
 import { Shift } from '@prisma/client'
-import { format, subDays, startOfDay, endOfDay } from 'date-fns'
+import { format, startOfDay, endOfDay } from 'date-fns'
 import {
   AlertCircle,
   Calendar as CalendarIcon,
@@ -11,6 +12,7 @@ import {
   Loader2,
   RefreshCw,
 } from 'lucide-react'
+import { DateValue } from 'react-aria-components'
 
 import {
   Accordion,
@@ -20,7 +22,7 @@ import {
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar } from '@/components/ui/calendar'
+import { RangeCalendar } from '@/components/ui/calendar-rac'
 import {
   Popover,
   PopoverContent,
@@ -58,15 +60,23 @@ function formatDate(date: Date): string {
   return format(new Date(date), 'EEE, MMM d')
 }
 
+function calendarDateToDate(calDate: DateValue): Date {
+  return calDate.toDate(getLocalTimeZone())
+}
+
 export function LateReport() {
   const [isPending, startTransition] = useTransition()
   const [records, setRecords] = useState<CheckinRecord[]>([])
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const [dateRange, setDateRange] = useState<{ from: Date; to?: Date }>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
+  const tz = getLocalTimeZone()
+  const [dateRange, setDateRange] = useState<{
+    start: DateValue
+    end: DateValue
+  }>({
+    start: today(tz).subtract({ days: 30 }),
+    end: today(tz),
   })
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
@@ -110,8 +120,6 @@ export function LateReport() {
   }
 
   function loadData() {
-    const toDate = dateRange.to
-    if (!toDate) return
     startTransition(async () => {
       const filters: {
         dateFrom: Date
@@ -119,8 +127,8 @@ export function LateReport() {
         shift?: Shift
         teacherId?: string
       } = {
-        dateFrom: startOfDay(dateRange.from),
-        dateTo: endOfDay(toDate),
+        dateFrom: startOfDay(calendarDateToDate(dateRange.start)),
+        dateTo: endOfDay(calendarDateToDate(dateRange.end)),
       }
       if (shiftFilter !== 'all') {
         filters.shift = shiftFilter
@@ -141,15 +149,15 @@ export function LateReport() {
 
   function handleThisWeek() {
     setDateRange({
-      from: subDays(new Date(), 7),
-      to: new Date(),
+      start: today(tz).subtract({ days: 7 }),
+      end: today(tz),
     })
   }
 
   function handleThisMonth() {
     setDateRange({
-      from: subDays(new Date(), 30),
-      to: new Date(),
+      start: today(tz).subtract({ days: 30 }),
+      end: today(tz),
     })
   }
 
@@ -161,25 +169,12 @@ export function LateReport() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <CalendarIcon className="h-4 w-4" />
-                {format(dateRange.from, 'MMM d')}
-                {dateRange.to && ` - ${format(dateRange.to, 'MMM d')}`}
+                {format(calendarDateToDate(dateRange.start), 'MMM d')} -{' '}
+                {format(calendarDateToDate(dateRange.end), 'MMM d')}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="range"
-                selected={{ from: dateRange.from, to: dateRange.to }}
-                onSelect={(selected) => {
-                  if (selected?.from) {
-                    setDateRange({
-                      from: selected.from,
-                      to: selected.to,
-                    })
-                  }
-                }}
-                initialFocus
-                numberOfMonths={2}
-              />
+            <PopoverContent className="w-auto p-3" align="start">
+              <RangeCalendar value={dateRange} onChange={setDateRange} />
             </PopoverContent>
           </Popover>
 
