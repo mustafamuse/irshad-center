@@ -2,17 +2,16 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 
-import { getLocalTimeZone, today } from '@internationalized/date'
 import { Shift } from '@prisma/client'
-import { format, startOfDay, endOfDay } from 'date-fns'
 import {
-  AlertCircle,
-  Calendar as CalendarIcon,
-  Clock,
-  Loader2,
-  RefreshCw,
-} from 'lucide-react'
-import { DateValue } from 'react-aria-components'
+  format,
+  startOfDay,
+  endOfDay,
+  subDays,
+  addDays,
+  getDay,
+} from 'date-fns'
+import { AlertCircle, Clock, Loader2, RefreshCw } from 'lucide-react'
 
 import {
   Accordion,
@@ -22,12 +21,6 @@ import {
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { RangeCalendar } from '@/components/ui/calendar-rac'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -52,6 +45,13 @@ interface TeacherLateGroup {
   records: CheckinRecord[]
 }
 
+interface WeekendOption {
+  value: string
+  label: string
+  start: Date
+  end: Date
+}
+
 function formatTime(date: Date): string {
   return format(new Date(date), 'h:mm a')
 }
@@ -60,8 +60,56 @@ function formatDate(date: Date): string {
   return format(new Date(date), 'EEE, MMM d')
 }
 
-function calendarDateToDate(calDate: DateValue): Date {
-  return calDate.toDate(getLocalTimeZone())
+function getWeekendDates(weeksAgo: number): { start: Date; end: Date } {
+  const now = new Date()
+  const dayOfWeek = getDay(now)
+
+  // Find most recent Saturday (0=Sun, 6=Sat)
+  let daysToSaturday: number
+  if (dayOfWeek === 6) {
+    daysToSaturday = 0
+  } else if (dayOfWeek === 0) {
+    daysToSaturday = 1
+  } else {
+    daysToSaturday = dayOfWeek + 1
+  }
+
+  const saturday = subDays(now, daysToSaturday + weeksAgo * 7)
+  const sunday = addDays(saturday, 1)
+
+  return {
+    start: startOfDay(saturday),
+    end: endOfDay(sunday),
+  }
+}
+
+function getLastNWeekends(n: number): { start: Date; end: Date } {
+  const oldest = getWeekendDates(n - 1)
+  const newest = getWeekendDates(0)
+  return {
+    start: oldest.start,
+    end: newest.end,
+  }
+}
+
+function generateWeekendOptions(count: number): WeekendOption[] {
+  const options: WeekendOption[] = []
+  for (let i = 0; i < count; i++) {
+    const { start, end } = getWeekendDates(i)
+    const label =
+      i === 0
+        ? `This Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
+        : i === 1
+          ? `Last Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
+          : `${format(start, 'MMM d')}-${format(end, 'd')}`
+    options.push({
+      value: i.toString(),
+      label,
+      start,
+      end,
+    })
+  }
+  return options
 }
 
 export function LateReport() {
@@ -70,14 +118,9 @@ export function LateReport() {
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const tz = getLocalTimeZone()
-  const [dateRange, setDateRange] = useState<{
-    start: DateValue
-    end: DateValue
-  }>({
-    start: today(tz).subtract({ days: 30 }),
-    end: today(tz),
-  })
+  const weekendOptions = useMemo(() => generateWeekendOptions(8), [])
+  const [selectedWeekend, setSelectedWeekend] = useState('0')
+  const [dateRange, setDateRange] = useState(() => getWeekendDates(0))
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
 
@@ -127,8 +170,8 @@ export function LateReport() {
         shift?: Shift
         teacherId?: string
       } = {
-        dateFrom: startOfDay(calendarDateToDate(dateRange.start)),
-        dateTo: endOfDay(calendarDateToDate(dateRange.end)),
+        dateFrom: dateRange.start,
+        dateTo: dateRange.end,
       }
       if (shiftFilter !== 'all') {
         filters.shift = shiftFilter
@@ -147,42 +190,47 @@ export function LateReport() {
     })
   }
 
-  function handleThisWeek() {
-    setDateRange({
-      start: today(tz).subtract({ days: 7 }),
-      end: today(tz),
-    })
+  function handleWeekendChange(value: string) {
+    setSelectedWeekend(value)
+    const weeksAgo = parseInt(value, 10)
+    setDateRange(getWeekendDates(weeksAgo))
   }
 
-  function handleThisMonth() {
-    setDateRange({
-      start: today(tz).subtract({ days: 30 }),
-      end: today(tz),
-    })
+  function handleLastN(n: number) {
+    setSelectedWeekend('custom')
+    setDateRange(getLastNWeekends(n))
   }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
-                <CalendarIcon className="h-4 w-4" />
-                {format(calendarDateToDate(dateRange.start), 'MMM d')} -{' '}
-                {format(calendarDateToDate(dateRange.end), 'MMM d')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-3" align="start">
-              <RangeCalendar value={dateRange} onChange={setDateRange} />
-            </PopoverContent>
-          </Popover>
+          <Select value={selectedWeekend} onValueChange={handleWeekendChange}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Select weekend" />
+            </SelectTrigger>
+            <SelectContent>
+              {weekendOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <Button variant="outline" size="sm" onClick={handleThisWeek}>
-            This Week
+          <Button
+            variant={selectedWeekend === 'custom' ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => handleLastN(4)}
+          >
+            Last 4
           </Button>
-          <Button variant="outline" size="sm" onClick={handleThisMonth}>
-            This Month
+          <Button
+            variant={selectedWeekend === 'custom' ? 'secondary' : 'outline'}
+            size="sm"
+            onClick={() => handleLastN(8)}
+          >
+            Last 8
           </Button>
         </div>
 

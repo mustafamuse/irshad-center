@@ -1,25 +1,19 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 
-import { getLocalTimeZone, today } from '@internationalized/date'
 import { Shift } from '@prisma/client'
-import { format, startOfDay, endOfDay } from 'date-fns'
 import {
-  AlertCircle,
-  Calendar as CalendarIcon,
-  Loader2,
-  RefreshCw,
-} from 'lucide-react'
-import { DateValue } from 'react-aria-components'
+  format,
+  startOfDay,
+  endOfDay,
+  subDays,
+  addDays,
+  getDay,
+} from 'date-fns'
+import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { Calendar, RangeCalendar } from '@/components/ui/calendar-rac'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -45,8 +39,86 @@ interface Props {
 
 type ViewMode = 'today' | 'history'
 
-function calendarDateToDate(calDate: DateValue): Date {
-  return calDate.toDate(getLocalTimeZone())
+interface WeekendDayOption {
+  value: string
+  label: string
+  date: Date
+}
+
+interface WeekendRangeOption {
+  value: string
+  label: string
+  start: Date
+  end: Date
+}
+
+function getWeekendDates(weeksAgo: number): { start: Date; end: Date } {
+  const now = new Date()
+  const dayOfWeek = getDay(now)
+
+  let daysToSaturday: number
+  if (dayOfWeek === 6) {
+    daysToSaturday = 0
+  } else if (dayOfWeek === 0) {
+    daysToSaturday = 1
+  } else {
+    daysToSaturday = dayOfWeek + 1
+  }
+
+  const saturday = subDays(now, daysToSaturday + weeksAgo * 7)
+  const sunday = addDays(saturday, 1)
+
+  return {
+    start: startOfDay(saturday),
+    end: endOfDay(sunday),
+  }
+}
+
+function getLastNWeekends(n: number): { start: Date; end: Date } {
+  const oldest = getWeekendDates(n - 1)
+  const newest = getWeekendDates(0)
+  return {
+    start: oldest.start,
+    end: newest.end,
+  }
+}
+
+function generateWeekendDayOptions(count: number): WeekendDayOption[] {
+  const options: WeekendDayOption[] = []
+  for (let i = 0; i < count; i++) {
+    const { start, end } = getWeekendDates(i)
+    const satLabel =
+      i === 0
+        ? `This Sat (${format(start, 'MMM d')})`
+        : i === 1
+          ? `Last Sat (${format(start, 'MMM d')})`
+          : `Sat ${format(start, 'MMM d')}`
+    const sunLabel =
+      i === 0
+        ? `This Sun (${format(end, 'MMM d')})`
+        : i === 1
+          ? `Last Sun (${format(end, 'MMM d')})`
+          : `Sun ${format(end, 'MMM d')}`
+
+    options.push({ value: `sat-${i}`, label: satLabel, date: start })
+    options.push({ value: `sun-${i}`, label: sunLabel, date: startOfDay(end) })
+  }
+  return options
+}
+
+function generateWeekendRangeOptions(count: number): WeekendRangeOption[] {
+  const options: WeekendRangeOption[] = []
+  for (let i = 0; i < count; i++) {
+    const { start, end } = getWeekendDates(i)
+    const label =
+      i === 0
+        ? `This Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
+        : i === 1
+          ? `Last Weekend (${format(start, 'MMM d')}-${format(end, 'd')})`
+          : `${format(start, 'MMM d')}-${format(end, 'd')}`
+    options.push({ value: i.toString(), label, start, end })
+  }
+  return options
 }
 
 export function CheckinOverview({ onDataChanged }: Props) {
@@ -56,15 +128,15 @@ export function CheckinOverview({ onDataChanged }: Props) {
   const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  const tz = getLocalTimeZone()
-  const [selectedDate, setSelectedDate] = useState<DateValue>(today(tz))
-  const [dateRange, setDateRange] = useState<{
-    start: DateValue
-    end: DateValue
-  }>({
-    start: today(tz).subtract({ days: 7 }),
-    end: today(tz),
-  })
+  const weekendDayOptions = useMemo(() => generateWeekendDayOptions(4), [])
+  const weekendRangeOptions = useMemo(() => generateWeekendRangeOptions(8), [])
+
+  const [selectedDay, setSelectedDay] = useState('sat-0')
+  const [selectedDate, setSelectedDate] = useState(
+    () => getWeekendDates(0).start
+  )
+  const [selectedWeekend, setSelectedWeekend] = useState('0')
+  const [dateRange, setDateRange] = useState(() => getWeekendDates(0))
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
 
@@ -98,7 +170,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
   function loadTodayCheckins() {
     startTransition(async () => {
       const filters: { date?: Date; shift?: Shift; teacherId?: string } = {
-        date: calendarDateToDate(selectedDate),
+        date: selectedDate,
       }
       if (shiftFilter !== 'all') {
         filters.shift = shiftFilter
@@ -127,8 +199,8 @@ export function CheckinOverview({ onDataChanged }: Props) {
         page?: number
         limit?: number
       } = {
-        dateFrom: startOfDay(calendarDateToDate(dateRange.start)),
-        dateTo: endOfDay(calendarDateToDate(dateRange.end)),
+        dateFrom: dateRange.start,
+        dateTo: dateRange.end,
         page,
         limit: 20,
       }
@@ -171,8 +243,35 @@ export function CheckinOverview({ onDataChanged }: Props) {
     handleRefresh()
   }
 
+  function handleDayChange(value: string) {
+    setSelectedDay(value)
+    const option = weekendDayOptions.find((o) => o.value === value)
+    if (option) {
+      setSelectedDate(option.date)
+    }
+  }
+
+  function handleWeekendChange(value: string) {
+    setSelectedWeekend(value)
+    const weeksAgo = parseInt(value, 10)
+    setDateRange(getWeekendDates(weeksAgo))
+  }
+
+  function handleLastN(n: number) {
+    setSelectedWeekend('custom')
+    setDateRange(getLastNWeekends(n))
+  }
+
   function handleToday() {
-    setSelectedDate(today(tz))
+    const { start } = getWeekendDates(0)
+    const dayOfWeek = getDay(new Date())
+    if (dayOfWeek === 0) {
+      setSelectedDay('sun-0')
+      setSelectedDate(addDays(start, 1))
+    } else {
+      setSelectedDay('sat-0')
+      setSelectedDate(start)
+    }
     setViewMode('today')
   }
 
@@ -186,7 +285,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
               size="sm"
               onClick={() => setViewMode('today')}
             >
-              Today
+              Day
             </Button>
             <Button
               variant={viewMode === 'history' ? 'secondary' : 'ghost'}
@@ -198,35 +297,56 @@ export function CheckinOverview({ onDataChanged }: Props) {
           </div>
 
           {viewMode === 'today' ? (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <CalendarIcon className="h-4 w-4" />
-                  {format(calendarDateToDate(selectedDate), 'MMM d, yyyy')}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-3" align="start">
-                <Calendar value={selectedDate} onChange={setSelectedDate} />
-              </PopoverContent>
-            </Popover>
+            <>
+              <Select value={selectedDay} onValueChange={handleDayChange}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Select day" />
+                </SelectTrigger>
+                <SelectContent>
+                  {weekendDayOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={handleToday}>
+                Today
+              </Button>
+            </>
           ) : (
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <CalendarIcon className="h-4 w-4" />
-                  {format(calendarDateToDate(dateRange.start), 'MMM d')} -{' '}
-                  {format(calendarDateToDate(dateRange.end), 'MMM d')}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-3" align="start">
-                <RangeCalendar value={dateRange} onChange={setDateRange} />
-              </PopoverContent>
-            </Popover>
+            <>
+              <Select
+                value={selectedWeekend}
+                onValueChange={handleWeekendChange}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select weekend" />
+                </SelectTrigger>
+                <SelectContent>
+                  {weekendRangeOptions.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLastN(4)}
+              >
+                Last 4
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleLastN(8)}
+              >
+                Last 8
+              </Button>
+            </>
           )}
-
-          <Button variant="outline" size="sm" onClick={handleToday}>
-            Today
-          </Button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
