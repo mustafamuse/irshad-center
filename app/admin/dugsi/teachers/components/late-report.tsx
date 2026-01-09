@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
-import { AlertCircle, Clock, Loader2, RefreshCw } from 'lucide-react'
+import { AlertCircle, Clock, Loader2 } from 'lucide-react'
 
 import {
   Accordion,
@@ -13,15 +13,6 @@ import {
 } from '@/components/ui/accordion'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -33,18 +24,10 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
-import {
-  CheckinRecord,
-  TeacherOption,
-  getLateArrivalsAction,
-  getTeachersForDropdownAction,
-} from '../actions'
-import {
-  formatCheckinDate,
-  formatCheckinTime,
-  generateHistoryFilterOptions,
-  getThisMonthRange,
-} from './date-utils'
+import { CheckinRecord, getLateArrivalsAction } from '../actions'
+import { formatCheckinDate, formatCheckinTime } from './date-utils'
+import { FilterControls, HistoryFilterSelect } from './filter-controls'
+import { useCheckinFilters } from './use-checkin-filters'
 
 interface TeacherLateGroup {
   teacherId: string
@@ -56,22 +39,11 @@ interface TeacherLateGroup {
 type ViewMode = 'grouped' | 'table'
 
 export function LateReport() {
+  const filters = useCheckinFilters()
   const [isPending, startTransition] = useTransition()
   const [records, setRecords] = useState<CheckinRecord[]>([])
-  const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [error, setError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('grouped')
-
-  const filterOptions = useMemo(() => generateHistoryFilterOptions(), [])
-  const allOptions = useMemo(
-    () => [...filterOptions.months, ...filterOptions.quarters],
-    [filterOptions]
-  )
-
-  const [selectedFilter, setSelectedFilter] = useState('this-month')
-  const [dateRange, setDateRange] = useState(() => getThisMonthRange())
-  const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
-  const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
 
   const groupedByTeacher = useMemo(() => {
     const groups = new Map<string, TeacherLateGroup>()
@@ -94,42 +66,25 @@ export function LateReport() {
     return Array.from(groups.values()).sort((a, b) => b.lateCount - a.lateCount)
   }, [records])
 
-  useEffect(() => {
-    loadTeachers()
-  }, [])
-
-  useEffect(() => {
-    loadData()
-  }, [dateRange, shiftFilter, teacherFilter])
-
-  function loadTeachers() {
+  const loadData = useCallback(() => {
     startTransition(async () => {
-      const result = await getTeachersForDropdownAction()
-      if (result.success && result.data) {
-        setTeachers(result.data)
-      }
-    })
-  }
-
-  function loadData() {
-    startTransition(async () => {
-      const filters: {
+      const queryFilters: {
         dateFrom: Date
         dateTo: Date
         shift?: Shift
         teacherId?: string
       } = {
-        dateFrom: dateRange.start,
-        dateTo: dateRange.end,
+        dateFrom: filters.dateRange.start,
+        dateTo: filters.dateRange.end,
       }
-      if (shiftFilter !== 'all') {
-        filters.shift = shiftFilter
+      if (filters.shiftFilter !== 'all') {
+        queryFilters.shift = filters.shiftFilter
       }
-      if (teacherFilter !== 'all') {
-        filters.teacherId = teacherFilter
+      if (filters.teacherFilter !== 'all') {
+        queryFilters.teacherId = filters.teacherFilter
       }
 
-      const result = await getLateArrivalsAction(filters)
+      const result = await getLateArrivalsAction(queryFilters)
       if (result.success && result.data) {
         setRecords(result.data)
         setError(null)
@@ -137,15 +92,13 @@ export function LateReport() {
         setError(result.error || 'Failed to load late arrivals')
       }
     })
-  }
+  }, [filters.dateRange, filters.shiftFilter, filters.teacherFilter])
 
-  function handleFilterChange(value: string) {
-    setSelectedFilter(value)
-    const option = allOptions.find((o) => o.value === value)
-    if (option) {
-      setDateRange({ start: option.start, end: option.end })
-    }
-  }
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const isLoading = isPending || filters.isPending
 
   return (
     <div className="space-y-4">
@@ -168,73 +121,22 @@ export function LateReport() {
             </Button>
           </div>
 
-          <Select value={selectedFilter} onValueChange={handleFilterChange}>
-            <SelectTrigger className="flex-1 sm:w-[180px]">
-              <SelectValue placeholder="Select period" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectLabel>Months</SelectLabel>
-                {filterOptions.months.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel>Quarters</SelectLabel>
-                {filterOptions.quarters.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <HistoryFilterSelect
+            value={filters.selectedHistoryFilter}
+            onChange={filters.handleHistoryFilterChange}
+            options={filters.historyFilterOptions}
+          />
         </div>
 
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:items-center">
-          <Select
-            value={shiftFilter}
-            onValueChange={(value) => setShiftFilter(value as Shift | 'all')}
-          >
-            <SelectTrigger className="w-full sm:w-[120px]">
-              <SelectValue placeholder="Shift" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Shifts</SelectItem>
-              <SelectItem value="MORNING">Morning</SelectItem>
-              <SelectItem value="AFTERNOON">Afternoon</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={teacherFilter}
-            onValueChange={(value) => setTeacherFilter(value)}
-          >
-            <SelectTrigger className="w-full sm:w-[160px]">
-              <SelectValue placeholder="Teacher" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Teachers</SelectItem>
-              {teachers.map((teacher) => (
-                <SelectItem key={teacher.id} value={teacher.id}>
-                  {teacher.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            onClick={loadData}
-            disabled={isPending}
-          >
-            <RefreshCw className={cn('h-4 w-4', isPending && 'animate-spin')} />
-          </Button>
-        </div>
+        <FilterControls
+          shiftFilter={filters.shiftFilter}
+          onShiftChange={filters.setShiftFilter}
+          teacherFilter={filters.teacherFilter}
+          onTeacherChange={filters.setTeacherFilter}
+          teachers={filters.teachers}
+          onRefresh={loadData}
+          isPending={isLoading}
+        />
       </div>
 
       {error && (
@@ -244,7 +146,7 @@ export function LateReport() {
         </div>
       )}
 
-      {isPending && records.length === 0 ? (
+      {isLoading && records.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>

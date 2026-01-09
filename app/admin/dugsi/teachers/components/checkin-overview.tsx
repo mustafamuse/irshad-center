@@ -1,37 +1,29 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
-import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
 
 import {
   CheckinRecord,
-  TeacherOption,
   getCheckinsForDateAction,
   getCheckinHistoryWithFiltersAction,
-  getTeachersForDropdownAction,
 } from '../actions'
 import { CheckinCard } from './checkin-card'
 import { CheckinTable } from './checkin-table'
-import {
-  generateWeekendDayOptions,
-  generateHistoryFilterOptions,
-  getWeekendDates,
-  getThisMonthRange,
-} from './date-utils'
+import { generateWeekendDayOptions, getWeekendDates } from './date-utils'
+import { FilterControls, HistoryFilterSelect } from './filter-controls'
+import { useCheckinFilters } from './use-checkin-filters'
 
 interface Props {
   onDataChanged?: () => void
@@ -40,18 +32,13 @@ interface Props {
 type ViewMode = 'today' | 'history'
 
 export function CheckinOverview({ onDataChanged }: Props) {
+  const filters = useCheckinFilters()
   const [isPending, startTransition] = useTransition()
   const [viewMode, setViewMode] = useState<ViewMode>('today')
   const [checkins, setCheckins] = useState<CheckinRecord[]>([])
-  const [teachers, setTeachers] = useState<TeacherOption[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const weekendDayOptions = useMemo(() => generateWeekendDayOptions(4), [])
-  const historyFilterOptions = useMemo(() => generateHistoryFilterOptions(), [])
-  const allHistoryOptions = useMemo(
-    () => [...historyFilterOptions.months, ...historyFilterOptions.quarters],
-    [historyFilterOptions]
-  )
 
   const [selectedDay, setSelectedDay] = useState('this-weekend')
   const [selectedDate, setSelectedDate] = useState(
@@ -60,11 +47,6 @@ export function CheckinOverview({ onDataChanged }: Props) {
   const [selectedEndDate, setSelectedEndDate] = useState<Date | undefined>(
     () => getWeekendDates(0).end
   )
-  const [selectedHistoryFilter, setSelectedHistoryFilter] =
-    useState('this-month')
-  const [dateRange, setDateRange] = useState(() => getThisMonthRange())
-  const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
-  const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
 
   const [pagination, setPagination] = useState({
     page: 1,
@@ -72,37 +54,9 @@ export function CheckinOverview({ onDataChanged }: Props) {
     totalPages: 0,
   })
 
-  useEffect(() => {
-    loadTeachers()
-  }, [])
-
-  useEffect(() => {
-    if (viewMode === 'today') {
-      loadTodayCheckins()
-    } else {
-      loadHistory(1)
-    }
-  }, [
-    viewMode,
-    selectedDate,
-    selectedEndDate,
-    dateRange,
-    shiftFilter,
-    teacherFilter,
-  ])
-
-  function loadTeachers() {
+  const loadTodayCheckins = useCallback(() => {
     startTransition(async () => {
-      const result = await getTeachersForDropdownAction()
-      if (result.success && result.data) {
-        setTeachers(result.data)
-      }
-    })
-  }
-
-  function loadTodayCheckins() {
-    startTransition(async () => {
-      const filters: {
+      const queryFilters: {
         date?: Date
         dateTo?: Date
         shift?: Shift
@@ -111,16 +65,16 @@ export function CheckinOverview({ onDataChanged }: Props) {
         date: selectedDate,
       }
       if (selectedEndDate) {
-        filters.dateTo = selectedEndDate
+        queryFilters.dateTo = selectedEndDate
       }
-      if (shiftFilter !== 'all') {
-        filters.shift = shiftFilter
+      if (filters.shiftFilter !== 'all') {
+        queryFilters.shift = filters.shiftFilter
       }
-      if (teacherFilter !== 'all') {
-        filters.teacherId = teacherFilter
+      if (filters.teacherFilter !== 'all') {
+        queryFilters.teacherId = filters.teacherFilter
       }
 
-      const result = await getCheckinsForDateAction(filters)
+      const result = await getCheckinsForDateAction(queryFilters)
       if (result.success && result.data) {
         setCheckins(result.data)
         setError(null)
@@ -128,44 +82,60 @@ export function CheckinOverview({ onDataChanged }: Props) {
         setError(result.error || 'Failed to load check-ins')
       }
     })
-  }
+  }, [
+    selectedDate,
+    selectedEndDate,
+    filters.shiftFilter,
+    filters.teacherFilter,
+  ])
 
-  function loadHistory(page: number) {
-    startTransition(async () => {
-      const filters: {
-        dateFrom?: Date
-        dateTo?: Date
-        shift?: Shift
-        teacherId?: string
-        page?: number
-        limit?: number
-      } = {
-        dateFrom: dateRange.start,
-        dateTo: dateRange.end,
-        page,
-        limit: 20,
-      }
-      if (shiftFilter !== 'all') {
-        filters.shift = shiftFilter
-      }
-      if (teacherFilter !== 'all') {
-        filters.teacherId = teacherFilter
-      }
+  const loadHistory = useCallback(
+    (page: number) => {
+      startTransition(async () => {
+        const queryFilters: {
+          dateFrom?: Date
+          dateTo?: Date
+          shift?: Shift
+          teacherId?: string
+          page?: number
+          limit?: number
+        } = {
+          dateFrom: filters.dateRange.start,
+          dateTo: filters.dateRange.end,
+          page,
+          limit: 20,
+        }
+        if (filters.shiftFilter !== 'all') {
+          queryFilters.shift = filters.shiftFilter
+        }
+        if (filters.teacherFilter !== 'all') {
+          queryFilters.teacherId = filters.teacherFilter
+        }
 
-      const result = await getCheckinHistoryWithFiltersAction(filters)
-      if (result.success && result.data) {
-        setCheckins(result.data.data)
-        setPagination({
-          page: result.data.page,
-          total: result.data.total,
-          totalPages: result.data.totalPages,
-        })
-        setError(null)
-      } else {
-        setError(result.error || 'Failed to load check-in history')
-      }
-    })
-  }
+        const result = await getCheckinHistoryWithFiltersAction(queryFilters)
+        if (result.success && result.data) {
+          setCheckins(result.data.data)
+          setPagination({
+            page: result.data.page,
+            total: result.data.total,
+            totalPages: result.data.totalPages,
+          })
+          setError(null)
+        } else {
+          setError(result.error || 'Failed to load check-in history')
+        }
+      })
+    },
+    [filters.dateRange, filters.shiftFilter, filters.teacherFilter]
+  )
+
+  useEffect(() => {
+    if (viewMode === 'today') {
+      loadTodayCheckins()
+    } else {
+      loadHistory(1)
+    }
+  }, [viewMode, loadTodayCheckins, loadHistory])
 
   function handleRefresh() {
     if (viewMode === 'today') {
@@ -185,13 +155,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
     }
   }
 
-  function handleHistoryFilterChange(value: string) {
-    setSelectedHistoryFilter(value)
-    const option = allHistoryOptions.find((o) => o.value === value)
-    if (option) {
-      setDateRange({ start: option.start, end: option.end })
-    }
-  }
+  const isLoading = isPending || filters.isPending
 
   return (
     <div className="space-y-4">
@@ -228,76 +192,23 @@ export function CheckinOverview({ onDataChanged }: Props) {
               </SelectContent>
             </Select>
           ) : (
-            <Select
-              value={selectedHistoryFilter}
-              onValueChange={handleHistoryFilterChange}
-            >
-              <SelectTrigger className="flex-1 sm:w-[180px]">
-                <SelectValue placeholder="Select period" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectLabel>Months</SelectLabel>
-                  {historyFilterOptions.months.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-                <SelectGroup>
-                  <SelectLabel>Quarters</SelectLabel>
-                  {historyFilterOptions.quarters.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <HistoryFilterSelect
+              value={filters.selectedHistoryFilter}
+              onChange={filters.handleHistoryFilterChange}
+              options={filters.historyFilterOptions}
+            />
           )}
         </div>
 
-        <div className="grid grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:items-center">
-          <Select
-            value={shiftFilter}
-            onValueChange={(value) => setShiftFilter(value as Shift | 'all')}
-          >
-            <SelectTrigger className="w-full sm:w-[130px]">
-              <SelectValue placeholder="Shift" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Shifts</SelectItem>
-              <SelectItem value="MORNING">Morning</SelectItem>
-              <SelectItem value="AFTERNOON">Afternoon</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={teacherFilter}
-            onValueChange={(value) => setTeacherFilter(value)}
-          >
-            <SelectTrigger className="w-full sm:w-[160px]">
-              <SelectValue placeholder="Teacher" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Teachers</SelectItem>
-              {teachers.map((teacher) => (
-                <SelectItem key={teacher.id} value={teacher.id}>
-                  {teacher.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleRefresh}
-            disabled={isPending}
-          >
-            <RefreshCw className={cn('h-4 w-4', isPending && 'animate-spin')} />
-          </Button>
-        </div>
+        <FilterControls
+          shiftFilter={filters.shiftFilter}
+          onShiftChange={filters.setShiftFilter}
+          teacherFilter={filters.teacherFilter}
+          onTeacherChange={filters.setTeacherFilter}
+          teachers={filters.teachers}
+          onRefresh={handleRefresh}
+          isPending={isLoading}
+        />
       </div>
 
       {error && (
@@ -307,7 +218,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
         </div>
       )}
 
-      {isPending && checkins.length === 0 ? (
+      {isLoading && checkins.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
@@ -348,7 +259,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
                   variant="outline"
                   size="sm"
                   onClick={() => loadHistory(pagination.page - 1)}
-                  disabled={pagination.page <= 1 || isPending}
+                  disabled={pagination.page <= 1 || isLoading}
                 >
                   Previous
                 </Button>
@@ -357,7 +268,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
                   size="sm"
                   onClick={() => loadHistory(pagination.page + 1)}
                   disabled={
-                    pagination.page >= pagination.totalPages || isPending
+                    pagination.page >= pagination.totalPages || isLoading
                   }
                 >
                   Next
