@@ -1124,7 +1124,10 @@ export async function getCheckinsForDateAction(filters: {
   try {
     const parsed = DateCheckinFiltersSchema.safeParse(filters)
     if (!parsed.success) {
-      return { success: false, error: 'Invalid filters' }
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid filters',
+      }
     }
 
     const checkins = await getCheckinsForDate(parsed.data)
@@ -1160,7 +1163,10 @@ export async function getCheckinHistoryWithFiltersAction(filters: {
   try {
     const parsed = CheckinHistoryFiltersSchema.safeParse(filters)
     if (!parsed.success) {
-      return { success: false, error: 'Invalid filters' }
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid filters',
+      }
     }
 
     const { page, limit, ...queryFilters } = parsed.data
@@ -1194,7 +1200,10 @@ export async function getLateArrivalsAction(filters: {
   try {
     const parsed = LateReportFiltersSchema.safeParse(filters)
     if (!parsed.success) {
-      return { success: false, error: 'Invalid filters' }
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid filters',
+      }
     }
 
     const checkins = await getLateArrivals(parsed.data)

@@ -64,9 +64,9 @@ export function useCheckinFilters(): CheckinFiltersState &
   }, [loadTeachers])
 
   function handleHistoryFilterChange(value: string) {
-    setSelectedHistoryFilter(value)
     const option = allHistoryOptions.find((o) => o.value === value)
     if (option) {
+      setSelectedHistoryFilter(value)
       setDateRange({ start: option.start, end: option.end })
     }
   }

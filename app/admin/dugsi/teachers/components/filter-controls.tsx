@@ -24,6 +24,7 @@ interface FilterControlsProps {
   teacherFilter: string | 'all'
   onTeacherChange: (value: string | 'all') => void
   teachers: TeacherOption[]
+  teachersError?: string | null
   onRefresh: () => void
   isPending: boolean
 }
@@ -34,6 +35,7 @@ export function FilterControls({
   teacherFilter,
   onTeacherChange,
   teachers,
+  teachersError,
   onRefresh,
   isPending,
 }: FilterControlsProps) {
@@ -56,9 +58,17 @@ export function FilterControls({
       <Select
         value={teacherFilter}
         onValueChange={(value) => onTeacherChange(value as string | 'all')}
+        disabled={!!teachersError}
       >
-        <SelectTrigger className="w-full sm:w-[160px]">
-          <SelectValue placeholder="Teacher" />
+        <SelectTrigger
+          className={cn(
+            'w-full sm:w-[160px]',
+            teachersError && 'border-red-300'
+          )}
+        >
+          <SelectValue
+            placeholder={teachersError ? 'Failed to load' : 'Teacher'}
+          />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Teachers</SelectItem>

@@ -32,8 +32,14 @@ interface Props {
   onSuccess?: () => void
 }
 
-function formatDateForInput(date: Date): string {
-  return format(new Date(date), "yyyy-MM-dd'T'HH:mm")
+function formatDateForInput(date: Date | null | undefined): string {
+  if (!date) return ''
+  try {
+    return format(new Date(date), "yyyy-MM-dd'T'HH:mm")
+  } catch (error) {
+    console.error('Failed to format date for input:', date, error)
+    return ''
+  }
 }
 
 export function EditCheckinDialog({

@@ -32,7 +32,6 @@ import { useCheckinFilters } from './use-checkin-filters'
 interface TeacherLateGroup {
   teacherId: string
   teacherName: string
-  lateCount: number
   records: CheckinRecord[]
 }
 
@@ -51,19 +50,19 @@ export function LateReport() {
     for (const record of records) {
       const existing = groups.get(record.teacherId)
       if (existing) {
-        existing.lateCount++
         existing.records.push(record)
       } else {
         groups.set(record.teacherId, {
           teacherId: record.teacherId,
           teacherName: record.teacherName,
-          lateCount: 1,
           records: [record],
         })
       }
     }
 
-    return Array.from(groups.values()).sort((a, b) => b.lateCount - a.lateCount)
+    return Array.from(groups.values()).sort(
+      (a, b) => b.records.length - a.records.length
+    )
   }, [records])
 
   const loadData = useCallback(() => {
@@ -134,6 +133,7 @@ export function LateReport() {
           teacherFilter={filters.teacherFilter}
           onTeacherChange={filters.setTeacherFilter}
           teachers={filters.teachers}
+          teachersError={filters.teachersError}
           onRefresh={loadData}
           isPending={isLoading}
         />
@@ -191,8 +191,8 @@ export function LateReport() {
                         variant="secondary"
                         className="bg-orange-100 text-orange-800"
                       >
-                        {group.lateCount} late{' '}
-                        {group.lateCount === 1 ? 'arrival' : 'arrivals'}
+                        {group.records.length} late{' '}
+                        {group.records.length === 1 ? 'arrival' : 'arrivals'}
                       </Badge>
                     </div>
                   </AccordionTrigger>

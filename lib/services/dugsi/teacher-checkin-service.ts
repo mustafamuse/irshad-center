@@ -221,6 +221,22 @@ export async function updateCheckin(
     updateData.notes = notes
   }
 
+  const effectiveClockIn = clockInTime ?? existingCheckin.clockInTime
+  const effectiveClockOut =
+    clockOutTime !== undefined ? clockOutTime : existingCheckin.clockOutTime
+
+  if (
+    effectiveClockOut &&
+    effectiveClockIn &&
+    effectiveClockOut <= effectiveClockIn
+  ) {
+    throw new ValidationError(
+      'Clock out time must be after clock in time',
+      CHECKIN_ERROR_CODES.INVALID_TIME_ORDER,
+      { clockInTime: effectiveClockIn, clockOutTime: effectiveClockOut }
+    )
+  }
+
   const checkIn = await client.dugsiTeacherCheckIn.update({
     where: { id: checkInId },
     data: updateData,

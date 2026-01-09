@@ -206,6 +206,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
           teacherFilter={filters.teacherFilter}
           onTeacherChange={filters.setTeacherFilter}
           teachers={filters.teachers}
+          teachersError={filters.teachersError}
           onRefresh={handleRefresh}
           isPending={isLoading}
         />
