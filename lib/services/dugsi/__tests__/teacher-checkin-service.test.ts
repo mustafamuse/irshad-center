@@ -305,6 +305,63 @@ describe('updateCheckin', () => {
       code: CHECKIN_ERROR_CODES.CHECKIN_NOT_FOUND,
     })
   })
+
+  it('should throw error if clockOutTime is before existing clockInTime', async () => {
+    mockGetCheckinById.mockResolvedValue({
+      ...mockCheckin,
+      clockInTime: new Date('2024-01-15T10:00:00'),
+      clockOutTime: null,
+    })
+
+    const input = {
+      checkInId: 'checkin-1',
+      clockOutTime: new Date('2024-01-15T09:00:00'),
+    }
+
+    await expect(updateCheckin(input)).rejects.toThrow(ValidationError)
+    await expect(updateCheckin(input)).rejects.toMatchObject({
+      code: CHECKIN_ERROR_CODES.INVALID_TIME_ORDER,
+    })
+  })
+
+  it('should throw error if new clockInTime is after existing clockOutTime', async () => {
+    mockGetCheckinById.mockResolvedValue({
+      ...mockCheckin,
+      clockInTime: new Date('2024-01-15T08:00:00'),
+      clockOutTime: new Date('2024-01-15T12:00:00'),
+    })
+
+    const input = {
+      checkInId: 'checkin-1',
+      clockInTime: new Date('2024-01-15T13:00:00'),
+    }
+
+    await expect(updateCheckin(input)).rejects.toThrow(ValidationError)
+    await expect(updateCheckin(input)).rejects.toMatchObject({
+      code: CHECKIN_ERROR_CODES.INVALID_TIME_ORDER,
+    })
+  })
+
+  it('should allow valid time order updates', async () => {
+    mockGetCheckinById.mockResolvedValue({
+      ...mockCheckin,
+      clockInTime: new Date('2024-01-15T08:00:00'),
+      clockOutTime: null,
+    })
+    mockUpdate.mockResolvedValue({
+      ...mockCheckin,
+      clockOutTime: new Date('2024-01-15T12:00:00'),
+    })
+
+    const input = {
+      checkInId: 'checkin-1',
+      clockOutTime: new Date('2024-01-15T12:00:00'),
+    }
+
+    const result = await updateCheckin(input)
+    expect(result.clockOutTime).toEqual(new Date('2024-01-15T12:00:00'))
+    expect(mockUpdate).toHaveBeenCalled()
+  })
 })
 
 describe('deleteCheckin', () => {

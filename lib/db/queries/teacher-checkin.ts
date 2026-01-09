@@ -58,6 +58,7 @@ export async function getTeacherCheckin(
 
 export interface CheckinDateFilters {
   date?: Date
+  dateTo?: Date
   shift?: Shift
   teacherId?: string
 }
@@ -66,12 +67,20 @@ export async function getCheckinsForDate(
   filters: CheckinDateFilters = {},
   client: DatabaseClient = prisma
 ): Promise<TeacherCheckinWithRelations[]> {
-  const { date, shift, teacherId } = filters
+  const { date, dateTo, shift, teacherId } = filters
   const targetDate = date || new Date()
   const dateOnly = new Date(targetDate.toISOString().split('T')[0])
 
-  const where: Prisma.DugsiTeacherCheckInWhereInput = {
-    date: dateOnly,
+  const where: Prisma.DugsiTeacherCheckInWhereInput = {}
+
+  if (dateTo) {
+    const dateToOnly = new Date(dateTo.toISOString().split('T')[0])
+    where.date = {
+      gte: dateOnly,
+      lte: dateToOnly,
+    }
+  } else {
+    where.date = dateOnly
   }
 
   if (shift) {
@@ -85,7 +94,7 @@ export async function getCheckinsForDate(
   return client.dugsiTeacherCheckIn.findMany({
     where,
     include: teacherCheckinInclude,
-    orderBy: [{ shift: 'asc' }, { clockInTime: 'asc' }],
+    orderBy: [{ date: 'asc' }, { shift: 'asc' }, { clockInTime: 'asc' }],
   })
 }
 

@@ -9,12 +9,20 @@ import { prisma } from '@/lib/db'
 import {
   getAllDugsiTeachersWithTodayStatus,
   getCheckinHistory,
+  getCheckinsForDate,
+  getLateArrivals,
+  getDugsiTeachersForDropdown,
+  TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   mapPersonToSearchResult,
   PersonSearchResult,
 } from '@/lib/mappers/person-mapper'
+import {
+  updateCheckin,
+  deleteCheckin,
+} from '@/lib/services/dugsi/teacher-checkin-service'
 import {
   createTeacher,
   deleteTeacher,
@@ -28,6 +36,13 @@ import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
 import { extractContactInfo } from '@/lib/utils/contact-helpers'
+import {
+  UpdateCheckinSchema,
+  DeleteCheckinSchema,
+  CheckinHistoryFiltersSchema,
+  LateReportFiltersSchema,
+  DateCheckinFiltersSchema,
+} from '@/lib/validations/teacher-checkin'
 
 const logger = createServiceLogger('teacher-admin-actions')
 
@@ -1056,5 +1071,236 @@ export async function getTeacherCheckinHistoryAction(
       success: false,
       error: 'Failed to load check-in history',
     }
+  }
+}
+
+// ============================================================================
+// Check-in Admin Actions (Edit/Delete)
+// ============================================================================
+
+export interface CheckinRecord {
+  id: string
+  teacherId: string
+  teacherName: string
+  date: Date
+  shift: Shift
+  clockInTime: Date
+  clockOutTime: Date | null
+  isLate: boolean
+  clockInValid: boolean
+  notes: string | null
+}
+
+export interface TeacherOption {
+  id: string
+  name: string
+}
+
+function mapCheckinToRecord(
+  checkin: TeacherCheckinWithRelations
+): CheckinRecord {
+  return {
+    id: checkin.id,
+    teacherId: checkin.teacherId,
+    teacherName: checkin.teacher.person.name,
+    date: checkin.date,
+    shift: checkin.shift,
+    clockInTime: checkin.clockInTime,
+    clockOutTime: checkin.clockOutTime,
+    isLate: checkin.isLate,
+    clockInValid: checkin.clockInValid,
+    notes: checkin.notes,
+  }
+}
+
+/**
+ * Get check-ins for a specific date with optional filters.
+ */
+export async function getCheckinsForDateAction(filters: {
+  date?: Date
+  shift?: Shift
+  teacherId?: string
+}): Promise<ActionResult<CheckinRecord[]>> {
+  try {
+    const parsed = DateCheckinFiltersSchema.safeParse(filters)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid filters',
+      }
+    }
+
+    const checkins = await getCheckinsForDate(parsed.data)
+    const records = checkins.map(mapCheckinToRecord)
+
+    return { success: true, data: records }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get check-ins for date')
+    return { success: false, error: 'Failed to load check-ins' }
+  }
+}
+
+/**
+ * Get check-in history with filters and pagination.
+ */
+export async function getCheckinHistoryWithFiltersAction(filters: {
+  dateFrom?: Date
+  dateTo?: Date
+  shift?: Shift
+  teacherId?: string
+  isLate?: boolean
+  clockInValid?: boolean
+  page?: number
+  limit?: number
+}): Promise<
+  ActionResult<{
+    data: CheckinRecord[]
+    total: number
+    page: number
+    totalPages: number
+  }>
+> {
+  try {
+    const parsed = CheckinHistoryFiltersSchema.safeParse(filters)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid filters',
+      }
+    }
+
+    const { page, limit, ...queryFilters } = parsed.data
+    const result = await getCheckinHistory(queryFilters, { page, limit })
+    const records = result.data.map(mapCheckinToRecord)
+
+    return {
+      success: true,
+      data: {
+        data: records,
+        total: result.total,
+        page: result.page,
+        totalPages: result.totalPages,
+      },
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get check-in history')
+    return { success: false, error: 'Failed to load check-in history' }
+  }
+}
+
+/**
+ * Get late arrivals report.
+ */
+export async function getLateArrivalsAction(filters: {
+  dateFrom: Date
+  dateTo: Date
+  shift?: Shift
+  teacherId?: string
+}): Promise<ActionResult<CheckinRecord[]>> {
+  try {
+    const parsed = LateReportFiltersSchema.safeParse(filters)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid filters',
+      }
+    }
+
+    const checkins = await getLateArrivals(parsed.data)
+    const records = checkins.map(mapCheckinToRecord)
+
+    return { success: true, data: records }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get late arrivals')
+    return { success: false, error: 'Failed to load late arrivals report' }
+  }
+}
+
+/**
+ * Get teachers for dropdown filter.
+ */
+export async function getTeachersForDropdownAction(): Promise<
+  ActionResult<TeacherOption[]>
+> {
+  try {
+    const teachers = await getDugsiTeachersForDropdown()
+    const options: TeacherOption[] = teachers.map((t) => ({
+      id: t.id,
+      name: t.name,
+    }))
+
+    return { success: true, data: options }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get teachers for dropdown')
+    return { success: false, error: 'Failed to load teachers' }
+  }
+}
+
+/**
+ * Update a check-in record (admin).
+ */
+export async function updateCheckinAction(input: {
+  checkInId: string
+  clockInTime?: Date
+  clockOutTime?: Date | null
+  isLate?: boolean
+  clockInValid?: boolean
+  notes?: string | null
+}): Promise<ActionResult<CheckinRecord>> {
+  try {
+    const parsed = UpdateCheckinSchema.safeParse(input)
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]
+      return { success: false, error: firstError?.message || 'Invalid input' }
+    }
+
+    const updated = await updateCheckin(parsed.data)
+    const record = mapCheckinToRecord(updated)
+
+    revalidatePath('/admin/dugsi/teachers')
+
+    logger.info({ checkInId: input.checkInId }, 'Check-in updated by admin')
+
+    return { success: true, data: record }
+  } catch (error) {
+    await logError(logger, error, 'Failed to update check-in', {
+      checkInId: input.checkInId,
+    })
+
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+
+    return { success: false, error: 'Failed to update check-in' }
+  }
+}
+
+/**
+ * Delete a check-in record (admin).
+ */
+export async function deleteCheckinAction(
+  checkInId: string
+): Promise<ActionResult<void>> {
+  try {
+    const parsed = DeleteCheckinSchema.safeParse({ checkInId })
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid check-in ID' }
+    }
+
+    await deleteCheckin(parsed.data.checkInId)
+
+    revalidatePath('/admin/dugsi/teachers')
+
+    logger.info({ checkInId }, 'Check-in deleted by admin')
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    await logError(logger, error, 'Failed to delete check-in', { checkInId })
+
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+
+    return { success: false, error: 'Failed to delete check-in' }
   }
 }
