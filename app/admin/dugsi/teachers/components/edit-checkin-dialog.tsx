@@ -23,6 +23,7 @@ import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
 import { CheckinRecord, updateCheckinAction } from '../actions'
+import { formatFullDate } from './date-utils'
 
 interface Props {
   open: boolean
@@ -33,10 +34,6 @@ interface Props {
 
 function formatDateForInput(date: Date): string {
   return format(new Date(date), "yyyy-MM-dd'T'HH:mm")
-}
-
-function formatDate(date: Date): string {
-  return format(new Date(date), 'EEEE, MMMM d, yyyy')
 }
 
 export function EditCheckinDialog({
@@ -86,7 +83,7 @@ export function EditCheckinDialog({
         <DialogHeader>
           <DialogTitle>Edit Check-in</DialogTitle>
           <DialogDescription>
-            {checkin.teacherName} - {formatDate(checkin.date)}
+            {checkin.teacherName} - {formatFullDate(checkin.date)}
           </DialogDescription>
         </DialogHeader>
 

@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 
-import { format } from 'date-fns'
 import {
   CheckCircle2,
   MoreHorizontal,
@@ -30,8 +29,8 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
-import { formatCheckinDate } from './date-utils'
 import { CheckinRecord } from '../actions'
+import { formatCheckinDate, formatCheckinTime } from './date-utils'
 import { DeleteCheckinDialog } from './delete-checkin-dialog'
 import { EditCheckinDialog } from './edit-checkin-dialog'
 
@@ -39,10 +38,6 @@ interface Props {
   checkins: CheckinRecord[]
   onUpdated?: () => void
   onDeleted?: () => void
-}
-
-function formatTime(date: Date): string {
-  return format(new Date(date), 'h:mm a')
 }
 
 export function CheckinTable({ checkins, onUpdated, onDeleted }: Props) {
@@ -94,35 +89,30 @@ export function CheckinTable({ checkins, onUpdated, onDeleted }: Props) {
                       <XCircle className="h-3.5 w-3.5 text-red-500" />
                     )}
                     <span className="text-sm">
-                      {formatTime(checkin.clockInTime)}
+                      {formatCheckinTime(checkin.clockInTime)}
                     </span>
                   </div>
                 </TableCell>
                 <TableCell>
                   {checkin.clockOutTime ? (
                     <span className="text-sm">
-                      {formatTime(checkin.clockOutTime)}
+                      {formatCheckinTime(checkin.clockOutTime)}
                     </span>
                   ) : (
                     <span className="text-sm text-muted-foreground">-</span>
                   )}
                 </TableCell>
                 <TableCell>
-                  {checkin.isLate ? (
-                    <Badge
-                      variant="outline"
-                      className="border-orange-200 bg-orange-100 text-orange-800"
-                    >
-                      Late
-                    </Badge>
-                  ) : (
-                    <Badge
-                      variant="outline"
-                      className="border-green-200 bg-green-100 text-green-800"
-                    >
-                      On Time
-                    </Badge>
-                  )}
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      checkin.isLate
+                        ? 'border-orange-200 bg-orange-100 text-orange-800'
+                        : 'border-green-200 bg-green-100 text-green-800'
+                    )}
+                  >
+                    {checkin.isLate ? 'Late' : 'On Time'}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>

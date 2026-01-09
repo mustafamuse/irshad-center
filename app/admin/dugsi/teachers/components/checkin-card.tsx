@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 
-import { format } from 'date-fns'
 import {
   CheckCircle2,
   MoreHorizontal,
@@ -22,8 +21,8 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
-import { formatCheckinDate } from './date-utils'
 import { CheckinRecord } from '../actions'
+import { formatCheckinDate, formatCheckinTime } from './date-utils'
 import { DeleteCheckinDialog } from './delete-checkin-dialog'
 import { EditCheckinDialog } from './edit-checkin-dialog'
 
@@ -31,10 +30,6 @@ interface Props {
   checkin: CheckinRecord
   onUpdated?: () => void
   onDeleted?: () => void
-}
-
-function formatTime(date: Date): string {
-  return format(new Date(date), 'h:mm a')
 }
 
 export function CheckinCard({ checkin, onUpdated, onDeleted }: Props) {
@@ -88,27 +83,25 @@ export function CheckinCard({ checkin, onUpdated, onDeleted }: Props) {
             ) : (
               <XCircle className="h-3.5 w-3.5 text-red-500" />
             )}
-            <span>{formatTime(checkin.clockInTime)}</span>
+            <span>{formatCheckinTime(checkin.clockInTime)}</span>
             <span className="text-muted-foreground">-</span>
             <span>
-              {checkin.clockOutTime ? formatTime(checkin.clockOutTime) : '-'}
+              {checkin.clockOutTime
+                ? formatCheckinTime(checkin.clockOutTime)
+                : '-'}
             </span>
           </div>
-          {checkin.isLate ? (
-            <Badge
-              variant="outline"
-              className="border-orange-200 bg-orange-100 text-xs text-orange-800"
-            >
-              Late
-            </Badge>
-          ) : (
-            <Badge
-              variant="outline"
-              className="border-green-200 bg-green-100 text-xs text-green-800"
-            >
-              On Time
-            </Badge>
-          )}
+          <Badge
+            variant="outline"
+            className={cn(
+              'text-xs',
+              checkin.isLate
+                ? 'border-orange-200 bg-orange-100 text-orange-800'
+                : 'border-green-200 bg-green-100 text-green-800'
+            )}
+          >
+            {checkin.isLate ? 'Late' : 'On Time'}
+          </Badge>
         </div>
       </div>
 

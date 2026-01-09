@@ -1,5 +1,5 @@
 import { getTeachers } from './actions'
-import { TeachersPageClient } from './components/teachers-page-client'
+import { TeachersDashboard } from './components/teachers-dashboard'
 
 export default async function TeachersPage() {
   const result = await getTeachers('DUGSI_PROGRAM')
@@ -18,7 +18,7 @@ export default async function TeachersPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <TeachersPageClient teachers={result.data} />
+      <TeachersDashboard teachers={result.data} />
     </div>
   )
 }

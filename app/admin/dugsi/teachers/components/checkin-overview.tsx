@@ -176,14 +176,6 @@ export function CheckinOverview({ onDataChanged }: Props) {
     onDataChanged?.()
   }
 
-  function handleCheckinUpdated() {
-    handleRefresh()
-  }
-
-  function handleCheckinDeleted() {
-    handleRefresh()
-  }
-
   function handleDayChange(value: string) {
     setSelectedDay(value)
     const option = weekendDayOptions.find((o) => o.value === value)
@@ -330,8 +322,8 @@ export function CheckinOverview({ onDataChanged }: Props) {
           <div className="hidden sm:block">
             <CheckinTable
               checkins={checkins}
-              onUpdated={handleCheckinUpdated}
-              onDeleted={handleCheckinDeleted}
+              onUpdated={handleRefresh}
+              onDeleted={handleRefresh}
             />
           </div>
           <div className="space-y-2 sm:hidden">
@@ -339,8 +331,8 @@ export function CheckinOverview({ onDataChanged }: Props) {
               <CheckinCard
                 key={checkin.id}
                 checkin={checkin}
-                onUpdated={handleCheckinUpdated}
-                onDeleted={handleCheckinDeleted}
+                onUpdated={handleRefresh}
+                onDeleted={handleRefresh}
               />
             ))}
           </div>

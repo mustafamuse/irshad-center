@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 
-import { format } from 'date-fns'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -19,20 +18,13 @@ import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
 import { CheckinRecord, deleteCheckinAction } from '../actions'
+import { formatCheckinTime, formatFullDate } from './date-utils'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   checkin: CheckinRecord
   onSuccess?: () => void
-}
-
-function formatDate(date: Date): string {
-  return format(new Date(date), 'EEEE, MMMM d, yyyy')
-}
-
-function formatTime(date: Date): string {
-  return format(new Date(date), 'h:mm a')
 }
 
 export function DeleteCheckinDialog({
@@ -83,11 +75,12 @@ export function DeleteCheckinDialog({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {formatDate(checkin.date)}
+            {formatFullDate(checkin.date)}
           </p>
           <p className="text-sm">
-            {formatTime(checkin.clockInTime)}
-            {checkin.clockOutTime && ` - ${formatTime(checkin.clockOutTime)}`}
+            {formatCheckinTime(checkin.clockInTime)}
+            {checkin.clockOutTime &&
+              ` - ${formatCheckinTime(checkin.clockOutTime)}`}
           </p>
         </div>
 
