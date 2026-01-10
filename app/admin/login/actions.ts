@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -7,7 +8,7 @@ import crypto from 'crypto'
 
 import { generateAuthToken, verifyAuthToken } from '@/lib/auth/admin-auth'
 import { checkRateLimit } from '@/lib/auth/rate-limit'
-import { createActionLogger } from '@/lib/logger'
+import { createActionLogger, logError } from '@/lib/logger'
 import type { ActionResult } from '@/lib/utils/action-helpers'
 import { adminPinSchema } from '@/lib/validations/admin-auth'
 
@@ -16,7 +17,7 @@ const logger = createActionLogger('admin-auth')
 export async function validateAdminPin(
   pin: string,
   redirectTo: string
-): Promise<ActionResult> {
+): Promise<ActionResult<void>> {
   const headersList = await headers()
   const ip = headersList.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
@@ -50,7 +51,12 @@ export async function validateAdminPin(
     crypto.timingSafeEqual(pinBuffer, expectedBuffer)
 
   if (!isValid) {
-    logger.warn('Failed admin login attempt')
+    await logError(
+      logger,
+      new Error('Invalid PIN attempt'),
+      'Admin login failed',
+      { ip }
+    )
     return { success: false, error: 'Invalid PIN' }
   }
 
@@ -72,6 +78,7 @@ export async function logoutAdmin(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete('admin_auth')
   logger.info('Admin logout')
+  revalidatePath('/admin', 'layout')
   redirect('/admin/login')
 }
 
