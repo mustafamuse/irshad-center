@@ -1,47 +1,34 @@
 'use server'
 
-
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import crypto from 'crypto'
 
+import { generateAuthToken, verifyAuthToken } from '@/lib/auth/admin-auth'
+import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { createActionLogger } from '@/lib/logger'
 import type { ActionResult } from '@/lib/utils/action-helpers'
 import { adminPinSchema } from '@/lib/validations/admin-auth'
 
 const logger = createActionLogger('admin-auth')
 
-function generateAuthToken(): string {
-  const timestamp = Date.now().toString()
-  const secret = process.env.ADMIN_PIN || ''
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(timestamp)
-    .digest('hex')
-  return `${timestamp}.${signature}`
-}
-
-function verifyAuthToken(token: string): boolean {
-  const [timestamp, signature] = token.split('.')
-  if (!timestamp || !signature) return false
-
-  const secret = process.env.ADMIN_PIN || ''
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(timestamp)
-    .digest('hex')
-
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  )
-}
-
 export async function validateAdminPin(
   pin: string,
   redirectTo: string
 ): Promise<ActionResult> {
+  const headersList = await headers()
+  const ip = headersList.get('x-forwarded-for')?.split(',')[0] || 'unknown'
+
+  const rateLimitResult = await checkRateLimit(ip)
+  if (!rateLimitResult.success) {
+    logger.warn({ ip }, 'Rate limit exceeded for admin login')
+    return {
+      success: false,
+      error: 'Too many attempts. Please try again later.',
+    }
+  }
+
   const parsed = adminPinSchema.safeParse({ pin, redirectTo })
 
   if (!parsed.success) {
@@ -56,7 +43,13 @@ export async function validateAdminPin(
     return { success: false, error: 'Server configuration error' }
   }
 
-  if (parsed.data.pin !== expectedPin) {
+  const pinBuffer = Buffer.from(parsed.data.pin)
+  const expectedBuffer = Buffer.from(expectedPin)
+  const isValid =
+    pinBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(pinBuffer, expectedBuffer)
+
+  if (!isValid) {
     logger.warn('Failed admin login attempt')
     return { success: false, error: 'Invalid PIN' }
   }
