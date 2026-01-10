@@ -1,31 +1,24 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-export function middleware(request: NextRequest) {
+import { verifyAuthTokenEdge } from '@/lib/auth/admin-auth.edge'
+
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  // Protected routes that require authentication/authorization
-  const protectedRoutes = ['/admin-access', '/dashboard', '/admin/dashboard']
+  if (path.startsWith('/admin') && !path.startsWith('/admin/login')) {
+    const authCookie = request.cookies.get('admin_auth')
 
-  // Check if the current path is a protected route
-  const isProtectedRoute = protectedRoutes.some((route) =>
-    path.startsWith(route)
-  )
-
-  // If it's not a protected route, allow access
-  if (!isProtectedRoute) {
-    return NextResponse.next()
+    if (!authCookie || !(await verifyAuthTokenEdge(authCookie.value))) {
+      const loginUrl = new URL('/admin/login', request.url)
+      loginUrl.searchParams.set('redirect', path)
+      return NextResponse.redirect(loginUrl)
+    }
   }
 
   return NextResponse.next()
 }
 
 export const config = {
-  // Only apply middleware to specific protected routes
-  // This ensures webhook and other API routes are completely excluded
-  matcher: [
-    '/admin-access/:path*',
-    '/dashboard/:path*',
-    '/admin/dashboard/:path*',
-  ],
+  matcher: ['/admin/:path*'],
 }
