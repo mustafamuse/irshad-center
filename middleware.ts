@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-import { verifyAuthTokenEdge } from '@/lib/auth/admin-auth'
+import { verifyAuthTokenEdge } from '@/lib/auth/admin-auth.edge'
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
