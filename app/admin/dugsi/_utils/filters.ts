@@ -3,6 +3,8 @@
  * Centralized filtering logic for consistent filtering behavior
  */
 
+import { Shift } from '@prisma/client'
+
 import {
   Family,
   FamilyFilters,
@@ -224,6 +226,24 @@ export function sortFamiliesByParentName(families: Family[]): Family[] {
   })
 }
 
+export function filterFamiliesByShift(
+  families: Family[],
+  shift: Shift | null
+): Family[] {
+  if (!shift) return families
+  return families.filter((f) => f.members.some((m) => m.shift === shift))
+}
+
+export function filterFamiliesByTeacher(
+  families: Family[],
+  teacher: string | null
+): Family[] {
+  if (!teacher) return families
+  return families.filter((f) =>
+    f.members.some((m) => m.teacherName === teacher)
+  )
+}
+
 export function applyAllFilters(
   families: Family[],
   options: {
@@ -231,6 +251,8 @@ export function applyAllFilters(
     searchQuery?: string
     searchField?: SearchField
     advancedFilters?: FamilyFilters
+    quickShift?: Shift | null
+    quickTeacher?: string | null
   }
 ): Family[] {
   let filtered = families
@@ -249,6 +271,14 @@ export function applyAllFilters(
 
   if (options.advancedFilters) {
     filtered = filterFamiliesByAdvanced(filtered, options.advancedFilters)
+  }
+
+  if (options.quickShift) {
+    filtered = filterFamiliesByShift(filtered, options.quickShift)
+  }
+
+  if (options.quickTeacher) {
+    filtered = filterFamiliesByTeacher(filtered, options.quickTeacher)
   }
 
   filtered = sortFamiliesByParentName(filtered)

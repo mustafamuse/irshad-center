@@ -100,10 +100,39 @@ export type TabValue =
   | 'churned'
   | 'billing-mismatch'
   | 'all'
-export type ViewMode = 'grid' | 'table'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
 export type FamilyStatus = 'active' | 'churned' | 'no-payment'
 export type SearchField = 'all' | 'childName' | 'parentName' | 'email' | 'phone'
+
+// Stripe payment history types
+export interface StripePaymentHistoryItem {
+  id: string
+  date: Date
+  amount: number
+  status: 'succeeded' | 'pending' | 'failed'
+  description: string
+  invoiceUrl: string | null
+}
+
+// Bulk payment link types
+export interface BulkPaymentLinkItem {
+  familyId: string
+  familyName: string
+  paymentUrl: string
+  childCount: number
+  rate: number
+}
+
+export interface BulkPaymentLinkFailure {
+  familyId: string
+  familyName: string
+  error: string
+}
+
+export interface BulkPaymentLinkResult {
+  links: BulkPaymentLinkItem[]
+  failed: BulkPaymentLinkFailure[]
+}
 
 // Re-export ActionResult from canonical location
 export type { ActionResult } from '@/lib/utils/action-helpers'

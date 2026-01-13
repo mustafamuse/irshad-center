@@ -36,6 +36,7 @@ import { useActiveTab, useDugsiFilters, useLegacyActions } from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
 import { DugsiStats } from './dashboard/dashboard-stats'
+import { QuickFilterChips } from './dashboard/quick-filter-chips'
 import { TabContent } from './dashboard/tab-content'
 
 interface DugsiDashboardProps {
@@ -72,6 +73,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
       dateFilter: 'all',
       hasHealthInfo: false,
     },
+    quickShift: filters.quickShift,
+    quickTeacher: filters.quickTeacher,
   })
 
   return (
@@ -95,7 +98,10 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
         <DashboardFilters />
 
         {/* Dashboard Stats */}
-        <DugsiStats registrations={registrations} />
+        <DugsiStats registrations={registrations} onStatClick={setActiveTab} />
+
+        {/* Quick Filter Chips */}
+        <QuickFilterChips families={familyGroups} />
 
         {/* Main Content Tabs */}
         <Tabs

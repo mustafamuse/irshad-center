@@ -1,9 +1,10 @@
+import { Shift } from '@prisma/client'
 import { enableMapSet } from 'immer'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
-import { FamilyFilters, TabValue, ViewMode, SearchField } from '../_types'
+import { FamilyFilters, TabValue, SearchField } from '../_types'
 
 enableMapSet()
 
@@ -18,13 +19,14 @@ export interface DugsiFilters {
   }
   advanced?: FamilyFilters
   tab?: TabValue
+  quickShift?: Shift | null
+  quickTeacher?: string | null
 }
 
 interface DugsiUIStore {
   // ============================================================================
   // STATE
   // ============================================================================
-  viewMode: ViewMode
   activeTab: TabValue
   filters: DugsiFilters
   showAdvancedFilters: boolean
@@ -41,6 +43,7 @@ interface DugsiUIStore {
     familyId: string
     familyName: string
   } | null
+  selectedFamilyIds: Set<string>
 
   // ============================================================================
   // CORE ACTIONS
@@ -51,11 +54,18 @@ interface DugsiUIStore {
   setSearchQuery: (query: string) => void
   setSearchField: (field: SearchField) => void
   setAdvancedFilters: (filters: FamilyFilters) => void
+  setQuickShiftFilter: (shift: Shift | null) => void
+  setQuickTeacherFilter: (teacher: string | null) => void
   resetFilters: () => void
 
   // View actions
-  setViewMode: (mode: ViewMode) => void
   setActiveTab: (tab: TabValue) => void
+
+  // Selection actions
+  setSelectedFamilyIds: (ids: Set<string>) => void
+  toggleFamilySelection: (familyKey: string) => void
+  selectAllFamilies: (familyKeys: string[]) => void
+  clearSelection: () => void
 
   // Dialog actions
   setDialogOpen: (
@@ -99,6 +109,8 @@ const defaultFilters: DugsiFilters = {
     hasHealthInfo: false,
   },
   tab: 'all',
+  quickShift: null,
+  quickTeacher: null,
 }
 
 // ============================================================================
@@ -108,7 +120,6 @@ const defaultFilters: DugsiFilters = {
 export const useDugsiUIStore = create<DugsiUIStore>()(
   devtools(
     immer((set) => ({
-      viewMode: 'grid',
       activeTab: 'all',
       filters: defaultFilters,
       showAdvancedFilters: false,
@@ -119,6 +130,7 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       verifyBankDialogData: null,
       isConsolidateSubscriptionDialogOpen: false,
       consolidateSubscriptionDialogData: null,
+      selectedFamilyIds: new Set<string>(),
 
       // ========================================================================
       // FILTER ACTIONS
@@ -150,6 +162,16 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
           state.filters.advanced = filters
         }),
 
+      setQuickShiftFilter: (shift) =>
+        set((state) => {
+          state.filters.quickShift = shift
+        }),
+
+      setQuickTeacherFilter: (teacher) =>
+        set((state) => {
+          state.filters.quickTeacher = teacher
+        }),
+
       resetFilters: () =>
         set((state) => {
           state.filters = { ...defaultFilters }
@@ -159,15 +181,38 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       // VIEW ACTIONS
       // ========================================================================
 
-      setViewMode: (mode) =>
-        set((state) => {
-          state.viewMode = mode
-        }),
-
       setActiveTab: (tab) =>
         set((state) => {
           state.activeTab = tab
           state.filters.tab = tab
+        }),
+
+      // ========================================================================
+      // SELECTION ACTIONS
+      // ========================================================================
+
+      setSelectedFamilyIds: (ids) =>
+        set((state) => {
+          state.selectedFamilyIds = ids
+        }),
+
+      toggleFamilySelection: (familyKey) =>
+        set((state) => {
+          if (state.selectedFamilyIds.has(familyKey)) {
+            state.selectedFamilyIds.delete(familyKey)
+          } else {
+            state.selectedFamilyIds.add(familyKey)
+          }
+        }),
+
+      selectAllFamilies: (familyKeys) =>
+        set((state) => {
+          state.selectedFamilyIds = new Set(familyKeys)
+        }),
+
+      clearSelection: () =>
+        set((state) => {
+          state.selectedFamilyIds = new Set()
         }),
 
       // ========================================================================
@@ -210,7 +255,6 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
 
       reset: () =>
         set((state) => {
-          state.viewMode = 'grid'
           state.activeTab = 'all'
           state.filters = { ...defaultFilters }
           state.showAdvancedFilters = false
@@ -221,6 +265,7 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
           state.verifyBankDialogData = null
           state.isConsolidateSubscriptionDialogOpen = false
           state.consolidateSubscriptionDialogData = null
+          state.selectedFamilyIds = new Set()
         }),
     })),
     {
@@ -233,9 +278,14 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
 // SELECTORS
 // ============================================================================
 
-export const useViewMode = () => useDugsiUIStore((state) => state.viewMode)
 export const useActiveTab = () => useDugsiUIStore((state) => state.activeTab)
 export const useDugsiFilters = () => useDugsiUIStore((state) => state.filters)
+export const useSelectedFamilyIds = () =>
+  useDugsiUIStore((state) => state.selectedFamilyIds)
+export const useQuickShiftFilter = () =>
+  useDugsiUIStore((state) => state.filters.quickShift)
+export const useQuickTeacherFilter = () =>
+  useDugsiUIStore((state) => state.filters.quickTeacher)
 
 export const useDeleteDialogState = () =>
   useDugsiUIStore((state) => state.isDeleteDialogOpen)
@@ -263,7 +313,6 @@ export const useLegacyActions = () => {
       store.setAdvancedFilters(filters),
     resetFilters: () => store.resetFilters(),
 
-    setViewMode: (mode: ViewMode) => store.setViewMode(mode),
     setActiveTab: (tab: TabValue) => store.setActiveTab(tab),
 
     setDeleteDialogOpen: (open: boolean) => store.setDialogOpen('delete', open),

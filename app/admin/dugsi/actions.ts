@@ -56,6 +56,7 @@ import {
 } from '@/lib/services/dugsi'
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
+import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import {
   UpdateFamilyShiftSchema,
@@ -79,6 +80,7 @@ import {
   VCardResult,
 } from '@/lib/vcard-export'
 
+
 import {
   previewSubscriptionInputSchema,
   consolidateSubscriptionInputSchema,
@@ -93,6 +95,7 @@ import {
   Family,
   ClassWithDetails,
   StudentForEnrollment,
+  StripePaymentHistoryItem,
 } from './_types'
 
 const logger = createServiceLogger('dugsi-admin-actions')
@@ -641,6 +644,129 @@ export async function generateFamilyPaymentLinkAction(
         error instanceof Error
           ? error.message
           : 'Failed to generate payment link',
+    }
+  }
+}
+
+/**
+ * Bulk generate payment links for multiple families.
+ * Used for batch operations from the dashboard.
+ */
+export async function bulkGeneratePaymentLinksAction(params: {
+  familyIds: string[]
+}): Promise<
+  ActionResult<{
+    links: Array<{
+      familyId: string
+      familyName: string
+      paymentUrl: string
+      childCount: number
+      rate: number
+    }>
+    failed: Array<{
+      familyId: string
+      familyName: string
+      error: string
+    }>
+  }>
+> {
+  const links: Array<{
+    familyId: string
+    familyName: string
+    paymentUrl: string
+    childCount: number
+    rate: number
+  }> = []
+  const failed: Array<{
+    familyId: string
+    familyName: string
+    error: string
+  }> = []
+
+  for (const familyId of params.familyIds) {
+    try {
+      const result = await generateFamilyPaymentLinkAction({ familyId })
+
+      if (result.success && result.data) {
+        links.push({
+          familyId,
+          familyName: result.data.familyName,
+          paymentUrl: result.data.paymentUrl,
+          childCount: result.data.childCount,
+          rate: result.data.finalRate,
+        })
+      } else {
+        failed.push({
+          familyId,
+          familyName: familyId,
+          error: result.error || 'Unknown error',
+        })
+      }
+    } catch (error) {
+      failed.push({
+        familyId,
+        familyName: familyId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
+    }
+  }
+
+  return { success: true, data: { links, failed } }
+}
+
+/**
+ * Fetch payment history from Stripe for a family.
+ * Returns list of invoices with their payment status.
+ */
+export async function getFamilyPaymentHistory(
+  customerId: string
+): Promise<ActionResult<StripePaymentHistoryItem[]>> {
+  if (!customerId) {
+    return {
+      success: false,
+      error: 'No Stripe customer ID provided',
+    }
+  }
+
+  try {
+    const stripe = getDugsiStripeClient()
+
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit: 50,
+    })
+
+    const history: StripePaymentHistoryItem[] = invoices.data
+      .filter(
+        (invoice): invoice is typeof invoice & { id: string } => !!invoice.id
+      )
+      .map((invoice) => ({
+        id: invoice.id,
+        date: new Date(invoice.created * 1000),
+        amount: invoice.amount_paid,
+        status:
+          invoice.status === 'paid'
+            ? 'succeeded'
+            : invoice.status === 'open'
+              ? 'pending'
+              : 'failed',
+        description:
+          invoice.description ||
+          `Invoice for ${invoice.lines.data[0]?.description || 'subscription'}`,
+        invoiceUrl: invoice.hosted_invoice_url ?? null,
+      }))
+
+    return { success: true, data: history }
+  } catch (error) {
+    await logError(logger, error, 'Failed to fetch payment history', {
+      customerId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch payment history',
     }
   }
 }

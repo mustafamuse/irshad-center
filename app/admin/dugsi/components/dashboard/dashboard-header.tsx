@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 import { downloadVCardFile } from '@/lib/vcard-client'
 
 import { generateDugsiVCardContent } from '../../actions'
-import { useLegacyActions, useViewMode } from '../../store'
 
 interface DashboardHeaderProps {
   title?: string
@@ -20,8 +19,6 @@ export function DashboardHeader({
   title = 'Dugsi Program Management',
   description = 'Manage student registrations and family subscriptions',
 }: DashboardHeaderProps) {
-  const viewMode = useViewMode()
-  const { setViewMode } = useLegacyActions()
   const [isExporting, setIsExporting] = useState(false)
 
   const handleExportContacts = async () => {
@@ -66,38 +63,16 @@ export function DashboardHeader({
         </p>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportContacts}
-          disabled={isExporting}
-          aria-label="Export parent contacts to vCard"
-        >
-          <Download className="mr-2 h-4 w-4" />
-          {isExporting ? 'Exporting...' : 'Export Contacts'}
-        </Button>
-        <div className="flex gap-2" role="group" aria-label="View mode">
-          <Button
-            variant={viewMode === 'grid' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('grid')}
-            aria-pressed={viewMode === 'grid'}
-            aria-label="Parents view"
-          >
-            Parents
-          </Button>
-          <Button
-            variant={viewMode === 'table' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('table')}
-            aria-pressed={viewMode === 'table'}
-            aria-label="Students view"
-          >
-            Students
-          </Button>
-        </div>
-      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleExportContacts}
+        disabled={isExporting}
+        aria-label="Export parent contacts to vCard"
+      >
+        <Download className="mr-2 h-4 w-4" />
+        {isExporting ? 'Exporting...' : 'Export Contacts'}
+      </Button>
     </div>
   )
 }

@@ -1,6 +1,4 @@
-/**
- * Dashboard Stats Component
- */
+'use client'
 
 import {
   AlertCircle,
@@ -14,15 +12,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-import { DugsiRegistration } from '../../_types'
+import { DugsiRegistration, TabValue } from '../../_types'
 import { getBillingStatus } from '../../_utils/billing'
 import { groupRegistrationsByFamily } from '../../_utils/family'
 
 interface DugsiStatsProps {
   registrations: DugsiRegistration[]
+  onStatClick?: (tab: TabValue) => void
 }
 
-export function DugsiStats({ registrations }: DugsiStatsProps) {
+export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
   const families = groupRegistrationsByFamily(registrations)
 
   const totalFamilies = families.length
@@ -96,9 +95,19 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
   }
   const varianceColors = getVarianceColors()
 
+  const cardClickStyles = onStatClick
+    ? 'cursor-pointer hover:ring-2 hover:ring-primary/20'
+    : ''
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          cardClickStyles
+        )}
+        onClick={() => onStatClick?.('all')}
+      >
         <div className="h-1 bg-[#007078]" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Families</CardTitle>
@@ -116,7 +125,13 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          cardClickStyles
+        )}
+        onClick={() => onStatClick?.('active')}
+      >
         <div className="h-1 bg-green-500" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
@@ -139,8 +154,10 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
       <Card
         className={cn(
           'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          noPaymentFamilies > 0 && 'ring-2 ring-amber-200'
+          noPaymentFamilies > 0 && 'ring-2 ring-amber-200',
+          cardClickStyles
         )}
+        onClick={() => onStatClick?.('needs-attention')}
       >
         <div
           className={cn(
@@ -182,8 +199,10 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
       <Card
         className={cn(
           'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          churnedFamilies > 0 && 'ring-2 ring-gray-300'
+          churnedFamilies > 0 && 'ring-2 ring-gray-300',
+          cardClickStyles
         )}
+        onClick={() => onStatClick?.('churned')}
       >
         <div
           className={cn(
@@ -233,7 +252,15 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          revenueStats.mismatchCount > 0 && cardClickStyles
+        )}
+        onClick={() =>
+          revenueStats.mismatchCount > 0 && onStatClick?.('billing-mismatch')
+        }
+      >
         <div className={cn('h-1', varianceColors.bar)} />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
