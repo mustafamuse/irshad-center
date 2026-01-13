@@ -24,6 +24,7 @@ import {
   Wallet,
   Trash2,
   Loader2,
+  Link,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -51,6 +52,7 @@ import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
 import { setPrimaryPayer, updateFamilyShift } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
+import { ConsolidateSubscriptionDialog } from '../dialogs/consolidate-subscription-dialog'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
@@ -93,6 +95,8 @@ export function FamilyDetailSheet({
   const [addChildDialog, setAddChildDialog] = useState(false)
   const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
   const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
+  const [consolidateSubscriptionDialog, setConsolidateSubscriptionDialog] =
+    useState(false)
   const [isShiftPopoverOpen, setIsShiftPopoverOpen] = useState(false)
   const [pendingShift, setPendingShift] = useState<
     'MORNING' | 'AFTERNOON' | null
@@ -683,6 +687,18 @@ export function FamilyDetailSheet({
               </Button>
             </div>
 
+            {/* Link Existing Subscription */}
+            {firstMember.familyReferenceId && (
+              <Button
+                className="w-full"
+                variant="outline"
+                onClick={() => setConsolidateSubscriptionDialog(true)}
+              >
+                <Link className="mr-2 h-4 w-4" />
+                Link Existing Subscription
+              </Button>
+            )}
+
             {/* External Actions */}
             {family.members[0]?.stripeCustomerIdDugsi && (
               <Button
@@ -781,6 +797,16 @@ export function FamilyDetailSheet({
           open={deleteFamilyDialog}
           onOpenChange={setDeleteFamilyDialog}
           onSuccess={() => onOpenChange(false)}
+        />
+      )}
+
+      {/* Consolidate Subscription Dialog */}
+      {consolidateSubscriptionDialog && firstMember.familyReferenceId && (
+        <ConsolidateSubscriptionDialog
+          open={consolidateSubscriptionDialog}
+          onOpenChange={setConsolidateSubscriptionDialog}
+          familyId={firstMember.familyReferenceId}
+          familyName={getSheetTitle()}
         />
       )}
     </Sheet>

@@ -48,6 +48,11 @@ import {
   getPaymentStatus,
   // Checkout service
   createDugsiCheckoutSession,
+  // Consolidate subscription service
+  previewStripeSubscription as previewStripeSubscriptionService,
+  consolidateStripeSubscription as consolidateStripeSubscriptionService,
+  type StripeSubscriptionPreview,
+  type ConsolidateSubscriptionResult,
 } from '@/lib/services/dugsi'
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
@@ -74,6 +79,10 @@ import {
   VCardResult,
 } from '@/lib/vcard-export'
 
+import {
+  previewSubscriptionInputSchema,
+  consolidateSubscriptionInputSchema,
+} from './_schemas/dialog-schemas'
 import {
   ActionResult,
   SubscriptionValidationData,
@@ -1288,6 +1297,116 @@ export async function getClassDeletePreviewAction(input: {
     return {
       success: false,
       error: 'Unable to load class details. Please try again.',
+    }
+  }
+}
+
+// ============================================================================
+// Consolidate Subscription Actions
+// ============================================================================
+
+/**
+ * Preview a Stripe subscription for consolidation with a family.
+ *
+ * Fetches subscription from Stripe and compares customer details
+ * with the family's primary payer in the database.
+ */
+export async function previewStripeSubscriptionForConsolidation(
+  subscriptionId: string,
+  familyId: string
+): Promise<ActionResult<StripeSubscriptionPreview>> {
+  try {
+    const validated = previewSubscriptionInputSchema.parse({
+      subscriptionId,
+      familyId,
+    })
+
+    const preview = await previewStripeSubscriptionService(
+      validated.subscriptionId,
+      validated.familyId
+    )
+
+    return {
+      success: true,
+      data: preview,
+    }
+  } catch (error) {
+    await logError(
+      logger,
+      error,
+      'Failed to preview subscription for consolidation',
+      { subscriptionId, familyId }
+    )
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to preview subscription',
+    }
+  }
+}
+
+/**
+ * Consolidate a Stripe subscription with a Dugsi family.
+ *
+ * Creates/updates BillingAccount, Subscription, and BillingAssignments.
+ * Optionally syncs Stripe customer to match DB and updates metadata.
+ */
+export async function consolidateDugsiSubscription(input: {
+  stripeSubscriptionId: string
+  familyId: string
+  syncStripeCustomer: boolean
+  forceOverride?: boolean
+}): Promise<ActionResult<ConsolidateSubscriptionResult>> {
+  try {
+    const validated = consolidateSubscriptionInputSchema.parse(input)
+
+    const result = await consolidateStripeSubscriptionService(validated)
+
+    revalidatePath('/admin/dugsi')
+
+    const parts: string[] = []
+    parts.push('Subscription linked')
+    if (result.assignmentsCreated > 0) {
+      parts.push(
+        `${result.assignmentsCreated} ${result.assignmentsCreated === 1 ? 'child' : 'children'} assigned`
+      )
+    }
+    if (result.stripeCustomerSynced) {
+      parts.push('Stripe customer synced')
+    } else if (result.syncError) {
+      parts.push(`Stripe sync failed: ${result.syncError}`)
+    }
+    if (result.previousFamilyUnlinked) {
+      parts.push('moved from previous family')
+    }
+
+    return {
+      success: true,
+      data: result,
+      message: parts.join(', '),
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to consolidate subscription', {
+      subscriptionId: input.stripeSubscriptionId,
+      familyId: input.familyId,
+    })
+
+    if (error instanceof ActionError && error.code === 'ALREADY_LINKED') {
+      return {
+        success: false,
+        error:
+          'This subscription is already linked to another family. Enable "force override" to move it.',
+      }
+    }
+
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to consolidate subscription',
     }
   }
 }

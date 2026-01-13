@@ -39,6 +39,9 @@ export const SHORT_DATE_FORMAT = 'MM/dd/yyyy'
 export const DEBOUNCE_DELAY = 300 // milliseconds
 export const REFRESH_DELAY = 500 // milliseconds
 
+// Transaction Timeouts
+export const BULK_ENROLLMENT_TIMEOUT_MS = 30000 // 30 seconds for bulk operations
+
 // Validation Constants
 export const MAX_EMAIL_LENGTH = 320
 export const MAX_NAME_LENGTH = 100
