@@ -15,6 +15,7 @@
 
 import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
+import { z } from 'zod'
 
 import { STRIPE_SUBSCRIPTION_STATUS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
@@ -26,6 +27,7 @@ import {
   getBillingAssignmentsBySubscription,
 } from '@/lib/db/queries/billing'
 import { DatabaseClient } from '@/lib/db/types'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 /**
  * Billing account data for creation/update
@@ -160,6 +162,12 @@ export async function createOrUpdateBillingAccount(input: BillingAccountInput) {
   return await upsertBillingAccountQuery(data)
 }
 
+const linkSubscriptionInputSchema = z.object({
+  subscriptionId: z.string().min(1),
+  programProfileIds: z.array(z.string().uuid()).min(1),
+  totalAmount: z.number().int().nonnegative(),
+})
+
 /**
  * Link a subscription to program profiles by creating billing assignments.
  *
@@ -180,15 +188,17 @@ export async function linkSubscriptionToProfiles(
   notes?: string,
   client: DatabaseClient = prisma
 ): Promise<number> {
-  if (programProfileIds.length === 0) {
-    throw new Error('At least one profile ID is required')
-  }
+  const validated = linkSubscriptionInputSchema.parse({
+    subscriptionId,
+    programProfileIds,
+    totalAmount,
+  })
 
   // Batch fetch all existing assignments for all profiles to avoid N+1
   const allExistingAssignments = await client.billingAssignment.findMany({
     where: {
-      programProfileId: { in: programProfileIds },
-      subscriptionId,
+      programProfileId: { in: validated.programProfileIds },
+      subscriptionId: validated.subscriptionId,
       isActive: true,
     },
     select: {
@@ -202,34 +212,46 @@ export async function linkSubscriptionToProfiles(
   )
 
   // Calculate split amounts
-  const amounts = calculateSplitAmounts(totalAmount, programProfileIds.length)
+  const amounts = calculateSplitAmounts(
+    validated.totalAmount,
+    validated.programProfileIds.length
+  )
 
   // Helper to create assignments
   const createAssignments = async (tx: DatabaseClient): Promise<number> => {
     let count = 0
 
-    for (let i = 0; i < programProfileIds.length; i++) {
-      const profileId = programProfileIds[i]
+    for (let i = 0; i < validated.programProfileIds.length; i++) {
+      const profileId = validated.programProfileIds[i]
       const amount = amounts[i]
 
       // Check if assignment already exists using the Set
       if (!existingProfileIds.has(profileId)) {
         // Calculate percentage
         const percentage =
-          programProfileIds.length > 1 ? (amount / totalAmount) * 100 : null
+          validated.programProfileIds.length > 1
+            ? (amount / validated.totalAmount) * 100
+            : null
 
-        await createBillingAssignmentQuery(
-          {
-            subscriptionId,
-            programProfileId: profileId,
-            amount,
-            percentage,
-            notes,
-          },
-          tx
-        )
-
-        count++
+        try {
+          await createBillingAssignmentQuery(
+            {
+              subscriptionId: validated.subscriptionId,
+              programProfileId: profileId,
+              amount,
+              percentage,
+              notes,
+            },
+            tx
+          )
+          count++
+        } catch (error) {
+          if (isPrismaError(error) && error.code === 'P2002') {
+            // Assignment already exists (concurrent request created it), skip
+            continue
+          }
+          throw error
+        }
       }
     }
 
