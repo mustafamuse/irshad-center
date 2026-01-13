@@ -219,61 +219,37 @@ export async function bulkEnrollStudents(
 
           const existing = await tx.dugsiClassEnrollment.findUnique({
             where: { programProfileId },
+            select: { classId: true, isActive: true },
           })
 
+          if (existing?.classId === classId && existing.isActive) {
+            logger.debug(
+              { programProfileId },
+              'Skipping - already enrolled in this class'
+            )
+            continue
+          }
+
+          const wasMoving = existing?.isActive && existing.classId !== classId
+
           logger.debug(
-            {
-              programProfileId,
-              existing: existing
-                ? {
-                    id: existing.id,
-                    classId: existing.classId,
-                    isActive: existing.isActive,
-                  }
-                : null,
-            },
-            'Existing enrollment check'
+            { programProfileId, wasMoving, action: 'upsert' },
+            'Upserting enrollment'
           )
 
-          if (existing) {
-            if (existing.classId === classId && existing.isActive) {
-              logger.debug(
-                { programProfileId },
-                'Skipping - already enrolled in this class'
-              )
-              continue
-            }
-            const wasActiveInDifferentClass =
-              existing.isActive && existing.classId !== classId
+          await tx.dugsiClassEnrollment.upsert({
+            where: { programProfileId },
+            create: { classId, programProfileId, isActive: true },
+            update: {
+              classId,
+              isActive: true,
+              startDate: new Date(),
+              endDate: null,
+            },
+          })
 
-            logger.debug(
-              { programProfileId, wasActiveInDifferentClass, action: 'update' },
-              'Updating existing enrollment'
-            )
-
-            await tx.dugsiClassEnrollment.update({
-              where: { programProfileId },
-              data: {
-                classId,
-                isActive: true,
-                startDate: new Date(),
-                endDate: null,
-              },
-            })
-            if (wasActiveInDifferentClass) {
-              moved++
-            }
-            enrolled++
-          } else {
-            logger.debug(
-              { programProfileId, action: 'create' },
-              'Creating new enrollment'
-            )
-            await tx.dugsiClassEnrollment.create({
-              data: { classId, programProfileId, isActive: true },
-            })
-            enrolled++
-          }
+          if (wasMoving) moved++
+          enrolled++
         }
 
         logger.info({ classId, enrolled, moved }, 'Bulk enrollment completed')

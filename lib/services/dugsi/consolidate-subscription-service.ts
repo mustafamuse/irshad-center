@@ -34,7 +34,10 @@ import {
   formatRateDisplay,
   getRateTierDescription,
 } from '@/lib/utils/dugsi-tuition'
-import { extractPeriodDates } from '@/lib/utils/type-guards'
+import {
+  extractPeriodDates,
+  isValidSubscriptionStatus,
+} from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('consolidate-subscription-service')
 
@@ -133,6 +136,17 @@ function extractSubscriptionData(subscription: Stripe.Subscription) {
   }
 }
 
+function mapStripeStatus(stripeStatus: string): SubscriptionStatus {
+  if (isValidSubscriptionStatus(stripeStatus)) {
+    return stripeStatus as SubscriptionStatus
+  }
+  logger.warn(
+    { stripeStatus },
+    'Unknown Stripe subscription status, defaulting to incomplete'
+  )
+  return 'incomplete'
+}
+
 export interface ConsolidateSubscriptionInput {
   stripeSubscriptionId: string
   familyId: string
@@ -168,6 +182,7 @@ export interface ConsolidateSubscriptionResult {
   stripeMetadataUpdated: boolean
   stripeCustomerSynced: boolean
   previousFamilyUnlinked: boolean
+  syncError?: string
 }
 
 /**
@@ -270,7 +285,7 @@ export async function consolidateStripeSubscription(
       if (!forceOverride) {
         throw new ActionError(
           'Subscription is already linked to another family. Use forceOverride to move it.',
-          'ALREADY_LINKED',
+          ERROR_CODES.ALREADY_LINKED,
           undefined,
           409
         )
@@ -298,7 +313,7 @@ export async function consolidateStripeSubscription(
 
   const { amount, interval, periodDates } =
     extractSubscriptionData(subscription)
-  const status = subscription.status as SubscriptionStatus
+  const status = mapStripeStatus(subscription.status)
   let dbSubscription = existingDbSub
 
   if (!dbSubscription) {
@@ -346,6 +361,7 @@ export async function consolidateStripeSubscription(
   )
 
   let stripeCustomerSynced = false
+  let syncError: string | undefined
   if (syncStripeCustomer) {
     try {
       await stripe.customers.update(customer.id, {
@@ -358,6 +374,10 @@ export async function consolidateStripeSubscription(
         'Synced Stripe customer to match DB'
       )
     } catch (error) {
+      syncError =
+        error instanceof Error
+          ? error.message
+          : 'Failed to sync Stripe customer'
       await logError(logger, error, 'Failed to sync Stripe customer', {
         customerId: customer.id,
       })
@@ -375,7 +395,6 @@ export async function consolidateStripeSubscription(
         Children: childNames,
         Rate: formatRateDisplay(amount),
         Tier: getRateTierDescription(childCount),
-        Source: 'admin-consolidation',
         familyId,
         guardianPersonId: primaryPayer.id,
         childCount: childCount.toString(),
@@ -414,5 +433,6 @@ export async function consolidateStripeSubscription(
     stripeMetadataUpdated,
     stripeCustomerSynced,
     previousFamilyUnlinked,
+    syncError,
   }
 }
