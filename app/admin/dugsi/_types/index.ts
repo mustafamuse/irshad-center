@@ -80,6 +80,7 @@ export interface Family {
   members: DugsiRegistration[]
   hasPayment: boolean
   hasSubscription: boolean
+  hasChurned: boolean
   parentEmail: string | null
   parentPhone: string | null
 }
@@ -95,13 +96,13 @@ export interface FamilyFilters {
 export type TabValue =
   | 'overview'
   | 'active'
-  | 'pending'
   | 'needs-attention'
+  | 'churned'
   | 'billing-mismatch'
   | 'all'
 export type ViewMode = 'grid' | 'table'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
-export type FamilyStatus = 'active' | 'pending' | 'no-payment'
+export type FamilyStatus = 'active' | 'churned' | 'no-payment'
 export type SearchField = 'all' | 'childName' | 'parentName' | 'email' | 'phone'
 
 // Re-export ActionResult from canonical location

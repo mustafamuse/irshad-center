@@ -111,7 +111,7 @@ export interface NewChildInput {
   /** New child's date of birth */
   dateOfBirth?: Date
   /** Current grade level - K-12 for Dugsi */
-  gradeLevel: GradeLevel
+  gradeLevel?: GradeLevel
   /** Name of school child attends */
   schoolName?: string
   /** Health information, allergies, special needs */

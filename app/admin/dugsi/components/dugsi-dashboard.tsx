@@ -14,8 +14,8 @@ import {
   Users,
   AlertCircle,
   CheckCircle2,
-  Clock,
   DollarSign,
+  RotateCcw,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -118,16 +118,16 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
               </Badge>
             </TabsTrigger>
             <TabsTrigger
-              value="pending"
+              value="churned"
               className="flex-1 gap-1 px-2 py-2 text-xs sm:gap-2 sm:px-3 sm:text-sm"
             >
-              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Pending</span>
+              <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Churned</span>
               <Badge
                 variant="secondary"
                 className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
               >
-                {tabStats.pending}
+                {tabStats.churned}
               </Badge>
             </TabsTrigger>
             <TabsTrigger
@@ -174,25 +174,19 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="active" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="pending" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="needs-attention" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="billing-mismatch" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="all" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
+          {(
+            [
+              'active',
+              'churned',
+              'needs-attention',
+              'billing-mismatch',
+              'all',
+            ] as const
+          ).map((tab) => (
+            <TabsContent key={tab} value={tab} className="space-y-6">
+              <TabContent families={filteredFamilies} />
+            </TabsContent>
+          ))}
         </Tabs>
 
         {/* Command Palette */}

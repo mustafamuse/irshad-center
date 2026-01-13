@@ -59,7 +59,7 @@ export function AddChildDialog({
       lastName: '',
       gender: 'MALE',
       dateOfBirth: '',
-      gradeLevel: 'KINDERGARTEN',
+      gradeLevel: undefined,
       schoolName: '',
       healthInfo: '',
     },
@@ -177,7 +177,7 @@ export function AddChildDialog({
               name="gradeLevel"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Grade Level</FormLabel>
+                  <FormLabel>Grade Level (Optional)</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
