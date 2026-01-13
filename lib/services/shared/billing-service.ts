@@ -165,7 +165,7 @@ export async function createOrUpdateBillingAccount(input: BillingAccountInput) {
 const linkSubscriptionInputSchema = z.object({
   subscriptionId: z.string().min(1),
   programProfileIds: z.array(z.string().uuid()).min(1),
-  totalAmount: z.number().int().nonnegative(),
+  totalAmount: z.number().int().positive(),
 })
 
 /**

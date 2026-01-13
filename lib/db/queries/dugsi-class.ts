@@ -198,7 +198,8 @@ export async function removeStudentFromClass(
 
 export async function bulkEnrollStudents(
   classId: string,
-  programProfileIds: string[]
+  programProfileIds: string[],
+  client: DatabaseClient = prisma
 ): Promise<{ enrolled: number; moved: number }> {
   const uniqueIds = Array.from(new Set(programProfileIds))
 
@@ -207,59 +208,66 @@ export async function bulkEnrollStudents(
     'Starting bulk enrollment'
   )
 
+  const enrollStudents = async (
+    tx: DatabaseClient
+  ): Promise<{ enrolled: number; moved: number }> => {
+    let enrolled = 0
+    let moved = 0
+
+    for (let i = 0; i < uniqueIds.length; i++) {
+      const programProfileId = uniqueIds[i]
+      logger.debug(
+        { programProfileId, index: i + 1, total: uniqueIds.length },
+        'Processing student'
+      )
+
+      const existing = await tx.dugsiClassEnrollment.findUnique({
+        where: { programProfileId },
+        select: { classId: true, isActive: true },
+      })
+
+      if (existing?.classId === classId && existing.isActive) {
+        logger.debug(
+          { programProfileId },
+          'Skipping - already enrolled in this class'
+        )
+        continue
+      }
+
+      const wasMoving = existing?.isActive && existing.classId !== classId
+
+      logger.debug(
+        { programProfileId, wasMoving, action: 'upsert' },
+        'Upserting enrollment'
+      )
+
+      await tx.dugsiClassEnrollment.upsert({
+        where: { programProfileId },
+        create: { classId, programProfileId, isActive: true },
+        update: {
+          classId,
+          isActive: true,
+          ...(existing?.classId !== classId && { startDate: new Date() }),
+          endDate: null,
+        },
+      })
+
+      if (wasMoving) moved++
+      enrolled++
+    }
+
+    logger.info({ classId, enrolled, moved }, 'Bulk enrollment completed')
+    return { enrolled, moved }
+  }
+
   try {
-    return await prisma.$transaction(
-      async (tx) => {
-        let enrolled = 0
-        let moved = 0
+    if (client !== prisma) {
+      return await enrollStudents(client)
+    }
 
-        for (let i = 0; i < uniqueIds.length; i++) {
-          const programProfileId = uniqueIds[i]
-          logger.debug(
-            { programProfileId, index: i + 1, total: uniqueIds.length },
-            'Processing student'
-          )
-
-          const existing = await tx.dugsiClassEnrollment.findUnique({
-            where: { programProfileId },
-            select: { classId: true, isActive: true },
-          })
-
-          if (existing?.classId === classId && existing.isActive) {
-            logger.debug(
-              { programProfileId },
-              'Skipping - already enrolled in this class'
-            )
-            continue
-          }
-
-          const wasMoving = existing?.isActive && existing.classId !== classId
-
-          logger.debug(
-            { programProfileId, wasMoving, action: 'upsert' },
-            'Upserting enrollment'
-          )
-
-          await tx.dugsiClassEnrollment.upsert({
-            where: { programProfileId },
-            create: { classId, programProfileId, isActive: true },
-            update: {
-              classId,
-              isActive: true,
-              ...(existing?.classId !== classId && { startDate: new Date() }),
-              endDate: null,
-            },
-          })
-
-          if (wasMoving) moved++
-          enrolled++
-        }
-
-        logger.info({ classId, enrolled, moved }, 'Bulk enrollment completed')
-        return { enrolled, moved }
-      },
-      { timeout: BULK_ENROLLMENT_TIMEOUT_MS }
-    )
+    return await prisma.$transaction(enrollStudents, {
+      timeout: BULK_ENROLLMENT_TIMEOUT_MS,
+    })
   } catch (error) {
     logger.error(
       {
