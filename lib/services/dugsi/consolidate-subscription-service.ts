@@ -137,14 +137,9 @@ function extractSubscriptionData(subscription: Stripe.Subscription) {
 }
 
 function mapStripeStatus(stripeStatus: string): SubscriptionStatus {
-  if (isValidSubscriptionStatus(stripeStatus)) {
-    return stripeStatus as SubscriptionStatus
-  }
-  logger.warn(
-    { stripeStatus },
-    'Unknown Stripe subscription status, defaulting to incomplete'
-  )
-  return 'incomplete'
+  return isValidSubscriptionStatus(stripeStatus)
+    ? (stripeStatus as SubscriptionStatus)
+    : 'incomplete'
 }
 
 export interface ConsolidateSubscriptionInput {
@@ -213,22 +208,21 @@ export async function previewStripeSubscription(
     const guardian = existingProfiles[0]?.person.dependentRelationships?.find(
       (r) => r.isPrimaryPayer
     )?.guardian
-    existingFamilyName = guardian?.name || 'Unknown Family'
+    existingFamilyName = guardian?.name ?? 'Unknown Family'
   }
 
-  const stripeCustomerName = customer.name || null
-  const stripeCustomerEmail = customer.email || null
+  const stripeCustomerName = customer.name ?? null
+  const stripeCustomerEmail = customer.email ?? null
 
-  const nameMismatch = Boolean(
-    stripeCustomerName &&
-      primaryPayer.name &&
-      stripeCustomerName.toLowerCase() !== primaryPayer.name.toLowerCase()
-  )
-  const emailMismatch = Boolean(
-    stripeCustomerEmail &&
-      payerEmail &&
-      stripeCustomerEmail.toLowerCase() !== payerEmail.toLowerCase()
-  )
+  const caseInsensitiveMatch = (a: string | null, b: string | null) =>
+    a && b && a.toLowerCase() === b.toLowerCase()
+
+  const nameMismatch =
+    !!stripeCustomerName &&
+    !caseInsensitiveMatch(stripeCustomerName, primaryPayer.name)
+  const emailMismatch =
+    !!stripeCustomerEmail &&
+    !caseInsensitiveMatch(stripeCustomerEmail, payerEmail)
 
   return {
     subscriptionId: subscription.id,
@@ -236,8 +230,8 @@ export async function previewStripeSubscription(
     status: subscription.status,
     amount,
     interval,
-    periodStart: periodDates.periodStart || new Date(),
-    periodEnd: periodDates.periodEnd || new Date(),
+    periodStart: periodDates.periodStart ?? new Date(),
+    periodEnd: periodDates.periodEnd ?? new Date(),
     stripeCustomerName,
     stripeCustomerEmail,
     dbPayerName: primaryPayer.name,
