@@ -7,7 +7,10 @@
 
 import { DugsiClass, Prisma, Shift } from '@prisma/client'
 
-import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+import {
+  BULK_ENROLLMENT_TIMEOUT_MS,
+  DUGSI_PROGRAM,
+} from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import {
@@ -255,7 +258,7 @@ export async function bulkEnrollStudents(
         logger.info({ classId, enrolled, moved }, 'Bulk enrollment completed')
         return { enrolled, moved }
       },
-      { timeout: 30000 }
+      { timeout: BULK_ENROLLMENT_TIMEOUT_MS }
     )
   } catch (error) {
     logger.error(

@@ -213,6 +213,13 @@ export const POST = createWebhookHandler({
 | `base-webhook-handler.ts` | `createWebhookHandler()` (factory)                                                       |
 | `event-handlers.ts`       | `createEventHandlers()`, `mahadEventHandlers`, `dugsiEventHandlers`                      |
 
+### Dugsi Services (`lib/services/dugsi/`)
+
+| Service                               | Functions                                                        |
+| ------------------------------------- | ---------------------------------------------------------------- |
+| `consolidate-subscription-service.ts` | `previewStripeSubscription()`, `consolidateStripeSubscription()` |
+| `registration-service.ts`             | `processRegistration()`, `validateRegistrationData()`            |
+
 ### Query Functions (`lib/db/queries/`)
 
 | File            | Functions                                                |

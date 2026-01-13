@@ -1375,6 +1375,8 @@ export async function consolidateDugsiSubscription(input: {
     }
     if (result.stripeCustomerSynced) {
       parts.push('Stripe customer synced')
+    } else if (result.syncError) {
+      parts.push(`Stripe sync failed: ${result.syncError}`)
     }
     if (result.previousFamilyUnlinked) {
       parts.push('moved from previous family')
