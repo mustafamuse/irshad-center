@@ -124,6 +124,15 @@ async function fetchFamilyPayerData(
   return { familyProfiles, primaryPayer, payerEmail, payerPhone }
 }
 
+function extractSubscriptionData(subscription: Stripe.Subscription) {
+  const lineItem = subscription.items.data[0]
+  return {
+    amount: lineItem?.price?.unit_amount || 0,
+    interval: lineItem?.price?.recurring?.interval || 'month',
+    periodDates: extractPeriodDates(subscription),
+  }
+}
+
 export interface ConsolidateSubscriptionInput {
   stripeSubscriptionId: string
   familyId: string
@@ -175,27 +184,21 @@ export async function previewStripeSubscription(
     await fetchStripeSubscriptionWithCustomer(stripeSubscriptionId)
   const { primaryPayer, payerEmail, payerPhone } =
     await fetchFamilyPayerData(familyId)
+  const { amount, interval, periodDates } =
+    extractSubscriptionData(subscription)
 
   const existingDbSub = await getSubscriptionByStripeId(stripeSubscriptionId)
-  let existingFamilyId: string | null = null
+  const linkedFamilyId =
+    existingDbSub?.assignments?.[0]?.programProfile?.familyReferenceId
+  const isAlreadyLinked = Boolean(linkedFamilyId && linkedFamilyId !== familyId)
+
   let existingFamilyName: string | null = null
-
-  if (existingDbSub?.assignments && existingDbSub.assignments.length > 0) {
-    const existingProfile = existingDbSub.assignments[0].programProfile
-    existingFamilyId = existingProfile?.familyReferenceId || null
-
-    if (existingFamilyId && existingFamilyId !== familyId) {
-      const existingProfiles =
-        await getProgramProfilesByFamilyId(existingFamilyId)
-      if (existingProfiles.length > 0) {
-        const existingGuardianRel =
-          existingProfiles[0].person.dependentRelationships?.find(
-            (r) => r.isPrimaryPayer
-          )
-        existingFamilyName =
-          existingGuardianRel?.guardian?.name || 'Unknown Family'
-      }
-    }
+  if (isAlreadyLinked && linkedFamilyId) {
+    const existingProfiles = await getProgramProfilesByFamilyId(linkedFamilyId)
+    const guardian = existingProfiles[0]?.person.dependentRelationships?.find(
+      (r) => r.isPrimaryPayer
+    )?.guardian
+    existingFamilyName = guardian?.name || 'Unknown Family'
   }
 
   const stripeCustomerName = customer.name || null
@@ -206,23 +209,18 @@ export async function previewStripeSubscription(
       primaryPayer.name &&
       stripeCustomerName.toLowerCase() !== primaryPayer.name.toLowerCase()
   )
-
   const emailMismatch = Boolean(
     stripeCustomerEmail &&
       payerEmail &&
       stripeCustomerEmail.toLowerCase() !== payerEmail.toLowerCase()
   )
 
-  const lineItem = subscription.items.data[0]
-  const amount = lineItem?.price?.unit_amount || 0
-  const periodDates = extractPeriodDates(subscription)
-
   return {
     subscriptionId: subscription.id,
     customerId: customer.id,
     status: subscription.status,
     amount,
-    interval: lineItem?.price?.recurring?.interval || 'month',
+    interval,
     periodStart: periodDates.periodStart || new Date(),
     periodEnd: periodDates.periodEnd || new Date(),
     stripeCustomerName,
@@ -233,15 +231,9 @@ export async function previewStripeSubscription(
     hasMismatch: nameMismatch || emailMismatch,
     nameMismatch,
     emailMismatch,
-    existingFamilyId:
-      existingFamilyId && existingFamilyId !== familyId
-        ? existingFamilyId
-        : null,
-    existingFamilyName:
-      existingFamilyId && existingFamilyId !== familyId
-        ? existingFamilyName
-        : null,
-    isAlreadyLinked: Boolean(existingFamilyId && existingFamilyId !== familyId),
+    existingFamilyId: isAlreadyLinked ? (linkedFamilyId ?? null) : null,
+    existingFamilyName: isAlreadyLinked ? existingFamilyName : null,
+    isAlreadyLinked,
   }
 }
 
@@ -304,13 +296,10 @@ export async function consolidateStripeSubscription(
     paymentMethodCapturedAt: new Date(),
   })
 
-  const lineItem = subscription.items.data[0]
-  const amount = lineItem?.price?.unit_amount || 0
-  const periodDates = extractPeriodDates(subscription)
-
-  let dbSubscription = existingDbSub
-
+  const { amount, interval, periodDates } =
+    extractSubscriptionData(subscription)
   const status = subscription.status as SubscriptionStatus
+  let dbSubscription = existingDbSub
 
   if (!dbSubscription) {
     dbSubscription = await createSubscription({
@@ -321,7 +310,7 @@ export async function consolidateStripeSubscription(
       status,
       amount,
       currency: subscription.currency,
-      interval: lineItem?.price?.recurring?.interval || 'month',
+      interval,
       currentPeriodStart: periodDates.periodStart,
       currentPeriodEnd: periodDates.periodEnd,
       paidUntil: periodDates.periodEnd,
