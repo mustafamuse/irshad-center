@@ -77,3 +77,17 @@ export const consolidateSubscriptionSchema = z.object({
 export type ConsolidateSubscriptionFormValues = z.infer<
   typeof consolidateSubscriptionSchema
 >
+
+export const previewSubscriptionInputSchema = z.object({
+  subscriptionId: z.string().regex(/^sub_/, 'Invalid Stripe subscription ID'),
+  familyId: z.string().uuid('Invalid family ID'),
+})
+
+export const consolidateSubscriptionInputSchema = z.object({
+  stripeSubscriptionId: z
+    .string()
+    .regex(/^sub_/, 'Invalid Stripe subscription ID'),
+  familyId: z.string().uuid('Invalid family ID'),
+  syncStripeCustomer: z.boolean(),
+  forceOverride: z.boolean().optional(),
+})

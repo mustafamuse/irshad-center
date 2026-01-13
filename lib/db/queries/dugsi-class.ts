@@ -243,7 +243,7 @@ export async function bulkEnrollStudents(
             update: {
               classId,
               isActive: true,
-              startDate: new Date(),
+              ...(existing?.classId !== classId && { startDate: new Date() }),
               endDate: null,
             },
           })

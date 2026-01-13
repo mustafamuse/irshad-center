@@ -251,6 +251,7 @@ export async function previewStripeSubscription(
  *
  * Creates/updates BillingAccount, Subscription, and BillingAssignments.
  * Optionally syncs Stripe customer to match DB and updates metadata.
+ * All DB operations are wrapped in a transaction for atomicity.
  */
 export async function consolidateStripeSubscription(
   input: ConsolidateSubscriptionInput
@@ -269,89 +270,121 @@ export async function consolidateStripeSubscription(
     await fetchFamilyPayerData(familyId)
 
   const existingDbSub = await getSubscriptionByStripeId(stripeSubscriptionId)
-  let previousFamilyUnlinked = false
 
+  // Check for existing link before transaction
+  let existingFamilyId: string | null = null
   if (existingDbSub?.assignments && existingDbSub.assignments.length > 0) {
     const existingProfile = existingDbSub.assignments[0].programProfile
-    const existingFamilyId = existingProfile?.familyReferenceId
+    existingFamilyId = existingProfile?.familyReferenceId ?? null
 
-    if (existingFamilyId && existingFamilyId !== familyId) {
-      if (!forceOverride) {
-        throw new ActionError(
-          'Subscription is already linked to another family. Use forceOverride to move it.',
-          ERROR_CODES.ALREADY_LINKED,
-          undefined,
-          409
-        )
-      }
-
-      await unlinkSubscription(existingDbSub.id)
-      previousFamilyUnlinked = true
-      logger.info(
-        {
-          subscriptionId: stripeSubscriptionId,
-          previousFamilyId: existingFamilyId,
-        },
-        'Unlinked subscription from previous family'
+    if (existingFamilyId && existingFamilyId !== familyId && !forceOverride) {
+      throw new ActionError(
+        'Subscription is already linked to another family. Use forceOverride to move it.',
+        ERROR_CODES.ALREADY_LINKED,
+        undefined,
+        409
       )
     }
   }
 
-  const billingAccount = await upsertBillingAccount({
-    personId: primaryPayer.id,
-    accountType: 'DUGSI',
-    stripeCustomerIdDugsi: customer.id,
-    paymentMethodCaptured: true,
-    paymentMethodCapturedAt: new Date(),
-  })
-
   const { amount, interval, periodDates } =
     extractSubscriptionData(subscription)
   const status = mapStripeStatus(subscription.status)
-  let dbSubscription = existingDbSub
-
-  if (!dbSubscription) {
-    dbSubscription = await createSubscription({
-      billingAccountId: billingAccount.id,
-      stripeAccountType: 'DUGSI',
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: customer.id,
-      status,
-      amount,
-      currency: subscription.currency,
-      interval,
-      currentPeriodStart: periodDates.periodStart,
-      currentPeriodEnd: periodDates.periodEnd,
-      paidUntil: periodDates.periodEnd,
-    })
-    logger.info(
-      { subscriptionId: subscription.id, dbSubscriptionId: dbSubscription.id },
-      'Created subscription record in database'
-    )
-  } else {
-    await prisma.subscription.update({
-      where: { id: dbSubscription.id },
-      data: {
-        billingAccountId: billingAccount.id,
-        status,
-        amount,
-        currentPeriodStart: periodDates.periodStart,
-        currentPeriodEnd: periodDates.periodEnd,
-        paidUntil: periodDates.periodEnd,
-      },
-    })
-    logger.info(
-      { subscriptionId: subscription.id, dbSubscriptionId: dbSubscription.id },
-      'Updated existing subscription record'
-    )
-  }
-
   const profileIds = familyProfiles.map((p) => p.id)
-  const assignmentsCreated = await linkSubscriptionToProfiles(
-    dbSubscription.id,
-    profileIds,
-    amount,
-    'Consolidated via admin'
+
+  // Wrap all DB operations in a transaction for atomicity
+  const txResult = await prisma.$transaction(
+    async (tx) => {
+      let previousFamilyUnlinked = false
+
+      // Unlink from previous family if needed
+      if (existingFamilyId && existingFamilyId !== familyId && existingDbSub) {
+        await unlinkSubscription(existingDbSub.id, tx)
+        previousFamilyUnlinked = true
+        logger.info(
+          {
+            subscriptionId: stripeSubscriptionId,
+            previousFamilyId: existingFamilyId,
+          },
+          'Unlinked subscription from previous family'
+        )
+      }
+
+      // Create/update billing account
+      const billingAccount = await upsertBillingAccount(
+        {
+          personId: primaryPayer.id,
+          accountType: 'DUGSI',
+          stripeCustomerIdDugsi: customer.id,
+          paymentMethodCaptured: true,
+          paymentMethodCapturedAt: new Date(),
+        },
+        tx
+      )
+
+      // Create or update subscription
+      let dbSubscription = existingDbSub
+      if (!dbSubscription) {
+        dbSubscription = await createSubscription(
+          {
+            billingAccountId: billingAccount.id,
+            stripeAccountType: 'DUGSI',
+            stripeSubscriptionId: subscription.id,
+            stripeCustomerId: customer.id,
+            status,
+            amount,
+            currency: subscription.currency,
+            interval,
+            currentPeriodStart: periodDates.periodStart,
+            currentPeriodEnd: periodDates.periodEnd,
+            paidUntil: periodDates.periodEnd,
+          },
+          tx
+        )
+        logger.info(
+          {
+            subscriptionId: subscription.id,
+            dbSubscriptionId: dbSubscription.id,
+          },
+          'Created subscription record in database'
+        )
+      } else {
+        await tx.subscription.update({
+          where: { id: dbSubscription.id },
+          data: {
+            billingAccountId: billingAccount.id,
+            status,
+            amount,
+            currentPeriodStart: periodDates.periodStart,
+            currentPeriodEnd: periodDates.periodEnd,
+            paidUntil: periodDates.periodEnd,
+          },
+        })
+        logger.info(
+          {
+            subscriptionId: subscription.id,
+            dbSubscriptionId: dbSubscription.id,
+          },
+          'Updated existing subscription record'
+        )
+      }
+
+      // Link subscription to family profiles
+      const assignmentsCreated = await linkSubscriptionToProfiles(
+        dbSubscription.id,
+        profileIds,
+        amount,
+        'Consolidated via admin',
+        tx
+      )
+
+      return {
+        billingAccountId: billingAccount.id,
+        assignmentsCreated,
+        previousFamilyUnlinked,
+      }
+    },
+    { timeout: 30000 }
   )
 
   let stripeCustomerSynced = false
@@ -412,21 +445,21 @@ export async function consolidateStripeSubscription(
     {
       subscriptionId: subscription.id,
       familyId,
-      assignmentsCreated,
+      assignmentsCreated: txResult.assignmentsCreated,
       stripeCustomerSynced,
       stripeMetadataUpdated,
-      previousFamilyUnlinked,
+      previousFamilyUnlinked: txResult.previousFamilyUnlinked,
     },
     'Subscription consolidation completed'
   )
 
   return {
     subscriptionId: subscription.id,
-    billingAccountId: billingAccount.id,
-    assignmentsCreated,
+    billingAccountId: txResult.billingAccountId,
+    assignmentsCreated: txResult.assignmentsCreated,
     stripeMetadataUpdated,
     stripeCustomerSynced,
-    previousFamilyUnlinked,
+    previousFamilyUnlinked: txResult.previousFamilyUnlinked,
     syncError,
   }
 }

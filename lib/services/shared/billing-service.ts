@@ -25,6 +25,7 @@ import {
   updateBillingAssignmentStatus,
   getBillingAssignmentsBySubscription,
 } from '@/lib/db/queries/billing'
+import { DatabaseClient } from '@/lib/db/types'
 
 /**
  * Billing account data for creation/update
@@ -169,20 +170,22 @@ export async function createOrUpdateBillingAccount(input: BillingAccountInput) {
  * @param programProfileIds - Array of program profile IDs
  * @param totalAmount - Total subscription amount in cents
  * @param notes - Optional notes
+ * @param client - Optional database client (for transaction support)
  * @returns Number of assignments created
  */
 export async function linkSubscriptionToProfiles(
   subscriptionId: string,
   programProfileIds: string[],
   totalAmount: number,
-  notes?: string
+  notes?: string,
+  client: DatabaseClient = prisma
 ): Promise<number> {
   if (programProfileIds.length === 0) {
     throw new Error('At least one profile ID is required')
   }
 
   // Batch fetch all existing assignments for all profiles to avoid N+1
-  const allExistingAssignments = await prisma.billingAssignment.findMany({
+  const allExistingAssignments = await client.billingAssignment.findMany({
     where: {
       programProfileId: { in: programProfileIds },
       subscriptionId,
@@ -201,8 +204,56 @@ export async function linkSubscriptionToProfiles(
   // Calculate split amounts
   const amounts = calculateSplitAmounts(totalAmount, programProfileIds.length)
 
+  // Helper to create assignments
+  const createAssignments = async (tx: DatabaseClient): Promise<number> => {
+    let count = 0
+
+    for (let i = 0; i < programProfileIds.length; i++) {
+      const profileId = programProfileIds[i]
+      const amount = amounts[i]
+
+      // Check if assignment already exists using the Set
+      if (!existingProfileIds.has(profileId)) {
+        // Calculate percentage
+        const percentage =
+          programProfileIds.length > 1 ? (amount / totalAmount) * 100 : null
+
+        await createBillingAssignmentQuery(
+          {
+            subscriptionId,
+            programProfileId: profileId,
+            amount,
+            percentage,
+            notes,
+          },
+          tx
+        )
+
+        count++
+      }
+    }
+
+    return count
+  }
+
+  // If client is already a transaction, use it directly; otherwise wrap in new transaction
+  if (client !== prisma) {
+    return await Sentry.startSpan(
+      {
+        name: 'billing.create_assignments',
+        op: 'db',
+        attributes: {
+          subscription_id: subscriptionId,
+          num_profiles: programProfileIds.length,
+          total_amount: totalAmount,
+        },
+      },
+      () => createAssignments(client)
+    )
+  }
+
   // Use transaction to ensure all assignments are created atomically
-  const created = await Sentry.startSpan(
+  return await Sentry.startSpan(
     {
       name: 'billing.create_assignments_transaction',
       op: 'db.transaction',
@@ -212,40 +263,8 @@ export async function linkSubscriptionToProfiles(
         total_amount: totalAmount,
       },
     },
-    async () =>
-      await prisma.$transaction(async (tx) => {
-        let count = 0
-
-        for (let i = 0; i < programProfileIds.length; i++) {
-          const profileId = programProfileIds[i]
-          const amount = amounts[i]
-
-          // Check if assignment already exists using the Set
-          if (!existingProfileIds.has(profileId)) {
-            // Calculate percentage
-            const percentage =
-              programProfileIds.length > 1 ? (amount / totalAmount) * 100 : null
-
-            await createBillingAssignmentQuery(
-              {
-                subscriptionId,
-                programProfileId: profileId,
-                amount,
-                percentage,
-                notes,
-              },
-              tx
-            )
-
-            count++
-          }
-        }
-
-        return count
-      })
+    () => prisma.$transaction(createAssignments)
   )
-
-  return created
 }
 
 /**
@@ -254,15 +273,20 @@ export async function linkSubscriptionToProfiles(
  * Deactivates all billing assignments for the subscription.
  *
  * @param subscriptionId - Subscription ID
+ * @param client - Optional database client (for transaction support)
  * @returns Number of assignments deactivated
  */
 export async function unlinkSubscription(
-  subscriptionId: string
+  subscriptionId: string,
+  client: DatabaseClient = prisma
 ): Promise<number> {
-  const assignments = await getBillingAssignmentsBySubscription(subscriptionId)
+  const assignments = await getBillingAssignmentsBySubscription(
+    subscriptionId,
+    client
+  )
 
-  // Use transaction to ensure all assignments are deactivated atomically
-  const deactivated = await prisma.$transaction(async (tx) => {
+  // Helper to deactivate assignments
+  const deactivateAssignments = async (tx: DatabaseClient): Promise<number> => {
     let count = 0
 
     for (const assignment of assignments) {
@@ -278,9 +302,15 @@ export async function unlinkSubscription(
     }
 
     return count
-  })
+  }
 
-  return deactivated
+  // If client is already a transaction, use it directly; otherwise wrap in new transaction
+  if (client !== prisma) {
+    return deactivateAssignments(client)
+  }
+
+  // Use transaction to ensure all assignments are deactivated atomically
+  return prisma.$transaction(deactivateAssignments)
 }
 
 /**

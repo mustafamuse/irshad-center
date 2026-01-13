@@ -51,6 +51,14 @@ vi.mock('@/lib/db', () => ({
     subscription: {
       update: mockPrismaSubscriptionUpdate,
     },
+    $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
+      const mockTx = {
+        subscription: {
+          update: mockPrismaSubscriptionUpdate,
+        },
+      }
+      return callback(mockTx)
+    }),
   },
 }))
 
@@ -306,13 +314,16 @@ describe('consolidate-subscription-service', () => {
         syncStripeCustomer: false,
       })
 
-      expect(mockUpsertBillingAccount).toHaveBeenCalledWith({
-        personId: 'guardian-123',
-        accountType: 'DUGSI',
-        stripeCustomerIdDugsi: 'cus_test123',
-        paymentMethodCaptured: true,
-        paymentMethodCapturedAt: expect.any(Date),
-      })
+      expect(mockUpsertBillingAccount).toHaveBeenCalledWith(
+        {
+          personId: 'guardian-123',
+          accountType: 'DUGSI',
+          stripeCustomerIdDugsi: 'cus_test123',
+          paymentMethodCaptured: true,
+          paymentMethodCapturedAt: expect.any(Date),
+        },
+        expect.anything()
+      )
 
       expect(mockCreateSubscription).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -320,14 +331,16 @@ describe('consolidate-subscription-service', () => {
           stripeCustomerId: 'cus_test123',
           status: 'active',
           amount: 16000,
-        })
+        }),
+        expect.anything()
       )
 
       expect(mockLinkSubscriptionToProfiles).toHaveBeenCalledWith(
         'sub-db-123',
         ['profile-1', 'profile-2'],
         16000,
-        'Consolidated via admin'
+        'Consolidated via admin',
+        expect.anything()
       )
 
       expect(result).toMatchObject({
@@ -416,7 +429,10 @@ describe('consolidate-subscription-service', () => {
         forceOverride: true,
       })
 
-      expect(mockUnlinkSubscription).toHaveBeenCalledWith('existing-sub-123')
+      expect(mockUnlinkSubscription).toHaveBeenCalledWith(
+        'existing-sub-123',
+        expect.anything()
+      )
       expect(result.previousFamilyUnlinked).toBe(true)
     })
 

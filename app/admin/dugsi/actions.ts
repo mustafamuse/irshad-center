@@ -80,6 +80,10 @@ import {
 } from '@/lib/vcard-export'
 
 import {
+  previewSubscriptionInputSchema,
+  consolidateSubscriptionInputSchema,
+} from './_schemas/dialog-schemas'
+import {
   ActionResult,
   SubscriptionValidationData,
   PaymentStatusData,
@@ -1312,16 +1316,14 @@ export async function previewStripeSubscriptionForConsolidation(
   familyId: string
 ): Promise<ActionResult<StripeSubscriptionPreview>> {
   try {
-    if (!subscriptionId.startsWith('sub_')) {
-      return {
-        success: false,
-        error: 'Invalid subscription ID format. Must start with "sub_"',
-      }
-    }
+    const validated = previewSubscriptionInputSchema.parse({
+      subscriptionId,
+      familyId,
+    })
 
     const preview = await previewStripeSubscriptionService(
-      subscriptionId,
-      familyId
+      validated.subscriptionId,
+      validated.familyId
     )
 
     return {
@@ -1358,19 +1360,9 @@ export async function consolidateDugsiSubscription(input: {
   forceOverride?: boolean
 }): Promise<ActionResult<ConsolidateSubscriptionResult>> {
   try {
-    if (!input.stripeSubscriptionId.startsWith('sub_')) {
-      return {
-        success: false,
-        error: 'Invalid subscription ID format. Must start with "sub_"',
-      }
-    }
+    const validated = consolidateSubscriptionInputSchema.parse(input)
 
-    const result = await consolidateStripeSubscriptionService({
-      stripeSubscriptionId: input.stripeSubscriptionId,
-      familyId: input.familyId,
-      syncStripeCustomer: input.syncStripeCustomer,
-      forceOverride: input.forceOverride,
-    })
+    const result = await consolidateStripeSubscriptionService(validated)
 
     revalidatePath('/admin/dugsi')
 
