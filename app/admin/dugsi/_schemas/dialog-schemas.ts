@@ -30,8 +30,8 @@ export const childFormSchema = z.object({
     required_error: 'Gender is required',
   }),
   dateOfBirth: z.string().optional(),
-  gradeLevel: z.enum(
-    [
+  gradeLevel: z
+    .enum([
       'KINDERGARTEN',
       'GRADE_1',
       'GRADE_2',
@@ -49,11 +49,8 @@ export const childFormSchema = z.object({
       'SOPHOMORE',
       'JUNIOR',
       'SENIOR',
-    ],
-    {
-      required_error: 'Grade level is required',
-    }
-  ),
+    ])
+    .optional(),
   schoolName: z.string().optional(),
   healthInfo: z.string().optional(),
 })

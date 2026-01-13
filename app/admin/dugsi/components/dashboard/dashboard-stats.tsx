@@ -5,6 +5,7 @@
 import {
   AlertCircle,
   DollarSign,
+  RotateCcw,
   TrendingDown,
   UserCheck,
   Users,
@@ -27,7 +28,12 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
   const totalFamilies = families.length
   const totalStudents = registrations.length
   const payingFamilies = families.filter((f) => f.hasSubscription).length
-  const actionNeeded = totalFamilies - payingFamilies
+  const churnedFamilies = families.filter(
+    (f) => f.hasChurned && !f.hasSubscription
+  ).length
+  const noPaymentFamilies = families.filter(
+    (f) => !f.hasPayment && !f.hasChurned
+  ).length
   const payingRate =
     totalFamilies > 0 ? Math.round((payingFamilies / totalFamilies) * 100) : 0
 
@@ -68,7 +74,7 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
   const isUnder = variance < 0
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
         <div className="h-1 bg-[#007078]" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -110,27 +116,29 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
       <Card
         className={cn(
           'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          actionNeeded > 0 && 'ring-2 ring-amber-200'
+          noPaymentFamilies > 0 && 'ring-2 ring-amber-200'
         )}
       >
         <div
           className={cn(
             'h-1',
-            actionNeeded > 0 ? 'bg-amber-500' : 'bg-gray-200'
+            noPaymentFamilies > 0 ? 'bg-amber-500' : 'bg-gray-200'
           )}
         />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Action Needed</CardTitle>
+          <CardTitle className="text-sm font-medium">No Payment</CardTitle>
           <div
             className={cn(
               'flex h-8 w-8 items-center justify-center rounded-lg',
-              actionNeeded > 0 ? 'bg-amber-100' : 'bg-gray-100'
+              noPaymentFamilies > 0 ? 'bg-amber-100' : 'bg-gray-100'
             )}
           >
             <AlertCircle
               className={cn(
                 'h-4 w-4',
-                actionNeeded > 0 ? 'text-amber-600' : 'text-muted-foreground'
+                noPaymentFamilies > 0
+                  ? 'text-amber-600'
+                  : 'text-muted-foreground'
               )}
             />
           </div>
@@ -139,12 +147,53 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
           <div
             className={cn(
               'text-3xl font-bold tracking-tight',
-              actionNeeded > 0 ? 'text-amber-600' : ''
+              noPaymentFamilies > 0 ? 'text-amber-600' : ''
             )}
           >
-            {actionNeeded}
+            {noPaymentFamilies}
           </div>
           <p className="text-xs text-muted-foreground">Send payment link</p>
+        </CardContent>
+      </Card>
+
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          churnedFamilies > 0 && 'ring-2 ring-gray-300'
+        )}
+      >
+        <div
+          className={cn(
+            'h-1',
+            churnedFamilies > 0 ? 'bg-gray-500' : 'bg-gray-200'
+          )}
+        />
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Churned</CardTitle>
+          <div
+            className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-lg',
+              churnedFamilies > 0 ? 'bg-gray-100' : 'bg-gray-100'
+            )}
+          >
+            <RotateCcw
+              className={cn(
+                'h-4 w-4',
+                churnedFamilies > 0 ? 'text-gray-600' : 'text-muted-foreground'
+              )}
+            />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div
+            className={cn(
+              'text-3xl font-bold tracking-tight',
+              churnedFamilies > 0 ? 'text-gray-600' : ''
+            )}
+          >
+            {churnedFamilies}
+          </div>
+          <p className="text-xs text-muted-foreground">Win back opportunity</p>
         </CardContent>
       </Card>
 

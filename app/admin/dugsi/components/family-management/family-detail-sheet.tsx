@@ -146,11 +146,6 @@ export function FamilyDetailSheet({
     setPaymentLinkDialog(true)
   }
 
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text)
-    toast.success(`${label} copied to clipboard`)
-  }
-
   const copyToClipboardAsync = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text)
@@ -574,84 +569,6 @@ export function FamilyDetailSheet({
               ))}
             </div>
           </div>
-
-          {/* Payment Details */}
-          {family.members[0]?.stripeCustomerIdDugsi && (
-            <div className="space-y-4 rounded-lg border bg-card p-5">
-              <h3 className="text-base font-semibold">Payment Details</h3>
-              <div className="space-y-3 pt-1 text-sm">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-muted-foreground">Customer ID:</span>
-                  <div className="flex items-center gap-1.5">
-                    <code className="rounded-md bg-muted/80 px-2.5 py-1 font-mono text-xs">
-                      {family.members[0].stripeCustomerIdDugsi.slice(0, 16)}...
-                    </code>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
-                      onClick={() =>
-                        family.members[0]?.stripeCustomerIdDugsi &&
-                        copyToClipboard(
-                          family.members[0].stripeCustomerIdDugsi,
-                          'Customer ID'
-                        )
-                      }
-                      aria-label="Copy customer ID"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                {family.members[0]?.stripeSubscriptionIdDugsi && (
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Subscription:</span>
-                    <div className="flex items-center gap-1.5">
-                      <code className="rounded-md bg-muted/80 px-2.5 py-1 font-mono text-xs">
-                        {family.members[0].stripeSubscriptionIdDugsi.slice(
-                          0,
-                          16
-                        )}
-                        ...
-                      </code>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0"
-                        onClick={() =>
-                          family.members[0]?.stripeSubscriptionIdDugsi &&
-                          copyToClipboard(
-                            family.members[0].stripeSubscriptionIdDugsi,
-                            'Subscription ID'
-                          )
-                        }
-                        aria-label="Copy subscription ID"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                )}
-                {family.members[0]?.paidUntil && (
-                  <div className="flex items-center justify-between border-t pt-3">
-                    <span className="font-medium text-muted-foreground">
-                      Next Billing:
-                    </span>
-                    <span className="text-sm font-medium">
-                      {new Date(family.members[0].paidUntil).toLocaleDateString(
-                        'en-US',
-                        {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        }
-                      )}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Actions */}
           <div className="space-y-3 border-t pt-5">

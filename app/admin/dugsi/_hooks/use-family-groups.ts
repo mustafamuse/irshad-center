@@ -23,9 +23,10 @@ export function useFamilyStats(families: Family[]) {
     () => ({
       all: families.length,
       active: families.filter((f) => f.hasSubscription).length,
-      pending: families.filter((f) => f.hasPayment && !f.hasSubscription)
+      churned: families.filter((f) => f.hasChurned && !f.hasSubscription)
         .length,
-      needsAttention: families.filter((f) => !f.hasPayment).length,
+      needsAttention: families.filter((f) => !f.hasPayment && !f.hasChurned)
+        .length,
       billingMismatch: families.filter(
         (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))
       ).length,

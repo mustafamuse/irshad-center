@@ -64,22 +64,24 @@ describe('getFamilyStatus', () => {
       members: [],
       hasPayment: true,
       hasSubscription: true,
+      hasChurned: false,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
     expect(getFamilyStatus(family)).toBe('active')
   })
 
-  it('should return "pending" when family has payment but no subscription', () => {
+  it('should return "churned" when family has churned subscription', () => {
     const family = {
       familyKey: 'family-1',
       members: [],
       hasPayment: true,
       hasSubscription: false,
+      hasChurned: true,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
-    expect(getFamilyStatus(family)).toBe('pending')
+    expect(getFamilyStatus(family)).toBe('churned')
   })
 
   it('should return "no-payment" when family has no payment', () => {
@@ -88,18 +90,20 @@ describe('getFamilyStatus', () => {
       members: [],
       hasPayment: false,
       hasSubscription: false,
+      hasChurned: false,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
     expect(getFamilyStatus(family)).toBe('no-payment')
   })
 
-  it('should prioritize subscription over payment', () => {
+  it('should prioritize subscription over churned', () => {
     const family = {
       familyKey: 'family-1',
       members: [],
       hasPayment: true,
       hasSubscription: true,
+      hasChurned: true,
       parentEmail: 'parent@example.com',
       parentPhone: '123-456-7890',
     }
@@ -250,6 +254,42 @@ describe('groupRegistrationsByFamily', () => {
     expect(families[0].hasSubscription).toBe(false)
   })
 
+  it('should mark family as churned when subscription is canceled', () => {
+    const registrations: Partial<DugsiRegistration>[] = [
+      {
+        id: 'id-1',
+        parentEmail: 'parent@example.com',
+        stripeSubscriptionIdDugsi: 'sub_123',
+        subscriptionStatus: 'canceled',
+        paymentMethodCaptured: true,
+        createdAt: new Date('2024-01-01'),
+      },
+    ]
+    const families = groupRegistrationsByFamily(
+      registrations as DugsiRegistration[]
+    )
+    expect(families[0].hasChurned).toBe(true)
+    expect(families[0].hasSubscription).toBe(false)
+  })
+
+  it('should not mark family as churned when subscription is active', () => {
+    const registrations: Partial<DugsiRegistration>[] = [
+      {
+        id: 'id-1',
+        parentEmail: 'parent@example.com',
+        stripeSubscriptionIdDugsi: 'sub_123',
+        subscriptionStatus: 'active',
+        paymentMethodCaptured: true,
+        createdAt: new Date('2024-01-01'),
+      },
+    ]
+    const families = groupRegistrationsByFamily(
+      registrations as DugsiRegistration[]
+    )
+    expect(families[0].hasChurned).toBe(false)
+    expect(families[0].hasSubscription).toBe(true)
+  })
+
   it('should use first member for parentEmail and parentPhone', () => {
     const registrations: Partial<DugsiRegistration>[] = [
       {
@@ -330,6 +370,7 @@ describe('getPrimaryPayerPhone', () => {
     ],
     hasPayment: false,
     hasSubscription: false,
+    hasChurned: false,
     parentEmail: 'parent1@example.com',
     parentPhone: '5551111111',
     ...familyOverrides,
@@ -439,6 +480,7 @@ describe('getPrimaryPayerPhone', () => {
         members: [],
         hasPayment: false,
         hasSubscription: false,
+        hasChurned: false,
         parentEmail: 'parent@example.com',
         parentPhone: '5553333333',
       }
@@ -514,6 +556,7 @@ describe('getPrimaryPayerName', () => {
     ],
     hasPayment: false,
     hasSubscription: false,
+    hasChurned: false,
     parentEmail: 'parent1@example.com',
     parentPhone: '5551111111',
     ...familyOverrides,
@@ -587,6 +630,7 @@ describe('getPrimaryPayerName', () => {
         members: [],
         hasPayment: false,
         hasSubscription: false,
+        hasChurned: false,
         parentEmail: 'parent@example.com',
         parentPhone: '5553333333',
       }

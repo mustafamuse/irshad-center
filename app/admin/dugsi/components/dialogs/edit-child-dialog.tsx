@@ -204,7 +204,7 @@ export function EditChildDialog({
               name="gradeLevel"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Grade Level</FormLabel>
+                  <FormLabel>Grade Level (Optional)</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}

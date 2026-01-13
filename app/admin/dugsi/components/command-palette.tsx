@@ -10,7 +10,7 @@ import {
   Table2,
   TrendingUp,
   CheckCircle2,
-  Clock,
+  RotateCcw,
   AlertCircle,
   Users,
   Download,
@@ -104,11 +104,11 @@ export function CommandPalette({
             <CommandShortcut>2</CommandShortcut>
           </CommandItem>
           <CommandItem
-            onSelect={() => runCommand(() => setActiveTab('pending'))}
-            keywords={['pending', 'setup']}
+            onSelect={() => runCommand(() => setActiveTab('churned'))}
+            keywords={['churned', 'canceled', 'inactive']}
           >
-            <Clock className="mr-2 h-4 w-4" />
-            <span>Pending Setup</span>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            <span>Churned Families</span>
             <CommandShortcut>3</CommandShortcut>
           </CommandItem>
           <CommandItem

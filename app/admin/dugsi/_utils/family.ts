@@ -140,6 +140,10 @@ export function groupRegistrationsByFamily(
       hasSubscription: sorted.some(
         (m) => m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
       ),
+      hasChurned: sorted.some(
+        (m) =>
+          m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'canceled'
+      ),
       parentEmail: sorted[0]?.parentEmail ?? null,
       parentPhone: sorted[0]?.parentPhone ?? null,
     }
@@ -151,7 +155,7 @@ export function groupRegistrationsByFamily(
  */
 export function getFamilyStatus(family: Family): FamilyStatus {
   if (family.hasSubscription) return 'active'
-  if (family.hasPayment) return 'pending'
+  if (family.hasChurned) return 'churned'
   return 'no-payment'
 }
 

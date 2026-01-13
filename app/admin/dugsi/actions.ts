@@ -526,7 +526,7 @@ export async function addChildToFamily(params: {
   lastName: string
   gender: 'MALE' | 'FEMALE'
   dateOfBirth?: Date
-  gradeLevel: GradeLevel
+  gradeLevel?: GradeLevel
   schoolName?: string
   healthInfo?: string | null
 }): Promise<ActionResult<{ childId: string }>> {
@@ -676,7 +676,14 @@ export async function generateDugsiVCardContent(): Promise<
           familyKey: key,
           members,
           hasPayment: members.some((m) => m.paymentMethodCaptured),
-          hasSubscription: members.some((m) => m.stripeSubscriptionIdDugsi),
+          hasSubscription: members.some(
+            (m) =>
+              m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
+          ),
+          hasChurned: members.some(
+            (m) =>
+              m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'canceled'
+          ),
           parentEmail: first.parentEmail,
           parentPhone: first.parentPhone,
         }

@@ -1,8 +1,8 @@
 /**
  * Child Information Card Component
  *
- * Displays individual child information including name, gender, grade,
- * education level, school, and health information.
+ * Displays individual child information including name, gender, age,
+ * shift, and health information.
  *
  * Used in both family card expansion and family detail sheet.
  */
@@ -12,24 +12,35 @@ import React from 'react'
 import { AlertCircle } from 'lucide-react'
 
 import { GenderDisplay } from '@/components/ui/gender-display'
-import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 
 import { DugsiRegistration } from '../../_types'
 import { ShiftBadge } from '../shared/shift-badge'
 
+function calculateAge(dateOfBirth: Date | null): number | null {
+  if (!dateOfBirth) return null
+  const today = new Date()
+  const birth = new Date(dateOfBirth)
+  let age = today.getFullYear() - birth.getFullYear()
+  const monthDiff = today.getMonth() - birth.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--
+  }
+  return age
+}
+
 interface ChildInfoCardProps {
   child: DugsiRegistration
   index: number
-  showSchool?: boolean
   editButton?: React.ReactNode
 }
 
 export function ChildInfoCard({
   child,
   index,
-  showSchool = true,
   editButton,
 }: ChildInfoCardProps) {
+  const age = calculateAge(child.dateOfBirth)
+
   return (
     <div
       className="flex items-start gap-3 rounded-lg bg-muted/30 p-3"
@@ -50,18 +61,9 @@ export function ChildInfoCard({
           {editButton}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          {child.gradeLevel && (
-            <span className="font-medium">
-              {formatGradeLevel(child.gradeLevel)}
-            </span>
-          )}
+          {age !== null && <span className="font-medium">{age} years old</span>}
           <ShiftBadge shift={child.shift} />
         </div>
-        {showSchool && child.schoolName && (
-          <div className="text-xs text-muted-foreground">
-            {child.schoolName}
-          </div>
-        )}
         {child.healthInfo && child.healthInfo.toLowerCase() !== 'none' && (
           <div className="flex items-start gap-1.5 rounded-md bg-red-50 px-2 py-1">
             <AlertCircle className="mt-0.5 h-3 w-3 shrink-0 text-red-600" />
