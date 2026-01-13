@@ -59,3 +59,21 @@ export const childFormSchema = z.object({
 })
 
 export type ChildFormValues = z.infer<typeof childFormSchema>
+
+// ============================================================================
+// CONSOLIDATE SUBSCRIPTION SCHEMA
+// ============================================================================
+
+export const consolidateSubscriptionSchema = z.object({
+  stripeSubscriptionId: z
+    .string()
+    .min(1, 'Subscription ID is required')
+    .regex(
+      /^sub_/,
+      'Must be a valid Stripe subscription ID (starts with sub_)'
+    ),
+})
+
+export type ConsolidateSubscriptionFormValues = z.infer<
+  typeof consolidateSubscriptionSchema
+>
