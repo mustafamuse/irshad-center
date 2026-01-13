@@ -16,6 +16,7 @@
 import { SubscriptionStatus } from '@prisma/client'
 import Stripe from 'stripe'
 
+import { BULK_ENROLLMENT_TIMEOUT_MS } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   getSubscriptionByStripeId,
@@ -384,7 +385,7 @@ export async function consolidateStripeSubscription(
         previousFamilyUnlinked,
       }
     },
-    { timeout: 30000 }
+    { timeout: BULK_ENROLLMENT_TIMEOUT_MS }
   )
 
   let stripeCustomerSynced = false

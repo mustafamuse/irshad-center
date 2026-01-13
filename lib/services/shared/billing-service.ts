@@ -194,31 +194,38 @@ export async function linkSubscriptionToProfiles(
     totalAmount,
   })
 
-  // Batch fetch all existing assignments for all profiles to avoid N+1
-  const allExistingAssignments = await client.billingAssignment.findMany({
-    where: {
-      programProfileId: { in: validated.programProfileIds },
-      subscriptionId: validated.subscriptionId,
-      isActive: true,
-    },
-    select: {
-      programProfileId: true,
-    },
-  })
-
-  // Create a Set of profile IDs that already have assignments
-  const existingProfileIds = new Set(
-    allExistingAssignments.map((a) => a.programProfileId)
-  )
-
   // Calculate split amounts
   const amounts = calculateSplitAmounts(
     validated.totalAmount,
     validated.programProfileIds.length
   )
 
-  // Helper to create assignments
+  // Validate no split amount is <= 0 (CLAUDE.md Rule #13)
+  const hasInvalidAmount = amounts.some((amount) => amount <= 0)
+  if (hasInvalidAmount) {
+    throw new Error(
+      `Cannot split ${validated.totalAmount} cents across ${validated.programProfileIds.length} profiles: would create zero-amount assignments`
+    )
+  }
+
+  // Helper to create assignments (includes fetch for transaction safety)
   const createAssignments = async (tx: DatabaseClient): Promise<number> => {
+    // Batch fetch inside transaction to avoid race conditions
+    const allExistingAssignments = await tx.billingAssignment.findMany({
+      where: {
+        programProfileId: { in: validated.programProfileIds },
+        subscriptionId: validated.subscriptionId,
+        isActive: true,
+      },
+      select: {
+        programProfileId: true,
+      },
+    })
+
+    const existingProfileIds = new Set(
+      allExistingAssignments.map((a) => a.programProfileId)
+    )
+
     let count = 0
 
     for (let i = 0; i < validated.programProfileIds.length; i++) {
