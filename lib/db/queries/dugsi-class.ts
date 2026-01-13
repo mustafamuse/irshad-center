@@ -14,6 +14,9 @@ import {
   ClassNotFoundError,
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
+import { createServiceLogger } from '@/lib/logger'
+
+const logger = createServiceLogger('dugsi-class-queries')
 
 export const dugsiClassInclude = {
   teachers: {
@@ -196,34 +199,102 @@ export async function bulkEnrollStudents(
 ): Promise<{ enrolled: number; moved: number }> {
   const uniqueIds = Array.from(new Set(programProfileIds))
 
-  return prisma.$transaction(async (tx) => {
-    let enrolled = 0
-    let moved = 0
+  logger.info(
+    { classId, totalStudents: uniqueIds.length, programProfileIds: uniqueIds },
+    'Starting bulk enrollment'
+  )
 
-    for (const programProfileId of uniqueIds) {
-      const existing = await tx.dugsiClassEnrollment.findFirst({
-        where: { programProfileId, isActive: true },
-      })
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        let enrolled = 0
+        let moved = 0
 
-      if (existing) {
-        if (existing.classId === classId) {
-          continue
+        for (let i = 0; i < uniqueIds.length; i++) {
+          const programProfileId = uniqueIds[i]
+          logger.debug(
+            { programProfileId, index: i + 1, total: uniqueIds.length },
+            'Processing student'
+          )
+
+          const existing = await tx.dugsiClassEnrollment.findUnique({
+            where: { programProfileId },
+          })
+
+          logger.debug(
+            {
+              programProfileId,
+              existing: existing
+                ? {
+                    id: existing.id,
+                    classId: existing.classId,
+                    isActive: existing.isActive,
+                  }
+                : null,
+            },
+            'Existing enrollment check'
+          )
+
+          if (existing) {
+            if (existing.classId === classId && existing.isActive) {
+              logger.debug(
+                { programProfileId },
+                'Skipping - already enrolled in this class'
+              )
+              continue
+            }
+            const wasActiveInDifferentClass =
+              existing.isActive && existing.classId !== classId
+
+            logger.debug(
+              { programProfileId, wasActiveInDifferentClass, action: 'update' },
+              'Updating existing enrollment'
+            )
+
+            await tx.dugsiClassEnrollment.update({
+              where: { programProfileId },
+              data: {
+                classId,
+                isActive: true,
+                startDate: new Date(),
+                endDate: null,
+              },
+            })
+            if (wasActiveInDifferentClass) {
+              moved++
+            }
+            enrolled++
+          } else {
+            logger.debug(
+              { programProfileId, action: 'create' },
+              'Creating new enrollment'
+            )
+            await tx.dugsiClassEnrollment.create({
+              data: { classId, programProfileId, isActive: true },
+            })
+            enrolled++
+          }
         }
-        await tx.dugsiClassEnrollment.update({
-          where: { id: existing.id },
-          data: { isActive: false, endDate: new Date() },
-        })
-        moved++
-      }
 
-      await tx.dugsiClassEnrollment.create({
-        data: { classId, programProfileId, isActive: true },
-      })
-      enrolled++
-    }
-
-    return { enrolled, moved }
-  })
+        logger.info({ classId, enrolled, moved }, 'Bulk enrollment completed')
+        return { enrolled, moved }
+      },
+      { timeout: 30000 }
+    )
+  } catch (error) {
+    logger.error(
+      {
+        classId,
+        programProfileIds: uniqueIds,
+        error:
+          error instanceof Error
+            ? { message: error.message, name: error.name, stack: error.stack }
+            : error,
+      },
+      'Bulk enrollment failed'
+    )
+    throw error
+  }
 }
 
 export async function createClass(

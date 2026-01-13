@@ -320,11 +320,11 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
       </div>
 
       <Tabs defaultValue="morning">
-        <TabsList>
-          <TabsTrigger value="morning">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="morning" className="flex-1 sm:flex-initial">
             Morning ({morningClasses.length})
           </TabsTrigger>
-          <TabsTrigger value="afternoon">
+          <TabsTrigger value="afternoon" className="flex-1 sm:flex-initial">
             Afternoon ({afternoonClasses.length})
           </TabsTrigger>
         </TabsList>
