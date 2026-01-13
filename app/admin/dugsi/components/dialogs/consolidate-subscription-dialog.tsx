@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
+import type { StripeSubscriptionPreview } from '@/lib/services/dugsi'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
@@ -49,27 +50,6 @@ import {
   previewStripeSubscriptionForConsolidation,
   consolidateDugsiSubscription,
 } from '../../actions'
-
-interface PreviewData {
-  subscriptionId: string
-  customerId: string
-  status: string
-  amount: number
-  interval: string
-  periodStart: Date
-  periodEnd: Date
-  stripeCustomerName: string | null
-  stripeCustomerEmail: string | null
-  dbPayerName: string
-  dbPayerEmail: string | null
-  dbPayerPhone: string | null
-  hasMismatch: boolean
-  nameMismatch: boolean
-  emailMismatch: boolean
-  existingFamilyId: string | null
-  existingFamilyName: string | null
-  isAlreadyLinked: boolean
-}
 
 interface ConsolidateSubscriptionDialogProps {
   open: boolean
@@ -86,7 +66,7 @@ export function ConsolidateSubscriptionDialog({
 }: ConsolidateSubscriptionDialogProps) {
   const [step, setStep] = useState<'input' | 'preview'>('input')
   const [isValidating, setIsValidating] = useState(false)
-  const [preview, setPreview] = useState<PreviewData | null>(null)
+  const [preview, setPreview] = useState<StripeSubscriptionPreview | null>(null)
   const [syncOption, setSyncOption] = useState<'sync' | 'keep'>('sync')
   const [forceOverrideConfirmed, setForceOverrideConfirmed] = useState(false)
 
@@ -128,6 +108,13 @@ export function ConsolidateSubscriptionDialog({
     }
   }
 
+  const resetDialogState = () => {
+    setStep('input')
+    setPreview(null)
+    setSyncOption('sync')
+    setForceOverrideConfirmed(false)
+  }
+
   const handleConsolidate = async () => {
     if (!preview) return
 
@@ -151,19 +138,13 @@ export function ConsolidateSubscriptionDialog({
   const handleClose = () => {
     if (!isConsolidating) {
       onOpenChange(false)
-      setStep('input')
-      setPreview(null)
-      setSyncOption('sync')
-      setForceOverrideConfirmed(false)
+      resetDialogState()
       form.reset()
     }
   }
 
   const handleBack = () => {
-    setStep('input')
-    setPreview(null)
-    setSyncOption('sync')
-    setForceOverrideConfirmed(false)
+    resetDialogState()
   }
 
   return (
