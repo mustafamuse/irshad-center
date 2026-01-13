@@ -71,7 +71,30 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
   )
 
   const variance = revenueStats.actual - revenueStats.expected
-  const isUnder = variance < 0
+
+  function getVarianceColors() {
+    if (variance === 0)
+      return {
+        bar: 'bg-gray-200',
+        bg: 'bg-gray-100',
+        text: 'text-muted-foreground',
+        value: '',
+      }
+    if (variance < 0)
+      return {
+        bar: 'bg-red-500',
+        bg: 'bg-red-100',
+        text: 'text-red-600',
+        value: 'text-red-600',
+      }
+    return {
+      bar: 'bg-green-500',
+      bg: 'bg-green-100',
+      text: 'text-green-600',
+      value: 'text-green-600',
+    }
+  }
+  const varianceColors = getVarianceColors()
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -170,12 +193,7 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
         />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Churned</CardTitle>
-          <div
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg',
-              churnedFamilies > 0 ? 'bg-gray-100' : 'bg-gray-100'
-            )}
-          >
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
             <RotateCcw
               className={cn(
                 'h-4 w-4',
@@ -188,7 +206,7 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
           <div
             className={cn(
               'text-3xl font-bold tracking-tight',
-              churnedFamilies > 0 ? 'text-gray-600' : ''
+              churnedFamilies > 0 && 'text-gray-600'
             )}
           >
             {churnedFamilies}
@@ -216,16 +234,7 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
       </Card>
 
       <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
-        <div
-          className={cn(
-            'h-1',
-            variance === 0
-              ? 'bg-gray-200'
-              : isUnder
-                ? 'bg-red-500'
-                : 'bg-green-500'
-          )}
-        />
+        <div className={cn('h-1', varianceColors.bar)} />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
             Revenue Variance
@@ -233,35 +242,22 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
           <div
             className={cn(
               'flex h-8 w-8 items-center justify-center rounded-lg',
-              variance === 0
-                ? 'bg-gray-100'
-                : isUnder
-                  ? 'bg-red-100'
-                  : 'bg-green-100'
+              varianceColors.bg
             )}
           >
-            <TrendingDown
-              className={cn(
-                'h-4 w-4',
-                variance === 0
-                  ? 'text-muted-foreground'
-                  : isUnder
-                    ? 'text-red-600'
-                    : 'text-green-600'
-              )}
-            />
+            <TrendingDown className={cn('h-4 w-4', varianceColors.text)} />
           </div>
         </CardHeader>
         <CardContent>
           <div
             className={cn(
               'text-3xl font-bold tracking-tight',
-              variance === 0 ? '' : isUnder ? 'text-red-600' : 'text-green-600'
+              varianceColors.value
             )}
           >
             {variance === 0
               ? '$0'
-              : `${isUnder ? '-' : '+'}$${Math.abs(variance / 100).toFixed(0)}`}
+              : `${variance < 0 ? '-' : '+'}$${Math.abs(variance / 100).toFixed(0)}`}
           </div>
           <p className="text-xs text-muted-foreground">
             {revenueStats.mismatchCount === 0

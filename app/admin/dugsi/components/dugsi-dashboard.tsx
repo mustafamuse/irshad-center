@@ -174,25 +174,19 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="active" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="churned" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="needs-attention" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="billing-mismatch" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
-
-          <TabsContent value="all" className="space-y-6">
-            <TabContent families={filteredFamilies} />
-          </TabsContent>
+          {(
+            [
+              'active',
+              'churned',
+              'needs-attention',
+              'billing-mismatch',
+              'all',
+            ] as const
+          ).map((tab) => (
+            <TabsContent key={tab} value={tab} className="space-y-6">
+              <TabContent families={filteredFamilies} />
+            </TabsContent>
+          ))}
         </Tabs>
 
         {/* Command Palette */}

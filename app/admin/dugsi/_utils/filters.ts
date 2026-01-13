@@ -177,8 +177,6 @@ export function filterFamiliesByTab(
   tab: TabValue
 ): Family[] {
   switch (tab) {
-    case 'overview':
-      return families // Show all
     case 'active':
       return families.filter((f) => f.hasSubscription)
     case 'churned':
@@ -189,6 +187,7 @@ export function filterFamiliesByTab(
       return families.filter(
         (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))
       )
+    case 'overview':
     case 'all':
       return families
   }

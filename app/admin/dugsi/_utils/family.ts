@@ -191,18 +191,6 @@ export function getPrimaryPayerPhone(family: Family): PrimaryPayerPhoneResult {
   }
 
   const { primaryPayerParentNumber, parentPhone, parent2Phone } = member
-  const isPrimaryPayerParent2 = primaryPayerParentNumber === 2
-
-  if (isPrimaryPayerParent2) {
-    if (parent2Phone) {
-      return { phone: parent2Phone, usedFallback: false }
-    }
-    return {
-      phone: parentPhone,
-      usedFallback: true,
-      fallbackReason: 'primary_payer_phone_missing',
-    }
-  }
 
   if (primaryPayerParentNumber === null) {
     return {
@@ -212,12 +200,16 @@ export function getPrimaryPayerPhone(family: Family): PrimaryPayerPhoneResult {
     }
   }
 
-  if (parentPhone) {
-    return { phone: parentPhone, usedFallback: false }
+  const isPrimaryParent2 = primaryPayerParentNumber === 2
+  const primaryPhone = isPrimaryParent2 ? parent2Phone : parentPhone
+  const fallbackPhone = isPrimaryParent2 ? parentPhone : parent2Phone
+
+  if (primaryPhone) {
+    return { phone: primaryPhone, usedFallback: false }
   }
 
   return {
-    phone: parent2Phone,
+    phone: fallbackPhone,
     usedFallback: true,
     fallbackReason: 'primary_payer_phone_missing',
   }
