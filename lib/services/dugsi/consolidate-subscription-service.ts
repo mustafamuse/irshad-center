@@ -13,6 +13,9 @@
  * - Update Stripe metadata for future webhook processing
  */
 
+import { SubscriptionStatus } from '@prisma/client'
+import Stripe from 'stripe'
+
 import { prisma } from '@/lib/db'
 import {
   getSubscriptionByStripeId,
@@ -34,6 +37,92 @@ import {
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('consolidate-subscription-service')
+
+interface StripeSubscriptionWithCustomer {
+  subscription: Stripe.Subscription
+  customer: Stripe.Customer
+}
+
+interface FamilyPayerData {
+  familyProfiles: Awaited<ReturnType<typeof getProgramProfilesByFamilyId>>
+  primaryPayer: {
+    id: string
+    name: string
+    contactPoints?: Array<{ type: string; value: string }>
+  }
+  payerEmail: string | null
+  payerPhone: string | null
+}
+
+async function fetchStripeSubscriptionWithCustomer(
+  stripeSubscriptionId: string
+): Promise<StripeSubscriptionWithCustomer> {
+  const stripe = getDugsiStripeClient()
+  const subscription = await stripe.subscriptions.retrieve(
+    stripeSubscriptionId,
+    { expand: ['customer'] }
+  )
+
+  if (!subscription) {
+    throw new ActionError(
+      'Subscription not found in Stripe',
+      ERROR_CODES.SUBSCRIPTION_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  const customer = subscription.customer
+  if (typeof customer === 'string' || customer.deleted) {
+    throw new ActionError(
+      'Customer not found or deleted in Stripe',
+      ERROR_CODES.NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  return { subscription, customer }
+}
+
+async function fetchFamilyPayerData(
+  familyId: string
+): Promise<FamilyPayerData> {
+  const familyProfiles = await getProgramProfilesByFamilyId(familyId)
+  if (familyProfiles.length === 0) {
+    throw new ActionError(
+      'Family not found or no active children',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  const firstChild = familyProfiles[0]
+  const guardianRelationships = firstChild.person.dependentRelationships || []
+  const primaryPayerRelation = guardianRelationships.find(
+    (r) => r.isPrimaryPayer
+  )
+
+  if (!primaryPayerRelation?.guardian) {
+    throw new ActionError(
+      'No primary payer found for this family',
+      ERROR_CODES.VALIDATION_ERROR,
+      undefined,
+      400
+    )
+  }
+
+  const primaryPayer = primaryPayerRelation.guardian
+  const payerEmail =
+    primaryPayer.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value || null
+  const payerPhone =
+    primaryPayer.contactPoints?.find(
+      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    )?.value || null
+
+  return { familyProfiles, primaryPayer, payerEmail, payerPhone }
+}
 
 export interface ConsolidateSubscriptionInput {
   stripeSubscriptionId: string
@@ -82,64 +171,10 @@ export async function previewStripeSubscription(
   stripeSubscriptionId: string,
   familyId: string
 ): Promise<StripeSubscriptionPreview> {
-  const stripe = getDugsiStripeClient()
-
-  const subscription = await stripe.subscriptions.retrieve(
-    stripeSubscriptionId,
-    { expand: ['customer'] }
-  )
-
-  if (!subscription) {
-    throw new ActionError(
-      'Subscription not found in Stripe',
-      ERROR_CODES.SUBSCRIPTION_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  const customer = subscription.customer
-  if (typeof customer === 'string' || customer.deleted) {
-    throw new ActionError(
-      'Customer not found or deleted in Stripe',
-      ERROR_CODES.NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  const familyProfiles = await getProgramProfilesByFamilyId(familyId)
-  if (familyProfiles.length === 0) {
-    throw new ActionError(
-      'Family not found or no active children',
-      ERROR_CODES.FAMILY_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  const firstChild = familyProfiles[0]
-  const guardianRelationships = firstChild.person.dependentRelationships || []
-  const primaryPayerRelation = guardianRelationships.find(
-    (r) => r.isPrimaryPayer
-  )
-
-  if (!primaryPayerRelation?.guardian) {
-    throw new ActionError(
-      'No primary payer found for this family',
-      ERROR_CODES.VALIDATION_ERROR,
-      undefined,
-      400
-    )
-  }
-
-  const primaryPayer = primaryPayerRelation.guardian
-  const payerEmail =
-    primaryPayer.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value || null
-  const payerPhone =
-    primaryPayer.contactPoints?.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )?.value || null
+  const { subscription, customer } =
+    await fetchStripeSubscriptionWithCustomer(stripeSubscriptionId)
+  const { primaryPayer, payerEmail, payerPhone } =
+    await fetchFamilyPayerData(familyId)
 
   const existingDbSub = await getSubscriptionByStripeId(stripeSubscriptionId)
   let existingFamilyId: string | null = null
@@ -227,59 +262,10 @@ export async function consolidateStripeSubscription(
   } = input
 
   const stripe = getDugsiStripeClient()
-
-  const subscription = await stripe.subscriptions.retrieve(
-    stripeSubscriptionId,
-    { expand: ['customer'] }
-  )
-
-  if (!subscription) {
-    throw new ActionError(
-      'Subscription not found in Stripe',
-      ERROR_CODES.SUBSCRIPTION_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  const customer = subscription.customer
-  if (typeof customer === 'string' || customer.deleted) {
-    throw new ActionError(
-      'Customer not found or deleted in Stripe',
-      ERROR_CODES.NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  const familyProfiles = await getProgramProfilesByFamilyId(familyId)
-  if (familyProfiles.length === 0) {
-    throw new ActionError(
-      'Family not found or no active children',
-      ERROR_CODES.FAMILY_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  const firstChild = familyProfiles[0]
-  const guardianRelationships = firstChild.person.dependentRelationships || []
-  const primaryPayerRelation = guardianRelationships.find(
-    (r) => r.isPrimaryPayer
-  )
-
-  if (!primaryPayerRelation?.guardian) {
-    throw new ActionError(
-      'No primary payer found for this family',
-      ERROR_CODES.VALIDATION_ERROR,
-      undefined,
-      400
-    )
-  }
-
-  const primaryPayer = primaryPayerRelation.guardian
-  const payerEmail =
-    primaryPayer.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value || null
+  const { subscription, customer } =
+    await fetchStripeSubscriptionWithCustomer(stripeSubscriptionId)
+  const { familyProfiles, primaryPayer, payerEmail } =
+    await fetchFamilyPayerData(familyId)
 
   const existingDbSub = await getSubscriptionByStripeId(stripeSubscriptionId)
   let previousFamilyUnlinked = false
@@ -324,21 +310,15 @@ export async function consolidateStripeSubscription(
 
   let dbSubscription = existingDbSub
 
+  const status = subscription.status as SubscriptionStatus
+
   if (!dbSubscription) {
     dbSubscription = await createSubscription({
       billingAccountId: billingAccount.id,
       stripeAccountType: 'DUGSI',
       stripeSubscriptionId: subscription.id,
       stripeCustomerId: customer.id,
-      status: subscription.status as
-        | 'active'
-        | 'trialing'
-        | 'past_due'
-        | 'canceled'
-        | 'incomplete'
-        | 'incomplete_expired'
-        | 'unpaid'
-        | 'paused',
+      status,
       amount,
       currency: subscription.currency,
       interval: lineItem?.price?.recurring?.interval || 'month',
@@ -355,15 +335,7 @@ export async function consolidateStripeSubscription(
       where: { id: dbSubscription.id },
       data: {
         billingAccountId: billingAccount.id,
-        status: subscription.status as
-          | 'active'
-          | 'trialing'
-          | 'past_due'
-          | 'canceled'
-          | 'incomplete'
-          | 'incomplete_expired'
-          | 'unpaid'
-          | 'paused',
+        status,
         amount,
         currentPeriodStart: periodDates.periodStart,
         currentPeriodEnd: periodDates.periodEnd,
