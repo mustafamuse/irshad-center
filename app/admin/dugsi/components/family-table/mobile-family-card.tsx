@@ -69,14 +69,9 @@ export function MobileFamilyCard({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <FamilyStatusBadge status={status} showLabel={false} />
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
             </div>
-            {firstMember?.teacherName && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Teacher: {firstMember.teacherName}
-              </p>
-            )}
           </div>
         </div>
       </CardContent>

@@ -4,7 +4,6 @@ export {
   useDugsiFilters,
   useSelectedFamilyIds,
   useQuickShiftFilter,
-  useQuickTeacherFilter,
   useDeleteDialogState,
   useLinkSubscriptionDialogState,
   useAdvancedFiltersState,

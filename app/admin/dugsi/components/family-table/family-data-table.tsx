@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 
 import {
   useReactTable,
@@ -9,6 +9,7 @@ import {
   SortingState,
   flexRender,
 } from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { Users } from 'lucide-react'
 
 import { EmptyState } from '@/components/ui/empty-state'
@@ -131,6 +132,17 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
     [table]
   )
 
+  const rows = table.getRowModel().rows
+
+  const mobileParentRef = useRef<HTMLDivElement>(null)
+
+  const mobileVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => mobileParentRef.current,
+    estimateSize: () => 80,
+    overscan: 3,
+  })
+
   if (families.length === 0) {
     return (
       <EmptyState
@@ -144,16 +156,35 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
   return (
     <TooltipProvider>
       {/* Mobile Card Layout (below md breakpoint) */}
-      <div className="block space-y-3 md:hidden">
-        {table.getRowModel().rows.map((row) => (
-          <MobileFamilyCard
-            key={row.id}
-            family={row.original}
-            isSelected={row.getIsSelected()}
-            onSelect={() => toggleFamilySelection(row.original.familyKey)}
-            onClick={() => handleViewDetails(row.original)}
-          />
-        ))}
+      <div
+        ref={mobileParentRef}
+        className="block max-h-[calc(100vh-300px)] min-h-[400px] overflow-auto md:hidden"
+      >
+        <div
+          className="relative w-full"
+          style={{ height: `${mobileVirtualizer.getTotalSize()}px` }}
+        >
+          {mobileVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index]
+            return (
+              <div
+                key={row.id}
+                className="absolute left-0 top-0 w-full pb-3"
+                style={{
+                  transform: `translateY(${virtualRow.start}px)`,
+                  height: `${virtualRow.size}px`,
+                }}
+              >
+                <MobileFamilyCard
+                  family={row.original}
+                  isSelected={row.getIsSelected()}
+                  onSelect={() => toggleFamilySelection(row.original.familyKey)}
+                  onClick={() => handleViewDetails(row.original)}
+                />
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       {/* Desktop Table Layout (md and above) */}
@@ -176,7 +207,7 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => (
+            {rows.map((row) => (
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() && 'selected'}

@@ -100,7 +100,7 @@ export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
     : ''
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+    <div className="mx-auto grid max-w-screen-2xl gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <Card
         className={cn(
           'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
@@ -108,11 +108,11 @@ export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
         )}
         onClick={() => onStatClick?.('all')}
       >
-        <div className="h-1 bg-[#007078]" />
+        <div className="h-1 bg-teal-700" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Families</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
-            <Users className="h-4 w-4 text-[#007078]" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700/10">
+            <Users className="h-4 w-4 text-teal-700" />
           </div>
         </CardHeader>
         <CardContent>

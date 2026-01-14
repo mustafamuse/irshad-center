@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import { AnimatePresence, motion } from 'framer-motion'
 import { Link2, Loader2, X, CheckCircle2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -21,8 +22,6 @@ export function BulkActionsBar({ selectedFamilies }: BulkActionsBarProps) {
   const clearSelection = useDugsiUIStore((state) => state.clearSelection)
 
   const selectedCount = selectedFamilies.length
-
-  if (selectedCount === 0) return null
 
   const eligibleFamilies = selectedFamilies.filter((f) => {
     const member = f.members[0]
@@ -87,41 +86,51 @@ export function BulkActionsBar({ selectedFamilies }: BulkActionsBarProps) {
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2">
-      <Card className="border-primary/20 bg-background/95 px-4 py-2 shadow-lg backdrop-blur">
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-medium">
-            {selectedCount} {selectedCount === 1 ? 'family' : 'families'}{' '}
-            selected
-          </span>
-          <Button
-            size="sm"
-            onClick={handleBulkGenerateLinks}
-            disabled={isGenerating || eligibleFamilies.length === 0}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Link2 className="mr-2 h-4 w-4" />
-                Send Payment Links
-                {eligibleFamilies.length < selectedCount && (
-                  <span className="ml-1 text-xs opacity-75">
-                    ({eligibleFamilies.length})
-                  </span>
+    <AnimatePresence>
+      {selectedCount > 0 && (
+        <motion.div
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 100, opacity: 0 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+          className="sticky bottom-4 z-50 mx-auto mt-4 w-fit"
+        >
+          <Card className="border-primary/20 bg-background/95 px-4 py-2 shadow-lg backdrop-blur">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium">
+                {selectedCount} {selectedCount === 1 ? 'family' : 'families'}{' '}
+                selected
+              </span>
+              <Button
+                size="sm"
+                onClick={handleBulkGenerateLinks}
+                disabled={isGenerating || eligibleFamilies.length === 0}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="mr-2 h-4 w-4" />
+                    Send Payment Links
+                    {eligibleFamilies.length < selectedCount && (
+                      <span className="ml-1 text-xs opacity-75">
+                        ({eligibleFamilies.length})
+                      </span>
+                    )}
+                  </>
                 )}
-              </>
-            )}
-          </Button>
-          <Button size="sm" variant="ghost" onClick={clearSelection}>
-            <X className="mr-1 h-4 w-4" />
-            Clear
-          </Button>
-        </div>
-      </Card>
-    </div>
+              </Button>
+              <Button size="sm" variant="ghost" onClick={clearSelection}>
+                <X className="mr-1 h-4 w-4" />
+                Clear
+              </Button>
+            </div>
+          </Card>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

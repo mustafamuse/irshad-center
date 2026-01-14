@@ -20,7 +20,6 @@ export interface DugsiFilters {
   advanced?: FamilyFilters
   tab?: TabValue
   quickShift?: Shift | null
-  quickTeacher?: string | null
 }
 
 interface DugsiUIStore {
@@ -55,7 +54,6 @@ interface DugsiUIStore {
   setSearchField: (field: SearchField) => void
   setAdvancedFilters: (filters: FamilyFilters) => void
   setQuickShiftFilter: (shift: Shift | null) => void
-  setQuickTeacherFilter: (teacher: string | null) => void
   resetFilters: () => void
 
   // View actions
@@ -110,7 +108,6 @@ const defaultFilters: DugsiFilters = {
   },
   tab: 'all',
   quickShift: null,
-  quickTeacher: null,
 }
 
 // ============================================================================
@@ -165,11 +162,6 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       setQuickShiftFilter: (shift) =>
         set((state) => {
           state.filters.quickShift = shift
-        }),
-
-      setQuickTeacherFilter: (teacher) =>
-        set((state) => {
-          state.filters.quickTeacher = teacher
         }),
 
       resetFilters: () =>
@@ -284,8 +276,6 @@ export const useSelectedFamilyIds = () =>
   useDugsiUIStore((state) => state.selectedFamilyIds)
 export const useQuickShiftFilter = () =>
   useDugsiUIStore((state) => state.filters.quickShift)
-export const useQuickTeacherFilter = () =>
-  useDugsiUIStore((state) => state.filters.quickTeacher)
 
 export const useDeleteDialogState = () =>
   useDugsiUIStore((state) => state.isDeleteDialogOpen)

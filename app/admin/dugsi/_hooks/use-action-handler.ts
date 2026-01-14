@@ -26,6 +26,10 @@ interface UseActionHandlerOptions<T> {
   errorMessage?: string
   /** Whether to refresh the router on success (default: true) */
   refreshOnSuccess?: boolean
+  /** Called before action to optimistically update UI */
+  optimisticUpdate?: () => void
+  /** Called on error to rollback optimistic update */
+  rollback?: () => void
 }
 
 /**
@@ -62,9 +66,13 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
     successMessage,
     errorMessage,
     refreshOnSuccess = true,
+    optimisticUpdate,
+    rollback,
   } = options
 
   const execute = async (...args: TArgs) => {
+    optimisticUpdate?.()
+
     startTransition(async () => {
       try {
         const result = await action(...args)
@@ -80,12 +88,13 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
 
           onSuccess?.(result.data)
         } else {
+          rollback?.()
           const message = result.error || errorMessage || 'Action failed'
           toast.error(message)
           onError?.(result.error || 'Unknown error')
         }
       } catch (error) {
-        // Handle unexpected exceptions (network errors, validation throws, etc.)
+        rollback?.()
         console.error('Unexpected action error:', error)
         const message =
           errorMessage || 'An unexpected error occurred. Please try again.'

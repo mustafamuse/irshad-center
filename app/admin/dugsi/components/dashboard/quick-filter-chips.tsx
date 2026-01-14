@@ -1,51 +1,22 @@
 'use client'
 
 import { Shift } from '@prisma/client'
-import { Sun, Sunset, User, X } from 'lucide-react'
+import { Sun, Sunset, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-import { Family } from '../../_types'
 import { useDugsiUIStore } from '../../store'
 
-interface QuickFilterChipsProps {
-  families: Family[]
-}
-
-export function QuickFilterChips({ families }: QuickFilterChipsProps) {
+export function QuickFilterChips() {
   const quickShift = useDugsiUIStore((state) => state.filters.quickShift)
-  const quickTeacher = useDugsiUIStore((state) => state.filters.quickTeacher)
   const setQuickShiftFilter = useDugsiUIStore(
     (state) => state.setQuickShiftFilter
   )
-  const setQuickTeacherFilter = useDugsiUIStore(
-    (state) => state.setQuickTeacherFilter
-  )
-
-  const uniqueTeachers = Array.from(
-    new Set(
-      families
-        .flatMap((f) => f.members)
-        .map((m) => m.teacherName)
-        .filter((name): name is string => !!name)
-    )
-  ).sort()
-
-  const hasActiveFilters = quickShift || quickTeacher
 
   const handleShiftClick = (shift: Shift) => {
     setQuickShiftFilter(quickShift === shift ? null : shift)
-  }
-
-  const handleTeacherClick = (teacher: string) => {
-    setQuickTeacherFilter(quickTeacher === teacher ? null : teacher)
-  }
-
-  const clearFilters = () => {
-    setQuickShiftFilter(null)
-    setQuickTeacherFilter(null)
   }
 
   return (
@@ -80,32 +51,14 @@ export function QuickFilterChips({ families }: QuickFilterChipsProps) {
         {quickShift === 'AFTERNOON' && <X className="ml-0.5 h-3 w-3" />}
       </Badge>
 
-      {uniqueTeachers.length > 0 && (
-        <>
-          <div className="mx-1 h-4 w-px bg-border" />
-          {uniqueTeachers.slice(0, 3).map((teacher) => (
-            <Badge
-              key={teacher}
-              variant={quickTeacher === teacher ? 'default' : 'outline'}
-              className="cursor-pointer gap-1 transition-colors"
-              onClick={() => handleTeacherClick(teacher)}
-            >
-              <User className="h-3 w-3" />
-              {teacher.split(' ')[0]}
-              {quickTeacher === teacher && <X className="ml-0.5 h-3 w-3" />}
-            </Badge>
-          ))}
-        </>
-      )}
-
-      {hasActiveFilters && (
+      {quickShift && (
         <Button
           variant="ghost"
           size="sm"
           className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-          onClick={clearFilters}
+          onClick={() => setQuickShiftFilter(null)}
         >
-          Clear filters
+          Clear
         </Button>
       )}
     </div>

@@ -1,7 +1,5 @@
 'use client'
 
-import { useState } from 'react'
-
 import {
   CreditCard,
   ExternalLink,
@@ -14,11 +12,19 @@ import {
   User,
   Receipt,
   Clock,
+  MoreHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Popover,
   PopoverContent,
@@ -37,6 +43,7 @@ import { SHIFT_BADGES, SHIFT_COLORS } from '@/lib/constants/dugsi'
 import { OverviewTab, BillingTab, HistoryTab } from './detail-tabs'
 import { FamilyStatusBadge } from './family-status-badge'
 import { useActionHandler } from '../../_hooks/use-action-handler'
+import { useSheetState } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
@@ -63,47 +70,20 @@ export function FamilyDetailSheet({
   onFamilyUpdate,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
-  const [editParentDialog, setEditParentDialog] = useState<{
-    open: boolean
-    parentNumber: 1 | 2
-    isAdding: boolean
-  }>({
-    open: false,
-    parentNumber: 1,
-    isAdding: false,
-  })
-
-  const [editChildDialog, setEditChildDialog] = useState<{
-    open: boolean
-    studentId: string | null
-  }>({
-    open: false,
-    studentId: null,
-  })
-
-  const [addChildDialog, setAddChildDialog] = useState(false)
-  const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
-  const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
-  const [consolidateSubscriptionDialog, setConsolidateSubscriptionDialog] =
-    useState(false)
-  const [isShiftPopoverOpen, setIsShiftPopoverOpen] = useState(false)
-  const [pendingShift, setPendingShift] = useState<
-    'MORNING' | 'AFTERNOON' | null
-  >(null)
-  const [activeTab, setActiveTab] = useState('overview')
+  const { state, actions } = useSheetState()
 
   const { execute: executeUpdateFamilyShift, isPending: isUpdatingShift } =
     useActionHandler(updateFamilyShift, {
       successMessage: 'Family shift updated successfully!',
       onSuccess: () => {
-        if (pendingShift) {
-          setIsShiftPopoverOpen(false)
-          onFamilyUpdate?.(pendingShift)
-          setPendingShift(null)
-        }
+        actions.setShiftPopover(false)
+        actions.setPendingShift(null)
       },
       onError: () => {
-        setPendingShift(null)
+        if (state.pendingShift?.previousShift) {
+          onFamilyUpdate?.(state.pendingShift.previousShift)
+        }
+        actions.setPendingShift(null)
       },
     })
 
@@ -130,15 +110,15 @@ export function FamilyDetailSheet({
   }
 
   const handleSendPaymentLink = () => {
-    setPaymentLinkDialog(true)
+    actions.setPaymentLinkDialog(true)
   }
 
   const handleEditParent = (parentNumber: 1 | 2, isAdding: boolean) => {
-    setEditParentDialog({ open: true, parentNumber, isAdding })
+    actions.openEditParent(parentNumber, isAdding)
   }
 
   const handleEditChild = (studentId: string) => {
-    setEditChildDialog({ open: true, studentId })
+    actions.openEditChild(studentId)
   }
 
   const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
@@ -152,7 +132,10 @@ export function FamilyDetailSheet({
       return
     }
 
-    setPendingShift(shift)
+    const previousShift = firstMember.shift
+    actions.setPendingShift({ newShift: shift, previousShift })
+    onFamilyUpdate?.(shift)
+
     await executeUpdateFamilyShift({
       familyReferenceId: firstMember.familyReferenceId,
       shift,
@@ -160,7 +143,7 @@ export function FamilyDetailSheet({
   }
 
   const currentEditChild = family.members.find(
-    (m) => m.id === editChildDialog.studentId
+    (m) => m.id === state.editChildDialog.studentId
   )
 
   const getSheetTitle = () => {
@@ -202,8 +185,8 @@ export function FamilyDetailSheet({
 
             {firstMember && (
               <Popover
-                open={isShiftPopoverOpen}
-                onOpenChange={setIsShiftPopoverOpen}
+                open={state.shiftPopover}
+                onOpenChange={actions.setShiftPopover}
               >
                 <PopoverTrigger asChild>
                   <Badge
@@ -220,7 +203,7 @@ export function FamilyDetailSheet({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        setIsShiftPopoverOpen(true)
+                        actions.setShiftPopover(true)
                       }
                     }}
                   >
@@ -268,8 +251,8 @@ export function FamilyDetailSheet({
         </SheetHeader>
 
         <Tabs
-          value={activeTab}
-          onValueChange={setActiveTab}
+          value={state.activeTab}
+          onValueChange={actions.setActiveTab}
           className="flex flex-1 flex-col overflow-hidden"
         >
           <TabsList className="grid w-full grid-cols-3">
@@ -287,102 +270,94 @@ export function FamilyDetailSheet({
             </TabsTrigger>
           </TabsList>
 
-          <div className="flex-1 overflow-y-auto">
-            <TabsContent value="overview" className="mt-5 h-full">
+          <div className="flex-1 overflow-y-auto pt-4">
+            <TabsContent value="overview" className="mt-0 h-full">
               <OverviewTab
                 family={family}
                 firstMember={firstMember}
                 onEditParent={handleEditParent}
                 onEditChild={handleEditChild}
-                onAddChild={() => setAddChildDialog(true)}
+                onAddChild={() => actions.setAddChildDialog(true)}
               />
             </TabsContent>
 
-            <TabsContent value="billing" className="mt-5 h-full">
+            <TabsContent value="billing" className="mt-0 h-full">
               <BillingTab family={family} />
             </TabsContent>
 
-            <TabsContent value="history" className="mt-5 h-full">
+            <TabsContent value="history" className="mt-0 h-full">
               <HistoryTab family={family} />
             </TabsContent>
           </div>
         </Tabs>
 
         {/* Actions Footer */}
-        <div className="space-y-3 border-t pt-4">
+        <div className="flex items-center gap-2 border-t pt-4">
           {family.hasPayment &&
             (family.members[0]?.subscriptionStatus !== 'active' ||
               !family.hasSubscription) &&
             family.members[0]?.paymentIntentIdDugsi &&
             family.parentEmail && (
-              <Button
-                className="w-full"
-                variant="default"
-                onClick={handleVerifyBank}
-              >
+              <Button className="flex-1" onClick={handleVerifyBank}>
                 <ShieldCheck className="mr-2 h-4 w-4" />
-                Verify Bank Account
+                Verify Bank
               </Button>
             )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              className="w-full"
-              variant="outline"
-              onClick={handleSendPaymentLink}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              Payment Link
-            </Button>
-            <Button className="w-full" variant="outline">
-              <Mail className="mr-2 h-4 w-4" />
-              Send Email
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            {firstMember.familyReferenceId && (
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => setConsolidateSubscriptionDialog(true)}
-              >
-                <Link className="mr-2 h-4 w-4" />
-                Link Sub
-              </Button>
-            )}
-            {family.members[0]?.stripeCustomerIdDugsi && (
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={handleViewInStripe}
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Stripe
-              </Button>
-            )}
-          </div>
 
           <Button
-            className="w-full"
+            className="flex-1"
             variant="outline"
-            onClick={() => setDeleteFamilyDialog(true)}
+            onClick={handleSendPaymentLink}
           >
-            <Trash2 className="mr-2 h-4 w-4 text-red-500" />
-            <span className="text-red-500">Delete Family</span>
+            <Send className="mr-2 h-4 w-4" />
+            Payment Link
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>
+                <Mail className="mr-2 h-4 w-4" />
+                Send Email
+              </DropdownMenuItem>
+              {firstMember.familyReferenceId && (
+                <DropdownMenuItem
+                  onClick={() => actions.setConsolidateSubscriptionDialog(true)}
+                >
+                  <Link className="mr-2 h-4 w-4" />
+                  Link Subscription
+                </DropdownMenuItem>
+              )}
+              {family.members[0]?.stripeCustomerIdDugsi && (
+                <DropdownMenuItem onClick={handleViewInStripe}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View in Stripe
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600"
+                onClick={() => actions.setDeleteFamilyDialog(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Family
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </SheetContent>
 
       <EditParentDialog
-        open={editParentDialog.open}
-        onOpenChange={(open) =>
-          setEditParentDialog((prev) => ({ ...prev, open }))
-        }
+        open={state.editParentDialog.open}
+        onOpenChange={(open) => (open ? null : actions.closeEditParent())}
         studentId={firstMember.id}
-        parentNumber={editParentDialog.parentNumber}
+        parentNumber={state.editParentDialog.parentNumber}
         currentData={
-          editParentDialog.parentNumber === 1
+          state.editParentDialog.parentNumber === 1
             ? {
                 firstName: firstMember.parentFirstName,
                 lastName: firstMember.parentLastName,
@@ -396,15 +371,13 @@ export function FamilyDetailSheet({
                 phone: firstMember.parent2Phone,
               }
         }
-        isAddingSecondParent={editParentDialog.isAdding}
+        isAddingSecondParent={state.editParentDialog.isAdding}
       />
 
       {currentEditChild && (
         <EditChildDialog
-          open={editChildDialog.open}
-          onOpenChange={(open) =>
-            setEditChildDialog((prev) => ({ ...prev, open }))
-          }
+          open={state.editChildDialog.open}
+          onOpenChange={(open) => (open ? null : actions.closeEditChild())}
           studentId={currentEditChild.id}
           currentData={{
             name: currentEditChild.name,
@@ -418,18 +391,18 @@ export function FamilyDetailSheet({
       )}
 
       <AddChildDialog
-        open={addChildDialog}
-        onOpenChange={setAddChildDialog}
+        open={state.addChildDialog}
+        onOpenChange={actions.setAddChildDialog}
         existingStudentId={firstMember.id}
       />
 
       <PaymentLinkDialog
         family={family}
-        open={paymentLinkDialog}
-        onOpenChange={setPaymentLinkDialog}
+        open={state.paymentLinkDialog}
+        onOpenChange={actions.setPaymentLinkDialog}
       />
 
-      {deleteFamilyDialog && (
+      {state.deleteFamilyDialog && (
         <DeleteFamilyDialog
           studentId={firstMember.id}
           familyName={getSheetTitle()}
@@ -437,16 +410,16 @@ export function FamilyDetailSheet({
             family.hasSubscription &&
             family.members[0]?.subscriptionStatus === 'active'
           }
-          open={deleteFamilyDialog}
-          onOpenChange={setDeleteFamilyDialog}
+          open={state.deleteFamilyDialog}
+          onOpenChange={actions.setDeleteFamilyDialog}
           onSuccess={() => onOpenChange(false)}
         />
       )}
 
-      {consolidateSubscriptionDialog && firstMember.familyReferenceId && (
+      {state.consolidateSubscriptionDialog && firstMember.familyReferenceId && (
         <ConsolidateSubscriptionDialog
-          open={consolidateSubscriptionDialog}
-          onOpenChange={setConsolidateSubscriptionDialog}
+          open={state.consolidateSubscriptionDialog}
+          onOpenChange={actions.setConsolidateSubscriptionDialog}
           familyId={firstMember.familyReferenceId}
           familyName={getSheetTitle()}
         />

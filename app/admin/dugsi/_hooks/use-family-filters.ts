@@ -15,7 +15,6 @@ export function useFamilyFilters(
     searchField?: SearchField
     advancedFilters: FamilyFilters
     quickShift?: Shift | null
-    quickTeacher?: string | null
   }
 ): Family[] {
   return useMemo(() => applyAllFilters(families, options), [families, options])

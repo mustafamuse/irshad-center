@@ -164,21 +164,6 @@ export function createColumns(actions: ColumnActions): ColumnDef<Family>[] {
       ),
     },
     {
-      accessorKey: 'teacher',
-      header: ({ column }) => (
-        <SortableHeader column={column}>Teacher</SortableHeader>
-      ),
-      accessorFn: (row) => row.members[0]?.teacherName || 'Unassigned',
-      cell: ({ row }) => {
-        const teacher = row.original.members[0]?.teacherName
-        return (
-          <span className={cn('text-sm', !teacher && 'text-muted-foreground')}>
-            {teacher || 'Unassigned'}
-          </span>
-        )
-      },
-    },
-    {
       accessorKey: 'billing',
       header: 'Billing',
       cell: ({ row }) => <BillingCell family={row.original} />,
