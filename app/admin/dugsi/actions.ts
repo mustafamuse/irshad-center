@@ -694,39 +694,51 @@ export async function bulkGeneratePaymentLinksAction(params: {
     error: string
   }> = []
 
-  for (const familyId of validation.data.familyIds) {
-    try {
-      const result = await generateFamilyPaymentLinkAction({ familyId })
+  const BATCH_SIZE = 5
+  const familyIds = validation.data.familyIds
 
-      if (result.success && result.data) {
-        links.push({
-          familyId,
-          familyName: result.data.familyName,
-          paymentUrl: result.data.paymentUrl,
-          childCount: result.data.childCount,
-          rate: result.data.finalRate,
-        })
+  for (let i = 0; i < familyIds.length; i += BATCH_SIZE) {
+    const batch = familyIds.slice(i, i + BATCH_SIZE)
+
+    const results = await Promise.allSettled(
+      batch.map((familyId) => generateFamilyPaymentLinkAction({ familyId }))
+    )
+
+    for (let j = 0; j < results.length; j++) {
+      const familyId = batch[j]
+      const result = results[j]
+
+      if (result.status === 'fulfilled') {
+        const { value } = result
+        if (value.success && value.data) {
+          links.push({
+            familyId,
+            familyName: value.data.familyName,
+            paymentUrl: value.data.paymentUrl,
+            childCount: value.data.childCount,
+            rate: value.data.finalRate,
+          })
+        } else {
+          failed.push({
+            familyId,
+            familyName: familyId,
+            error: value.error || 'Unknown error',
+          })
+        }
       } else {
+        const error = result.reason
+        await logError(
+          logger,
+          error,
+          'Failed to generate payment link in bulk operation',
+          { familyId }
+        )
         failed.push({
           familyId,
           familyName: familyId,
-          error: result.error || 'Unknown error',
+          error: error instanceof Error ? error.message : 'Unknown error',
         })
       }
-    } catch (error) {
-      await logError(
-        logger,
-        error,
-        'Failed to generate payment link in bulk operation',
-        {
-          familyId,
-        }
-      )
-      failed.push({
-        familyId,
-        familyName: familyId,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      })
     }
   }
 
