@@ -100,8 +100,6 @@ export function ConsolidatedDugsiDashboard({
     <div className="space-y-6">
       <Breadcrumbs items={breadcrumbItems} />
 
-      <DashboardHeader />
-
       <MainTabNavigation
         tabs={TAB_CONFIG}
         activeTab={tab}
@@ -111,7 +109,8 @@ export function ConsolidatedDugsiDashboard({
       <div className="min-h-[500px]">
         {tab === 'families' && (
           <>
-            <div className="mb-6 space-y-4">
+            <DashboardHeader />
+            <div className="mb-6 mt-6 space-y-4">
               <DashboardFilters />
               <DugsiStats
                 registrations={registrations}
