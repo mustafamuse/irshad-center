@@ -1,3 +1,5 @@
+import { isFeatureEnabled } from '@/lib/feature-flags'
+
 export interface NavItem {
   title: string
   url: string
@@ -9,22 +11,46 @@ export interface NavGroup {
   items: NavItem[]
 }
 
+const DUGSI_NAV_LEGACY: NavItem[] = [
+  { title: 'Dashboard', url: '/admin/dugsi' },
+  { title: 'Classes', url: '/admin/dugsi/classes' },
+  { title: 'Teachers', url: '/admin/dugsi/teachers' },
+  { title: 'Attendance', url: '/admin/dugsi/attendance' },
+]
+
+const DUGSI_NAV_CONSOLIDATED: NavItem[] = [
+  { title: 'Dashboard', url: '/admin/dugsi' },
+]
+
+const MAHAD_NAV_LEGACY: NavItem[] = [
+  { title: 'Dashboard', url: '/admin/mahad' },
+  { title: 'Payments', url: '/admin/mahad/payments' },
+]
+
+const MAHAD_NAV_CONSOLIDATED: NavItem[] = [
+  { title: 'Dashboard', url: '/admin/mahad' },
+]
+
+function getDugsiNav(): NavItem[] {
+  return isFeatureEnabled('consolidatedAdminUI')
+    ? DUGSI_NAV_CONSOLIDATED
+    : DUGSI_NAV_LEGACY
+}
+
+function getMahadNav(): NavItem[] {
+  return isFeatureEnabled('consolidatedAdminUI')
+    ? MAHAD_NAV_CONSOLIDATED
+    : MAHAD_NAV_LEGACY
+}
+
 export const ADMIN_NAVIGATION: NavGroup[] = [
   {
     title: 'Dugsi',
-    items: [
-      { title: 'Dashboard', url: '/admin/dugsi' },
-      { title: 'Classes', url: '/admin/dugsi/classes' },
-      { title: 'Teachers', url: '/admin/dugsi/teachers' },
-      { title: 'Attendance', url: '/admin/dugsi/attendance' },
-    ],
+    items: getDugsiNav(),
   },
   {
     title: 'Mahad',
-    items: [
-      { title: 'Dashboard', url: '/admin/mahad' },
-      { title: 'Payments', url: '/admin/mahad/payments' },
-    ],
+    items: getMahadNav(),
   },
   {
     title: 'Utilities',

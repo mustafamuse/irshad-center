@@ -1,7 +1,15 @@
+import { redirect } from 'next/navigation'
+
+import { isFeatureEnabled } from '@/lib/feature-flags'
+
 import { getTeachers } from './actions'
 import { TeachersDashboard } from './components/teachers-dashboard'
 
 export default async function TeachersPage() {
+  if (isFeatureEnabled('consolidatedAdminUI')) {
+    redirect('/admin/dugsi?tab=teachers')
+  }
+
   const result = await getTeachers('DUGSI_PROGRAM')
 
   if (!result.success || !result.data) {

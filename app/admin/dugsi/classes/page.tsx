@@ -1,4 +1,8 @@
+import { redirect } from 'next/navigation'
+
 import { Metadata } from 'next'
+
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 import {
   getClassesWithDetailsAction,
@@ -14,6 +18,9 @@ export const metadata: Metadata = {
 }
 
 export default async function ClassManagementPage() {
+  if (isFeatureEnabled('consolidatedAdminUI')) {
+    redirect('/admin/dugsi?tab=classes')
+  }
   const [classesResult, teachersResult] = await Promise.all([
     getClassesWithDetailsAction(),
     getAllTeachersForClassAssignmentAction(),

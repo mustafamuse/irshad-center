@@ -1,5 +1,6 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata } from 'next'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { Toaster } from 'sonner'
 
 import { ThemeProvider } from '@/providers/theme-provider'
@@ -65,25 +66,27 @@ export default function RootLayout({
       </head>
       <body suppressHydrationWarning>
         <Providers>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem={true}
-            disableTransitionOnChange={false}
-          >
-            {children}
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  background: 'hsl(var(--background))',
-                  color: 'hsl(var(--foreground))',
-                  border: '1px solid hsl(var(--border))',
-                },
-              }}
-            />
-          </ThemeProvider>
+          <NuqsAdapter>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="light"
+              enableSystem={true}
+              disableTransitionOnChange={false}
+            >
+              {children}
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  duration: 4000,
+                  style: {
+                    background: 'hsl(var(--background))',
+                    color: 'hsl(var(--foreground))',
+                    border: '1px solid hsl(var(--border))',
+                  },
+                }}
+              />
+            </ThemeProvider>
+          </NuqsAdapter>
         </Providers>
         <Analytics />
       </body>
