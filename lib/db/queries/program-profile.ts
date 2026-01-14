@@ -745,6 +745,27 @@ export async function searchProgramProfilesByNameOrContact(
 }
 
 /**
+ * Update shift for all program profiles in a family
+ * @param client - Optional database client (for transaction support)
+ */
+export async function updateFamilyShift(
+  familyReferenceId: string,
+  shift: 'MORNING' | 'AFTERNOON',
+  program: Program,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.updateMany({
+    where: {
+      program,
+      familyReferenceId,
+    },
+    data: {
+      shift,
+    },
+  })
+}
+
+/**
  * Get program profiles by status with proper enrollment filtering
  * @param client - Optional database client (for transaction support)
  */

@@ -6,7 +6,6 @@ import { GradeLevel, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { prisma } from '@/lib/db'
 import {
   getClassesWithDetails,
   getAllTeachersForAssignment,
@@ -43,6 +42,7 @@ import {
   updateChildInfo as updateChildInfoService,
   addChildToFamily as addChildToFamilyService,
   setPrimaryPayer as setPrimaryPayerService,
+  updateFamilyShift as updateFamilyShiftService,
   // Payment service
   verifyBankAccount,
   getPaymentStatus,
@@ -488,14 +488,9 @@ export async function updateFamilyShift(
   try {
     const validated = UpdateFamilyShiftSchema.parse(params)
 
-    await prisma.programProfile.updateMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        familyReferenceId: validated.familyReferenceId,
-      },
-      data: {
-        shift: validated.shift,
-      },
+    await updateFamilyShiftService({
+      familyReferenceId: validated.familyReferenceId,
+      shift: validated.shift,
     })
 
     revalidatePath('/admin/dugsi', 'layout')
@@ -675,9 +670,13 @@ export async function bulkGeneratePaymentLinksAction(params: {
 > {
   const validation = BulkPaymentLinksSchema.safeParse(params)
   if (!validation.success) {
+    const errorMessages = validation.error.errors.map((e) => e.message)
     return {
       success: false,
-      error: validation.error.errors[0]?.message || 'Invalid input',
+      error:
+        errorMessages.length > 1
+          ? `Validation errors: ${errorMessages.join('; ')}`
+          : errorMessages[0] || 'Invalid input',
     }
   }
 

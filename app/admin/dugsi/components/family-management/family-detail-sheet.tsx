@@ -1,5 +1,7 @@
 'use client'
 
+import { useRef } from 'react'
+
 import { Shift } from '@prisma/client'
 import {
   CreditCard,
@@ -72,6 +74,10 @@ export function FamilyDetailSheet({
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
   const { state, actions } = useSheetState()
+  const pendingShiftRef = useRef<{
+    newShift: Shift
+    previousShift: Shift | null
+  } | null>(null)
 
   const { execute: executeUpdateFamilyShift, isPending: isUpdatingShift } =
     useActionHandler(updateFamilyShift, {
@@ -79,12 +85,14 @@ export function FamilyDetailSheet({
       onSuccess: () => {
         actions.setShiftPopover(false)
         actions.setPendingShift(null)
+        pendingShiftRef.current = null
       },
       onError: () => {
-        if (state.pendingShift?.previousShift) {
-          onFamilyUpdate?.(state.pendingShift.previousShift)
+        if (pendingShiftRef.current?.previousShift) {
+          onFamilyUpdate?.(pendingShiftRef.current.previousShift)
         }
         actions.setPendingShift(null)
+        pendingShiftRef.current = null
       },
     })
 
@@ -116,7 +124,9 @@ export function FamilyDetailSheet({
     }
 
     const previousShift = firstMember.shift
-    actions.setPendingShift({ newShift: shift, previousShift })
+    const shiftData = { newShift: shift, previousShift }
+    pendingShiftRef.current = shiftData
+    actions.setPendingShift(shiftData)
     onFamilyUpdate?.(shift)
 
     await executeUpdateFamilyShift({

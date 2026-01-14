@@ -38,6 +38,8 @@ export function BillingTab({ family }: BillingTabProps) {
   const customerId = firstMember?.stripeCustomerIdDugsi
 
   useEffect(() => {
+    let cancelled = false
+
     async function fetchHistory() {
       if (!customerId) return
 
@@ -47,12 +49,16 @@ export function BillingTab({ family }: BillingTabProps) {
       try {
         const result = await getFamilyPaymentHistory(customerId)
 
+        if (cancelled) return
+
         if (result.success && result.data) {
           setPaymentHistory(result.data)
         } else {
           setError(result.error ?? 'Failed to fetch payment history')
         }
       } catch (error) {
+        if (cancelled) return
+
         Sentry.captureException(error, {
           tags: { component: 'BillingTab' },
           extra: { customerId },
@@ -63,11 +69,17 @@ export function BillingTab({ family }: BillingTabProps) {
             : 'Failed to fetch payment history'
         )
       } finally {
-        setIsLoading(false)
+        if (!cancelled) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchHistory()
+
+    return () => {
+      cancelled = true
+    }
   }, [customerId])
 
   const billing = firstMember ? getBillingStatus(firstMember) : null
