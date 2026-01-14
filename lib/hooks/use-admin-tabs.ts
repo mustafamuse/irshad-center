@@ -16,12 +16,7 @@ export type DugsiTeacherSubtab = (typeof DUGSI_TEACHER_SUBTABS)[number]
 export const DUGSI_CLASSES_SUBTABS = ['morning', 'afternoon'] as const
 export type DugsiClassesSubtab = (typeof DUGSI_CLASSES_SUBTABS)[number]
 
-export const MAHAD_TABS = [
-  'students',
-  'batches',
-  'payments',
-  'duplicates',
-] as const
+export const MAHAD_TABS = ['students', 'batches', 'duplicates'] as const
 export type MahadTab = (typeof MAHAD_TABS)[number]
 
 export const FAMILY_STATUS_FILTERS = [

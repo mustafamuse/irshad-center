@@ -2,7 +2,7 @@ export {
   applyAllFilters,
   filterBySearch,
   filterByBatch,
-  filterByStatus,
+  filterByPaymentHealth,
 } from './filters'
 export {
   groupStudentsByBatch,

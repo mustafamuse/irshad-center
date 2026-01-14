@@ -14,10 +14,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { StudentStatus } from '@/lib/types/student'
 
 import { StudentDetailSheet } from './student-detail-sheet'
-import { MahadBatch, MahadStudent } from '../../_types'
+import { MahadBatch, MahadStudent, PaymentHealth } from '../../_types'
+import { calculatePaymentHealth } from '../../_utils/grouping'
 import { useSelectedStudents, useMahadUIStore } from '../../store'
 import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
@@ -27,31 +27,34 @@ interface StudentsMobileCardsProps {
   batches: MahadBatch[]
 }
 
-function getStatusConfig(status: StudentStatus) {
-  const configs: Record<StudentStatus, { className: string; label: string }> = {
-    [StudentStatus.ENROLLED]: {
-      className: 'bg-green-100 text-green-800 border-green-200',
-      label: 'Enrolled',
-    },
-    [StudentStatus.REGISTERED]: {
-      className: 'bg-blue-100 text-blue-800 border-blue-200',
-      label: 'Registered',
-    },
-    [StudentStatus.ON_LEAVE]: {
-      className: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      label: 'On Leave',
-    },
-    [StudentStatus.WITHDRAWN]: {
+function getPaymentHealthConfig(health: PaymentHealth) {
+  const configs: Record<PaymentHealth, { className: string; label: string }> = {
+    needs_action: {
       className: 'bg-red-100 text-red-800 border-red-200',
-      label: 'Withdrawn',
+      label: 'Needs Action',
+    },
+    at_risk: {
+      className: 'bg-amber-100 text-amber-800 border-amber-200',
+      label: 'At Risk',
+    },
+    healthy: {
+      className: 'bg-green-100 text-green-800 border-green-200',
+      label: 'Healthy',
+    },
+    exempt: {
+      className: 'bg-slate-100 text-slate-800 border-slate-200',
+      label: 'Exempt',
+    },
+    pending: {
+      className: 'bg-blue-100 text-blue-800 border-blue-200',
+      label: 'Pending',
+    },
+    inactive: {
+      className: 'bg-gray-100 text-gray-600 border-gray-200',
+      label: 'Inactive',
     },
   }
-  return (
-    configs[status] || {
-      className: 'bg-muted text-muted-foreground',
-      label: status,
-    }
-  )
+  return configs[health]
 }
 
 export function StudentsMobileCards({
@@ -105,7 +108,8 @@ export function StudentsMobileCards({
     <>
       <div className="space-y-3 py-2">
         {students.map((student) => {
-          const statusConfig = getStatusConfig(student.status)
+          const paymentHealth = calculatePaymentHealth(student)
+          const healthConfig = getPaymentHealthConfig(paymentHealth)
           const isSelected = selectedIds.has(student.id)
 
           return (
@@ -143,9 +147,9 @@ export function StudentsMobileCards({
                     </div>
                   </div>
                   <Badge
-                    className={`${statusConfig.className} flex-shrink-0 px-2.5 py-1 text-xs font-medium`}
+                    className={`${healthConfig.className} flex-shrink-0 px-2.5 py-1 text-xs font-medium`}
                   >
-                    {statusConfig.label}
+                    {healthConfig.label}
                   </Badge>
                 </div>
 

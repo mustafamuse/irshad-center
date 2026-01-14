@@ -69,12 +69,31 @@ export interface MahadBatch {
 export type TabValue = 'students' | 'batches' | 'duplicates'
 
 /**
+ * PaymentHealth - Unified status combining enrollment + subscription + billing type
+ *
+ * Values:
+ * - needs_action: ENROLLED + payment problems (canceled/unpaid/no sub when not EXEMPT)
+ * - at_risk: ENROLLED + past_due subscription
+ * - healthy: ENROLLED + active subscription
+ * - exempt: ENROLLED + EXEMPT billing type (TA, scholarship)
+ * - pending: REGISTERED (not yet enrolled)
+ * - inactive: WITHDRAWN/ON_LEAVE (no longer active)
+ */
+export type PaymentHealth =
+  | 'needs_action'
+  | 'at_risk'
+  | 'healthy'
+  | 'exempt'
+  | 'pending'
+  | 'inactive'
+
+/**
  * Student filter types
  */
 export interface StudentFilters {
   search: string
   batchId: string | null
-  status: StudentStatus | null
+  paymentHealth: PaymentHealth | null
 }
 
 /**
@@ -82,10 +101,13 @@ export interface StudentFilters {
  */
 export interface DashboardStats {
   total: number
-  active: number
-  registered: number
-  onLeave: number
-  unpaid: number
+  enrolled: number
+  healthy: number
+  atRisk: number
+  needsAction: number
+  exempt: number
+  pending: number
+  inactive: number
 }
 
 /**

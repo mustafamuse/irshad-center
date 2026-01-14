@@ -21,10 +21,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { StudentStatus } from '@/lib/types/student'
 
 import { StudentDetailSheet } from './student-detail-sheet'
-import { MahadBatch, MahadStudent } from '../../_types'
+import { MahadBatch, MahadStudent, PaymentHealth } from '../../_types'
+import { calculatePaymentHealth } from '../../_utils/grouping'
 import { useSelectedStudents, useMahadUIStore } from '../../store'
 import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
@@ -34,21 +34,37 @@ interface StudentsTableProps {
   batches: MahadBatch[]
 }
 
-function getStatusBadge(status: StudentStatus) {
-  const variants: Record<
-    StudentStatus,
-    {
-      variant: 'default' | 'secondary' | 'destructive' | 'outline'
-      label: string
-    }
-  > = {
-    [StudentStatus.ENROLLED]: { variant: 'default', label: 'Enrolled' },
-    [StudentStatus.REGISTERED]: { variant: 'secondary', label: 'Registered' },
-    [StudentStatus.ON_LEAVE]: { variant: 'outline', label: 'On Leave' },
-    [StudentStatus.WITHDRAWN]: { variant: 'destructive', label: 'Withdrawn' },
+function getPaymentHealthBadge(health: PaymentHealth) {
+  const configs: Record<PaymentHealth, { className: string; label: string }> = {
+    needs_action: {
+      className: 'bg-red-100 text-red-800 border-red-200',
+      label: 'Needs Action',
+    },
+    at_risk: {
+      className: 'bg-amber-100 text-amber-800 border-amber-200',
+      label: 'At Risk',
+    },
+    healthy: {
+      className: 'bg-green-100 text-green-800 border-green-200',
+      label: 'Healthy',
+    },
+    exempt: {
+      className: 'bg-slate-100 text-slate-800 border-slate-200',
+      label: 'Exempt',
+    },
+    pending: {
+      className: 'bg-blue-100 text-blue-800 border-blue-200',
+      label: 'Pending',
+    },
+    inactive: {
+      className: 'bg-gray-100 text-gray-600 border-gray-200',
+      label: 'Inactive',
+    },
   }
-  const config = variants[status] || { variant: 'outline', label: status }
-  return <Badge variant={config.variant}>{config.label}</Badge>
+  const config = configs[health]
+  return (
+    <Badge className={`${config.className} font-medium`}>{config.label}</Badge>
+  )
 }
 
 export function StudentsTable({ students, batches }: StudentsTableProps) {
@@ -117,7 +133,7 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
               <TableHead>Name</TableHead>
               <TableHead className="hidden md:table-cell">Email</TableHead>
               <TableHead className="hidden sm:table-cell">Batch</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Payment</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -144,7 +160,9 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
                     <span className="text-muted-foreground">Unassigned</span>
                   )}
                 </TableCell>
-                <TableCell>{getStatusBadge(student.status)}</TableCell>
+                <TableCell>
+                  {getPaymentHealthBadge(calculatePaymentHealth(student))}
+                </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

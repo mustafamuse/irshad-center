@@ -28,6 +28,10 @@ import {
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
 } from '@/lib/db/queries/billing'
+import {
+  RateMismatchError,
+  subscriptionNotFoundForRetry,
+} from '@/lib/errors/webhook-errors'
 import { createServiceLogger } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -208,26 +212,7 @@ export async function handleSubscriptionCreated(
     }
   }
 
-  // Create subscription in database
-  const dbSubscription = await Sentry.startSpan(
-    {
-      name: 'subscription.create_from_stripe',
-      op: 'db.transaction',
-      attributes: {
-        account_type: accountType,
-        stripe_subscription_id: subscription.id,
-        billing_account_id: billingAccount.id,
-      },
-    },
-    async () =>
-      await createSubscriptionFromStripe(
-        subscription,
-        billingAccount.id,
-        accountType
-      )
-  )
-
-  // Validate rate against calculated rate if metadata is present (Mahad checkout)
+  // Validate rate BEFORE creating subscription (blocking for Mahad)
   const subscriptionMetadata = subscription.metadata || {}
   if (
     accountType === 'MAHAD' &&
@@ -239,15 +224,9 @@ export async function handleSubscriptionCreated(
     const priceAmount = subscription.items?.data?.[0]?.price?.unit_amount
     const expectedRate = parseInt(subscriptionMetadata.calculatedRate, 10)
 
-    // Validate that the checkout session calculated rate matches the actual rate
-    const actualCalculatedRate = calculateMahadRate(
-      subscriptionMetadata.graduationStatus as GraduationStatus,
-      subscriptionMetadata.paymentFrequency as PaymentFrequency,
-      subscriptionMetadata.billingType as StudentBillingType
-    )
-
     if (priceAmount !== expectedRate) {
-      logger.warn(
+      throw new RateMismatchError(
+        `Mahad rate mismatch: Stripe charged ${priceAmount} but expected ${expectedRate}`,
         {
           subscriptionId: subscription.id,
           stripeAmount: priceAmount,
@@ -255,10 +234,15 @@ export async function handleSubscriptionCreated(
           graduationStatus: subscriptionMetadata.graduationStatus,
           paymentFrequency: subscriptionMetadata.paymentFrequency,
           billingType: subscriptionMetadata.billingType,
-        },
-        'Rate mismatch: Stripe amount differs from expected calculated rate'
+        }
       )
     }
+
+    const actualCalculatedRate = calculateMahadRate(
+      subscriptionMetadata.graduationStatus as GraduationStatus,
+      subscriptionMetadata.paymentFrequency as PaymentFrequency,
+      subscriptionMetadata.billingType as StudentBillingType
+    )
 
     if (actualCalculatedRate !== expectedRate) {
       logger.warn(
@@ -284,13 +268,12 @@ export async function handleSubscriptionCreated(
         graduationStatus: subscriptionMetadata.graduationStatus,
         paymentFrequency: subscriptionMetadata.paymentFrequency,
         billingType: subscriptionMetadata.billingType,
-        rateValid: priceAmount === expectedRate,
       },
-      'Mahad subscription rate validation completed'
+      'Mahad subscription rate validation passed'
     )
   }
 
-  // Validate rate for Dugsi subscriptions
+  // Validate rate BEFORE creating subscription (blocking for Dugsi)
   if (
     accountType === 'DUGSI' &&
     subscriptionMetadata.calculatedRate &&
@@ -300,19 +283,19 @@ export async function handleSubscriptionCreated(
     const expectedRate = parseInt(subscriptionMetadata.calculatedRate, 10)
     const childCount = parseInt(subscriptionMetadata.childCount, 10)
 
-    const actualCalculatedRate = calculateDugsiRate(childCount)
-
     if (priceAmount !== expectedRate) {
-      logger.warn(
+      throw new RateMismatchError(
+        `Dugsi rate mismatch: Stripe charged ${priceAmount} but expected ${expectedRate}`,
         {
           subscriptionId: subscription.id,
           stripeAmount: priceAmount,
           expectedRate,
           childCount,
-        },
-        'Rate mismatch: Stripe amount differs from expected calculated rate'
+        }
       )
     }
+
+    const actualCalculatedRate = calculateDugsiRate(childCount)
 
     if (actualCalculatedRate !== expectedRate) {
       logger.warn(
@@ -332,11 +315,29 @@ export async function handleSubscriptionCreated(
         stripeAmount: priceAmount,
         expectedRate,
         childCount,
-        rateValid: priceAmount === expectedRate,
       },
-      'Dugsi subscription rate validation completed'
+      'Dugsi subscription rate validation passed'
     )
   }
+
+  // Create subscription in database
+  const dbSubscription = await Sentry.startSpan(
+    {
+      name: 'subscription.create_from_stripe',
+      op: 'db.transaction',
+      attributes: {
+        account_type: accountType,
+        stripe_subscription_id: subscription.id,
+        billing_account_id: billingAccount.id,
+      },
+    },
+    async () =>
+      await createSubscriptionFromStripe(
+        subscription,
+        billingAccount.id,
+        accountType
+      )
+  )
 
   // Link to profiles if provided
   if (profileIds && profileIds.length > 0) {
@@ -404,9 +405,7 @@ export async function handleSubscriptionUpdated(
   const dbSubscription = await getSubscriptionByStripeId(stripeSubscriptionId)
 
   if (!dbSubscription) {
-    throw new Error(
-      `Subscription ${stripeSubscriptionId} not found in database. It may need to be created first.`
-    )
+    throw subscriptionNotFoundForRetry(stripeSubscriptionId)
   }
 
   // Validate status
@@ -535,12 +534,13 @@ export async function handleInvoiceFinalized(
  *
  * @param stripeSubscriptionId - Stripe subscription ID
  * @returns Array of billing assignments
+ * @throws RetryableWebhookError if subscription not found
  */
 export async function getSubscriptionAssignments(stripeSubscriptionId: string) {
   const subscription = await getSubscriptionByStripeId(stripeSubscriptionId)
 
   if (!subscription) {
-    return []
+    throw subscriptionNotFoundForRetry(stripeSubscriptionId)
   }
 
   return await getBillingAssignmentsBySubscription(subscription.id)
