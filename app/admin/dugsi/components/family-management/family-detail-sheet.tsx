@@ -43,7 +43,7 @@ import { SHIFT_BADGES, SHIFT_COLORS } from '@/lib/constants/dugsi'
 import { OverviewTab, BillingTab, HistoryTab } from './detail-tabs'
 import { FamilyStatusBadge } from './family-status-badge'
 import { useActionHandler } from '../../_hooks/use-action-handler'
-import { useSheetState } from '../../_hooks/use-sheet-state'
+import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
@@ -252,7 +252,7 @@ export function FamilyDetailSheet({
 
         <Tabs
           value={state.activeTab}
-          onValueChange={actions.setActiveTab}
+          onValueChange={(value) => actions.setActiveTab(value as SheetTab)}
           className="flex flex-1 flex-col overflow-hidden"
         >
           <TabsList className="grid w-full grid-cols-3">
@@ -353,7 +353,9 @@ export function FamilyDetailSheet({
 
       <EditParentDialog
         open={state.editParentDialog.open}
-        onOpenChange={(open) => (open ? null : actions.closeEditParent())}
+        onOpenChange={(open) => {
+          if (!open) actions.closeEditParent()
+        }}
         studentId={firstMember.id}
         parentNumber={state.editParentDialog.parentNumber}
         currentData={
@@ -377,7 +379,9 @@ export function FamilyDetailSheet({
       {currentEditChild && (
         <EditChildDialog
           open={state.editChildDialog.open}
-          onOpenChange={(open) => (open ? null : actions.closeEditChild())}
+          onOpenChange={(open) => {
+            if (!open) actions.closeEditChild()
+          }}
           studentId={currentEditChild.id}
           currentData={{
             name: currentEditChild.name,

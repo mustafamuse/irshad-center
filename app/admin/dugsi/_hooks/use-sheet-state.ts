@@ -2,6 +2,15 @@
 
 import { useReducer } from 'react'
 
+import { Shift } from '@prisma/client'
+
+export type SheetTab = 'overview' | 'billing' | 'history'
+
+type PendingShift = {
+  newShift: Shift
+  previousShift: Shift | null
+}
+
 type SheetState = {
   editParentDialog: {
     open: boolean
@@ -17,11 +26,8 @@ type SheetState = {
   deleteFamilyDialog: boolean
   consolidateSubscriptionDialog: boolean
   shiftPopover: boolean
-  pendingShift: {
-    newShift: 'MORNING' | 'AFTERNOON'
-    previousShift: 'MORNING' | 'AFTERNOON' | null
-  } | null
-  activeTab: string
+  pendingShift: PendingShift | null
+  activeTab: SheetTab
 }
 
 type SheetAction =
@@ -34,14 +40,8 @@ type SheetAction =
   | { type: 'SET_DELETE_FAMILY_DIALOG'; open: boolean }
   | { type: 'SET_CONSOLIDATE_SUBSCRIPTION_DIALOG'; open: boolean }
   | { type: 'SET_SHIFT_POPOVER'; open: boolean }
-  | {
-      type: 'SET_PENDING_SHIFT'
-      shift: {
-        newShift: 'MORNING' | 'AFTERNOON'
-        previousShift: 'MORNING' | 'AFTERNOON' | null
-      } | null
-    }
-  | { type: 'SET_ACTIVE_TAB'; tab: string }
+  | { type: 'SET_PENDING_SHIFT'; shift: PendingShift | null }
+  | { type: 'SET_ACTIVE_TAB'; tab: SheetTab }
   | { type: 'RESET' }
 
 const initialState: SheetState = {
@@ -108,7 +108,6 @@ export function useSheetState() {
 
   return {
     state,
-    dispatch,
     actions: {
       openEditParent: (parentNumber: 1 | 2, isAdding: boolean) =>
         dispatch({ type: 'OPEN_EDIT_PARENT', parentNumber, isAdding }),
@@ -126,13 +125,10 @@ export function useSheetState() {
         dispatch({ type: 'SET_CONSOLIDATE_SUBSCRIPTION_DIALOG', open }),
       setShiftPopover: (open: boolean) =>
         dispatch({ type: 'SET_SHIFT_POPOVER', open }),
-      setPendingShift: (
-        shift: {
-          newShift: 'MORNING' | 'AFTERNOON'
-          previousShift: 'MORNING' | 'AFTERNOON' | null
-        } | null
-      ) => dispatch({ type: 'SET_PENDING_SHIFT', shift }),
-      setActiveTab: (tab: string) => dispatch({ type: 'SET_ACTIVE_TAB', tab }),
+      setPendingShift: (shift: PendingShift | null) =>
+        dispatch({ type: 'SET_PENDING_SHIFT', shift }),
+      setActiveTab: (tab: SheetTab) =>
+        dispatch({ type: 'SET_ACTIVE_TAB', tab }),
       reset: () => dispatch({ type: 'RESET' }),
     },
   }

@@ -11,6 +11,7 @@ import { useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import * as Sentry from '@sentry/nextjs'
 import { toast } from 'sonner'
 
 import { ActionResult } from '../_types'
@@ -95,7 +96,9 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
         }
       } catch (error) {
         rollback?.()
-        console.error('Unexpected action error:', error)
+        Sentry.captureException(error, {
+          tags: { component: 'useActionHandler' },
+        })
         const message =
           errorMessage || 'An unexpected error occurred. Please try again.'
         toast.error(message)

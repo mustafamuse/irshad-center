@@ -6,7 +6,6 @@
 
 export * from './dashboard'
 export * from './family-management'
-export * from './registrations'
 export * from './dialogs'
 export * from './ui'
 export { PaymentStatusSection } from './payment-status-section'

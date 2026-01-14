@@ -43,15 +43,23 @@ export function BillingTab({ family }: BillingTabProps) {
       setIsLoading(true)
       setError(null)
 
-      const result = await getFamilyPaymentHistory(customerId)
+      try {
+        const result = await getFamilyPaymentHistory(customerId)
 
-      if (result.success && result.data) {
-        setPaymentHistory(result.data)
-      } else {
-        setError(result.error ?? 'Failed to fetch payment history')
+        if (result.success && result.data) {
+          setPaymentHistory(result.data)
+        } else {
+          setError(result.error ?? 'Failed to fetch payment history')
+        }
+      } catch (error) {
+        setError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to fetch payment history'
+        )
+      } finally {
+        setIsLoading(false)
       }
-
-      setIsLoading(false)
     }
 
     fetchHistory()

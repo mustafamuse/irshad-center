@@ -35,8 +35,12 @@ export function OverviewTab({
     try {
       await navigator.clipboard.writeText(text)
       toast.success(`${label} copied to clipboard`)
-    } catch {
-      toast.error('Failed to copy to clipboard')
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'NotAllowedError'
+          ? 'Clipboard access denied. Check browser permissions.'
+          : 'Failed to copy to clipboard'
+      toast.error(message)
     }
   }
 

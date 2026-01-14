@@ -80,7 +80,6 @@ import {
   VCardResult,
 } from '@/lib/vcard-export'
 
-
 import {
   previewSubscriptionInputSchema,
   consolidateSubscriptionInputSchema,
@@ -708,6 +707,13 @@ export async function bulkGeneratePaymentLinksAction(params: {
         familyName: familyId,
         error: error instanceof Error ? error.message : 'Unknown error',
       })
+    }
+  }
+
+  if (links.length === 0 && failed.length > 0) {
+    return {
+      success: false,
+      error: `Failed to generate payment links for ${failed.length} ${failed.length === 1 ? 'family' : 'families'}`,
     }
   }
 
