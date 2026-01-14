@@ -3,9 +3,11 @@ import { Suspense } from 'react'
 import { Metadata } from 'next'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
 import { getDugsiRegistrations } from './actions'
+import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
 import { DugsiDashboard } from './components/dugsi-dashboard'
 
 export const dynamic = 'force-dynamic'
@@ -59,6 +61,8 @@ export default async function DugsiAdminPage({
 
   const registrations = await getDugsiRegistrations({ shift })
 
+  const useConsolidatedUI = isFeatureEnabled('consolidatedAdminUI')
+
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
       <AppErrorBoundary
@@ -68,7 +72,11 @@ export default async function DugsiAdminPage({
         fallbackLabel="Reload Dashboard"
       >
         <Suspense fallback={<Loading />}>
-          <DugsiDashboard registrations={registrations} />
+          {useConsolidatedUI ? (
+            <ConsolidatedDugsiDashboard registrations={registrations} />
+          ) : (
+            <DugsiDashboard registrations={registrations} />
+          )}
         </Suspense>
       </AppErrorBoundary>
     </main>

@@ -1,5 +1,9 @@
 import { Suspense } from 'react'
 
+import { redirect } from 'next/navigation'
+
+import { isFeatureEnabled } from '@/lib/feature-flags'
+
 import { BackfillPaymentsButton } from './components/backfill-button'
 import {
   StatsCardsSkeleton,
@@ -23,6 +27,10 @@ interface PaymentsPageProps {
 export default async function PaymentsPage({
   searchParams,
 }: PaymentsPageProps) {
+  if (isFeatureEnabled('consolidatedAdminUI')) {
+    redirect('/admin/mahad?tab=payments')
+  }
+
   const resolvedSearchParams = await searchParams
 
   return (

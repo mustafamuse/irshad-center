@@ -1,6 +1,9 @@
 import { Suspense } from 'react'
 
+import { redirect } from 'next/navigation'
+
 import { Card } from '@/components/ui/card'
+import { isFeatureEnabled } from '@/lib/feature-flags'
 
 import { AttendanceManagement } from './components/attendance-management'
 import { AttendanceStats } from './components/attendance-stats'
@@ -20,6 +23,10 @@ interface Props {
 }
 
 export default async function AttendancePage({ searchParams }: Props) {
+  if (isFeatureEnabled('consolidatedAdminUI')) {
+    redirect('/admin/dugsi?tab=attendance')
+  }
+
   const resolvedSearchParams = await searchParams
   return (
     <div className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6">
