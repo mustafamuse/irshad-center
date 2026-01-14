@@ -93,33 +93,15 @@ export function FamilyDetailSheet({
   const firstMember = family.members[0]
   if (!firstMember) return null
 
-  const handleVerifyBank = () => {
-    const paymentIntentId = family.members[0]?.paymentIntentIdDugsi
-    const parentEmail = family.parentEmail
-
-    if (paymentIntentId && parentEmail && onVerifyBankAccount) {
-      onVerifyBankAccount(paymentIntentId, parentEmail)
-    }
-  }
-
   const handleViewInStripe = () => {
-    const customerId = family.members[0]?.stripeCustomerIdDugsi
+    const customerId = firstMember.stripeCustomerIdDugsi
     if (customerId) {
-      const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
-      window.open(stripeUrl, '_blank', 'noopener,noreferrer')
+      window.open(
+        `https://dashboard.stripe.com/customers/${customerId}`,
+        '_blank',
+        'noopener,noreferrer'
+      )
     }
-  }
-
-  const handleSendPaymentLink = () => {
-    actions.setPaymentLinkDialog(true)
-  }
-
-  const handleEditParent = (parentNumber: 1 | 2, isAdding: boolean) => {
-    actions.openEditParent(parentNumber, isAdding)
-  }
-
-  const handleEditChild = (studentId: string) => {
-    actions.openEditChild(studentId)
   }
 
   const handleShiftChange = async (shift: Shift) => {
@@ -276,8 +258,8 @@ export function FamilyDetailSheet({
               <OverviewTab
                 family={family}
                 firstMember={firstMember}
-                onEditParent={handleEditParent}
-                onEditChild={handleEditChild}
+                onEditParent={actions.openEditParent}
+                onEditChild={actions.openEditChild}
                 onAddChild={() => actions.setAddChildDialog(true)}
               />
             </TabsContent>
@@ -295,11 +277,19 @@ export function FamilyDetailSheet({
         {/* Actions Footer */}
         <div className="flex items-center gap-2 border-t pt-4">
           {family.hasPayment &&
-            (family.members[0]?.subscriptionStatus !== 'active' ||
+            (firstMember.subscriptionStatus !== 'active' ||
               !family.hasSubscription) &&
-            family.members[0]?.paymentIntentIdDugsi &&
+            firstMember.paymentIntentIdDugsi &&
             family.parentEmail && (
-              <Button className="flex-1" onClick={handleVerifyBank}>
+              <Button
+                className="flex-1"
+                onClick={() =>
+                  onVerifyBankAccount?.(
+                    firstMember.paymentIntentIdDugsi!,
+                    family.parentEmail!
+                  )
+                }
+              >
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 Verify Bank
               </Button>
@@ -308,7 +298,7 @@ export function FamilyDetailSheet({
           <Button
             className="flex-1"
             variant="outline"
-            onClick={handleSendPaymentLink}
+            onClick={() => actions.setPaymentLinkDialog(true)}
           >
             <Send className="mr-2 h-4 w-4" />
             Payment Link
@@ -333,7 +323,7 @@ export function FamilyDetailSheet({
                   Link Subscription
                 </DropdownMenuItem>
               )}
-              {family.members[0]?.stripeCustomerIdDugsi && (
+              {firstMember.stripeCustomerIdDugsi && (
                 <DropdownMenuItem onClick={handleViewInStripe}>
                   <ExternalLink className="mr-2 h-4 w-4" />
                   View in Stripe

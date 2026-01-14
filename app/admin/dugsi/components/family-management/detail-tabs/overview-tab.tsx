@@ -21,6 +21,114 @@ interface OverviewTabProps {
   onAddChild: () => void
 }
 
+interface ParentContactProps {
+  parentNumber: 1 | 2
+  name: string
+  email: string | null
+  phone: string | null
+  isPrimaryPayer: boolean
+  showSetAsPayer: boolean
+  isSettingPayer: boolean
+  onSetAsPayer: () => void
+  onEdit: () => void
+  onCopy: (text: string, label: string) => void
+}
+
+function ParentContact({
+  parentNumber,
+  name,
+  email,
+  phone,
+  isPrimaryPayer,
+  showSetAsPayer,
+  isSettingPayer,
+  onSetAsPayer,
+  onEdit,
+  onCopy,
+}: ParentContactProps) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            {parentNumber}
+          </div>
+          <span className="font-medium">{name}</span>
+          {isPrimaryPayer && (
+            <Badge variant="outline" className="text-xs">
+              <Wallet className="mr-1 h-3 w-3" />
+              Primary Payer
+            </Badge>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {showSetAsPayer && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onSetAsPayer}
+              disabled={isSettingPayer}
+              className="h-7 px-2 text-xs"
+            >
+              Set as Payer
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onEdit}
+            className="h-7 px-2"
+          >
+            <Edit className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+      {email && (
+        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+          <Mail className="h-3.5 w-3.5 shrink-0" />
+          <a
+            href={`mailto:${email}`}
+            className="truncate hover:text-[#007078] hover:underline"
+          >
+            {email}
+          </a>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0"
+            onClick={() => onCopy(email, 'Email address')}
+            aria-label="Copy email address"
+          >
+            <Copy className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+      {phone && (
+        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+          <Phone className="h-3.5 w-3.5 shrink-0" />
+          <a
+            href={`https://wa.me/${phone.replace(/\D/g, '')}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#007078] hover:underline"
+          >
+            {phone}
+          </a>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0"
+            onClick={() => onCopy(phone, 'Phone number')}
+            aria-label="Copy phone number"
+          >
+            <Copy className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function OverviewTab({
   family,
   firstMember,
@@ -31,252 +139,82 @@ export function OverviewTab({
   const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
     useActionHandler(setPrimaryPayer)
 
-  const copyToClipboardAsync = async (text: string, label: string) => {
+  const copyToClipboard = async (text: string, label: string) => {
     try {
       await navigator.clipboard.writeText(text)
       toast.success(`${label} copied to clipboard`)
     } catch (error) {
-      const message =
+      toast.error(
         error instanceof Error && error.name === 'NotAllowedError'
           ? 'Clipboard access denied. Check browser permissions.'
           : 'Failed to copy to clipboard'
-      toast.error(message)
+      )
     }
   }
 
   const handleSetPrimaryPayer = (parentNumber: 1 | 2) => {
-    executeSetPrimaryPayer({
-      studentId: firstMember.id,
-      parentNumber,
-    })
+    executeSetPrimaryPayer({ studentId: firstMember.id, parentNumber })
   }
+
+  const hasParent2 = hasSecondParent(firstMember)
 
   return (
     <div className="space-y-5">
-      {/* Contact Information */}
       <div className="space-y-4 rounded-lg border bg-card p-5">
         <h3 className="text-base font-semibold">Contact Information</h3>
         <div className="space-y-4 pt-1">
-          {/* Parent 1 */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                  1
-                </div>
-                <span className="font-medium">
-                  {formatParentName(
-                    firstMember.parentFirstName,
-                    firstMember.parentLastName
-                  )}
-                </span>
-                {firstMember.primaryPayerParentNumber === 1 && (
-                  <Badge variant="outline" className="text-xs">
-                    <Wallet className="mr-1 h-3 w-3" />
-                    Primary Payer
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                {firstMember.primaryPayerParentNumber !== 1 &&
-                  hasSecondParent(firstMember) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSetPrimaryPayer(1)}
-                      disabled={isSettingPrimaryPayer}
-                      className="h-7 px-2 text-xs"
-                    >
-                      Set as Payer
-                    </Button>
-                  )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEditParent(1, false)}
-                  className="h-7 px-2"
-                >
-                  <Edit className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-            {firstMember.parentEmail && (
-              <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="h-3.5 w-3.5 shrink-0" />
-                <a
-                  href={`mailto:${firstMember.parentEmail}`}
-                  className="truncate hover:text-[#007078] hover:underline"
-                >
-                  {firstMember.parentEmail}
-                </a>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 shrink-0"
-                  onClick={() =>
-                    firstMember.parentEmail &&
-                    copyToClipboardAsync(
-                      firstMember.parentEmail,
-                      'Email address'
-                    )
-                  }
-                  aria-label="Copy email address"
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
+          <ParentContact
+            parentNumber={1}
+            name={formatParentName(
+              firstMember.parentFirstName,
+              firstMember.parentLastName
             )}
-            {firstMember.parentPhone && (
-              <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone className="h-3.5 w-3.5 shrink-0" />
-                <a
-                  href={`https://wa.me/${firstMember.parentPhone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-[#007078] hover:underline"
-                >
-                  {firstMember.parentPhone}
-                </a>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 shrink-0"
-                  onClick={() =>
-                    firstMember.parentPhone &&
-                    copyToClipboardAsync(
-                      firstMember.parentPhone,
-                      'Phone number'
-                    )
-                  }
-                  aria-label="Copy phone number"
-                >
-                  <Copy className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-          </div>
+            email={firstMember.parentEmail}
+            phone={firstMember.parentPhone}
+            isPrimaryPayer={firstMember.primaryPayerParentNumber === 1}
+            showSetAsPayer={
+              firstMember.primaryPayerParentNumber !== 1 && hasParent2
+            }
+            isSettingPayer={isSettingPrimaryPayer}
+            onSetAsPayer={() => handleSetPrimaryPayer(1)}
+            onEdit={() => onEditParent(1, false)}
+            onCopy={copyToClipboard}
+          />
 
-          {/* Parent 2 */}
-          {hasSecondParent(firstMember) ? (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                      2
-                    </div>
-                    <span className="font-medium">
-                      {formatParentName(
-                        firstMember.parent2FirstName,
-                        firstMember.parent2LastName
-                      )}
-                    </span>
-                    {firstMember.primaryPayerParentNumber === 2 && (
-                      <Badge variant="outline" className="text-xs">
-                        <Wallet className="mr-1 h-3 w-3" />
-                        Primary Payer
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {firstMember.primaryPayerParentNumber !== 2 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSetPrimaryPayer(2)}
-                        disabled={isSettingPrimaryPayer}
-                        className="h-7 px-2 text-xs"
-                      >
-                        Set as Payer
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onEditParent(2, false)}
-                      className="h-7 px-2"
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                {firstMember.parent2Email && (
-                  <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                    <Mail className="h-3.5 w-3.5 shrink-0" />
-                    <a
-                      href={`mailto:${firstMember.parent2Email}`}
-                      className="truncate hover:text-[#007078] hover:underline"
-                    >
-                      {firstMember.parent2Email}
-                    </a>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      onClick={() =>
-                        firstMember.parent2Email &&
-                        copyToClipboardAsync(
-                          firstMember.parent2Email,
-                          'Email address'
-                        )
-                      }
-                      aria-label="Copy email address"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-                {firstMember.parent2Phone && (
-                  <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                    <Phone className="h-3.5 w-3.5 shrink-0" />
-                    <a
-                      href={`https://wa.me/${firstMember.parent2Phone.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-[#007078] hover:underline"
-                    >
-                      {firstMember.parent2Phone}
-                    </a>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 shrink-0"
-                      onClick={() =>
-                        firstMember.parent2Phone &&
-                        copyToClipboardAsync(
-                          firstMember.parent2Phone,
-                          'Phone number'
-                        )
-                      }
-                      aria-label="Copy phone number"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </>
+          <Separator />
+
+          {hasParent2 ? (
+            <ParentContact
+              parentNumber={2}
+              name={formatParentName(
+                firstMember.parent2FirstName,
+                firstMember.parent2LastName
+              )}
+              email={firstMember.parent2Email}
+              phone={firstMember.parent2Phone}
+              isPrimaryPayer={firstMember.primaryPayerParentNumber === 2}
+              showSetAsPayer={firstMember.primaryPayerParentNumber !== 2}
+              isSettingPayer={isSettingPrimaryPayer}
+              onSetAsPayer={() => handleSetPrimaryPayer(2)}
+              onEdit={() => onEditParent(2, false)}
+              onCopy={copyToClipboard}
+            />
           ) : (
-            <>
-              <Separator />
-              <div className="flex items-center justify-center pt-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEditParent(2, true)}
-                  className="h-8 px-3"
-                >
-                  <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                  Add Parent 2
-                </Button>
-              </div>
-            </>
+            <div className="flex items-center justify-center pt-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEditParent(2, true)}
+                className="h-8 px-3"
+              >
+                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                Add Parent 2
+              </Button>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Kids Details */}
       <div className="space-y-4 rounded-lg border bg-card p-5">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold">

@@ -94,49 +94,28 @@ export function HistoryTab({ family }: HistoryTabProps) {
 
   const timeline = buildTimeline()
 
-  const getEventColor = (type: TimelineEvent['type']) => {
-    switch (type) {
-      case 'registration':
-        return 'bg-blue-500'
-      case 'subscription':
-        return 'bg-green-500'
-      case 'churned':
-        return 'bg-gray-500'
-      case 'payment':
-        return 'bg-emerald-500'
-      default:
-        return 'bg-gray-400'
-    }
-  }
-
-  const getEventBadge = (type: TimelineEvent['type']) => {
-    switch (type) {
-      case 'registration':
-        return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700">
-            Registration
-          </Badge>
-        )
-      case 'subscription':
-        return (
-          <Badge variant="outline" className="bg-green-50 text-green-700">
-            Subscription
-          </Badge>
-        )
-      case 'churned':
-        return (
-          <Badge variant="outline" className="bg-gray-100 text-gray-700">
-            Churned
-          </Badge>
-        )
-      case 'payment':
-        return (
-          <Badge variant="outline" className="bg-emerald-50 text-emerald-700">
-            Payment
-          </Badge>
-        )
-    }
-  }
+  const eventConfig = {
+    registration: {
+      color: 'bg-blue-500',
+      label: 'Registration',
+      badgeClass: 'bg-blue-50 text-blue-700',
+    },
+    subscription: {
+      color: 'bg-green-500',
+      label: 'Subscription',
+      badgeClass: 'bg-green-50 text-green-700',
+    },
+    churned: {
+      color: 'bg-gray-500',
+      label: 'Churned',
+      badgeClass: 'bg-gray-100 text-gray-700',
+    },
+    payment: {
+      color: 'bg-emerald-500',
+      label: 'Payment',
+      badgeClass: 'bg-emerald-50 text-emerald-700',
+    },
+  } as const
 
   return (
     <div className="space-y-5">
@@ -217,14 +196,19 @@ export function HistoryTab({ family }: HistoryTabProps) {
                   <div className="absolute left-[11px] top-6 h-full w-0.5 bg-border" />
                 )}
                 <div
-                  className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${getEventColor(event.type)}`}
+                  className={`relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-white ${eventConfig[event.type].color}`}
                 >
                   {event.icon}
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-medium">{event.title}</p>
-                    {getEventBadge(event.type)}
+                    <Badge
+                      variant="outline"
+                      className={eventConfig[event.type].badgeClass}
+                    >
+                      {eventConfig[event.type].label}
+                    </Badge>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {event.description}

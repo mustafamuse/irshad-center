@@ -94,39 +94,23 @@ export function BillingTab({ family }: BillingTabProps) {
     }).format(new Date(date))
   }
 
-  const getStatusIcon = (status: StripePaymentHistoryItem['status']) => {
-    switch (status) {
-      case 'succeeded':
-        return <CheckCircle2 className="h-4 w-4 text-green-500" />
-      case 'pending':
-        return <Clock className="h-4 w-4 text-amber-500" />
-      case 'failed':
-        return <XCircle className="h-4 w-4 text-red-500" />
-    }
-  }
-
-  const getStatusBadge = (status: StripePaymentHistoryItem['status']) => {
-    switch (status) {
-      case 'succeeded':
-        return (
-          <Badge variant="outline" className="bg-green-50 text-green-700">
-            Paid
-          </Badge>
-        )
-      case 'pending':
-        return (
-          <Badge variant="outline" className="bg-amber-50 text-amber-700">
-            Pending
-          </Badge>
-        )
-      case 'failed':
-        return (
-          <Badge variant="outline" className="bg-red-50 text-red-700">
-            Failed
-          </Badge>
-        )
-    }
-  }
+  const statusConfig = {
+    succeeded: {
+      icon: <CheckCircle2 className="h-4 w-4 text-green-500" />,
+      label: 'Paid',
+      className: 'bg-green-50 text-green-700',
+    },
+    pending: {
+      icon: <Clock className="h-4 w-4 text-amber-500" />,
+      label: 'Pending',
+      className: 'bg-amber-50 text-amber-700',
+    },
+    failed: {
+      icon: <XCircle className="h-4 w-4 text-red-500" />,
+      label: 'Failed',
+      className: 'bg-red-50 text-red-700',
+    },
+  } as const
 
   return (
     <div className="space-y-5">
@@ -296,7 +280,7 @@ export function BillingTab({ family }: BillingTabProps) {
                 className="flex items-center justify-between rounded-lg border p-3"
               >
                 <div className="flex items-center gap-3">
-                  {getStatusIcon(payment.status)}
+                  {statusConfig[payment.status].icon}
                   <div>
                     <p className="text-sm font-medium">
                       {formatCurrency(payment.amount)}
@@ -307,7 +291,12 @@ export function BillingTab({ family }: BillingTabProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {getStatusBadge(payment.status)}
+                  <Badge
+                    variant="outline"
+                    className={statusConfig[payment.status].className}
+                  >
+                    {statusConfig[payment.status].label}
+                  </Badge>
                   {payment.invoiceUrl && (
                     <Button
                       variant="ghost"
