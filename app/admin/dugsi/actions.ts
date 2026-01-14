@@ -647,6 +647,10 @@ export async function generateFamilyPaymentLinkAction(
   }
 }
 
+const BulkPaymentLinksSchema = z.object({
+  familyIds: z.array(z.string()).min(1, 'At least one family must be selected'),
+})
+
 /**
  * Bulk generate payment links for multiple families.
  * Used for batch operations from the dashboard.
@@ -669,6 +673,14 @@ export async function bulkGeneratePaymentLinksAction(params: {
     }>
   }>
 > {
+  const validation = BulkPaymentLinksSchema.safeParse(params)
+  if (!validation.success) {
+    return {
+      success: false,
+      error: validation.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
   const links: Array<{
     familyId: string
     familyName: string
@@ -682,7 +694,7 @@ export async function bulkGeneratePaymentLinksAction(params: {
     error: string
   }> = []
 
-  for (const familyId of params.familyIds) {
+  for (const familyId of validation.data.familyIds) {
     try {
       const result = await generateFamilyPaymentLinkAction({ familyId })
 
@@ -702,6 +714,14 @@ export async function bulkGeneratePaymentLinksAction(params: {
         })
       }
     } catch (error) {
+      await logError(
+        logger,
+        error,
+        'Failed to generate payment link in bulk operation',
+        {
+          familyId,
+        }
+      )
       failed.push({
         familyId,
         familyName: familyId,
@@ -720,6 +740,12 @@ export async function bulkGeneratePaymentLinksAction(params: {
   return { success: true, data: { links, failed } }
 }
 
+const PaymentHistorySchema = z.object({
+  customerId: z
+    .string()
+    .startsWith('cus_', 'Invalid Stripe customer ID format'),
+})
+
 /**
  * Fetch payment history from Stripe for a family.
  * Returns list of invoices with their payment status.
@@ -727,10 +753,11 @@ export async function bulkGeneratePaymentLinksAction(params: {
 export async function getFamilyPaymentHistory(
   customerId: string
 ): Promise<ActionResult<StripePaymentHistoryItem[]>> {
-  if (!customerId) {
+  const validation = PaymentHistorySchema.safeParse({ customerId })
+  if (!validation.success) {
     return {
       success: false,
-      error: 'No Stripe customer ID provided',
+      error: validation.error.errors[0]?.message || 'Invalid customer ID',
     }
   }
 

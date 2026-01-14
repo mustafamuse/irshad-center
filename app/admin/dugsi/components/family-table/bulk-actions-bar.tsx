@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 
+import * as Sentry from '@sentry/nextjs'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link2, Loader2, X, CheckCircle2, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
@@ -76,6 +77,13 @@ export function BulkActionsBar({ selectedFamilies }: BulkActionsBarProps) {
         })
       }
     } catch (error) {
+      Sentry.captureException(error, {
+        tags: {
+          component: 'BulkActionsBar',
+          operation: 'bulkGeneratePaymentLinks',
+        },
+        extra: { familyCount: eligibleFamilies.length },
+      })
       toast.error('Failed to generate payment links', {
         description:
           error instanceof Error ? error.message : 'An error occurred',

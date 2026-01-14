@@ -3,6 +3,7 @@
 import { useState } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import * as Sentry from '@sentry/nextjs'
 import {
   AlertTriangle,
   CheckCircle,
@@ -101,7 +102,13 @@ export function ConsolidateSubscriptionDialog({
       } else {
         toast.error(result.error || 'Failed to validate subscription')
       }
-    } catch {
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: {
+          component: 'ConsolidateSubscriptionDialog',
+          operation: 'validateSubscription',
+        },
+      })
       toast.error('Failed to validate subscription')
     } finally {
       setIsValidating(false)

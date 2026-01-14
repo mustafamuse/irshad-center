@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
+import * as Sentry from '@sentry/nextjs'
 import { AlertTriangle, Link2, Loader2, Send } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -166,7 +167,10 @@ export function PaymentLinkDialog({
       } else {
         toast.error(response.error || 'Failed to send WhatsApp message')
       }
-    } catch {
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: { component: 'PaymentLinkDialog', operation: 'sendViaWhatsApp' },
+      })
       toast.error('Failed to send WhatsApp message')
     } finally {
       setIsSendingWhatsApp(false)
