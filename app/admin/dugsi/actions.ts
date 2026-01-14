@@ -6,7 +6,6 @@ import { GradeLevel, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
-import { prisma } from '@/lib/db'
 import {
   getClassesWithDetails,
   getAllTeachersForAssignment,
@@ -43,6 +42,7 @@ import {
   updateChildInfo as updateChildInfoService,
   addChildToFamily as addChildToFamilyService,
   setPrimaryPayer as setPrimaryPayerService,
+  updateFamilyShift as updateFamilyShiftService,
   // Payment service
   verifyBankAccount,
   getPaymentStatus,
@@ -56,6 +56,7 @@ import {
 } from '@/lib/services/dugsi'
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
+import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import {
   UpdateFamilyShiftSchema,
@@ -93,6 +94,7 @@ import {
   Family,
   ClassWithDetails,
   StudentForEnrollment,
+  StripePaymentHistoryItem,
 } from './_types'
 
 const logger = createServiceLogger('dugsi-admin-actions')
@@ -486,14 +488,9 @@ export async function updateFamilyShift(
   try {
     const validated = UpdateFamilyShiftSchema.parse(params)
 
-    await prisma.programProfile.updateMany({
-      where: {
-        program: DUGSI_PROGRAM,
-        familyReferenceId: validated.familyReferenceId,
-      },
-      data: {
-        shift: validated.shift,
-      },
+    await updateFamilyShiftService({
+      familyReferenceId: validated.familyReferenceId,
+      shift: validated.shift,
     })
 
     revalidatePath('/admin/dugsi', 'layout')
@@ -641,6 +638,179 @@ export async function generateFamilyPaymentLinkAction(
         error instanceof Error
           ? error.message
           : 'Failed to generate payment link',
+    }
+  }
+}
+
+const BulkPaymentLinksSchema = z.object({
+  familyIds: z.array(z.string()).min(1, 'At least one family must be selected'),
+})
+
+/**
+ * Bulk generate payment links for multiple families.
+ * Used for batch operations from the dashboard.
+ */
+export async function bulkGeneratePaymentLinksAction(params: {
+  familyIds: string[]
+}): Promise<
+  ActionResult<{
+    links: Array<{
+      familyId: string
+      familyName: string
+      paymentUrl: string
+      childCount: number
+      rate: number
+    }>
+    failed: Array<{
+      familyId: string
+      familyName: string
+      error: string
+    }>
+  }>
+> {
+  const validation = BulkPaymentLinksSchema.safeParse(params)
+  if (!validation.success) {
+    const errorMessages = validation.error.errors.map((e) => e.message)
+    return {
+      success: false,
+      error:
+        errorMessages.length > 1
+          ? `Validation errors: ${errorMessages.join('; ')}`
+          : errorMessages[0] || 'Invalid input',
+    }
+  }
+
+  const links: Array<{
+    familyId: string
+    familyName: string
+    paymentUrl: string
+    childCount: number
+    rate: number
+  }> = []
+  const failed: Array<{
+    familyId: string
+    familyName: string
+    error: string
+  }> = []
+
+  const BATCH_SIZE = 5
+  const familyIds = validation.data.familyIds
+
+  for (let i = 0; i < familyIds.length; i += BATCH_SIZE) {
+    const batch = familyIds.slice(i, i + BATCH_SIZE)
+
+    const results = await Promise.allSettled(
+      batch.map((familyId) => generateFamilyPaymentLinkAction({ familyId }))
+    )
+
+    for (let j = 0; j < results.length; j++) {
+      const familyId = batch[j]
+      const result = results[j]
+
+      if (result.status === 'fulfilled') {
+        const { value } = result
+        if (value.success && value.data) {
+          links.push({
+            familyId,
+            familyName: value.data.familyName,
+            paymentUrl: value.data.paymentUrl,
+            childCount: value.data.childCount,
+            rate: value.data.finalRate,
+          })
+        } else {
+          failed.push({
+            familyId,
+            familyName: familyId,
+            error: value.error || 'Unknown error',
+          })
+        }
+      } else {
+        const error = result.reason
+        await logError(
+          logger,
+          error,
+          'Failed to generate payment link in bulk operation',
+          { familyId }
+        )
+        failed.push({
+          familyId,
+          familyName: familyId,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      }
+    }
+  }
+
+  if (links.length === 0 && failed.length > 0) {
+    return {
+      success: false,
+      error: `Failed to generate payment links for ${failed.length} ${failed.length === 1 ? 'family' : 'families'}`,
+    }
+  }
+
+  return { success: true, data: { links, failed } }
+}
+
+const PaymentHistorySchema = z.object({
+  customerId: z
+    .string()
+    .startsWith('cus_', 'Invalid Stripe customer ID format'),
+})
+
+/**
+ * Fetch payment history from Stripe for a family.
+ * Returns list of invoices with their payment status.
+ */
+export async function getFamilyPaymentHistory(
+  customerId: string
+): Promise<ActionResult<StripePaymentHistoryItem[]>> {
+  const validation = PaymentHistorySchema.safeParse({ customerId })
+  if (!validation.success) {
+    return {
+      success: false,
+      error: validation.error.errors[0]?.message || 'Invalid customer ID',
+    }
+  }
+
+  try {
+    const stripe = getDugsiStripeClient()
+
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit: 50,
+    })
+
+    const history: StripePaymentHistoryItem[] = invoices.data
+      .filter(
+        (invoice): invoice is typeof invoice & { id: string } => !!invoice.id
+      )
+      .map((invoice) => ({
+        id: invoice.id,
+        date: new Date(invoice.created * 1000),
+        amount: invoice.total ?? invoice.amount_paid,
+        status:
+          invoice.status === 'paid'
+            ? 'succeeded'
+            : invoice.status === 'open'
+              ? 'pending'
+              : 'failed',
+        description:
+          invoice.description ||
+          `Invoice for ${invoice.lines.data[0]?.description || 'subscription'}`,
+        invoiceUrl: invoice.hosted_invoice_url ?? null,
+      }))
+
+    return { success: true, data: history }
+  } catch (error) {
+    await logError(logger, error, 'Failed to fetch payment history', {
+      customerId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch payment history',
     }
   }
 }

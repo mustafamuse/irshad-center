@@ -1,19 +1,14 @@
-/**
- * Searchable command palette for quick actions
- */
 'use client'
 
 import { useEffect, useState } from 'react'
 
 import {
-  LayoutGrid,
-  Table2,
-  TrendingUp,
   CheckCircle2,
   RotateCcw,
   AlertCircle,
   Users,
   Download,
+  DollarSign,
 } from 'lucide-react'
 
 import {
@@ -40,10 +35,9 @@ export function CommandPalette({
   onOpenChange,
   onExport,
 }: CommandPaletteProps) {
-  const { setViewMode, setActiveTab } = useLegacyActions()
+  const { setActiveTab } = useLegacyActions()
   const [search, setSearch] = useState('')
 
-  // Reset search when dialog closes
   useEffect(() => {
     if (!open) {
       setSearch('')
@@ -65,43 +59,14 @@ export function CommandPalette({
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
 
-        <CommandGroup heading="View">
-          <CommandItem
-            onSelect={() => runCommand(() => setViewMode('grid'))}
-            keywords={['parents', 'grid', 'cards', 'families']}
-          >
-            <LayoutGrid className="mr-2 h-4 w-4" />
-            <span>Parents</span>
-            <CommandShortcut>G</CommandShortcut>
-          </CommandItem>
-          <CommandItem
-            onSelect={() => runCommand(() => setViewMode('table'))}
-            keywords={['students', 'table', 'list', 'registrations']}
-          >
-            <Table2 className="mr-2 h-4 w-4" />
-            <span>Students</span>
-            <CommandShortcut>T</CommandShortcut>
-          </CommandItem>
-        </CommandGroup>
-
-        <CommandSeparator />
-
         <CommandGroup heading="Navigate">
-          <CommandItem
-            onSelect={() => runCommand(() => setActiveTab('overview'))}
-            keywords={['overview', 'stats', 'dashboard']}
-          >
-            <TrendingUp className="mr-2 h-4 w-4" />
-            <span>Overview</span>
-            <CommandShortcut>1</CommandShortcut>
-          </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => setActiveTab('active'))}
             keywords={['active', 'subscriptions']}
           >
             <CheckCircle2 className="mr-2 h-4 w-4" />
             <span>Active Families</span>
-            <CommandShortcut>2</CommandShortcut>
+            <CommandShortcut>1</CommandShortcut>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => setActiveTab('churned'))}
@@ -109,14 +74,22 @@ export function CommandPalette({
           >
             <RotateCcw className="mr-2 h-4 w-4" />
             <span>Churned Families</span>
-            <CommandShortcut>3</CommandShortcut>
+            <CommandShortcut>2</CommandShortcut>
           </CommandItem>
           <CommandItem
             onSelect={() => runCommand(() => setActiveTab('needs-attention'))}
-            keywords={['attention', 'action', 'needs']}
+            keywords={['attention', 'action', 'needs', 'no payment']}
           >
             <AlertCircle className="mr-2 h-4 w-4" />
             <span>Needs Attention</span>
+            <CommandShortcut>3</CommandShortcut>
+          </CommandItem>
+          <CommandItem
+            onSelect={() => runCommand(() => setActiveTab('billing-mismatch'))}
+            keywords={['billing', 'mismatch', 'variance']}
+          >
+            <DollarSign className="mr-2 h-4 w-4" />
+            <span>Billing Mismatch</span>
             <CommandShortcut>4</CommandShortcut>
           </CommandItem>
           <CommandItem

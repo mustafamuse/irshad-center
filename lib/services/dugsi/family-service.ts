@@ -11,13 +11,14 @@
  * - Add child to family
  */
 
-import { GradeLevel, Prisma } from '@prisma/client'
+import { GradeLevel, Prisma, Shift } from '@prisma/client'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   getProgramProfileById,
   findPersonByContact,
+  updateFamilyShift as updateFamilyShiftQuery,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
@@ -605,4 +606,40 @@ export async function setPrimaryPayer(
   })
 
   return { updated: result }
+}
+
+/**
+ * Update shift input
+ */
+export interface UpdateShiftInput {
+  familyReferenceId: string
+  shift: Shift
+}
+
+/**
+ * Update shift for all children in a family.
+ *
+ * @param input - Shift update data
+ * @returns Count of updated profiles
+ * @throws ActionError if family not found
+ */
+export async function updateFamilyShift(
+  input: UpdateShiftInput
+): Promise<{ updated: number }> {
+  const result = await updateFamilyShiftQuery(
+    input.familyReferenceId,
+    input.shift,
+    DUGSI_PROGRAM
+  )
+
+  if (result.count === 0) {
+    throw new ActionError(
+      'No family members found to update',
+      ERROR_CODES.FAMILY_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
+  return { updated: result.count }
 }

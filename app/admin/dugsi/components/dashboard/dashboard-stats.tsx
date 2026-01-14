@@ -1,6 +1,4 @@
-/**
- * Dashboard Stats Component
- */
+'use client'
 
 import {
   AlertCircle,
@@ -14,15 +12,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-import { DugsiRegistration } from '../../_types'
+import { DugsiRegistration, TabValue } from '../../_types'
 import { getBillingStatus } from '../../_utils/billing'
 import { groupRegistrationsByFamily } from '../../_utils/family'
 
 interface DugsiStatsProps {
   registrations: DugsiRegistration[]
+  onStatClick?: (tab: TabValue) => void
 }
 
-export function DugsiStats({ registrations }: DugsiStatsProps) {
+export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
   const families = groupRegistrationsByFamily(registrations)
 
   const totalFamilies = families.length
@@ -72,38 +71,46 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
 
   const variance = revenueStats.actual - revenueStats.expected
 
-  function getVarianceColors() {
-    if (variance === 0)
-      return {
-        bar: 'bg-gray-200',
-        bg: 'bg-gray-100',
-        text: 'text-muted-foreground',
-        value: '',
-      }
-    if (variance < 0)
-      return {
-        bar: 'bg-red-500',
-        bg: 'bg-red-100',
-        text: 'text-red-600',
-        value: 'text-red-600',
-      }
-    return {
-      bar: 'bg-green-500',
-      bg: 'bg-green-100',
-      text: 'text-green-600',
-      value: 'text-green-600',
-    }
-  }
-  const varianceColors = getVarianceColors()
+  const varianceColors =
+    variance === 0
+      ? {
+          bar: 'bg-gray-200',
+          bg: 'bg-gray-100',
+          text: 'text-muted-foreground',
+          value: '',
+        }
+      : variance < 0
+        ? {
+            bar: 'bg-red-500',
+            bg: 'bg-red-100',
+            text: 'text-red-600',
+            value: 'text-red-600',
+          }
+        : {
+            bar: 'bg-green-500',
+            bg: 'bg-green-100',
+            text: 'text-green-600',
+            value: 'text-green-600',
+          }
+
+  const cardClickStyles = onStatClick
+    ? 'cursor-pointer hover:ring-2 hover:ring-primary/20'
+    : ''
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
-        <div className="h-1 bg-[#007078]" />
+    <div className="mx-auto grid max-w-screen-2xl gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          cardClickStyles
+        )}
+        onClick={() => onStatClick?.('all')}
+      >
+        <div className="h-1 bg-teal-700" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Families</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
-            <Users className="h-4 w-4 text-[#007078]" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700/10">
+            <Users className="h-4 w-4 text-teal-700" />
           </div>
         </CardHeader>
         <CardContent>
@@ -116,7 +123,13 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          cardClickStyles
+        )}
+        onClick={() => onStatClick?.('active')}
+      >
         <div className="h-1 bg-green-500" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">
@@ -139,8 +152,10 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
       <Card
         className={cn(
           'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          noPaymentFamilies > 0 && 'ring-2 ring-amber-200'
+          noPaymentFamilies > 0 && 'ring-2 ring-amber-200',
+          cardClickStyles
         )}
+        onClick={() => onStatClick?.('needs-attention')}
       >
         <div
           className={cn(
@@ -182,8 +197,10 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
       <Card
         className={cn(
           'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          churnedFamilies > 0 && 'ring-2 ring-gray-300'
+          churnedFamilies > 0 && 'ring-2 ring-gray-300',
+          cardClickStyles
         )}
+        onClick={() => onStatClick?.('churned')}
       >
         <div
           className={cn(
@@ -233,7 +250,15 @@ export function DugsiStats({ registrations }: DugsiStatsProps) {
         </CardContent>
       </Card>
 
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
+      <Card
+        className={cn(
+          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
+          revenueStats.mismatchCount > 0 && cardClickStyles
+        )}
+        onClick={() =>
+          revenueStats.mismatchCount > 0 && onStatClick?.('billing-mismatch')
+        }
+      >
         <div className={cn('h-1', varianceColors.bar)} />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">

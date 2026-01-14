@@ -1,41 +1,38 @@
-/**
- * Family Detail Sheet Component
- *
- * Full-screen sheet displaying comprehensive family information including
- * status, contact details, children, payment information, and actions.
- *
- * Shared by both FamilyGridView and FamilyTableView.
- */
-
 'use client'
 
-import { useState } from 'react'
+import { useRef } from 'react'
 
+import { Shift } from '@prisma/client'
 import {
   CreditCard,
   ExternalLink,
   Send,
   Mail,
-  Phone,
-  Copy,
   ShieldCheck,
-  Edit,
-  UserPlus,
-  Wallet,
-  Trash2,
   Loader2,
   Link,
+  Trash2,
+  User,
+  Receipt,
+  Clock,
+  MoreHorizontal,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Separator } from '@/components/ui/separator'
 import {
   Sheet,
   SheetContent,
@@ -43,27 +40,29 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { SHIFT_BADGES, SHIFT_COLORS } from '@/lib/constants/dugsi'
 
+import { OverviewTab, BillingTab, HistoryTab } from './detail-tabs'
 import { FamilyStatusBadge } from './family-status-badge'
 import { useActionHandler } from '../../_hooks/use-action-handler'
+import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, hasSecondParent } from '../../_utils/format'
-import { setPrimaryPayer, updateFamilyShift } from '../../actions'
+import { updateFamilyShift } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { ConsolidateSubscriptionDialog } from '../dialogs/consolidate-subscription-dialog'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
-import { ChildInfoCard } from '../ui/child-info-card'
 
 interface FamilyDetailSheetProps {
   family: Family | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onFamilyUpdate?: (shift: 'MORNING' | 'AFTERNOON') => void
+  onFamilyUpdate?: (shift: Shift) => void
   onVerifyBankAccount?: (paymentIntentId: string, parentEmail: string) => void
 }
 
@@ -74,49 +73,26 @@ export function FamilyDetailSheet({
   onFamilyUpdate,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
-  const [editParentDialog, setEditParentDialog] = useState<{
-    open: boolean
-    parentNumber: 1 | 2
-    isAdding: boolean
-  }>({
-    open: false,
-    parentNumber: 1,
-    isAdding: false,
-  })
-
-  const [editChildDialog, setEditChildDialog] = useState<{
-    open: boolean
-    studentId: string | null
-  }>({
-    open: false,
-    studentId: null,
-  })
-
-  const [addChildDialog, setAddChildDialog] = useState(false)
-  const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
-  const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
-  const [consolidateSubscriptionDialog, setConsolidateSubscriptionDialog] =
-    useState(false)
-  const [isShiftPopoverOpen, setIsShiftPopoverOpen] = useState(false)
-  const [pendingShift, setPendingShift] = useState<
-    'MORNING' | 'AFTERNOON' | null
-  >(null)
-
-  const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
-    useActionHandler(setPrimaryPayer)
+  const { state, actions } = useSheetState()
+  const pendingShiftRef = useRef<{
+    newShift: Shift
+    previousShift: Shift | null
+  } | null>(null)
 
   const { execute: executeUpdateFamilyShift, isPending: isUpdatingShift } =
     useActionHandler(updateFamilyShift, {
       successMessage: 'Family shift updated successfully!',
       onSuccess: () => {
-        if (pendingShift) {
-          setIsShiftPopoverOpen(false)
-          onFamilyUpdate?.(pendingShift)
-          setPendingShift(null)
-        }
+        actions.setShiftPopover(false)
+        actions.setPendingShift(null)
+        pendingShiftRef.current = null
       },
       onError: () => {
-        setPendingShift(null)
+        if (pendingShiftRef.current?.previousShift) {
+          onFamilyUpdate?.(pendingShiftRef.current.previousShift)
+        }
+        actions.setPendingShift(null)
+        pendingShiftRef.current = null
       },
     })
 
@@ -125,60 +101,18 @@ export function FamilyDetailSheet({
   const firstMember = family.members[0]
   if (!firstMember) return null
 
-  const handleVerifyBank = () => {
-    const paymentIntentId = family.members[0]?.paymentIntentIdDugsi
-    const parentEmail = family.parentEmail
-
-    if (paymentIntentId && parentEmail && onVerifyBankAccount) {
-      onVerifyBankAccount(paymentIntentId, parentEmail)
-    }
-  }
-
   const handleViewInStripe = () => {
-    const customerId = family.members[0]?.stripeCustomerIdDugsi
+    const customerId = firstMember.stripeCustomerIdDugsi
     if (customerId) {
-      const stripeUrl = `https://dashboard.stripe.com/customers/${customerId}`
-      window.open(stripeUrl, '_blank', 'noopener,noreferrer')
+      window.open(
+        `https://dashboard.stripe.com/customers/${customerId}`,
+        '_blank',
+        'noopener,noreferrer'
+      )
     }
   }
 
-  const handleSendPaymentLink = () => {
-    setPaymentLinkDialog(true)
-  }
-
-  const copyToClipboardAsync = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      toast.success(`${label} copied to clipboard`)
-    } catch (err) {
-      toast.error('Failed to copy to clipboard')
-    }
-  }
-
-  const handleEditParent1 = () => {
-    setEditParentDialog({ open: true, parentNumber: 1, isAdding: false })
-  }
-
-  const handleEditParent2 = () => {
-    setEditParentDialog({ open: true, parentNumber: 2, isAdding: false })
-  }
-
-  const handleAddSecondParent = () => {
-    setEditParentDialog({ open: true, parentNumber: 2, isAdding: true })
-  }
-
-  const handleSetPrimaryPayer = (parentNumber: 1 | 2) => {
-    executeSetPrimaryPayer({
-      studentId: firstMember.id,
-      parentNumber,
-    })
-  }
-
-  const handleEditChild = (studentId: string) => {
-    setEditChildDialog({ open: true, studentId })
-  }
-
-  const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
+  const handleShiftChange = async (shift: Shift) => {
     if (isUpdatingShift) {
       toast.warning('Please wait for the current shift update to complete')
       return
@@ -189,7 +123,12 @@ export function FamilyDetailSheet({
       return
     }
 
-    setPendingShift(shift)
+    const previousShift = firstMember.shift
+    const shiftData = { newShift: shift, previousShift }
+    pendingShiftRef.current = shiftData
+    actions.setPendingShift(shiftData)
+    onFamilyUpdate?.(shift)
+
     await executeUpdateFamilyShift({
       familyReferenceId: firstMember.familyReferenceId,
       shift,
@@ -197,10 +136,9 @@ export function FamilyDetailSheet({
   }
 
   const currentEditChild = family.members.find(
-    (m) => m.id === editChildDialog.studentId
+    (m) => m.id === state.editChildDialog.studentId
   )
 
-  // Format sheet title with both parents if second parent exists
   const getSheetTitle = () => {
     const firstParentName = formatParentName(
       family.members[0]?.parentFirstName,
@@ -220,11 +158,10 @@ export function FamilyDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
+      <SheetContent className="flex w-full flex-col overflow-hidden sm:max-w-xl">
         <SheetHeader className="border-b pb-4">
           <SheetTitle>{getSheetTitle()}</SheetTitle>
           <SheetDescription>Family details and information</SheetDescription>
-          {/* Family Status Badges */}
           <div className="flex flex-wrap items-center gap-1.5 pt-2">
             <FamilyStatusBadge status={getFamilyStatus(family)} />
             {family.members[0] && hasSecondParent(family.members[0]) && (
@@ -239,11 +176,10 @@ export function FamilyDetailSheet({
               </Badge>
             )}
 
-            {/* Shift Badge with Popover */}
             {firstMember && (
               <Popover
-                open={isShiftPopoverOpen}
-                onOpenChange={setIsShiftPopoverOpen}
+                open={state.shiftPopover}
+                onOpenChange={actions.setShiftPopover}
               >
                 <PopoverTrigger asChild>
                   <Badge
@@ -260,7 +196,7 @@ export function FamilyDetailSheet({
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') {
                         e.preventDefault()
-                        setIsShiftPopoverOpen(true)
+                        actions.setShiftPopover(true)
                       }
                     }}
                   >
@@ -307,352 +243,124 @@ export function FamilyDetailSheet({
           </div>
         </SheetHeader>
 
-        <div className="mt-5 space-y-5">
-          {/* Contact Information */}
-          {family.members[0] && (
-            <div className="space-y-4 rounded-lg border bg-card p-5">
-              <h3 className="text-base font-semibold">Contact Information</h3>
-              <div className="space-y-4 pt-1">
-                {/* Parent 1 */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                        1
-                      </div>
-                      <span className="font-medium">
-                        {formatParentName(
-                          firstMember.parentFirstName,
-                          firstMember.parentLastName
-                        )}
-                      </span>
-                      {firstMember.primaryPayerParentNumber === 1 && (
-                        <Badge variant="outline" className="text-xs">
-                          <Wallet className="mr-1 h-3 w-3" />
-                          Primary Payer
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {firstMember.primaryPayerParentNumber !== 1 &&
-                        hasSecondParent(firstMember) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSetPrimaryPayer(1)}
-                            disabled={isSettingPrimaryPayer}
-                            className="h-7 px-2 text-xs"
-                          >
-                            Set as Payer
-                          </Button>
-                        )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleEditParent1}
-                        className="h-7 px-2"
-                      >
-                        <Edit className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  {firstMember.parentEmail && (
-                    <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-3.5 w-3.5 shrink-0" />
-                      <a
-                        href={`mailto:${firstMember.parentEmail}`}
-                        className="truncate hover:text-[#007078] hover:underline"
-                      >
-                        {firstMember.parentEmail}
-                      </a>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 shrink-0"
-                        onClick={() =>
-                          firstMember.parentEmail &&
-                          copyToClipboardAsync(
-                            firstMember.parentEmail,
-                            'Email address'
-                          )
-                        }
-                        aria-label="Copy email address"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                  {firstMember.parentPhone && (
-                    <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="h-3.5 w-3.5 shrink-0" />
-                      <a
-                        href={`https://wa.me/${firstMember.parentPhone.replace(/\D/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:text-[#007078] hover:underline"
-                      >
-                        {firstMember.parentPhone}
-                      </a>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 shrink-0"
-                        onClick={() =>
-                          firstMember.parentPhone &&
-                          copyToClipboardAsync(
-                            firstMember.parentPhone,
-                            'Phone number'
-                          )
-                        }
-                        aria-label="Copy phone number"
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
+        <Tabs
+          value={state.activeTab}
+          onValueChange={(value) => actions.setActiveTab(value as SheetTab)}
+          className="flex flex-1 flex-col overflow-hidden"
+        >
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview" className="gap-1.5">
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">Overview</span>
+            </TabsTrigger>
+            <TabsTrigger value="billing" className="gap-1.5">
+              <Receipt className="h-4 w-4" />
+              <span className="hidden sm:inline">Billing</span>
+            </TabsTrigger>
+            <TabsTrigger value="history" className="gap-1.5">
+              <Clock className="h-4 w-4" />
+              <span className="hidden sm:inline">History</span>
+            </TabsTrigger>
+          </TabsList>
 
-                {/* Parent 2 */}
-                {hasSecondParent(firstMember) ? (
-                  <>
-                    <Separator />
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-                            2
-                          </div>
-                          <span className="font-medium">
-                            {formatParentName(
-                              firstMember.parent2FirstName,
-                              firstMember.parent2LastName
-                            )}
-                          </span>
-                          {firstMember.primaryPayerParentNumber === 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              <Wallet className="mr-1 h-3 w-3" />
-                              Primary Payer
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {firstMember.primaryPayerParentNumber !== 2 && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleSetPrimaryPayer(2)}
-                              disabled={isSettingPrimaryPayer}
-                              className="h-7 px-2 text-xs"
-                            >
-                              Set as Payer
-                            </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleEditParent2}
-                            className="h-7 px-2"
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      {firstMember.parent2Email && (
-                        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-3.5 w-3.5 shrink-0" />
-                          <a
-                            href={`mailto:${firstMember.parent2Email}`}
-                            className="truncate hover:text-[#007078] hover:underline"
-                          >
-                            {firstMember.parent2Email}
-                          </a>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 shrink-0"
-                            onClick={() =>
-                              firstMember.parent2Email &&
-                              copyToClipboardAsync(
-                                firstMember.parent2Email,
-                                'Email address'
-                              )
-                            }
-                            aria-label="Copy email address"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                      {firstMember.parent2Phone && (
-                        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-3.5 w-3.5 shrink-0" />
-                          <a
-                            href={`https://wa.me/${firstMember.parent2Phone.replace(/\D/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="hover:text-[#007078] hover:underline"
-                          >
-                            {firstMember.parent2Phone}
-                          </a>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-5 w-5 shrink-0"
-                            onClick={() =>
-                              firstMember.parent2Phone &&
-                              copyToClipboardAsync(
-                                firstMember.parent2Phone,
-                                'Phone number'
-                              )
-                            }
-                            aria-label="Copy phone number"
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <Separator />
-                    <div className="flex items-center justify-center pt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleAddSecondParent}
-                        className="h-8 px-3"
-                      >
-                        <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                        Add Parent 2
-                      </Button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
+          <div className="flex-1 overflow-y-auto pt-4">
+            <TabsContent value="overview" className="mt-0 h-full">
+              <OverviewTab
+                family={family}
+                firstMember={firstMember}
+                onEditParent={actions.openEditParent}
+                onEditChild={actions.openEditChild}
+                onAddChild={() => actions.setAddChildDialog(true)}
+              />
+            </TabsContent>
 
-          {/* Kids Details */}
-          <div className="space-y-4 rounded-lg border bg-card p-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold">
-                Kids ({family.members.length})
-              </h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setAddChildDialog(true)}
-                className="h-8 px-2 sm:px-3"
-              >
-                <UserPlus className="h-3.5 w-3.5 sm:mr-1.5" />
-                <span className="hidden sm:inline">Add Child</span>
-              </Button>
-            </div>
-            <div className="space-y-2.5 pt-1">
-              {family.members.map((child, index) => (
-                <ChildInfoCard
-                  key={child.id}
-                  child={child}
-                  index={index}
-                  editButton={
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditChild(child.id)}
-                      className="h-7 px-2"
-                    >
-                      <Edit className="h-3.5 w-3.5" />
-                    </Button>
-                  }
-                />
-              ))}
-            </div>
+            <TabsContent value="billing" className="mt-0 h-full">
+              <BillingTab family={family} />
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-0 h-full">
+              <HistoryTab family={family} />
+            </TabsContent>
           </div>
+        </Tabs>
 
-          {/* Actions */}
-          <div className="space-y-3 border-t pt-5">
-            {/* Primary Actions */}
-            {family.hasPayment &&
-              (family.members[0]?.subscriptionStatus !== 'active' ||
-                !family.hasSubscription) &&
-              family.members[0]?.paymentIntentIdDugsi &&
-              family.parentEmail && (
-                <Button
-                  className="w-full"
-                  variant="default"
-                  onClick={handleVerifyBank}
-                >
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Verify Bank Account
-                </Button>
-              )}
-
-            {/* Communication Actions */}
-            <div className="space-y-2">
+        {/* Actions Footer */}
+        <div className="flex items-center gap-2 border-t pt-4">
+          {family.hasPayment &&
+            (firstMember.subscriptionStatus !== 'active' ||
+              !family.hasSubscription) &&
+            firstMember.paymentIntentIdDugsi &&
+            family.parentEmail && (
               <Button
-                className="w-full"
-                variant="outline"
-                onClick={handleSendPaymentLink}
+                className="flex-1"
+                onClick={() =>
+                  onVerifyBankAccount?.(
+                    firstMember.paymentIntentIdDugsi!,
+                    family.parentEmail!
+                  )
+                }
               >
-                <Send className="mr-2 h-4 w-4" />
-                Send Payment Link
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Verify Bank
               </Button>
-              <Button className="w-full" variant="outline">
+            )}
+
+          <Button
+            className="flex-1"
+            variant="outline"
+            onClick={() => actions.setPaymentLinkDialog(true)}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Payment Link
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem>
                 <Mail className="mr-2 h-4 w-4" />
                 Send Email
-              </Button>
-            </div>
-
-            {/* Link Existing Subscription */}
-            {firstMember.familyReferenceId && (
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => setConsolidateSubscriptionDialog(true)}
+              </DropdownMenuItem>
+              {firstMember.familyReferenceId && (
+                <DropdownMenuItem
+                  onClick={() => actions.setConsolidateSubscriptionDialog(true)}
+                >
+                  <Link className="mr-2 h-4 w-4" />
+                  Link Subscription
+                </DropdownMenuItem>
+              )}
+              {firstMember.stripeCustomerIdDugsi && (
+                <DropdownMenuItem onClick={handleViewInStripe}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  View in Stripe
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600"
+                onClick={() => actions.setDeleteFamilyDialog(true)}
               >
-                <Link className="mr-2 h-4 w-4" />
-                Link Existing Subscription
-              </Button>
-            )}
-
-            {/* External Actions */}
-            {family.members[0]?.stripeCustomerIdDugsi && (
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={handleViewInStripe}
-              >
-                <ExternalLink className="mr-2 h-4 w-4" />
-                View in Stripe
-              </Button>
-            )}
-
-            {/* Danger Zone */}
-            <div className="pt-4">
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => setDeleteFamilyDialog(true)}
-              >
-                <Trash2 className="mr-2 h-4 w-4 text-red-500" />
-                <span className="text-red-500">Delete Family</span>
-              </Button>
-            </div>
-          </div>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Family
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </SheetContent>
 
-      {/* Edit Parent Dialog */}
       <EditParentDialog
-        open={editParentDialog.open}
-        onOpenChange={(open) =>
-          setEditParentDialog((prev) => ({ ...prev, open }))
-        }
+        open={state.editParentDialog.open}
+        onOpenChange={(open) => {
+          if (!open) actions.closeEditParent()
+        }}
         studentId={firstMember.id}
-        parentNumber={editParentDialog.parentNumber}
+        parentNumber={state.editParentDialog.parentNumber}
         currentData={
-          editParentDialog.parentNumber === 1
+          state.editParentDialog.parentNumber === 1
             ? {
                 firstName: firstMember.parentFirstName,
                 lastName: firstMember.parentLastName,
@@ -666,16 +374,15 @@ export function FamilyDetailSheet({
                 phone: firstMember.parent2Phone,
               }
         }
-        isAddingSecondParent={editParentDialog.isAdding}
+        isAddingSecondParent={state.editParentDialog.isAdding}
       />
 
-      {/* Edit Child Dialog */}
       {currentEditChild && (
         <EditChildDialog
-          open={editChildDialog.open}
-          onOpenChange={(open) =>
-            setEditChildDialog((prev) => ({ ...prev, open }))
-          }
+          open={state.editChildDialog.open}
+          onOpenChange={(open) => {
+            if (!open) actions.closeEditChild()
+          }}
           studentId={currentEditChild.id}
           currentData={{
             name: currentEditChild.name,
@@ -688,22 +395,19 @@ export function FamilyDetailSheet({
         />
       )}
 
-      {/* Add Child Dialog */}
       <AddChildDialog
-        open={addChildDialog}
-        onOpenChange={setAddChildDialog}
+        open={state.addChildDialog}
+        onOpenChange={actions.setAddChildDialog}
         existingStudentId={firstMember.id}
       />
 
-      {/* Payment Link Dialog */}
       <PaymentLinkDialog
         family={family}
-        open={paymentLinkDialog}
-        onOpenChange={setPaymentLinkDialog}
+        open={state.paymentLinkDialog}
+        onOpenChange={actions.setPaymentLinkDialog}
       />
 
-      {/* Delete Family Dialog */}
-      {deleteFamilyDialog && (
+      {state.deleteFamilyDialog && (
         <DeleteFamilyDialog
           studentId={firstMember.id}
           familyName={getSheetTitle()}
@@ -711,17 +415,16 @@ export function FamilyDetailSheet({
             family.hasSubscription &&
             family.members[0]?.subscriptionStatus === 'active'
           }
-          open={deleteFamilyDialog}
-          onOpenChange={setDeleteFamilyDialog}
+          open={state.deleteFamilyDialog}
+          onOpenChange={actions.setDeleteFamilyDialog}
           onSuccess={() => onOpenChange(false)}
         />
       )}
 
-      {/* Consolidate Subscription Dialog */}
-      {consolidateSubscriptionDialog && firstMember.familyReferenceId && (
+      {state.consolidateSubscriptionDialog && firstMember.familyReferenceId && (
         <ConsolidateSubscriptionDialog
-          open={consolidateSubscriptionDialog}
-          onOpenChange={setConsolidateSubscriptionDialog}
+          open={state.consolidateSubscriptionDialog}
+          onOpenChange={actions.setConsolidateSubscriptionDialog}
           familyId={firstMember.familyReferenceId}
           familyName={getSheetTitle()}
         />
