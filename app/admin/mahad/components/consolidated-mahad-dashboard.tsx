@@ -1,8 +1,8 @@
 'use client'
 
-import { Suspense } from 'react'
+import { ReactNode, Suspense } from 'react'
 
-import { Users, Layers, CreditCard, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, CreditCard, Layers, Users } from 'lucide-react'
 
 import { Breadcrumbs, MainTabNavigation } from '@/components/admin'
 import { BatchWithCount } from '@/lib/db/queries/batch'
@@ -27,6 +27,7 @@ import {
 interface ConsolidatedMahadDashboardProps {
   students: StudentWithBatchData[]
   batches: BatchWithCount[]
+  paymentsContent?: ReactNode
 }
 
 const TAB_CONFIG = [
@@ -105,6 +106,7 @@ function mapBatch(b: BatchWithCount): MahadBatch {
 export function ConsolidatedMahadDashboard({
   students,
   batches,
+  paymentsContent,
 }: ConsolidatedMahadDashboardProps) {
   const { tab, setTab } = useMahadTabs()
   const filters = useMahadFilters()
@@ -145,12 +147,6 @@ export function ConsolidatedMahadDashboard({
     <div className="space-y-6">
       <Breadcrumbs items={breadcrumbItems} />
 
-      <DashboardHeader />
-
-      <DashboardStats stats={stats} />
-
-      <DashboardFilters batches={mahadBatches} />
-
       <MainTabNavigation
         tabs={tabsWithCounts}
         activeTab={tab}
@@ -159,12 +155,19 @@ export function ConsolidatedMahadDashboard({
 
       <div className="min-h-[500px]">
         {tab === 'students' && (
-          <TabContent
-            tab="students"
-            students={filteredStudents}
-            batches={mahadBatches}
-            duplicates={duplicates}
-          />
+          <>
+            <DashboardHeader />
+            <div className="mb-6 mt-6 space-y-4">
+              <DashboardStats stats={stats} />
+              <DashboardFilters batches={mahadBatches} />
+            </div>
+            <TabContent
+              tab="students"
+              students={filteredStudents}
+              batches={mahadBatches}
+              duplicates={duplicates}
+            />
+          </>
         )}
 
         {tab === 'batches' && (
@@ -178,7 +181,7 @@ export function ConsolidatedMahadDashboard({
 
         {tab === 'payments' && (
           <Suspense fallback={<TabLoadingFallback />}>
-            <PaymentsTabContent />
+            {paymentsContent}
           </Suspense>
         )}
 
@@ -195,14 +198,6 @@ export function ConsolidatedMahadDashboard({
       <CreateBatchDialog />
       <AssignStudentsDialog students={mahadStudents} batches={mahadBatches} />
       <ResolveDuplicatesDialog group={dialogData as DuplicateGroup | null} />
-    </div>
-  )
-}
-
-function PaymentsTabContent() {
-  return (
-    <div className="rounded-lg border p-6 text-center text-muted-foreground">
-      Payments tab content - will be imported from existing payments dashboard
     </div>
   )
 }
