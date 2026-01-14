@@ -71,29 +71,27 @@ export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
 
   const variance = revenueStats.actual - revenueStats.expected
 
-  function getVarianceColors() {
-    if (variance === 0)
-      return {
-        bar: 'bg-gray-200',
-        bg: 'bg-gray-100',
-        text: 'text-muted-foreground',
-        value: '',
-      }
-    if (variance < 0)
-      return {
-        bar: 'bg-red-500',
-        bg: 'bg-red-100',
-        text: 'text-red-600',
-        value: 'text-red-600',
-      }
-    return {
-      bar: 'bg-green-500',
-      bg: 'bg-green-100',
-      text: 'text-green-600',
-      value: 'text-green-600',
-    }
-  }
-  const varianceColors = getVarianceColors()
+  const varianceColors =
+    variance === 0
+      ? {
+          bar: 'bg-gray-200',
+          bg: 'bg-gray-100',
+          text: 'text-muted-foreground',
+          value: '',
+        }
+      : variance < 0
+        ? {
+            bar: 'bg-red-500',
+            bg: 'bg-red-100',
+            text: 'text-red-600',
+            value: 'text-red-600',
+          }
+        : {
+            bar: 'bg-green-500',
+            bg: 'bg-green-100',
+            text: 'text-green-600',
+            value: 'text-green-600',
+          }
 
   const cardClickStyles = onStatClick
     ? 'cursor-pointer hover:ring-2 hover:ring-primary/20'

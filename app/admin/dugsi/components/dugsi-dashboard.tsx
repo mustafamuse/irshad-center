@@ -42,7 +42,7 @@ import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
 import { DugsiStats } from './dashboard/dashboard-stats'
 import { QuickFilterChips } from './dashboard/quick-filter-chips'
-import { TabContent } from './dashboard/tab-content'
+import { FamilyDataTable } from './family-table'
 
 interface DugsiDashboardProps {
   registrations: DugsiRegistration[]
@@ -209,7 +209,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             ] as const
           ).map((tab) => (
             <TabsContent key={tab} value={tab} className="space-y-6">
-              <TabContent families={filteredFamilies} />
+              <FamilyDataTable families={filteredFamilies} />
             </TabsContent>
           ))}
         </Tabs>

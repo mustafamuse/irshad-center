@@ -41,6 +41,7 @@ import {
 } from '../../_schemas/dialog-schemas'
 import { splitFullName } from '../../_utils/name-formatting'
 import { updateChildInfo } from '../../actions'
+import { GradeLevelSelect } from '../shared/grade-level-select'
 
 interface EditChildDialogProps {
   open: boolean
@@ -199,45 +200,10 @@ export function EditChildDialog({
               )}
             />
 
-            <FormField
+            <GradeLevelSelect
               control={form.control}
               name="gradeLevel"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Grade Level (Optional)</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={isUpdating}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select grade level" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="KINDERGARTEN">Kindergarten</SelectItem>
-                      <SelectItem value="GRADE_1">Grade 1</SelectItem>
-                      <SelectItem value="GRADE_2">Grade 2</SelectItem>
-                      <SelectItem value="GRADE_3">Grade 3</SelectItem>
-                      <SelectItem value="GRADE_4">Grade 4</SelectItem>
-                      <SelectItem value="GRADE_5">Grade 5</SelectItem>
-                      <SelectItem value="GRADE_6">Grade 6</SelectItem>
-                      <SelectItem value="GRADE_7">Grade 7</SelectItem>
-                      <SelectItem value="GRADE_8">Grade 8</SelectItem>
-                      <SelectItem value="GRADE_9">Grade 9</SelectItem>
-                      <SelectItem value="GRADE_10">Grade 10</SelectItem>
-                      <SelectItem value="GRADE_11">Grade 11</SelectItem>
-                      <SelectItem value="GRADE_12">Grade 12</SelectItem>
-                      <SelectItem value="FRESHMAN">Freshman</SelectItem>
-                      <SelectItem value="SOPHOMORE">Sophomore</SelectItem>
-                      <SelectItem value="JUNIOR">Junior</SelectItem>
-                      <SelectItem value="SENIOR">Senior</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
+              disabled={isUpdating}
             />
 
             <FormField

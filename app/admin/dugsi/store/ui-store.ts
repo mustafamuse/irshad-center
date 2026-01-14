@@ -213,17 +213,24 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
 
       setDialogOpen: (dialog, open) =>
         set((state) => {
-          if (dialog === 'delete') {
-            state.isDeleteDialogOpen = open
-          } else if (dialog === 'linkSubscription') {
-            state.isLinkSubscriptionDialogOpen = open
-          } else if (dialog === 'advancedFilters') {
-            state.showAdvancedFilters = open
-          } else if (dialog === 'verifyBank') {
-            state.isVerifyBankDialogOpen = open
-          } else if (dialog === 'consolidateSubscription') {
-            state.isConsolidateSubscriptionDialogOpen = open
-          }
+          const dialogMap = {
+            delete: () => {
+              state.isDeleteDialogOpen = open
+            },
+            linkSubscription: () => {
+              state.isLinkSubscriptionDialogOpen = open
+            },
+            advancedFilters: () => {
+              state.showAdvancedFilters = open
+            },
+            verifyBank: () => {
+              state.isVerifyBankDialogOpen = open
+            },
+            consolidateSubscription: () => {
+              state.isConsolidateSubscriptionDialogOpen = open
+            },
+          } as const
+          dialogMap[dialog]()
         }),
 
       setLinkSubscriptionDialogData: (parentEmail) =>
