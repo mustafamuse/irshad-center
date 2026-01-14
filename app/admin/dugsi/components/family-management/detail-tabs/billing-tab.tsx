@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+import * as Sentry from '@sentry/nextjs'
 import {
   CreditCard,
   DollarSign,
@@ -52,6 +53,10 @@ export function BillingTab({ family }: BillingTabProps) {
           setError(result.error ?? 'Failed to fetch payment history')
         }
       } catch (error) {
+        Sentry.captureException(error, {
+          tags: { component: 'BillingTab' },
+          extra: { customerId },
+        })
         setError(
           error instanceof Error
             ? error.message

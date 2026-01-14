@@ -1,5 +1,6 @@
 'use client'
 
+import { Shift } from '@prisma/client'
 import {
   CreditCard,
   ExternalLink,
@@ -59,7 +60,7 @@ interface FamilyDetailSheetProps {
   family: Family | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onFamilyUpdate?: (shift: 'MORNING' | 'AFTERNOON') => void
+  onFamilyUpdate?: (shift: Shift) => void
   onVerifyBankAccount?: (paymentIntentId: string, parentEmail: string) => void
 }
 
@@ -121,7 +122,7 @@ export function FamilyDetailSheet({
     actions.openEditChild(studentId)
   }
 
-  const handleShiftChange = async (shift: 'MORNING' | 'AFTERNOON') => {
+  const handleShiftChange = async (shift: Shift) => {
     if (isUpdatingShift) {
       toast.warning('Please wait for the current shift update to complete')
       return
