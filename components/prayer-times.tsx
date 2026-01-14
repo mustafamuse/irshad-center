@@ -7,10 +7,6 @@ import { Clock, MapPin } from 'lucide-react'
 
 import { IQAMAH_OFFSETS } from '@/lib/constants/homepage'
 
-// Dynamic import for PrayTime library
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let PrayTimeClass: any = null
-
 interface PrayerTimes {
   fajr: string
   sunrise: string
@@ -26,6 +22,17 @@ interface NextPrayer {
   countdown: string
 }
 
+interface PrayTimeInstance {
+  location(coords: [number, number]): this
+  timezone(tz: string): this
+  format(fmt: string): this
+  getTimes(): PrayerTimes
+}
+
+type PrayTimeConstructor = new (method: string) => PrayTimeInstance
+
+let PrayTimeClass: PrayTimeConstructor | null = null
+
 const prayerNames = {
   fajr: 'Fajr',
   sunrise: 'Sunrise',
@@ -38,7 +45,8 @@ const prayerNames = {
 export default function PrayerTimes() {
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimes | null>(null)
   const [nextPrayer, setNextPrayer] = useState<NextPrayer | null>(null)
-  const [_currentTime, setCurrentTime] = useState(new Date())
+  const [error, setError] = useState<string | null>(null)
+  const [usingFallback, setUsingFallback] = useState(false)
   const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
@@ -64,13 +72,13 @@ export default function PrayerTimes() {
 
         setPrayerTimes(times)
         calculateNextPrayer(times)
-      } catch (error) {
-        console.error('Error calculating prayer times:', error)
+      } catch (err) {
+        console.error('Error calculating prayer times:', err)
+        setError('Unable to calculate prayer times. Please refresh the page.')
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const calculateNextPrayer = (times: any) => {
+    const calculateNextPrayer = (times: PrayerTimes) => {
       const now = new Date()
       const currentMinutes = now.getHours() * 60 + now.getMinutes()
 
@@ -134,9 +142,9 @@ export default function PrayerTimes() {
           if (PrayTimeClass) {
             calculatePrayerTimes()
           }
-        } catch (error) {
-          console.error('Failed to load PrayTime library:', error)
-          // Set fallback times for display (approximate for Eden Prairie in January)
+        } catch (err) {
+          console.error('Failed to load PrayTime library:', err)
+          setUsingFallback(true)
           setPrayerTimes({
             fajr: '5:45 AM',
             sunrise: '7:21 AM',
@@ -152,9 +160,7 @@ export default function PrayerTimes() {
       calculatePrayerTimes()
     }
 
-    // Update current time every minute
     const timeInterval = setInterval(() => {
-      setCurrentTime(new Date())
       if (prayerTimes) calculateNextPrayer(prayerTimes)
     }, 60000)
 
@@ -175,7 +181,23 @@ export default function PrayerTimes() {
   }, [isClient])
 
   if (!isClient) {
-    return null // Don't render on server side
+    return null
+  }
+
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-5xl">
+        <div className="rounded-3xl border border-red-200/30 bg-red-50/50 p-8 text-center dark:border-red-900/30 dark:bg-red-900/10">
+          <p className="text-red-600 dark:text-red-400">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (!prayerTimes) {
@@ -183,12 +205,10 @@ export default function PrayerTimes() {
       <div className="mx-auto w-full max-w-5xl">
         <div className="relative animate-pulse rounded-3xl border border-gray-200/30 bg-gradient-to-br from-white/40 via-white/20 to-white/10 p-8 shadow-2xl backdrop-blur-md dark:border-gray-700/50 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/30">
           <div className="space-y-8">
-            {/* Header Skeleton */}
             <div className="flex flex-col items-center space-y-4">
               <div className="h-8 w-48 rounded-lg bg-gray-200 dark:bg-gray-700" />
               <div className="h-4 w-36 rounded-lg bg-gray-200 dark:bg-gray-700" />
             </div>
-            {/* Prayer Times Grid Skeleton */}
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               {[...Array(6)].map((_, i) => (
                 <div
@@ -197,7 +217,6 @@ export default function PrayerTimes() {
                 />
               ))}
             </div>
-            {/* Next Prayer Skeleton */}
             <div className="h-24 rounded-2xl bg-gray-200 dark:bg-gray-700" />
           </div>
         </div>
@@ -213,13 +232,11 @@ export default function PrayerTimes() {
       className="mx-auto w-full max-w-5xl"
     >
       <div className="relative rounded-3xl border border-gray-200/30 bg-gradient-to-br from-white/40 via-white/20 to-white/10 p-8 shadow-2xl backdrop-blur-md dark:border-gray-700/50 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/30">
-        {/* Decorative Background Elements */}
         <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#007078]/5 via-transparent to-[#deb43e]/5 dark:from-[#007078]/10 dark:to-[#deb43e]/10" />
         <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-gradient-to-bl from-[#deb43e]/10 to-transparent blur-2xl" />
         <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-gradient-to-tr from-[#007078]/10 to-transparent blur-xl" />
 
         <div className="relative z-10">
-          {/* Header */}
           <div className="mb-8 text-center">
             <div className="mb-2 flex items-center justify-center gap-3">
               <div className="rounded-xl bg-[#007078]/10 p-2 backdrop-blur-sm dark:bg-[#007078]/20">
@@ -242,7 +259,6 @@ export default function PrayerTimes() {
             </p>
           </div>
 
-          {/* Prayer Times Grid */}
           <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
             {Object.entries(prayerTimes).map(([prayer, time], index) => {
               // Skip midnight and sunset times
@@ -264,7 +280,6 @@ export default function PrayerTimes() {
                         : 'border-white/40 bg-white/30 shadow-md hover:shadow-xl dark:border-gray-700/50 dark:bg-gray-800/50'
                     }`}
                   >
-                    {/* Prayer Name */}
                     <div
                       className={`mb-2 text-sm font-semibold uppercase tracking-wide ${
                         nextPrayer?.name ===
@@ -275,7 +290,6 @@ export default function PrayerTimes() {
                     >
                       {prayerNames[prayer as keyof typeof prayerNames]}
                     </div>
-                    {/* Prayer Time */}
                     <div
                       className={`flex items-center justify-center gap-2 text-lg font-bold tracking-tight ${
                         nextPrayer?.name ===
@@ -290,14 +304,12 @@ export default function PrayerTimes() {
                         <span className="inline-flex h-2 w-2 animate-ping rounded-full bg-[#007078] dark:bg-[#00a0a8]" />
                       )}
                     </div>
-                    {/* Iqamah Time */}
                     <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       {prayer !== 'sunrise' && IQAMAH_OFFSETS[prayer]
                         ? `Iqamah: ${IQAMAH_OFFSETS[prayer]}`
                         : '\u00A0'}
                     </div>
 
-                    {/* Subtle gradient overlay on hover */}
                     <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-[#007078]/5 to-[#deb43e]/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                   </div>
                 </motion.div>
@@ -305,7 +317,6 @@ export default function PrayerTimes() {
             })}
           </div>
 
-          {/* Next Prayer Countdown */}
           {nextPrayer && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -313,7 +324,6 @@ export default function PrayerTimes() {
               transition={{ duration: 0.6, delay: 0.8 }}
               className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#007078] to-[#006569] p-6 text-white shadow-xl"
             >
-              {/* Decorative elements */}
               <div className="absolute inset-0">
                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZ3JpZCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIj48cGF0aCBkPSJNIDQwIDAgTCAwIDAgMCA0MCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLW9wYWNpdHk9IjAuMSIgc3Ryb2tlLXdpZHRoPSIxIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-20" />
                 <div className="absolute inset-0 bg-gradient-to-r from-[#007078] via-transparent to-[#006569] opacity-80" />
@@ -345,17 +355,27 @@ export default function PrayerTimes() {
             </motion.div>
           )}
 
-          {/* Calculation Method Note */}
           <div className="mt-6 text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/20 bg-white/20 px-4 py-2 text-xs text-gray-500 backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-400">
-              <MapPin className="h-3 w-3" aria-hidden="true" />
-              <span>Calculated using ISNA method</span>
-              <span
-                className="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600"
-                aria-hidden="true"
-              />
-              <span>Times may vary by ±2 minutes</span>
-            </div>
+            {usingFallback ? (
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-50/50 px-4 py-2 text-xs text-amber-600 dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-400">
+                <span>Approximate times shown</span>
+                <span
+                  className="h-1 w-1 rounded-full bg-amber-400"
+                  aria-hidden="true"
+                />
+                <span>Actual times may vary</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/20 bg-white/20 px-4 py-2 text-xs text-gray-500 backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-400">
+                <MapPin className="h-3 w-3" aria-hidden="true" />
+                <span>Calculated using ISNA method</span>
+                <span
+                  className="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600"
+                  aria-hidden="true"
+                />
+                <span>Times may vary by ±2 minutes</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

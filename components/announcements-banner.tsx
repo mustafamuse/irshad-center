@@ -27,7 +27,14 @@ export default function AnnouncementsBanner() {
     setIsClient(true)
     const stored = localStorage.getItem('dismissedAnnouncements')
     if (stored) {
-      setDismissedIds(JSON.parse(stored))
+      try {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          setDismissedIds(parsed)
+        }
+      } catch {
+        localStorage.removeItem('dismissedAnnouncements')
+      }
     }
   }, [])
 

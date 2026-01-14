@@ -1,9 +1,6 @@
-'use client'
-
 import Image from 'next/image'
 import Link from 'next/link'
 
-import { motion } from 'framer-motion'
 import { ArrowRight, GraduationCap, Users, BookOpen, Mic } from 'lucide-react'
 
 import AnnouncementsBanner from '@/components/announcements-banner'
@@ -26,7 +23,7 @@ const statIcons = {
   halaqah: Mic,
 }
 
-function HomePage() {
+export default function Page() {
   return (
     <div className="relative min-h-screen bg-white dark:bg-gray-950">
       <AnnouncementsBanner />
@@ -37,12 +34,7 @@ function HomePage() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="space-y-6 sm:space-y-8"
-        >
+        <div className="animate-fade-in space-y-6 sm:space-y-8">
           <div className="relative">
             <div className="mx-auto w-full max-w-[280px] sm:max-w-md md:max-w-lg">
               <Image
@@ -55,12 +47,7 @@ function HomePage() {
               />
             </div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="mt-2 space-y-2 text-center"
-            >
+            <div className="mt-2 space-y-2 text-center">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl md:text-4xl">
                 Welcome to{' '}
                 <span className="text-[#007078] dark:text-[#00a0a8]">
@@ -71,26 +58,16 @@ function HomePage() {
               <p className="mx-auto max-w-xl text-sm text-gray-600 dark:text-gray-300 sm:text-base">
                 {IRSHAD_CENTER.tagline}
               </p>
-            </motion.div>
+            </div>
           </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            className="mx-auto max-w-3xl rounded-2xl border border-[#007078]/10 bg-[#007078]/5 p-4 text-center dark:border-[#007078]/20 dark:bg-[#007078]/10"
-          >
+          <div className="mx-auto max-w-3xl rounded-2xl border border-[#007078]/10 bg-[#007078]/5 p-4 text-center dark:border-[#007078]/20 dark:bg-[#007078]/10">
             <p className="text-sm text-gray-700 dark:text-gray-300 sm:text-base">
               {IRSHAD_CENTER.mission}
             </p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="space-y-4"
-          >
+          <div className="space-y-4">
             <h2 className="text-center text-lg font-semibold text-gray-700 dark:text-gray-200">
               Our Programs
             </h2>
@@ -156,14 +133,9 @@ function HomePage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.45 }}
-            className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4"
-          >
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
             {Object.entries(COMMUNITY_STATS).map(([key, stat]) => {
               const Icon = statIcons[key as keyof typeof statIcons]
               return (
@@ -181,14 +153,9 @@ function HomePage() {
                 </div>
               )
             })}
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-            className="mx-auto w-full max-w-4xl"
-          >
+          <div className="mx-auto w-full max-w-4xl">
             <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
               <div className="relative overflow-hidden rounded-xl border border-[#deb43e]/30 bg-gradient-to-r from-[#deb43e]/10 via-[#deb43e]/5 to-[#deb43e]/10 p-4 shadow-md dark:border-[#deb43e]/40 dark:from-[#deb43e]/20 dark:via-[#deb43e]/10 dark:to-[#deb43e]/20 sm:p-5">
                 <div className="relative z-10 text-center">
@@ -230,23 +197,13 @@ function HomePage() {
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.55 }}
-          >
-            <PrayerTimes />
-          </motion.div>
-        </motion.div>
+          <PrayerTimes />
+        </div>
       </div>
 
       <SiteFooter />
     </div>
   )
-}
-
-export default function Page() {
-  return <HomePage />
 }
