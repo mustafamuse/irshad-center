@@ -749,7 +749,7 @@ export async function getFamilyPaymentHistory(
       .map((invoice) => ({
         id: invoice.id,
         date: new Date(invoice.created * 1000),
-        amount: invoice.amount_paid,
+        amount: invoice.total ?? invoice.amount_paid,
         status:
           invoice.status === 'paid'
             ? 'succeeded'

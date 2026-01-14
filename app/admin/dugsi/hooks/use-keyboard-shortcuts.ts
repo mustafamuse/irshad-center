@@ -38,14 +38,16 @@ export function useKeyboardShortcuts({
     [onOpenCommandPalette]
   )
 
+  // Helper to check if user is in an editable element
+  const isInEditableElement = () =>
+    document.activeElement?.tagName === 'INPUT' ||
+    document.activeElement?.tagName === 'TEXTAREA'
+
   // / - Focus search
   useHotkeys(
     '/',
     (e) => {
-      if (
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
+      if (!isInEditableElement()) {
         e.preventDefault()
         searchInputRef.current?.focus()
       }
@@ -53,11 +55,11 @@ export function useKeyboardShortcuts({
     [searchInputRef]
   )
 
-  // 1-5 - Switch tabs
+  // 1-5 - Switch tabs (skip when in input or textarea)
   useHotkeys(
     '1',
     (e) => {
-      if (document.activeElement?.tagName !== 'INPUT') {
+      if (!isInEditableElement()) {
         e.preventDefault()
         onSetActiveTab?.('active')
       }
@@ -68,7 +70,7 @@ export function useKeyboardShortcuts({
   useHotkeys(
     '2',
     (e) => {
-      if (document.activeElement?.tagName !== 'INPUT') {
+      if (!isInEditableElement()) {
         e.preventDefault()
         onSetActiveTab?.('churned')
       }
@@ -79,7 +81,7 @@ export function useKeyboardShortcuts({
   useHotkeys(
     '3',
     (e) => {
-      if (document.activeElement?.tagName !== 'INPUT') {
+      if (!isInEditableElement()) {
         e.preventDefault()
         onSetActiveTab?.('needs-attention')
       }
@@ -90,7 +92,7 @@ export function useKeyboardShortcuts({
   useHotkeys(
     '4',
     (e) => {
-      if (document.activeElement?.tagName !== 'INPUT') {
+      if (!isInEditableElement()) {
         e.preventDefault()
         onSetActiveTab?.('billing-mismatch')
       }
@@ -101,7 +103,7 @@ export function useKeyboardShortcuts({
   useHotkeys(
     '5',
     (e) => {
-      if (document.activeElement?.tagName !== 'INPUT') {
+      if (!isInEditableElement()) {
         e.preventDefault()
         onSetActiveTab?.('all')
       }
@@ -123,10 +125,7 @@ export function useKeyboardShortcuts({
   useHotkeys(
     'mod+a',
     (e) => {
-      if (
-        document.activeElement?.tagName !== 'INPUT' &&
-        document.activeElement?.tagName !== 'TEXTAREA'
-      ) {
+      if (!isInEditableElement()) {
         e.preventDefault()
         onSelectAll?.()
       }
