@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Clock, MapPin } from 'lucide-react'
 
+import { IQAMAH_OFFSETS } from '@/lib/constants/homepage'
+
 // Dynamic import for PrayTime library
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let PrayTimeClass: any = null
@@ -179,21 +181,24 @@ export default function PrayerTimes() {
   if (!prayerTimes) {
     return (
       <div className="mx-auto w-full max-w-5xl">
-        <div className="relative animate-pulse rounded-3xl border border-gray-200/30 bg-gradient-to-br from-white/40 via-white/20 to-white/10 p-8 shadow-2xl backdrop-blur-md">
+        <div className="relative animate-pulse rounded-3xl border border-gray-200/30 bg-gradient-to-br from-white/40 via-white/20 to-white/10 p-8 shadow-2xl backdrop-blur-md dark:border-gray-700/50 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/30">
           <div className="space-y-8">
             {/* Header Skeleton */}
             <div className="flex flex-col items-center space-y-4">
-              <div className="h-8 w-48 rounded-lg bg-gray-200" />
-              <div className="h-4 w-36 rounded-lg bg-gray-200" />
+              <div className="h-8 w-48 rounded-lg bg-gray-200 dark:bg-gray-700" />
+              <div className="h-4 w-36 rounded-lg bg-gray-200 dark:bg-gray-700" />
             </div>
             {/* Prayer Times Grid Skeleton */}
             <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-24 rounded-2xl bg-gray-200" />
+                <div
+                  key={i}
+                  className="h-24 rounded-2xl bg-gray-200 dark:bg-gray-700"
+                />
               ))}
             </div>
             {/* Next Prayer Skeleton */}
-            <div className="h-24 rounded-2xl bg-gray-200" />
+            <div className="h-24 rounded-2xl bg-gray-200 dark:bg-gray-700" />
           </div>
         </div>
       </div>
@@ -207,9 +212,9 @@ export default function PrayerTimes() {
       transition={{ duration: 0.8 }}
       className="mx-auto w-full max-w-5xl"
     >
-      <div className="relative rounded-3xl border border-gray-200/30 bg-gradient-to-br from-white/40 via-white/20 to-white/10 p-8 shadow-2xl backdrop-blur-md">
+      <div className="relative rounded-3xl border border-gray-200/30 bg-gradient-to-br from-white/40 via-white/20 to-white/10 p-8 shadow-2xl backdrop-blur-md dark:border-gray-700/50 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/30">
         {/* Decorative Background Elements */}
-        <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#007078]/5 via-transparent to-[#deb43e]/5" />
+        <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-[#007078]/5 via-transparent to-[#deb43e]/5 dark:from-[#007078]/10 dark:to-[#deb43e]/10" />
         <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-gradient-to-bl from-[#deb43e]/10 to-transparent blur-2xl" />
         <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-gradient-to-tr from-[#007078]/10 to-transparent blur-xl" />
 
@@ -217,15 +222,17 @@ export default function PrayerTimes() {
           {/* Header */}
           <div className="mb-8 text-center">
             <div className="mb-2 flex items-center justify-center gap-3">
-              <div className="rounded-xl bg-[#007078]/10 p-2 backdrop-blur-sm">
-                <MapPin className="h-5 w-5 text-[#007078]" />
+              <div className="rounded-xl bg-[#007078]/10 p-2 backdrop-blur-sm dark:bg-[#007078]/20">
+                <MapPin className="h-5 w-5 text-[#007078] dark:text-[#00a0a8]" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900">Prayer Times</h3>
+              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                Prayer Times
+              </h3>
             </div>
-            <p className="text-base font-medium text-gray-600">
+            <p className="text-base font-medium text-gray-600 dark:text-gray-300">
               Eden Prairie, Minnesota
             </p>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
@@ -253,8 +260,8 @@ export default function PrayerTimes() {
                     className={`relative rounded-2xl border p-4 text-center backdrop-blur-sm transition-all duration-300 hover:scale-105 ${
                       nextPrayer?.name ===
                       prayerNames[prayer as keyof typeof prayerNames]
-                        ? 'border-[#007078]/30 bg-[#007078]/10 shadow-lg shadow-[#007078]/5'
-                        : 'border-white/40 bg-white/30 shadow-md hover:shadow-xl'
+                        ? 'border-[#007078]/30 bg-[#007078]/10 shadow-lg shadow-[#007078]/5 dark:border-[#007078]/50 dark:bg-[#007078]/20'
+                        : 'border-white/40 bg-white/30 shadow-md hover:shadow-xl dark:border-gray-700/50 dark:bg-gray-800/50'
                     }`}
                   >
                     {/* Prayer Name */}
@@ -262,8 +269,8 @@ export default function PrayerTimes() {
                       className={`mb-2 text-sm font-semibold uppercase tracking-wide ${
                         nextPrayer?.name ===
                         prayerNames[prayer as keyof typeof prayerNames]
-                          ? 'text-[#007078]'
-                          : 'text-gray-700'
+                          ? 'text-[#007078] dark:text-[#00a0a8]'
+                          : 'text-gray-700 dark:text-gray-300'
                       }`}
                     >
                       {prayerNames[prayer as keyof typeof prayerNames]}
@@ -273,15 +280,21 @@ export default function PrayerTimes() {
                       className={`flex items-center justify-center gap-2 text-lg font-bold tracking-tight ${
                         nextPrayer?.name ===
                         prayerNames[prayer as keyof typeof prayerNames]
-                          ? 'text-[#007078]'
-                          : 'text-gray-900'
+                          ? 'text-[#007078] dark:text-[#00a0a8]'
+                          : 'text-gray-900 dark:text-white'
                       }`}
                     >
                       {time}
                       {nextPrayer?.name ===
                         prayerNames[prayer as keyof typeof prayerNames] && (
-                        <span className="inline-flex h-2 w-2 animate-ping rounded-full bg-[#007078]" />
+                        <span className="inline-flex h-2 w-2 animate-ping rounded-full bg-[#007078] dark:bg-[#00a0a8]" />
                       )}
+                    </div>
+                    {/* Iqamah Time */}
+                    <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      {prayer !== 'sunrise' && IQAMAH_OFFSETS[prayer]
+                        ? `Iqamah: ${IQAMAH_OFFSETS[prayer]}`
+                        : '\u00A0'}
                     </div>
 
                     {/* Subtle gradient overlay on hover */}
@@ -334,11 +347,11 @@ export default function PrayerTimes() {
 
           {/* Calculation Method Note */}
           <div className="mt-6 text-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/20 bg-white/20 px-4 py-2 text-xs text-gray-500 backdrop-blur-sm">
+            <div className="inline-flex items-center gap-2 rounded-full border border-gray-200/20 bg-white/20 px-4 py-2 text-xs text-gray-500 backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-800/50 dark:text-gray-400">
               <MapPin className="h-3 w-3" aria-hidden="true" />
               <span>Calculated using ISNA method</span>
               <span
-                className="h-1 w-1 rounded-full bg-gray-300"
+                className="h-1 w-1 rounded-full bg-gray-300 dark:bg-gray-600"
                 aria-hidden="true"
               />
               <span>Times may vary by ±2 minutes</span>
