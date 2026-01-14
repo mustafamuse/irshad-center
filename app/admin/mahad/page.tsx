@@ -9,13 +9,6 @@ import { isFeatureEnabled } from '@/lib/feature-flags'
 
 import { ConsolidatedMahadDashboard } from './components/consolidated-mahad-dashboard'
 import { MahadDashboard } from './components/mahad-dashboard'
-import { BackfillPaymentsButton } from './payments/components/backfill-button'
-import {
-  StatsCardsSkeleton,
-  TableSkeleton,
-} from './payments/components/loading-skeleton'
-import { StatsCards } from './payments/components/stats-cards'
-import { StudentsTableShell } from './payments/components/students-table-shell'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,16 +42,7 @@ function Loading() {
   )
 }
 
-interface MahadCohortsPageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}
-
-export default async function MahadCohortsPage({
-  searchParams,
-}: MahadCohortsPageProps) {
-  const resolvedSearchParams = await searchParams
-  const activeTab = resolvedSearchParams.tab as string | undefined
-
+export default async function MahadCohortsPage() {
   const [batches, students] = await Promise.all([
     getBatches(),
     getStudentsWithBatch(),
@@ -76,34 +60,7 @@ export default async function MahadCohortsPage({
           fallbackLabel="Reload Dashboard"
         >
           <Suspense fallback={<Loading />}>
-            <ConsolidatedMahadDashboard
-              students={students}
-              batches={batches}
-              paymentsContent={
-                activeTab === 'payments' ? (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-                          Payments Dashboard
-                        </h2>
-                        <p className="text-sm text-muted-foreground sm:text-base">
-                          Manage student enrollments, billing, and payment
-                          tracking
-                        </p>
-                      </div>
-                      <BackfillPaymentsButton />
-                    </div>
-                    <Suspense fallback={<StatsCardsSkeleton />}>
-                      <StatsCards />
-                    </Suspense>
-                    <Suspense fallback={<TableSkeleton />}>
-                      <StudentsTableShell searchParams={resolvedSearchParams} />
-                    </Suspense>
-                  </div>
-                ) : null
-              }
-            />
+            <ConsolidatedMahadDashboard students={students} batches={batches} />
           </Suspense>
         </AppErrorBoundary>
       </main>

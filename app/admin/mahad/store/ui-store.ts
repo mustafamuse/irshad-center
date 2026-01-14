@@ -15,9 +15,7 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
-import { StudentStatus } from '@/lib/types/student'
-
-import { DialogType, StudentFilters, TabValue } from '../_types'
+import { DialogType, PaymentHealth, StudentFilters, TabValue } from '../_types'
 
 enableMapSet()
 
@@ -32,7 +30,7 @@ interface MahadUIStore {
   setFilters: (filters: Partial<StudentFilters>) => void
   setSearchQuery: (query: string) => void
   setBatchFilter: (batchId: string | null) => void
-  setStatusFilter: (status: StudentStatus | null) => void
+  setPaymentHealthFilter: (paymentHealth: PaymentHealth | null) => void
   resetFilters: () => void
   toggleStudent: (id: string) => void
   setSelected: (ids: string[]) => void
@@ -45,7 +43,7 @@ interface MahadUIStore {
 const defaultFilters: StudentFilters = {
   search: '',
   batchId: null,
-  status: null,
+  paymentHealth: null,
 }
 
 export const useMahadUIStore = create<MahadUIStore>()(
@@ -77,9 +75,9 @@ export const useMahadUIStore = create<MahadUIStore>()(
           state.filters.batchId = batchId
         }),
 
-      setStatusFilter: (status) =>
+      setPaymentHealthFilter: (paymentHealth) =>
         set((state) => {
-          state.filters.status = status
+          state.filters.paymentHealth = paymentHealth
         }),
 
       resetFilters: () =>

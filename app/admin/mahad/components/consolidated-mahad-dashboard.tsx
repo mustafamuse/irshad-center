@@ -1,8 +1,6 @@
 'use client'
 
-import { ReactNode, Suspense } from 'react'
-
-import { AlertTriangle, CreditCard, Layers, Users } from 'lucide-react'
+import { AlertTriangle, Layers, Users } from 'lucide-react'
 
 import { Breadcrumbs, MainTabNavigation } from '@/components/admin'
 import { BatchWithCount } from '@/lib/db/queries/batch'
@@ -27,32 +25,17 @@ import {
 interface ConsolidatedMahadDashboardProps {
   students: StudentWithBatchData[]
   batches: BatchWithCount[]
-  paymentsContent?: ReactNode
 }
 
 const TAB_CONFIG = [
   { value: 'students', label: 'Students', icon: <Users className="h-4 w-4" /> },
   { value: 'batches', label: 'Batches', icon: <Layers className="h-4 w-4" /> },
   {
-    value: 'payments',
-    label: 'Payments',
-    icon: <CreditCard className="h-4 w-4" />,
-  },
-  {
     value: 'duplicates',
     label: 'Duplicates',
     icon: <AlertTriangle className="h-4 w-4" />,
   },
 ]
-
-function TabLoadingFallback() {
-  return (
-    <div className="animate-pulse space-y-4">
-      <div className="h-10 w-full rounded bg-muted" />
-      <div className="h-96 rounded-lg bg-muted" />
-    </div>
-  )
-}
 
 function mapStudent(s: StudentWithBatchData): MahadStudent {
   return {
@@ -106,7 +89,6 @@ function mapBatch(b: BatchWithCount): MahadBatch {
 export function ConsolidatedMahadDashboard({
   students,
   batches,
-  paymentsContent,
 }: ConsolidatedMahadDashboardProps) {
   const { tab, setTab } = useMahadTabs()
   const filters = useMahadFilters()
@@ -177,12 +159,6 @@ export function ConsolidatedMahadDashboard({
             batches={mahadBatches}
             duplicates={duplicates}
           />
-        )}
-
-        {tab === 'payments' && (
-          <Suspense fallback={<TabLoadingFallback />}>
-            {paymentsContent}
-          </Suspense>
         )}
 
         {tab === 'duplicates' && (

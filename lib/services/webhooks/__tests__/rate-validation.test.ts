@@ -14,6 +14,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockCalculateMahadRate,
+  mockCalculateDugsiRate,
   mockLoggerInfo,
   mockLoggerWarn,
   mockLoggerError,
@@ -28,6 +29,7 @@ const {
   mockUpdateSubscriptionStatus,
 } = vi.hoisted(() => ({
   mockCalculateMahadRate: vi.fn(),
+  mockCalculateDugsiRate: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
@@ -48,6 +50,10 @@ const {
 
 vi.mock('@/lib/utils/mahad-tuition', () => ({
   calculateMahadRate: (...args: unknown[]) => mockCalculateMahadRate(...args),
+}))
+
+vi.mock('@/lib/utils/dugsi-tuition', () => ({
+  calculateDugsiRate: (...args: unknown[]) => mockCalculateDugsiRate(...args),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -205,13 +211,12 @@ describe('handleSubscriptionCreated - Rate Validation', () => {
       expect(mockLoggerInfo).toHaveBeenCalledWith(
         expect.objectContaining({
           subscriptionId: 'sub_test123',
-          rateValid: true,
         }),
-        'Mahad subscription rate validation completed'
+        'Mahad subscription rate validation passed'
       )
     })
 
-    it('logs warning when Stripe amount differs from expected rate', async () => {
+    it('throws RateMismatchError when Stripe amount differs from expected rate', async () => {
       // Stripe has $100 but metadata says expected $120
       const subscription = createMockSubscription({
         items: {
@@ -233,15 +238,9 @@ describe('handleSubscriptionCreated - Rate Validation', () => {
 
       mockCalculateMahadRate.mockReturnValue(12000) // Calculation matches metadata
 
-      await handleSubscriptionCreated(subscription, 'MAHAD')
-
-      expect(mockLoggerWarn).toHaveBeenCalledWith(
-        expect.objectContaining({
-          stripeAmount: 10000,
-          expectedRate: 12000,
-        }),
-        'Rate mismatch: Stripe amount differs from expected calculated rate'
-      )
+      await expect(
+        handleSubscriptionCreated(subscription, 'MAHAD')
+      ).rejects.toThrow('Mahad rate mismatch')
     })
 
     it('logs warning when recalculated rate differs from metadata rate', async () => {
@@ -261,7 +260,7 @@ describe('handleSubscriptionCreated - Rate Validation', () => {
       )
     })
 
-    it('logs invalid rate when Stripe amount does not match expected', async () => {
+    it('throws error when Stripe amount does not match expected', async () => {
       const subscription = createMockSubscription({
         items: {
           object: 'list',
@@ -282,14 +281,9 @@ describe('handleSubscriptionCreated - Rate Validation', () => {
 
       mockCalculateMahadRate.mockReturnValue(12000)
 
-      await handleSubscriptionCreated(subscription, 'MAHAD')
-
-      expect(mockLoggerInfo).toHaveBeenCalledWith(
-        expect.objectContaining({
-          rateValid: false,
-        }),
-        'Mahad subscription rate validation completed'
-      )
+      await expect(
+        handleSubscriptionCreated(subscription, 'MAHAD')
+      ).rejects.toThrow('Mahad rate mismatch')
     })
   })
 
@@ -367,10 +361,236 @@ describe('handleSubscriptionCreated - Rate Validation', () => {
           graduationStatus: 'NON_GRADUATE',
           paymentFrequency: 'MONTHLY',
           billingType: 'FULL_TIME',
-          rateValid: true,
         }),
-        'Mahad subscription rate validation completed'
+        'Mahad subscription rate validation passed'
       )
     })
+  })
+
+  describe('RateMismatchError context structure', () => {
+    it('includes all required context fields in RateMismatchError', async () => {
+      const subscription = createMockSubscription({
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_test',
+              object: 'subscription_item',
+              price: {
+                id: 'price_test',
+                object: 'price',
+                unit_amount: 10000,
+                currency: 'usd',
+              } as unknown as Stripe.Price,
+            } as unknown as Stripe.SubscriptionItem,
+          ],
+        } as unknown as Stripe.ApiList<Stripe.SubscriptionItem>,
+      })
+
+      mockCalculateMahadRate.mockReturnValue(12000)
+
+      try {
+        await handleSubscriptionCreated(subscription, 'MAHAD')
+        expect.fail('Should have thrown RateMismatchError')
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error)
+        expect((error as Error).name).toBe('RateMismatchError')
+        const rateMismatchError = error as Error & {
+          context: Record<string, unknown>
+        }
+        expect(rateMismatchError.context).toEqual(
+          expect.objectContaining({
+            subscriptionId: 'sub_test123',
+            stripeAmount: 10000,
+            expectedRate: 12000,
+            graduationStatus: 'NON_GRADUATE',
+            paymentFrequency: 'MONTHLY',
+            billingType: 'FULL_TIME',
+          })
+        )
+      }
+    })
+  })
+})
+
+describe('handleSubscriptionCreated - Dugsi Rate Validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+
+    mockGetBillingAccountByStripeCustomerId.mockResolvedValue(
+      createMockBillingAccount()
+    )
+    mockCreateSubscriptionFromStripe.mockResolvedValue(
+      createMockDbSubscription()
+    )
+    mockCalculateDugsiRate.mockReturnValue(15000)
+    mockLinkSubscriptionToProfiles.mockResolvedValue(1)
+    mockUnlinkSubscription.mockResolvedValue(undefined)
+  })
+
+  function createDugsiMockSubscription(
+    overrides: Partial<Stripe.Subscription> = {}
+  ): Stripe.Subscription {
+    return {
+      id: 'sub_dugsi123',
+      object: 'subscription',
+      customer: 'cus_dugsi123',
+      status: 'active',
+      current_period_start: Math.floor(Date.now() / 1000),
+      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+      items: {
+        object: 'list',
+        data: [
+          {
+            id: 'si_dugsi',
+            object: 'subscription_item',
+            price: {
+              id: 'price_dugsi',
+              object: 'price',
+              unit_amount: 15000,
+              currency: 'usd',
+            } as unknown as Stripe.Price,
+          } as unknown as Stripe.SubscriptionItem,
+        ],
+      } as unknown as Stripe.ApiList<Stripe.SubscriptionItem>,
+      metadata: {
+        guardianPersonId: 'guardian-456',
+        childCount: '2',
+        calculatedRate: '15000',
+      },
+      ...overrides,
+    } as Stripe.Subscription
+  }
+
+  it('validates rate when Dugsi metadata is present', async () => {
+    const subscription = createDugsiMockSubscription()
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockCalculateDugsiRate).toHaveBeenCalledWith(2)
+  })
+
+  it('logs success when Dugsi rates match', async () => {
+    const subscription = createDugsiMockSubscription()
+    mockCalculateDugsiRate.mockReturnValue(15000)
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockLoggerInfo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subscriptionId: 'sub_dugsi123',
+        stripeAmount: 15000,
+        expectedRate: 15000,
+        childCount: 2,
+      }),
+      'Dugsi subscription rate validation passed'
+    )
+  })
+
+  it('throws RateMismatchError when Dugsi Stripe amount differs from expected rate', async () => {
+    const subscription = createDugsiMockSubscription({
+      items: {
+        object: 'list',
+        data: [
+          {
+            id: 'si_dugsi',
+            object: 'subscription_item',
+            price: {
+              id: 'price_dugsi',
+              object: 'price',
+              unit_amount: 10000,
+              currency: 'usd',
+            } as unknown as Stripe.Price,
+          } as unknown as Stripe.SubscriptionItem,
+        ],
+      } as unknown as Stripe.ApiList<Stripe.SubscriptionItem>,
+    })
+
+    mockCalculateDugsiRate.mockReturnValue(15000)
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'DUGSI')
+    ).rejects.toThrow('Dugsi rate mismatch')
+  })
+
+  it('includes correct context in Dugsi RateMismatchError', async () => {
+    const subscription = createDugsiMockSubscription({
+      items: {
+        object: 'list',
+        data: [
+          {
+            id: 'si_dugsi',
+            object: 'subscription_item',
+            price: {
+              id: 'price_dugsi',
+              object: 'price',
+              unit_amount: 10000,
+              currency: 'usd',
+            } as unknown as Stripe.Price,
+          } as unknown as Stripe.SubscriptionItem,
+        ],
+      } as unknown as Stripe.ApiList<Stripe.SubscriptionItem>,
+    })
+
+    mockCalculateDugsiRate.mockReturnValue(15000)
+
+    try {
+      await handleSubscriptionCreated(subscription, 'DUGSI')
+      expect.fail('Should have thrown RateMismatchError')
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).name).toBe('RateMismatchError')
+      const rateMismatchError = error as Error & {
+        context: Record<string, unknown>
+      }
+      expect(rateMismatchError.context).toEqual(
+        expect.objectContaining({
+          subscriptionId: 'sub_dugsi123',
+          stripeAmount: 10000,
+          expectedRate: 15000,
+          childCount: 2,
+        })
+      )
+    }
+  })
+
+  it('logs warning when recalculated Dugsi rate differs from metadata rate', async () => {
+    const subscription = createDugsiMockSubscription()
+
+    mockCalculateDugsiRate.mockReturnValue(12000)
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadataRate: 15000,
+        recalculatedRate: 12000,
+        childCount: 2,
+      }),
+      'Rate calculation mismatch: Stored metadata rate differs from recalculated rate'
+    )
+  })
+
+  it('skips Dugsi validation when metadata is missing', async () => {
+    const subscription = createDugsiMockSubscription({
+      metadata: {},
+    })
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockCalculateDugsiRate).not.toHaveBeenCalled()
+  })
+
+  it('skips Dugsi validation when childCount is missing', async () => {
+    const subscription = createDugsiMockSubscription({
+      metadata: {
+        guardianPersonId: 'guardian-456',
+        calculatedRate: '15000',
+      },
+    })
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockCalculateDugsiRate).not.toHaveBeenCalled()
   })
 })

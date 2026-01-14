@@ -13,6 +13,7 @@ import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
+import { RetryableWebhookError } from '@/lib/errors/webhook-errors'
 import { createServiceLogger } from '@/lib/logger'
 import { unifiedMatcher } from '@/lib/services/shared/unified-matcher'
 
@@ -69,31 +70,35 @@ async function handleCheckoutCompleted(
     null
 
   if (!personId) {
-    // Log for manual review but don't fail
+    // Log for visibility
     unifiedMatcher.logNoMatchFound(
       session,
       session.subscription?.toString() || 'no-subscription',
       accountType
     )
 
-    // Escalate to Sentry error for proper alerting
-    // Customer paid but subscription cannot be linked automatically
+    // Escalate to Sentry for alerting
     Sentry.captureMessage('Checkout session could not be matched to person', {
-      level: 'error',
+      level: 'warning',
       extra: {
         sessionId: session.id,
         accountType,
         customerEmail: session.customer_details?.email,
         subscriptionId: session.subscription?.toString() || null,
-        action: 'manual_linking_required',
       },
     })
 
-    logger.warn(
-      { sessionId: session.id, accountType },
-      'No person found for checkout session - manual linking required'
+    // Throw RetryableWebhookError - returns 500 so Stripe will retry
+    // Person record may arrive via subsequent event (e.g., subscription.created)
+    throw new RetryableWebhookError(
+      'No person found for checkout session - may arrive in subsequent event',
+      {
+        sessionId: session.id,
+        accountType,
+        customerEmail: session.customer_details?.email,
+        subscriptionId: session.subscription?.toString() || null,
+      }
     )
-    return
   }
 
   // Capture payment method

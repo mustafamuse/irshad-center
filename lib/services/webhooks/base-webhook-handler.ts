@@ -26,6 +26,10 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
+import {
+  RateMismatchError,
+  RetryableWebhookError,
+} from '@/lib/errors/webhook-errors'
 import { createWebhookLogger } from '@/lib/logger'
 
 /**
@@ -230,15 +234,26 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       return NextResponse.json({ received: true }, { status: 200 })
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      const isRetryable = err instanceof RetryableWebhookError
 
-      logger.error(
-        {
-          err,
-          eventId,
-          errorType: err?.constructor?.name,
-        },
-        'Webhook error'
-      )
+      if (isRetryable) {
+        logger.warn(
+          {
+            eventId,
+            context: (err as RetryableWebhookError).context,
+          },
+          errorMessage
+        )
+      } else {
+        logger.error(
+          {
+            err,
+            eventId,
+            errorType: err?.constructor?.name,
+          },
+          'Webhook error'
+        )
+      }
 
       // 10. Cleanup webhook event record on error (allows retry)
       // Don't delete if error is about duplicate processing
@@ -260,6 +275,24 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       }
 
       // 11. Return appropriate status codes based on error type
+
+      // Retryable errors: expected race conditions, return 500 for Stripe retry
+      if (isRetryable) {
+        return NextResponse.json(
+          { message: 'Temporary processing error, will retry' },
+          { status: 500 }
+        )
+      }
+
+      // Rate mismatch errors: billing discrepancy requiring investigation
+      // Return 400 (no retry) since manual intervention is needed
+      if (err instanceof RateMismatchError) {
+        return NextResponse.json(
+          { message: 'Rate validation failed - investigation required' },
+          { status: 400 }
+        )
+      }
+
       // Signature and validation errors should return 400/401 (client errors)
       if (
         errorMessage.includes('Missing signature') ||
