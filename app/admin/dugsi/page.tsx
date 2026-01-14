@@ -6,9 +6,14 @@ import { AppErrorBoundary } from '@/components/error-boundary'
 import { isFeatureEnabled } from '@/lib/feature-flags'
 import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-import { getDugsiRegistrations } from './actions'
+import {
+  getDugsiRegistrations,
+  getClassesWithDetailsAction,
+  getAllTeachersForClassAssignmentAction,
+} from './actions'
 import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
 import { DugsiDashboard } from './components/dugsi-dashboard'
+import { getTeachers } from './teachers/actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -59,9 +64,45 @@ export default async function DugsiAdminPage({
   const params = await searchParams
   const shift = ShiftFilterSchema.parse(params?.shift)
 
-  const registrations = await getDugsiRegistrations({ shift })
-
   const useConsolidatedUI = isFeatureEnabled('consolidatedAdminUI')
+
+  if (useConsolidatedUI) {
+    const [registrations, teachersResult, classesResult, classTeachersResult] =
+      await Promise.all([
+        getDugsiRegistrations({ shift }),
+        getTeachers('DUGSI_PROGRAM'),
+        getClassesWithDetailsAction(),
+        getAllTeachersForClassAssignmentAction(),
+      ])
+
+    return (
+      <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
+        <AppErrorBoundary
+          context="Dugsi admin dashboard"
+          variant="card"
+          fallbackUrl="/admin/dugsi"
+          fallbackLabel="Reload Dashboard"
+        >
+          <Suspense fallback={<Loading />}>
+            <ConsolidatedDugsiDashboard
+              registrations={registrations}
+              teachers={
+                teachersResult.success ? (teachersResult.data ?? []) : []
+              }
+              classes={classesResult.success ? (classesResult.data ?? []) : []}
+              classTeachers={
+                classTeachersResult.success
+                  ? (classTeachersResult.data ?? [])
+                  : []
+              }
+            />
+          </Suspense>
+        </AppErrorBoundary>
+      </main>
+    )
+  }
+
+  const registrations = await getDugsiRegistrations({ shift })
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
@@ -72,11 +113,7 @@ export default async function DugsiAdminPage({
         fallbackLabel="Reload Dashboard"
       >
         <Suspense fallback={<Loading />}>
-          {useConsolidatedUI ? (
-            <ConsolidatedDugsiDashboard registrations={registrations} />
-          ) : (
-            <DugsiDashboard registrations={registrations} />
-          )}
+          <DugsiDashboard registrations={registrations} />
         </Suspense>
       </AppErrorBoundary>
     </main>

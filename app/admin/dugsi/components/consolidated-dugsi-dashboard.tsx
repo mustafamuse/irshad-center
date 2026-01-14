@@ -8,14 +8,25 @@ import { Breadcrumbs, FilterChips, MainTabNavigation } from '@/components/admin'
 import { useDugsiTabs, DUGSI_TABS } from '@/lib/hooks/use-admin-tabs'
 import { useTabKeyboardShortcuts } from '@/lib/hooks/use-tab-keyboard-shortcuts'
 
-import { DugsiRegistration } from '../_types'
+import { ClassWithDetails, DugsiRegistration } from '../_types'
+import { ClassManagement } from '../classes/_components/class-management'
+import { TeacherWithDetails } from '../teachers/actions'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
 import { DugsiStats } from './dashboard/dashboard-stats'
 import { FamiliesTabContent } from './tabs/families-tab-content'
+import { TeachersDashboard } from '../teachers/components/teachers-dashboard'
+
+interface ClassTeacherForAssignment {
+  id: string
+  name: string
+}
 
 interface ConsolidatedDugsiDashboardProps {
   registrations: DugsiRegistration[]
+  teachers: TeacherWithDetails[]
+  classes: ClassWithDetails[]
+  classTeachers: ClassTeacherForAssignment[]
 }
 
 const TAB_CONFIG = [
@@ -60,6 +71,9 @@ function TabLoadingFallback() {
 
 export function ConsolidatedDugsiDashboard({
   registrations,
+  teachers,
+  classes,
+  classTeachers,
 }: ConsolidatedDugsiDashboardProps) {
   const { tab, setTab, status, setStatus } = useDugsiTabs()
 
@@ -118,13 +132,13 @@ export function ConsolidatedDugsiDashboard({
 
         {tab === 'teachers' && (
           <Suspense fallback={<TabLoadingFallback />}>
-            <TeachersTabContent />
+            <TeachersDashboard teachers={teachers} />
           </Suspense>
         )}
 
         {tab === 'classes' && (
           <Suspense fallback={<TabLoadingFallback />}>
-            <ClassesTabContent />
+            <ClassManagement classes={classes} teachers={classTeachers} />
           </Suspense>
         )}
 
@@ -138,22 +152,6 @@ export function ConsolidatedDugsiDashboard({
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function TeachersTabContent() {
-  return (
-    <div className="rounded-lg border p-6 text-center text-muted-foreground">
-      Teachers tab content - will be imported from existing teachers dashboard
-    </div>
-  )
-}
-
-function ClassesTabContent() {
-  return (
-    <div className="rounded-lg border p-6 text-center text-muted-foreground">
-      Classes tab content - will be imported from existing classes management
     </div>
   )
 }
