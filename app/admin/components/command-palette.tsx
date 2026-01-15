@@ -29,6 +29,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
+import { useDebounce } from '@/hooks/use-debounce'
 import { ADMIN_NAVIGATION } from '@/lib/constants/admin-navigation'
 
 interface CommandPaletteProps {
@@ -98,6 +99,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<PersonSearchResult[]>([])
   const [isSearching, startSearchTransition] = useTransition()
+  const debouncedQuery = useDebounce(searchQuery, 300)
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -119,14 +121,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   }, [open])
 
   useEffect(() => {
-    if (searchQuery.trim().length < 2) {
+    if (debouncedQuery.trim().length < 2) {
       setSearchResults([])
       return
     }
 
     startSearchTransition(async () => {
       try {
-        const result = await searchPeopleAction(searchQuery)
+        const result = await searchPeopleAction(debouncedQuery)
         if (result.success && result.data) {
           setSearchResults(result.data)
         } else {
@@ -138,7 +140,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         setSearchResults([])
       }
     })
-  }, [searchQuery])
+  }, [debouncedQuery])
 
   function handleSelect(url: string): void {
     router.push(url)
@@ -147,10 +149,14 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
+      <span id="command-palette-desc" className="sr-only">
+        Quick navigation and search. Press Escape to close.
+      </span>
       <CommandInput
         placeholder="Search for people, navigate to pages..."
         value={searchQuery}
         onValueChange={setSearchQuery}
+        aria-describedby="command-palette-desc"
       />
       <CommandList>
         <CommandEmpty>

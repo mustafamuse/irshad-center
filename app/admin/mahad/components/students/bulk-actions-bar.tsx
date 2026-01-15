@@ -41,11 +41,11 @@ function pluralizeStudent(count: number): string {
 function captureError(
   error: unknown,
   operation: string,
-  studentCount: number
+  context: { studentCount: number; studentIds: string[] }
 ): void {
   Sentry.captureException(error, {
     tags: { component: 'BulkActionsBar', operation },
-    extra: { studentCount },
+    extra: context,
   })
 }
 
@@ -96,7 +96,10 @@ export function BulkActionsBar({
         toast.error(result.error || 'Failed to assign students')
       }
     } catch (error) {
-      captureError(error, 'bulkAssign', selectedCount)
+      captureError(error, 'bulkAssign', {
+        studentCount: selectedCount,
+        studentIds,
+      })
       toast.error('Failed to assign students', {
         description: getErrorDescription(error),
       })
@@ -127,7 +130,10 @@ export function BulkActionsBar({
         toast.error(result.error || 'Failed to delete students')
       }
     } catch (error) {
-      captureError(error, 'bulkDelete', selectedCount)
+      captureError(error, 'bulkDelete', {
+        studentCount: selectedCount,
+        studentIds,
+      })
       toast.error('Failed to delete students', {
         description: getErrorDescription(error),
       })
@@ -173,7 +179,10 @@ export function BulkActionsBar({
 
       clearSelection()
     } catch (error) {
-      captureError(error, 'bulkExport', selectedCount)
+      captureError(error, 'bulkExport', {
+        studentCount: selectedCount,
+        studentIds,
+      })
       toast.error('Failed to export students', {
         description: getErrorDescription(error),
       })
