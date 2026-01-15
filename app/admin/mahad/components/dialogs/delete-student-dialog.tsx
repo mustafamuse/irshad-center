@@ -55,8 +55,11 @@ export function DeleteStudentDialog({
 
     let cancelled = false
     getStudentDeleteWarningsAction(studentId).then((result) => {
-      if (!cancelled && result.success && result.data) {
+      if (cancelled) return
+      if (result.success && result.data) {
         setWarnings(result.data)
+      } else {
+        toast.error('Failed to load deletion warnings')
       }
     })
     return () => {
