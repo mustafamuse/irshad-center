@@ -34,6 +34,7 @@ interface MahadUIStore {
   resetFilters: () => void
   toggleStudent: (id: string) => void
   setSelected: (ids: string[]) => void
+  setSelectedStudentIds: (ids: Set<string>) => void
   clearSelected: () => void
   openDialogWithData: (dialog: DialogType, data?: unknown) => void
   closeDialog: () => void
@@ -97,6 +98,11 @@ export const useMahadUIStore = create<MahadUIStore>()(
       setSelected: (ids) =>
         set((state) => {
           state.selectedStudentIds = new Set(ids)
+        }),
+
+      setSelectedStudentIds: (ids) =>
+        set((state) => {
+          state.selectedStudentIds = ids
         }),
 
       clearSelected: () =>
