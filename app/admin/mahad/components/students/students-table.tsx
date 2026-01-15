@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useRef } from 'react'
 
 import {
-  useReactTable,
+  flexRender,
   getCoreRowModel,
   getSortedRowModel,
   SortingState,
-  flexRender,
+  useReactTable,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { User } from 'lucide-react'
@@ -37,6 +37,14 @@ interface StudentsTableProps {
   batches: MahadBatch[]
 }
 
+function findStudentById(
+  students: MahadStudent[],
+  id: string | null
+): MahadStudent | null {
+  if (!id) return null
+  return students.find((s) => s.id === id) ?? null
+}
+
 export function StudentsTable({ students, batches }: StudentsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
@@ -47,6 +55,7 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
     string | null
   >(null)
   const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null)
+  const mobileParentRef = useRef<HTMLDivElement>(null)
 
   const selectedStudentIds = useMahadUIStore(
     (state) => state.selectedStudentIds
@@ -56,18 +65,18 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
   )
   const toggleStudentSelection = useMahadUIStore((state) => state.toggleStudent)
 
-  const handleViewDetails = useCallback((student: MahadStudent) => {
+  function handleViewDetails(student: MahadStudent): void {
     setSelectedStudentId(student.id)
     setIsSheetOpen(true)
-  }, [])
+  }
 
-  const handleDelete = useCallback((student: MahadStudent) => {
+  function handleDelete(student: MahadStudent): void {
     setDeleteStudentId(student.id)
-  }, [])
+  }
 
-  const handleGeneratePaymentLink = useCallback((student: MahadStudent) => {
+  function handleGeneratePaymentLink(student: MahadStudent): void {
     setPaymentLinkStudentId(student.id)
-  }, [])
+  }
 
   const columns = useMemo(
     () =>
@@ -76,16 +85,16 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         onDelete: handleDelete,
         onGeneratePaymentLink: handleGeneratePaymentLink,
       }),
-    [handleViewDetails, handleDelete, handleGeneratePaymentLink]
+    []
   )
 
-  const rowSelection = useMemo(() => {
-    const selection: Record<string, boolean> = {}
-    selectedStudentIds.forEach((id) => {
-      selection[id] = true
-    })
-    return selection
-  }, [selectedStudentIds])
+  const rowSelection = useMemo(
+    () =>
+      Object.fromEntries(
+        Array.from(selectedStudentIds).map((id) => [id, true])
+      ),
+    [selectedStudentIds]
+  )
 
   const table = useReactTable({
     data: students,
@@ -109,14 +118,10 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
     },
   })
 
-  const selectedStudents = useMemo(
-    () => table.getSelectedRowModel().rows.map((row) => row.original),
-    [table]
-  )
-
   const rows = table.getRowModel().rows
-
-  const mobileParentRef = useRef<HTMLDivElement>(null)
+  const selectedStudents = table
+    .getSelectedRowModel()
+    .rows.map((r) => r.original)
 
   const mobileVirtualizer = useVirtualizer({
     count: rows.length,
@@ -125,15 +130,9 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
     overscan: 3,
   })
 
-  const selectedStudent = selectedStudentId
-    ? (students.find((s) => s.id === selectedStudentId) ?? null)
-    : null
-  const paymentLinkStudent = paymentLinkStudentId
-    ? (students.find((s) => s.id === paymentLinkStudentId) ?? null)
-    : null
-  const deleteStudent = deleteStudentId
-    ? (students.find((s) => s.id === deleteStudentId) ?? null)
-    : null
+  const selectedStudent = findStudentById(students, selectedStudentId)
+  const paymentLinkStudent = findStudentById(students, paymentLinkStudentId)
+  const deleteStudent = findStudentById(students, deleteStudentId)
 
   if (students.length === 0) {
     return (
@@ -147,7 +146,6 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
 
   return (
     <TooltipProvider>
-      {/* Mobile Card Layout (below md breakpoint) */}
       <div
         ref={mobileParentRef}
         className="block max-h-[calc(100vh-300px)] min-h-[400px] overflow-auto md:hidden"
@@ -179,7 +177,6 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         </div>
       </div>
 
-      {/* Desktop Table Layout (md and above) */}
       <div className="hidden rounded-md border md:block">
         <Table>
           <TableHeader>
@@ -217,10 +214,8 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         </Table>
       </div>
 
-      {/* Bulk Actions Bar */}
       <BulkActionsBar selectedStudents={selectedStudents} batches={batches} />
 
-      {/* Student Details Sheet */}
       <StudentDetailSheet
         student={selectedStudent}
         batches={batches}
@@ -228,7 +223,6 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         onOpenChange={setIsSheetOpen}
       />
 
-      {/* Payment Link Dialog */}
       <PaymentLinkDialog
         profileId={paymentLinkStudent?.id ?? ''}
         studentName={paymentLinkStudent?.name ?? ''}
@@ -236,7 +230,6 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         onOpenChange={(open) => !open && setPaymentLinkStudentId(null)}
       />
 
-      {/* Delete Student Dialog */}
       {deleteStudent && (
         <DeleteStudentDialog
           studentId={deleteStudent.id}

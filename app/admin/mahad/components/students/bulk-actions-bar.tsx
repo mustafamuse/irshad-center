@@ -34,6 +34,25 @@ interface BulkActionsBarProps {
   batches: MahadBatch[]
 }
 
+function pluralizeStudent(count: number): string {
+  return count === 1 ? 'student' : 'students'
+}
+
+function captureError(
+  error: unknown,
+  operation: string,
+  studentCount: number
+): void {
+  Sentry.captureException(error, {
+    tags: { component: 'BulkActionsBar', operation },
+    extra: { studentCount },
+  })
+}
+
+function getErrorDescription(error: unknown): string {
+  return error instanceof Error ? error.message : 'An error occurred'
+}
+
 export function BulkActionsBar({
   selectedStudents,
   batches,
@@ -47,8 +66,9 @@ export function BulkActionsBar({
   const clearSelection = useMahadUIStore((state) => state.clearSelected)
 
   const selectedCount = selectedStudents.length
+  const studentIds = selectedStudents.map((s) => s.id)
 
-  const handleBulkAssign = async () => {
+  async function handleBulkAssign(): Promise<void> {
     if (!selectedBatchId) {
       toast.error('Please select a batch')
       return
@@ -57,20 +77,16 @@ export function BulkActionsBar({
     setIsAssigning(true)
 
     try {
-      const studentIds = selectedStudents.map((s) => s.id)
       const result = await assignStudentsAction(selectedBatchId, studentIds)
 
       if (result.success && result.data) {
         const { assignedCount, failedAssignments } = result.data
+        const message = `${failedAssignments.length > 0 ? 'Assigned' : 'Successfully assigned'} ${assignedCount} ${pluralizeStudent(assignedCount)}`
 
         if (failedAssignments.length > 0) {
-          toast.warning(
-            `Assigned ${assignedCount} student${assignedCount !== 1 ? 's' : ''}. ${failedAssignments.length} failed.`
-          )
+          toast.warning(`${message}. ${failedAssignments.length} failed.`)
         } else {
-          toast.success(
-            `Successfully assigned ${assignedCount} student${assignedCount !== 1 ? 's' : ''}`
-          )
+          toast.success(message)
         }
 
         clearSelection()
@@ -80,40 +96,29 @@ export function BulkActionsBar({
         toast.error(result.error || 'Failed to assign students')
       }
     } catch (error) {
-      Sentry.captureException(error, {
-        tags: {
-          component: 'BulkActionsBar',
-          operation: 'bulkAssign',
-        },
-        extra: { studentCount: selectedStudents.length },
-      })
+      captureError(error, 'bulkAssign', selectedCount)
       toast.error('Failed to assign students', {
-        description:
-          error instanceof Error ? error.message : 'An error occurred',
+        description: getErrorDescription(error),
       })
     } finally {
       setIsAssigning(false)
     }
   }
 
-  const handleBulkDelete = async () => {
+  async function handleBulkDelete(): Promise<void> {
     setIsDeleting(true)
 
     try {
-      const studentIds = selectedStudents.map((s) => s.id)
       const result = await bulkDeleteStudentsAction(studentIds)
 
       if (result.success && result.data) {
         const { deletedCount, failedDeletes } = result.data
+        const message = `${failedDeletes.length > 0 ? 'Deleted' : 'Successfully deleted'} ${deletedCount} ${pluralizeStudent(deletedCount)}`
 
         if (failedDeletes.length > 0) {
-          toast.warning(
-            `Deleted ${deletedCount} student${deletedCount !== 1 ? 's' : ''}. ${failedDeletes.length} failed.`
-          )
+          toast.warning(`${message}. ${failedDeletes.length} failed.`)
         } else {
-          toast.success(
-            `Successfully deleted ${deletedCount} student${deletedCount !== 1 ? 's' : ''}`
-          )
+          toast.success(message)
         }
 
         clearSelection()
@@ -122,27 +127,19 @@ export function BulkActionsBar({
         toast.error(result.error || 'Failed to delete students')
       }
     } catch (error) {
-      Sentry.captureException(error, {
-        tags: {
-          component: 'BulkActionsBar',
-          operation: 'bulkDelete',
-        },
-        extra: { studentCount: selectedStudents.length },
-      })
+      captureError(error, 'bulkDelete', selectedCount)
       toast.error('Failed to delete students', {
-        description:
-          error instanceof Error ? error.message : 'An error occurred',
+        description: getErrorDescription(error),
       })
     } finally {
       setIsDeleting(false)
     }
   }
 
-  const handleBulkExport = async () => {
+  async function handleBulkExport(): Promise<void> {
     setIsExporting(true)
 
     try {
-      // Convert selected students to CSV
       const headers = ['Name', 'Email', 'Phone', 'Batch', 'Status']
       const rows = selectedStudents.map((student) => [
         student.name,
@@ -168,7 +165,7 @@ export function BulkActionsBar({
       URL.revokeObjectURL(url)
 
       toast.success(
-        `Exported ${selectedCount} student${selectedCount !== 1 ? 's' : ''}`,
+        `Exported ${selectedCount} ${pluralizeStudent(selectedCount)}`,
         {
           icon: <CheckCircle2 className="h-4 w-4" />,
         }
@@ -176,16 +173,9 @@ export function BulkActionsBar({
 
       clearSelection()
     } catch (error) {
-      Sentry.captureException(error, {
-        tags: {
-          component: 'BulkActionsBar',
-          operation: 'bulkExport',
-        },
-        extra: { studentCount: selectedStudents.length },
-      })
+      captureError(error, 'bulkExport', selectedCount)
       toast.error('Failed to export students', {
-        description:
-          error instanceof Error ? error.message : 'An error occurred',
+        description: getErrorDescription(error),
       })
     } finally {
       setIsExporting(false)
@@ -206,8 +196,7 @@ export function BulkActionsBar({
             <Card className="border-primary/20 bg-background/95 px-4 py-2 shadow-lg backdrop-blur">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium">
-                  {selectedCount} {selectedCount === 1 ? 'student' : 'students'}{' '}
-                  selected
+                  {selectedCount} {pluralizeStudent(selectedCount)} selected
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
@@ -266,14 +255,13 @@ export function BulkActionsBar({
         )}
       </AnimatePresence>
 
-      {/* Assign Batch Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Assign Students to Batch</DialogTitle>
             <DialogDescription>
-              Assign {selectedCount} selected student
-              {selectedCount !== 1 ? 's' : ''} to a batch.
+              Assign {selectedCount} selected {pluralizeStudent(selectedCount)}{' '}
+              to a batch.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -313,8 +301,7 @@ export function BulkActionsBar({
               ) : (
                 <>
                   <GraduationCap className="mr-2 h-4 w-4" />
-                  Assign {selectedCount} Student
-                  {selectedCount !== 1 ? 's' : ''}
+                  Assign {selectedCount} {pluralizeStudent(selectedCount)}
                 </>
               )}
             </Button>
@@ -322,14 +309,13 @@ export function BulkActionsBar({
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Delete Students</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedCount} selected student
-              {selectedCount !== 1 ? 's' : ''}? This action cannot be undone.
+              Are you sure you want to delete {selectedCount} selected{' '}
+              {pluralizeStudent(selectedCount)}? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -353,7 +339,7 @@ export function BulkActionsBar({
               ) : (
                 <>
                   <X className="mr-2 h-4 w-4" />
-                  Delete {selectedCount} Student{selectedCount !== 1 ? 's' : ''}
+                  Delete {selectedCount} {pluralizeStudent(selectedCount)}
                 </>
               )}
             </Button>
