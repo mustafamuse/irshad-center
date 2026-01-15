@@ -10,7 +10,6 @@ import { Heart, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { Button } from '@/components/ui/button'
-import { IRSHAD_CENTER } from '@/lib/constants/homepage'
 
 export default function StickyHeader() {
   const { theme, setTheme } = useTheme()
@@ -63,18 +62,12 @@ export default function StickyHeader() {
               </button>
 
               <Button
-                asChild
+                disabled
                 size="sm"
-                className="gap-1.5 rounded-full bg-[#deb43e] px-4 text-white hover:bg-[#c9a438]"
+                className="cursor-not-allowed gap-1.5 rounded-full bg-[#deb43e]/50 px-4 text-white"
               >
-                <a
-                  href={IRSHAD_CENTER.donationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Heart className="h-4 w-4" />
-                  <span className="hidden sm:inline">Donate</span>
-                </a>
+                <Heart className="h-4 w-4" />
+                <span className="hidden sm:inline">Donate</span>
               </Button>
             </div>
           </div>

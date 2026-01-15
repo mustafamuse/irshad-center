@@ -14,7 +14,7 @@ export const IRSHAD_CENTER = {
   coordinates: { lat: 44.8547, lng: -93.4708 },
   googleMapsUrl:
     'https://www.google.com/maps/search/?api=1&query=6520+Edenvale+Blvd+%23110+Eden+Prairie+MN+55346',
-  donationUrl: 'https://example.com/donate',
+  donationUrl: '',
   social: {
     instagram: 'https://www.instagram.com/irshadislamiccenter/',
     facebook: '',

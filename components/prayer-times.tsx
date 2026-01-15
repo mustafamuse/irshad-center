@@ -145,14 +145,16 @@ export default function PrayerTimes() {
         } catch (err) {
           console.error('Failed to load PrayTime library:', err)
           setUsingFallback(true)
-          setPrayerTimes({
+          const fallbackTimes = {
             fajr: '5:45 AM',
             sunrise: '7:21 AM',
             dhuhr: '12:27 PM',
             asr: '3:53 PM',
             maghrib: '5:34 PM',
             isha: '7:52 PM',
-          })
+          }
+          setPrayerTimes(fallbackTimes)
+          calculateNextPrayer(fallbackTimes)
         }
       }
       loadPrayTime()
@@ -177,8 +179,7 @@ export default function PrayerTimes() {
       clearInterval(timeInterval)
       clearTimeout(midnightTimer)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- prayerTimes is intentionally excluded as it's set within this effect
-  }, [isClient])
+  }, [isClient, prayerTimes])
 
   if (!isClient) {
     return null
