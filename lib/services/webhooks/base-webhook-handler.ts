@@ -287,6 +287,14 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       // Rate mismatch errors: billing discrepancy requiring investigation
       // Return 400 (no retry) since manual intervention is needed
       if (err instanceof RateMismatchError) {
+        logger.error(
+          {
+            eventId,
+            context: err.context,
+            errorType: 'RateMismatchError',
+          },
+          'Rate validation failed - manual investigation required'
+        )
         return NextResponse.json(
           { message: 'Rate validation failed - investigation required' },
           { status: 400 }

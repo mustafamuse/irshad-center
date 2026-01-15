@@ -70,23 +70,12 @@ async function handleCheckoutCompleted(
     null
 
   if (!personId) {
-    // Log for visibility
+    // Log for visibility - no Sentry alert since this is expected race condition
     unifiedMatcher.logNoMatchFound(
       session,
       session.subscription?.toString() || 'no-subscription',
       accountType
     )
-
-    // Escalate to Sentry for alerting
-    Sentry.captureMessage('Checkout session could not be matched to person', {
-      level: 'warning',
-      extra: {
-        sessionId: session.id,
-        accountType,
-        customerEmail: session.customer_details?.email,
-        subscriptionId: session.subscription?.toString() || null,
-      },
-    })
 
     // Throw RetryableWebhookError - returns 500 so Stripe will retry
     // Person record may arrive via subsequent event (e.g., subscription.created)

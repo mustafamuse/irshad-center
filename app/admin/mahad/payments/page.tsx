@@ -28,7 +28,7 @@ export default async function PaymentsPage({
   searchParams,
 }: PaymentsPageProps) {
   if (isFeatureEnabled('consolidatedAdminUI')) {
-    redirect('/admin/mahad?tab=payments')
+    redirect('/admin/mahad')
   }
 
   const resolvedSearchParams = await searchParams
