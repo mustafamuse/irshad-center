@@ -148,10 +148,23 @@ irshad-center/
 ```typescript
 // app/admin/dugsi/page.tsx
 export default async function DugsiAdminPage() {
-  // Direct Prisma call in Server Component
-  const registrations = await getDugsiRegistrations()
+  // Parallel data fetching for consolidated dashboard
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
-  return <DugsiDashboard registrations={registrations} />
+  return (
+    <ConsolidatedDugsiDashboard
+      registrations={registrations}
+      teachers={teachersResult.data ?? []}
+      classes={classesResult.data ?? []}
+      classTeachers={classTeachersResult.data ?? []}
+    />
+  )
 }
 ```
 
@@ -319,7 +332,12 @@ export default function Error({ error, reset }: ErrorProps) {
 ```typescript
 // app/admin/dugsi/page.tsx
 <Suspense fallback={<Loading />}>
-  <DugsiDashboard registrations={registrations} />
+  <ConsolidatedDugsiDashboard
+    registrations={registrations}
+    teachers={teachersResult.data ?? []}
+    classes={classesResult.data ?? []}
+    classTeachers={classTeachersResult.data ?? []}
+  />
 </Suspense>
 ```
 

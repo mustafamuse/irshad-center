@@ -10,3 +10,4 @@ export {
   detectDuplicates,
   type BatchGroup,
 } from './grouping'
+export { mapBatch, mapStudent } from './mappers'

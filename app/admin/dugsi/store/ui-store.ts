@@ -298,10 +298,10 @@ export const useConsolidateSubscriptionDialogData = () =>
   useDugsiUIStore((state) => state.consolidateSubscriptionDialogData)
 
 // ============================================================================
-// LEGACY ACTION COMPATIBILITY (For gradual migration)
+// FILTER ACTIONS
 // ============================================================================
 
-export const useLegacyActions = () => {
+export const useFilterActions = () => {
   const store = useDugsiUIStore()
   return {
     setSearchQuery: (query: string) => store.setSearchQuery(query),

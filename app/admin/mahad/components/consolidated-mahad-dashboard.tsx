@@ -2,7 +2,11 @@
 
 import { AlertTriangle, Layers, Users } from 'lucide-react'
 
-import { Breadcrumbs, MainTabNavigation } from '@/components/admin'
+import {
+  DashboardHeader as SharedDashboardHeader,
+  DashboardLayout,
+  TabPanel,
+} from '@/components/admin'
 import { BatchWithCount } from '@/lib/db/queries/batch'
 import { StudentWithBatchData } from '@/lib/db/queries/student'
 import { useMahadTabs, MAHAD_TABS } from '@/lib/hooks/use-admin-tabs'
@@ -10,11 +14,12 @@ import { useTabKeyboardShortcuts } from '@/lib/hooks/use-tab-keyboard-shortcuts'
 
 import { useStudentFilters } from '../_hooks/use-student-filters'
 import { useStudentStats, useDuplicates } from '../_hooks/use-student-groups'
-import { DuplicateGroup, MahadBatch, MahadStudent } from '../_types'
+import { DuplicateGroup } from '../_types'
+import { mapBatch, mapStudent } from '../_utils/mappers'
 import { useMahadFilters, useDialogData } from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
-import { DashboardHeader } from './dashboard/dashboard-header'
 import { DashboardStats } from './dashboard/dashboard-stats'
+import { MahadDashboardHeaderActions } from './dashboard/mahad-dashboard-header-actions'
 import { TabContent } from './dashboard/tab-content'
 import {
   AssignStudentsDialog,
@@ -36,55 +41,6 @@ const TAB_CONFIG = [
     icon: <AlertTriangle className="h-4 w-4" />,
   },
 ]
-
-function mapStudent(s: StudentWithBatchData): MahadStudent {
-  return {
-    id: s.id,
-    name: s.name,
-    email: s.email ?? null,
-    phone: s.phone ?? null,
-    dateOfBirth: s.dateOfBirth ?? null,
-    gradeLevel: s.gradeLevel ?? null,
-    schoolName: s.schoolName ?? null,
-    graduationStatus: s.graduationStatus ?? null,
-    paymentFrequency: s.paymentFrequency ?? null,
-    billingType: s.billingType ?? null,
-    paymentNotes: s.paymentNotes ?? null,
-    status: s.status,
-    batchId: s.batchId ?? null,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
-    batch: s.batch
-      ? {
-          id: s.batch.id,
-          name: s.batch.name,
-          startDate: s.batch.startDate,
-          endDate: s.batch.endDate,
-        }
-      : null,
-    subscription: s.subscription
-      ? {
-          id: s.subscription.id,
-          status: s.subscription.status,
-          stripeSubscriptionId: s.subscription.stripeSubscriptionId,
-          amount: s.subscription.amount,
-        }
-      : null,
-    siblingCount: s.siblingCount,
-  }
-}
-
-function mapBatch(b: BatchWithCount): MahadBatch {
-  return {
-    id: b.id,
-    name: b.name,
-    startDate: b.startDate,
-    endDate: b.endDate,
-    createdAt: b.createdAt,
-    updatedAt: b.updatedAt,
-    studentCount: b.studentCount,
-  }
-}
 
 export function ConsolidatedMahadDashboard({
   students,
@@ -126,54 +82,62 @@ export function ConsolidatedMahadDashboard({
   })
 
   return (
-    <div className="space-y-6">
-      <Breadcrumbs items={breadcrumbItems} />
-
-      <MainTabNavigation
+    <>
+      <DashboardLayout
+        breadcrumbs={breadcrumbItems}
         tabs={tabsWithCounts}
         activeTab={tab}
         onTabChange={handleTabChange}
-      />
+      >
+        <TabPanel
+          id="tabpanel-students"
+          tabValue="students"
+          activeTab={tab}
+          className="space-y-6"
+        >
+          <SharedDashboardHeader
+            title="Mahad Cohorts"
+            description="Manage students, batches, and enrollment"
+            actions={<MahadDashboardHeaderActions />}
+          />
+          <div className="mb-6 mt-6 space-y-4">
+            <DashboardStats stats={stats} />
+            <DashboardFilters batches={mahadBatches} />
+          </div>
+          <TabContent
+            tab="students"
+            students={filteredStudents}
+            batches={mahadBatches}
+            duplicates={duplicates}
+          />
+        </TabPanel>
 
-      <div className="min-h-[500px]">
-        {tab === 'students' && (
-          <>
-            <DashboardHeader />
-            <div className="mb-6 mt-6 space-y-4">
-              <DashboardStats stats={stats} />
-              <DashboardFilters batches={mahadBatches} />
-            </div>
-            <TabContent
-              tab="students"
-              students={filteredStudents}
-              batches={mahadBatches}
-              duplicates={duplicates}
-            />
-          </>
-        )}
-
-        {tab === 'batches' && (
+        <TabPanel id="tabpanel-batches" tabValue="batches" activeTab={tab}>
           <TabContent
             tab="batches"
             students={mahadStudents}
             batches={mahadBatches}
             duplicates={duplicates}
           />
-        )}
+        </TabPanel>
 
-        {tab === 'duplicates' && (
+        <TabPanel
+          id="tabpanel-duplicates"
+          tabValue="duplicates"
+          activeTab={tab}
+        >
           <TabContent
             tab="duplicates"
             students={mahadStudents}
             batches={mahadBatches}
             duplicates={duplicates}
           />
-        )}
-      </div>
+        </TabPanel>
+      </DashboardLayout>
 
       <CreateBatchDialog />
       <AssignStudentsDialog students={mahadStudents} batches={mahadBatches} />
       <ResolveDuplicatesDialog group={dialogData as DuplicateGroup | null} />
-    </div>
+    </>
   )
 }

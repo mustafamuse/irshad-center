@@ -3,7 +3,6 @@ import { Suspense } from 'react'
 import { Metadata } from 'next'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
-import { isFeatureEnabled } from '@/lib/feature-flags'
 import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
 import {
@@ -12,7 +11,6 @@ import {
   getAllTeachersForClassAssignmentAction,
 } from './actions'
 import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
-import { DugsiDashboard } from './components/dugsi-dashboard'
 import { getTeachers } from './teachers/actions'
 
 export const dynamic = 'force-dynamic'
@@ -64,52 +62,26 @@ export default async function DugsiAdminPage({
   const params = await searchParams
   const shift = ShiftFilterSchema.parse(params?.shift)
 
-  const useConsolidatedUI = isFeatureEnabled('consolidatedAdminUI')
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
-  if (useConsolidatedUI) {
-    const [registrations, teachersResult, classesResult, classTeachersResult] =
-      await Promise.all([
-        getDugsiRegistrations({ shift }),
-        getTeachers('DUGSI_PROGRAM'),
-        getClassesWithDetailsAction(),
-        getAllTeachersForClassAssignmentAction(),
-      ])
-
-    // Throw on failed data loads so admins are aware of issues
-    if (!teachersResult.success) {
-      throw new Error(`Failed to load teachers: ${teachersResult.error}`)
-    }
-    if (!classesResult.success) {
-      throw new Error(`Failed to load classes: ${classesResult.error}`)
-    }
-    if (!classTeachersResult.success) {
-      throw new Error(
-        `Failed to load class teachers: ${classTeachersResult.error}`
-      )
-    }
-
-    return (
-      <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
-        <AppErrorBoundary
-          context="Dugsi admin dashboard"
-          variant="card"
-          fallbackUrl="/admin/dugsi"
-          fallbackLabel="Reload Dashboard"
-        >
-          <Suspense fallback={<Loading />}>
-            <ConsolidatedDugsiDashboard
-              registrations={registrations}
-              teachers={teachersResult.data ?? []}
-              classes={classesResult.data ?? []}
-              classTeachers={classTeachersResult.data ?? []}
-            />
-          </Suspense>
-        </AppErrorBoundary>
-      </main>
+  // Throw on failed data loads so admins are aware of issues
+  if (!teachersResult.success) {
+    throw new Error(`Failed to load teachers: ${teachersResult.error}`)
+  }
+  if (!classesResult.success) {
+    throw new Error(`Failed to load classes: ${classesResult.error}`)
+  }
+  if (!classTeachersResult.success) {
+    throw new Error(
+      `Failed to load class teachers: ${classTeachersResult.error}`
     )
   }
-
-  const registrations = await getDugsiRegistrations({ shift })
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
@@ -120,7 +92,12 @@ export default async function DugsiAdminPage({
         fallbackLabel="Reload Dashboard"
       >
         <Suspense fallback={<Loading />}>
-          <DugsiDashboard registrations={registrations} />
+          <ConsolidatedDugsiDashboard
+            registrations={registrations}
+            teachers={teachersResult.data ?? []}
+            classes={classesResult.data ?? []}
+            classTeachers={classTeachersResult.data ?? []}
+          />
         </Suspense>
       </AppErrorBoundary>
     </main>

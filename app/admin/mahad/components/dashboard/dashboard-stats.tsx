@@ -2,7 +2,7 @@
 
 import { AlertCircle, AlertTriangle, CheckCircle2, Users } from 'lucide-react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { StatsCard } from '@/components/admin'
 
 import { DashboardStats as Stats } from '../../_types'
 
@@ -13,67 +13,47 @@ interface DashboardStatsProps {
 export function DashboardStats({ stats }: DashboardStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Enrolled</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.enrolled}</div>
-          <p className="text-xs text-muted-foreground">
-            {stats.total} total across all batches
-          </p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="Enrolled"
+        value={stats.enrolled}
+        description={`${stats.total} total across all batches`}
+        icon={Users}
+      />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Healthy</CardTitle>
-          <CheckCircle2 className="h-4 w-4 text-green-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-green-600">
-            {stats.healthy}
-          </div>
-          <p className="text-xs text-muted-foreground">Active subscriptions</p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="Healthy"
+        value={stats.healthy}
+        description="Active subscriptions"
+        icon={CheckCircle2}
+        iconClassName="bg-green-50 text-green-500"
+        valueClassName="text-green-600"
+      />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">At Risk</CardTitle>
-          <AlertTriangle
-            className={`h-4 w-4 ${stats.atRisk > 0 ? 'text-amber-500' : 'text-muted-foreground'}`}
-          />
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`text-2xl font-bold ${stats.atRisk > 0 ? 'text-amber-600' : ''}`}
-          >
-            {stats.atRisk}
-          </div>
-          <p className="text-xs text-muted-foreground">Past due payments</p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="At Risk"
+        value={stats.atRisk}
+        description="Past due payments"
+        icon={AlertTriangle}
+        iconClassName={
+          stats.atRisk > 0
+            ? 'bg-amber-50 text-amber-500'
+            : 'bg-muted text-muted-foreground'
+        }
+        valueClassName={stats.atRisk > 0 ? 'text-amber-600' : ''}
+      />
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Needs Action</CardTitle>
-          <AlertCircle
-            className={`h-4 w-4 ${stats.needsAction > 0 ? 'text-red-500' : 'text-muted-foreground'}`}
-          />
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`text-2xl font-bold ${stats.needsAction > 0 ? 'text-red-600' : ''}`}
-          >
-            {stats.needsAction}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Canceled or no subscription
-          </p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="Needs Action"
+        value={stats.needsAction}
+        description="Canceled or no subscription"
+        icon={AlertCircle}
+        iconClassName={
+          stats.needsAction > 0
+            ? 'bg-red-50 text-red-500'
+            : 'bg-muted text-muted-foreground'
+        }
+        valueClassName={stats.needsAction > 0 ? 'text-red-600' : ''}
+      />
     </div>
   )
 }

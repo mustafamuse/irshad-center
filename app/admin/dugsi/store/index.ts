@@ -10,7 +10,7 @@ export {
   useLinkSubscriptionDialogData,
   useConsolidateSubscriptionDialogState,
   useConsolidateSubscriptionDialogData,
-  useLegacyActions,
+  useFilterActions,
 } from './ui-store'
 
 export type { DugsiFilters } from './ui-store'
