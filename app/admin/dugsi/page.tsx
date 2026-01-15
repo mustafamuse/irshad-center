@@ -60,7 +60,8 @@ export default async function DugsiAdminPage({
   searchParams?: Promise<{ shift?: string }>
 }) {
   const params = await searchParams
-  const shift = ShiftFilterSchema.parse(params?.shift)
+  const parsed = ShiftFilterSchema.safeParse(params?.shift)
+  const shift = parsed.success ? parsed.data : undefined
 
   const [registrations, teachersResult, classesResult, classTeachersResult] =
     await Promise.all([

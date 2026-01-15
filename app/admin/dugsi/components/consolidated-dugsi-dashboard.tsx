@@ -9,7 +9,11 @@ import {
   FilterChips,
   TabPanel,
 } from '@/components/admin'
-import { useDugsiTabs, DUGSI_TABS } from '@/lib/hooks/use-admin-tabs'
+import {
+  useDugsiTabs,
+  DUGSI_TABS,
+  FAMILY_STATUS_FILTERS,
+} from '@/lib/hooks/use-admin-tabs'
 import { useTabKeyboardShortcuts } from '@/lib/hooks/use-tab-keyboard-shortcuts'
 
 import { ClassWithDetails, DugsiRegistration } from '../_types'
@@ -73,11 +77,15 @@ export function ConsolidatedDugsiDashboard({
   const { tab, setTab, status, setStatus } = useDugsiTabs()
 
   const handleTabChange = (newTab: string) => {
-    setTab(newTab as typeof tab)
+    if (DUGSI_TABS.includes(newTab as typeof tab)) {
+      setTab(newTab as typeof tab)
+    }
   }
 
   const handleStatusChange = (newStatus: string) => {
-    setStatus(newStatus as typeof status)
+    if (FAMILY_STATUS_FILTERS.includes(newStatus as typeof status)) {
+      setStatus(newStatus as typeof status)
+    }
   }
 
   useTabKeyboardShortcuts({

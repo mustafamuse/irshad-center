@@ -125,11 +125,16 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     startSearchTransition(async () => {
-      const result = await searchPeopleAction(searchQuery)
-      if (result.success && result.data) {
-        setSearchResults(result.data)
-      } else {
-        toast.error(result.error || 'Search failed. Please try again.')
+      try {
+        const result = await searchPeopleAction(searchQuery)
+        if (result.success && result.data) {
+          setSearchResults(result.data)
+        } else {
+          toast.error(result.error || 'Search failed. Please try again.')
+          setSearchResults([])
+        }
+      } catch {
+        toast.error('Search failed. Please try again.')
         setSearchResults([])
       }
     })
