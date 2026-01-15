@@ -61,8 +61,13 @@ This document describes the component patterns and best practices used in the Ir
 ```typescript
 // app/admin/dugsi/page.tsx
 import { Metadata } from 'next'
-import { getDugsiRegistrations } from './actions'
-import { DugsiDashboard } from './components/dugsi-dashboard'
+import {
+  getDugsiRegistrations,
+  getClassesWithDetailsAction,
+  getAllTeachersForClassAssignmentAction,
+} from './actions'
+import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
+import { getTeachers } from './teachers/actions'
 
 export const metadata: Metadata = {
   title: 'Dugsi Admin',
@@ -70,10 +75,23 @@ export const metadata: Metadata = {
 }
 
 export default async function DugsiAdminPage() {
-  // Direct database access
-  const registrations = await getDugsiRegistrations()
+  // Parallel data fetching for consolidated dashboard
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
-  return <DugsiDashboard registrations={registrations} />
+  return (
+    <ConsolidatedDugsiDashboard
+      registrations={registrations}
+      teachers={teachersResult.data ?? []}
+      classes={classesResult.data ?? []}
+      classTeachers={classTeachersResult.data ?? []}
+    />
+  )
 }
 ```
 
@@ -105,11 +123,22 @@ export default async function CohortsPage() {
 import { Suspense } from 'react'
 
 export default async function DugsiAdminPage() {
-  const registrations = await getDugsiRegistrations()
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
   return (
     <Suspense fallback={<Loading />}>
-      <DugsiDashboard registrations={registrations} />
+      <ConsolidatedDugsiDashboard
+        registrations={registrations}
+        teachers={teachersResult.data ?? []}
+        classes={classesResult.data ?? []}
+        classTeachers={classTeachersResult.data ?? []}
+      />
     </Suspense>
   )
 }
@@ -119,15 +148,31 @@ export default async function DugsiAdminPage() {
 
 ```typescript
 // app/admin/dugsi/page.tsx
-import { DugsiErrorBoundary } from './components/error-boundary'
+import { AppErrorBoundary } from '@/components/error-boundary'
 
 export default async function DugsiAdminPage() {
-  const registrations = await getDugsiRegistrations()
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
   return (
-    <DugsiErrorBoundary>
-      <DugsiDashboard registrations={registrations} />
-    </DugsiErrorBoundary>
+    <AppErrorBoundary
+      context="Dugsi admin dashboard"
+      variant="card"
+      fallbackUrl="/admin/dugsi"
+      fallbackLabel="Reload Dashboard"
+    >
+      <ConsolidatedDugsiDashboard
+        registrations={registrations}
+        teachers={teachersResult.data ?? []}
+        classes={classesResult.data ?? []}
+        classTeachers={classTeachersResult.data ?? []}
+      />
+    </AppErrorBoundary>
   )
 }
 ```
@@ -143,11 +188,11 @@ export default async function DugsiAdminPage() {
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useViewMode, useLegacyActions } from '../../store'
+import { useViewMode, useFilterActions } from '../../store'
 
 export function DashboardHeader() {
   const viewMode = useViewMode()
-  const { setViewMode } = useLegacyActions()
+  const { setViewMode } = useFilterActions()
 
   return (
     <div className="flex items-center justify-between">
@@ -179,11 +224,11 @@ export function DashboardHeader() {
 
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
-import { useDugsiFilters, useLegacyActions } from '../../store'
+import { useDugsiFilters, useFilterActions } from '../../store'
 
 export function DashboardFilters() {
   const filters = useDugsiFilters()
-  const { setSearchQuery } = useLegacyActions()
+  const { setSearchQuery } = useFilterActions()
 
   return (
     <div className="flex gap-4">
@@ -336,11 +381,11 @@ export const useDugsiUIStore = create<DugsiUIStore>()((set) => ({
 ```typescript
 'use client'
 
-import { useSelectedFamilies, useLegacyActions } from '../store'
+import { useSelectedFamilies, useFilterActions } from '../store'
 
 export function Component() {
   const selectedFamilies = useSelectedFamilies()
-  const { toggleFamilySelection } = useLegacyActions()
+  const { toggleFamilySelection } = useFilterActions()
 
   return (
     <div>

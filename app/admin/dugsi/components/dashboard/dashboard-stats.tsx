@@ -9,7 +9,7 @@ import {
   Users,
 } from 'lucide-react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { StatsCard } from '@/components/admin'
 import { cn } from '@/lib/utils'
 
 import { DugsiRegistration, TabValue } from '../../_types'
@@ -93,204 +93,93 @@ export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
             value: 'text-green-600',
           }
 
-  const cardClickStyles = onStatClick
-    ? 'cursor-pointer hover:ring-2 hover:ring-primary/20'
-    : ''
+  const varianceValue =
+    variance === 0
+      ? '$0'
+      : `${variance < 0 ? '-' : '+'}$${Math.abs(variance / 100).toFixed(0)}`
 
   return (
     <div className="mx-auto grid max-w-screen-2xl gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-      <Card
-        className={cn(
-          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          cardClickStyles
-        )}
+      <StatsCard
+        title="Families"
+        value={totalFamilies}
+        description={`${totalStudents} total students`}
+        icon={Users}
+        topBarClassName="bg-teal-700"
+        iconClassName="bg-teal-700/10 text-teal-700"
         onClick={() => onStatClick?.('all')}
-      >
-        <div className="h-1 bg-teal-700" />
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Families</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700/10">
-            <Users className="h-4 w-4 text-teal-700" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold tracking-tight">
-            {totalFamilies}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {totalStudents} total students
-          </p>
-        </CardContent>
-      </Card>
+      />
 
-      <Card
-        className={cn(
-          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          cardClickStyles
-        )}
+      <StatsCard
+        title="Enrolled & Paying"
+        value={payingFamilies}
+        description={`${payingRate}% of families`}
+        icon={UserCheck}
+        topBarClassName="bg-green-500"
+        iconClassName="bg-green-100 text-green-600"
+        valueClassName="text-green-600"
         onClick={() => onStatClick?.('active')}
-      >
-        <div className="h-1 bg-green-500" />
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            Enrolled & Paying
-          </CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
-            <UserCheck className="h-4 w-4 text-green-600" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold tracking-tight text-green-600">
-            {payingFamilies}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {payingRate}% of families
-          </p>
-        </CardContent>
-      </Card>
+      />
 
-      <Card
-        className={cn(
-          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          noPaymentFamilies > 0 && 'ring-2 ring-amber-200',
-          cardClickStyles
-        )}
-        onClick={() => onStatClick?.('needs-attention')}
-      >
-        <div
-          className={cn(
-            'h-1',
-            noPaymentFamilies > 0 ? 'bg-amber-500' : 'bg-gray-200'
-          )}
-        />
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">No Payment</CardTitle>
-          <div
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg',
-              noPaymentFamilies > 0 ? 'bg-amber-100' : 'bg-gray-100'
-            )}
-          >
-            <AlertCircle
-              className={cn(
-                'h-4 w-4',
-                noPaymentFamilies > 0
-                  ? 'text-amber-600'
-                  : 'text-muted-foreground'
-              )}
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={cn(
-              'text-3xl font-bold tracking-tight',
-              noPaymentFamilies > 0 ? 'text-amber-600' : ''
-            )}
-          >
-            {noPaymentFamilies}
-          </div>
-          <p className="text-xs text-muted-foreground">Send payment link</p>
-        </CardContent>
-      </Card>
-
-      <Card
-        className={cn(
-          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          churnedFamilies > 0 && 'ring-2 ring-gray-300',
-          cardClickStyles
-        )}
-        onClick={() => onStatClick?.('churned')}
-      >
-        <div
-          className={cn(
-            'h-1',
-            churnedFamilies > 0 ? 'bg-gray-500' : 'bg-gray-200'
-          )}
-        />
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Churned</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
-            <RotateCcw
-              className={cn(
-                'h-4 w-4',
-                churnedFamilies > 0 ? 'text-gray-600' : 'text-muted-foreground'
-              )}
-            />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={cn(
-              'text-3xl font-bold tracking-tight',
-              churnedFamilies > 0 && 'text-gray-600'
-            )}
-          >
-            {churnedFamilies}
-          </div>
-          <p className="text-xs text-muted-foreground">Win back opportunity</p>
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden border-0 shadow-md transition-all hover:shadow-lg">
-        <div className="h-1 bg-blue-500" />
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-            <DollarSign className="h-4 w-4 text-blue-600" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="text-3xl font-bold tracking-tight">
-            {formattedRevenue}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            From {payingFamilies} families
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card
-        className={cn(
-          'overflow-hidden border-0 shadow-md transition-all hover:shadow-lg',
-          revenueStats.mismatchCount > 0 && cardClickStyles
-        )}
-        onClick={() =>
-          revenueStats.mismatchCount > 0 && onStatClick?.('billing-mismatch')
+      <StatsCard
+        title="No Payment"
+        value={noPaymentFamilies}
+        description="Send payment link"
+        icon={AlertCircle}
+        topBarClassName={noPaymentFamilies > 0 ? 'bg-amber-500' : 'bg-gray-200'}
+        iconClassName={
+          noPaymentFamilies > 0
+            ? 'bg-amber-100 text-amber-600'
+            : 'bg-gray-100 text-muted-foreground'
         }
-      >
-        <div className={cn('h-1', varianceColors.bar)} />
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">
-            Revenue Variance
-          </CardTitle>
-          <div
-            className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg',
-              varianceColors.bg
-            )}
-          >
-            <TrendingDown className={cn('h-4 w-4', varianceColors.text)} />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={cn(
-              'text-3xl font-bold tracking-tight',
-              varianceColors.value
-            )}
-          >
-            {variance === 0
-              ? '$0'
-              : `${variance < 0 ? '-' : '+'}$${Math.abs(variance / 100).toFixed(0)}`}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {revenueStats.mismatchCount === 0
-              ? 'All families paying correct amount'
-              : `${revenueStats.mismatchCount} ${revenueStats.mismatchCount === 1 ? 'family' : 'families'} mismatched`}
-          </p>
-        </CardContent>
-      </Card>
+        valueClassName={noPaymentFamilies > 0 ? 'text-amber-600' : ''}
+        highlight={noPaymentFamilies > 0}
+        onClick={() => onStatClick?.('needs-attention')}
+      />
+
+      <StatsCard
+        title="Churned"
+        value={churnedFamilies}
+        description="Win back opportunity"
+        icon={RotateCcw}
+        topBarClassName={churnedFamilies > 0 ? 'bg-gray-500' : 'bg-gray-200'}
+        iconClassName={
+          churnedFamilies > 0
+            ? 'bg-gray-100 text-gray-600'
+            : 'bg-gray-100 text-muted-foreground'
+        }
+        valueClassName={churnedFamilies > 0 ? 'text-gray-600' : ''}
+        highlight={churnedFamilies > 0}
+        onClick={() => onStatClick?.('churned')}
+      />
+
+      <StatsCard
+        title="Monthly Revenue"
+        value={formattedRevenue}
+        description={`From ${payingFamilies} families`}
+        icon={DollarSign}
+        topBarClassName="bg-blue-500"
+        iconClassName="bg-blue-100 text-blue-600"
+      />
+
+      <StatsCard
+        title="Revenue Variance"
+        value={varianceValue}
+        description={
+          revenueStats.mismatchCount === 0
+            ? 'All families paying correct amount'
+            : `${revenueStats.mismatchCount} ${revenueStats.mismatchCount === 1 ? 'family' : 'families'} mismatched`
+        }
+        icon={TrendingDown}
+        topBarClassName={varianceColors.bar}
+        iconClassName={cn('rounded-lg', varianceColors.bg, varianceColors.text)}
+        valueClassName={varianceColors.value}
+        onClick={
+          revenueStats.mismatchCount > 0
+            ? () => onStatClick?.('billing-mismatch')
+            : undefined
+        }
+      />
     </div>
   )
 }

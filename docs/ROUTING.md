@@ -279,9 +279,14 @@ app/
 import { Metadata } from 'next'
 import { Suspense } from 'react'
 
-import { getDugsiRegistrations } from './actions'
-import { DugsiDashboard } from './components/dugsi-dashboard'
-import { DugsiErrorBoundary } from './components/error-boundary'
+import { AppErrorBoundary } from '@/components/error-boundary'
+import {
+  getDugsiRegistrations,
+  getClassesWithDetailsAction,
+  getAllTeachersForClassAssignmentAction,
+} from './actions'
+import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
+import { getTeachers } from './teachers/actions'
 
 export const metadata: Metadata = {
   title: 'Dugsi Admin',
@@ -289,14 +294,30 @@ export const metadata: Metadata = {
 }
 
 export default async function DugsiAdminPage() {
-  const registrations = await getDugsiRegistrations()
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
   return (
-    <DugsiErrorBoundary>
+    <AppErrorBoundary
+      context="Dugsi admin dashboard"
+      variant="card"
+      fallbackUrl="/admin/dugsi"
+      fallbackLabel="Reload Dashboard"
+    >
       <Suspense fallback={<Loading />}>
-        <DugsiDashboard registrations={registrations} />
+        <ConsolidatedDugsiDashboard
+          registrations={registrations}
+          teachers={teachersResult.data ?? []}
+          classes={classesResult.data ?? []}
+          classTeachers={classTeachersResult.data ?? []}
+        />
       </Suspense>
-    </DugsiErrorBoundary>
+    </AppErrorBoundary>
   )
 }
 ```

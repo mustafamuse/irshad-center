@@ -5,10 +5,8 @@ import { Metadata } from 'next'
 import { AppErrorBoundary } from '@/components/error-boundary'
 import { getBatches } from '@/lib/db/queries/batch'
 import { getStudentsWithBatch } from '@/lib/db/queries/student'
-import { isFeatureEnabled } from '@/lib/feature-flags'
 
 import { ConsolidatedMahadDashboard } from './components/consolidated-mahad-dashboard'
-import { MahadDashboard } from './components/mahad-dashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,25 +46,6 @@ export default async function MahadCohortsPage() {
     getStudentsWithBatch(),
   ])
 
-  const useConsolidatedUI = isFeatureEnabled('consolidatedAdminUI')
-
-  if (useConsolidatedUI) {
-    return (
-      <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
-        <AppErrorBoundary
-          context="Mahad cohorts dashboard"
-          variant="card"
-          fallbackUrl="/admin/mahad"
-          fallbackLabel="Reload Dashboard"
-        >
-          <Suspense fallback={<Loading />}>
-            <ConsolidatedMahadDashboard students={students} batches={batches} />
-          </Suspense>
-        </AppErrorBoundary>
-      </main>
-    )
-  }
-
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
       <AppErrorBoundary
@@ -76,7 +55,7 @@ export default async function MahadCohortsPage() {
         fallbackLabel="Reload Dashboard"
       >
         <Suspense fallback={<Loading />}>
-          <MahadDashboard students={students} batches={batches} />
+          <ConsolidatedMahadDashboard students={students} batches={batches} />
         </Suspense>
       </AppErrorBoundary>
     </main>

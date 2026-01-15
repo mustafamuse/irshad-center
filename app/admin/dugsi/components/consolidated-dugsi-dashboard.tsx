@@ -4,7 +4,14 @@ import { Suspense } from 'react'
 
 import { Users, GraduationCap, BookOpen, ClipboardCheck } from 'lucide-react'
 
-import { Breadcrumbs, FilterChips, MainTabNavigation } from '@/components/admin'
+import {
+  DashboardHeader as SharedDashboardHeader,
+  DashboardLayout,
+  EmptyState,
+  FilterChips,
+  TabLoadingFallback,
+  TabPanel,
+} from '@/components/admin'
 import { useDugsiTabs, DUGSI_TABS } from '@/lib/hooks/use-admin-tabs'
 import { useTabKeyboardShortcuts } from '@/lib/hooks/use-tab-keyboard-shortcuts'
 
@@ -12,8 +19,8 @@ import { ClassWithDetails, DugsiRegistration } from '../_types'
 import { ClassManagement } from '../classes/_components/class-management'
 import { TeacherWithDetails } from '../teachers/actions'
 import { DashboardFilters } from './dashboard/dashboard-filters'
-import { DashboardHeader } from './dashboard/dashboard-header'
 import { DugsiStats } from './dashboard/dashboard-stats'
+import { DugsiDashboardHeaderActions } from './dashboard/dugsi-dashboard-header-actions'
 import { FamiliesTabContent } from './tabs/families-tab-content'
 import { TeachersDashboard } from '../teachers/components/teachers-dashboard'
 
@@ -60,15 +67,6 @@ const STATUS_CHIPS = [
   { value: 'billing-mismatch', label: 'Billing', variant: 'warning' as const },
 ]
 
-function TabLoadingFallback() {
-  return (
-    <div className="animate-pulse space-y-4">
-      <div className="h-10 w-full rounded bg-muted" />
-      <div className="h-96 rounded-lg bg-muted" />
-    </div>
-  )
-}
-
 export function ConsolidatedDugsiDashboard({
   registrations,
   teachers,
@@ -97,60 +95,57 @@ export function ConsolidatedDugsiDashboard({
   ]
 
   return (
-    <div className="space-y-6">
-      <Breadcrumbs items={breadcrumbItems} />
-
-      <MainTabNavigation
-        tabs={TAB_CONFIG}
+    <DashboardLayout
+      breadcrumbs={breadcrumbItems}
+      tabs={TAB_CONFIG}
+      activeTab={tab}
+      onTabChange={handleTabChange}
+    >
+      <TabPanel
+        id="tabpanel-families"
+        tabValue="families"
         activeTab={tab}
-        onTabChange={handleTabChange}
-      />
+        className="space-y-6"
+      >
+        <SharedDashboardHeader
+          title="Dugsi Program Management"
+          description="Manage student registrations and family subscriptions"
+          actions={<DugsiDashboardHeaderActions />}
+        />
+        <div className="mb-6 mt-6 space-y-4">
+          <DashboardFilters />
+          <DugsiStats registrations={registrations} onStatClick={() => {}} />
+          <FilterChips
+            chips={STATUS_CHIPS}
+            activeChip={status}
+            onChipChange={handleStatusChange}
+          />
+        </div>
+        <FamiliesTabContent
+          registrations={registrations}
+          statusFilter={status}
+        />
+      </TabPanel>
 
-      <div className="min-h-[500px]">
-        {tab === 'families' && (
-          <>
-            <DashboardHeader />
-            <div className="mb-6 mt-6 space-y-4">
-              <DashboardFilters />
-              <DugsiStats
-                registrations={registrations}
-                onStatClick={() => {}}
-              />
-              <FilterChips
-                chips={STATUS_CHIPS}
-                activeChip={status}
-                onChipChange={handleStatusChange}
-              />
-            </div>
-            <FamiliesTabContent
-              registrations={registrations}
-              statusFilter={status}
-            />
-          </>
-        )}
+      <TabPanel id="tabpanel-teachers" tabValue="teachers" activeTab={tab}>
+        <Suspense fallback={<TabLoadingFallback />}>
+          <TeachersDashboard teachers={teachers} />
+        </Suspense>
+      </TabPanel>
 
-        {tab === 'teachers' && (
-          <Suspense fallback={<TabLoadingFallback />}>
-            <TeachersDashboard teachers={teachers} />
-          </Suspense>
-        )}
+      <TabPanel id="tabpanel-classes" tabValue="classes" activeTab={tab}>
+        <Suspense fallback={<TabLoadingFallback />}>
+          <ClassManagement classes={classes} teachers={classTeachers} />
+        </Suspense>
+      </TabPanel>
 
-        {tab === 'classes' && (
-          <Suspense fallback={<TabLoadingFallback />}>
-            <ClassManagement classes={classes} teachers={classTeachers} />
-          </Suspense>
-        )}
-
-        {tab === 'attendance' && (
-          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed py-24 text-center">
-            <ClipboardCheck className="mb-4 h-12 w-12 text-muted-foreground/50" />
-            <h3 className="text-lg font-medium">Coming Soon</h3>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Student attendance tracking is under development
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
+      <TabPanel id="tabpanel-attendance" tabValue="attendance" activeTab={tab}>
+        <EmptyState
+          icon={ClipboardCheck}
+          title="Coming Soon"
+          description="Student attendance tracking is under development"
+        />
+      </TabPanel>
+    </DashboardLayout>
   )
 }
