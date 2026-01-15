@@ -33,6 +33,8 @@ import {
   getStudentById,
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
+  getBulkDeleteWarnings,
+  type BulkDeleteWarnings,
 } from '@/lib/db/queries/student'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger } from '@/lib/logger'
@@ -472,6 +474,30 @@ export async function getStudentDeleteWarningsAction(id: string) {
     return {
       success: false,
       data: { hasSiblings: false, hasAttendanceRecords: false },
+    } as const
+  }
+}
+
+/**
+ * Get delete warnings for multiple students (bulk delete)
+ */
+export async function getBulkDeleteWarningsAction(ids: string[]) {
+  try {
+    const warnings = await getBulkDeleteWarnings(ids)
+    return { success: true, data: warnings } as const
+  } catch (error) {
+    logger.error(
+      { err: error, studentIds: ids, count: ids.length },
+      'Failed to fetch bulk delete warnings'
+    )
+    return {
+      success: false,
+      data: {
+        studentsWithSiblings: 0,
+        studentsWithAttendance: 0,
+        studentsWithActiveSubscription: 0,
+        studentsWithPaymentHistory: 0,
+      } as BulkDeleteWarnings,
     } as const
   }
 }

@@ -1067,6 +1067,46 @@ export async function getStudentDeleteWarnings(
   }
 }
 
+export interface BulkDeleteWarnings {
+  studentsWithSiblings: number
+  studentsWithAttendance: number
+  studentsWithActiveSubscription: number
+  studentsWithPaymentHistory: number
+}
+
+export async function getBulkDeleteWarnings(
+  ids: string[],
+  client: DatabaseClient = prisma
+): Promise<BulkDeleteWarnings> {
+  const profiles = await client.programProfile.findMany({
+    where: { id: { in: ids } },
+    include: {
+      person: {
+        include: {
+          siblingRelationships1: { where: { isActive: true } },
+          siblingRelationships2: { where: { isActive: true } },
+        },
+      },
+      assignments: { where: { isActive: true } },
+      payments: true,
+    },
+  })
+
+  return {
+    studentsWithSiblings: profiles.filter(
+      (p) =>
+        p.person.siblingRelationships1.length > 0 ||
+        p.person.siblingRelationships2.length > 0
+    ).length,
+    studentsWithAttendance: 0,
+    studentsWithActiveSubscription: profiles.filter(
+      (p) => p.assignments.length > 0
+    ).length,
+    studentsWithPaymentHistory: profiles.filter((p) => p.payments.length > 0)
+      .length,
+  }
+}
+
 /**
  * Export students data (returns array for CSV export)
  */

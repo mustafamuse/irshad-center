@@ -1,6 +1,9 @@
 'use server'
 
 import { prisma } from '@/lib/db'
+import { createActionLogger } from '@/lib/logger'
+
+const logger = createActionLogger('mahad-payments')
 
 export async function getBatchesForFilter() {
   try {
@@ -20,7 +23,7 @@ export async function getBatchesForFilter() {
     })
     return batches
   } catch (error) {
-    console.error('Failed to fetch batches:', error)
+    logger.error({ err: error }, 'Failed to fetch batches')
     return []
   }
 }
@@ -32,7 +35,7 @@ export async function getBatchesForFilter() {
  */
 export async function runPaymentsBackfill() {
   'use server'
-  console.warn(
+  logger.warn(
     'runPaymentsBackfill is deprecated and needs migration to new schema'
   )
   return {

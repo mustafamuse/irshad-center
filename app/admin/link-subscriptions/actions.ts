@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { createActionLogger } from '@/lib/logger'
 import {
   getAllOrphanedSubscriptions,
   searchStudentsForLinking,
@@ -12,6 +13,8 @@ import {
   type OrphanedSubscription,
   type StudentMatch,
 } from '@/lib/services/link-subscriptions'
+
+const logger = createActionLogger('link-subscriptions')
 
 export type { OrphanedSubscription, StudentMatch }
 
@@ -34,7 +37,7 @@ export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsR
     return { data }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
-    console.error('Error fetching orphaned subscriptions:', message)
+    logger.error({ err: error }, 'Error fetching orphaned subscriptions')
     return { data: [], error: message }
   }
 }

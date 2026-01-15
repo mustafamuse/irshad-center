@@ -1,12 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import * as Sentry from '@sentry/nextjs'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Loader2, X, GraduationCap, Download, CheckCircle2 } from 'lucide-react'
+import {
+  Loader2,
+  X,
+  GraduationCap,
+  Download,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import {
@@ -24,8 +32,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import type { BulkDeleteWarnings } from '@/lib/db/queries/student'
 
-import { assignStudentsAction, bulkDeleteStudentsAction } from '../../_actions'
+import {
+  assignStudentsAction,
+  bulkDeleteStudentsAction,
+  getBulkDeleteWarningsAction,
+} from '../../_actions'
 import { MahadBatch, MahadStudent } from '../../_types'
 import { useMahadUIStore } from '../../store'
 
@@ -63,10 +76,34 @@ export function BulkActionsBar({
   const [assignDialogOpen, setAssignDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [selectedBatchId, setSelectedBatchId] = useState<string>('')
+  const [deleteWarnings, setDeleteWarnings] =
+    useState<BulkDeleteWarnings | null>(null)
   const clearSelection = useMahadUIStore((state) => state.clearSelected)
 
   const selectedCount = selectedStudents.length
   const studentIds = selectedStudents.map((s) => s.id)
+
+  const studentIdsKey = studentIds.join(',')
+  useEffect(() => {
+    if (!deleteDialogOpen || studentIds.length === 0) {
+      setDeleteWarnings(null)
+      return
+    }
+
+    let cancelled = false
+    getBulkDeleteWarningsAction(studentIds).then((result) => {
+      if (cancelled) return
+      if (result.success && result.data) {
+        setDeleteWarnings(result.data)
+      } else {
+        toast.error('Failed to load deletion warnings')
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteDialogOpen, studentIdsKey])
 
   async function handleBulkAssign(): Promise<void> {
     if (!selectedBatchId) {
@@ -327,6 +364,43 @@ export function BulkActionsBar({
               {pluralizeStudent(selectedCount)}? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+
+          {deleteWarnings &&
+            (deleteWarnings.studentsWithSiblings > 0 ||
+              deleteWarnings.studentsWithActiveSubscription > 0 ||
+              deleteWarnings.studentsWithPaymentHistory > 0) && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription className="space-y-1">
+                  {deleteWarnings.studentsWithSiblings > 0 && (
+                    <p>
+                      {deleteWarnings.studentsWithSiblings}{' '}
+                      {pluralizeStudent(deleteWarnings.studentsWithSiblings)}{' '}
+                      have sibling relationships that will be removed.
+                    </p>
+                  )}
+                  {deleteWarnings.studentsWithActiveSubscription > 0 && (
+                    <p>
+                      {deleteWarnings.studentsWithActiveSubscription}{' '}
+                      {pluralizeStudent(
+                        deleteWarnings.studentsWithActiveSubscription
+                      )}{' '}
+                      have active subscriptions.
+                    </p>
+                  )}
+                  {deleteWarnings.studentsWithPaymentHistory > 0 && (
+                    <p>
+                      {deleteWarnings.studentsWithPaymentHistory}{' '}
+                      {pluralizeStudent(
+                        deleteWarnings.studentsWithPaymentHistory
+                      )}{' '}
+                      have payment history that will be deleted.
+                    </p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
           <DialogFooter>
             <Button
               variant="outline"
