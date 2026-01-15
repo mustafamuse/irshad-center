@@ -1,18 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 
-import { MoreHorizontal, User } from 'lucide-react'
-
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  SortingState,
+  flexRender,
+} from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { User } from 'lucide-react'
+
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   Table,
   TableBody,
@@ -21,11 +21,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
+import { BulkActionsBar } from './bulk-actions-bar'
+import { createColumns } from './columns'
+import { MobileStudentCard } from './mobile-student-card'
 import { StudentDetailSheet } from './student-detail-sheet'
-import { MahadBatch, MahadStudent, PaymentHealth } from '../../_types'
-import { calculatePaymentHealth } from '../../_utils/grouping'
-import { useSelectedStudents, useMahadUIStore } from '../../store'
+import { MahadBatch, MahadStudent } from '../../_types'
+import { useMahadUIStore } from '../../store'
 import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 
@@ -34,47 +37,93 @@ interface StudentsTableProps {
   batches: MahadBatch[]
 }
 
-function getPaymentHealthBadge(health: PaymentHealth) {
-  const configs: Record<PaymentHealth, { className: string; label: string }> = {
-    needs_action: {
-      className: 'bg-red-100 text-red-800 border-red-200',
-      label: 'Needs Action',
-    },
-    at_risk: {
-      className: 'bg-amber-100 text-amber-800 border-amber-200',
-      label: 'At Risk',
-    },
-    healthy: {
-      className: 'bg-green-100 text-green-800 border-green-200',
-      label: 'Healthy',
-    },
-    exempt: {
-      className: 'bg-slate-100 text-slate-800 border-slate-200',
-      label: 'Exempt',
-    },
-    pending: {
-      className: 'bg-blue-100 text-blue-800 border-blue-200',
-      label: 'Pending',
-    },
-    inactive: {
-      className: 'bg-gray-100 text-gray-600 border-gray-200',
-      label: 'Inactive',
-    },
-  }
-  const config = configs[health]
-  return (
-    <Badge className={`${config.className} font-medium`}>{config.label}</Badge>
-  )
-}
-
 export function StudentsTable({ students, batches }: StudentsTableProps) {
+  const [sorting, setSorting] = useState<SortingState>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null
   )
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [paymentLinkStudentId, setPaymentLinkStudentId] = useState<
     string | null
   >(null)
   const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null)
+
+  const selectedStudentIds = useMahadUIStore(
+    (state) => state.selectedStudentIds
+  )
+  const setSelectedStudentIds = useMahadUIStore(
+    (state) => state.setSelectedStudentIds
+  )
+  const toggleStudentSelection = useMahadUIStore((state) => state.toggleStudent)
+
+  const handleViewDetails = useCallback((student: MahadStudent) => {
+    setSelectedStudentId(student.id)
+    setIsSheetOpen(true)
+  }, [])
+
+  const handleDelete = useCallback((student: MahadStudent) => {
+    setDeleteStudentId(student.id)
+  }, [])
+
+  const handleGeneratePaymentLink = useCallback((student: MahadStudent) => {
+    setPaymentLinkStudentId(student.id)
+  }, [])
+
+  const columns = useMemo(
+    () =>
+      createColumns({
+        onViewDetails: handleViewDetails,
+        onDelete: handleDelete,
+        onGeneratePaymentLink: handleGeneratePaymentLink,
+      }),
+    [handleViewDetails, handleDelete, handleGeneratePaymentLink]
+  )
+
+  const rowSelection = useMemo(() => {
+    const selection: Record<string, boolean> = {}
+    selectedStudentIds.forEach((id) => {
+      selection[id] = true
+    })
+    return selection
+  }, [selectedStudentIds])
+
+  const table = useReactTable({
+    data: students,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    enableRowSelection: true,
+    getRowId: (row) => row.id,
+    onRowSelectionChange: (updater) => {
+      const newSelection =
+        typeof updater === 'function' ? updater(rowSelection) : updater
+      const selectedIds = new Set(
+        Object.keys(newSelection).filter((k) => newSelection[k])
+      )
+      setSelectedStudentIds(selectedIds)
+    },
+    state: {
+      sorting,
+      rowSelection,
+    },
+  })
+
+  const selectedStudents = useMemo(
+    () => table.getSelectedRowModel().rows.map((row) => row.original),
+    [table]
+  )
+
+  const rows = table.getRowModel().rows
+
+  const mobileParentRef = useRef<HTMLDivElement>(null)
+
+  const mobileVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => mobileParentRef.current,
+    estimateSize: () => 120,
+    overscan: 3,
+  })
 
   const selectedStudent = selectedStudentId
     ? (students.find((s) => s.id === selectedStudentId) ?? null)
@@ -85,124 +134,101 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
   const deleteStudent = deleteStudentId
     ? (students.find((s) => s.id === deleteStudentId) ?? null)
     : null
-  const selectedIds = useSelectedStudents()
-  const { toggleStudent, setSelected, clearSelected } = useMahadUIStore()
-
-  const allSelected =
-    students.length > 0 && students.every((s) => selectedIds.has(s.id))
-  const someSelected = students.some((s) => selectedIds.has(s.id))
-
-  const handleSelectAll = () => {
-    if (allSelected) {
-      clearSelected()
-    } else {
-      setSelected(students.map((s) => s.id))
-    }
-  }
 
   if (students.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-        <User className="h-12 w-12 text-muted-foreground" />
-        <h3 className="mt-4 text-lg font-semibold">No students found</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Try adjusting your filters or add new students.
-        </p>
-      </div>
+      <EmptyState
+        icon={<User />}
+        title="No students found"
+        description="Try adjusting your filters or add new students"
+      />
     )
   }
 
   return (
-    <>
-      <div className="rounded-md border">
+    <TooltipProvider>
+      {/* Mobile Card Layout (below md breakpoint) */}
+      <div
+        ref={mobileParentRef}
+        className="block max-h-[calc(100vh-300px)] min-h-[400px] overflow-auto md:hidden"
+      >
+        <div
+          className="relative w-full"
+          style={{ height: `${mobileVirtualizer.getTotalSize()}px` }}
+        >
+          {mobileVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index]
+            return (
+              <div
+                key={row.id}
+                className="absolute left-0 top-0 w-full pb-3"
+                style={{
+                  transform: `translateY(${virtualRow.start}px)`,
+                  height: `${virtualRow.size}px`,
+                }}
+              >
+                <MobileStudentCard
+                  student={row.original}
+                  isSelected={row.getIsSelected()}
+                  onSelect={() => toggleStudentSelection(row.original.id)}
+                  onClick={() => handleViewDetails(row.original)}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Desktop Table Layout (md and above) */}
+      <div className="hidden rounded-md border md:block">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead className="w-[50px]">
-                <Checkbox
-                  checked={allSelected}
-                  ref={(el) => {
-                    if (el)
-                      (el as HTMLInputElement).indeterminate =
-                        someSelected && !allSelected
-                  }}
-                  onCheckedChange={handleSelectAll}
-                  aria-label="Select all students"
-                />
-              </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="hidden sm:table-cell">Batch</TableHead>
-              <TableHead>Payment</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
-            {students.map((student) => (
+            {rows.map((row) => (
               <TableRow
-                key={student.id}
-                className="cursor-pointer"
-                onClick={() => setSelectedStudentId(student.id)}
+                key={row.id}
+                data-state={row.getIsSelected() && 'selected'}
+                className="cursor-pointer hover:bg-muted/50"
+                onClick={() => handleViewDetails(row.original)}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selectedIds.has(student.id)}
-                    onCheckedChange={() => toggleStudent(student.id)}
-                    aria-label={`Select ${student.name}`}
-                  />
-                </TableCell>
-                <TableCell className="font-medium">{student.name}</TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {student.email || '-'}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {student.batch?.name || (
-                    <span className="text-muted-foreground">Unassigned</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {getPaymentHealthBadge(calculatePaymentHealth(student))}
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => setSelectedStudentId(student.id)}
-                      >
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setPaymentLinkStudentId(student.id)}
-                      >
-                        Generate Payment Link
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => setDeleteStudentId(student.id)}
-                      >
-                        Delete Student
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
 
+      {/* Bulk Actions Bar */}
+      <BulkActionsBar selectedStudents={selectedStudents} batches={batches} />
+
+      {/* Student Details Sheet */}
       <StudentDetailSheet
         student={selectedStudent}
         batches={batches}
-        open={!!selectedStudent}
-        onOpenChange={(open) => !open && setSelectedStudentId(null)}
+        open={isSheetOpen}
+        onOpenChange={setIsSheetOpen}
       />
 
+      {/* Payment Link Dialog */}
       <PaymentLinkDialog
         profileId={paymentLinkStudent?.id ?? ''}
         studentName={paymentLinkStudent?.name ?? ''}
@@ -210,13 +236,18 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         onOpenChange={(open) => !open && setPaymentLinkStudentId(null)}
       />
 
-      <DeleteStudentDialog
-        studentId={deleteStudent?.id ?? ''}
-        studentName={deleteStudent?.name ?? ''}
-        open={!!deleteStudent}
-        onOpenChange={(open) => !open && setDeleteStudentId(null)}
-        onDeleted={() => setDeleteStudentId(null)}
-      />
-    </>
+      {/* Delete Student Dialog */}
+      {deleteStudent && (
+        <DeleteStudentDialog
+          studentId={deleteStudent.id}
+          studentName={deleteStudent.name}
+          open={!!deleteStudent}
+          onOpenChange={(open) => {
+            if (!open) setDeleteStudentId(null)
+          }}
+          onDeleted={() => setDeleteStudentId(null)}
+        />
+      )}
+    </TooltipProvider>
   )
 }

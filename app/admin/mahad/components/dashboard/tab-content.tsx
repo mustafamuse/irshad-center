@@ -8,7 +8,6 @@ import {
 } from '../../_types'
 import { BatchGrid } from '../batches/batch-grid'
 import { DuplicatesView } from '../duplicates/duplicates-view'
-import { StudentsMobileCards } from '../students/students-mobile-cards'
 import { StudentsTable } from '../students/students-table'
 
 interface TabContentProps {
@@ -26,16 +25,7 @@ export function TabContent({
 }: TabContentProps) {
   switch (tab) {
     case 'students':
-      return (
-        <>
-          <div className="hidden md:block">
-            <StudentsTable students={students} batches={batches} />
-          </div>
-          <div className="block md:hidden">
-            <StudentsMobileCards students={students} batches={batches} />
-          </div>
-        </>
-      )
+      return <StudentsTable students={students} batches={batches} />
     case 'batches':
       return <BatchGrid batches={batches} students={students} />
     case 'duplicates':
