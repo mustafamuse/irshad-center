@@ -12,12 +12,6 @@ interface EmptyStateProps {
   iconClassName?: string
 }
 
-/**
- * EmptyState - Standardized empty/coming soon state component
- *
- * Provides consistent styling for empty states, "coming soon" messages,
- * and other placeholder content across admin dashboards
- */
 export function EmptyState({
   icon: Icon,
   title,

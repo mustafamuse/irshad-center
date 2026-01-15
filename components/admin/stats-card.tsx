@@ -18,12 +18,6 @@ interface StatsCardProps {
   highlight?: boolean
 }
 
-/**
- * StatsCard - Reusable card component for dashboard metrics
- *
- * Provides consistent styling, spacing, and interaction patterns
- * for displaying key metrics across admin dashboards
- */
 export function StatsCard({
   title,
   value,
@@ -63,7 +57,6 @@ export function StatsCard({
           <Icon
             className={cn(
               'h-4 w-4',
-              // Extract text color from iconClassName, or use default
               iconClassName?.match(/text-[\w-]+/)?.[0] ||
                 'text-muted-foreground'
             )}

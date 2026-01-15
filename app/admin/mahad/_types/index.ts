@@ -122,10 +122,6 @@ export type DialogType =
   | 'resolveDuplicates'
   | null
 
-/**
- * Type-safe dialog state using discriminated union
- * Ensures correct data type is passed for each dialog type
- */
 export type DialogState =
   | { type: null; data: null }
   | { type: 'createBatch'; data: null }

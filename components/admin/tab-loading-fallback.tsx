@@ -1,10 +1,5 @@
 'use client'
 
-/**
- * TabLoadingFallback - Shared loading skeleton for tab content
- *
- * Provides a consistent loading state across admin dashboard tabs
- */
 export function TabLoadingFallback() {
   return (
     <div className="animate-pulse space-y-4">

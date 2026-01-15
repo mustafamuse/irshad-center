@@ -163,7 +163,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           {isSearching ? 'Searching...' : 'No results found.'}
         </CommandEmpty>
 
-        {/* Search Results */}
         {searchResults.length > 0 && (
           <>
             <CommandGroup heading="People">
@@ -192,7 +191,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </>
         )}
 
-        {/* Quick Actions */}
         <CommandGroup heading="Quick Actions">
           <CommandItem onSelect={() => handleSelect('/admin/mahad')}>
             <UserPlus className="mr-2 h-4 w-4" />
@@ -211,7 +209,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         </CommandGroup>
         <CommandSeparator />
 
-        {/* Navigation */}
         {Object.entries(GROUPED_NAV).map(([groupTitle, items]) => (
           <CommandGroup key={groupTitle} heading={groupTitle}>
             {items.map((item) => (
@@ -227,7 +224,6 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           </CommandGroup>
         ))}
 
-        {/* Home */}
         <CommandSeparator />
         <CommandGroup>
           <CommandItem onSelect={() => handleSelect('/')}>

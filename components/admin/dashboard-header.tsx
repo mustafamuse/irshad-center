@@ -11,12 +11,6 @@ interface DashboardHeaderProps {
   className?: string
 }
 
-/**
- * DashboardHeader - Unified header component for admin dashboards
- *
- * Provides consistent layout for page titles, descriptions, and action buttons
- * across all admin dashboard pages
- */
 export function DashboardHeader({
   title,
   description,

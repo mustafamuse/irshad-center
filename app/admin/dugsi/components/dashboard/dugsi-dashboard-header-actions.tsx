@@ -10,11 +10,6 @@ import { downloadVCardFile } from '@/lib/vcard-client'
 
 import { generateDugsiVCardContent } from '../../actions'
 
-/**
- * DugsiDashboardHeaderActions - Action buttons for Dugsi dashboard header
- *
- * Extracted from DashboardHeader to allow reuse with shared DashboardHeader component
- */
 export function DugsiDashboardHeaderActions() {
   const [isExporting, setIsExporting] = useState(false)
 

@@ -11,11 +11,6 @@ import { downloadVCardFile } from '@/lib/vcard-client'
 import { generateMahadVCardContent } from '../../_actions/vcard-actions'
 import { useMahadUIStore } from '../../store'
 
-/**
- * MahadDashboardHeaderActions - Action buttons for Mahad dashboard header
- *
- * Extracted from DashboardHeader to allow reuse with shared DashboardHeader component
- */
 export function MahadDashboardHeaderActions() {
   const openDialog = useMahadUIStore((s) => s.openDialog)
   const [isExporting, setIsExporting] = useState(false)

@@ -71,7 +71,6 @@ export default async function DugsiAdminPage({
       getAllTeachersForClassAssignmentAction(),
     ])
 
-  // Throw on failed data loads so admins are aware of issues
   if (!teachersResult.success) {
     throw new Error(`Failed to load teachers: ${teachersResult.error}`)
   }

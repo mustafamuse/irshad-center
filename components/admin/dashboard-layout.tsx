@@ -29,12 +29,6 @@ interface DashboardLayoutProps {
   contentClassName?: string
 }
 
-/**
- * DashboardLayout - Shared layout shell for admin dashboards
- *
- * Provides consistent structure: Breadcrumbs -> Navigation -> Content Area
- * Reduces boilerplate and ensures visual consistency across all admin pages
- */
 export function DashboardLayout({
   breadcrumbs,
   tabs,

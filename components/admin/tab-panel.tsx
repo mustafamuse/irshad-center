@@ -10,11 +10,6 @@ interface TabPanelProps {
   className?: string
 }
 
-/**
- * TabPanel component for accessible tab navigation
- *
- * Provides proper ARIA attributes and IDs to match MainTabNavigation's aria-controls
- */
 export function TabPanel({
   id,
   tabValue,
