@@ -23,6 +23,11 @@ import {
   getStudentDeleteWarningsAction,
 } from '../../_actions'
 
+interface DeleteWarnings {
+  hasSiblings: boolean
+  hasAttendanceRecords: boolean
+}
+
 interface DeleteStudentDialogProps {
   studentId: string
   studentName: string
@@ -37,27 +42,29 @@ export function DeleteStudentDialog({
   open,
   onOpenChange,
   onDeleted,
-}: DeleteStudentDialogProps) {
+}: DeleteStudentDialogProps): React.ReactElement {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [warnings, setWarnings] = useState<{
-    hasSiblings: boolean
-    hasAttendanceRecords: boolean
-  } | null>(null)
+  const [warnings, setWarnings] = useState<DeleteWarnings | null>(null)
 
   useEffect(() => {
-    if (open && studentId) {
-      getStudentDeleteWarningsAction(studentId).then((result) => {
-        if (result.success && result.data) {
-          setWarnings(result.data)
-        }
-      })
-    } else {
+    if (!open || !studentId) {
       setWarnings(null)
+      return
+    }
+
+    let cancelled = false
+    getStudentDeleteWarningsAction(studentId).then((result) => {
+      if (!cancelled && result.success && result.data) {
+        setWarnings(result.data)
+      }
+    })
+    return () => {
+      cancelled = true
     }
   }, [open, studentId])
 
-  const handleDelete = () => {
+  function handleDelete(): void {
     startTransition(async () => {
       const result = await deleteStudentAction(studentId)
 

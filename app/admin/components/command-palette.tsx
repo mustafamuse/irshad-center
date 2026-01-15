@@ -14,6 +14,7 @@ import {
   Link2,
   ArrowRight,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 import {
   searchPeopleAction,
@@ -35,6 +36,62 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void
 }
 
+interface NavigationItem {
+  title: string
+  url: string
+  icon: React.ReactNode
+  group: string
+}
+
+function getIconForUrl(url: string, isSubItem: boolean): React.ReactNode {
+  if (isSubItem) {
+    return <ArrowRight className="h-4 w-4" />
+  }
+  if (url.includes('dugsi')) {
+    return <Users className="h-4 w-4" />
+  }
+  if (url.includes('mahad')) {
+    return <GraduationCap className="h-4 w-4" />
+  }
+  return <FileText className="h-4 w-4" />
+}
+
+function buildNavigationItems(): Record<string, NavigationItem[]> {
+  const grouped: Record<string, NavigationItem[]> = {}
+
+  for (const group of ADMIN_NAVIGATION) {
+    for (const item of group.items) {
+      if (!item.url.startsWith('/admin')) continue
+
+      if (!grouped[group.title]) {
+        grouped[group.title] = []
+      }
+
+      grouped[group.title].push({
+        title: item.title,
+        url: item.url,
+        icon: getIconForUrl(item.url, false),
+        group: group.title,
+      })
+
+      if (item.items) {
+        for (const subItem of item.items) {
+          grouped[group.title].push({
+            title: subItem.title,
+            url: subItem.url,
+            icon: getIconForUrl(subItem.url, true),
+            group: group.title,
+          })
+        }
+      }
+    }
+  }
+
+  return grouped
+}
+
+const GROUPED_NAV = buildNavigationItems()
+
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -43,15 +100,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [isSearching, startSearchTransition] = useTransition()
 
   useEffect(() => {
-    const down = (e: KeyboardEvent) => {
+    function handleKeyDown(e: KeyboardEvent): void {
       if (e.key === 'k' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         onOpenChange(!open)
       }
     }
 
-    document.addEventListener('keydown', down)
-    return () => document.removeEventListener('keydown', down)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, onOpenChange])
 
   useEffect(() => {
@@ -68,74 +125,20 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
 
     startSearchTransition(async () => {
-      try {
-        const result = await searchPeopleAction(searchQuery)
-        if (result.success && result.data) {
-          setSearchResults(result.data)
-        } else {
-          setSearchResults([])
-        }
-      } catch (error) {
-        console.error('Search error:', error)
+      const result = await searchPeopleAction(searchQuery)
+      if (result.success && result.data) {
+        setSearchResults(result.data)
+      } else {
+        toast.error(result.error || 'Search failed. Please try again.')
         setSearchResults([])
       }
     })
   }, [searchQuery])
 
-  const handleSelect = (url: string) => {
+  function handleSelect(url: string): void {
     router.push(url)
     onOpenChange(false)
   }
-
-  const navigationItems: Array<{
-    title: string
-    url: string
-    icon: React.ReactNode
-    group: string
-  }> = []
-
-  ADMIN_NAVIGATION.forEach((group) => {
-    group.items.forEach((item) => {
-      if (item.url.startsWith('/admin')) {
-        navigationItems.push({
-          title: item.title,
-          url: item.url,
-          icon: item.url.includes('dugsi') ? (
-            <Users className="h-4 w-4" />
-          ) : item.url.includes('mahad') ? (
-            <GraduationCap className="h-4 w-4" />
-          ) : (
-            <FileText className="h-4 w-4" />
-          ),
-          group: group.title,
-        })
-
-        // Add nested items
-        if (item.items) {
-          item.items.forEach((subItem) => {
-            navigationItems.push({
-              title: subItem.title,
-              url: subItem.url,
-              icon: <ArrowRight className="h-4 w-4" />,
-              group: group.title,
-            })
-          })
-        }
-      }
-    })
-  })
-
-  // Group navigation items
-  const groupedNav = navigationItems.reduce(
-    (acc, item) => {
-      if (!acc[item.group]) {
-        acc[item.group] = []
-      }
-      acc[item.group].push(item)
-      return acc
-    },
-    {} as Record<string, typeof navigationItems>
-  )
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -198,7 +201,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
         <CommandSeparator />
 
         {/* Navigation */}
-        {Object.entries(groupedNav).map(([groupTitle, items]) => (
+        {Object.entries(GROUPED_NAV).map(([groupTitle, items]) => (
           <CommandGroup key={groupTitle} heading={groupTitle}>
             {items.map((item) => (
               <CommandItem

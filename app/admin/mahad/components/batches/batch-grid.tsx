@@ -22,7 +22,7 @@ interface BatchGridProps {
 function BatchCard({ batch }: { batch: MahadBatch }) {
   const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
-  const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
+  const openDialog = useMahadUIStore((s) => s.openDialog)
   const [isExporting, setIsExporting] = useState(false)
 
   const handleClick = () => {
@@ -32,7 +32,7 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation()
-    openDialogWithData('editBatch', batch)
+    openDialog('editBatch', batch)
   }
 
   const handleExportContacts = async (e: React.MouseEvent) => {

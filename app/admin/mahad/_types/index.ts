@@ -17,7 +17,6 @@ export { FORM_DEFAULTS, isNoneValue } from './student-form'
 
 /**
  * MahadStudent - DTO for Mahad student data displayed in admin UI
- * Mirrors StudentWithBatchData from lib/db/queries/student.ts
  */
 export interface MahadStudent {
   id: string
@@ -75,7 +74,7 @@ export type TabValue = 'students' | 'batches' | 'duplicates'
  * - needs_action: ENROLLED + payment problems (canceled/unpaid/no sub when not EXEMPT)
  * - at_risk: ENROLLED + past_due subscription
  * - healthy: ENROLLED + active/trialing subscription
- * - exempt: ENROLLED + EXEMPT billing type (TA, scholarship)
+ * - exempt: ENROLLED + EXEMPT billing type ($0 rate - TA, financial hardship)
  * - pending: REGISTERED (not yet enrolled)
  * - inactive: WITHDRAWN/ON_LEAVE/COMPLETED (no longer active)
  */
@@ -122,6 +121,28 @@ export type DialogType =
   | 'studentDetail'
   | 'resolveDuplicates'
   | null
+
+/**
+ * Type-safe dialog state using discriminated union
+ * Ensures correct data type is passed for each dialog type
+ */
+export type DialogState =
+  | { type: null; data: null }
+  | { type: 'createBatch'; data: null }
+  | { type: 'editBatch'; data: MahadBatch }
+  | { type: 'assignStudents'; data: null }
+  | { type: 'deleteStudent'; data: MahadStudent }
+  | { type: 'paymentLink'; data: MahadStudent }
+  | { type: 'studentDetail'; data: MahadStudent }
+  | { type: 'resolveDuplicates'; data: DuplicateGroup }
+
+/**
+ * Extract dialog data type for a specific dialog type
+ */
+export type DialogDataFor<T extends DialogType> = Extract<
+  DialogState,
+  { type: T }
+>['data']
 
 // Re-export ActionResult from canonical location
 export type { ActionResult } from '@/lib/utils/action-helpers'

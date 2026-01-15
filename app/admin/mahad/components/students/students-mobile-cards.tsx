@@ -16,8 +16,9 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 import { StudentDetailSheet } from './student-detail-sheet'
-import { MahadBatch, MahadStudent, PaymentHealth } from '../../_types'
+import { MahadBatch, MahadStudent } from '../../_types'
 import { calculatePaymentHealth } from '../../_utils/grouping'
+import { getPaymentHealthConfig } from '../../_utils/payment-health-config'
 import { useSelectedStudents, useMahadUIStore } from '../../store'
 import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
@@ -25,36 +26,6 @@ import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 interface StudentsMobileCardsProps {
   students: MahadStudent[]
   batches: MahadBatch[]
-}
-
-function getPaymentHealthConfig(health: PaymentHealth) {
-  const configs: Record<PaymentHealth, { className: string; label: string }> = {
-    needs_action: {
-      className: 'bg-red-100 text-red-800 border-red-200',
-      label: 'Needs Action',
-    },
-    at_risk: {
-      className: 'bg-amber-100 text-amber-800 border-amber-200',
-      label: 'At Risk',
-    },
-    healthy: {
-      className: 'bg-green-100 text-green-800 border-green-200',
-      label: 'Healthy',
-    },
-    exempt: {
-      className: 'bg-slate-100 text-slate-800 border-slate-200',
-      label: 'Exempt',
-    },
-    pending: {
-      className: 'bg-blue-100 text-blue-800 border-blue-200',
-      label: 'Pending',
-    },
-    inactive: {
-      className: 'bg-gray-100 text-gray-600 border-gray-200',
-      label: 'Inactive',
-    },
-  }
-  return configs[health]
 }
 
 export function StudentsMobileCards({

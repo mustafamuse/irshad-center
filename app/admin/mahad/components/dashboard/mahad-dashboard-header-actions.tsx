@@ -17,7 +17,7 @@ import { useMahadUIStore } from '../../store'
  * Extracted from DashboardHeader to allow reuse with shared DashboardHeader component
  */
 export function MahadDashboardHeaderActions() {
-  const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
+  const openDialog = useMahadUIStore((s) => s.openDialog)
   const [isExporting, setIsExporting] = useState(false)
 
   const handleExportAll = async () => {
@@ -64,14 +64,14 @@ export function MahadDashboardHeaderActions() {
       </Button>
       <Button
         variant="outline"
-        onClick={() => openDialogWithData('assignStudents')}
+        onClick={() => openDialog('assignStudents', null)}
         className="w-full sm:w-auto"
       >
         <UserPlus className="mr-2 h-4 w-4" />
         Assign Students
       </Button>
       <Button
-        onClick={() => openDialogWithData('createBatch')}
+        onClick={() => openDialog('createBatch', null)}
         className="w-full sm:w-auto"
       >
         <Plus className="mr-2 h-4 w-4" />

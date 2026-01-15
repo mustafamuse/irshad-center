@@ -29,18 +29,10 @@ interface DugsiUIStore {
   activeTab: TabValue
   filters: DugsiFilters
   showAdvancedFilters: boolean
-  isDeleteDialogOpen: boolean
-  isLinkSubscriptionDialogOpen: boolean
-  linkSubscriptionDialogParentEmail: string | null
   isVerifyBankDialogOpen: boolean
   verifyBankDialogData: {
     paymentIntentId: string
     parentEmail: string
-  } | null
-  isConsolidateSubscriptionDialogOpen: boolean
-  consolidateSubscriptionDialogData: {
-    familyId: string
-    familyName: string
   } | null
   selectedFamilyIds: Set<string>
 
@@ -67,25 +59,13 @@ interface DugsiUIStore {
 
   // Dialog actions
   setDialogOpen: (
-    dialog:
-      | 'delete'
-      | 'linkSubscription'
-      | 'advancedFilters'
-      | 'verifyBank'
-      | 'consolidateSubscription',
+    dialog: 'advancedFilters' | 'verifyBank',
     open: boolean
   ) => void
-  setLinkSubscriptionDialogData: (parentEmail: string | null) => void
   setVerifyBankDialogData: (
     data: {
       paymentIntentId: string
       parentEmail: string
-    } | null
-  ) => void
-  setConsolidateSubscriptionDialogData: (
-    data: {
-      familyId: string
-      familyName: string
     } | null
   ) => void
 
@@ -120,13 +100,8 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
       activeTab: 'all',
       filters: defaultFilters,
       showAdvancedFilters: false,
-      isDeleteDialogOpen: false,
-      isLinkSubscriptionDialogOpen: false,
-      linkSubscriptionDialogParentEmail: null,
       isVerifyBankDialogOpen: false,
       verifyBankDialogData: null,
-      isConsolidateSubscriptionDialogOpen: false,
-      consolidateSubscriptionDialogData: null,
       selectedFamilyIds: new Set<string>(),
 
       // ========================================================================
@@ -213,39 +188,16 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
 
       setDialogOpen: (dialog, open) =>
         set((state) => {
-          const dialogMap = {
-            delete: () => {
-              state.isDeleteDialogOpen = open
-            },
-            linkSubscription: () => {
-              state.isLinkSubscriptionDialogOpen = open
-            },
-            advancedFilters: () => {
-              state.showAdvancedFilters = open
-            },
-            verifyBank: () => {
-              state.isVerifyBankDialogOpen = open
-            },
-            consolidateSubscription: () => {
-              state.isConsolidateSubscriptionDialogOpen = open
-            },
-          } as const
-          dialogMap[dialog]()
-        }),
-
-      setLinkSubscriptionDialogData: (parentEmail) =>
-        set((state) => {
-          state.linkSubscriptionDialogParentEmail = parentEmail
+          if (dialog === 'advancedFilters') {
+            state.showAdvancedFilters = open
+          } else if (dialog === 'verifyBank') {
+            state.isVerifyBankDialogOpen = open
+          }
         }),
 
       setVerifyBankDialogData: (data) =>
         set((state) => {
           state.verifyBankDialogData = data
-        }),
-
-      setConsolidateSubscriptionDialogData: (data) =>
-        set((state) => {
-          state.consolidateSubscriptionDialogData = data
         }),
 
       // ========================================================================
@@ -257,13 +209,8 @@ export const useDugsiUIStore = create<DugsiUIStore>()(
           state.activeTab = 'all'
           state.filters = { ...defaultFilters }
           state.showAdvancedFilters = false
-          state.isDeleteDialogOpen = false
-          state.isLinkSubscriptionDialogOpen = false
-          state.linkSubscriptionDialogParentEmail = null
           state.isVerifyBankDialogOpen = false
           state.verifyBankDialogData = null
-          state.isConsolidateSubscriptionDialogOpen = false
-          state.consolidateSubscriptionDialogData = null
           state.selectedFamilyIds = new Set()
         }),
     })),
@@ -283,19 +230,8 @@ export const useSelectedFamilyIds = () =>
   useDugsiUIStore((state) => state.selectedFamilyIds)
 export const useQuickShiftFilter = () =>
   useDugsiUIStore((state) => state.filters.quickShift)
-
-export const useDeleteDialogState = () =>
-  useDugsiUIStore((state) => state.isDeleteDialogOpen)
-export const useLinkSubscriptionDialogState = () =>
-  useDugsiUIStore((state) => state.isLinkSubscriptionDialogOpen)
 export const useAdvancedFiltersState = () =>
   useDugsiUIStore((state) => state.showAdvancedFilters)
-export const useLinkSubscriptionDialogData = () =>
-  useDugsiUIStore((state) => state.linkSubscriptionDialogParentEmail)
-export const useConsolidateSubscriptionDialogState = () =>
-  useDugsiUIStore((state) => state.isConsolidateSubscriptionDialogOpen)
-export const useConsolidateSubscriptionDialogData = () =>
-  useDugsiUIStore((state) => state.consolidateSubscriptionDialogData)
 
 // ============================================================================
 // FILTER ACTIONS
@@ -309,15 +245,8 @@ export const useFilterActions = () => {
     setAdvancedFilters: (filters: FamilyFilters) =>
       store.setAdvancedFilters(filters),
     resetFilters: () => store.resetFilters(),
-
     setActiveTab: (tab: TabValue) => store.setActiveTab(tab),
-
-    setDeleteDialogOpen: (open: boolean) => store.setDialogOpen('delete', open),
-    setLinkSubscriptionDialogOpen: (open: boolean) =>
-      store.setDialogOpen('linkSubscription', open),
     setAdvancedFiltersOpen: (open: boolean) =>
       store.setDialogOpen('advancedFilters', open),
-    setLinkSubscriptionDialogData: (parentEmail: string | null) =>
-      store.setLinkSubscriptionDialogData(parentEmail),
   }
 }

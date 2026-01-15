@@ -1,7 +1,5 @@
 'use client'
 
-import { Suspense } from 'react'
-
 import { Users, GraduationCap, BookOpen, ClipboardCheck } from 'lucide-react'
 
 import {
@@ -9,7 +7,6 @@ import {
   DashboardLayout,
   EmptyState,
   FilterChips,
-  TabLoadingFallback,
   TabPanel,
 } from '@/components/admin'
 import { useDugsiTabs, DUGSI_TABS } from '@/lib/hooks/use-admin-tabs'
@@ -114,7 +111,7 @@ export function ConsolidatedDugsiDashboard({
         />
         <div className="mb-6 mt-6 space-y-4">
           <DashboardFilters />
-          <DugsiStats registrations={registrations} onStatClick={() => {}} />
+          <DugsiStats registrations={registrations} onStatClick={setStatus} />
           <FilterChips
             chips={STATUS_CHIPS}
             activeChip={status}
@@ -128,15 +125,11 @@ export function ConsolidatedDugsiDashboard({
       </TabPanel>
 
       <TabPanel id="tabpanel-teachers" tabValue="teachers" activeTab={tab}>
-        <Suspense fallback={<TabLoadingFallback />}>
-          <TeachersDashboard teachers={teachers} />
-        </Suspense>
+        <TeachersDashboard teachers={teachers} />
       </TabPanel>
 
       <TabPanel id="tabpanel-classes" tabValue="classes" activeTab={tab}>
-        <Suspense fallback={<TabLoadingFallback />}>
-          <ClassManagement classes={classes} teachers={classTeachers} />
-        </Suspense>
+        <ClassManagement classes={classes} teachers={classTeachers} />
       </TabPanel>
 
       <TabPanel id="tabpanel-attendance" tabValue="attendance" activeTab={tab}>

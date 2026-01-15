@@ -14,9 +14,8 @@ import { useTabKeyboardShortcuts } from '@/lib/hooks/use-tab-keyboard-shortcuts'
 
 import { useStudentFilters } from '../_hooks/use-student-filters'
 import { useStudentStats, useDuplicates } from '../_hooks/use-student-groups'
-import { DuplicateGroup } from '../_types'
 import { mapBatch, mapStudent } from '../_utils/mappers'
-import { useMahadFilters, useDialogData } from '../store'
+import { useMahadFilters, useDialog } from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardStats } from './dashboard/dashboard-stats'
 import { MahadDashboardHeaderActions } from './dashboard/mahad-dashboard-header-actions'
@@ -48,10 +47,12 @@ export function ConsolidatedMahadDashboard({
 }: ConsolidatedMahadDashboardProps) {
   const { tab, setTab } = useMahadTabs()
   const filters = useMahadFilters()
-  const dialogData = useDialogData()
+  const dialog = useDialog()
 
   const handleTabChange = (newTab: string) => {
-    setTab(newTab as typeof tab)
+    if (MAHAD_TABS.includes(newTab as (typeof MAHAD_TABS)[number])) {
+      setTab(newTab as (typeof MAHAD_TABS)[number])
+    }
   }
 
   useTabKeyboardShortcuts({
@@ -137,7 +138,9 @@ export function ConsolidatedMahadDashboard({
 
       <CreateBatchDialog />
       <AssignStudentsDialog students={mahadStudents} batches={mahadBatches} />
-      <ResolveDuplicatesDialog group={dialogData as DuplicateGroup | null} />
+      <ResolveDuplicatesDialog
+        group={dialog.type === 'resolveDuplicates' ? dialog.data : null}
+      />
     </>
   )
 }

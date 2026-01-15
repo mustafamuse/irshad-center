@@ -22,7 +22,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 
 import { resolveDuplicatesAction } from '../../_actions'
 import { DuplicateGroup } from '../../_types'
-import { useDialogState, useMahadUIStore } from '../../store'
+import { useDialogType, useMahadUIStore } from '../../store'
 
 interface ResolveDuplicatesDialogProps {
   group: DuplicateGroup | null
@@ -35,10 +35,10 @@ export function ResolveDuplicatesDialog({
   const [isPending, startTransition] = useTransition()
   const [mergeData, setMergeData] = useState(false)
 
-  const openDialog = useDialogState()
+  const dialogType = useDialogType()
   const closeDialog = useMahadUIStore((s) => s.closeDialog)
 
-  const isOpen = openDialog === 'resolveDuplicates' && group !== null
+  const isOpen = dialogType === 'resolveDuplicates' && group !== null
 
   const handleOpenChange = (open: boolean) => {
     if (!open && isPending) return

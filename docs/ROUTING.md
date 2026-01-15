@@ -280,6 +280,7 @@ import { Metadata } from 'next'
 import { Suspense } from 'react'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 import {
   getDugsiRegistrations,
   getClassesWithDetailsAction,
@@ -293,7 +294,14 @@ export const metadata: Metadata = {
   description: 'Manage Dugsi program registrations',
 }
 
-export default async function DugsiAdminPage() {
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
   const [registrations, teachersResult, classesResult, classTeachersResult] =
     await Promise.all([
       getDugsiRegistrations({ shift }),

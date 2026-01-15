@@ -16,6 +16,7 @@ import {
 
 import { MahadStudent, PaymentHealth } from '../../_types'
 import { calculatePaymentHealth } from '../../_utils/grouping'
+import { getPaymentHealthConfig } from '../../_utils/payment-health-config'
 
 interface ColumnActions {
   onViewDetails: (student: MahadStudent) => void
@@ -24,33 +25,7 @@ interface ColumnActions {
 }
 
 function getPaymentHealthBadge(health: PaymentHealth) {
-  const configs: Record<PaymentHealth, { className: string; label: string }> = {
-    needs_action: {
-      className: 'bg-red-100 text-red-800 border-red-200',
-      label: 'Needs Action',
-    },
-    at_risk: {
-      className: 'bg-amber-100 text-amber-800 border-amber-200',
-      label: 'At Risk',
-    },
-    healthy: {
-      className: 'bg-green-100 text-green-800 border-green-200',
-      label: 'Healthy',
-    },
-    exempt: {
-      className: 'bg-slate-100 text-slate-800 border-slate-200',
-      label: 'Exempt',
-    },
-    pending: {
-      className: 'bg-blue-100 text-blue-800 border-blue-200',
-      label: 'Pending',
-    },
-    inactive: {
-      className: 'bg-gray-100 text-gray-600 border-gray-200',
-      label: 'Inactive',
-    },
-  }
-  const config = configs[health]
+  const config = getPaymentHealthConfig(health)
   return (
     <Badge className={`${config.className} font-medium`}>{config.label}</Badge>
   )

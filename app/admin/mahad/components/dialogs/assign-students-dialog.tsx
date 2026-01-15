@@ -29,7 +29,7 @@ import {
 
 import { assignStudentsAction } from '../../_actions'
 import { MahadBatch, MahadStudent } from '../../_types'
-import { useDialogState, useMahadUIStore } from '../../store'
+import { useDialogType, useMahadUIStore } from '../../store'
 
 /**
  * Props for AssignStudentsDialog component.
@@ -58,7 +58,7 @@ interface AssignStudentsDialogProps {
  *
  * @example
  * // Trigger from dashboard header
- * openDialogWithData('assignStudents')
+ * openDialog('assignStudents', null)
  *
  * // Render in parent component with data
  * <AssignStudentsDialog students={allStudents} batches={availableBatches} />
@@ -74,10 +74,10 @@ export function AssignStudentsDialog({
     new Set()
   )
 
-  const openDialog = useDialogState()
+  const dialogType = useDialogType()
   const closeDialog = useMahadUIStore((s) => s.closeDialog)
 
-  const isOpen = openDialog === 'assignStudents'
+  const isOpen = dialogType === 'assignStudents'
 
   const unassignedStudents = useMemo(
     () => students.filter((s) => !s.batchId),

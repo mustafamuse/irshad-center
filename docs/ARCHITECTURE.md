@@ -147,7 +147,16 @@ irshad-center/
 
 ```typescript
 // app/admin/dugsi/page.tsx
-export default async function DugsiAdminPage() {
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
+
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
   // Parallel data fetching for consolidated dashboard
   const [registrations, teachersResult, classesResult, classTeachersResult] =
     await Promise.all([

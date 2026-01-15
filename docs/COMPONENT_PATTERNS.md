@@ -68,13 +68,21 @@ import {
 } from './actions'
 import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
 import { getTeachers } from './teachers/actions'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
 export const metadata: Metadata = {
   title: 'Dugsi Admin',
   description: 'Manage Dugsi program registrations',
 }
 
-export default async function DugsiAdminPage() {
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
   // Parallel data fetching for consolidated dashboard
   const [registrations, teachersResult, classesResult, classTeachersResult] =
     await Promise.all([
@@ -121,8 +129,16 @@ export default async function CohortsPage() {
 ```typescript
 // app/admin/dugsi/page.tsx
 import { Suspense } from 'react'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-export default async function DugsiAdminPage() {
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
   const [registrations, teachersResult, classesResult, classTeachersResult] =
     await Promise.all([
       getDugsiRegistrations({ shift }),
@@ -149,8 +165,16 @@ export default async function DugsiAdminPage() {
 ```typescript
 // app/admin/dugsi/page.tsx
 import { AppErrorBoundary } from '@/components/error-boundary'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-export default async function DugsiAdminPage() {
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
   const [registrations, teachersResult, classesResult, classTeachersResult] =
     await Promise.all([
       getDugsiRegistrations({ shift }),
@@ -188,28 +212,17 @@ export default async function DugsiAdminPage() {
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useViewMode, useFilterActions } from '../../store'
+import { useFilterActions } from '../../store'
 
 export function DashboardHeader() {
-  const viewMode = useViewMode()
-  const { setViewMode } = useFilterActions()
+  const { setShift } = useFilterActions()
 
   return (
     <div className="flex items-center justify-between">
       <h1>Dugsi Program Management</h1>
       <div className="flex gap-2">
-        <Button
-          variant={viewMode === 'grid' ? 'default' : 'outline'}
-          onClick={() => setViewMode('grid')}
-        >
-          Parents
-        </Button>
-        <Button
-          variant={viewMode === 'table' ? 'default' : 'outline'}
-          onClick={() => setViewMode('table')}
-        >
-          Students
-        </Button>
+        <Button onClick={() => setShift('MORNING')}>Morning</Button>
+        <Button onClick={() => setShift('AFTERNOON')}>Afternoon</Button>
       </div>
     </div>
   )

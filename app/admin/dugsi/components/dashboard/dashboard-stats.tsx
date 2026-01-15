@@ -10,15 +10,16 @@ import {
 } from 'lucide-react'
 
 import { StatsCard } from '@/components/admin'
+import { FamilyStatusFilter } from '@/lib/hooks/use-admin-tabs'
 import { cn } from '@/lib/utils'
 
-import { DugsiRegistration, TabValue } from '../../_types'
+import { DugsiRegistration } from '../../_types'
 import { getBillingStatus } from '../../_utils/billing'
 import { groupRegistrationsByFamily } from '../../_utils/family'
 
 interface DugsiStatsProps {
   registrations: DugsiRegistration[]
-  onStatClick?: (tab: TabValue) => void
+  onStatClick?: (status: FamilyStatusFilter) => void
 }
 
 export function DugsiStats({ registrations, onStatClick }: DugsiStatsProps) {
