@@ -449,15 +449,7 @@ export async function handleSubscriptionDeleted(
   const dbSubscription = await getSubscriptionByStripeId(stripeSubscriptionId)
 
   if (!dbSubscription) {
-    logger.warn(
-      { stripeSubscriptionId },
-      'Subscription not found in database - may already be deleted'
-    )
-    return {
-      subscriptionId: '',
-      status: 'canceled',
-      created: false,
-    }
+    throw subscriptionNotFoundForRetry(stripeSubscriptionId)
   }
 
   // Update subscription to canceled
@@ -504,11 +496,7 @@ export async function handleInvoiceFinalized(
   const dbSubscription = await getSubscriptionByStripeId(subscriptionId)
 
   if (!dbSubscription) {
-    logger.warn(
-      { subscriptionId, invoiceId: invoice.id },
-      'Subscription not found for invoice'
-    )
-    return null
+    throw subscriptionNotFoundForRetry(subscriptionId)
   }
 
   // Update paid_until to the period_end of the invoice

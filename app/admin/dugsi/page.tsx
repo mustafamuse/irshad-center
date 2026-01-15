@@ -75,6 +75,19 @@ export default async function DugsiAdminPage({
         getAllTeachersForClassAssignmentAction(),
       ])
 
+    // Throw on failed data loads so admins are aware of issues
+    if (!teachersResult.success) {
+      throw new Error(`Failed to load teachers: ${teachersResult.error}`)
+    }
+    if (!classesResult.success) {
+      throw new Error(`Failed to load classes: ${classesResult.error}`)
+    }
+    if (!classTeachersResult.success) {
+      throw new Error(
+        `Failed to load class teachers: ${classTeachersResult.error}`
+      )
+    }
+
     return (
       <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
         <AppErrorBoundary
@@ -86,15 +99,9 @@ export default async function DugsiAdminPage({
           <Suspense fallback={<Loading />}>
             <ConsolidatedDugsiDashboard
               registrations={registrations}
-              teachers={
-                teachersResult.success ? (teachersResult.data ?? []) : []
-              }
-              classes={classesResult.success ? (classesResult.data ?? []) : []}
-              classTeachers={
-                classTeachersResult.success
-                  ? (classTeachersResult.data ?? [])
-                  : []
-              }
+              teachers={teachersResult.data ?? []}
+              classes={classesResult.data ?? []}
+              classTeachers={classTeachersResult.data ?? []}
             />
           </Suspense>
         </AppErrorBoundary>
