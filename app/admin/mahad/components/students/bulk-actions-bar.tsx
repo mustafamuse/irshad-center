@@ -91,14 +91,20 @@ export function BulkActionsBar({
     }
 
     let cancelled = false
-    getBulkDeleteWarningsAction(studentIds).then((result) => {
-      if (cancelled) return
-      if (result.success && result.data) {
-        setDeleteWarnings(result.data)
-      } else {
-        toast.error('Failed to load deletion warnings')
-      }
-    })
+    getBulkDeleteWarningsAction(studentIds)
+      .then((result) => {
+        if (cancelled) return
+        if (result.success && result.data) {
+          setDeleteWarnings(result.data)
+        } else {
+          toast.error('Failed to load deletion warnings')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error('Failed to load deletion warnings')
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -367,6 +373,7 @@ export function BulkActionsBar({
 
           {deleteWarnings &&
             (deleteWarnings.studentsWithSiblings > 0 ||
+              deleteWarnings.studentsWithAttendance > 0 ||
               deleteWarnings.studentsWithActiveSubscription > 0 ||
               deleteWarnings.studentsWithPaymentHistory > 0) && (
               <Alert variant="destructive">
@@ -377,6 +384,13 @@ export function BulkActionsBar({
                       {deleteWarnings.studentsWithSiblings}{' '}
                       {pluralizeStudent(deleteWarnings.studentsWithSiblings)}{' '}
                       have sibling relationships that will be removed.
+                    </p>
+                  )}
+                  {deleteWarnings.studentsWithAttendance > 0 && (
+                    <p>
+                      {deleteWarnings.studentsWithAttendance}{' '}
+                      {pluralizeStudent(deleteWarnings.studentsWithAttendance)}{' '}
+                      have attendance records that will be deleted.
                     </p>
                   )}
                   {deleteWarnings.studentsWithActiveSubscription > 0 && (

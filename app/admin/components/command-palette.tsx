@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -100,6 +100,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [searchResults, setSearchResults] = useState<PersonSearchResult[]>([])
   const [isSearching, startSearchTransition] = useTransition()
   const debouncedQuery = useDebounce(searchQuery, 300)
+  const lastSearchRef = useRef('')
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent): void {
@@ -126,9 +127,13 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       return
     }
 
+    const currentQuery = debouncedQuery
+    lastSearchRef.current = currentQuery
+
     startSearchTransition(async () => {
       try {
-        const result = await searchPeopleAction(debouncedQuery)
+        const result = await searchPeopleAction(currentQuery)
+        if (lastSearchRef.current !== currentQuery) return
         if (result.success && result.data) {
           setSearchResults(result.data)
         } else {
@@ -136,6 +141,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
           setSearchResults([])
         }
       } catch {
+        if (lastSearchRef.current !== currentQuery) return
         toast.error('Search failed. Please try again.')
         setSearchResults([])
       }
