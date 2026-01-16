@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 import Link from 'next/link'
 
@@ -19,6 +19,9 @@ import { IRSHAD_CENTER } from '@/lib/constants/homepage'
 import { copyToClipboard } from '@/lib/utils/clipboard'
 
 const CURRENT_YEAR = new Date().getFullYear()
+const { address, googleMapsUrl, phone, email, social } = IRSHAD_CENTER
+const fullAddress = `${address.street}, ${address.city}, ${address.state} ${address.zip}`
+const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(fullAddress)}&output=embed`
 
 export default function SiteFooter() {
   const [copied, setCopied] = useState(false)
@@ -33,10 +36,7 @@ export default function SiteFooter() {
     }
   }, [])
 
-  const { address, googleMapsUrl, phone, email, social } = IRSHAD_CENTER
-  const fullAddress = `${address.street}, ${address.city}, ${address.state} ${address.zip}`
-
-  const copyAddress = async () => {
+  const copyAddress = useCallback(async () => {
     setCopyError(false)
     await copyToClipboard(
       fullAddress,
@@ -51,9 +51,7 @@ export default function SiteFooter() {
         errorTimeoutRef.current = setTimeout(() => setCopyError(false), 3000)
       }
     )
-  }
-
-  const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(fullAddress)}&output=embed`
+  }, [])
 
   return (
     <footer className="mt-8 border-t border-gray-200/20 bg-gray-50 dark:border-gray-700/50 dark:bg-gray-900">

@@ -8,7 +8,6 @@ export async function copyToClipboard(
     onSuccess?.()
     return true
   } catch (err) {
-    console.error('Failed to copy to clipboard:', err)
     onError?.(err)
     return false
   }

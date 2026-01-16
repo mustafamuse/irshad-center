@@ -2,10 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-import { motion } from 'framer-motion'
+import dynamic from 'next/dynamic'
+
 import { Clock, MapPin } from 'lucide-react'
 
-import { IQAMAH_OFFSETS, FALLBACK_PRAYER_TIMES } from '@/lib/constants/homepage'
+import {
+  IQAMAH_OFFSETS,
+  FALLBACK_PRAYER_TIMES,
+  IRSHAD_CENTER,
+  IRSHAD_TIMEZONE,
+} from '@/lib/constants/homepage'
+
+const MotionDiv = dynamic(
+  () => import('framer-motion').then((mod) => mod.motion.div),
+  { ssr: false }
+)
 
 interface PrayerTimes {
   fajr: string
@@ -133,15 +144,17 @@ export default function PrayerTimes() {
 
         const praytime = new PrayTimeClass('ISNA')
         const times = praytime
-          .location([44.8547, -93.4708])
-          .timezone('America/Chicago')
+          .location([
+            IRSHAD_CENTER.coordinates.lat,
+            IRSHAD_CENTER.coordinates.lng,
+          ])
+          .timezone(IRSHAD_TIMEZONE)
           .format('12h')
           .getTimes()
 
         setPrayerTimes(times)
         calculateNextPrayer(times)
-      } catch (err) {
-        console.error('Error calculating prayer times:', err)
+      } catch {
         setError('Unable to calculate prayer times. Please refresh the page.')
       }
     }
@@ -155,8 +168,7 @@ export default function PrayerTimes() {
           if (PrayTimeClass) {
             calculatePrayerTimes()
           }
-        } catch (err) {
-          console.error('Failed to load PrayTime library:', err)
+        } catch {
           setUsingFallback(true)
           setPrayerTimes(FALLBACK_PRAYER_TIMES)
           calculateNextPrayer(FALLBACK_PRAYER_TIMES)
@@ -228,7 +240,7 @@ export default function PrayerTimes() {
   }
 
   return (
-    <motion.div
+    <MotionDiv
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8 }}
@@ -241,7 +253,7 @@ export default function PrayerTimes() {
 
         <div className="relative z-10 space-y-6">
           {nextPrayer && (
-            <motion.div
+            <MotionDiv
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.6 }}
@@ -295,7 +307,7 @@ export default function PrayerTimes() {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </MotionDiv>
           )}
 
           <div>
@@ -316,7 +328,7 @@ export default function PrayerTimes() {
                   prayerNames[prayer as keyof typeof prayerNames]
 
                 return (
-                  <motion.div
+                  <MotionDiv
                     key={prayer}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -365,7 +377,7 @@ export default function PrayerTimes() {
 
                       <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#007078]/5 to-[#deb43e]/5 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                     </div>
-                  </motion.div>
+                  </MotionDiv>
                 )
               })}
             </div>
@@ -395,6 +407,6 @@ export default function PrayerTimes() {
           </div>
         </div>
       </div>
-    </motion.div>
+    </MotionDiv>
   )
 }

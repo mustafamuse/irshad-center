@@ -12,6 +12,7 @@ export const IRSHAD_CENTER = {
   phone: '(952) 681-7785',
   email: 'info@irshadcenter.com',
   coordinates: { lat: 44.8547, lng: -93.4708 },
+  timezone: 'America/Chicago',
   googleMapsUrl:
     'https://www.google.com/maps/search/?api=1&query=6520+Edenvale+Blvd+%23110+Eden+Prairie+MN+55346',
   donationUrl: '',
@@ -20,6 +21,10 @@ export const IRSHAD_CENTER = {
     facebook: '',
   },
 }
+
+export const IRSHAD_TIMEZONE = IRSHAD_CENTER.timezone
+
+export const SCROLL_THRESHOLD = 100
 
 export const PROGRAMS = {
   mahad: {

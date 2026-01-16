@@ -2,10 +2,20 @@
 
 import { useState, useEffect, useMemo } from 'react'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import dynamic from 'next/dynamic'
+
 import { X, Megaphone, AlertTriangle, CheckCircle } from 'lucide-react'
 
 import { ANNOUNCEMENTS, type Announcement } from '@/lib/constants/homepage'
+
+const MotionDiv = dynamic(
+  () => import('framer-motion').then((mod) => mod.motion.div),
+  { ssr: false }
+)
+const AnimatePresence = dynamic(
+  () => import('framer-motion').then((mod) => mod.AnimatePresence),
+  { ssr: false }
+)
 
 const iconMap = {
   info: Megaphone,
@@ -29,11 +39,13 @@ export default function AnnouncementsBanner() {
     if (stored) {
       try {
         const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed)) {
+        if (
+          Array.isArray(parsed) &&
+          parsed.every((id) => typeof id === 'string')
+        ) {
           setDismissedIds(parsed)
         }
-      } catch (err) {
-        console.error('Failed to parse dismissed announcements:', err)
+      } catch {
         localStorage.removeItem('dismissedAnnouncements')
       }
     }
@@ -52,8 +64,8 @@ export default function AnnouncementsBanner() {
         'dismissedAnnouncements',
         JSON.stringify(newDismissed)
       )
-    } catch (err) {
-      console.error('Failed to persist dismissed announcements:', err)
+    } catch {
+      // localStorage may be unavailable in some environments
     }
   }
 
@@ -67,7 +79,7 @@ export default function AnnouncementsBanner() {
         {activeAnnouncements.map((announcement: Announcement) => {
           const Icon = iconMap[announcement.type]
           return (
-            <motion.div
+            <MotionDiv
               key={announcement.id}
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -87,7 +99,7 @@ export default function AnnouncementsBanner() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-            </motion.div>
+            </MotionDiv>
           )
         })}
       </AnimatePresence>

@@ -2,14 +2,24 @@
 
 import { useState, useEffect, startTransition } from 'react'
 
+import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 
-import { motion, AnimatePresence } from 'framer-motion'
 import { Heart, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
 import { Button } from '@/components/ui/button'
+import { SCROLL_THRESHOLD } from '@/lib/constants/homepage'
+
+const MotionHeader = dynamic(
+  () => import('framer-motion').then((mod) => mod.motion.header),
+  { ssr: false }
+)
+const AnimatePresence = dynamic(
+  () => import('framer-motion').then((mod) => mod.AnimatePresence),
+  { ssr: false }
+)
 
 export default function StickyHeader() {
   const { theme, setTheme } = useTheme()
@@ -20,7 +30,7 @@ export default function StickyHeader() {
     setMounted(true)
     const handleScroll = () => {
       startTransition(() => {
-        setIsScrolled(window.scrollY > 100)
+        setIsScrolled(window.scrollY > SCROLL_THRESHOLD)
       })
     }
     window.addEventListener('scroll', handleScroll, { passive: true })
@@ -31,8 +41,8 @@ export default function StickyHeader() {
 
   return (
     <AnimatePresence>
-      {isScrolled && (
-        <motion.header
+      {isScrolled ? (
+        <MotionHeader
           initial={{ y: -100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: -100, opacity: 0 }}
@@ -75,8 +85,8 @@ export default function StickyHeader() {
               </Button>
             </div>
           </div>
-        </motion.header>
-      )}
+        </MotionHeader>
+      ) : null}
     </AnimatePresence>
   )
 }
