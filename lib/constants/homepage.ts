@@ -67,6 +67,15 @@ export const IQAMAH_OFFSETS: Record<string, number> = {
   isha: 10,
 }
 
+export const FALLBACK_PRAYER_TIMES = {
+  fajr: '5:45 AM',
+  sunrise: '7:21 AM',
+  dhuhr: '12:27 PM',
+  asr: '3:53 PM',
+  maghrib: '5:34 PM',
+  isha: '7:52 PM',
+}
+
 export type AnnouncementType = 'info' | 'warning' | 'success'
 
 export interface Announcement {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 import Link from 'next/link'
 
@@ -18,9 +18,20 @@ import { Button } from '@/components/ui/button'
 import { IRSHAD_CENTER } from '@/lib/constants/homepage'
 import { copyToClipboard } from '@/lib/utils/clipboard'
 
+const CURRENT_YEAR = new Date().getFullYear()
+
 export default function SiteFooter() {
   const [copied, setCopied] = useState(false)
   const [copyError, setCopyError] = useState(false)
+  const copiedTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current)
+      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current)
+    }
+  }, [])
 
   const { address, googleMapsUrl, phone, email, social } = IRSHAD_CENTER
   const fullAddress = `${address.street}, ${address.city}, ${address.state} ${address.zip}`
@@ -31,11 +42,13 @@ export default function SiteFooter() {
       fullAddress,
       () => {
         setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
+        if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current)
+        copiedTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
       },
       () => {
         setCopyError(true)
-        setTimeout(() => setCopyError(false), 3000)
+        if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current)
+        errorTimeoutRef.current = setTimeout(() => setCopyError(false), 3000)
       }
     )
   }
@@ -142,7 +155,7 @@ export default function SiteFooter() {
 
         <div className="mt-8 border-t border-gray-200/50 pt-6 text-center dark:border-gray-700/50">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            &copy; {new Date().getFullYear()}{' '}
+            &copy; {CURRENT_YEAR}{' '}
             <span className="text-[#007078] dark:text-[#00a0a8]">
               Irshād Islamic Center
             </span>

@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 import { motion } from 'framer-motion'
 import { Clock, MapPin } from 'lucide-react'
 
-import { IQAMAH_OFFSETS } from '@/lib/constants/homepage'
+import { IQAMAH_OFFSETS, FALLBACK_PRAYER_TIMES } from '@/lib/constants/homepage'
 
 interface PrayerTimes {
   fajr: string
@@ -67,11 +67,6 @@ export default function PrayerTimes() {
   const [error, setError] = useState<string | null>(null)
   const [usingFallback, setUsingFallback] = useState(false)
   const [isClient, setIsClient] = useState(false)
-  const prayerTimesRef = useRef<PrayerTimes | null>(null)
-
-  useEffect(() => {
-    prayerTimesRef.current = prayerTimes
-  }, [prayerTimes])
 
   useEffect(() => {
     setIsClient(true)
@@ -163,16 +158,8 @@ export default function PrayerTimes() {
         } catch (err) {
           console.error('Failed to load PrayTime library:', err)
           setUsingFallback(true)
-          const fallbackTimes = {
-            fajr: '5:45 AM',
-            sunrise: '7:21 AM',
-            dhuhr: '12:27 PM',
-            asr: '3:53 PM',
-            maghrib: '5:34 PM',
-            isha: '7:52 PM',
-          }
-          setPrayerTimes(fallbackTimes)
-          calculateNextPrayer(fallbackTimes)
+          setPrayerTimes(FALLBACK_PRAYER_TIMES)
+          calculateNextPrayer(FALLBACK_PRAYER_TIMES)
         }
       }
       loadPrayTime()
@@ -181,28 +168,9 @@ export default function PrayerTimes() {
     }
 
     const now = new Date()
-    const midnightTimer = setTimeout(
-      () => {
-        if (PrayTimeClass) {
-          try {
-            const praytime = new PrayTimeClass('ISNA')
-            const times = praytime
-              .location([44.8547, -93.4708])
-              .timezone('America/Chicago')
-              .format('12h')
-              .getTimes()
-            setPrayerTimes(times)
-            calculateNextPrayer(times)
-          } catch (err) {
-            console.error(
-              'Failed to recalculate prayer times at midnight:',
-              err
-            )
-          }
-        }
-      },
+    const msUntilMidnight =
       24 * 60 * 60 * 1000 - (now.getTime() % (24 * 60 * 60 * 1000))
-    )
+    const midnightTimer = setTimeout(calculatePrayerTimes, msUntilMidnight)
 
     return () => {
       clearTimeout(midnightTimer)
@@ -210,24 +178,18 @@ export default function PrayerTimes() {
   }, [isClient, calculateNextPrayer])
 
   useEffect(() => {
-    if (!isClient || !prayerTimesRef.current) return
+    if (!isClient || !prayerTimes) return
 
-    calculateNextPrayer(prayerTimesRef.current)
+    calculateNextPrayer(prayerTimes)
 
     const timeInterval = setInterval(() => {
-      if (prayerTimesRef.current) {
-        calculateNextPrayer(prayerTimesRef.current)
-      }
+      calculateNextPrayer(prayerTimes)
     }, 60000)
 
     return () => {
       clearInterval(timeInterval)
     }
   }, [isClient, prayerTimes, calculateNextPrayer])
-
-  if (!isClient) {
-    return null
-  }
 
   if (error) {
     return (

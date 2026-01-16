@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Megaphone, AlertTriangle, CheckCircle } from 'lucide-react'
@@ -39,8 +39,9 @@ export default function AnnouncementsBanner() {
     }
   }, [])
 
-  const activeAnnouncements = ANNOUNCEMENTS.filter(
-    (a) => a.active && !dismissedIds.includes(a.id)
+  const activeAnnouncements = useMemo(
+    () => ANNOUNCEMENTS.filter((a) => a.active && !dismissedIds.includes(a.id)),
+    [dismissedIds]
   )
 
   const dismissAnnouncement = (id: string) => {
