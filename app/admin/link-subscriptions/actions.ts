@@ -48,8 +48,20 @@ export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsR
 export async function searchStudents(
   query: string,
   program?: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  return await searchStudentsForLinking(query, program)
+): Promise<
+  { success: true; data: StudentMatch[] } | { success: false; error: string }
+> {
+  try {
+    const data = await searchStudentsForLinking(query, program)
+    return { success: true, data }
+  } catch (error) {
+    logger.error({ err: error, query, program }, 'Error searching students')
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to search students',
+    }
+  }
 }
 
 /**
@@ -58,8 +70,25 @@ export async function searchStudents(
 export async function getPotentialMatches(
   email: string | null,
   program: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  return await getPotentialStudentMatches(email, program)
+): Promise<
+  { success: true; data: StudentMatch[] } | { success: false; error: string }
+> {
+  try {
+    const data = await getPotentialStudentMatches(email, program)
+    return { success: true, data }
+  } catch (error) {
+    logger.error(
+      { err: error, email, program },
+      'Error getting potential matches'
+    )
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to get potential matches',
+    }
+  }
 }
 
 /**

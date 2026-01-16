@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import * as Sentry from '@sentry/nextjs'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
@@ -70,6 +72,7 @@ export function BulkActionsBar({
   selectedStudents,
   batches,
 }: BulkActionsBarProps) {
+  const router = useRouter()
   const [isAssigning, setIsAssigning] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
@@ -94,10 +97,10 @@ export function BulkActionsBar({
     getBulkDeleteWarningsAction(studentIds)
       .then((result) => {
         if (cancelled) return
-        if (result.success && result.data) {
+        if (result.success) {
           setDeleteWarnings(result.data)
         } else {
-          toast.error('Failed to load deletion warnings')
+          toast.error(result.error || 'Failed to load deletion warnings')
         }
       })
       .catch(() => {
@@ -135,6 +138,7 @@ export function BulkActionsBar({
         clearSelection()
         setAssignDialogOpen(false)
         setSelectedBatchId('')
+        router.refresh()
       } else {
         toast.error(result.error || 'Failed to assign students')
       }
@@ -169,6 +173,7 @@ export function BulkActionsBar({
 
         clearSelection()
         setDeleteDialogOpen(false)
+        router.refresh()
       } else {
         toast.error(result.error || 'Failed to delete students')
       }

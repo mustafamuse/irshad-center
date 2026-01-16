@@ -110,18 +110,8 @@ export interface DashboardStats {
 }
 
 /**
- * Dialog types for single-dialog pattern
+ * Dialog state discriminated union for type-safe dialog handling
  */
-export type DialogType =
-  | 'createBatch'
-  | 'editBatch'
-  | 'assignStudents'
-  | 'deleteStudent'
-  | 'paymentLink'
-  | 'studentDetail'
-  | 'resolveDuplicates'
-  | null
-
 export type DialogState =
   | { type: null; data: null }
   | { type: 'createBatch'; data: null }
@@ -131,6 +121,11 @@ export type DialogState =
   | { type: 'paymentLink'; data: MahadStudent }
   | { type: 'studentDetail'; data: MahadStudent }
   | { type: 'resolveDuplicates'; data: DuplicateGroup }
+
+/**
+ * Dialog type derived from DialogState for consistency
+ */
+export type DialogType = DialogState['type']
 
 /**
  * Extract dialog data type for a specific dialog type

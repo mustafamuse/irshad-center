@@ -481,10 +481,15 @@ export async function getStudentDeleteWarningsAction(id: string) {
 /**
  * Get delete warnings for multiple students (bulk delete)
  */
-export async function getBulkDeleteWarningsAction(ids: string[]) {
+export async function getBulkDeleteWarningsAction(
+  ids: string[]
+): Promise<
+  | { success: true; data: BulkDeleteWarnings }
+  | { success: false; error: string }
+> {
   try {
     const warnings = await getBulkDeleteWarnings(ids)
-    return { success: true, data: warnings } as const
+    return { success: true, data: warnings }
   } catch (error) {
     logger.error(
       { err: error, studentIds: ids, count: ids.length },
@@ -492,13 +497,11 @@ export async function getBulkDeleteWarningsAction(ids: string[]) {
     )
     return {
       success: false,
-      data: {
-        studentsWithSiblings: 0,
-        studentsWithAttendance: 0,
-        studentsWithActiveSubscription: 0,
-        studentsWithPaymentHistory: 0,
-      } as BulkDeleteWarnings,
-    } as const
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch bulk delete warnings',
+    }
   }
 }
 
@@ -535,6 +538,9 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 
 /**
  * Bulk delete students
+ *
+ * Note: This intentionally does NOT use a transaction because we want partial
+ * success - if one delete fails, we continue with others and track failures.
  */
 export async function bulkDeleteStudentsAction(
   studentIds: string[]
@@ -546,14 +552,9 @@ export async function bulkDeleteStudentsAction(
 
     let deletedCount = 0
     const failedDeletes: string[] = []
-    const batchIdsToRevalidate = new Set<string>()
 
     for (const id of studentIds) {
       try {
-        const student = await getStudentById(id)
-        if (student?.batchId) {
-          batchIdsToRevalidate.add(student.batchId)
-        }
         await prisma.programProfile.delete({ where: { id } })
         deletedCount++
       } catch (error) {

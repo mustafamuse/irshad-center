@@ -5,7 +5,13 @@ import { createActionLogger } from '@/lib/logger'
 
 const logger = createActionLogger('mahad-payments')
 
-export async function getBatchesForFilter() {
+type BatchFilterItem = { id: string; name: string }
+
+type BatchFilterResult =
+  | { success: true; data: BatchFilterItem[] }
+  | { success: false; error: string }
+
+export async function getBatchesForFilter(): Promise<BatchFilterResult> {
   try {
     const batches = await prisma.batch.findMany({
       select: {
@@ -21,10 +27,13 @@ export async function getBatchesForFilter() {
         name: 'asc',
       },
     })
-    return batches
+    return { success: true, data: batches }
   } catch (error) {
     logger.error({ err: error }, 'Failed to fetch batches')
-    return []
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch batches',
+    }
   }
 }
 
