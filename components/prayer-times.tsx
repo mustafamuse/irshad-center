@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import { motion } from 'framer-motion'
 import { Clock, MapPin } from 'lucide-react'
@@ -48,6 +48,11 @@ export default function PrayerTimes() {
   const [error, setError] = useState<string | null>(null)
   const [usingFallback, setUsingFallback] = useState(false)
   const [isClient, setIsClient] = useState(false)
+  const prayerTimesRef = useRef<PrayerTimes | null>(null)
+
+  useEffect(() => {
+    prayerTimesRef.current = prayerTimes
+  }, [prayerTimes])
 
   useEffect(() => {
     setIsClient(true)
@@ -163,7 +168,7 @@ export default function PrayerTimes() {
     }
 
     const timeInterval = setInterval(() => {
-      if (prayerTimes) calculateNextPrayer(prayerTimes)
+      if (prayerTimesRef.current) calculateNextPrayer(prayerTimesRef.current)
     }, 60000)
 
     // Recalculate prayer times at midnight
@@ -179,7 +184,7 @@ export default function PrayerTimes() {
       clearInterval(timeInterval)
       clearTimeout(midnightTimer)
     }
-  }, [isClient, prayerTimes])
+  }, [isClient])
 
   if (!isClient) {
     return null

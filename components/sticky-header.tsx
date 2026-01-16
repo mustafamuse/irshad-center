@@ -65,6 +65,8 @@ export default function StickyHeader() {
                 disabled
                 size="sm"
                 className="cursor-not-allowed gap-1.5 rounded-full bg-[#deb43e]/50 px-4 text-white"
+                title="Donations coming soon"
+                aria-label="Donate - coming soon"
               >
                 <Heart className="h-4 w-4" />
                 <span className="hidden sm:inline">Donate</span>
