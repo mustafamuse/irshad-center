@@ -46,23 +46,18 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
   )
 
   const selectedFamilyIds = useDugsiUIStore((state) => state.selectedFamilyIds)
-  const setSelectedFamilyIds = useDugsiUIStore(
-    (state) => state.setSelectedFamilyIds
-  )
-  const toggleFamilySelection = useDugsiUIStore(
-    (state) => state.toggleFamilySelection
-  )
-
   const isVerifyBankDialogOpen = useDugsiUIStore(
     (state) => state.isVerifyBankDialogOpen
   )
   const verifyBankDialogData = useDugsiUIStore(
     (state) => state.verifyBankDialogData
   )
-  const setDialogOpen = useDugsiUIStore((state) => state.setDialogOpen)
-  const setVerifyBankDialogData = useDugsiUIStore(
-    (state) => state.setVerifyBankDialogData
-  )
+  const {
+    setSelectedFamilyIds,
+    toggleFamilySelection,
+    setDialogOpen,
+    setVerifyBankDialogData,
+  } = useDugsiUIStore.getState()
 
   const handleViewDetails = useCallback((family: Family) => {
     setSelectedFamily(family)

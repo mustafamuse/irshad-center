@@ -1,5 +1,7 @@
 'use client'
 
+import { useMemo } from 'react'
+
 import { AlertTriangle, Layers, Users } from 'lucide-react'
 
 import {
@@ -31,14 +33,14 @@ interface ConsolidatedMahadDashboardProps {
   batches: BatchWithCount[]
 }
 
+const STUDENTS_ICON = <Users className="h-4 w-4" />
+const BATCHES_ICON = <Layers className="h-4 w-4" />
+const DUPLICATES_ICON = <AlertTriangle className="h-4 w-4" />
+
 const TAB_CONFIG = [
-  { value: 'students', label: 'Students', icon: <Users className="h-4 w-4" /> },
-  { value: 'batches', label: 'Batches', icon: <Layers className="h-4 w-4" /> },
-  {
-    value: 'duplicates',
-    label: 'Duplicates',
-    icon: <AlertTriangle className="h-4 w-4" />,
-  },
+  { value: 'students', label: 'Students', icon: STUDENTS_ICON },
+  { value: 'batches', label: 'Batches', icon: BATCHES_ICON },
+  { value: 'duplicates', label: 'Duplicates', icon: DUPLICATES_ICON },
 ]
 
 export function ConsolidatedMahadDashboard({
@@ -61,8 +63,8 @@ export function ConsolidatedMahadDashboard({
     onTabChange: handleTabChange,
   })
 
-  const mahadStudents = students.map(mapStudent)
-  const mahadBatches = batches.map(mapBatch)
+  const mahadStudents = useMemo(() => students.map(mapStudent), [students])
+  const mahadBatches = useMemo(() => batches.map(mapBatch), [batches])
 
   const filteredStudents = useStudentFilters(mahadStudents, filters)
   const stats = useStudentStats(mahadStudents)

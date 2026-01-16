@@ -60,10 +60,8 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
   const selectedStudentIds = useMahadUIStore(
     (state) => state.selectedStudentIds
   )
-  const setSelectedStudentIds = useMahadUIStore(
-    (state) => state.setSelectedStudentIds
-  )
-  const toggleStudentSelection = useMahadUIStore((state) => state.toggleStudent)
+  const { setSelectedStudentIds, toggleStudent: toggleStudentSelection } =
+    useMahadUIStore.getState()
 
   function handleViewDetails(student: MahadStudent): void {
     setSelectedStudentId(student.id)

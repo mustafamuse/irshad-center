@@ -37,23 +37,16 @@ interface ConsolidatedDugsiDashboardProps {
   classTeachers: ClassTeacherForAssignment[]
 }
 
+const FAMILIES_ICON = <Users className="h-4 w-4" />
+const TEACHERS_ICON = <GraduationCap className="h-4 w-4" />
+const CLASSES_ICON = <BookOpen className="h-4 w-4" />
+const ATTENDANCE_ICON = <ClipboardCheck className="h-4 w-4" />
+
 const TAB_CONFIG = [
-  { value: 'families', label: 'Families', icon: <Users className="h-4 w-4" /> },
-  {
-    value: 'teachers',
-    label: 'Teachers',
-    icon: <GraduationCap className="h-4 w-4" />,
-  },
-  {
-    value: 'classes',
-    label: 'Classes',
-    icon: <BookOpen className="h-4 w-4" />,
-  },
-  {
-    value: 'attendance',
-    label: 'Attendance',
-    icon: <ClipboardCheck className="h-4 w-4" />,
-  },
+  { value: 'families', label: 'Families', icon: FAMILIES_ICON },
+  { value: 'teachers', label: 'Teachers', icon: TEACHERS_ICON },
+  { value: 'classes', label: 'Classes', icon: CLASSES_ICON },
+  { value: 'attendance', label: 'Attendance', icon: ATTENDANCE_ICON },
 ]
 
 const STATUS_CHIPS = [

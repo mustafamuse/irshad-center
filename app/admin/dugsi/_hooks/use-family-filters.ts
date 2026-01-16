@@ -17,5 +17,27 @@ export function useFamilyFilters(
     quickShift?: Shift | null
   }
 ): Family[] {
-  return useMemo(() => applyAllFilters(families, options), [families, options])
+  const { tab, searchQuery, searchField, advancedFilters, quickShift } = options
+  const dateFilter = advancedFilters.dateFilter
+  const hasHealthInfo = advancedFilters.hasHealthInfo
+
+  return useMemo(
+    () =>
+      applyAllFilters(families, {
+        tab,
+        searchQuery,
+        searchField,
+        advancedFilters: { dateFilter, hasHealthInfo },
+        quickShift,
+      }),
+    [
+      families,
+      tab,
+      searchQuery,
+      searchField,
+      dateFilter,
+      hasHealthInfo,
+      quickShift,
+    ]
+  )
 }
