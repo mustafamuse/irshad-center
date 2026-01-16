@@ -87,32 +87,36 @@ export default function PrayerTimes() {
     const now = new Date()
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
 
-    const prayerMinutes = Object.entries(times)
-      .map(([name, time]) => {
-        if (name === 'sunrise') return null
+    const prayerMinutes: Array<{
+      name: string
+      minutes: number
+      time: string
+    }> = []
+    for (const [name, time] of Object.entries(times)) {
+      if (name === 'sunrise') continue
 
-        const timeStr = time as string
-        const [timeOnly, period] = timeStr.split(' ')
-        const [hours, minutes] = timeOnly.split(':').map(Number)
+      const timeStr = time as string
+      const [timeOnly, period] = timeStr.split(' ')
+      const [hours, minutes] = timeOnly.split(':').map(Number)
 
-        let totalMinutes = hours * 60 + minutes
-        if (period === 'PM' && hours !== 12) totalMinutes += 12 * 60
-        if (period === 'AM' && hours === 12) totalMinutes = minutes
+      let totalMinutes = hours * 60 + minutes
+      if (period === 'PM' && hours !== 12) totalMinutes += 12 * 60
+      if (period === 'AM' && hours === 12) totalMinutes = minutes
 
-        return {
-          name: prayerNames[name as keyof typeof prayerNames],
-          minutes: totalMinutes,
-          time: timeStr,
-        }
+      prayerMinutes.push({
+        name: prayerNames[name as keyof typeof prayerNames],
+        minutes: totalMinutes,
+        time: timeStr,
       })
-      .filter(Boolean)
+    }
 
-    const upcomingPrayers = prayerMinutes.filter(
-      (prayer): prayer is NonNullable<typeof prayer> =>
-        prayer !== null && prayer.minutes > currentMinutes
-    )
-    const next =
-      upcomingPrayers.length > 0 ? upcomingPrayers[0] : prayerMinutes[0]
+    let next = prayerMinutes[0]
+    for (const prayer of prayerMinutes) {
+      if (prayer.minutes > currentMinutes) {
+        next = prayer
+        break
+      }
+    }
 
     if (next) {
       const timeDiff =
