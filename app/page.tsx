@@ -1,182 +1,207 @@
-'use client'
-
 import Image from 'next/image'
 import Link from 'next/link'
 
-import { motion } from 'framer-motion'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, GraduationCap, Users, BookOpen, Mic } from 'lucide-react'
 
 import PrayerTimes from '@/components/prayer-times'
+import SiteFooter from '@/components/site-footer'
+import StickyHeader from '@/components/sticky-header'
 import { Button } from '@/components/ui/button'
+import {
+  IRSHAD_CENTER,
+  PROGRAMS,
+  COMMUNITY_STATS,
+  JUMMAH_TIMES,
+  FRIDAY_YOUTH,
+} from '@/lib/constants/homepage'
 
-function ComingSoonContent() {
+const statIcons = {
+  students: Users,
+  graduates: GraduationCap,
+  classes: BookOpen,
+  halaqah: Mic,
+}
+
+export default function Page() {
   return (
-    <div className="relative min-h-screen bg-white">
-      {/* Background Pattern */}
+    <div className="relative min-h-screen bg-white dark:bg-gray-950">
+      <StickyHeader />
+
       <div className="absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[linear-gradient(30deg,#007078_0%,transparent_70%)] opacity-[0.03]" />
+        <div className="absolute inset-0 bg-[linear-gradient(30deg,#007078_0%,transparent_70%)] opacity-[0.03] dark:opacity-[0.08]" />
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="space-y-8 sm:space-y-12"
-        >
-          {/* Header Section */}
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <div className="animate-fade-in space-y-6 sm:space-y-8">
           <div className="relative">
-            {/* Logo */}
-            <div className="mx-auto w-full max-w-[280px] sm:max-w-md">
+            <div className="mx-auto w-full max-w-[280px] sm:max-w-md md:max-w-lg">
               <Image
-                src="/images/Mosque.svg"
-                alt="Irshād Center"
-                width={500}
-                height={300}
+                src="/images/Mosque-transparent.svg"
+                alt="Irshād Islamic Center"
+                width={600}
+                height={360}
                 className="h-auto w-full"
                 priority
               />
             </div>
 
-            {/* Coming Soon Message */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              className="mt-6 space-y-4 px-4 text-center sm:mt-8 sm:space-y-6"
-            >
-              <div className="space-y-4">
-                <div className="inline-flex items-center gap-2 rounded-full bg-[#007078]/10 px-4 py-2 text-sm font-medium text-[#007078]">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#007078] opacity-75"></span>
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[#007078]"></span>
-                  </span>
-                  Website Update in Progress
-                </div>
-                <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl md:text-5xl lg:text-6xl">
-                  Coming Soon
-                </h1>
-                <p className="mx-auto max-w-2xl px-2 text-base text-gray-600 sm:text-lg md:text-xl">
-                  We're working hard to bring you an enhanced experience. Our
-                  new website will be launching soon with improved features and
-                  better accessibility.
-                </p>
-              </div>
-            </motion.div>
+            <div className="mt-2 space-y-2 text-center">
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl md:text-4xl">
+                Welcome to{' '}
+                <span className="text-[#007078] dark:text-[#00a0a8]">
+                  Irshād
+                </span>{' '}
+                Islamic Center
+              </h1>
+              <p className="mx-auto max-w-xl text-sm text-gray-600 dark:text-gray-300 sm:text-base">
+                {IRSHAD_CENTER.tagline}
+              </p>
+            </div>
           </div>
 
-          {/* Program Options */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="space-y-6"
-          >
-            <h2 className="mb-4 text-center text-xl font-semibold text-gray-700">
-              Explore Our Educational Programs
+          <div className="mx-auto max-w-3xl rounded-2xl border border-[#007078]/10 bg-[#007078]/5 p-4 text-center dark:border-[#007078]/20 dark:bg-[#007078]/10">
+            <p className="text-sm text-gray-700 dark:text-gray-300 sm:text-base">
+              {IRSHAD_CENTER.mission}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-center text-lg font-semibold text-gray-700 dark:text-gray-200">
+              Our Programs
             </h2>
 
-            <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
-              {/* Irshad Ma'had - Available */}
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="group relative">
                 <Button
                   asChild
                   size="lg"
-                  className="h-auto w-full rounded-2xl bg-[#007078] p-4 text-white shadow-lg transition-all duration-300 group-hover:scale-[1.02] group-hover:bg-[#007078]/90 group-hover:shadow-xl sm:p-6"
+                  className="h-auto w-full rounded-2xl bg-[#007078] p-4 text-white shadow-lg transition-all duration-300 group-hover:scale-[1.02] group-hover:bg-[#007078]/90 group-hover:shadow-xl sm:p-5"
                 >
                   <Link
-                    href="/mahad"
-                    className="flex flex-col items-center gap-2 sm:gap-3"
+                    href={PROGRAMS.mahad.href}
+                    className="flex flex-col items-center gap-1.5"
                   >
-                    <div className="text-xl font-semibold sm:text-2xl">
-                      Irshād Māhad
+                    <div className="text-lg font-semibold sm:text-xl">
+                      {PROGRAMS.mahad.name}
                     </div>
-                    <div className="text-sm opacity-90 sm:text-base">
-                      Islamic Studies Program
+                    <div className="text-xs opacity-90 sm:text-sm">
+                      {PROGRAMS.mahad.subtitle}
                     </div>
-                    <div className="mt-2 flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm">
+                    <div className="mt-1 text-xs opacity-75">
+                      {PROGRAMS.mahad.ageRange} • {PROGRAMS.mahad.schedule}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs sm:text-sm">
                       <span>Visit Now</span>
                       <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1 sm:h-4 sm:w-4" />
                     </div>
                   </Link>
                 </Button>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#007078]/10 bg-white px-2 py-0.5 text-[10px] text-[#007078] shadow-sm sm:px-3 sm:py-1 sm:text-xs">
-                  Available Now
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#007078]/10 bg-white px-2 py-0.5 text-[10px] text-[#007078] shadow-sm dark:border-[#007078]/30 dark:bg-gray-800 dark:text-[#00a0a8] sm:px-3 sm:text-xs">
+                  {PROGRAMS.mahad.status}
                 </div>
               </div>
 
-              {/* Irshad Dugsi - Available */}
               <div className="group relative">
                 <Button
                   asChild
                   size="lg"
-                  className="h-auto w-full rounded-2xl bg-[#007078] p-4 text-white shadow-lg transition-all duration-300 group-hover:scale-[1.02] group-hover:bg-[#007078]/90 group-hover:shadow-xl sm:p-6"
+                  className="h-auto w-full rounded-2xl bg-[#deb43e] p-4 text-white shadow-lg transition-all duration-300 group-hover:scale-[1.02] group-hover:bg-[#c9a438] group-hover:shadow-xl sm:p-5"
                 >
                   <Link
-                    href="/dugsi/register"
-                    className="flex flex-col items-center gap-2 sm:gap-3"
+                    href={PROGRAMS.dugsi.href}
+                    className="flex flex-col items-center gap-1.5"
                   >
-                    <div className="text-xl font-semibold sm:text-2xl">
-                      Irshād Dugsi
+                    <div className="text-lg font-semibold sm:text-xl">
+                      {PROGRAMS.dugsi.name}
                     </div>
-                    <div className="text-sm opacity-90 sm:text-base">
-                      Youth Islamic Learning Program
+                    <div className="text-xs opacity-90 sm:text-sm">
+                      {PROGRAMS.dugsi.subtitle}
                     </div>
-                    <div className="mt-2 flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm">
+                    <div className="mt-1 text-xs opacity-75">
+                      {PROGRAMS.dugsi.ageRange} • {PROGRAMS.dugsi.schedule}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs sm:text-sm">
                       <span>Register Now</span>
                       <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1 sm:h-4 sm:w-4" />
                     </div>
                   </Link>
                 </Button>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#007078]/10 bg-white px-2 py-0.5 text-[10px] text-[#007078] shadow-sm sm:px-3 sm:py-1 sm:text-xs">
-                  Registration Open
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full border border-[#deb43e]/20 bg-white px-2 py-0.5 text-[10px] text-[#deb43e] shadow-sm dark:border-[#deb43e]/40 dark:bg-gray-800 sm:px-3 sm:text-xs">
+                  {PROGRAMS.dugsi.status}
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          {/* Prayer Times */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-          >
-            <PrayerTimes />
-          </motion.div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+            {Object.entries(COMMUNITY_STATS).map(([key, stat]) => {
+              const Icon = statIcons[key as keyof typeof statIcons]
+              return (
+                <div
+                  key={key}
+                  className="rounded-xl border border-gray-200/50 bg-white/50 p-3 text-center shadow-sm backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-800/50 sm:p-4"
+                >
+                  <Icon className="mx-auto mb-1 h-5 w-5 text-[#007078] dark:text-[#00a0a8] sm:h-6 sm:w-6" />
+                  <div className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">
+                    {stat.value}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    {stat.label}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
 
-          {/* Contact Info */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.8 }}
-            className="flex justify-center pt-6 sm:pt-8"
-          >
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#007078]/10 bg-white/50 px-4 py-2 text-xs text-gray-500 shadow-sm backdrop-blur-sm sm:gap-3 sm:px-6 sm:py-3 sm:text-sm">
-              Questions? Contact us at{' '}
-              <a
-                href="mailto:info@irshadcenter.com"
-                className="font-medium text-[#007078] hover:underline"
-              >
-                info@irshadcenter.com
-              </a>
+          <div className="mx-auto w-full max-w-4xl">
+            <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+              <div className="relative overflow-hidden rounded-xl border border-[#deb43e]/30 bg-gradient-to-r from-[#deb43e]/10 via-[#deb43e]/5 to-[#deb43e]/10 p-4 shadow-md dark:border-[#deb43e]/40 dark:from-[#deb43e]/20 dark:via-[#deb43e]/10 dark:to-[#deb43e]/20 sm:p-5">
+                <div className="relative z-10 text-center">
+                  <h3 className="mb-2 text-base font-bold text-gray-900 dark:text-white sm:text-lg">
+                    Friday Prayer (Jummah)
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        1st Prayer
+                      </p>
+                      <p className="text-lg font-bold text-[#deb43e] sm:text-xl">
+                        {JUMMAH_TIMES.firstPrayer}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                        2nd Prayer
+                      </p>
+                      <p className="text-lg font-bold text-[#deb43e] sm:text-xl">
+                        {JUMMAH_TIMES.secondPrayer}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative overflow-hidden rounded-xl border border-[#007078]/20 bg-gradient-to-r from-[#007078]/10 via-[#007078]/5 to-[#007078]/10 p-4 shadow-md dark:border-[#007078]/40 dark:from-[#007078]/20 dark:via-[#007078]/10 dark:to-[#007078]/20 sm:p-5">
+                <div className="relative z-10 text-center">
+                  <h3 className="mb-1 text-base font-bold text-gray-900 dark:text-white sm:text-lg">
+                    Youth Night
+                  </h3>
+                  <p className="mb-2 text-lg font-bold text-[#007078] dark:text-[#00a0a8] sm:text-xl">
+                    Every Friday @ {FRIDAY_YOUTH.time}
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    {FRIDAY_YOUTH.activities.join(' • ')}
+                  </p>
+                </div>
+              </div>
             </div>
-          </motion.div>
-        </motion.div>
-      </div>
+          </div>
 
-      {/* Footer */}
-      <div className="relative mt-12 border-t py-3 sm:mt-16 sm:py-4">
-        <div className="mx-auto max-w-4xl px-4 text-center">
-          <p className="text-[10px] text-gray-400 sm:text-xs">
-            © 2025 Irshād Mâhad. All rights reserved.
-          </p>
+          <PrayerTimes />
         </div>
       </div>
+
+      <SiteFooter />
     </div>
   )
-}
-
-// Server Component wrapper
-export default function Page() {
-  return <ComingSoonContent />
 }

@@ -1,0 +1,11 @@
+# Robots.txt for Irshad Islamic Center
+
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://irshadcenter.com/sitemap.xml
+
+# Disallow admin areas
+Disallow: /admin/
+Disallow: /api/
