@@ -1089,6 +1089,7 @@ export async function getBulkDeleteWarnings(
       },
       assignments: { where: { isActive: true } },
       payments: true,
+      attendanceRecords: true,
     },
   })
 
@@ -1098,7 +1099,9 @@ export async function getBulkDeleteWarnings(
         p.person.siblingRelationships1.length > 0 ||
         p.person.siblingRelationships2.length > 0
     ).length,
-    studentsWithAttendance: 0,
+    studentsWithAttendance: profiles.filter(
+      (p) => p.attendanceRecords.length > 0
+    ).length,
     studentsWithActiveSubscription: profiles.filter(
       (p) => p.assignments.length > 0
     ).length,

@@ -462,9 +462,7 @@ export async function resolveDuplicatesAction(
 /**
  * Get delete warnings for a student
  */
-export async function getStudentDeleteWarningsAction(
-  id: string
-): Promise<
+export async function getStudentDeleteWarningsAction(id: string): Promise<
   | {
       success: true
       data: { hasSiblings: boolean; hasAttendanceRecords: boolean }
@@ -492,6 +490,8 @@ export async function getStudentDeleteWarningsAction(
 /**
  * Get delete warnings for multiple students (bulk delete)
  */
+const BulkDeleteIdsSchema = z.array(z.string().min(1)).min(1)
+
 export async function getBulkDeleteWarningsAction(
   ids: string[]
 ): Promise<
@@ -499,9 +499,13 @@ export async function getBulkDeleteWarningsAction(
   | { success: false; error: string }
 > {
   try {
-    const warnings = await getBulkDeleteWarnings(ids)
+    const validatedIds = BulkDeleteIdsSchema.parse(ids)
+    const warnings = await getBulkDeleteWarnings(validatedIds)
     return { success: true, data: warnings }
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: 'Invalid student IDs provided' }
+    }
     logger.error(
       { err: error, studentIds: ids, count: ids.length },
       'Failed to fetch bulk delete warnings'
