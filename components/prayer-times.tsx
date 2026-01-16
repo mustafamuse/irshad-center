@@ -69,22 +69,18 @@ export default function PrayerTimes() {
   const [isClient, setIsClient] = useState(false)
   const prayerTimesRef = useRef<PrayerTimes | null>(null)
 
-  // Keep ref in sync with state
   useEffect(() => {
     prayerTimesRef.current = prayerTimes
   }, [prayerTimes])
 
-  // Set client-side flag
   useEffect(() => {
     setIsClient(true)
   }, [])
 
-  // Helper function to calculate next prayer
   const calculateNextPrayer = (times: PrayerTimes) => {
     const now = new Date()
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
 
-    // Convert prayer times to minutes since midnight
     const prayerMinutes = Object.entries(times)
       .map(([name, time]) => {
         if (name === 'sunrise') return null // Skip sunrise for next prayer calculation
@@ -105,9 +101,9 @@ export default function PrayerTimes() {
       })
       .filter(Boolean)
 
-    // Find next prayer
     const upcomingPrayers = prayerMinutes.filter(
-      (prayer) => prayer!.minutes > currentMinutes
+      (prayer): prayer is NonNullable<typeof prayer> =>
+        prayer !== null && prayer.minutes > currentMinutes
     )
     let next =
       upcomingPrayers.length > 0 ? upcomingPrayers[0] : prayerMinutes[0] // If no more today, next is Fajr tomorrow
@@ -133,7 +129,6 @@ export default function PrayerTimes() {
     }
   }
 
-  // Effect 1: Load PrayTime library and calculate daily schedule (runs once on mount)
   useEffect(() => {
     if (!isClient) return
 
@@ -141,10 +136,7 @@ export default function PrayerTimes() {
       try {
         if (!PrayTimeClass) return
 
-        // Create PrayTime instance with ISNA method
         const praytime = new PrayTimeClass('ISNA')
-
-        // Set Eden Prairie, MN coordinates and timezone
         const times = praytime
           .location([44.8547, -93.4708])
           .timezone('America/Chicago')
@@ -159,7 +151,6 @@ export default function PrayerTimes() {
       }
     }
 
-    // Load PrayTime dynamically if not already loaded
     if (!PrayTimeClass) {
       const loadPrayTime = async () => {
         try {
@@ -189,19 +180,25 @@ export default function PrayerTimes() {
       calculatePrayerTimes()
     }
 
-    // Recalculate prayer times at midnight
     const now = new Date()
     const midnightTimer = setTimeout(
       () => {
         if (PrayTimeClass) {
-          const praytime = new PrayTimeClass('ISNA')
-          const times = praytime
-            .location([44.8547, -93.4708])
-            .timezone('America/Chicago')
-            .format('12h')
-            .getTimes()
-          setPrayerTimes(times)
-          calculateNextPrayer(times)
+          try {
+            const praytime = new PrayTimeClass('ISNA')
+            const times = praytime
+              .location([44.8547, -93.4708])
+              .timezone('America/Chicago')
+              .format('12h')
+              .getTimes()
+            setPrayerTimes(times)
+            calculateNextPrayer(times)
+          } catch (err) {
+            console.error(
+              'Failed to recalculate prayer times at midnight:',
+              err
+            )
+          }
         }
       },
       24 * 60 * 60 * 1000 - (now.getTime() % (24 * 60 * 60 * 1000))
@@ -212,14 +209,11 @@ export default function PrayerTimes() {
     }
   }, [isClient])
 
-  // Effect 2: Update countdown every minute (runs continuously)
   useEffect(() => {
     if (!isClient || !prayerTimesRef.current) return
 
-    // Calculate immediately
     calculateNextPrayer(prayerTimesRef.current)
 
-    // Then update every minute
     const timeInterval = setInterval(() => {
       if (prayerTimesRef.current) {
         calculateNextPrayer(prayerTimesRef.current)
@@ -256,9 +250,7 @@ export default function PrayerTimes() {
       <div className="mx-auto w-full max-w-5xl">
         <div className="relative animate-pulse rounded-3xl border border-gray-200/30 bg-gradient-to-br from-white/40 via-white/20 to-white/10 p-6 shadow-2xl backdrop-blur-xl dark:border-gray-700/50 dark:from-gray-800/60 dark:via-gray-800/40 dark:to-gray-800/30 sm:p-8">
           <div className="space-y-6">
-            {/* Hero skeleton */}
             <div className="h-32 rounded-2xl bg-gray-200 dark:bg-gray-700" />
-            {/* Grid skeleton */}
             <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
               {[...Array(6)].map((_, i) => (
                 <div
@@ -286,7 +278,6 @@ export default function PrayerTimes() {
         <div className="absolute bottom-0 left-0 h-24 w-24 rounded-full bg-gradient-to-tr from-[#007078]/10 to-transparent blur-xl" />
 
         <div className="relative z-10 space-y-6">
-          {/* Hero Section - Next Prayer Countdown */}
           {nextPrayer && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -345,7 +336,6 @@ export default function PrayerTimes() {
             </motion.div>
           )}
 
-          {/* Schedule Grid */}
           <div>
             <h3 className="mb-4 text-center text-lg font-semibold text-gray-900 dark:text-white sm:text-xl">
               Today's Prayer Schedule
@@ -419,7 +409,6 @@ export default function PrayerTimes() {
             </div>
           </div>
 
-          {/* Footer Note */}
           <div className="pt-2 text-center">
             {usingFallback ? (
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-50/50 px-4 py-2 text-xs text-amber-600 backdrop-blur-sm dark:border-amber-500/30 dark:bg-amber-900/20 dark:text-amber-400">

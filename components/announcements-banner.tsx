@@ -32,7 +32,8 @@ export default function AnnouncementsBanner() {
         if (Array.isArray(parsed)) {
           setDismissedIds(parsed)
         }
-      } catch {
+      } catch (err) {
+        console.error('Failed to parse dismissed announcements:', err)
         localStorage.removeItem('dismissedAnnouncements')
       }
     }
@@ -45,7 +46,14 @@ export default function AnnouncementsBanner() {
   const dismissAnnouncement = (id: string) => {
     const newDismissed = [...dismissedIds, id]
     setDismissedIds(newDismissed)
-    localStorage.setItem('dismissedAnnouncements', JSON.stringify(newDismissed))
+    try {
+      localStorage.setItem(
+        'dismissedAnnouncements',
+        JSON.stringify(newDismissed)
+      )
+    } catch (err) {
+      console.error('Failed to persist dismissed announcements:', err)
+    }
   }
 
   if (!isClient || activeAnnouncements.length === 0) {

@@ -15,9 +15,13 @@ export default function LocationMap() {
   const fullAddress = `${address.street}, ${address.city}, ${address.state} ${address.zip}`
 
   const copyAddress = async () => {
-    await navigator.clipboard.writeText(fullAddress)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(fullAddress)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy address to clipboard:', err)
+    }
   }
 
   const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(fullAddress)}&output=embed`

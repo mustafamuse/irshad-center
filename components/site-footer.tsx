@@ -28,8 +28,8 @@ export default function SiteFooter() {
       await navigator.clipboard.writeText(fullAddress)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {
-      // Clipboard API may fail in certain contexts
+    } catch (err) {
+      console.error('Failed to copy address to clipboard:', err)
     }
   }
 
