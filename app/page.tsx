@@ -3,7 +3,6 @@ import Link from 'next/link'
 
 import { ArrowRight, GraduationCap, Users, BookOpen, Mic } from 'lucide-react'
 
-import AnnouncementsBanner from '@/components/announcements-banner'
 import PrayerTimes from '@/components/prayer-times'
 import SiteFooter from '@/components/site-footer'
 import StickyHeader from '@/components/sticky-header'
@@ -26,7 +25,6 @@ const statIcons = {
 export default function Page() {
   return (
     <div className="relative min-h-screen bg-white dark:bg-gray-950">
-      <AnnouncementsBanner />
       <StickyHeader />
 
       <div className="absolute inset-0 -z-10">

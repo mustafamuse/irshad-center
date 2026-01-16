@@ -80,21 +80,3 @@ export const FALLBACK_PRAYER_TIMES = {
   maghrib: '5:34 PM',
   isha: '7:52 PM',
 }
-
-export type AnnouncementType = 'info' | 'warning' | 'success'
-
-export interface Announcement {
-  id: string
-  text: string
-  type: AnnouncementType
-  active: boolean
-}
-
-export const ANNOUNCEMENTS: Announcement[] = [
-  {
-    id: 'open-house-jan-2025',
-    text: 'Join us for Open House on Saturday, January 25th! Meet our teachers and learn about our programs.',
-    type: 'info',
-    active: false,
-  },
-]
