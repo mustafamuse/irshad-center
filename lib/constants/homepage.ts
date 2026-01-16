@@ -81,6 +81,6 @@ export const ANNOUNCEMENTS: Announcement[] = [
     id: 'open-house-jan-2025',
     text: 'Join us for Open House on Saturday, January 25th! Meet our teachers and learn about our programs.',
     type: 'info',
-    active: true,
+    active: false,
   },
 ]

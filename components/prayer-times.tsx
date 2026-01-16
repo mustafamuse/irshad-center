@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 import { motion } from 'framer-motion'
 import { Clock, MapPin } from 'lucide-react'
@@ -77,13 +77,13 @@ export default function PrayerTimes() {
     setIsClient(true)
   }, [])
 
-  const calculateNextPrayer = (times: PrayerTimes) => {
+  const calculateNextPrayer = useCallback((times: PrayerTimes) => {
     const now = new Date()
     const currentMinutes = now.getHours() * 60 + now.getMinutes()
 
     const prayerMinutes = Object.entries(times)
       .map(([name, time]) => {
-        if (name === 'sunrise') return null // Skip sunrise for next prayer calculation
+        if (name === 'sunrise') return null
 
         const timeStr = time as string
         const [timeOnly, period] = timeStr.split(' ')
@@ -105,14 +105,14 @@ export default function PrayerTimes() {
       (prayer): prayer is NonNullable<typeof prayer> =>
         prayer !== null && prayer.minutes > currentMinutes
     )
-    let next =
-      upcomingPrayers.length > 0 ? upcomingPrayers[0] : prayerMinutes[0] // If no more today, next is Fajr tomorrow
+    const next =
+      upcomingPrayers.length > 0 ? upcomingPrayers[0] : prayerMinutes[0]
 
     if (next) {
       const timeDiff =
         next.minutes > currentMinutes
           ? next.minutes - currentMinutes
-          : 24 * 60 - currentMinutes + next.minutes // Next day
+          : 24 * 60 - currentMinutes + next.minutes
 
       const hours = Math.floor(timeDiff / 60)
       const mins = timeDiff % 60
@@ -127,7 +127,7 @@ export default function PrayerTimes() {
         countdown,
       })
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!isClient) return
@@ -207,7 +207,7 @@ export default function PrayerTimes() {
     return () => {
       clearTimeout(midnightTimer)
     }
-  }, [isClient])
+  }, [isClient, calculateNextPrayer])
 
   useEffect(() => {
     if (!isClient || !prayerTimesRef.current) return
@@ -223,7 +223,7 @@ export default function PrayerTimes() {
     return () => {
       clearInterval(timeInterval)
     }
-  }, [isClient, prayerTimes])
+  }, [isClient, prayerTimes, calculateNextPrayer])
 
   if (!isClient) {
     return null

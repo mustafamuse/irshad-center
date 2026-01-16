@@ -16,21 +16,28 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { IRSHAD_CENTER } from '@/lib/constants/homepage'
+import { copyToClipboard } from '@/lib/utils/clipboard'
 
 export default function SiteFooter() {
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState(false)
 
   const { address, googleMapsUrl, phone, email, social } = IRSHAD_CENTER
   const fullAddress = `${address.street}, ${address.city}, ${address.state} ${address.zip}`
 
   const copyAddress = async () => {
-    try {
-      await navigator.clipboard.writeText(fullAddress)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy address to clipboard:', err)
-    }
+    setCopyError(false)
+    await copyToClipboard(
+      fullAddress,
+      () => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      },
+      () => {
+        setCopyError(true)
+        setTimeout(() => setCopyError(false), 3000)
+      }
+    )
   }
 
   const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(fullAddress)}&output=embed`
@@ -80,7 +87,7 @@ export default function SiteFooter() {
                 ) : (
                   <Copy className="h-4 w-4" />
                 )}
-                {copied ? 'Copied!' : 'Copy'}
+                {copyError ? 'Failed' : copied ? 'Copied!' : 'Copy'}
               </Button>
               <Button
                 asChild
