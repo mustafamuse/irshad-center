@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 import { Check, ChevronsUpDown, Search, User } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -76,7 +77,7 @@ export function StudentSelector({
           setSearchResults(result.data)
         }
       } catch (error) {
-        console.error('Search error:', error)
+        toast.error('Failed to search students')
       } finally {
         setIsSearching(false)
       }
@@ -94,7 +95,7 @@ export function StudentSelector({
             setSearchResults(result.data)
           }
         })
-        .catch(console.error)
+        .catch(() => toast.error('Failed to load potential matches'))
     }
   }, [customerEmail, program, potentialMatches.length])
 

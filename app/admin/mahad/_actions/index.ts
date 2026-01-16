@@ -462,10 +462,18 @@ export async function resolveDuplicatesAction(
 /**
  * Get delete warnings for a student
  */
-export async function getStudentDeleteWarningsAction(id: string) {
+export async function getStudentDeleteWarningsAction(
+  id: string
+): Promise<
+  | {
+      success: true
+      data: { hasSiblings: boolean; hasAttendanceRecords: boolean }
+    }
+  | { success: false; error: string }
+> {
   try {
     const warnings = await getStudentDeleteWarnings(id)
-    return { success: true, data: warnings } as const
+    return { success: true, data: warnings }
   } catch (error) {
     logger.error(
       { err: error, studentId: id },
@@ -473,8 +481,11 @@ export async function getStudentDeleteWarningsAction(id: string) {
     )
     return {
       success: false,
-      data: { hasSiblings: false, hasAttendanceRecords: false },
-    } as const
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch delete warnings',
+    }
   }
 }
 
