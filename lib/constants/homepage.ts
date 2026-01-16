@@ -59,12 +59,12 @@ export const FRIDAY_YOUTH = {
   activities: ['Halaqa', 'Basketball', 'Badminton'],
 }
 
-export const IQAMAH_OFFSETS: Record<string, string> = {
-  fajr: '+15 min',
-  dhuhr: '+10 min',
-  asr: '+10 min',
-  maghrib: '+5 min',
-  isha: '+10 min',
+export const IQAMAH_OFFSETS: Record<string, number> = {
+  fajr: 15,
+  dhuhr: 10,
+  asr: 10,
+  maghrib: 5,
+  isha: 10,
 }
 
 export type AnnouncementType = 'info' | 'warning' | 'success'
