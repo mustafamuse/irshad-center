@@ -84,11 +84,9 @@ irshad-center/
 │   ├── mahad/             # Public Mahad program pages
 │   ├── dugsi/             # Public Dugsi program pages
 │   ├── admin/             # Admin routes
-│   │   ├── mahad/         # Mahad admin
-│   │   │   └── cohorts/   # Cohort management
-│   │   ├── dugsi/         # Dugsi admin
+│   │   ├── mahad/         # Mahad admin (consolidated dashboard)
+│   │   ├── dugsi/         # Dugsi admin (consolidated dashboard)
 │   │   └── shared/        # Shared admin features
-│   │       └── attendance/ # Attendance tracking
 │   └── api/               # API routes
 │       └── webhook/       # Stripe webhooks
 ├── components/            # Shared components
@@ -123,9 +121,11 @@ Routes are organized by program/domain:
 
 - `/mahad` - Public Mahad program pages
 - `/dugsi` - Public Dugsi program pages
-- `/admin/mahad` - Mahad admin functionality
-- `/admin/dugsi` - Dugsi admin functionality
+- `/admin/mahad` - Mahad admin (consolidated dashboard with Students, Batches, Duplicates tabs)
+- `/admin/dugsi` - Dugsi admin (consolidated dashboard with Families, Teachers, Classes, Attendance tabs)
 - `/admin/shared` - Shared admin features
+
+**Note**: Legacy admin subpages (`/admin/dugsi/classes`, `/admin/dugsi/teachers`, `/admin/mahad/payments`, etc.) redirect to their respective consolidated dashboards with the appropriate tab selected.
 
 ### Documentation
 

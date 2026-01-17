@@ -27,7 +27,7 @@ interface DuplicatesViewProps {
 }
 
 function DuplicateCard({ group }: { group: DuplicateGroup }) {
-  const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
+  const openDialog = useMahadUIStore((s) => s.openDialog)
   const Icon = group.matchType === 'email' ? Mail : Phone
   const label = group.matchType === 'email' ? 'Email match' : 'Phone match'
 
@@ -81,7 +81,7 @@ function DuplicateCard({ group }: { group: DuplicateGroup }) {
           variant="destructive"
           size="sm"
           className="w-full"
-          onClick={() => openDialogWithData('resolveDuplicates', group)}
+          onClick={() => openDialog('resolveDuplicates', group)}
         >
           Resolve Duplicates
         </Button>

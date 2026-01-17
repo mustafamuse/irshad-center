@@ -3,6 +3,7 @@ export {
   useActiveTab,
   useMahadFilters,
   useSelectedStudents,
-  useDialogState,
+  useDialog,
+  useDialogType,
   useDialogData,
 } from './ui-store'

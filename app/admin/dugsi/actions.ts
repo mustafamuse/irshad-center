@@ -1,11 +1,12 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 import { GradeLevel, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+import { getCachedDugsiDashboard } from '@/lib/db/queries/dashboard/cached'
 import {
   getClassesWithDetails,
   getAllTeachersForAssignment,
@@ -28,7 +29,6 @@ import {
 } from '@/lib/errors/dugsi-class-errors'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
-  // Registration service
   getAllDugsiRegistrations,
   getFamilyMembers as getFamilyMembersService,
   getDeleteFamilyPreview as getDeleteFamilyPreviewService,
@@ -100,12 +100,15 @@ import {
 const logger = createServiceLogger('dugsi-admin-actions')
 
 /**
- * Get all Dugsi registrations.
+ * Get all Dugsi registrations (optimized for list views).
+ * Uses cached raw SQL query for optimal performance.
  */
 export async function getDugsiRegistrations(filters?: {
   shift?: 'MORNING' | 'AFTERNOON'
 }): Promise<DugsiRegistration[]> {
-  return await getAllDugsiRegistrations(undefined, filters)
+  return await getCachedDugsiDashboard(
+    filters ? { shift: filters.shift } : undefined
+  )
 }
 
 /**
@@ -182,6 +185,7 @@ export async function deleteDugsiFamily(
 > {
   try {
     const result = await deleteDugsiFamilyService(studentId)
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     const parts: string[] = []
@@ -229,6 +233,7 @@ export async function linkDugsiSubscription(params: {
       parentEmail,
       subscriptionId
     )
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     return {
@@ -300,6 +305,7 @@ export async function verifyDugsiBankAccount(
     }
 
     const result = await verifyBankAccount(paymentIntentId, cleanCode)
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     return {
@@ -362,6 +368,7 @@ export async function updateParentInfo(params: {
 }): Promise<ActionResult<{ updated: number }>> {
   try {
     const result = await updateParentInfoService(params)
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     return {
@@ -396,6 +403,7 @@ export async function addSecondParent(params: {
 }): Promise<ActionResult<{ updated: number }>> {
   try {
     const result = await addSecondParentService(params)
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     return {
@@ -424,6 +432,7 @@ export async function setPrimaryPayer(params: {
 }): Promise<ActionResult<{ updated: number }>> {
   try {
     const result = await setPrimaryPayerService(params)
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     return {
@@ -459,6 +468,7 @@ export async function updateChildInfo(params: {
 }): Promise<ActionResult> {
   try {
     await updateChildInfoService(params)
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     return {
@@ -493,6 +503,7 @@ export async function updateFamilyShift(
       shift: validated.shift,
     })
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi', 'layout')
 
     return {
@@ -529,6 +540,7 @@ export async function addChildToFamily(params: {
 }): Promise<ActionResult<{ childId: string }>> {
   try {
     const result = await addChildToFamilyService(params)
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     return {
@@ -993,6 +1005,7 @@ export async function assignTeacherToClassAction(
   try {
     await assignTeacherToClass(classId, teacherId)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
@@ -1059,6 +1072,7 @@ export async function removeTeacherFromClassAction(
   try {
     await removeTeacherFromClass(classId, teacherId)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
@@ -1169,6 +1183,7 @@ export async function enrollStudentInClassAction(
   try {
     await enrollStudentInClass(classId, programProfileId)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
 
     logger.info({ classId, programProfileId }, 'Student enrolled in class')
@@ -1220,6 +1235,7 @@ export async function removeStudentFromClassAction(
   try {
     await removeStudentFromClass(programProfileId)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
 
     logger.info({ programProfileId }, 'Student removed from class')
@@ -1258,6 +1274,7 @@ export async function bulkEnrollStudentsAction(
   try {
     const result = await bulkEnrollStudents(classId, programProfileIds)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
 
     logger.info({ classId, ...result }, 'Bulk enrollment completed')
@@ -1294,6 +1311,7 @@ export async function createClassAction(
   try {
     const newClass = await createClass(name, shift as Shift, description)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
@@ -1356,6 +1374,7 @@ export async function updateClassAction(
       return { success: false, error: 'Class not found' }
     }
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
@@ -1424,6 +1443,7 @@ export async function deleteClassAction(
   try {
     await deleteClass(classId)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
@@ -1541,6 +1561,7 @@ export async function consolidateDugsiSubscription(input: {
 
     const result = await consolidateStripeSubscriptionService(validated)
 
+    revalidateTag('dugsi')
     revalidatePath('/admin/dugsi')
 
     const parts: string[] = []
@@ -1663,6 +1684,7 @@ export async function sendPaymentLinkViaWhatsAppAction(
     }
   }
 
+  revalidateTag('dugsi')
   revalidatePath('/admin/dugsi')
 
   return {

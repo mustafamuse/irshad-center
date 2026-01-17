@@ -10,11 +10,40 @@ import {
   DuplicateGroup,
   MahadBatch,
   MahadStudent,
+  PaymentHealth,
 } from '../_types'
 
 export interface BatchGroup {
   batch: MahadBatch | null
   students: MahadStudent[]
+}
+
+export function calculatePaymentHealth(student: MahadStudent): PaymentHealth {
+  if (student.status === StudentStatus.REGISTERED) {
+    return 'pending'
+  }
+
+  if (student.status !== StudentStatus.ENROLLED) {
+    return 'inactive'
+  }
+
+  if (student.billingType === 'EXEMPT') {
+    return 'exempt'
+  }
+
+  if (!student.subscription) {
+    return 'needs_action'
+  }
+
+  const subStatus = student.subscription.status.toLowerCase()
+  if (subStatus === 'active' || subStatus === 'trialing') {
+    return 'healthy'
+  }
+  if (subStatus === 'past_due') {
+    return 'at_risk'
+  }
+
+  return 'needs_action'
 }
 
 export function groupStudentsByBatch(
@@ -49,27 +78,41 @@ export function groupStudentsByBatch(
 export function calculateStats(students: MahadStudent[]): DashboardStats {
   const stats: DashboardStats = {
     total: students.length,
-    active: 0,
-    registered: 0,
-    onLeave: 0,
-    unpaid: 0,
+    enrolled: 0,
+    healthy: 0,
+    atRisk: 0,
+    needsAction: 0,
+    exempt: 0,
+    pending: 0,
+    inactive: 0,
   }
 
   for (const student of students) {
-    switch (student.status) {
-      case StudentStatus.ENROLLED:
-        stats.active++
-        break
-      case StudentStatus.REGISTERED:
-        stats.registered++
-        break
-      case StudentStatus.ON_LEAVE:
-        stats.onLeave++
-        break
+    const health = calculatePaymentHealth(student)
+
+    if (student.status === StudentStatus.ENROLLED) {
+      stats.enrolled++
     }
 
-    if (!student.subscription || student.subscription.status !== 'ACTIVE') {
-      stats.unpaid++
+    switch (health) {
+      case 'healthy':
+        stats.healthy++
+        break
+      case 'at_risk':
+        stats.atRisk++
+        break
+      case 'needs_action':
+        stats.needsAction++
+        break
+      case 'exempt':
+        stats.exempt++
+        break
+      case 'pending':
+        stats.pending++
+        break
+      case 'inactive':
+        stats.inactive++
+        break
     }
   }
 

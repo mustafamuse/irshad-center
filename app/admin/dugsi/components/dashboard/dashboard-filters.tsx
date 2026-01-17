@@ -19,14 +19,13 @@ import {
 import { useDebounce } from '@/hooks/use-debounce'
 import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
 
-
 import { AdvancedFilters } from './advanced-filters'
 import { MobileFilterDrawer } from './mobile-filter-drawer'
 import { SearchField } from '../../_types'
 import {
   useAdvancedFiltersState,
   useDugsiFilters,
-  useLegacyActions,
+  useFilterActions,
 } from '../../store'
 
 /**
@@ -63,7 +62,7 @@ export function DashboardFilters() {
     setSearchField,
     setAdvancedFilters,
     setAdvancedFiltersOpen,
-  } = useLegacyActions()
+  } = useFilterActions()
 
   const shiftFromUrl =
     (searchParams.get('shift') as

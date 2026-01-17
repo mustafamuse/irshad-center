@@ -1,18 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo, useRef } from 'react'
 
-import { MoreHorizontal, User } from 'lucide-react'
+import dynamic from 'next/dynamic'
 
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  SortingState,
+  useReactTable,
+} from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { User } from 'lucide-react'
+
+import { EmptyState } from '@/components/ui/empty-state'
 import {
   Table,
   TableBody,
@@ -21,168 +23,257 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { StudentStatus } from '@/lib/types/student'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
+import { BulkActionsBar } from './bulk-actions-bar'
+import { createColumns } from './columns'
+import { MobileStudentCard } from './mobile-student-card'
 import { StudentDetailSheet } from './student-detail-sheet'
 import { MahadBatch, MahadStudent } from '../../_types'
-import { useSelectedStudents, useMahadUIStore } from '../../store'
-import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
-import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
+import { useMahadUIStore } from '../../store'
+
+const DeleteStudentDialog = dynamic(
+  () =>
+    import('../dialogs/delete-student-dialog').then(
+      (mod) => mod.DeleteStudentDialog
+    ),
+  { ssr: false }
+)
+const PaymentLinkDialog = dynamic(
+  () =>
+    import('../dialogs/payment-link-dialog').then(
+      (mod) => mod.PaymentLinkDialog
+    ),
+  { ssr: false }
+)
 
 interface StudentsTableProps {
   students: MahadStudent[]
   batches: MahadBatch[]
 }
 
-function getStatusBadge(status: StudentStatus) {
-  const variants: Record<
-    StudentStatus,
-    {
-      variant: 'default' | 'secondary' | 'destructive' | 'outline'
-      label: string
-    }
-  > = {
-    [StudentStatus.ENROLLED]: { variant: 'default', label: 'Enrolled' },
-    [StudentStatus.REGISTERED]: { variant: 'secondary', label: 'Registered' },
-    [StudentStatus.ON_LEAVE]: { variant: 'outline', label: 'On Leave' },
-    [StudentStatus.WITHDRAWN]: { variant: 'destructive', label: 'Withdrawn' },
-  }
-  const config = variants[status] || { variant: 'outline', label: status }
-  return <Badge variant={config.variant}>{config.label}</Badge>
+function findStudentById(
+  students: MahadStudent[],
+  id: string | null
+): MahadStudent | null {
+  if (!id) return null
+  return students.find((s) => s.id === id) ?? null
 }
 
 export function StudentsTable({ students, batches }: StudentsTableProps) {
+  const [sorting, setSorting] = useState<SortingState>([])
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null
   )
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [paymentLinkStudentId, setPaymentLinkStudentId] = useState<
     string | null
   >(null)
   const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null)
+  const mobileParentRef = useRef<HTMLDivElement>(null)
+  const desktopParentRef = useRef<HTMLDivElement>(null)
 
-  const selectedStudent = selectedStudentId
-    ? (students.find((s) => s.id === selectedStudentId) ?? null)
-    : null
-  const paymentLinkStudent = paymentLinkStudentId
-    ? (students.find((s) => s.id === paymentLinkStudentId) ?? null)
-    : null
-  const deleteStudent = deleteStudentId
-    ? (students.find((s) => s.id === deleteStudentId) ?? null)
-    : null
-  const selectedIds = useSelectedStudents()
-  const { toggleStudent, setSelected, clearSelected } = useMahadUIStore()
+  const selectedStudentIds = useMahadUIStore(
+    (state) => state.selectedStudentIds
+  )
+  const { setSelectedStudentIds, toggleStudent: toggleStudentSelection } =
+    useMahadUIStore.getState()
 
-  const allSelected =
-    students.length > 0 && students.every((s) => selectedIds.has(s.id))
-  const someSelected = students.some((s) => selectedIds.has(s.id))
-
-  const handleSelectAll = () => {
-    if (allSelected) {
-      clearSelected()
-    } else {
-      setSelected(students.map((s) => s.id))
-    }
+  function handleViewDetails(student: MahadStudent): void {
+    setSelectedStudentId(student.id)
+    setIsSheetOpen(true)
   }
+
+  function handleDelete(student: MahadStudent): void {
+    setDeleteStudentId(student.id)
+  }
+
+  function handleGeneratePaymentLink(student: MahadStudent): void {
+    setPaymentLinkStudentId(student.id)
+  }
+
+  const columns = useMemo(
+    () =>
+      createColumns({
+        onViewDetails: handleViewDetails,
+        onDelete: handleDelete,
+        onGeneratePaymentLink: handleGeneratePaymentLink,
+      }),
+    []
+  )
+
+  const rowSelection = useMemo(
+    () =>
+      Object.fromEntries(
+        Array.from(selectedStudentIds).map((id) => [id, true])
+      ),
+    [selectedStudentIds]
+  )
+
+  const table = useReactTable({
+    data: students,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    enableRowSelection: true,
+    getRowId: (row) => row.id,
+    onRowSelectionChange: (updater) => {
+      const newSelection =
+        typeof updater === 'function' ? updater(rowSelection) : updater
+      const selectedIds = new Set(
+        Object.keys(newSelection).filter((k) => newSelection[k])
+      )
+      setSelectedStudentIds(selectedIds)
+    },
+    state: {
+      sorting,
+      rowSelection,
+    },
+  })
+
+  const rows = table.getRowModel().rows
+  const selectedStudents = table
+    .getSelectedRowModel()
+    .rows.map((r) => r.original)
+
+  const mobileVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => mobileParentRef.current,
+    estimateSize: () => 160,
+    overscan: 3,
+  })
+
+  const desktopVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => desktopParentRef.current,
+    estimateSize: () => 53,
+    overscan: 5,
+  })
+
+  const selectedStudent = findStudentById(students, selectedStudentId)
+  const paymentLinkStudent = findStudentById(students, paymentLinkStudentId)
+  const deleteStudent = findStudentById(students, deleteStudentId)
 
   if (students.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-        <User className="h-12 w-12 text-muted-foreground" />
-        <h3 className="mt-4 text-lg font-semibold">No students found</h3>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Try adjusting your filters or add new students.
-        </p>
-      </div>
+      <EmptyState
+        icon={<User />}
+        title="No students found"
+        description="Try adjusting your filters or add new students"
+      />
     )
   }
 
   return (
-    <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[50px]">
-                <Checkbox
-                  checked={allSelected}
-                  ref={(el) => {
-                    if (el)
-                      (el as HTMLInputElement).indeterminate =
-                        someSelected && !allSelected
-                  }}
-                  onCheckedChange={handleSelectAll}
-                  aria-label="Select all students"
-                />
-              </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead className="hidden md:table-cell">Email</TableHead>
-              <TableHead className="hidden sm:table-cell">Batch</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {students.map((student) => (
-              <TableRow
-                key={student.id}
-                className="cursor-pointer"
-                onClick={() => setSelectedStudentId(student.id)}
+    <TooltipProvider>
+      <div
+        ref={mobileParentRef}
+        className="block max-h-[calc(100vh-300px)] min-h-[400px] overflow-auto md:hidden"
+      >
+        <div
+          className="relative w-full"
+          style={{ height: `${mobileVirtualizer.getTotalSize()}px` }}
+        >
+          {mobileVirtualizer.getVirtualItems().map((virtualRow) => {
+            const row = rows[virtualRow.index]
+            return (
+              <div
+                key={row.id}
+                className="absolute left-0 top-0 w-full pb-3"
+                style={{
+                  transform: `translateY(${virtualRow.start}px)`,
+                  height: `${virtualRow.size}px`,
+                }}
               >
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selectedIds.has(student.id)}
-                    onCheckedChange={() => toggleStudent(student.id)}
-                    aria-label={`Select ${student.name}`}
-                  />
-                </TableCell>
-                <TableCell className="font-medium">{student.name}</TableCell>
-                <TableCell className="hidden md:table-cell">
-                  {student.email || '-'}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {student.batch?.name || (
-                    <span className="text-muted-foreground">Unassigned</span>
-                  )}
-                </TableCell>
-                <TableCell>{getStatusBadge(student.status)}</TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        onClick={() => setSelectedStudentId(student.id)}
-                      >
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setPaymentLinkStudentId(student.id)}
-                      >
-                        Generate Payment Link
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => setDeleteStudentId(student.id)}
-                      >
-                        Delete Student
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+                <MobileStudentCard
+                  student={row.original}
+                  isSelected={row.getIsSelected()}
+                  onSelect={() => toggleStudentSelection(row.original.id)}
+                  onClick={() => handleViewDetails(row.original)}
+                />
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <div
+        ref={desktopParentRef}
+        className="hidden max-h-[calc(100vh-300px)] min-h-[400px] overflow-auto rounded-md border md:block"
+      >
+        <Table>
+          <TableHeader className="sticky top-0 z-10 bg-background">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
+          </TableHeader>
+          <TableBody>
+            {desktopVirtualizer.getVirtualItems().length > 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="p-0"
+                  style={{
+                    height: `${desktopVirtualizer.getVirtualItems()[0]?.start ?? 0}px`,
+                  }}
+                />
+              </TableRow>
+            )}
+            {desktopVirtualizer.getVirtualItems().map((virtualRow) => {
+              const row = rows[virtualRow.index]
+              return (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleViewDetails(row.original)}
+                  style={{ height: `${virtualRow.size}px` }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            })}
+            {desktopVirtualizer.getVirtualItems().length > 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="p-0"
+                  style={{
+                    height: `${desktopVirtualizer.getTotalSize() - (desktopVirtualizer.getVirtualItems().at(-1)?.end ?? 0)}px`,
+                  }}
+                />
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
 
+      <BulkActionsBar selectedStudents={selectedStudents} batches={batches} />
+
       <StudentDetailSheet
         student={selectedStudent}
         batches={batches}
-        open={!!selectedStudent}
-        onOpenChange={(open) => !open && setSelectedStudentId(null)}
+        open={isSheetOpen}
+        onOpenChange={setIsSheetOpen}
       />
 
       <PaymentLinkDialog
@@ -192,13 +283,17 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         onOpenChange={(open) => !open && setPaymentLinkStudentId(null)}
       />
 
-      <DeleteStudentDialog
-        studentId={deleteStudent?.id ?? ''}
-        studentName={deleteStudent?.name ?? ''}
-        open={!!deleteStudent}
-        onOpenChange={(open) => !open && setDeleteStudentId(null)}
-        onDeleted={() => setDeleteStudentId(null)}
-      />
-    </>
+      {deleteStudent && (
+        <DeleteStudentDialog
+          studentId={deleteStudent.id}
+          studentName={deleteStudent.name}
+          open={!!deleteStudent}
+          onOpenChange={(open) => {
+            if (!open) setDeleteStudentId(null)
+          }}
+          onDeleted={() => setDeleteStudentId(null)}
+        />
+      )}
+    </TooltipProvider>
   )
 }

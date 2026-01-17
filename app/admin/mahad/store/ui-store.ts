@@ -15,9 +15,14 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
-import { StudentStatus } from '@/lib/types/student'
-
-import { DialogType, StudentFilters, TabValue } from '../_types'
+import {
+  DialogDataFor,
+  DialogState,
+  DialogType,
+  PaymentHealth,
+  StudentFilters,
+  TabValue,
+} from '../_types'
 
 enableMapSet()
 
@@ -25,19 +30,22 @@ interface MahadUIStore {
   activeTab: TabValue
   filters: StudentFilters
   selectedStudentIds: Set<string>
-  openDialog: DialogType
-  dialogData: unknown
+  dialog: DialogState
 
   setActiveTab: (tab: TabValue) => void
   setFilters: (filters: Partial<StudentFilters>) => void
   setSearchQuery: (query: string) => void
   setBatchFilter: (batchId: string | null) => void
-  setStatusFilter: (status: StudentStatus | null) => void
+  setPaymentHealthFilter: (paymentHealth: PaymentHealth | null) => void
   resetFilters: () => void
   toggleStudent: (id: string) => void
   setSelected: (ids: string[]) => void
+  setSelectedStudentIds: (ids: Set<string>) => void
   clearSelected: () => void
-  openDialogWithData: (dialog: DialogType, data?: unknown) => void
+  openDialog: <T extends NonNullable<DialogType>>(
+    type: T,
+    data: DialogDataFor<T>
+  ) => void
   closeDialog: () => void
   reset: () => void
 }
@@ -45,7 +53,7 @@ interface MahadUIStore {
 const defaultFilters: StudentFilters = {
   search: '',
   batchId: null,
-  status: null,
+  paymentHealth: null,
 }
 
 export const useMahadUIStore = create<MahadUIStore>()(
@@ -54,8 +62,7 @@ export const useMahadUIStore = create<MahadUIStore>()(
       activeTab: 'students',
       filters: defaultFilters,
       selectedStudentIds: new Set(),
-      openDialog: null,
-      dialogData: null,
+      dialog: { type: null, data: null },
 
       setActiveTab: (tab) =>
         set((state) => {
@@ -77,9 +84,9 @@ export const useMahadUIStore = create<MahadUIStore>()(
           state.filters.batchId = batchId
         }),
 
-      setStatusFilter: (status) =>
+      setPaymentHealthFilter: (paymentHealth) =>
         set((state) => {
-          state.filters.status = status
+          state.filters.paymentHealth = paymentHealth
         }),
 
       resetFilters: () =>
@@ -101,21 +108,24 @@ export const useMahadUIStore = create<MahadUIStore>()(
           state.selectedStudentIds = new Set(ids)
         }),
 
+      setSelectedStudentIds: (ids) =>
+        set((state) => {
+          state.selectedStudentIds = ids
+        }),
+
       clearSelected: () =>
         set((state) => {
           state.selectedStudentIds = new Set()
         }),
 
-      openDialogWithData: (dialog, data) =>
+      openDialog: (type, data) =>
         set((state) => {
-          state.openDialog = dialog
-          state.dialogData = data ?? null
+          state.dialog = { type, data } as DialogState
         }),
 
       closeDialog: () =>
         set((state) => {
-          state.openDialog = null
-          state.dialogData = null
+          state.dialog = { type: null, data: null }
         }),
 
       reset: () =>
@@ -123,8 +133,7 @@ export const useMahadUIStore = create<MahadUIStore>()(
           state.activeTab = 'students'
           state.filters = { ...defaultFilters }
           state.selectedStudentIds = new Set()
-          state.openDialog = null
-          state.dialogData = null
+          state.dialog = { type: null, data: null }
         }),
     })),
     { name: 'mahad-cohorts-ui-store' }
@@ -135,5 +144,11 @@ export const useActiveTab = () => useMahadUIStore((s) => s.activeTab)
 export const useMahadFilters = () => useMahadUIStore((s) => s.filters)
 export const useSelectedStudents = () =>
   useMahadUIStore((s) => s.selectedStudentIds)
-export const useDialogState = () => useMahadUIStore((s) => s.openDialog)
-export const useDialogData = () => useMahadUIStore((s) => s.dialogData)
+export const useDialog = () => useMahadUIStore((s) => s.dialog)
+export const useDialogType = () => useMahadUIStore((s) => s.dialog.type)
+export const useDialogData = () => useMahadUIStore((s) => s.dialog.data)
+
+export const useSearchQuery = () => useMahadUIStore((s) => s.filters.search)
+export const useBatchFilter = () => useMahadUIStore((s) => s.filters.batchId)
+export const usePaymentHealthFilter = () =>
+  useMahadUIStore((s) => s.filters.paymentHealth)

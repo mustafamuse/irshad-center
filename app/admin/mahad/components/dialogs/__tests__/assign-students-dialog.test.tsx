@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi, beforeEach, beforeAll } from 'vitest'
 
@@ -15,25 +15,20 @@ beforeAll(() => {
   Element.prototype.releasePointerCapture = vi.fn()
 })
 
-const mockPush = vi.fn()
 const mockRefresh = vi.fn()
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-    refresh: mockRefresh,
-  }),
+  useRouter: () => ({ push: vi.fn(), refresh: mockRefresh }),
 }))
 
 const mockCloseDialog = vi.fn()
-let mockOpenDialog: string | null = null
+let mockDialogType: 'assignStudents' | null = null
 
 vi.mock('../../../store', () => ({
-  useDialogState: () => mockOpenDialog,
-  useMahadUIStore: (selector: (s: unknown) => unknown) =>
-    selector({
-      closeDialog: mockCloseDialog,
-    }),
+  useDialogType: () => mockDialogType,
+  useMahadUIStore: (
+    selector: (s: { closeDialog: typeof mockCloseDialog }) => unknown
+  ) => selector({ closeDialog: mockCloseDialog }),
 }))
 
 const mockAssignStudentsAction = vi.fn()
@@ -44,11 +39,7 @@ vi.mock('../../../_actions', () => ({
 }))
 
 vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-    warning: vi.fn(),
-  },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 
 describe('AssignStudentsDialog', () => {
@@ -67,9 +58,26 @@ describe('AssignStudentsDialog', () => {
     createMockBatch({ id: 'batch-2', name: 'Spring 2025', studentCount: 5 }),
   ]
 
+  function renderDialog(
+    students: MahadStudent[] = defaultStudents,
+    batches: MahadBatch[] = defaultBatches
+  ) {
+    const user = userEvent.setup()
+    render(<AssignStudentsDialog students={students} batches={batches} />)
+    return {
+      user,
+      selectBatch: async (batchName = 'Fall 2024 (10 students)') => {
+        await user.click(screen.getByRole('combobox'))
+        await user.click(screen.getByText(batchName))
+      },
+      clickStudent: (name: RegExp) =>
+        user.click(screen.getByRole('checkbox', { name })),
+    }
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
-    mockOpenDialog = 'assignStudents'
+    mockDialogType = 'assignStudents'
     mockAssignStudentsAction.mockResolvedValue({
       success: true,
       data: { assignedCount: 2, failedAssignments: [] },
@@ -78,61 +86,32 @@ describe('AssignStudentsDialog', () => {
 
   describe('rendering', () => {
     it('renders dialog when open', () => {
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
+      renderDialog()
       expect(screen.getByRole('dialog')).toBeInTheDocument()
       expect(screen.getByText('Assign Students to Batch')).toBeInTheDocument()
     })
 
     it('does not render dialog when closed', () => {
-      mockOpenDialog = null
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
+      mockDialogType = null
+      renderDialog()
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('shows only unassigned students', () => {
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
+      renderDialog()
       expect(screen.getByText('Alice Smith')).toBeInTheDocument()
       expect(screen.getByText('Bob Jones')).toBeInTheDocument()
       expect(screen.queryByText('Charlie Brown')).not.toBeInTheDocument()
     })
 
     it('displays student count correctly', () => {
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
+      renderDialog()
       expect(screen.getByText(/0 of 2/)).toBeInTheDocument()
     })
 
     it('renders batch selector with all batches', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('combobox'))
       expect(screen.getByText('Fall 2024 (10 students)')).toBeInTheDocument()
       expect(screen.getByText('Spring 2025 (5 students)')).toBeInTheDocument()
     })
@@ -147,14 +126,7 @@ describe('AssignStudentsDialog', () => {
           batchId: 'batch-1',
         }),
       ]
-
-      render(
-        <AssignStudentsDialog
-          students={assignedStudents}
-          batches={defaultBatches}
-        />
-      )
-
+      renderDialog(assignedStudents)
       expect(
         screen.getByText(/all students are already assigned/i)
       ).toBeInTheDocument()
@@ -163,162 +135,72 @@ describe('AssignStudentsDialog', () => {
 
   describe('student selection', () => {
     it('allows selecting individual students', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
+      const { clickStudent } = renderDialog()
       const aliceCheckbox = screen.getByRole('checkbox', { name: /alice/i })
-      await user.click(aliceCheckbox)
-
+      await clickStudent(/alice/i)
       expect(aliceCheckbox).toBeChecked()
       expect(screen.getByText(/1 of 2/)).toBeInTheDocument()
     })
 
     it('allows deselecting students', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
+      const { clickStudent } = renderDialog()
       const aliceCheckbox = screen.getByRole('checkbox', { name: /alice/i })
-      await user.click(aliceCheckbox)
+      await clickStudent(/alice/i)
       expect(aliceCheckbox).toBeChecked()
-
-      await user.click(aliceCheckbox)
+      await clickStudent(/alice/i)
       expect(aliceCheckbox).not.toBeChecked()
     })
 
     it('allows selecting all students', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const selectAllButton = screen.getByRole('button', {
-        name: /select all/i,
-      })
-      await user.click(selectAllButton)
-
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('button', { name: /select all/i }))
       expect(screen.getByText(/2 of 2/)).toBeInTheDocument()
       expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(2)
     })
 
     it('allows deselecting all students', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const selectAllButton = screen.getByRole('button', {
-        name: /select all/i,
-      })
-      await user.click(selectAllButton)
-
-      const deselectAllButton = screen.getByRole('button', {
-        name: /deselect all/i,
-      })
-      await user.click(deselectAllButton)
-
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('button', { name: /select all/i }))
+      await user.click(screen.getByRole('button', { name: /deselect all/i }))
       expect(screen.getByText(/0 of 2/)).toBeInTheDocument()
     })
   })
 
   describe('form validation', () => {
     it('disables submit when no batch selected', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const aliceCheckbox = screen.getByRole('checkbox', { name: /alice/i })
-      await user.click(aliceCheckbox)
-
-      const submitButton = screen.getByRole('button', {
-        name: /assign 1 student/i,
-      })
-      expect(submitButton).toBeDisabled()
+      const { clickStudent } = renderDialog()
+      await clickStudent(/alice/i)
+      expect(
+        screen.getByRole('button', { name: /assign 1 student/i })
+      ).toBeDisabled()
     })
 
     it('disables submit when no students selected', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-      await user.click(screen.getByText('Fall 2024 (10 students)'))
-
-      const submitButton = screen.getByRole('button', {
-        name: /assign 0 student/i,
-      })
-      expect(submitButton).toBeDisabled()
+      const { selectBatch } = renderDialog()
+      await selectBatch()
+      expect(
+        screen.getByRole('button', { name: /assign 0 student/i })
+      ).toBeDisabled()
     })
 
     it('enables submit when batch and students are selected', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-      await user.click(screen.getByText('Fall 2024 (10 students)'))
-
-      const aliceCheckbox = screen.getByRole('checkbox', { name: /alice/i })
-      await user.click(aliceCheckbox)
-
-      const submitButton = screen.getByRole('button', {
-        name: /assign 1 student to fall 2024/i,
-      })
-      expect(submitButton).toBeEnabled()
+      const { selectBatch, clickStudent } = renderDialog()
+      await selectBatch()
+      await clickStudent(/alice/i)
+      expect(
+        screen.getByRole('button', { name: /assign 1 student to fall 2024/i })
+      ).toBeEnabled()
     })
   })
 
   describe('form submission', () => {
     it('calls assignStudentsAction with correct data', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
+      const { selectBatch, clickStudent, user } = renderDialog()
+      await selectBatch()
+      await clickStudent(/alice/i)
+      await user.click(
+        screen.getByRole('button', { name: /assign 1 student/i })
       )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-      await user.click(screen.getByText('Fall 2024 (10 students)'))
-
-      const aliceCheckbox = screen.getByRole('checkbox', { name: /alice/i })
-      await user.click(aliceCheckbox)
-
-      const submitButton = screen.getByRole('button', {
-        name: /assign 1 student/i,
-      })
-      await user.click(submitButton)
-
       expect(mockAssignStudentsAction).toHaveBeenCalledWith('batch-1', [
         'student-1',
       ])
@@ -326,25 +208,13 @@ describe('AssignStudentsDialog', () => {
 
     it('shows success toast and closes dialog on success', async () => {
       const { toast } = await import('sonner')
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-      await user.click(screen.getByText('Fall 2024 (10 students)'))
-
-      await user.click(screen.getByRole('checkbox', { name: /alice/i }))
-      await user.click(screen.getByRole('checkbox', { name: /bob/i }))
-
+      const { selectBatch, clickStudent, user } = renderDialog()
+      await selectBatch()
+      await clickStudent(/alice/i)
+      await clickStudent(/bob/i)
       await user.click(
         screen.getByRole('button', { name: /assign 2 students/i })
       )
-
       expect(toast.success).toHaveBeenCalledWith(
         'Successfully assigned 2 students'
       )
@@ -356,31 +226,15 @@ describe('AssignStudentsDialog', () => {
       const { toast } = await import('sonner')
       mockAssignStudentsAction.mockResolvedValue({
         success: true,
-        data: {
-          assignedCount: 1,
-          failedAssignments: ['student-2'],
-        },
+        data: { assignedCount: 1, failedAssignments: ['student-2'] },
       })
-
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-      await user.click(screen.getByText('Fall 2024 (10 students)'))
-
-      await user.click(screen.getByRole('checkbox', { name: /alice/i }))
-      await user.click(screen.getByRole('checkbox', { name: /bob/i }))
-
+      const { selectBatch, clickStudent, user } = renderDialog()
+      await selectBatch()
+      await clickStudent(/alice/i)
+      await clickStudent(/bob/i)
       await user.click(
         screen.getByRole('button', { name: /assign 2 students/i })
       )
-
       expect(toast.warning).toHaveBeenCalledWith(
         'Assigned 1 student. 1 failed.'
       )
@@ -392,113 +246,53 @@ describe('AssignStudentsDialog', () => {
         success: false,
         error: 'Assignment failed',
       })
-
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-      await user.click(screen.getByText('Fall 2024 (10 students)'))
-
-      await user.click(screen.getByRole('checkbox', { name: /alice/i }))
-
+      const { selectBatch, clickStudent, user } = renderDialog()
+      await selectBatch()
+      await clickStudent(/alice/i)
       await user.click(
         screen.getByRole('button', { name: /assign 1 student/i })
       )
-
       expect(toast.error).toHaveBeenCalledWith('Assignment failed')
     })
   })
 
   describe('dialog state management', () => {
     it('closes dialog when cancel is clicked', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const cancelButton = screen.getByRole('button', { name: /cancel/i })
-      await user.click(cancelButton)
-
+      const { user } = renderDialog()
+      await user.click(screen.getByRole('button', { name: /cancel/i }))
       expect(mockCloseDialog).toHaveBeenCalled()
     })
 
     it('resets selections when dialog closes', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const aliceCheckbox = screen.getByRole('checkbox', { name: /alice/i })
-      await user.click(aliceCheckbox)
-
-      const cancelButton = screen.getByRole('button', { name: /cancel/i })
-      await user.click(cancelButton)
-
+      const { clickStudent, user } = renderDialog()
+      await clickStudent(/alice/i)
+      await user.click(screen.getByRole('button', { name: /cancel/i }))
       expect(mockCloseDialog).toHaveBeenCalled()
     })
   })
 
   describe('button text', () => {
     it('shows singular form for one student', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      await user.click(screen.getByRole('checkbox', { name: /alice/i }))
-
+      const { clickStudent } = renderDialog()
+      await clickStudent(/alice/i)
       expect(
         screen.getByRole('button', { name: /assign 1 student$/i })
       ).toBeInTheDocument()
     })
 
     it('shows plural form for multiple students', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      await user.click(screen.getByRole('checkbox', { name: /alice/i }))
-      await user.click(screen.getByRole('checkbox', { name: /bob/i }))
-
+      const { clickStudent } = renderDialog()
+      await clickStudent(/alice/i)
+      await clickStudent(/bob/i)
       expect(
         screen.getByRole('button', { name: /assign 2 students/i })
       ).toBeInTheDocument()
     })
 
     it('shows batch name in button when selected', async () => {
-      const user = userEvent.setup()
-      render(
-        <AssignStudentsDialog
-          students={defaultStudents}
-          batches={defaultBatches}
-        />
-      )
-
-      const trigger = screen.getByRole('combobox')
-      await user.click(trigger)
-      await user.click(screen.getByText('Fall 2024 (10 students)'))
-
-      await user.click(screen.getByRole('checkbox', { name: /alice/i }))
-
+      const { selectBatch, clickStudent } = renderDialog()
+      await selectBatch()
+      await clickStudent(/alice/i)
       expect(
         screen.getByRole('button', { name: /to fall 2024/i })
       ).toBeInTheDocument()
@@ -515,14 +309,7 @@ describe('AssignStudentsDialog', () => {
           batchId: null,
         }),
       ]
-
-      render(
-        <AssignStudentsDialog
-          students={studentsWithEmail}
-          batches={defaultBatches}
-        />
-      )
-
+      renderDialog(studentsWithEmail)
       expect(screen.getByText('alice@example.com')).toBeInTheDocument()
     })
 
@@ -535,19 +322,9 @@ describe('AssignStudentsDialog', () => {
           batchId: null,
         }),
       ]
-
-      render(
-        <AssignStudentsDialog
-          students={studentsWithoutEmail}
-          batches={defaultBatches}
-        />
-      )
-
+      renderDialog(studentsWithoutEmail)
       expect(screen.getByText('Alice Smith')).toBeInTheDocument()
-      const studentItem = screen.getByText('Alice Smith').closest('div')
-      expect(
-        within(studentItem as HTMLElement).queryByText(/@/i)
-      ).not.toBeInTheDocument()
+      expect(screen.queryByText(/@/)).not.toBeInTheDocument()
     })
   })
 })

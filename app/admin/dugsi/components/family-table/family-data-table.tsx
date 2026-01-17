@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useCallback, useRef } from 'react'
 
+import dynamic from 'next/dynamic'
+
 import {
   useReactTable,
   getCoreRowModel,
@@ -29,9 +31,20 @@ import { MobileFamilyCard } from './mobile-family-card'
 import { Family } from '../../_types'
 import { formatParentName } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
-import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
-import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 import { FamilyDetailSheet } from '../family-management/family-detail-sheet'
+
+const DeleteFamilyDialog = dynamic(
+  () =>
+    import('../dialogs/delete-family-dialog').then(
+      (mod) => mod.DeleteFamilyDialog
+    ),
+  { ssr: false }
+)
+const VerifyBankDialog = dynamic(
+  () =>
+    import('../dialogs/verify-bank-dialog').then((mod) => mod.VerifyBankDialog),
+  { ssr: false }
+)
 
 interface FamilyDataTableProps {
   families: Family[]
@@ -46,23 +59,18 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
   )
 
   const selectedFamilyIds = useDugsiUIStore((state) => state.selectedFamilyIds)
-  const setSelectedFamilyIds = useDugsiUIStore(
-    (state) => state.setSelectedFamilyIds
-  )
-  const toggleFamilySelection = useDugsiUIStore(
-    (state) => state.toggleFamilySelection
-  )
-
   const isVerifyBankDialogOpen = useDugsiUIStore(
     (state) => state.isVerifyBankDialogOpen
   )
   const verifyBankDialogData = useDugsiUIStore(
     (state) => state.verifyBankDialogData
   )
-  const setDialogOpen = useDugsiUIStore((state) => state.setDialogOpen)
-  const setVerifyBankDialogData = useDugsiUIStore(
-    (state) => state.setVerifyBankDialogData
-  )
+  const {
+    setSelectedFamilyIds,
+    toggleFamilySelection,
+    setDialogOpen,
+    setVerifyBankDialogData,
+  } = useDugsiUIStore.getState()
 
   const handleViewDetails = useCallback((family: Family) => {
     setSelectedFamily(family)
@@ -135,12 +143,20 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
   const rows = table.getRowModel().rows
 
   const mobileParentRef = useRef<HTMLDivElement>(null)
+  const desktopParentRef = useRef<HTMLDivElement>(null)
 
   const mobileVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => mobileParentRef.current,
     estimateSize: () => 80,
     overscan: 3,
+  })
+
+  const desktopVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => desktopParentRef.current,
+    estimateSize: () => 53,
+    overscan: 5,
   })
 
   if (families.length === 0) {
@@ -188,9 +204,12 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
       </div>
 
       {/* Desktop Table Layout (md and above) */}
-      <div className="hidden rounded-md border md:block">
+      <div
+        ref={desktopParentRef}
+        className="hidden max-h-[calc(100vh-300px)] min-h-[400px] overflow-auto rounded-md border md:block"
+      >
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -207,20 +226,49 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
             ))}
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleViewDetails(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+            {desktopVirtualizer.getVirtualItems().length > 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="p-0"
+                  style={{
+                    height: `${desktopVirtualizer.getVirtualItems()[0]?.start ?? 0}px`,
+                  }}
+                />
               </TableRow>
-            ))}
+            )}
+            {desktopVirtualizer.getVirtualItems().map((virtualRow) => {
+              const row = rows[virtualRow.index]
+              return (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleViewDetails(row.original)}
+                  style={{ height: `${virtualRow.size}px` }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            })}
+            {desktopVirtualizer.getVirtualItems().length > 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="p-0"
+                  style={{
+                    height: `${desktopVirtualizer.getTotalSize() - (desktopVirtualizer.getVirtualItems().at(-1)?.end ?? 0)}px`,
+                  }}
+                />
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>

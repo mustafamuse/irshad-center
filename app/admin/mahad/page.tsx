@@ -4,9 +4,9 @@ import { Metadata } from 'next'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
 import { getBatches } from '@/lib/db/queries/batch'
-import { getStudentsWithBatch } from '@/lib/db/queries/student'
+import { getCachedMahadDashboard } from '@/lib/db/queries/dashboard/cached'
 
-import { MahadDashboard } from './components/mahad-dashboard'
+import { ConsolidatedMahadDashboard } from './components/consolidated-mahad-dashboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +43,7 @@ function Loading() {
 export default async function MahadCohortsPage() {
   const [batches, students] = await Promise.all([
     getBatches(),
-    getStudentsWithBatch(),
+    getCachedMahadDashboard(),
   ])
 
   return (
@@ -55,7 +55,7 @@ export default async function MahadCohortsPage() {
         fallbackLabel="Reload Dashboard"
       >
         <Suspense fallback={<Loading />}>
-          <MahadDashboard students={students} batches={batches} />
+          <ConsolidatedMahadDashboard students={students} batches={batches} />
         </Suspense>
       </AppErrorBoundary>
     </main>

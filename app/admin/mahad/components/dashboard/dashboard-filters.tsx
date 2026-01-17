@@ -11,28 +11,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { StudentStatus } from '@/lib/types/student'
 
-import { MahadBatch } from '../../_types'
+import { MahadBatch, PaymentHealth } from '../../_types'
 import { useMahadFilters, useMahadUIStore } from '../../store'
 
 interface DashboardFiltersProps {
   batches: MahadBatch[]
 }
 
-const STATUS_OPTIONS = [
-  { value: StudentStatus.ENROLLED, label: 'Enrolled' },
-  { value: StudentStatus.REGISTERED, label: 'Registered' },
-  { value: StudentStatus.ON_LEAVE, label: 'On Leave' },
-  { value: StudentStatus.WITHDRAWN, label: 'Withdrawn' },
+const PAYMENT_HEALTH_OPTIONS: { value: PaymentHealth; label: string }[] = [
+  { value: 'needs_action', label: 'Needs Action' },
+  { value: 'at_risk', label: 'At Risk' },
+  { value: 'healthy', label: 'Healthy' },
+  { value: 'exempt', label: 'Exempt' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'inactive', label: 'Inactive' },
 ]
 
 export function DashboardFilters({ batches }: DashboardFiltersProps) {
   const filters = useMahadFilters()
-  const { setSearchQuery, setBatchFilter, setStatusFilter, resetFilters } =
-    useMahadUIStore()
+  const {
+    setSearchQuery,
+    setBatchFilter,
+    setPaymentHealthFilter,
+    resetFilters,
+  } = useMahadUIStore()
 
-  const hasFilters = filters.search || filters.batchId || filters.status
+  const hasFilters = filters.search || filters.batchId || filters.paymentHealth
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -65,17 +70,17 @@ export function DashboardFilters({ batches }: DashboardFiltersProps) {
       </Select>
 
       <Select
-        value={filters.status ?? 'all'}
+        value={filters.paymentHealth ?? 'all'}
         onValueChange={(v) =>
-          setStatusFilter(v === 'all' ? null : (v as StudentStatus))
+          setPaymentHealthFilter(v === 'all' ? null : (v as PaymentHealth))
         }
       >
-        <SelectTrigger className="w-full sm:w-[150px]">
-          <SelectValue placeholder="All Statuses" />
+        <SelectTrigger className="w-full sm:w-[160px]">
+          <SelectValue placeholder="Payment Health" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Statuses</SelectItem>
-          {STATUS_OPTIONS.map((opt) => (
+          <SelectItem value="all">All Payment Status</SelectItem>
+          {PAYMENT_HEALTH_OPTIONS.map((opt) => (
             <SelectItem key={opt.value} value={opt.value}>
               {opt.label}
             </SelectItem>

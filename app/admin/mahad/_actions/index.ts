@@ -9,7 +9,7 @@
  * Uses Prisma-generated types and error codes for better type safety.
  */
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 import {
   Prisma,
@@ -33,6 +33,8 @@ import {
   getStudentById,
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
+  getBulkDeleteWarnings,
+  type BulkDeleteWarnings,
 } from '@/lib/db/queries/student'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger } from '@/lib/logger'
@@ -176,6 +178,7 @@ export async function createBatchAction(
       endDate: validated.endDate ?? null,
     })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -213,6 +216,7 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
     }
 
     await deleteBatch(id)
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -253,6 +257,7 @@ export async function updateBatchAction(
       endDate: validated.endDate,
     })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -296,6 +301,7 @@ export async function assignStudentsAction(
       validated.studentIds
     )
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -363,6 +369,7 @@ export async function transferStudentsAction(
       validated.studentIds
     )
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -436,6 +443,7 @@ export async function resolveDuplicatesAction(
 
     await resolveDuplicateStudents(keepId, deleteIds, mergeData)
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -460,10 +468,16 @@ export async function resolveDuplicatesAction(
 /**
  * Get delete warnings for a student
  */
-export async function getStudentDeleteWarningsAction(id: string) {
+export async function getStudentDeleteWarningsAction(id: string): Promise<
+  | {
+      success: true
+      data: { hasSiblings: boolean; hasAttendanceRecords: boolean }
+    }
+  | { success: false; error: string }
+> {
   try {
     const warnings = await getStudentDeleteWarnings(id)
-    return { success: true, data: warnings } as const
+    return { success: true, data: warnings }
   } catch (error) {
     logger.error(
       { err: error, studentId: id },
@@ -471,8 +485,44 @@ export async function getStudentDeleteWarningsAction(id: string) {
     )
     return {
       success: false,
-      data: { hasSiblings: false, hasAttendanceRecords: false },
-    } as const
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch delete warnings',
+    }
+  }
+}
+
+/**
+ * Get delete warnings for multiple students (bulk delete)
+ */
+const BulkDeleteIdsSchema = z.array(z.string().min(1)).min(1)
+
+export async function getBulkDeleteWarningsAction(
+  ids: string[]
+): Promise<
+  | { success: true; data: BulkDeleteWarnings }
+  | { success: false; error: string }
+> {
+  try {
+    const validatedIds = BulkDeleteIdsSchema.parse(ids)
+    const warnings = await getBulkDeleteWarnings(validatedIds)
+    return { success: true, data: warnings }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { success: false, error: 'Invalid student IDs provided' }
+    }
+    logger.error(
+      { err: error, studentIds: ids, count: ids.length },
+      'Failed to fetch bulk delete warnings'
+    )
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to fetch bulk delete warnings',
+    }
   }
 }
 
@@ -491,6 +541,7 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 
     await prisma.programProfile.delete({ where: { id } })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -509,6 +560,9 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 
 /**
  * Bulk delete students
+ *
+ * Note: This intentionally does NOT use a transaction because we want partial
+ * success - if one delete fails, we continue with others and track failures.
  */
 export async function bulkDeleteStudentsAction(
   studentIds: string[]
@@ -520,14 +574,9 @@ export async function bulkDeleteStudentsAction(
 
     let deletedCount = 0
     const failedDeletes: string[] = []
-    const batchIdsToRevalidate = new Set<string>()
 
     for (const id of studentIds) {
       try {
-        const student = await getStudentById(id)
-        if (student?.batchId) {
-          batchIdsToRevalidate.add(student.batchId)
-        }
         await prisma.programProfile.delete({ where: { id } })
         deletedCount++
       } catch (error) {
@@ -539,6 +588,7 @@ export async function bulkDeleteStudentsAction(
       }
     }
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -699,6 +749,7 @@ export async function updateStudentAction(
       }
     })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -962,6 +1013,7 @@ export async function generatePaymentLinkWithDefaultsAction(
       return result
     }
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     // Generate payment link (outside transaction since it's an external API call)

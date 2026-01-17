@@ -20,9 +20,8 @@ interface BatchGridProps {
 }
 
 function BatchCard({ batch }: { batch: MahadBatch }) {
-  const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
-  const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
-  const openDialogWithData = useMahadUIStore((s) => s.openDialogWithData)
+  const { setBatchFilter, setActiveTab, openDialog } =
+    useMahadUIStore.getState()
   const [isExporting, setIsExporting] = useState(false)
 
   const handleClick = () => {
@@ -32,7 +31,7 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
 
   const handleEdit = (e: React.MouseEvent) => {
     e.stopPropagation()
-    openDialogWithData('editBatch', batch)
+    openDialog('editBatch', batch)
   }
 
   const handleExportContacts = async (e: React.MouseEvent) => {
@@ -113,10 +112,8 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
 }
 
 function UnassignedCard({ count }: { count: number }) {
-  const setBatchFilter = useMahadUIStore((s) => s.setBatchFilter)
-  const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
-
   const handleClick = () => {
+    const { setBatchFilter, setActiveTab } = useMahadUIStore.getState()
     setBatchFilter('unassigned')
     setActiveTab('students')
   }

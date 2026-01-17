@@ -471,17 +471,18 @@ describe('Student Actions', () => {
       const result = await getStudentDeleteWarningsAction('student-1')
 
       expect(result.success).toBe(true)
-      expect(result.data.hasSiblings).toBe(true)
+      if (result.success) {
+        expect(result.data.hasSiblings).toBe(true)
+      }
     })
 
-    it('should return default warnings on error', async () => {
+    it('should return error on failure', async () => {
       mockGetStudentDeleteWarnings.mockRejectedValue(new Error('DB error'))
 
       const result = await getStudentDeleteWarningsAction('student-1')
 
       expect(result.success).toBe(false)
-      expect(result.data.hasSiblings).toBe(false)
-      expect(result.data.hasAttendanceRecords).toBe(false)
+      expect(result).toHaveProperty('error', 'DB error')
     })
   })
 })

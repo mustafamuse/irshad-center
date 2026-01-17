@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 import { Users, ChevronRight } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +22,7 @@ interface MobileFamilyCardProps {
   onClick: () => void
 }
 
-export function MobileFamilyCard({
+export const MobileFamilyCard = memo(function MobileFamilyCard({
   family,
   isSelected,
   onSelect,
@@ -77,4 +79,4 @@ export function MobileFamilyCard({
       </CardContent>
     </Card>
   )
-}
+})

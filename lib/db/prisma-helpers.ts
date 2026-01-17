@@ -98,6 +98,58 @@ export type ProgramProfileFull = Prisma.ProgramProfileGetPayload<{
 }>
 
 /**
+ * ProgramProfile with essential data for list views (excludes heavy teacher relations)
+ * Use this for dashboard/table views where teacher details aren't displayed.
+ */
+export const programProfileListInclude =
+  Prisma.validator<Prisma.ProgramProfileInclude>()({
+    person: {
+      include: {
+        contactPoints: true,
+        dependentRelationships: {
+          include: {
+            guardian: {
+              include: {
+                contactPoints: true,
+              },
+            },
+          },
+        },
+      },
+    },
+    assignments: {
+      take: 1,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        subscription: {
+          select: {
+            id: true,
+            stripeSubscriptionId: true,
+            status: true,
+            amount: true,
+            paidUntil: true,
+            currentPeriodStart: true,
+            currentPeriodEnd: true,
+            billingAccount: {
+              select: {
+                paymentMethodCaptured: true,
+                paymentMethodCapturedAt: true,
+                stripeCustomerIdDugsi: true,
+                paymentIntentIdDugsi: true,
+                accountType: true,
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+export type ProgramProfileList = Prisma.ProgramProfileGetPayload<{
+  include: typeof programProfileListInclude
+}>
+
+/**
  * ProgramProfile with Guardian data (for Dugsi families)
  */
 export const programProfileWithGuardiansInclude =

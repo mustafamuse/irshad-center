@@ -26,22 +26,9 @@ Implement three bulk actions currently marked as TODOs in the Dugsi admin dashbo
 
 ### Current TODOs
 
-Located in `app/admin/dugsi/components/dugsi-dashboard.tsx` lines 85-98:
+These bulk actions need to be implemented in the consolidated Dugsi dashboard. The functionality should be added to the Families tab content component or a new bulk actions component.
 
-```typescript
-case 'send-payment-link':
-  toast.info(`Sending payment links to ${selectedFamilies.size} families`)
-  // TODO: Implement send payment link
-  break
-case 'link-subscription':
-  toast.info(`Linking subscriptions for ${selectedFamilies.size} families`)
-  // TODO: Implement link subscription
-  break
-case 'export':
-  toast.info(`Exporting ${selectedFamilies.size} families to CSV`)
-  // TODO: Implement export
-  break
-```
+**Note**: The legacy `dugsi-dashboard.tsx` has been replaced with `consolidated-dugsi-dashboard.tsx`. Bulk actions should be integrated into the consolidated dashboard's Families tab.
 
 ## 📝 Detailed Requirements
 
@@ -242,7 +229,7 @@ fam_123,John,Doe,john@email.com,123-456-7890,Jane,Doe,jane@email.com,098-765-432
 
 #### Client Implementation
 
-**File**: `app/admin/dugsi/components/dugsi-dashboard.tsx`
+**File**: `app/admin/dugsi/components/family-table/bulk-actions-bar.tsx` (or new component)
 
 **Handler**: `handleExportToCSV()`
 
@@ -290,12 +277,12 @@ fam_123,John,Doe,john@email.com,123-456-7890,Jane,Doe,jane@email.com,098-765-432
    - Add `linkSubscriptionsBulkAction()`
    - Add `exportFamiliesToCSVAction()`
 
-2. `app/admin/dugsi/components/dugsi-dashboard.tsx`
+2. `app/admin/dugsi/components/family-table/bulk-actions-bar.tsx` (or new bulk actions component)
    - Implement `handleSendPaymentLinks()`
    - Implement `handleBulkLinkSubscriptions()`
    - Implement `handleExportToCSV()`
    - Add state for dialogs
-   - Replace TODO cases in `handleBulkAction()`
+   - Wire up bulk action handlers
 
 3. `app/admin/dugsi/_utils/family.ts` (if needed)
    - Add helper function to get family by key

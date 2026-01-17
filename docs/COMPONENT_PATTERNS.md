@@ -61,19 +61,45 @@ This document describes the component patterns and best practices used in the Ir
 ```typescript
 // app/admin/dugsi/page.tsx
 import { Metadata } from 'next'
-import { getDugsiRegistrations } from './actions'
-import { DugsiDashboard } from './components/dugsi-dashboard'
+import {
+  getDugsiRegistrations,
+  getClassesWithDetailsAction,
+  getAllTeachersForClassAssignmentAction,
+} from './actions'
+import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
+import { getTeachers } from './teachers/actions'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
 export const metadata: Metadata = {
   title: 'Dugsi Admin',
   description: 'Manage Dugsi program registrations',
 }
 
-export default async function DugsiAdminPage() {
-  // Direct database access
-  const registrations = await getDugsiRegistrations()
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
 
-  return <DugsiDashboard registrations={registrations} />
+  // Parallel data fetching for consolidated dashboard
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
+
+  return (
+    <ConsolidatedDugsiDashboard
+      registrations={registrations}
+      teachers={teachersResult.data ?? []}
+      classes={classesResult.data ?? []}
+      classTeachers={classTeachersResult.data ?? []}
+    />
+  )
 }
 ```
 
@@ -103,13 +129,32 @@ export default async function CohortsPage() {
 ```typescript
 // app/admin/dugsi/page.tsx
 import { Suspense } from 'react'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-export default async function DugsiAdminPage() {
-  const registrations = await getDugsiRegistrations()
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
   return (
     <Suspense fallback={<Loading />}>
-      <DugsiDashboard registrations={registrations} />
+      <ConsolidatedDugsiDashboard
+        registrations={registrations}
+        teachers={teachersResult.data ?? []}
+        classes={classesResult.data ?? []}
+        classTeachers={classTeachersResult.data ?? []}
+      />
     </Suspense>
   )
 }
@@ -119,15 +164,39 @@ export default async function DugsiAdminPage() {
 
 ```typescript
 // app/admin/dugsi/page.tsx
-import { DugsiErrorBoundary } from './components/error-boundary'
+import { AppErrorBoundary } from '@/components/error-boundary'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-export default async function DugsiAdminPage() {
-  const registrations = await getDugsiRegistrations()
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
   return (
-    <DugsiErrorBoundary>
-      <DugsiDashboard registrations={registrations} />
-    </DugsiErrorBoundary>
+    <AppErrorBoundary
+      context="Dugsi admin dashboard"
+      variant="card"
+      fallbackUrl="/admin/dugsi"
+      fallbackLabel="Reload Dashboard"
+    >
+      <ConsolidatedDugsiDashboard
+        registrations={registrations}
+        teachers={teachersResult.data ?? []}
+        classes={classesResult.data ?? []}
+        classTeachers={classTeachersResult.data ?? []}
+      />
+    </AppErrorBoundary>
   )
 }
 ```
@@ -143,28 +212,17 @@ export default async function DugsiAdminPage() {
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { useViewMode, useLegacyActions } from '../../store'
+import { useFilterActions } from '../../store'
 
 export function DashboardHeader() {
-  const viewMode = useViewMode()
-  const { setViewMode } = useLegacyActions()
+  const { setShift } = useFilterActions()
 
   return (
     <div className="flex items-center justify-between">
       <h1>Dugsi Program Management</h1>
       <div className="flex gap-2">
-        <Button
-          variant={viewMode === 'grid' ? 'default' : 'outline'}
-          onClick={() => setViewMode('grid')}
-        >
-          Parents
-        </Button>
-        <Button
-          variant={viewMode === 'table' ? 'default' : 'outline'}
-          onClick={() => setViewMode('table')}
-        >
-          Students
-        </Button>
+        <Button onClick={() => setShift('MORNING')}>Morning</Button>
+        <Button onClick={() => setShift('AFTERNOON')}>Afternoon</Button>
       </div>
     </div>
   )
@@ -179,11 +237,11 @@ export function DashboardHeader() {
 
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
-import { useDugsiFilters, useLegacyActions } from '../../store'
+import { useDugsiFilters, useFilterActions } from '../../store'
 
 export function DashboardFilters() {
   const filters = useDugsiFilters()
-  const { setSearchQuery } = useLegacyActions()
+  const { setSearchQuery } = useFilterActions()
 
   return (
     <div className="flex gap-4">
@@ -336,11 +394,11 @@ export const useDugsiUIStore = create<DugsiUIStore>()((set) => ({
 ```typescript
 'use client'
 
-import { useSelectedFamilies, useLegacyActions } from '../store'
+import { useSelectedFamilies, useFilterActions } from '../store'
 
 export function Component() {
   const selectedFamilies = useSelectedFamilies()
-  const { toggleFamilySelection } = useLegacyActions()
+  const { toggleFamilySelection } = useFilterActions()
 
   return (
     <div>

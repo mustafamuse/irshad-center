@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 
 import { Check, ChevronsUpDown, Search, User } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -71,10 +72,15 @@ export function StudentSelector({
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const results = await searchStudents(searchQuery, program)
-        setSearchResults(results)
+        const result = await searchStudents(searchQuery, program)
+        if (result.success) {
+          setSearchResults(result.data)
+        } else {
+          toast.error(result.error ?? 'Failed to search students')
+          setSearchResults([])
+        }
       } catch (error) {
-        console.error('Search error:', error)
+        toast.error('Failed to search students')
       } finally {
         setIsSearching(false)
       }
@@ -87,8 +93,12 @@ export function StudentSelector({
   useEffect(() => {
     if (customerEmail && potentialMatches.length === 0) {
       getPotentialMatches(customerEmail, program)
-        .then(setSearchResults)
-        .catch(console.error)
+        .then((result) => {
+          if (result.success) {
+            setSearchResults(result.data)
+          }
+        })
+        .catch(() => toast.error('Failed to load potential matches'))
     }
   }, [customerEmail, program, potentialMatches.length])
 

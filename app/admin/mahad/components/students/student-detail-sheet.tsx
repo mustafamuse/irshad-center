@@ -31,11 +31,9 @@ export function StudentDetailSheet({
 
   if (!student) return null
 
-  const handleOpenChange = (newOpen: boolean) => {
+  function handleOpenChange(newOpen: boolean): void {
     if (!newOpen && isSubmitting) return
-    if (!newOpen) {
-      setMode('view')
-    }
+    if (!newOpen) setMode('view')
     onOpenChange(newOpen)
   }
 

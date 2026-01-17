@@ -279,24 +279,53 @@ app/
 import { Metadata } from 'next'
 import { Suspense } from 'react'
 
-import { getDugsiRegistrations } from './actions'
-import { DugsiDashboard } from './components/dugsi-dashboard'
-import { DugsiErrorBoundary } from './components/error-boundary'
+import { AppErrorBoundary } from '@/components/error-boundary'
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
+import {
+  getDugsiRegistrations,
+  getClassesWithDetailsAction,
+  getAllTeachersForClassAssignmentAction,
+} from './actions'
+import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
+import { getTeachers } from './teachers/actions'
 
 export const metadata: Metadata = {
   title: 'Dugsi Admin',
   description: 'Manage Dugsi program registrations',
 }
 
-export default async function DugsiAdminPage() {
-  const registrations = await getDugsiRegistrations()
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
 
   return (
-    <DugsiErrorBoundary>
+    <AppErrorBoundary
+      context="Dugsi admin dashboard"
+      variant="card"
+      fallbackUrl="/admin/dugsi"
+      fallbackLabel="Reload Dashboard"
+    >
       <Suspense fallback={<Loading />}>
-        <DugsiDashboard registrations={registrations} />
+        <ConsolidatedDugsiDashboard
+          registrations={registrations}
+          teachers={teachersResult.data ?? []}
+          classes={classesResult.data ?? []}
+          classTeachers={classTeachersResult.data ?? []}
+        />
       </Suspense>
-    </DugsiErrorBoundary>
+    </AppErrorBoundary>
   )
 }
 ```

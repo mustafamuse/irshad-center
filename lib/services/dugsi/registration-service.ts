@@ -16,14 +16,20 @@ import { StripeAccountType } from '@prisma/client'
 import { DugsiRegistration } from '@/app/admin/dugsi/_types'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
-import { programProfileFullInclude } from '@/lib/db/prisma-helpers'
+import {
+  programProfileFullInclude,
+  programProfileListInclude,
+} from '@/lib/db/prisma-helpers'
 import {
   getProgramProfileById,
   getProgramProfilesByFamilyId,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logWarning } from '@/lib/logger'
-import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
+import {
+  mapProfileToDugsiRegistration,
+  mapProfileListToDugsiRegistration,
+} from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
 import { DugsiRegistrationFiltersSchema } from '@/lib/validations/dugsi'
 
@@ -102,6 +108,45 @@ export async function getAllDugsiRegistrations(
         ? familyCounts.get(profile.familyReferenceId) || 1
         : 1
       return mapProfileToDugsiRegistration(profile, count)
+    })
+    .filter(Boolean) as DugsiRegistration[]
+}
+
+/**
+ * Fetch Dugsi registrations with lightweight relations (optimized for list views).
+ *
+ * Excludes heavy teacher relations that cause N+1 queries.
+ * Use getAllDugsiRegistrations() when full teacher data is needed.
+ *
+ * @security Authorization must be enforced at the API route/action layer.
+ */
+export async function getDugsiRegistrationsLite(
+  limit?: number,
+  filters?: { shift?: 'MORNING' | 'AFTERNOON' }
+): Promise<DugsiRegistration[]> {
+  const validatedFilters = filters
+    ? DugsiRegistrationFiltersSchema.parse(filters)
+    : undefined
+
+  const [familyCounts, profiles] = await Promise.all([
+    getFamilyChildCounts(),
+    prisma.programProfile.findMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
+      },
+      include: programProfileListInclude,
+      orderBy: { createdAt: 'desc' },
+      ...(limit && { take: limit }),
+    }),
+  ])
+
+  return profiles
+    .map((profile) => {
+      const count = profile.familyReferenceId
+        ? familyCounts.get(profile.familyReferenceId) || 1
+        : 1
+      return mapProfileListToDugsiRegistration(profile, count)
     })
     .filter(Boolean) as DugsiRegistration[]
 }

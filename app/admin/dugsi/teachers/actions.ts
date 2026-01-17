@@ -1,13 +1,13 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
+import { getCachedTeachersDashboard } from '@/lib/db/queries/dashboard/cached'
 import {
-  getAllDugsiTeachersWithTodayStatus,
   getCheckinHistory,
   getCheckinsForDate,
   getLateArrivals,
@@ -35,7 +35,6 @@ import {
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
-import { extractContactInfo } from '@/lib/utils/contact-helpers'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -145,88 +144,15 @@ const updateTeacherShiftsSchema = z.object({
 
 /**
  * Get all Dugsi teachers with their details and today's check-in status.
- * When filtering by DUGSI_PROGRAM, includes check-in data.
+ * Uses cached raw SQL query for optimal performance.
  */
 export async function getTeachers(
   program?: Program
 ): Promise<ActionResult<TeacherWithDetails[]>> {
   try {
     if (program === 'DUGSI_PROGRAM') {
-      // Get ALL teachers enrolled in Dugsi (not just those with class assignments)
-      const teachers = await getAllTeachers('DUGSI_PROGRAM')
-      const teacherIds = teachers.map((t) => t.id)
-
-      // Get check-in status for teachers with class assignments
-      const teachersWithStatus = await getAllDugsiTeachersWithTodayStatus()
-      const statusMap = new Map(
-        teachersWithStatus.map((t) => [
-          t.id,
-          {
-            shifts: t.shifts,
-            morningCheckin: t.morningCheckin,
-            afternoonCheckin: t.afternoonCheckin,
-          },
-        ])
-      )
-
-      // Get class counts
-      const classCounts = await prisma.dugsiClassTeacher.groupBy({
-        by: ['teacherId'],
-        where: {
-          teacherId: { in: teacherIds },
-          isActive: true,
-        },
-        _count: { id: true },
-      })
-
-      const classCountMap = new Map<string, number>(
-        classCounts.map((cc) => [cc.teacherId, cc._count.id])
-      )
-
-      const teachersWithDetails: TeacherWithDetails[] = teachers.map(
-        (teacher) => {
-          const { email, phone } = extractContactInfo(
-            teacher.person.contactPoints || []
-          )
-          const status = statusMap.get(teacher.id)
-
-          // Get shifts from TeacherProgram.shifts (directly assigned)
-          const dugsiProgram = teacher.programs.find(
-            (p) => p.program === 'DUGSI_PROGRAM' && p.isActive
-          )
-          const assignedShifts = dugsiProgram?.shifts ?? []
-
-          return {
-            id: teacher.id,
-            personId: teacher.personId,
-            name: teacher.person.name,
-            email,
-            phone,
-            programs: teacher.programs
-              .filter((p) => p.isActive)
-              .map((p) => p.program),
-            classCount: classCountMap.get(teacher.id) ?? 0,
-            shifts: assignedShifts,
-            morningCheckin: status?.morningCheckin
-              ? {
-                  clockInTime: status.morningCheckin.clockInTime,
-                  clockOutTime: status.morningCheckin.clockOutTime,
-                  isLate: status.morningCheckin.isLate,
-                }
-              : null,
-            afternoonCheckin: status?.afternoonCheckin
-              ? {
-                  clockInTime: status.afternoonCheckin.clockInTime,
-                  clockOutTime: status.afternoonCheckin.clockOutTime,
-                  isLate: status.afternoonCheckin.isLate,
-                }
-              : null,
-            createdAt: teacher.createdAt,
-          }
-        }
-      )
-
-      return { success: true, data: teachersWithDetails }
+      const teachers = await getCachedTeachersDashboard('DUGSI_PROGRAM')
+      return { success: true, data: teachers }
     }
 
     const teachers = await getAllTeachers(program)
@@ -246,9 +172,13 @@ export async function getTeachers(
     )
 
     const teachersWithDetails = teachers.map((teacher) => {
-      const { email, phone } = extractContactInfo(
-        teacher.person.contactPoints || []
-      )
+      const contactPoints = teacher.person.contactPoints || []
+      const email =
+        contactPoints.find((cp) => cp.type === 'EMAIL')?.value ?? null
+      const phone =
+        contactPoints.find(
+          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+        )?.value ?? null
 
       return {
         id: teacher.id,
@@ -305,6 +235,7 @@ export async function createTeacherAction(
       return newTeacher
     })
 
+    revalidateTag('teachers')
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info(
@@ -398,6 +329,7 @@ export async function createTeacherWithPersonAction(
       return newTeacher
     })
 
+    revalidateTag('teachers')
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info(
@@ -462,6 +394,7 @@ export async function deleteTeacherAction(
   try {
     await deleteTeacher(teacherId)
 
+    revalidateTag('teachers')
     revalidatePath('/admin/teachers')
 
     logger.info({ teacherId }, 'Teacher deleted')
@@ -565,6 +498,7 @@ export async function updateTeacherDetailsAction(
       }
     })
 
+    revalidateTag('teachers')
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info({ teacherId, name }, 'Teacher details updated')
@@ -634,6 +568,7 @@ export async function updateTeacherShiftsAction(
       data: { shifts },
     })
 
+    revalidateTag('teachers')
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info({ teacherId, shifts }, 'Teacher shifts updated')
@@ -722,6 +657,7 @@ export async function deactivateTeacherAction(
       })
     })
 
+    revalidateTag('teachers')
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
@@ -1257,6 +1193,7 @@ export async function updateCheckinAction(input: {
     const updated = await updateCheckin(parsed.data)
     const record = mapCheckinToRecord(updated)
 
+    revalidateTag('teachers')
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info({ checkInId: input.checkInId }, 'Check-in updated by admin')
@@ -1289,6 +1226,7 @@ export async function deleteCheckinAction(
 
     await deleteCheckin(parsed.data.checkInId)
 
+    revalidateTag('teachers')
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info({ checkInId }, 'Check-in deleted by admin')
