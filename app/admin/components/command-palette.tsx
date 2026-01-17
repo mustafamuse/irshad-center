@@ -177,7 +177,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   key={result.id}
                   onSelect={() =>
                     handleSelect(
-                      `/admin/people/lookup?q=${encodeURIComponent(searchQuery)}`
+                      `/admin/people/lookup?q=${encodeURIComponent(result.name)}`
                     )
                   }
                 >
