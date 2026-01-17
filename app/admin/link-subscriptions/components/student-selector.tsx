@@ -75,6 +75,9 @@ export function StudentSelector({
         const result = await searchStudents(searchQuery, program)
         if (result.success) {
           setSearchResults(result.data)
+        } else {
+          toast.error(result.error ?? 'Failed to search students')
+          setSearchResults([])
         }
       } catch (error) {
         toast.error('Failed to search students')

@@ -147,3 +147,8 @@ export const useSelectedStudents = () =>
 export const useDialog = () => useMahadUIStore((s) => s.dialog)
 export const useDialogType = () => useMahadUIStore((s) => s.dialog.type)
 export const useDialogData = () => useMahadUIStore((s) => s.dialog.data)
+
+export const useSearchQuery = () => useMahadUIStore((s) => s.filters.search)
+export const useBatchFilter = () => useMahadUIStore((s) => s.filters.batchId)
+export const usePaymentHealthFilter = () =>
+  useMahadUIStore((s) => s.filters.paymentHealth)

@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useRef } from 'react'
 
+import dynamic from 'next/dynamic'
+
 import {
   flexRender,
   getCoreRowModel,
@@ -29,8 +31,21 @@ import { MobileStudentCard } from './mobile-student-card'
 import { StudentDetailSheet } from './student-detail-sheet'
 import { MahadBatch, MahadStudent } from '../../_types'
 import { useMahadUIStore } from '../../store'
-import { DeleteStudentDialog } from '../dialogs/delete-student-dialog'
-import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
+
+const DeleteStudentDialog = dynamic(
+  () =>
+    import('../dialogs/delete-student-dialog').then(
+      (mod) => mod.DeleteStudentDialog
+    ),
+  { ssr: false }
+)
+const PaymentLinkDialog = dynamic(
+  () =>
+    import('../dialogs/payment-link-dialog').then(
+      (mod) => mod.PaymentLinkDialog
+    ),
+  { ssr: false }
+)
 
 interface StudentsTableProps {
   students: MahadStudent[]
@@ -56,6 +71,7 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
   >(null)
   const [deleteStudentId, setDeleteStudentId] = useState<string | null>(null)
   const mobileParentRef = useRef<HTMLDivElement>(null)
+  const desktopParentRef = useRef<HTMLDivElement>(null)
 
   const selectedStudentIds = useMahadUIStore(
     (state) => state.selectedStudentIds
@@ -124,8 +140,15 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
   const mobileVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => mobileParentRef.current,
-    estimateSize: () => 120,
+    estimateSize: () => 160,
     overscan: 3,
+  })
+
+  const desktopVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => desktopParentRef.current,
+    estimateSize: () => 53,
+    overscan: 5,
   })
 
   const selectedStudent = findStudentById(students, selectedStudentId)
@@ -175,9 +198,12 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         </div>
       </div>
 
-      <div className="hidden rounded-md border md:block">
+      <div
+        ref={desktopParentRef}
+        className="hidden max-h-[calc(100vh-300px)] min-h-[400px] overflow-auto rounded-md border md:block"
+      >
         <Table>
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-background">
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
@@ -194,20 +220,49 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
             ))}
           </TableHeader>
           <TableBody>
-            {rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && 'selected'}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleViewDetails(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+            {desktopVirtualizer.getVirtualItems().length > 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="p-0"
+                  style={{
+                    height: `${desktopVirtualizer.getVirtualItems()[0]?.start ?? 0}px`,
+                  }}
+                />
               </TableRow>
-            ))}
+            )}
+            {desktopVirtualizer.getVirtualItems().map((virtualRow) => {
+              const row = rows[virtualRow.index]
+              return (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && 'selected'}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => handleViewDetails(row.original)}
+                  style={{ height: `${virtualRow.size}px` }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            })}
+            {desktopVirtualizer.getVirtualItems().length > 0 && (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="p-0"
+                  style={{
+                    height: `${desktopVirtualizer.getTotalSize() - (desktopVirtualizer.getVirtualItems().at(-1)?.end ?? 0)}px`,
+                  }}
+                />
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>

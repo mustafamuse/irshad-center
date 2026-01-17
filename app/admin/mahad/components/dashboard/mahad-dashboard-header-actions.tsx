@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 
-import { Download, Plus, UserPlus } from 'lucide-react'
+import { Download, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -64,13 +64,6 @@ export function MahadDashboardHeaderActions() {
       >
         <UserPlus className="mr-2 h-4 w-4" />
         Assign Students
-      </Button>
-      <Button
-        onClick={() => openDialog('createBatch', null)}
-        className="w-full sm:w-auto"
-      >
-        <Plus className="mr-2 h-4 w-4" />
-        New Batch
       </Button>
     </>
   )

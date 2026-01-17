@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 import { GraduationCap, ChevronRight, Mail, Phone } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -18,7 +20,7 @@ interface MobileStudentCardProps {
   onClick: () => void
 }
 
-export function MobileStudentCard({
+export const MobileStudentCard = memo(function MobileStudentCard({
   student,
   isSelected,
   onSelect,
@@ -104,4 +106,4 @@ export function MobileStudentCard({
       </CardContent>
     </Card>
   )
-}
+})

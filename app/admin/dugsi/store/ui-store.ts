@@ -233,6 +233,15 @@ export const useQuickShiftFilter = () =>
 export const useAdvancedFiltersState = () =>
   useDugsiUIStore((state) => state.showAdvancedFilters)
 
+export const useSearchQuery = () =>
+  useDugsiUIStore((state) => state.filters.search?.query ?? '')
+export const useSearchField = () =>
+  useDugsiUIStore((state) => state.filters.search?.field ?? 'all')
+export const useAdvancedFilters = () =>
+  useDugsiUIStore((state) => state.filters.advanced)
+export const useTabFilter = () =>
+  useDugsiUIStore((state) => state.filters.tab ?? 'all')
+
 // ============================================================================
 // FILTER ACTIONS
 // ============================================================================

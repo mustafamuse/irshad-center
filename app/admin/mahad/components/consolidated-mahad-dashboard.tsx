@@ -2,13 +2,16 @@
 
 import { useMemo } from 'react'
 
-import { AlertTriangle, Layers, Users } from 'lucide-react'
+import dynamic from 'next/dynamic'
+
+import { AlertTriangle, Layers, Plus, Users } from 'lucide-react'
 
 import {
   DashboardHeader as SharedDashboardHeader,
   DashboardLayout,
   TabPanel,
 } from '@/components/admin'
+import { Button } from '@/components/ui/button'
 import { BatchWithCount } from '@/lib/db/queries/batch'
 import { StudentWithBatchData } from '@/lib/db/queries/student'
 import { useMahadTabs, MAHAD_TABS } from '@/lib/hooks/use-admin-tabs'
@@ -17,16 +20,31 @@ import { useTabKeyboardShortcuts } from '@/lib/hooks/use-tab-keyboard-shortcuts'
 import { useStudentFilters } from '../_hooks/use-student-filters'
 import { useStudentStats, useDuplicates } from '../_hooks/use-student-groups'
 import { mapBatch, mapStudent } from '../_utils/mappers'
-import { useMahadFilters, useDialog } from '../store'
+import { useMahadFilters, useDialog, useMahadUIStore } from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardStats } from './dashboard/dashboard-stats'
 import { MahadDashboardHeaderActions } from './dashboard/mahad-dashboard-header-actions'
 import { TabContent } from './dashboard/tab-content'
-import {
-  AssignStudentsDialog,
-  CreateBatchDialog,
-  ResolveDuplicatesDialog,
-} from './dialogs'
+
+const CreateBatchDialog = dynamic(
+  () =>
+    import('./dialogs/batch-form-dialog').then((mod) => mod.CreateBatchDialog),
+  { ssr: false }
+)
+const AssignStudentsDialog = dynamic(
+  () =>
+    import('./dialogs/assign-students-dialog').then(
+      (mod) => mod.AssignStudentsDialog
+    ),
+  { ssr: false }
+)
+const ResolveDuplicatesDialog = dynamic(
+  () =>
+    import('./dialogs/resolve-duplicates-dialog').then(
+      (mod) => mod.ResolveDuplicatesDialog
+    ),
+  { ssr: false }
+)
 
 interface ConsolidatedMahadDashboardProps {
   students: StudentWithBatchData[]
@@ -116,6 +134,21 @@ export function ConsolidatedMahadDashboard({
         </TabPanel>
 
         <TabPanel id="tabpanel-batches" tabValue="batches" activeTab={tab}>
+          <SharedDashboardHeader
+            title="Batches"
+            description="Manage batches and cohort assignments"
+            actions={
+              <Button
+                onClick={() =>
+                  useMahadUIStore.getState().openDialog('createBatch', null)
+                }
+                className="w-full sm:w-auto"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                New Batch
+              </Button>
+            }
+          />
           <TabContent
             tab="batches"
             students={mahadStudents}

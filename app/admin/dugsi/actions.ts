@@ -29,6 +29,7 @@ import {
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   // Registration service
+  getDugsiRegistrationsLite,
   getAllDugsiRegistrations,
   getFamilyMembers as getFamilyMembersService,
   getDeleteFamilyPreview as getDeleteFamilyPreviewService,
@@ -100,12 +101,13 @@ import {
 const logger = createServiceLogger('dugsi-admin-actions')
 
 /**
- * Get all Dugsi registrations.
+ * Get all Dugsi registrations (optimized for list views).
+ * Uses lightweight query that excludes heavy teacher relations.
  */
 export async function getDugsiRegistrations(filters?: {
   shift?: 'MORNING' | 'AFTERNOON'
 }): Promise<DugsiRegistration[]> {
-  return await getAllDugsiRegistrations(undefined, filters)
+  return await getDugsiRegistrationsLite(undefined, filters)
 }
 
 /**
