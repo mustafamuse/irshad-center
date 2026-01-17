@@ -4,7 +4,7 @@ import { Metadata } from 'next'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
 import { getBatches } from '@/lib/db/queries/batch'
-import { getStudentsWithBatch } from '@/lib/db/queries/student'
+import { getCachedMahadDashboard } from '@/lib/db/queries/dashboard/cached'
 
 import { ConsolidatedMahadDashboard } from './components/consolidated-mahad-dashboard'
 
@@ -43,7 +43,7 @@ function Loading() {
 export default async function MahadCohortsPage() {
   const [batches, students] = await Promise.all([
     getBatches(),
-    getStudentsWithBatch(),
+    getCachedMahadDashboard(),
   ])
 
   return (

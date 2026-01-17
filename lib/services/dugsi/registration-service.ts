@@ -128,19 +128,18 @@ export async function getDugsiRegistrationsLite(
     ? DugsiRegistrationFiltersSchema.parse(filters)
     : undefined
 
-  const familyCounts = await getFamilyChildCounts()
-
-  const profiles = await prisma.programProfile.findMany({
-    where: {
-      program: DUGSI_PROGRAM,
-      ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
-    },
-    include: programProfileListInclude,
-    orderBy: {
-      createdAt: 'desc',
-    },
-    ...(limit && { take: limit }),
-  })
+  const [familyCounts, profiles] = await Promise.all([
+    getFamilyChildCounts(),
+    prisma.programProfile.findMany({
+      where: {
+        program: DUGSI_PROGRAM,
+        ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
+      },
+      include: programProfileListInclude,
+      orderBy: { createdAt: 'desc' },
+      ...(limit && { take: limit }),
+    }),
+  ])
 
   return profiles
     .map((profile) => {

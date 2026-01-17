@@ -1,6 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+
 import { Users, GraduationCap, BookOpen, ClipboardCheck } from 'lucide-react'
+import { toast } from 'sonner'
 
 import {
   DashboardHeader as SharedDashboardHeader,
@@ -17,8 +20,13 @@ import {
 import { useTabKeyboardShortcuts } from '@/lib/hooks/use-tab-keyboard-shortcuts'
 
 import { ClassWithDetails, DugsiRegistration } from '../_types'
+import {
+  getAllTeachersForClassAssignmentAction,
+  getClassesWithDetailsAction,
+  getDugsiRegistrations,
+} from '../actions'
 import { ClassManagement } from '../classes/_components/class-management'
-import { TeacherWithDetails } from '../teachers/actions'
+import { getTeachers, TeacherWithDetails } from '../teachers/actions'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DugsiStats } from './dashboard/dashboard-stats'
 import { DugsiDashboardHeaderActions } from './dashboard/dugsi-dashboard-header-actions'
@@ -62,12 +70,28 @@ const STATUS_CHIPS = [
 ]
 
 export function ConsolidatedDugsiDashboard({
-  registrations,
+  registrations: initialRegistrations,
   teachers,
   classes,
   classTeachers,
 }: ConsolidatedDugsiDashboardProps) {
   const { tab, setTab, status, setStatus } = useDugsiTabs()
+  const [registrationData, setRegistrationData] = useState(initialRegistrations)
+  const [teacherData, setTeacherData] = useState(teachers)
+  const [classData, setClassData] = useState(classes)
+  const [classTeacherData, setClassTeacherData] = useState(classTeachers)
+  const [hasLoadedRegistrations, setHasLoadedRegistrations] = useState(
+    initialRegistrations.length > 0
+  )
+  const [hasLoadedTeachers, setHasLoadedTeachers] = useState(
+    teachers.length > 0
+  )
+  const [hasLoadedClasses, setHasLoadedClasses] = useState(
+    classes.length > 0 || classTeachers.length > 0
+  )
+  const [isLoadingRegistrations, setIsLoadingRegistrations] = useState(false)
+  const [isLoadingTeachers, setIsLoadingTeachers] = useState(false)
+  const [isLoadingClasses, setIsLoadingClasses] = useState(false)
 
   const handleTabChange = (newTab: string) => {
     if (DUGSI_TABS.includes(newTab as typeof tab)) {
@@ -86,6 +110,76 @@ export function ConsolidatedDugsiDashboard({
     currentTab: tab,
     onTabChange: handleTabChange,
   })
+
+  useEffect(() => {
+    if (tab !== 'families' || hasLoadedRegistrations || isLoadingRegistrations)
+      return
+
+    setIsLoadingRegistrations(true)
+    getDugsiRegistrations()
+      .then((data) => {
+        setRegistrationData(data)
+        setHasLoadedRegistrations(true)
+      })
+      .catch(() => {
+        toast.error('Failed to load families')
+      })
+      .finally(() => {
+        setIsLoadingRegistrations(false)
+      })
+  }, [tab, hasLoadedRegistrations, isLoadingRegistrations])
+
+  useEffect(() => {
+    if (tab !== 'teachers' || hasLoadedTeachers || isLoadingTeachers) return
+
+    setIsLoadingTeachers(true)
+    getTeachers('DUGSI_PROGRAM')
+      .then((result) => {
+        if (result.success) {
+          setTeacherData(result.data ?? [])
+          setHasLoadedTeachers(true)
+        } else {
+          toast.error(result.error ?? 'Failed to load teachers')
+        }
+      })
+      .catch(() => {
+        toast.error('Failed to load teachers')
+      })
+      .finally(() => {
+        setIsLoadingTeachers(false)
+      })
+  }, [tab, hasLoadedTeachers, isLoadingTeachers])
+
+  useEffect(() => {
+    if (tab !== 'classes' || hasLoadedClasses || isLoadingClasses) return
+
+    setIsLoadingClasses(true)
+    Promise.all([
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
+      .then(([classesResult, teachersResult]) => {
+        if (classesResult.success) {
+          setClassData(classesResult.data ?? [])
+        } else {
+          toast.error(classesResult.error ?? 'Failed to load classes')
+        }
+        if (teachersResult.success) {
+          setClassTeacherData(teachersResult.data ?? [])
+        } else {
+          toast.error(teachersResult.error ?? 'Failed to load class teachers')
+        }
+        if (classesResult.success || teachersResult.success) {
+          setHasLoadedClasses(true)
+        }
+      })
+      .catch(() => {
+        toast.error('Failed to load classes')
+      })
+      .finally(() => {
+        setIsLoadingClasses(false)
+      })
+  }, [tab, hasLoadedClasses, isLoadingClasses])
 
   const breadcrumbItems = [
     { label: 'Dugsi' },
@@ -112,7 +206,10 @@ export function ConsolidatedDugsiDashboard({
         />
         <div className="mb-6 mt-6 space-y-4">
           <DashboardFilters />
-          <DugsiStats registrations={registrations} onStatClick={setStatus} />
+          <DugsiStats
+            registrations={registrationData}
+            onStatClick={setStatus}
+          />
           <FilterChips
             chips={STATUS_CHIPS}
             activeChip={status}
@@ -120,17 +217,17 @@ export function ConsolidatedDugsiDashboard({
           />
         </div>
         <FamiliesTabContent
-          registrations={registrations}
+          registrations={registrationData}
           statusFilter={status}
         />
       </TabPanel>
 
       <TabPanel id="tabpanel-teachers" tabValue="teachers" activeTab={tab}>
-        <TeachersDashboard teachers={teachers} />
+        <TeachersDashboard teachers={teacherData} />
       </TabPanel>
 
       <TabPanel id="tabpanel-classes" tabValue="classes" activeTab={tab}>
-        <ClassManagement classes={classes} teachers={classTeachers} />
+        <ClassManagement classes={classData} teachers={classTeacherData} />
       </TabPanel>
 
       <TabPanel id="tabpanel-attendance" tabValue="attendance" activeTab={tab}>

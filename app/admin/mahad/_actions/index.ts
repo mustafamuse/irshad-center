@@ -9,7 +9,7 @@
  * Uses Prisma-generated types and error codes for better type safety.
  */
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 import {
   Prisma,
@@ -178,6 +178,7 @@ export async function createBatchAction(
       endDate: validated.endDate ?? null,
     })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -215,6 +216,7 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
     }
 
     await deleteBatch(id)
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -255,6 +257,7 @@ export async function updateBatchAction(
       endDate: validated.endDate,
     })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -298,6 +301,7 @@ export async function assignStudentsAction(
       validated.studentIds
     )
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -365,6 +369,7 @@ export async function transferStudentsAction(
       validated.studentIds
     )
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -438,6 +443,7 @@ export async function resolveDuplicatesAction(
 
     await resolveDuplicateStudents(keepId, deleteIds, mergeData)
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -535,6 +541,7 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 
     await prisma.programProfile.delete({ where: { id } })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -581,6 +588,7 @@ export async function bulkDeleteStudentsAction(
       }
     }
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -741,6 +749,7 @@ export async function updateStudentAction(
       }
     })
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     return {
@@ -1004,6 +1013,7 @@ export async function generatePaymentLinkWithDefaultsAction(
       return result
     }
 
+    revalidateTag('mahad')
     revalidatePath('/admin/mahad')
 
     // Generate payment link (outside transaction since it's an external API call)

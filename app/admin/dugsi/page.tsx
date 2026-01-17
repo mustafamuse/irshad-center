@@ -57,18 +57,30 @@ export const metadata: Metadata = {
 export default async function DugsiAdminPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ shift?: string }>
+  searchParams?: Promise<{ shift?: string; tab?: string }>
 }) {
   const params = await searchParams
   const parsed = ShiftFilterSchema.safeParse(params?.shift)
   const shift = parsed.success ? parsed.data : undefined
+  const activeTab = params?.tab ?? 'families'
+  const shouldLoadFamilies = activeTab === 'families'
+  const shouldLoadTeachers = activeTab === 'teachers'
+  const shouldLoadClasses = activeTab === 'classes'
 
   const [registrations, teachersResult, classesResult, classTeachersResult] =
     await Promise.all([
-      getDugsiRegistrations({ shift }),
-      getTeachers('DUGSI_PROGRAM'),
-      getClassesWithDetailsAction(),
-      getAllTeachersForClassAssignmentAction(),
+      shouldLoadFamilies
+        ? getDugsiRegistrations({ shift })
+        : Promise.resolve([]),
+      shouldLoadTeachers
+        ? getTeachers('DUGSI_PROGRAM')
+        : Promise.resolve({ success: true as const, data: [] }),
+      shouldLoadClasses
+        ? getClassesWithDetailsAction()
+        : Promise.resolve({ success: true as const, data: [] }),
+      shouldLoadClasses
+        ? getAllTeachersForClassAssignmentAction()
+        : Promise.resolve({ success: true as const, data: [] }),
     ])
 
   if (!teachersResult.success) {
