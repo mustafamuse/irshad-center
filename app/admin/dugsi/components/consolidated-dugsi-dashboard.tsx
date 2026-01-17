@@ -43,6 +43,7 @@ interface ConsolidatedDugsiDashboardProps {
   teachers: TeacherWithDetails[]
   classes: ClassWithDetails[]
   classTeachers: ClassTeacherForAssignment[]
+  shift?: 'MORNING' | 'AFTERNOON'
 }
 
 const FAMILIES_ICON = <Users className="h-4 w-4" />
@@ -74,6 +75,7 @@ export function ConsolidatedDugsiDashboard({
   teachers,
   classes,
   classTeachers,
+  shift,
 }: ConsolidatedDugsiDashboardProps) {
   const { tab, setTab, status, setStatus } = useDugsiTabs()
   const [registrationData, setRegistrationData] = useState(initialRegistrations)
@@ -92,6 +94,22 @@ export function ConsolidatedDugsiDashboard({
   const [isLoadingRegistrations, setIsLoadingRegistrations] = useState(false)
   const [isLoadingTeachers, setIsLoadingTeachers] = useState(false)
   const [isLoadingClasses, setIsLoadingClasses] = useState(false)
+
+  useEffect(() => {
+    setRegistrationData(initialRegistrations)
+    setHasLoadedRegistrations(initialRegistrations.length > 0)
+  }, [initialRegistrations])
+
+  useEffect(() => {
+    setTeacherData(teachers)
+    setHasLoadedTeachers(teachers.length > 0)
+  }, [teachers])
+
+  useEffect(() => {
+    setClassData(classes)
+    setClassTeacherData(classTeachers)
+    setHasLoadedClasses(classes.length > 0 || classTeachers.length > 0)
+  }, [classes, classTeachers])
 
   const handleTabChange = (newTab: string) => {
     if (DUGSI_TABS.includes(newTab as typeof tab)) {
@@ -116,7 +134,7 @@ export function ConsolidatedDugsiDashboard({
       return
 
     setIsLoadingRegistrations(true)
-    getDugsiRegistrations()
+    getDugsiRegistrations({ shift })
       .then((data) => {
         setRegistrationData(data)
         setHasLoadedRegistrations(true)
@@ -127,7 +145,7 @@ export function ConsolidatedDugsiDashboard({
       .finally(() => {
         setIsLoadingRegistrations(false)
       })
-  }, [tab, hasLoadedRegistrations, isLoadingRegistrations])
+  }, [tab, hasLoadedRegistrations, isLoadingRegistrations, shift])
 
   useEffect(() => {
     if (tab !== 'teachers' || hasLoadedTeachers || isLoadingTeachers) return

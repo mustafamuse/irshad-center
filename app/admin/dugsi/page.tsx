@@ -109,6 +109,7 @@ export default async function DugsiAdminPage({
             teachers={teachersResult.data ?? []}
             classes={classesResult.data ?? []}
             classTeachers={classTeachersResult.data ?? []}
+            shift={shift}
           />
         </Suspense>
       </AppErrorBoundary>
