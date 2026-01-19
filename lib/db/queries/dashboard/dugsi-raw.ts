@@ -116,8 +116,14 @@ export async function getDugsiDashboardRaw(filters?: {
     JOIN "Person" p ON p.id = pp."personId"
     LEFT JOIN parent_info p1 ON p1."dependentId" = p.id AND p1.parent_num = 1
     LEFT JOIN parent_info p2 ON p2."dependentId" = p.id AND p2.parent_num = 2
-    LEFT JOIN "BillingAssignment" ba_active ON ba_active."programProfileId" = pp.id AND ba_active."isActive" = true
-    LEFT JOIN "Subscription" s ON s.id = ba_active."subscriptionId"
+    LEFT JOIN LATERAL (
+      SELECT ba2."subscriptionId"
+      FROM "BillingAssignment" ba2
+      WHERE ba2."programProfileId" = pp.id
+      ORDER BY ba2."isActive" DESC, ba2."updatedAt" DESC
+      LIMIT 1
+    ) ba_latest ON true
+    LEFT JOIN "Subscription" s ON s.id = ba_latest."subscriptionId"
     LEFT JOIN "BillingAccount" ba ON ba.id = s."billingAccountId"
     LEFT JOIN family_counts fc ON fc."familyReferenceId" = pp."familyReferenceId"
     WHERE pp.program = 'DUGSI_PROGRAM'

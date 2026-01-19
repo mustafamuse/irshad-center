@@ -80,7 +80,13 @@ export async function getMahadDashboardRaw(): Promise<StudentWithBatchData[]> {
       ORDER BY e2."startDate" DESC LIMIT 1
     ) e ON true
     LEFT JOIN "Batch" b ON b.id = e."batchId"
-    LEFT JOIN "BillingAssignment" ba ON ba."programProfileId" = pp.id AND ba."isActive" = true
+    LEFT JOIN LATERAL (
+      SELECT ba2."subscriptionId"
+      FROM "BillingAssignment" ba2
+      WHERE ba2."programProfileId" = pp.id
+      ORDER BY ba2."isActive" DESC, ba2."updatedAt" DESC
+      LIMIT 1
+    ) ba ON true
     LEFT JOIN "Subscription" s ON s.id = ba."subscriptionId"
     WHERE pp.program = 'MAHAD_PROGRAM'
       AND EXISTS (
