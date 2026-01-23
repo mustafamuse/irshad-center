@@ -21,8 +21,8 @@ const nextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://*.js.stripe.com https://maps.googleapis.com https://va.vercel-scripts.com https://*.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline'",
               process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' ws: wss: blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com"
-                : "connect-src 'self' blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com",
+                ? "connect-src 'self' ws: wss: blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com https://*.ingest.us.sentry.io"
+                : "connect-src 'self' blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com https://*.ingest.us.sentry.io",
               "worker-src 'self' blob:",
               "child-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
               "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com https://www.google.com https://maps.google.com",
