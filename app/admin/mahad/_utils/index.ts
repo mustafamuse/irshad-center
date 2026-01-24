@@ -2,7 +2,7 @@ export {
   applyAllFilters,
   filterBySearch,
   filterByBatch,
-  filterByStatus,
+  filterByPaymentHealth,
 } from './filters'
 export {
   groupStudentsByBatch,
@@ -10,3 +10,4 @@ export {
   detectDuplicates,
   type BatchGroup,
 } from './grouping'
+export { mapBatch, mapStudent } from './mappers'

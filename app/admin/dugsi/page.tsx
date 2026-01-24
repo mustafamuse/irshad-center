@@ -5,8 +5,13 @@ import { Metadata } from 'next'
 import { AppErrorBoundary } from '@/components/error-boundary'
 import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-import { getDugsiRegistrations } from './actions'
-import { DugsiDashboard } from './components/dugsi-dashboard'
+import {
+  getDugsiRegistrations,
+  getClassesWithDetailsAction,
+  getAllTeachersForClassAssignmentAction,
+} from './actions'
+import { ConsolidatedDugsiDashboard } from './components/consolidated-dugsi-dashboard'
+import { getTeachers } from './teachers/actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,12 +57,43 @@ export const metadata: Metadata = {
 export default async function DugsiAdminPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ shift?: string }>
+  searchParams?: Promise<{ shift?: string; tab?: string }>
 }) {
   const params = await searchParams
-  const shift = ShiftFilterSchema.parse(params?.shift)
+  const parsed = ShiftFilterSchema.safeParse(params?.shift)
+  const shift = parsed.success ? parsed.data : undefined
+  const activeTab = params?.tab ?? 'families'
+  const shouldLoadFamilies = activeTab === 'families'
+  const shouldLoadTeachers = activeTab === 'teachers'
+  const shouldLoadClasses = activeTab === 'classes'
 
-  const registrations = await getDugsiRegistrations({ shift })
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      shouldLoadFamilies
+        ? getDugsiRegistrations({ shift })
+        : Promise.resolve([]),
+      shouldLoadTeachers
+        ? getTeachers('DUGSI_PROGRAM')
+        : Promise.resolve({ success: true as const, data: [] }),
+      shouldLoadClasses
+        ? getClassesWithDetailsAction()
+        : Promise.resolve({ success: true as const, data: [] }),
+      shouldLoadClasses
+        ? getAllTeachersForClassAssignmentAction()
+        : Promise.resolve({ success: true as const, data: [] }),
+    ])
+
+  if (!teachersResult.success) {
+    throw new Error(`Failed to load teachers: ${teachersResult.error}`)
+  }
+  if (!classesResult.success) {
+    throw new Error(`Failed to load classes: ${classesResult.error}`)
+  }
+  if (!classTeachersResult.success) {
+    throw new Error(
+      `Failed to load class teachers: ${classTeachersResult.error}`
+    )
+  }
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
@@ -68,7 +104,13 @@ export default async function DugsiAdminPage({
         fallbackLabel="Reload Dashboard"
       >
         <Suspense fallback={<Loading />}>
-          <DugsiDashboard registrations={registrations} />
+          <ConsolidatedDugsiDashboard
+            registrations={registrations}
+            teachers={teachersResult.data ?? []}
+            classes={classesResult.data ?? []}
+            classTeachers={classTeachersResult.data ?? []}
+            shift={shift}
+          />
         </Suspense>
       </AppErrorBoundary>
     </main>

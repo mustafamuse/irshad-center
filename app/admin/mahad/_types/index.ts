@@ -17,7 +17,6 @@ export { FORM_DEFAULTS, isNoneValue } from './student-form'
 
 /**
  * MahadStudent - DTO for Mahad student data displayed in admin UI
- * Mirrors StudentWithBatchData from lib/db/queries/student.ts
  */
 export interface MahadStudent {
   id: string
@@ -69,12 +68,31 @@ export interface MahadBatch {
 export type TabValue = 'students' | 'batches' | 'duplicates'
 
 /**
+ * PaymentHealth - Unified status combining enrollment + subscription + billing type
+ *
+ * Values:
+ * - needs_action: ENROLLED + payment problems (canceled/unpaid/no sub when not EXEMPT)
+ * - at_risk: ENROLLED + past_due subscription
+ * - healthy: ENROLLED + active/trialing subscription
+ * - exempt: ENROLLED + EXEMPT billing type ($0 rate - TA, financial hardship)
+ * - pending: REGISTERED (not yet enrolled)
+ * - inactive: WITHDRAWN/ON_LEAVE/COMPLETED (no longer active)
+ */
+export type PaymentHealth =
+  | 'needs_action'
+  | 'at_risk'
+  | 'healthy'
+  | 'exempt'
+  | 'pending'
+  | 'inactive'
+
+/**
  * Student filter types
  */
 export interface StudentFilters {
   search: string
   batchId: string | null
-  status: StudentStatus | null
+  paymentHealth: PaymentHealth | null
 }
 
 /**
@@ -82,24 +100,40 @@ export interface StudentFilters {
  */
 export interface DashboardStats {
   total: number
-  active: number
-  registered: number
-  onLeave: number
-  unpaid: number
+  enrolled: number
+  healthy: number
+  atRisk: number
+  needsAction: number
+  exempt: number
+  pending: number
+  inactive: number
 }
 
 /**
- * Dialog types for single-dialog pattern
+ * Dialog state discriminated union for type-safe dialog handling
  */
-export type DialogType =
-  | 'createBatch'
-  | 'editBatch'
-  | 'assignStudents'
-  | 'deleteStudent'
-  | 'paymentLink'
-  | 'studentDetail'
-  | 'resolveDuplicates'
-  | null
+export type DialogState =
+  | { type: null; data: null }
+  | { type: 'createBatch'; data: null }
+  | { type: 'editBatch'; data: MahadBatch }
+  | { type: 'assignStudents'; data: null }
+  | { type: 'deleteStudent'; data: MahadStudent }
+  | { type: 'paymentLink'; data: MahadStudent }
+  | { type: 'studentDetail'; data: MahadStudent }
+  | { type: 'resolveDuplicates'; data: DuplicateGroup }
+
+/**
+ * Dialog type derived from DialogState for consistency
+ */
+export type DialogType = DialogState['type']
+
+/**
+ * Extract dialog data type for a specific dialog type
+ */
+export type DialogDataFor<T extends DialogType> = Extract<
+  DialogState,
+  { type: T }
+>['data']
 
 // Re-export ActionResult from canonical location
 export type { ActionResult } from '@/lib/utils/action-helpers'

@@ -3,9 +3,8 @@
  * Pure functions for filtering logic
  */
 
-import { StudentStatus } from '@/lib/types/student'
-
-import { MahadStudent, StudentFilters } from '../_types'
+import { MahadStudent, PaymentHealth, StudentFilters } from '../_types'
+import { calculatePaymentHealth } from './grouping'
 
 export function filterBySearch(
   students: MahadStudent[],
@@ -38,12 +37,12 @@ export function filterByBatch(
   return students.filter((s) => s.batchId === batchId)
 }
 
-export function filterByStatus(
+export function filterByPaymentHealth(
   students: MahadStudent[],
-  status: StudentStatus | null
+  paymentHealth: PaymentHealth | null
 ): MahadStudent[] {
-  if (!status) return students
-  return students.filter((s) => s.status === status)
+  if (!paymentHealth) return students
+  return students.filter((s) => calculatePaymentHealth(s) === paymentHealth)
 }
 
 export function applyAllFilters(
@@ -60,8 +59,8 @@ export function applyAllFilters(
     result = filterByBatch(result, filters.batchId)
   }
 
-  if (filters.status !== null) {
-    result = filterByStatus(result, filters.status)
+  if (filters.paymentHealth !== null) {
+    result = filterByPaymentHealth(result, filters.paymentHealth)
   }
 
   return result

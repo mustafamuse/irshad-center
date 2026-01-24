@@ -18,6 +18,7 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import {
   ProgramProfileWithGuardians,
   ProgramProfileFull,
+  ProgramProfileList,
 } from '@/lib/db/prisma-helpers'
 
 /**
@@ -272,4 +273,106 @@ export function extractParentEmail(
   return (
     guardian?.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value ?? null
   )
+}
+
+/**
+ * Maps a lightweight ProgramProfile (list view) to DugsiRegistration DTO.
+ * Excludes teacher info which requires heavy joins.
+ * Use for dashboard table views.
+ */
+export function mapProfileListToDugsiRegistration(
+  profile: ProgramProfileList,
+  familyChildCount: number = 1
+): DugsiRegistration | null {
+  if (!profile || profile.program !== DUGSI_PROGRAM) {
+    return null
+  }
+
+  const person = profile.person
+  const dependentRelationships = person.dependentRelationships || []
+  const guardians = dependentRelationships
+    .map((rel) => rel.guardian)
+    .filter(Boolean)
+
+  const parent1 = guardians[0]
+  const parent1Email = parent1?.contactPoints?.find(
+    (cp) => cp.type === 'EMAIL'
+  )?.value
+  const parent1Phone = parent1?.contactPoints?.find(
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )?.value
+  const parent1Name = parent1?.name
+  const parent1NameParts = parent1Name ? parent1Name.split(' ') : []
+  const parent1FirstName = parent1NameParts[0] || null
+  const parent1LastName = parent1NameParts.slice(1).join(' ') || null
+
+  const parent2 = guardians[1]
+  const parent2Email = parent2?.contactPoints?.find(
+    (cp) => cp.type === 'EMAIL'
+  )?.value
+  const parent2Phone = parent2?.contactPoints?.find(
+    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  )?.value
+  const parent2Name = parent2?.name
+  const parent2NameParts = parent2Name ? parent2Name.split(' ') : []
+  const parent2FirstName = parent2NameParts[0] || null
+  const parent2LastName = parent2NameParts.slice(1).join(' ') || null
+
+  const primaryPayerIndex = dependentRelationships.findIndex(
+    (rel) => rel.isPrimaryPayer
+  )
+  const primaryPayerParentNumber: 1 | 2 | null =
+    primaryPayerIndex === 0 ? 1 : primaryPayerIndex === 1 ? 2 : null
+
+  const activeAssignment = profile.assignments?.[0]
+  const subscription = activeAssignment?.subscription
+  const billingAccount = subscription?.billingAccount
+
+  return {
+    id: profile.id,
+    name: person.name,
+    gender: profile.gender,
+    dateOfBirth: person.dateOfBirth,
+    gradeLevel: profile.gradeLevel,
+    shift: profile.shift,
+    schoolName: profile.schoolName,
+    healthInfo: profile.healthInfo,
+    createdAt: profile.createdAt,
+
+    parentFirstName: parent1FirstName ?? null,
+    parentLastName: parent1LastName ?? null,
+    parentEmail: parent1Email ?? null,
+    parentPhone: parent1Phone ?? null,
+
+    parent2FirstName: parent2FirstName ?? null,
+    parent2LastName: parent2LastName ?? null,
+    parent2Email: parent2Email ?? null,
+    parent2Phone: parent2Phone ?? null,
+
+    primaryPayerParentNumber,
+
+    paymentMethodCaptured: billingAccount?.paymentMethodCaptured ?? false,
+    paymentMethodCapturedAt: billingAccount?.paymentMethodCapturedAt ?? null,
+    stripeCustomerIdDugsi: billingAccount?.stripeCustomerIdDugsi ?? null,
+    stripeSubscriptionIdDugsi: subscription?.stripeSubscriptionId ?? null,
+    paymentIntentIdDugsi: billingAccount?.paymentIntentIdDugsi ?? null,
+    subscriptionStatus: (subscription?.status as SubscriptionStatus) ?? null,
+    subscriptionAmount: subscription?.amount ?? null,
+    paidUntil: subscription?.paidUntil ?? null,
+    currentPeriodStart: subscription?.currentPeriodStart ?? null,
+    currentPeriodEnd: subscription?.currentPeriodEnd ?? null,
+
+    familyReferenceId: profile.familyReferenceId,
+    stripeAccountType:
+      (billingAccount?.accountType as StripeAccountType) ?? null,
+
+    teacherName: null,
+    teacherEmail: null,
+    teacherPhone: null,
+    morningTeacher: null,
+    afternoonTeacher: null,
+    hasTeacherAssigned: false,
+
+    familyChildCount: familyChildCount || 1,
+  }
 }

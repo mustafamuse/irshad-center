@@ -21,8 +21,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import { createBatchAction, updateBatchAction } from '../../_actions'
-import { MahadBatch } from '../../_types'
-import { useDialogState, useDialogData, useMahadUIStore } from '../../store'
+import { useDialog, useMahadUIStore } from '../../store'
 
 function formatDateForInput(date: Date | null): string {
   if (!date) return ''
@@ -36,12 +35,12 @@ export function BatchFormDialog() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
 
-  const openDialog = useDialogState()
-  const dialogData = useDialogData() as MahadBatch | null
+  const dialog = useDialog()
   const closeDialog = useMahadUIStore((s) => s.closeDialog)
 
-  const isEditMode = openDialog === 'editBatch'
-  const isOpen = openDialog === 'createBatch' || openDialog === 'editBatch'
+  const isEditMode = dialog.type === 'editBatch'
+  const isOpen = dialog.type === 'createBatch' || dialog.type === 'editBatch'
+  const dialogData = dialog.type === 'editBatch' ? dialog.data : null
 
   useEffect(() => {
     if (isEditMode && dialogData) {

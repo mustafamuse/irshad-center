@@ -65,10 +65,11 @@ export async function SubscriptionsListShell() {
   // Get potential matches for subscriptions with emails
   const subsWithMatches = await Promise.all(
     singleSubsWithMatches.map(async (sub) => {
-      const matches = sub.customerEmail
-        ? await getPotentialMatches(sub.customerEmail, sub.program)
-        : []
-      return { sub, matches }
+      if (!sub.customerEmail) {
+        return { sub, matches: [] }
+      }
+      const result = await getPotentialMatches(sub.customerEmail, sub.program)
+      return { sub, matches: result.success ? result.data : [] }
     })
   )
 
@@ -87,10 +88,12 @@ export async function SubscriptionsListShell() {
     (typeof subsWithMatches)[0]['matches']
   >()
   for (const sub of multiSubs) {
-    const matches = sub.customerEmail
-      ? await getPotentialMatches(sub.customerEmail, sub.program)
-      : []
-    multiSubsMatchesMap.set(sub.id, matches)
+    if (sub.customerEmail) {
+      const result = await getPotentialMatches(sub.customerEmail, sub.program)
+      multiSubsMatchesMap.set(sub.id, result.success ? result.data : [])
+    } else {
+      multiSubsMatchesMap.set(sub.id, [])
+    }
   }
 
   const noMatchesWithMatches = noMatches.map((sub) => ({ sub, matches: [] }))

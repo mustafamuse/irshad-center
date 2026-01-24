@@ -1,11 +1,15 @@
+import { createServiceLogger } from '@/lib/logger'
+
 import { LogEventData } from './types'
+
+const logger = createServiceLogger('webhook')
 
 export function logEvent(
   message: string,
   eventId: string,
   data: LogEventData
 ): void {
-  console.log(`[${message}] Event ID: ${eventId}`, data)
+  logger.info(data, message)
 }
 
 export function handleError(
@@ -13,8 +17,8 @@ export function handleError(
   eventId: string,
   error: unknown
 ): void {
-  console.error(
-    `[${context}] Error processing event ${eventId}:`,
-    error instanceof Error ? error.message : error
+  logger.error(
+    { err: error, eventId, context },
+    `Error processing webhook event`
   )
 }

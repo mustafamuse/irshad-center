@@ -147,11 +147,33 @@ irshad-center/
 
 ```typescript
 // app/admin/dugsi/page.tsx
-export default async function DugsiAdminPage() {
-  // Direct Prisma call in Server Component
-  const registrations = await getDugsiRegistrations()
+import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-  return <DugsiDashboard registrations={registrations} />
+export default async function DugsiAdminPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ shift?: string }>
+}) {
+  const params = await searchParams
+  const shift = ShiftFilterSchema.parse(params?.shift)
+
+  // Parallel data fetching for consolidated dashboard
+  const [registrations, teachersResult, classesResult, classTeachersResult] =
+    await Promise.all([
+      getDugsiRegistrations({ shift }),
+      getTeachers('DUGSI_PROGRAM'),
+      getClassesWithDetailsAction(),
+      getAllTeachersForClassAssignmentAction(),
+    ])
+
+  return (
+    <ConsolidatedDugsiDashboard
+      registrations={registrations}
+      teachers={teachersResult.data ?? []}
+      classes={classesResult.data ?? []}
+      classTeachers={classTeachersResult.data ?? []}
+    />
+  )
 }
 ```
 
@@ -319,7 +341,12 @@ export default function Error({ error, reset }: ErrorProps) {
 ```typescript
 // app/admin/dugsi/page.tsx
 <Suspense fallback={<Loading />}>
-  <DugsiDashboard registrations={registrations} />
+  <ConsolidatedDugsiDashboard
+    registrations={registrations}
+    teachers={teachersResult.data ?? []}
+    classes={classesResult.data ?? []}
+    classTeachers={classTeachersResult.data ?? []}
+  />
 </Suspense>
 ```
 

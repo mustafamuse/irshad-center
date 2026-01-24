@@ -1,8 +1,17 @@
 'use server'
 
 import { prisma } from '@/lib/db'
+import { createActionLogger } from '@/lib/logger'
 
-export async function getBatchesForFilter() {
+const logger = createActionLogger('mahad-payments')
+
+type BatchFilterItem = { id: string; name: string }
+
+type BatchFilterResult =
+  | { success: true; data: BatchFilterItem[] }
+  | { success: false; error: string }
+
+export async function getBatchesForFilter(): Promise<BatchFilterResult> {
   try {
     const batches = await prisma.batch.findMany({
       select: {
@@ -18,10 +27,13 @@ export async function getBatchesForFilter() {
         name: 'asc',
       },
     })
-    return batches
+    return { success: true, data: batches }
   } catch (error) {
-    console.error('Failed to fetch batches:', error)
-    return []
+    logger.error({ err: error }, 'Failed to fetch batches')
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch batches',
+    }
   }
 }
 
@@ -32,7 +44,7 @@ export async function getBatchesForFilter() {
  */
 export async function runPaymentsBackfill() {
   'use server'
-  console.warn(
+  logger.warn(
     'runPaymentsBackfill is deprecated and needs migration to new schema'
   )
   return {

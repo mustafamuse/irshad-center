@@ -9,22 +9,18 @@ export interface NavGroup {
   items: NavItem[]
 }
 
+const DUGSI_NAV: NavItem[] = [{ title: 'Dashboard', url: '/admin/dugsi' }]
+
+const MAHAD_NAV: NavItem[] = [{ title: 'Dashboard', url: '/admin/mahad' }]
+
 export const ADMIN_NAVIGATION: NavGroup[] = [
   {
     title: 'Dugsi',
-    items: [
-      { title: 'Dashboard', url: '/admin/dugsi' },
-      { title: 'Classes', url: '/admin/dugsi/classes' },
-      { title: 'Teachers', url: '/admin/dugsi/teachers' },
-      { title: 'Attendance', url: '/admin/dugsi/attendance' },
-    ],
+    items: DUGSI_NAV,
   },
   {
     title: 'Mahad',
-    items: [
-      { title: 'Dashboard', url: '/admin/mahad' },
-      { title: 'Payments', url: '/admin/mahad/payments' },
-    ],
+    items: MAHAD_NAV,
   },
   {
     title: 'Utilities',

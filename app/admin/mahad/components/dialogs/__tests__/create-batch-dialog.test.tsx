@@ -1,36 +1,29 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
+import { MahadBatch } from '../../../_types'
 import { CreateBatchDialog } from '../batch-form-dialog'
 
-const mockPush = vi.fn()
 const mockRefresh = vi.fn()
-
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({
-    push: mockPush,
-    refresh: mockRefresh,
-  }),
-}))
-
 const mockCloseDialog = vi.fn()
-const mockOpenDialogWithData = vi.fn()
-let mockOpenDialog: string | null = null
-let mockDialogData: unknown = null
-
-vi.mock('../../../store', () => ({
-  useDialogState: () => mockOpenDialog,
-  useDialogData: () => mockDialogData,
-  useMahadUIStore: (selector: (s: unknown) => unknown) =>
-    selector({
-      closeDialog: mockCloseDialog,
-      openDialogWithData: mockOpenDialogWithData,
-    }),
-}))
-
 const mockCreateBatchAction = vi.fn()
 const mockUpdateBatchAction = vi.fn()
+
+let mockDialogType: 'createBatch' | 'editBatch' | null = null
+let mockDialogData: MahadBatch | null = null
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: mockRefresh }),
+}))
+
+vi.mock('../../../store', () => ({
+  useDialog: () => ({ type: mockDialogType, data: mockDialogData }),
+  useMahadUIStore: (
+    selector: (s: { closeDialog: typeof mockCloseDialog }) => unknown
+  ) => selector({ closeDialog: mockCloseDialog }),
+}))
 
 vi.mock('../../../_actions', () => ({
   createBatchAction: (formData: FormData) => mockCreateBatchAction(formData),
@@ -39,16 +32,44 @@ vi.mock('../../../_actions', () => ({
 }))
 
 vi.mock('sonner', () => ({
-  toast: {
-    success: vi.fn(),
-    error: vi.fn(),
-  },
+  toast: { success: vi.fn(), error: vi.fn() },
 }))
+
+function getNameInput(): HTMLInputElement {
+  return screen.getByLabelText(/batch name/i) as HTMLInputElement
+}
+
+function getSubmitButton(): HTMLButtonElement {
+  const isEditMode = mockDialogType === 'editBatch'
+  return screen.getByRole('button', {
+    name: isEditMode ? /save changes/i : /create batch/i,
+  }) as HTMLButtonElement
+}
+
+async function fillAndSubmit(
+  user: ReturnType<typeof userEvent.setup>,
+  name: string,
+  options?: { startDate?: string; endDate?: string; clearFirst?: boolean }
+): Promise<void> {
+  const nameInput = getNameInput()
+  if (options?.clearFirst) await user.clear(nameInput)
+  await user.type(nameInput, name)
+
+  if (options?.startDate) {
+    await user.type(screen.getByLabelText(/start date/i), options.startDate)
+  }
+  if (options?.endDate) {
+    await user.type(screen.getByLabelText(/end date/i), options.endDate)
+  }
+
+  await user.click(getSubmitButton())
+}
 
 describe('CreateBatchDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockOpenDialog = 'createBatch'
+    mockDialogType = 'createBatch'
+    mockDialogData = null
     mockCreateBatchAction.mockResolvedValue({ success: true })
   })
 
@@ -60,65 +81,42 @@ describe('CreateBatchDialog', () => {
     })
 
     it('does not render dialog when closed', () => {
-      mockOpenDialog = null
+      mockDialogType = null
       render(<CreateBatchDialog />)
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
-    it('renders batch name input with required indicator', () => {
+    it('renders form fields and buttons', () => {
       render(<CreateBatchDialog />)
-      expect(screen.getByLabelText(/batch name/i)).toBeInTheDocument()
+      expect(getNameInput()).toBeInTheDocument()
       expect(screen.getByText('*')).toBeInTheDocument()
-    })
-
-    it('renders optional start date input', () => {
-      render(<CreateBatchDialog />)
       expect(screen.getByLabelText(/start date/i)).toBeInTheDocument()
-      const optionalLabels = screen.getAllByText(/optional/i)
-      expect(optionalLabels.length).toBeGreaterThanOrEqual(1)
-    })
-
-    it('renders cancel and create buttons', () => {
-      render(<CreateBatchDialog />)
       expect(
         screen.getByRole('button', { name: /cancel/i })
       ).toBeInTheDocument()
-      expect(
-        screen.getByRole('button', { name: /create batch/i })
-      ).toBeInTheDocument()
+      expect(getSubmitButton()).toBeInTheDocument()
     })
   })
 
   describe('form validation', () => {
     it('disables submit button when name is empty', () => {
       render(<CreateBatchDialog />)
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      expect(submitButton).toBeDisabled()
+      expect(getSubmitButton()).toBeDisabled()
     })
 
     it('enables submit button when name has value', async () => {
       const user = userEvent.setup()
       render(<CreateBatchDialog />)
-
-      const nameInput = screen.getByLabelText(/batch name/i)
-      await user.type(nameInput, 'Fall 2024')
-
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      expect(submitButton).toBeEnabled()
+      await user.type(getNameInput(), 'Fall 2024')
+      expect(getSubmitButton()).toBeEnabled()
     })
 
     it('trims whitespace from name', async () => {
       const user = userEvent.setup()
       render(<CreateBatchDialog />)
-
-      const nameInput = screen.getByLabelText(/batch name/i)
-      await user.type(nameInput, '  Fall 2024  ')
-
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      await user.click(submitButton)
+      await fillAndSubmit(user, '  Fall 2024  ')
 
       await waitFor(() => {
-        expect(mockCreateBatchAction).toHaveBeenCalled()
         const formData = mockCreateBatchAction.mock.calls[0][0] as FormData
         expect(formData.get('name')).toBe('Fall 2024')
       })
@@ -126,49 +124,26 @@ describe('CreateBatchDialog', () => {
   })
 
   describe('form submission', () => {
-    it('calls createBatchAction on submit', async () => {
+    it('calls createBatchAction with form data', async () => {
       const user = userEvent.setup()
       render(<CreateBatchDialog />)
-
-      const nameInput = screen.getByLabelText(/batch name/i)
-      await user.type(nameInput, 'Fall 2024')
-
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      await user.click(submitButton)
-
-      await waitFor(() => {
-        expect(mockCreateBatchAction).toHaveBeenCalled()
+      await fillAndSubmit(user, 'Fall 2024', {
+        startDate: '2024-09-01',
+        endDate: '2024-12-15',
       })
-    })
-
-    it('includes start date in form data when provided', async () => {
-      const user = userEvent.setup()
-      render(<CreateBatchDialog />)
-
-      const nameInput = screen.getByLabelText(/batch name/i)
-      await user.type(nameInput, 'Fall 2024')
-
-      const dateInput = screen.getByLabelText(/start date/i)
-      await user.type(dateInput, '2024-09-01')
-
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      await user.click(submitButton)
 
       await waitFor(() => {
         const formData = mockCreateBatchAction.mock.calls[0][0] as FormData
+        expect(formData.get('name')).toBe('Fall 2024')
         expect(formData.get('startDate')).toBe('2024-09-01')
+        expect(formData.get('endDate')).toBe('2024-12-15')
       })
     })
 
     it('closes dialog and refreshes on success', async () => {
       const user = userEvent.setup()
       render(<CreateBatchDialog />)
-
-      const nameInput = screen.getByLabelText(/batch name/i)
-      await user.type(nameInput, 'Fall 2024')
-
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      await user.click(submitButton)
+      await fillAndSubmit(user, 'Fall 2024')
 
       await waitFor(() => {
         expect(mockCloseDialog).toHaveBeenCalled()
@@ -177,20 +152,13 @@ describe('CreateBatchDialog', () => {
     })
 
     it('shows error toast on failure', async () => {
-      const { toast } = await import('sonner')
       mockCreateBatchAction.mockResolvedValue({
         success: false,
         error: 'Batch name already exists',
       })
-
       const user = userEvent.setup()
       render(<CreateBatchDialog />)
-
-      const nameInput = screen.getByLabelText(/batch name/i)
-      await user.type(nameInput, 'Existing Batch')
-
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      await user.click(submitButton)
+      await fillAndSubmit(user, 'Existing Batch')
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith('Batch name already exists')
@@ -198,37 +166,103 @@ describe('CreateBatchDialog', () => {
     })
   })
 
-  describe('dialog state management', () => {
-    it('closes dialog when cancel is clicked', async () => {
+  describe('cancel button', () => {
+    it('closes dialog when clicked', async () => {
       const user = userEvent.setup()
       render(<CreateBatchDialog />)
-
-      const cancelButton = screen.getByRole('button', { name: /cancel/i })
-      await user.click(cancelButton)
-
-      expect(mockCloseDialog).toHaveBeenCalled()
-    })
-
-    it('resets form when dialog closes', async () => {
-      const user = userEvent.setup()
-      render(<CreateBatchDialog />)
-
-      const nameInput = screen.getByLabelText(/batch name/i)
-      await user.type(nameInput, 'Test Batch')
-
-      const cancelButton = screen.getByRole('button', { name: /cancel/i })
-      await user.click(cancelButton)
-
+      await user.click(screen.getByRole('button', { name: /cancel/i }))
       expect(mockCloseDialog).toHaveBeenCalled()
     })
   })
+})
 
-  describe('loading state', () => {
-    it('submit button shows loading text when pending', () => {
+describe('EditBatchDialog (edit mode)', () => {
+  const mockBatch: MahadBatch = {
+    id: 'batch-123',
+    name: 'Fall 2024',
+    startDate: new Date('2024-09-01T12:00:00'),
+    endDate: new Date('2024-12-15T12:00:00'),
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    studentCount: 10,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDialogType = 'editBatch'
+    mockDialogData = mockBatch
+    mockUpdateBatchAction.mockResolvedValue({ success: true })
+  })
+
+  describe('rendering', () => {
+    it('renders edit mode UI with pre-populated data', () => {
       render(<CreateBatchDialog />)
-      const submitButton = screen.getByRole('button', { name: /create batch/i })
-      expect(submitButton).toBeInTheDocument()
-      expect(submitButton.textContent).toContain('Create Batch')
+      expect(screen.getByText('Edit Batch')).toBeInTheDocument()
+      expect(getSubmitButton()).toHaveTextContent(/save changes/i)
+      expect(getNameInput().value).toBe('Fall 2024')
+      expect(
+        (screen.getByLabelText(/start date/i) as HTMLInputElement).value
+      ).toBe('2024-09-01')
+      expect(
+        (screen.getByLabelText(/end date/i) as HTMLInputElement).value
+      ).toBe('2024-12-15')
+    })
+  })
+
+  describe('form submission', () => {
+    it('calls updateBatchAction with batch data', async () => {
+      const user = userEvent.setup()
+      render(<CreateBatchDialog />)
+      await user.click(getSubmitButton())
+
+      await waitFor(() => {
+        expect(mockUpdateBatchAction).toHaveBeenCalledWith('batch-123', {
+          name: 'Fall 2024',
+          startDate: expect.any(Date),
+          endDate: expect.any(Date),
+        })
+      })
+    })
+
+    it('updates batch with modified values', async () => {
+      const user = userEvent.setup()
+      render(<CreateBatchDialog />)
+      await fillAndSubmit(user, 'Spring 2025', { clearFirst: true })
+
+      await waitFor(() => {
+        expect(mockUpdateBatchAction).toHaveBeenCalledWith(
+          'batch-123',
+          expect.objectContaining({ name: 'Spring 2025' })
+        )
+      })
+    })
+
+    it('closes dialog and shows success toast on success', async () => {
+      const user = userEvent.setup()
+      render(<CreateBatchDialog />)
+      await user.click(getSubmitButton())
+
+      await waitFor(() => {
+        expect(mockCloseDialog).toHaveBeenCalled()
+        expect(mockRefresh).toHaveBeenCalled()
+        expect(toast.success).toHaveBeenCalledWith(
+          expect.stringContaining('Fall 2024')
+        )
+      })
+    })
+
+    it('shows error toast on failure', async () => {
+      mockUpdateBatchAction.mockResolvedValue({
+        success: false,
+        error: 'Update failed',
+      })
+      const user = userEvent.setup()
+      render(<CreateBatchDialog />)
+      await user.click(getSubmitButton())
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith('Update failed')
+      })
     })
   })
 })

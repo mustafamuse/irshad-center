@@ -29,40 +29,17 @@ import {
 
 import { assignStudentsAction } from '../../_actions'
 import { MahadBatch, MahadStudent } from '../../_types'
-import { useDialogState, useMahadUIStore } from '../../store'
+import { useDialogType, useMahadUIStore } from '../../store'
 
-/**
- * Props for AssignStudentsDialog component.
- */
+function pluralize(count: number, singular: string): string {
+  return count === 1 ? singular : `${singular}s`
+}
+
 interface AssignStudentsDialogProps {
-  /** All students in the system (assigned and unassigned) */
   students: MahadStudent[]
-  /** Available batches to assign students to */
   batches: MahadBatch[]
 }
 
-/**
- * Dialog for bulk-assigning unassigned students to a batch.
- *
- * Features:
- * - Shows only students without a batch assignment
- * - Multi-select with checkboxes
- * - Select all / deselect all toggle
- * - Batch dropdown selector showing student counts
- * - Dynamic submit button text showing selection count and target batch
- * - Handles partial success (some assignments fail)
- * - Scrollable student list for large datasets
- * - Empty state when all students are already assigned
- *
- * Opens when `openDialog === 'assignStudents'` in the Zustand store.
- *
- * @example
- * // Trigger from dashboard header
- * openDialogWithData('assignStudents')
- *
- * // Render in parent component with data
- * <AssignStudentsDialog students={allStudents} batches={availableBatches} />
- */
 export function AssignStudentsDialog({
   students,
   batches,
@@ -74,10 +51,10 @@ export function AssignStudentsDialog({
     new Set()
   )
 
-  const openDialog = useDialogState()
+  const dialogType = useDialogType()
   const closeDialog = useMahadUIStore((s) => s.closeDialog)
 
-  const isOpen = openDialog === 'assignStudents'
+  const isOpen = dialogType === 'assignStudents'
 
   const unassignedStudents = useMemo(
     () => students.filter((s) => !s.batchId),
@@ -85,32 +62,26 @@ export function AssignStudentsDialog({
   )
 
   const handleOpenChange = (open: boolean) => {
-    if (!open && isPending) return
-    if (!open) {
-      closeDialog()
-      setSelectedBatchId('')
-      setSelectedStudentIds(new Set())
-    }
+    if (open || isPending) return
+    closeDialog()
+    setSelectedBatchId('')
+    setSelectedStudentIds(new Set())
   }
 
   const toggleStudent = (id: string) => {
     setSelectedStudentIds((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
+      next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
   }
 
+  const allSelected = selectedStudentIds.size === unassignedStudents.length
+
   const toggleAll = () => {
-    if (selectedStudentIds.size === unassignedStudents.length) {
-      setSelectedStudentIds(new Set())
-    } else {
-      setSelectedStudentIds(new Set(unassignedStudents.map((s) => s.id)))
-    }
+    setSelectedStudentIds(
+      allSelected ? new Set() : new Set(unassignedStudents.map((s) => s.id))
+    )
   }
 
   const handleSubmit = () => {
@@ -132,14 +103,13 @@ export function AssignStudentsDialog({
 
       if (result.success && result.data) {
         const { assignedCount, failedAssignments } = result.data
+        const studentWord = pluralize(assignedCount, 'student')
         if (failedAssignments.length > 0) {
           toast.warning(
-            `Assigned ${assignedCount} student${assignedCount !== 1 ? 's' : ''}. ${failedAssignments.length} failed.`
+            `Assigned ${assignedCount} ${studentWord}. ${failedAssignments.length} failed.`
           )
         } else {
-          toast.success(
-            `Successfully assigned ${assignedCount} student${assignedCount !== 1 ? 's' : ''}`
-          )
+          toast.success(`Successfully assigned ${assignedCount} ${studentWord}`)
         }
         handleOpenChange(false)
         router.refresh()
@@ -149,7 +119,7 @@ export function AssignStudentsDialog({
     })
   }
 
-  const selectedBatch = batches.find((b) => b.id === selectedBatchId)
+  const selectedBatchName = batches.find((b) => b.id === selectedBatchId)?.name
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -192,9 +162,7 @@ export function AssignStudentsDialog({
                   size="sm"
                   onClick={toggleAll}
                 >
-                  {selectedStudentIds.size === unassignedStudents.length
-                    ? 'Deselect All'
-                    : 'Select All'}
+                  {allSelected ? 'Deselect All' : 'Select All'}
                 </Button>
               )}
             </div>
@@ -268,9 +236,9 @@ export function AssignStudentsDialog({
             ) : (
               <>
                 <UserPlus className="mr-2 h-4 w-4" />
-                Assign {selectedStudentIds.size} Student
-                {selectedStudentIds.size !== 1 ? 's' : ''}
-                {selectedBatch ? ` to ${selectedBatch.name}` : ''}
+                Assign {selectedStudentIds.size}{' '}
+                {pluralize(selectedStudentIds.size, 'Student')}
+                {selectedBatchName && ` to ${selectedBatchName}`}
               </>
             )}
           </Button>
