@@ -49,15 +49,15 @@ export const webhookEmailSchema = z
  * Helper function to safely validate webhook data
  * Returns null if validation fails or if the data is undefined
  */
-export function validateWebhookData<T>(
+export async function validateWebhookData<T>(
   data: unknown,
   schema: z.ZodSchema<T>,
   fieldName: string
-): NonNullable<T> | null {
+): Promise<NonNullable<T> | null> {
   const result = schema.safeParse(data)
 
   if (!result.success) {
-    logWarning(logger, `Invalid ${fieldName} received`, {
+    await logWarning(logger, `Invalid ${fieldName} received`, {
       data,
       errors: result.error.issues.map((i) => i.message).join(', '),
     })

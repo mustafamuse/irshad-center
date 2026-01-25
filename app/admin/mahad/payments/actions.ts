@@ -35,7 +35,7 @@ export async function getBatchesForFilter() {
  */
 export async function runPaymentsBackfill() {
   'use server'
-  logWarning(
+  await logWarning(
     logger,
     'runPaymentsBackfill is deprecated and needs migration to new schema'
   )
