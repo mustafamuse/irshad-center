@@ -12,6 +12,7 @@
  */
 
 import { StripeAccountType, SubscriptionStatus } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
 import Stripe from 'stripe'
 
 import {
@@ -19,8 +20,11 @@ import {
   createSubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
+
+const logger = createServiceLogger('subscription-service')
 
 /**
  * Subscription validation result
@@ -70,8 +74,25 @@ export async function validateStripeSubscription(
   // Get appropriate Stripe client
   const stripe = getStripeClient(accountType)
 
-  // Retrieve subscription from Stripe
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId)
+  // Retrieve subscription from Stripe with error handling
+  let subscription: Stripe.Subscription
+  try {
+    subscription = await Sentry.startSpan(
+      { name: 'stripe.subscriptions.retrieve', op: 'http.client' },
+      async () => stripe.subscriptions.retrieve(subscriptionId)
+    )
+  } catch (error) {
+    await logError(
+      logger,
+      error,
+      'Failed to retrieve subscription from Stripe',
+      {
+        subscriptionId,
+        accountType,
+      }
+    )
+    throw error
+  }
 
   if (!subscription) {
     throw new Error('Subscription not found in Stripe')
@@ -282,8 +303,19 @@ export async function cancelSubscription(
     }
 
     const stripe = getStripeClient(accountType)
-    await stripe.subscriptions.cancel(subscriptionId)
-    canceledInStripe = true
+    try {
+      await Sentry.startSpan(
+        { name: 'stripe.subscriptions.cancel', op: 'http.client' },
+        async () => stripe.subscriptions.cancel(subscriptionId)
+      )
+      canceledInStripe = true
+    } catch (error) {
+      await logError(logger, error, 'Failed to cancel subscription in Stripe', {
+        subscriptionId,
+        accountType,
+      })
+      throw error
+    }
   }
 
   return {

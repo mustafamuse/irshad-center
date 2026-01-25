@@ -11,6 +11,7 @@ import {
   WhatsAppMessageType,
   WhatsAppRecipientType,
 } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
 
 import {
   STRIPE_CHECKOUT_DOMAIN,
@@ -175,60 +176,77 @@ async function sendTemplateMessage(
   input: BaseMessageInput,
   logMessage: string
 ): Promise<SendMessageResult> {
-  try {
-    const client = createWhatsAppClient()
-    const response = await client.sendTemplate(
-      context.formattedPhone,
-      context.templateName,
-      WHATSAPP_DEFAULT_LANGUAGE,
-      context.bodyParams,
-      context.buttonParams
-    )
+  return Sentry.startSpan(
+    { name: 'whatsapp.sendTemplate', op: 'http.client' },
+    async (span) => {
+      span.setAttribute('whatsapp.template', context.templateName)
+      span.setAttribute('whatsapp.program', input.program)
 
-    const waMessageId = response.messages[0]?.id
+      try {
+        const client = createWhatsAppClient()
+        const response = await client.sendTemplate(
+          context.formattedPhone,
+          context.templateName,
+          WHATSAPP_DEFAULT_LANGUAGE,
+          context.bodyParams,
+          context.buttonParams
+        )
 
-    try {
-      await createMessageRecord(context, input, waMessageId, 'sent')
-    } catch (dbError) {
-      if (isPrismaError(dbError) && dbError.code === 'P2002') {
-        await logWarning(logger, 'Duplicate message record detected', {
-          waMessageId,
-          phone: context.formattedPhone,
-        })
-        return { success: false, error: 'Duplicate message detected' }
+        const waMessageId = response.messages[0]?.id
+        if (waMessageId) {
+          span.setAttribute('whatsapp.message_id', waMessageId)
+        }
+
+        try {
+          await createMessageRecord(context, input, waMessageId, 'sent')
+        } catch (dbError) {
+          if (isPrismaError(dbError) && dbError.code === 'P2002') {
+            await logWarning(logger, 'Duplicate message record detected', {
+              waMessageId,
+              phone: context.formattedPhone,
+            })
+            return { success: false, error: 'Duplicate message detected' }
+          }
+          throw dbError
+        }
+
+        logger.info(
+          {
+            waMessageId,
+            phone: context.formattedPhone,
+            program: input.program,
+            templateName: context.templateName,
+          },
+          logMessage
+        )
+
+        return { success: true, waMessageId }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error'
+
+        await logError(
+          logger,
+          error,
+          `Failed to send WhatsApp ${context.templateName}`,
+          {
+            phone: context.formattedPhone,
+            program: input.program,
+          }
+        )
+
+        await createMessageRecord(
+          context,
+          input,
+          undefined,
+          'failed',
+          errorMessage
+        )
+
+        return { success: false, error: errorMessage }
       }
-      throw dbError
     }
-
-    logger.info(
-      {
-        waMessageId,
-        phone: context.formattedPhone,
-        program: input.program,
-        templateName: context.templateName,
-      },
-      logMessage
-    )
-
-    return { success: true, waMessageId }
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error'
-
-    await logError(
-      logger,
-      error,
-      `Failed to send WhatsApp ${context.templateName}`,
-      {
-        phone: context.formattedPhone,
-        program: input.program,
-      }
-    )
-
-    await createMessageRecord(context, input, undefined, 'failed', errorMessage)
-
-    return { success: false, error: errorMessage }
-  }
+  )
 }
 
 // ============================================================================
@@ -245,60 +263,73 @@ export interface SendPaymentLinkInput extends BaseMessageInput {
 export async function sendPaymentLink(
   input: SendPaymentLinkInput
 ): Promise<SendMessageResult> {
-  const { phone, parentName, amount, childCount, paymentUrl, program } = input
+  return Sentry.startSpan(
+    { name: 'whatsapp.sendPaymentLink', op: 'http.client' },
+    async (span) => {
+      const { phone, parentName, amount, childCount, paymentUrl, program } =
+        input
 
-  const phoneResult = await validateAndPreparePhone(phone, {
-    phone,
-    parentName,
-    program,
-  })
-  if (!phoneResult.valid) {
-    return { success: false, error: phoneResult.error }
-  }
-  const { formattedPhone } = phoneResult
+      span.setAttribute('whatsapp.program', program)
+      span.setAttribute('whatsapp.child_count', childCount)
 
-  const templateName = getPaymentLinkTemplate(program)
-
-  const duplicateCheck = await checkDuplicateMessage(
-    formattedPhone,
-    templateName,
-    program
-  )
-  if (duplicateCheck.isDuplicate) {
-    return { success: false, error: duplicateCheck.error }
-  }
-
-  const isStripeUrl = paymentUrl.includes(STRIPE_CHECKOUT_DOMAIN)
-  const sessionIdMatch = paymentUrl.match(STRIPE_SESSION_ID_PATTERN)
-  if (!isStripeUrl || !sessionIdMatch) {
-    await logWarning(
-      logger,
-      'Invalid Stripe checkout URL - missing domain or session ID',
-      {
-        paymentUrl,
-        phone: formattedPhone,
+      const phoneResult = await validateAndPreparePhone(phone, {
+        phone,
+        parentName,
         program,
-        isStripeUrl,
-        hasSessionId: !!sessionIdMatch,
+      })
+      if (!phoneResult.valid) {
+        return { success: false, error: phoneResult.error }
       }
-    )
-    return { success: false, error: 'Invalid payment URL format' }
-  }
+      const { formattedPhone } = phoneResult
 
-  const firstName = parentName.split(' ')[0] || parentName
+      const templateName = getPaymentLinkTemplate(program)
 
-  return sendTemplateMessage(
-    {
-      templateName,
-      formattedPhone,
-      messageType: WhatsAppMessageType.TRANSACTIONAL,
-      recipientType: WhatsAppRecipientType.PARENT,
-      bodyParams: [firstName, formatCurrency(amount), childCount.toString()],
-      buttonParams: [sessionIdMatch[0]],
-      metadata: { parentName, amount, childCount, paymentUrl },
-    },
-    input,
-    'Payment link sent via WhatsApp'
+      const duplicateCheck = await checkDuplicateMessage(
+        formattedPhone,
+        templateName,
+        program
+      )
+      if (duplicateCheck.isDuplicate) {
+        return { success: false, error: duplicateCheck.error }
+      }
+
+      const isStripeUrl = paymentUrl.includes(STRIPE_CHECKOUT_DOMAIN)
+      const sessionIdMatch = paymentUrl.match(STRIPE_SESSION_ID_PATTERN)
+      if (!isStripeUrl || !sessionIdMatch) {
+        await logWarning(
+          logger,
+          'Invalid Stripe checkout URL - missing domain or session ID',
+          {
+            paymentUrl,
+            phone: formattedPhone,
+            program,
+            isStripeUrl,
+            hasSessionId: !!sessionIdMatch,
+          }
+        )
+        return { success: false, error: 'Invalid payment URL format' }
+      }
+
+      const firstName = parentName.split(' ')[0] || parentName
+
+      return sendTemplateMessage(
+        {
+          templateName,
+          formattedPhone,
+          messageType: WhatsAppMessageType.TRANSACTIONAL,
+          recipientType: WhatsAppRecipientType.PARENT,
+          bodyParams: [
+            firstName,
+            formatCurrency(amount),
+            childCount.toString(),
+          ],
+          buttonParams: [sessionIdMatch[0]],
+          metadata: { parentName, amount, childCount, paymentUrl },
+        },
+        input,
+        'Payment link sent via WhatsApp'
+      )
+    }
   )
 }
 
@@ -316,53 +347,67 @@ export interface SendPaymentConfirmationInput extends BaseMessageInput {
 export async function sendPaymentConfirmation(
   input: SendPaymentConfirmationInput
 ): Promise<SendMessageResult> {
-  const { phone, parentName, amount, nextPaymentDate, studentNames, program } =
-    input
-
-  const phoneResult = await validateAndPreparePhone(phone, {
-    phone,
-    parentName,
-    program,
-  })
-  if (!phoneResult.valid) {
-    return { success: false, error: phoneResult.error }
-  }
-  const { formattedPhone } = phoneResult
-
-  const templateName = getPaymentConfirmedTemplate(program)
-
-  const duplicateCheck = await checkDuplicateMessage(
-    formattedPhone,
-    templateName,
-    program
-  )
-  if (duplicateCheck.isDuplicate) {
-    return { success: false, error: duplicateCheck.error }
-  }
-
-  const firstName = parentName.split(' ')[0] || parentName
-
-  return sendTemplateMessage(
-    {
-      templateName,
-      formattedPhone,
-      messageType: WhatsAppMessageType.NOTIFICATION,
-      recipientType: WhatsAppRecipientType.PARENT,
-      bodyParams: [
-        firstName,
-        formatCurrency(amount),
-        formatDate(nextPaymentDate),
-        studentNames.join(', '),
-      ],
-      metadata: {
+  return Sentry.startSpan(
+    { name: 'whatsapp.sendPaymentConfirmation', op: 'http.client' },
+    async (span) => {
+      const {
+        phone,
         parentName,
         amount,
-        nextPaymentDate: nextPaymentDate.toISOString(),
+        nextPaymentDate,
         studentNames,
-      },
-    },
-    input,
-    'Payment confirmation sent via WhatsApp'
+        program,
+      } = input
+
+      span.setAttribute('whatsapp.program', program)
+      span.setAttribute('whatsapp.student_count', studentNames.length)
+
+      const phoneResult = await validateAndPreparePhone(phone, {
+        phone,
+        parentName,
+        program,
+      })
+      if (!phoneResult.valid) {
+        return { success: false, error: phoneResult.error }
+      }
+      const { formattedPhone } = phoneResult
+
+      const templateName = getPaymentConfirmedTemplate(program)
+
+      const duplicateCheck = await checkDuplicateMessage(
+        formattedPhone,
+        templateName,
+        program
+      )
+      if (duplicateCheck.isDuplicate) {
+        return { success: false, error: duplicateCheck.error }
+      }
+
+      const firstName = parentName.split(' ')[0] || parentName
+
+      return sendTemplateMessage(
+        {
+          templateName,
+          formattedPhone,
+          messageType: WhatsAppMessageType.NOTIFICATION,
+          recipientType: WhatsAppRecipientType.PARENT,
+          bodyParams: [
+            firstName,
+            formatCurrency(amount),
+            formatDate(nextPaymentDate),
+            studentNames.join(', '),
+          ],
+          metadata: {
+            parentName,
+            amount,
+            nextPaymentDate: nextPaymentDate.toISOString(),
+            studentNames,
+          },
+        },
+        input,
+        'Payment confirmation sent via WhatsApp'
+      )
+    }
   )
 }
 
@@ -380,49 +425,56 @@ export interface SendPaymentReminderInput extends BaseMessageInput {
 export async function sendPaymentReminder(
   input: SendPaymentReminderInput
 ): Promise<SendMessageResult> {
-  const { phone, parentName, amount, dueDate, billingUrl, program } = input
+  return Sentry.startSpan(
+    { name: 'whatsapp.sendPaymentReminder', op: 'http.client' },
+    async (span) => {
+      const { phone, parentName, amount, dueDate, billingUrl, program } = input
 
-  const phoneResult = await validateAndPreparePhone(phone, {
-    phone,
-    parentName,
-    program,
-  })
-  if (!phoneResult.valid) {
-    return { success: false, error: phoneResult.error }
-  }
-  const { formattedPhone } = phoneResult
+      span.setAttribute('whatsapp.program', program)
 
-  const templateName = getPaymentReminderTemplate(program)
-
-  const duplicateCheck = await checkDuplicateMessage(
-    formattedPhone,
-    templateName,
-    program
-  )
-  if (duplicateCheck.isDuplicate) {
-    return { success: false, error: duplicateCheck.error }
-  }
-
-  const firstName = parentName.split(' ')[0] || parentName
-  const urlSuffix = billingUrl.split('/').pop() || ''
-
-  return sendTemplateMessage(
-    {
-      templateName,
-      formattedPhone,
-      messageType: WhatsAppMessageType.REMINDER,
-      recipientType: WhatsAppRecipientType.PARENT,
-      bodyParams: [firstName, formatCurrency(amount), formatDate(dueDate)],
-      buttonParams: urlSuffix ? [urlSuffix] : undefined,
-      metadata: {
+      const phoneResult = await validateAndPreparePhone(phone, {
+        phone,
         parentName,
-        amount,
-        dueDate: dueDate.toISOString(),
-        billingUrl,
-      },
-    },
-    input,
-    'Payment reminder sent via WhatsApp'
+        program,
+      })
+      if (!phoneResult.valid) {
+        return { success: false, error: phoneResult.error }
+      }
+      const { formattedPhone } = phoneResult
+
+      const templateName = getPaymentReminderTemplate(program)
+
+      const duplicateCheck = await checkDuplicateMessage(
+        formattedPhone,
+        templateName,
+        program
+      )
+      if (duplicateCheck.isDuplicate) {
+        return { success: false, error: duplicateCheck.error }
+      }
+
+      const firstName = parentName.split(' ')[0] || parentName
+      const urlSuffix = billingUrl.split('/').pop() || ''
+
+      return sendTemplateMessage(
+        {
+          templateName,
+          formattedPhone,
+          messageType: WhatsAppMessageType.REMINDER,
+          recipientType: WhatsAppRecipientType.PARENT,
+          bodyParams: [firstName, formatCurrency(amount), formatDate(dueDate)],
+          buttonParams: urlSuffix ? [urlSuffix] : undefined,
+          metadata: {
+            parentName,
+            amount,
+            dueDate: dueDate.toISOString(),
+            billingUrl,
+          },
+        },
+        input,
+        'Payment reminder sent via WhatsApp'
+      )
+    }
   )
 }
 
@@ -507,72 +559,86 @@ export async function sendBulkAnnouncement(
   recipientType: WhatsAppRecipientType,
   batchId?: string
 ): Promise<BulkSendResult> {
-  if (recipients.length > MAX_BULK_RECIPIENTS) {
-    await logWarning(logger, 'Bulk send recipients exceeds limit', {
-      recipientCount: recipients.length,
-      maxAllowed: MAX_BULK_RECIPIENTS,
-      program,
-    })
-    return {
-      total: recipients.length,
-      sent: 0,
-      failed: recipients.length,
-      results: recipients.map((r) => ({
-        phone: r.phone,
-        success: false,
-        error: `Batch size ${recipients.length} exceeds limit of ${MAX_BULK_RECIPIENTS}`,
-      })),
+  return Sentry.startSpan(
+    { name: 'whatsapp.sendBulkAnnouncement', op: 'http.client' },
+    async (span) => {
+      span.setAttribute('whatsapp.program', program)
+      span.setAttribute('whatsapp.recipient_count', recipients.length)
+      span.setAttribute('whatsapp.recipient_type', recipientType)
+
+      if (recipients.length > MAX_BULK_RECIPIENTS) {
+        await logWarning(logger, 'Bulk send recipients exceeds limit', {
+          recipientCount: recipients.length,
+          maxAllowed: MAX_BULK_RECIPIENTS,
+          program,
+        })
+        return {
+          total: recipients.length,
+          sent: 0,
+          failed: recipients.length,
+          results: recipients.map((r) => ({
+            phone: r.phone,
+            success: false,
+            error: `Batch size ${recipients.length} exceeds limit of ${MAX_BULK_RECIPIENTS}`,
+          })),
+        }
+      }
+
+      const results: BulkSendResult['results'] = []
+      let sent = 0
+      let failed = 0
+
+      for (const recipient of recipients) {
+        const result = await sendClassAnnouncement({
+          phone: recipient.phone,
+          message,
+          program,
+          recipientType,
+          personId: recipient.personId,
+          familyId: recipient.familyId,
+          batchId,
+        })
+
+        results.push({
+          phone: recipient.phone,
+          success: result.success,
+          waMessageId: result.waMessageId,
+          error: result.error,
+        })
+
+        if (result.success) {
+          sent++
+        } else {
+          failed++
+        }
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, BULK_MESSAGE_DELAY_MS)
+        )
+      }
+
+      span.setAttribute('whatsapp.sent_count', sent)
+      span.setAttribute('whatsapp.failed_count', failed)
+
+      logger.info(
+        {
+          total: recipients.length,
+          sent,
+          failed,
+          program,
+          recipientType,
+        },
+        'Bulk announcement completed'
+      )
+
+      return {
+        total: recipients.length,
+        sent,
+        failed,
+        results,
+      }
     }
-  }
-
-  const results: BulkSendResult['results'] = []
-  let sent = 0
-  let failed = 0
-
-  for (const recipient of recipients) {
-    const result = await sendClassAnnouncement({
-      phone: recipient.phone,
-      message,
-      program,
-      recipientType,
-      personId: recipient.personId,
-      familyId: recipient.familyId,
-      batchId,
-    })
-
-    results.push({
-      phone: recipient.phone,
-      success: result.success,
-      waMessageId: result.waMessageId,
-      error: result.error,
-    })
-
-    if (result.success) {
-      sent++
-    } else {
-      failed++
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, BULK_MESSAGE_DELAY_MS))
-  }
-
-  logger.info(
-    {
-      total: recipients.length,
-      sent,
-      failed,
-      program,
-      recipientType,
-    },
-    'Bulk announcement completed'
   )
-
-  return {
-    total: recipients.length,
-    sent,
-    failed,
-    results,
-  }
 }
 
 // Re-export the result type for backwards compatibility

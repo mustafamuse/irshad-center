@@ -20,6 +20,9 @@ import {
   extractContactInfo,
 } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger, logError } from '@/lib/logger'
+
+const logger = createServiceLogger('batch-queries')
 
 /**
  * Type representing a batch with student count
@@ -375,6 +378,10 @@ export async function assignStudentsToBatch(
 
       results.assignedCount++
     } catch (error) {
+      await logError(logger, error, 'Failed to assign student to batch', {
+        studentId,
+        batchId,
+      })
       results.failedAssignments.push(studentId)
       results.errors.push(
         `Failed to assign student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -442,6 +449,16 @@ export async function transferStudents(
         results.errors.push(`Student ${studentId} not found in source batch`)
       }
     } catch (error) {
+      await logError(
+        logger,
+        error,
+        'Failed to transfer student between batches',
+        {
+          studentId,
+          fromBatchId,
+          toBatchId,
+        }
+      )
       results.failedTransfers.push(studentId)
       results.errors.push(
         `Failed to transfer student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`

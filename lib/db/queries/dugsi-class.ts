@@ -17,7 +17,7 @@ import {
   ClassNotFoundError,
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('dugsi-class-queries')
 
@@ -269,17 +269,10 @@ export async function bulkEnrollStudents(
       timeout: BULK_ENROLLMENT_TIMEOUT_MS,
     })
   } catch (error) {
-    logger.error(
-      {
-        classId,
-        programProfileIds: uniqueIds,
-        error:
-          error instanceof Error
-            ? { message: error.message, name: error.name, stack: error.stack }
-            : error,
-      },
-      'Bulk enrollment failed'
-    )
+    await logError(logger, error, 'Bulk enrollment failed', {
+      classId,
+      programProfileIds: uniqueIds,
+    })
     throw error
   }
 }

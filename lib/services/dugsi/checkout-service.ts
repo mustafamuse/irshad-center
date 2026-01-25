@@ -8,6 +8,8 @@
  * never client-provided values.
  */
 
+import * as Sentry from '@sentry/nextjs'
+
 import { featureFlags } from '@/lib/config/feature-flags'
 import { prisma } from '@/lib/db'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
@@ -305,64 +307,68 @@ export async function createDugsiCheckoutSession(
   )
 
   // Create the checkout session
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    // Feature flag: Toggle card payments to manage transaction fees
-    // ACH only: Lower fees for the organization
-    // Card + ACH: More convenience for families
-    payment_method_types: featureFlags.dugsiCardPayments()
-      ? ['card', 'us_bank_account']
-      : ['us_bank_account'],
-    customer: customerId,
-    customer_email: customerId ? undefined : guardianEmail,
-    line_items: [
-      {
-        price_data: {
-          currency: 'usd',
-          product: productId,
-          unit_amount: rateInCents,
-          recurring: intervalConfig,
+  const session = await Sentry.startSpan(
+    { name: 'stripe.checkout.sessions.create', op: 'http.client' },
+    async () =>
+      stripe.checkout.sessions.create({
+        mode: 'subscription',
+        // Feature flag: Toggle card payments to manage transaction fees
+        // ACH only: Lower fees for the organization
+        // Card + ACH: More convenience for families
+        payment_method_types: featureFlags.dugsiCardPayments()
+          ? ['card', 'us_bank_account']
+          : ['us_bank_account'],
+        customer: customerId,
+        customer_email: customerId ? undefined : guardianEmail,
+        line_items: [
+          {
+            price_data: {
+              currency: 'usd',
+              product: productId,
+              unit_amount: rateInCents,
+              recurring: intervalConfig,
+            },
+            quantity: 1,
+          },
+        ],
+        subscription_data: {
+          ...(billingCycleAnchor && {
+            billing_cycle_anchor: billingCycleAnchor,
+            proration_behavior: 'none' as const,
+          }),
+          metadata: {
+            // Human-readable (for Stripe dashboard)
+            Family: primaryGuardian.name,
+            Children: childNames,
+            Rate: formatRateDisplay(rateInCents),
+            Tier: getRateTierDescription(actualChildCount),
+            Source: 'Dugsi Admin Payment Link',
+            // Technical (for webhook processing - DO NOT REMOVE)
+            familyId,
+            guardianPersonId: primaryGuardian.id,
+            childCount: actualChildCount.toString(),
+            profileIds: familyProfiles.map((p) => p.id).join(','),
+            calculatedRate: calculatedRate.toString(),
+            overrideUsed: isOverride ? 'true' : 'false',
+            billingStartDate: billingStartDate || 'immediate',
+            source: 'dugsi-admin-payment-link',
+          },
         },
-        quantity: 1,
-      },
-    ],
-    subscription_data: {
-      ...(billingCycleAnchor && {
-        billing_cycle_anchor: billingCycleAnchor,
-        proration_behavior: 'none' as const,
-      }),
-      metadata: {
-        // Human-readable (for Stripe dashboard)
-        Family: primaryGuardian.name,
-        Children: childNames,
-        Rate: formatRateDisplay(rateInCents),
-        Tier: getRateTierDescription(actualChildCount),
-        Source: 'Dugsi Admin Payment Link',
-        // Technical (for webhook processing - DO NOT REMOVE)
-        familyId,
-        guardianPersonId: primaryGuardian.id,
-        childCount: actualChildCount.toString(),
-        profileIds: familyProfiles.map((p) => p.id).join(','),
-        calculatedRate: calculatedRate.toString(),
-        overrideUsed: isOverride ? 'true' : 'false',
-        billingStartDate: billingStartDate || 'immediate',
-        source: 'dugsi-admin-payment-link',
-      },
-    },
-    metadata: {
-      // Human-readable (for Stripe dashboard)
-      Family: primaryGuardian.name,
-      Source: 'Dugsi Admin Payment Link',
-      // Technical (for webhook processing)
-      familyId,
-      guardianPersonId: primaryGuardian.id,
-      childCount: actualChildCount.toString(),
-      source: 'dugsi-admin-payment-link',
-    },
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    allow_promotion_codes: true,
-  })
+        metadata: {
+          // Human-readable (for Stripe dashboard)
+          Family: primaryGuardian.name,
+          Source: 'Dugsi Admin Payment Link',
+          // Technical (for webhook processing)
+          familyId,
+          guardianPersonId: primaryGuardian.id,
+          childCount: actualChildCount.toString(),
+          source: 'dugsi-admin-payment-link',
+        },
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        allow_promotion_codes: true,
+      })
+  )
 
   // Validate session URL was created
   if (!session.url) {

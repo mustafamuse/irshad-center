@@ -28,7 +28,7 @@ import {
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
 } from '@/lib/db/queries/billing'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
   linkSubscriptionToProfiles,
@@ -342,20 +342,31 @@ export async function handleSubscriptionCreated(
   if (profileIds && profileIds.length > 0) {
     // Validate subscription has items with valid pricing
     if (!subscription.items?.data?.length) {
-      logger.error(
-        { subscriptionId: subscription.id },
-        'Subscription has no items - cannot link to profiles'
+      const error = new Error('Subscription has no items')
+      await logError(
+        logger,
+        error,
+        'Subscription has no items - cannot link to profiles',
+        {
+          subscriptionId: subscription.id,
+        }
       )
-      throw new Error('Subscription has no items')
+      throw error
     }
 
     const priceAmount = subscription.items.data[0]?.price?.unit_amount
     if (priceAmount === null || priceAmount === undefined || priceAmount <= 0) {
-      logger.error(
-        { subscriptionId: subscription.id, priceAmount },
-        'Subscription has invalid amount - cannot link to profiles'
+      const error = new Error('Subscription has invalid amount')
+      await logError(
+        logger,
+        error,
+        'Subscription has invalid amount - cannot link to profiles',
+        {
+          subscriptionId: subscription.id,
+          priceAmount,
+        }
       )
-      throw new Error('Subscription has invalid amount')
+      throw error
     }
 
     const amount = priceAmount

@@ -16,11 +16,14 @@ import {
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { createActionLogger, logError } from '@/lib/logger'
 import {
   mahadEnrollmentInclude,
   extractStudentEmail,
   extractStudentPhone,
 } from '@/lib/mappers/mahad-mapper'
+
+const logger = createActionLogger('batch-data')
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -447,7 +450,9 @@ export async function deleteDuplicateRecords(
 
     return { success: true, deleted: profileIds.length }
   } catch (error) {
-    console.error('Delete duplicate records error:', error)
+    await logError(logger, error, 'Failed to delete duplicate records', {
+      profileIds,
+    })
     return {
       success: false,
       deleted: 0,

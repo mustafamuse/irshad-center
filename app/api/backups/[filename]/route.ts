@@ -3,12 +3,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
 import path from 'path'
 
+import { createActionLogger, logError } from '@/lib/logger'
+
+const logger = createActionLogger('backup-file-route')
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ filename: string }> }
 ) {
+  const { filename } = await params
   try {
-    const { filename } = await params
     const backupDir = path.join(process.cwd(), 'backups')
     const filePath = path.join(backupDir, filename)
 
@@ -37,7 +41,7 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error serving backup file:', error)
+    await logError(logger, error, 'Error serving backup file', { filename })
     return NextResponse.json({ error: 'Failed to serve file' }, { status: 500 })
   }
 }

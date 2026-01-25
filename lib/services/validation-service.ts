@@ -9,7 +9,7 @@ import { Program, GuardianRole, EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('validation')
 
@@ -68,18 +68,21 @@ export async function validateEnrollment(
     })
 
     if (!programProfile) {
-      logger.error(
-        {
-          programProfileId: data.programProfileId,
-          usingTransactionClient: client !== prisma,
-        },
-        'Program profile not found during validation - may be transaction isolation issue'
-      )
-      throw new ValidationError(
+      const validationError = new ValidationError(
         'Program profile not found',
         'PROFILE_NOT_FOUND',
         { programProfileId: data.programProfileId }
       )
+      await logError(
+        logger,
+        validationError,
+        'Program profile not found during validation - may be transaction isolation issue',
+        {
+          programProfileId: data.programProfileId,
+          usingTransactionClient: client !== prisma,
+        }
+      )
+      throw validationError
     }
 
     program = programProfile.program
@@ -92,12 +95,18 @@ export async function validateEnrollment(
     program = data.program
     logger.info({ program }, 'Using program provided directly')
   } else {
-    logger.error({ data }, 'Neither programProfileId nor program provided')
-    throw new ValidationError(
+    const validationError = new ValidationError(
       'Either programProfileId or program must be provided',
       'MISSING_PROGRAM_INFO',
       { data }
     )
+    await logError(
+      logger,
+      validationError,
+      'Neither programProfileId nor program provided',
+      { data }
+    )
+    throw validationError
   }
 
   // Validate based on program

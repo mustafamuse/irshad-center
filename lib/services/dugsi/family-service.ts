@@ -12,6 +12,7 @@
  */
 
 import { GradeLevel, Prisma, Shift } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
@@ -21,9 +22,6 @@ import {
   updateFamilyShift as updateFamilyShiftQuery,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger } from '@/lib/logger'
-
-const _logger = createServiceLogger('dugsi-family')
 
 /** Phone format: XXX-XXX-XXXX */
 const PHONE_REGEX = /^\d{3}-\d{3}-\d{4}$/
@@ -175,49 +173,54 @@ export async function updateParentInfo(
     (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
   )
 
-  await prisma.$transaction(async (tx) => {
-    // Update guardian name
-    await tx.person.update({
-      where: { id: guardian.id },
-      data: { name: fullName },
-    })
-
-    // Update or create phone contact point with P2002 race condition handling
-    if (existingPhone) {
-      await tx.contactPoint.update({
-        where: { id: existingPhone.id },
-        data: { value: input.phone },
-      })
-    } else {
-      try {
-        await tx.contactPoint.create({
-          data: {
-            personId: guardian.id,
-            type: 'PHONE',
-            value: input.phone,
-          },
+  await Sentry.startSpan(
+    { name: 'family.updateParentInfo', op: 'db.transaction' },
+    async () => {
+      await prisma.$transaction(async (tx) => {
+        // Update guardian name
+        await tx.person.update({
+          where: { id: guardian.id },
+          data: { name: fullName },
         })
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          // Race condition - contact point was created by another transaction
-          const existing = await tx.contactPoint.findFirst({
-            where: { personId: guardian.id, type: 'PHONE' },
+
+        // Update or create phone contact point with P2002 race condition handling
+        if (existingPhone) {
+          await tx.contactPoint.update({
+            where: { id: existingPhone.id },
+            data: { value: input.phone },
           })
-          if (existing) {
-            await tx.contactPoint.update({
-              where: { id: existing.id },
-              data: { value: input.phone },
-            })
-          }
         } else {
-          throw error
+          try {
+            await tx.contactPoint.create({
+              data: {
+                personId: guardian.id,
+                type: 'PHONE',
+                value: input.phone,
+              },
+            })
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              // Race condition - contact point was created by another transaction
+              const existing = await tx.contactPoint.findFirst({
+                where: { personId: guardian.id, type: 'PHONE' },
+              })
+              if (existing) {
+                await tx.contactPoint.update({
+                  where: { id: existing.id },
+                  data: { value: input.phone },
+                })
+              }
+            } else {
+              throw error
+            }
+          }
         }
-      }
+      })
     }
-  })
+  )
 
   return { updated: 1 }
 }
@@ -268,75 +271,84 @@ export async function addSecondParent(
   }
 
   // Create person and guardian relationship in a transaction with race condition handling
-  await prisma.$transaction(async (tx) => {
-    let parentPersonId: string
-    const normalizedEmail = input.email.toLowerCase().trim()
+  await Sentry.startSpan(
+    { name: 'family.addSecondParent', op: 'db.transaction' },
+    async () => {
+      await prisma.$transaction(async (tx) => {
+        let parentPersonId: string
+        const normalizedEmail = input.email.toLowerCase().trim()
 
-    // Check if person with this email already exists (using tx for true TOCTOU safety)
-    const existingPerson = await findPersonByContact(input.email, null, tx)
+        // Check if person with this email already exists (using tx for true TOCTOU safety)
+        const existingPerson = await findPersonByContact(input.email, null, tx)
 
-    if (existingPerson) {
-      parentPersonId = existingPerson.id
-    } else {
-      // Create new person for second parent with race condition handling
-      const fullName = `${input.firstName} ${input.lastName}`.trim()
-      try {
-        const newPerson = await tx.person.create({
-          data: {
-            name: fullName,
-            contactPoints: {
-              create: [
-                { type: 'EMAIL', value: normalizedEmail },
-                { type: 'PHONE', value: input.phone },
-              ],
-            },
-          },
-        })
-        parentPersonId = newPerson.id
-      } catch (error) {
-        // Handle P2002 unique constraint violation (race condition)
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          // Another transaction created this person - look them up (using tx)
-          const racedPerson = await findPersonByContact(input.email, null, tx)
-          if (!racedPerson) {
-            throw new ActionError(
-              'Failed to create or find person',
-              ERROR_CODES.SERVER_ERROR,
-              undefined,
-              500
-            )
-          }
-          parentPersonId = racedPerson.id
+        if (existingPerson) {
+          parentPersonId = existingPerson.id
         } else {
+          // Create new person for second parent with race condition handling
+          const fullName = `${input.firstName} ${input.lastName}`.trim()
+          try {
+            const newPerson = await tx.person.create({
+              data: {
+                name: fullName,
+                contactPoints: {
+                  create: [
+                    { type: 'EMAIL', value: normalizedEmail },
+                    { type: 'PHONE', value: input.phone },
+                  ],
+                },
+              },
+            })
+            parentPersonId = newPerson.id
+          } catch (error) {
+            // Handle P2002 unique constraint violation (race condition)
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              // Another transaction created this person - look them up (using tx)
+              const racedPerson = await findPersonByContact(
+                input.email,
+                null,
+                tx
+              )
+              if (!racedPerson) {
+                throw new ActionError(
+                  'Failed to create or find person',
+                  ERROR_CODES.SERVER_ERROR,
+                  undefined,
+                  500
+                )
+              }
+              parentPersonId = racedPerson.id
+            } else {
+              throw error
+            }
+          }
+        }
+
+        // Create guardian relationship with race condition handling
+        try {
+          await tx.guardianRelationship.create({
+            data: {
+              guardianId: parentPersonId,
+              dependentId: person.id,
+              isActive: true,
+            },
+          })
+        } catch (error) {
+          // Handle P2002 if relationship already exists (race condition)
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            // Relationship already exists - this is fine, operation is idempotent
+            return
+          }
           throw error
         }
-      }
-    }
-
-    // Create guardian relationship with race condition handling
-    try {
-      await tx.guardianRelationship.create({
-        data: {
-          guardianId: parentPersonId,
-          dependentId: person.id,
-          isActive: true,
-        },
       })
-    } catch (error) {
-      // Handle P2002 if relationship already exists (race condition)
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        // Relationship already exists - this is fine, operation is idempotent
-        return
-      }
-      throw error
     }
-  })
+  )
 
   return { updated: 1 }
 }
@@ -363,50 +375,55 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
     )
   }
 
-  // Build Person update data (consolidated into single query)
-  const personUpdateData: { name?: string; dateOfBirth?: Date } = {}
+  await Sentry.startSpan(
+    { name: 'family.updateChildInfo', op: 'db.transaction' },
+    async () => {
+      // Build Person update data (consolidated into single query)
+      const personUpdateData: { name?: string; dateOfBirth?: Date } = {}
 
-  if (input.firstName || input.lastName) {
-    const currentName = profile.person.name.split(' ')
-    const firstName = input.firstName || currentName[0] || ''
-    const lastName = input.lastName || currentName.slice(1).join(' ') || ''
-    personUpdateData.name = `${firstName} ${lastName}`.trim()
-  }
+      if (input.firstName || input.lastName) {
+        const currentName = profile.person.name.split(' ')
+        const firstName = input.firstName || currentName[0] || ''
+        const lastName = input.lastName || currentName.slice(1).join(' ') || ''
+        personUpdateData.name = `${firstName} ${lastName}`.trim()
+      }
 
-  if (input.dateOfBirth !== undefined) {
-    personUpdateData.dateOfBirth = input.dateOfBirth
-  }
+      if (input.dateOfBirth !== undefined) {
+        personUpdateData.dateOfBirth = input.dateOfBirth
+      }
 
-  // Update person record (single query for name and DOB)
-  if (Object.keys(personUpdateData).length > 0) {
-    await prisma.person.update({
-      where: { id: profile.personId },
-      data: personUpdateData,
-    })
-  }
+      // Update person record (single query for name and DOB)
+      if (Object.keys(personUpdateData).length > 0) {
+        await prisma.person.update({
+          where: { id: profile.personId },
+          data: personUpdateData,
+        })
+      }
 
-  // Update program profile fields
-  const profileUpdates: Partial<{
-    gender: 'MALE' | 'FEMALE'
-    gradeLevel: GradeLevel
-    schoolName: string | null
-    healthInfo: string | null
-  }> = {}
+      // Update program profile fields
+      const profileUpdates: Partial<{
+        gender: 'MALE' | 'FEMALE'
+        gradeLevel: GradeLevel
+        schoolName: string | null
+        healthInfo: string | null
+      }> = {}
 
-  if (input.gender !== undefined) profileUpdates.gender = input.gender
-  if (input.gradeLevel !== undefined)
-    profileUpdates.gradeLevel = input.gradeLevel
-  if (input.schoolName !== undefined)
-    profileUpdates.schoolName = input.schoolName || null
-  if (input.healthInfo !== undefined)
-    profileUpdates.healthInfo = input.healthInfo
+      if (input.gender !== undefined) profileUpdates.gender = input.gender
+      if (input.gradeLevel !== undefined)
+        profileUpdates.gradeLevel = input.gradeLevel
+      if (input.schoolName !== undefined)
+        profileUpdates.schoolName = input.schoolName || null
+      if (input.healthInfo !== undefined)
+        profileUpdates.healthInfo = input.healthInfo
 
-  if (Object.keys(profileUpdates).length > 0) {
-    await prisma.programProfile.update({
-      where: { id: input.studentId },
-      data: profileUpdates,
-    })
-  }
+      if (Object.keys(profileUpdates).length > 0) {
+        await prisma.programProfile.update({
+          where: { id: input.studentId },
+          data: profileUpdates,
+        })
+      }
+    }
+  )
 }
 
 /**
@@ -464,49 +481,54 @@ export async function addChildToFamily(
   // Create new child with all related records in a transaction
   const fullName = `${input.firstName} ${input.lastName}`.trim()
 
-  const newProfile = await prisma.$transaction(async (tx) => {
-    // Create new person for child
-    const newPerson = await tx.person.create({
-      data: {
-        name: fullName,
-        dateOfBirth: input.dateOfBirth || null,
-      },
-    })
+  const newProfile = await Sentry.startSpan(
+    { name: 'family.addChildToFamily', op: 'db.transaction' },
+    async () => {
+      return prisma.$transaction(async (tx) => {
+        // Create new person for child
+        const newPerson = await tx.person.create({
+          data: {
+            name: fullName,
+            dateOfBirth: input.dateOfBirth || null,
+          },
+        })
 
-    // Create guardian relationships for all guardians (batch insert)
-    await tx.guardianRelationship.createMany({
-      data: guardians.map((guardian) => ({
-        guardianId: guardian.id,
-        dependentId: newPerson.id,
-        isActive: true,
-      })),
-    })
+        // Create guardian relationships for all guardians (batch insert)
+        await tx.guardianRelationship.createMany({
+          data: guardians.map((guardian) => ({
+            guardianId: guardian.id,
+            dependentId: newPerson.id,
+            isActive: true,
+          })),
+        })
 
-    // Create program profile
-    const profile = await tx.programProfile.create({
-      data: {
-        personId: newPerson.id,
-        program: DUGSI_PROGRAM,
-        familyReferenceId: familyId,
-        gender: input.gender,
-        gradeLevel: input.gradeLevel,
-        schoolName: input.schoolName || null,
-        healthInfo: input.healthInfo || null,
-        status: 'REGISTERED',
-      },
-    })
+        // Create program profile
+        const profile = await tx.programProfile.create({
+          data: {
+            personId: newPerson.id,
+            program: DUGSI_PROGRAM,
+            familyReferenceId: familyId,
+            gender: input.gender,
+            gradeLevel: input.gradeLevel,
+            schoolName: input.schoolName || null,
+            healthInfo: input.healthInfo || null,
+            status: 'REGISTERED',
+          },
+        })
 
-    // Create enrollment
-    await tx.enrollment.create({
-      data: {
-        programProfileId: profile.id,
-        status: 'REGISTERED',
-        startDate: new Date(),
-      },
-    })
+        // Create enrollment
+        await tx.enrollment.create({
+          data: {
+            programProfileId: profile.id,
+            status: 'REGISTERED',
+            startDate: new Date(),
+          },
+        })
 
-    return profile
-  })
+        return profile
+      })
+    }
+  )
 
   return { childId: newProfile.id }
 }
@@ -582,28 +604,33 @@ export async function setPrimaryPayer(
   const childPersonIds = familyProfiles.map((p) => p.personId)
 
   // Update in transaction: clear all isPrimaryPayer, then set selected guardian
-  const result = await prisma.$transaction(async (tx) => {
-    // Clear isPrimaryPayer for all guardians of these children
-    await tx.guardianRelationship.updateMany({
-      where: {
-        dependentId: { in: childPersonIds },
-        isActive: true,
-      },
-      data: { isPrimaryPayer: false },
-    })
+  const result = await Sentry.startSpan(
+    { name: 'family.setPrimaryPayer', op: 'db.transaction' },
+    async () => {
+      return prisma.$transaction(async (tx) => {
+        // Clear isPrimaryPayer for all guardians of these children
+        await tx.guardianRelationship.updateMany({
+          where: {
+            dependentId: { in: childPersonIds },
+            isActive: true,
+          },
+          data: { isPrimaryPayer: false },
+        })
 
-    // Set isPrimaryPayer for selected guardian
-    const updated = await tx.guardianRelationship.updateMany({
-      where: {
-        guardianId: selectedGuardian.id,
-        dependentId: { in: childPersonIds },
-        isActive: true,
-      },
-      data: { isPrimaryPayer: true },
-    })
+        // Set isPrimaryPayer for selected guardian
+        const updated = await tx.guardianRelationship.updateMany({
+          where: {
+            guardianId: selectedGuardian.id,
+            dependentId: { in: childPersonIds },
+            isActive: true,
+          },
+          data: { isPrimaryPayer: true },
+        })
 
-    return updated.count
-  })
+        return updated.count
+      })
+    }
+  )
 
   return { updated: result }
 }

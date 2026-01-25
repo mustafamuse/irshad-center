@@ -9,10 +9,13 @@
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { createActionLogger, logError } from '@/lib/logger'
 import {
   extractStudentEmail,
   extractStudentPhone,
 } from '@/lib/mappers/mahad-mapper'
+
+const logger = createActionLogger('backup-data')
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -249,7 +252,7 @@ export async function backupData(): Promise<BackupResult> {
       },
     }
   } catch (error) {
-    console.error('Backup data error:', error)
+    await logError(logger, error, 'Failed to export backup data')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to export data',

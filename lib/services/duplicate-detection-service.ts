@@ -40,11 +40,11 @@ import { Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
-import { createClientLogger } from '@/lib/logger-client'
+import { createServiceLogger, logError } from '@/lib/logger'
 import type { DuplicateField } from '@/lib/types/registration-errors'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 
-const logger = createClientLogger('DuplicateDetectionService')
+const logger = createServiceLogger('duplicate-detection')
 
 /**
  * Result of a duplicate detection check
@@ -126,11 +126,10 @@ export class DuplicateDetectionService {
       }
     }
 
-    logger.info('Checking for duplicate registration', {
-      email,
-      phone,
-      program,
-    })
+    logger.info(
+      { email, phone, program },
+      'Checking for duplicate registration'
+    )
 
     try {
       // Find person by email or phone
@@ -138,7 +137,7 @@ export class DuplicateDetectionService {
 
       // No person found - not a duplicate
       if (!existingPerson) {
-        logger.info('No existing person found', { email, phone })
+        logger.info({ email, phone }, 'No existing person found')
         return {
           isDuplicate: false,
           duplicateField: null,
@@ -147,11 +146,10 @@ export class DuplicateDetectionService {
         }
       }
 
-      logger.info('Found existing person', {
-        personId: existingPerson.id,
-        email,
-        phone,
-      })
+      logger.info(
+        { personId: existingPerson.id, email, phone },
+        'Found existing person'
+      )
 
       // Check if person has an active profile for the specified program
       const activeProfile = existingPerson.programProfiles.find(
@@ -168,12 +166,15 @@ export class DuplicateDetectionService {
         phone
       )
 
-      logger.info('Duplicate check complete', {
-        isDuplicate: true,
-        duplicateField,
-        hasActiveProfile,
-        profileId: activeProfile?.id,
-      })
+      logger.info(
+        {
+          isDuplicate: true,
+          duplicateField,
+          hasActiveProfile,
+          profileId: activeProfile?.id,
+        },
+        'Duplicate check complete'
+      )
 
       return {
         isDuplicate: true,
@@ -190,8 +191,7 @@ export class DuplicateDetectionService {
           : undefined,
       }
     } catch (error) {
-      logger.error('Duplicate check failed', {
-        err: error,
+      await logError(logger, error, 'Duplicate check failed', {
         email,
         phone,
         program,

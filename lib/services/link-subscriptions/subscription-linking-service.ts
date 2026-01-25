@@ -23,7 +23,7 @@ import {
   getProgramProfiles,
   searchProgramProfilesByNameOrContact,
 } from '@/lib/db/queries/program-profile'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
   linkSubscriptionToProfiles,
@@ -493,7 +493,7 @@ export async function linkSubscriptionToProfile(
 
     return { success: true }
   } catch (error) {
-    logger.error({ err: error }, 'Error linking subscription')
+    await logError(logger, error, 'Error linking subscription')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -536,7 +536,7 @@ export async function ignoreSubscription(
 
     return { success: true }
   } catch (error) {
-    logger.error({ err: error }, 'Error ignoring subscription')
+    await logError(logger, error, 'Error ignoring subscription')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -572,7 +572,7 @@ export async function unignoreSubscription(
 
     return { success: true }
   } catch (error) {
-    logger.error({ err: error }, 'Error unignoring subscription')
+    await logError(logger, error, 'Error unignoring subscription')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
