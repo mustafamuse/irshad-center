@@ -8,7 +8,10 @@
 import { Shift } from '@prisma/client'
 import { toZonedTime } from 'date-fns-tz'
 
+import { createClientLogger } from '@/lib/logger-client'
 import { calculateDistance } from '@/lib/services/geolocation-service'
+
+const logger = createClientLogger('teacher-checkin')
 
 // ============================================================================
 // TIMEZONE CONFIGURATION
@@ -133,7 +136,7 @@ export function isLateForShift(clockInTime: Date, shift: Shift): boolean {
  */
 export function isWithinGeofence(lat: number, lng: number): boolean {
   if (IRSHAD_CENTER_LOCATION.lat === 0 && IRSHAD_CENTER_LOCATION.lng === 0) {
-    console.warn(
+    logger.warn(
       'IRSHAD_CENTER_LAT and IRSHAD_CENTER_LNG environment variables not set'
     )
     return false

@@ -3,12 +3,15 @@ import { useState, useCallback } from 'react'
 import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { createClientLogger } from '@/lib/logger-client'
 import {
   MahadRegistrationValues as StudentFormValues,
   type SearchResult,
 } from '@/lib/registration/schemas/registration'
 
 import { registerStudent as registerStudentAction } from '../_actions'
+
+const logger = createClientLogger('mahad-registration')
 
 interface RegistrationResult {
   studentCount: number
@@ -79,7 +82,7 @@ export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
           studentName: result.data.name,
         })
       } catch (error) {
-        console.error('Registration error:', error)
+        logger.error('Registration error:', error)
         toast.error(
           error instanceof Error
             ? error.message

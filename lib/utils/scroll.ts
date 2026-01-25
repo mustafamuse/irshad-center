@@ -1,3 +1,7 @@
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('scroll')
+
 export function scrollToElement(elementId: string, offset: number = 0) {
   if (typeof window === 'undefined') return
 
@@ -18,8 +22,7 @@ export function scrollToElement(elementId: string, offset: number = 0) {
         behavior: 'smooth',
       })
 
-      // Log for debugging
-      console.log(`Scrolled to ${elementId} at position ${offsetPosition}`)
+      logger.debug(`Scrolled to ${elementId} at position ${offsetPosition}`)
       return true
     }
     return false
@@ -27,7 +30,7 @@ export function scrollToElement(elementId: string, offset: number = 0) {
 
   const attemptScroll = () => {
     if (attempts >= maxAttempts) {
-      console.warn(
+      logger.warn(
         `Failed to find element #${elementId} after ${maxAttempts} attempts`
       )
       return
@@ -50,7 +53,7 @@ export function handleHashScroll(offset: number = 0) {
     const hash = window.location.hash
     if (hash) {
       const elementId = hash.slice(1) // Remove the '#' symbol
-      console.log(`Attempting to scroll to #${elementId}`)
+      logger.debug(`Attempting to scroll to #${elementId}`)
       scrollToElement(elementId, offset)
     }
   }

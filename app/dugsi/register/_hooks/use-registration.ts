@@ -6,9 +6,12 @@ import { useTranslations } from 'next-intl'
 import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
+import { createClientLogger } from '@/lib/logger-client'
 import type { DugsiRegistrationValues } from '@/lib/registration/schemas/registration'
 
 import { registerDugsiChildren } from '../_actions'
+
+const logger = createClientLogger('dugsi-registration')
 
 interface UseDugsiRegistrationProps {
   form: UseFormReturn<DugsiRegistrationValues>
@@ -101,7 +104,7 @@ export function useDugsiRegistration({
             )
           }
         } catch (error) {
-          console.error('💥 Unexpected error during registration:', error)
+          logger.error('Unexpected error during registration:', error)
           toast.error(
             error instanceof Error
               ? error.message

@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/db'
-import { createActionLogger, logError } from '@/lib/logger'
+import { createActionLogger, logError, logWarning } from '@/lib/logger'
 
 const logger = createActionLogger('mahad-payments')
 
@@ -35,7 +35,8 @@ export async function getBatchesForFilter() {
  */
 export async function runPaymentsBackfill() {
   'use server'
-  console.warn(
+  logWarning(
+    logger,
     'runPaymentsBackfill is deprecated and needs migration to new schema'
   )
   return {

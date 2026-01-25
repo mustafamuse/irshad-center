@@ -1,5 +1,9 @@
 import { z } from 'zod'
 
+import { createServiceLogger, logWarning } from '@/lib/logger'
+
+const logger = createServiceLogger('webhook-validation')
+
 /**
  * Validation schemas for webhook data from Stripe custom fields.
  * These are more lenient than registration schemas since the data
@@ -53,12 +57,10 @@ export function validateWebhookData<T>(
   const result = schema.safeParse(data)
 
   if (!result.success) {
-    console.warn(
-      `[WEBHOOK] Invalid ${fieldName} received:`,
+    logWarning(logger, `Invalid ${fieldName} received`, {
       data,
-      'Errors:',
-      result.error.issues.map((i) => i.message).join(', ')
-    )
+      errors: result.error.issues.map((i) => i.message).join(', '),
+    })
     return null
   }
 
