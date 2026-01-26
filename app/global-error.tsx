@@ -12,7 +12,10 @@ export default function GlobalError({
   error: Error & { digest?: string }
 }) {
   useEffect(() => {
-    Sentry.captureException(error)
+    Sentry.captureException(error, {
+      tags: { route: 'global-error' },
+      contexts: { errorBoundary: { digest: error.digest } },
+    })
   }, [error])
 
   return (

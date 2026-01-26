@@ -27,6 +27,7 @@ import {
   getBillingAccountByStripeCustomerId,
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
+  updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -34,10 +35,7 @@ import {
   linkSubscriptionToProfiles,
   unlinkSubscription,
 } from '@/lib/services/shared/billing-service'
-import {
-  createSubscriptionFromStripe,
-  updateSubscriptionStatus,
-} from '@/lib/services/shared/subscription-service'
+import { createSubscriptionFromStripe } from '@/lib/services/shared/subscription-service'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 import {
@@ -430,7 +428,7 @@ export async function handleSubscriptionUpdated(
   const periodDates = extractPeriodDates(subscription)
 
   // Update subscription
-  await updateSubscriptionStatus(stripeSubscriptionId, status, {
+  await updateSubscriptionStatusQuery(dbSubscription.id, status, {
     currentPeriodStart: periodDates.periodStart,
     currentPeriodEnd: periodDates.periodEnd,
     paidUntil: periodDates.periodEnd,
@@ -472,11 +470,16 @@ export async function handleSubscriptionDeleted(
     }
   }
 
-  // Update subscription to canceled
-  await updateSubscriptionStatus(stripeSubscriptionId, 'canceled')
-
-  // Unlink subscription from all profiles
-  await unlinkSubscription(dbSubscription.id)
+  // Update subscription to canceled and unlink from all profiles atomically
+  await prisma.$transaction(async (tx) => {
+    await updateSubscriptionStatusQuery(
+      dbSubscription.id,
+      'canceled',
+      undefined,
+      tx
+    )
+    await unlinkSubscription(dbSubscription.id, tx)
+  })
 
   return {
     subscriptionId: dbSubscription.id,
@@ -528,9 +531,13 @@ export async function handleInvoiceFinalized(
     ? new Date(invoice.period_end * 1000)
     : null
 
-  await updateSubscriptionStatus(subscriptionId, dbSubscription.status, {
-    paidUntil,
-  })
+  await updateSubscriptionStatusQuery(
+    dbSubscription.id,
+    dbSubscription.status,
+    {
+      paidUntil,
+    }
+  )
 
   return {
     subscriptionId: dbSubscription.id,

@@ -87,6 +87,7 @@ export const logger = pino(
         'RESEND_API_KEY',
         'CRON_SECRET_KEY',
         'ADMIN_PASSWORD',
+        'ADMIN_PIN',
         'NEXTAUTH_SECRET',
       ],
       censor: '[REDACTED]',
@@ -273,6 +274,26 @@ export function serializeError(error: unknown): { err: Error } {
     err.name = 'PrismaError'
     // Attach Prisma-specific metadata
     Object.assign(err, { code: prismaError.code, meta: prismaError.meta })
+    return { err }
+  }
+
+  // Handle API errors (Resend, etc.) that have message but no code
+  if (
+    error &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof (error as { message: unknown }).message === 'string'
+  ) {
+    const apiError = error as {
+      message: string
+      name?: string
+      statusCode?: number | null
+    }
+    const err = new Error(apiError.message)
+    err.name = apiError.name || 'APIError'
+    if (apiError.statusCode !== undefined) {
+      Object.assign(err, { statusCode: apiError.statusCode })
+    }
     return { err }
   }
 
