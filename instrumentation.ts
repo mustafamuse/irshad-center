@@ -25,7 +25,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
 ) => {
   Sentry.captureRequestError(error, request, context)
 
-  if (process.env.NEXT_PUBLIC_AXIOM_INGEST_ENDPOINT) {
+  if (process.env.NEXT_PUBLIC_AXIOM_TOKEN) {
     const { Logger } = await import('next-axiom')
     const logger = new Logger({ source: 'request-error' })
     logger.error('Request error', {
