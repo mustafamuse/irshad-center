@@ -24,7 +24,7 @@ import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 
@@ -753,15 +753,16 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             if (raceConditionChild) {
               childPerson = raceConditionChild
             } else {
-              logger.error(
+              await logError(
+                logger,
+                error,
+                'P2002 but child not found - possible constraint mismatch',
                 {
                   name: childFullName,
                   dateOfBirth: child.dateOfBirth,
                   familyReferenceId,
                   errorRef: generateErrorRef(familyReferenceId),
-                  prismaError: error.meta,
-                },
-                'P2002 but child not found - possible constraint mismatch'
+                }
               )
               throw new Error(
                 `Registration temporarily unavailable for ${childFullName}. ` +
@@ -882,14 +883,15 @@ export async function createFamilyRegistration(data: unknown): Promise<{
             if (existingProfile) {
               profile = existingProfile
             } else {
-              logger.error(
+              await logError(
+                logger,
+                error,
+                'P2002 but profile not found - possible constraint mismatch',
                 {
                   personId: childPerson.id,
                   familyReferenceId,
                   errorRef: generateErrorRef(familyReferenceId),
-                  prismaError: error.meta,
-                },
-                'P2002 but profile not found - possible constraint mismatch'
+                }
               )
               throw new Error(
                 `Unable to register ${childFullName}. This may indicate a data conflict. ` +
@@ -1122,16 +1124,16 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       },
     }
   } catch (error) {
-    // Log partial failure state for manual recovery
-    logger.error(
+    await logError(
+      logger,
+      error,
+      'Family registration failed - partial state may exist. Re-run registration to complete.',
       {
         familyReferenceId,
         phase: currentPhase,
         createdProfileCount: createdProfiles.length,
         createdProfileIds: createdProfiles.map((p) => p.id),
-        error,
-      },
-      'Family registration failed - partial state may exist. Re-run registration to complete.'
+      }
     )
     throw error
   }
@@ -1735,10 +1737,9 @@ export async function createGuardianRelationshipsBatch(
         )
       }
     } catch (error) {
-      logger.error(
-        { error, toCreateCount: toCreate.length },
-        'Failed to create guardian relationships'
-      )
+      await logError(logger, error, 'Failed to create guardian relationships', {
+        toCreateCount: toCreate.length,
+      })
       throw error
     }
   }

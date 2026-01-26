@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
+import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 
 import { featureFlags } from '@/lib/config/feature-flags'
@@ -168,61 +169,65 @@ export async function POST(request: NextRequest) {
       profile.person.billingAccounts[0]?.stripeCustomerIdMahad ?? undefined
 
     // Create the checkout session
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      // Feature flag: Toggle card payments to manage transaction fees
-      // ACH only: Lower fees for the organization
-      // Card + ACH: More convenience for families
-      payment_method_types: featureFlags.mahadCardPayments()
-        ? ['card', 'us_bank_account']
-        : ['us_bank_account'],
-      customer: customerId,
-      customer_email: customerId ? undefined : email,
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product: productId,
-            unit_amount: rateInCents,
-            recurring: intervalConfig,
+    const session = await Sentry.startSpan(
+      { name: 'stripe.checkout.sessions.create', op: 'http.client' },
+      async () =>
+        stripe.checkout.sessions.create({
+          mode: 'subscription',
+          // Feature flag: Toggle card payments to manage transaction fees
+          // ACH only: Lower fees for the organization
+          // Card + ACH: More convenience for families
+          payment_method_types: featureFlags.mahadCardPayments()
+            ? ['card', 'us_bank_account']
+            : ['us_bank_account'],
+          customer: customerId,
+          customer_email: customerId ? undefined : email,
+          line_items: [
+            {
+              price_data: {
+                currency: 'usd',
+                product: productId,
+                unit_amount: rateInCents,
+                recurring: intervalConfig,
+              },
+              quantity: 1,
+            },
+          ],
+          subscription_data: {
+            metadata: {
+              // Human-readable (for Stripe dashboard)
+              Student: profile.person.name,
+              Rate: formatRateDisplay(rateInCents, paymentFrequency),
+              Status: formatGraduationStatus(graduationStatus),
+              Type: formatBillingType(billingType),
+              Source: 'Mahad Registration',
+              // Technical (for webhook processing - DO NOT REMOVE)
+              profileId: profile.id,
+              personId: profile.personId,
+              studentName: profile.person.name,
+              graduationStatus,
+              paymentFrequency,
+              billingType,
+              calculatedRate: rateInCents.toString(),
+              source: 'mahad-registration',
+            },
           },
-          quantity: 1,
-        },
-      ],
-      subscription_data: {
-        metadata: {
-          // Human-readable (for Stripe dashboard)
-          Student: profile.person.name,
-          Rate: formatRateDisplay(rateInCents, paymentFrequency),
-          Status: formatGraduationStatus(graduationStatus),
-          Type: formatBillingType(billingType),
-          Source: 'Mahad Registration',
-          // Technical (for webhook processing - DO NOT REMOVE)
-          profileId: profile.id,
-          personId: profile.personId,
-          studentName: profile.person.name,
-          graduationStatus,
-          paymentFrequency,
-          billingType,
-          calculatedRate: rateInCents.toString(),
-          source: 'mahad-registration',
-        },
-      },
-      metadata: {
-        // Human-readable (for Stripe dashboard)
-        Student: profile.person.name,
-        Source: 'Mahad Registration',
-        // Technical (for webhook processing)
-        profileId: profile.id,
-        personId: profile.personId,
-        studentName: profile.person.name,
-        source: 'mahad-registration',
-      },
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      // Allow promotion codes if configured
-      allow_promotion_codes: true,
-    })
+          metadata: {
+            // Human-readable (for Stripe dashboard)
+            Student: profile.person.name,
+            Source: 'Mahad Registration',
+            // Technical (for webhook processing)
+            profileId: profile.id,
+            personId: profile.personId,
+            studentName: profile.person.name,
+            source: 'mahad-registration',
+          },
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          // Allow promotion codes if configured
+          allow_promotion_codes: true,
+        })
+    )
 
     logger.info(
       {

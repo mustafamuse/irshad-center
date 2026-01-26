@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react'
 
+import * as Sentry from '@sentry/nextjs'
+
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -19,7 +21,9 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error('Page error:', error)
+    Sentry.captureException(error, {
+      tags: { location: 'mahad-public-error-boundary' },
+    })
   }, [error])
 
   return (

@@ -12,9 +12,12 @@ import { revalidatePath } from 'next/cache'
 
 import { z } from 'zod'
 
+import { createActionLogger, logError } from '@/lib/logger'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { createFamilyRegistration } from '@/lib/services/registration-service'
 import { findGuardianByEmail } from '@/lib/services/shared/parent-service'
+
+const logger = createActionLogger('dugsi-registration')
 
 export type RegistrationResult = {
   success: boolean
@@ -106,7 +109,7 @@ export async function registerDugsiChildren(
     }
 
     // Handle other errors with generic message
-    console.error('Dugsi registration error:', error)
+    await logError(logger, error, 'Dugsi registration failed')
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Registration failed',

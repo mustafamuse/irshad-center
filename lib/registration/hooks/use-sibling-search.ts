@@ -3,6 +3,9 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 
 import { searchStudents } from '@/app/mahad/register/_actions'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('sibling-search')
 
 export interface SearchResult {
   id: string
@@ -33,7 +36,7 @@ export function useSiblingSearch(studentLastName?: string) {
       setSearchResults(results)
       return results
     } catch (error) {
-      console.error('Error searching siblings:', error)
+      logger.error('Error searching siblings:', error)
       toast.error('Unable to search for siblings', {
         description:
           'Please try again or contact support if the issue persists',

@@ -17,8 +17,11 @@ import {
   createSiblingRelationship,
   removeSiblingRelationship,
 } from '@/lib/db/queries/siblings'
+import { createActionLogger, logError, logWarning } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { createMahadStudent } from '@/lib/services/mahad/student-service'
+
+const logger = createActionLogger('mahad-registration')
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -121,7 +124,9 @@ export async function registerStudent(input: {
           )
         } catch (error) {
           // Log but don't fail registration - sibling linking is secondary
-          console.warn('Sibling linking partially failed:', error)
+          await logWarning(logger, 'Sibling linking partially failed', {
+            error,
+          })
         }
       }
     }
@@ -145,7 +150,7 @@ export async function registerStudent(input: {
         field: 'email',
       }
     }
-    console.error('Registration error:', error)
+    await logError(logger, error, 'Mahad registration failed')
     return {
       success: false,
       error:
@@ -280,7 +285,10 @@ export async function addSibling(
 
     return { success: true }
   } catch (error) {
-    console.error('Add sibling error:', error)
+    await logError(logger, error, 'Failed to add sibling', {
+      studentId,
+      siblingId,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to add sibling',
@@ -327,7 +335,10 @@ export async function removeSibling(
 
     return { success: true }
   } catch (error) {
-    console.error('Remove sibling error:', error)
+    await logError(logger, error, 'Failed to remove sibling', {
+      studentId,
+      siblingId,
+    })
     return {
       success: false,
       error:

@@ -4,11 +4,20 @@
 
 import * as Sentry from '@sentry/nextjs'
 
-Sentry.init({
-  dsn: process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN || '',
+const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
+if (!dsn && process.env.NODE_ENV === 'production') {
+  console.error('[Sentry] SENTRY_DSN not configured - error tracking disabled')
+}
 
-  // Adjust this value in production, or use tracesSampler for greater control
-  tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+Sentry.init({
+  dsn: dsn || '',
+
+  tracesSampler: (samplingContext) => {
+    const name = samplingContext.name || ''
+    if (name.includes('webhook')) return 1.0
+    if (name.includes('health') || name.includes('_next/static')) return 0
+    return process.env.NODE_ENV === 'production' ? 0.1 : 1.0
+  },
 
   // Setting this option to true will print useful information to the console while you're setting up Sentry.
   debug: false,
@@ -16,9 +25,7 @@ Sentry.init({
   // Enable logs to be sent to Sentry
   enableLogs: true,
 
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
+  sendDefaultPii: false,
 
   // Configure which errors to ignore
   ignoreErrors: [

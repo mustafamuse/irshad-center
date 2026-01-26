@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { getWhatsAppPaymentMessage } from '@/lib/constants/dugsi'
+import { createClientLogger } from '@/lib/logger-client'
 import {
   formatBillingDate,
   getNextBillingDate,
@@ -46,6 +47,8 @@ import {
   sendPaymentLinkViaWhatsAppAction,
   type FamilyPaymentLinkData,
 } from '../../actions'
+
+const logger = createClientLogger('payment-link-dialog')
 
 interface PaymentLinkDialogProps {
   family: Family
@@ -203,8 +206,8 @@ export function PaymentLinkDialog({
   const parentPhone = phoneResult.phone
 
   if (phoneResult.usedFallback && phoneResult.fallbackReason) {
-    console.warn(
-      `[PaymentLinkDialog] Primary payer phone fallback used for family ${family.familyKey}:`,
+    logger.warn(
+      `Primary payer phone fallback used for family ${family.familyKey}:`,
       phoneResult.fallbackReason
     )
   }

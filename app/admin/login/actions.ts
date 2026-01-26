@@ -9,6 +9,7 @@ import crypto from 'crypto'
 import { generateAuthToken, verifyAuthToken } from '@/lib/auth/admin-auth'
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { createActionLogger, logError } from '@/lib/logger'
+import { setSentryUser, clearSentryUser } from '@/lib/sentry/user-context'
 import type { ActionResult } from '@/lib/utils/action-helpers'
 import { adminPinSchema } from '@/lib/validations/admin-auth'
 
@@ -70,6 +71,7 @@ export async function validateAdminPin(
     path: '/',
   })
 
+  setSentryUser({ id: 'admin', username: 'admin' })
   logger.info('Admin login successful')
   redirect(parsed.data.redirectTo)
 }
@@ -77,6 +79,7 @@ export async function validateAdminPin(
 export async function logoutAdmin(): Promise<void> {
   const cookieStore = await cookies()
   cookieStore.delete('admin_auth')
+  clearSentryUser()
   logger.info('Admin logout')
   revalidatePath('/admin', 'layout')
   redirect('/admin/login')

@@ -1,8 +1,11 @@
 import { resend, EMAIL_CONFIG as CONFIG } from './resend-client'
+import { createServiceLogger, logError } from '../logger'
 import { escapeHtml } from '../utils/html-escape'
 
 // Re-export for convenience
 export { EMAIL_CONFIG } from './resend-client'
+
+const logger = createServiceLogger('email-service')
 
 export interface SendEmailOptions {
   to: string | string[]
@@ -59,7 +62,10 @@ export async function sendEmail(
     })
 
     if (error) {
-      console.error('Email sending failed:', error)
+      await logError(logger, error, 'Email sending failed', {
+        to: options.to,
+        subject: options.subject,
+      })
       return {
         success: false,
         error: error.message || 'Failed to send email',
@@ -71,7 +77,10 @@ export async function sendEmail(
       id: data?.id,
     }
   } catch (error) {
-    console.error('Email service error:', error)
+    await logError(logger, error, 'Email service error', {
+      to: options.to,
+      subject: options.subject,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

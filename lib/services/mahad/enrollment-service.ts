@@ -20,7 +20,7 @@ import {
   getEnrollmentById,
 } from '@/lib/db/queries/enrollment'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('mahad-enrollment')
 
@@ -113,7 +113,7 @@ export async function assignStudentsToBatch(
       result.assignedCount++
     } catch (error) {
       result.failedAssignments.push(studentId)
-      logger.error({ err: error, studentId }, 'Failed to assign student')
+      await logError(logger, error, 'Failed to assign student', { studentId })
     }
   }
 
@@ -184,7 +184,7 @@ export async function transferStudentsToBatch(
       result.transferredCount++
     } catch (error) {
       result.failedTransfers.push(studentId)
-      logger.error({ err: error, studentId }, 'Failed to transfer student')
+      await logError(logger, error, 'Failed to transfer student', { studentId })
     }
   }
 

@@ -8,9 +8,9 @@
 import { Prisma } from '@prisma/client'
 
 import type { DatabaseClient } from '@/lib/db/types'
-import { createClientLogger } from '@/lib/logger-client'
+import { createServiceLogger, logError } from '@/lib/logger'
 
-const logger = createClientLogger('SiblingRelationshipService')
+const logger = createServiceLogger('sibling-relationship')
 
 /**
  * Result of linking siblings to a person
@@ -68,7 +68,7 @@ export class SiblingRelationshipService {
   ): Promise<LinkSiblingsResult> {
     // If no siblings provided, return early
     if (!siblingIds || siblingIds.length === 0) {
-      logger.info('No siblings to link', { personId })
+      logger.info({ personId }, 'No siblings to link')
       return {
         added: 0,
         failed: 0,
@@ -76,10 +76,10 @@ export class SiblingRelationshipService {
       }
     }
 
-    logger.info('Starting sibling linking process', {
-      personId,
-      siblingCount: siblingIds.length,
-    })
+    logger.info(
+      { personId, siblingCount: siblingIds.length },
+      'Starting sibling linking process'
+    )
 
     let siblingsAdded = 0
     let siblingsFailed = 0
@@ -94,10 +94,10 @@ export class SiblingRelationshipService {
         })
 
         if (!siblingPerson) {
-          logger.warn('Sibling person not found, skipping', {
-            personId,
-            siblingId,
-          })
+          logger.warn(
+            { personId, siblingId },
+            'Sibling person not found, skipping'
+          )
           siblingsFailed++
           failures.push({
             siblingId,
@@ -128,17 +128,17 @@ export class SiblingRelationshipService {
               },
             })
             siblingsAdded++
-            logger.info('Reactivated existing sibling relationship', {
-              personId,
-              siblingId,
-            })
+            logger.info(
+              { personId, siblingId },
+              'Reactivated existing sibling relationship'
+            )
             continue
           } else {
             // Already active, skip
-            logger.info('Sibling relationship already exists and is active', {
-              personId,
-              siblingId,
-            })
+            logger.info(
+              { personId, siblingId },
+              'Sibling relationship already exists and is active'
+            )
             continue
           }
         }
@@ -156,7 +156,7 @@ export class SiblingRelationshipService {
         })
 
         siblingsAdded++
-        logger.info('Successfully linked sibling', { personId, siblingId })
+        logger.info({ personId, siblingId }, 'Successfully linked sibling')
       } catch (error) {
         // Handle race condition: P2002 means another thread created the relationship
         if (
@@ -165,8 +165,8 @@ export class SiblingRelationshipService {
         ) {
           // Relationship was created by concurrent process - this is success, not failure
           logger.info(
-            'Sibling relationship already exists (race condition handled)',
-            { personId, siblingId }
+            { personId, siblingId },
+            'Sibling relationship already exists (race condition handled)'
           )
           siblingsAdded++
           continue
@@ -177,8 +177,7 @@ export class SiblingRelationshipService {
         const errorMessage =
           error instanceof Error ? error.message : 'Unknown error'
 
-        logger.error('Failed to link sibling', {
-          err: error,
+        await logError(logger, error, 'Failed to link sibling', {
           personId,
           siblingId,
         })
@@ -190,12 +189,15 @@ export class SiblingRelationshipService {
       }
     }
 
-    logger.info('Sibling linking complete', {
-      personId,
-      totalAttempted: siblingIds.length,
-      added: siblingsAdded,
-      failed: siblingsFailed,
-    })
+    logger.info(
+      {
+        personId,
+        totalAttempted: siblingIds.length,
+        added: siblingsAdded,
+        failed: siblingsFailed,
+      },
+      'Sibling linking complete'
+    )
 
     return {
       added: siblingsAdded,
@@ -212,7 +214,7 @@ export class SiblingRelationshipService {
    * @returns Array of sibling persons with their profiles
    */
   static async getSiblings(personId: string, client: DatabaseClient) {
-    logger.info('Fetching siblings', { personId })
+    logger.info({ personId }, 'Fetching siblings')
 
     // Get relationships where this person is person1
     const relationshipsAsPerson1 = await client.siblingRelationship.findMany({
@@ -305,7 +307,7 @@ export class SiblingRelationshipService {
     personId2: string,
     tx: DatabaseClient
   ): Promise<void> {
-    logger.info('Unlinking siblings', { personId1, personId2 })
+    logger.info({ personId1, personId2 }, 'Unlinking siblings')
 
     // Delete both directions of the relationship
     await tx.siblingRelationship.deleteMany({
@@ -317,6 +319,6 @@ export class SiblingRelationshipService {
       },
     })
 
-    logger.info('Successfully unlinked siblings', { personId1, personId2 })
+    logger.info({ personId1, personId2 }, 'Successfully unlinked siblings')
   }
 }

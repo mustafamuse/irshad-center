@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 
+import * as Sentry from '@sentry/nextjs'
 import { AlertCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,9 @@ interface ErrorProps {
 
 export default function RegistrationSuccessError({ error, reset }: ErrorProps) {
   useEffect(() => {
-    console.error('Registration success page error:', error)
+    Sentry.captureException(error, {
+      tags: { location: 'dugsi-registration-success-error-boundary' },
+    })
   }, [error])
 
   return (

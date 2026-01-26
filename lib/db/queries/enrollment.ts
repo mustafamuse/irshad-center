@@ -13,7 +13,7 @@ import {
   ENROLLMENT_WITH_PROFILE_INCLUDE,
 } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   isValidStatusTransition,
   ENROLLMENT_STATUS_TRANSITIONS,
@@ -167,11 +167,18 @@ export async function createEnrollment(
   })
 
   if (!profile) {
-    logger.error(
-      { programProfileId: data.programProfileId },
-      'ProgramProfile not found in createEnrollment'
+    const error = new Error(
+      `ProgramProfile not found: ${data.programProfileId}`
     )
-    throw new Error(`ProgramProfile not found: ${data.programProfileId}`)
+    await logError(
+      logger,
+      error,
+      'ProgramProfile not found in createEnrollment',
+      {
+        programProfileId: data.programProfileId,
+      }
+    )
+    throw error
   }
 
   logger.info(

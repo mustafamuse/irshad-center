@@ -26,7 +26,8 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
-import { createWebhookLogger } from '@/lib/logger'
+import { DuplicateError } from '@/lib/errors'
+import { createWebhookLogger, logError } from '@/lib/logger'
 
 /**
  * Webhook source identifier
@@ -125,11 +126,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
           () => verifyWebhook(body, signature)
         )
       } catch (verificationError) {
-        const errorMessage =
-          verificationError instanceof Error
-            ? verificationError.message
-            : 'Unknown verification error'
-        logger.error({ error: errorMessage }, 'Webhook verification failed')
+        await logError(logger, verificationError, 'Webhook verification failed')
         return NextResponse.json(
           { message: 'Invalid webhook signature' },
           { status: 401 }
@@ -175,8 +172,9 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       try {
         payload = JSON.parse(body) as Prisma.InputJsonValue
       } catch (parseError) {
-        logger.error(
-          { err: parseError },
+        await logError(
+          logger,
+          parseError,
           'Failed to parse webhook body as JSON'
         )
         return NextResponse.json(
@@ -231,18 +229,14 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
 
-      logger.error(
-        {
-          err,
-          eventId,
-          errorType: err?.constructor?.name,
-        },
-        'Webhook error'
-      )
+      await logError(logger, err, 'Webhook error', {
+        eventId,
+        errorType: err instanceof Error ? err.constructor.name : 'UnknownError',
+      })
 
       // 10. Cleanup webhook event record on error (allows retry)
       // Don't delete if error is about duplicate processing
-      if (eventId && !errorMessage.includes('already processed')) {
+      if (eventId && !(err instanceof DuplicateError)) {
         try {
           await prisma.webhookEvent.delete({
             where: {

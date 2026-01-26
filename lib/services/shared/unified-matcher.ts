@@ -112,7 +112,7 @@ export class UnifiedMatcher {
       }
     }
 
-    const validatedEmail = validateWebhookData(
+    const validatedEmail = await validateWebhookData(
       rawEmail,
       webhookEmailSchema,
       'student email (custom field)'
@@ -264,7 +264,7 @@ export class UnifiedMatcher {
     }
 
     const normalizedPhone = normalizePhone(String(rawPhone))
-    const validatedPhone = validateWebhookData(
+    const validatedPhone = await validateWebhookData(
       normalizedPhone,
       webhookPhoneSchema,
       'phone number'
@@ -391,7 +391,7 @@ export class UnifiedMatcher {
       }
     }
 
-    const validatedEmail = validateWebhookData(
+    const validatedEmail = await validateWebhookData(
       rawEmail,
       webhookEmailSchema,
       'payer email'

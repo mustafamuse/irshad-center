@@ -4,6 +4,10 @@ import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 import { ZodSchema } from 'zod'
 
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('form-persistence')
+
 const STORAGE_KEY = 'scholarship-draft'
 const AUTO_SAVE_DELAY = 1000 // 1 second debounce
 
@@ -41,7 +45,7 @@ export function useFormPersistence<T extends Record<string, unknown>>(
           if (validation.success) {
             form.reset(validation.data as T)
           } else {
-            console.warn('Saved draft failed validation, clearing...')
+            logger.warn('Saved draft failed validation, clearing...')
             localStorage.removeItem(STORAGE_KEY)
           }
         } else {
@@ -50,7 +54,7 @@ export function useFormPersistence<T extends Record<string, unknown>>(
         }
       }
     } catch (error) {
-      console.error('Failed to restore draft:', error)
+      logger.error('Failed to restore draft:', error)
       localStorage.removeItem(STORAGE_KEY)
     }
   }, [form, options?.schema])
@@ -65,7 +69,7 @@ export function useFormPersistence<T extends Record<string, unknown>>(
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
         } catch (error) {
-          console.error('Failed to save draft:', error)
+          logger.error('Failed to save draft:', error)
           // Handle quota exceeded - notify user
           if (error instanceof Error && error.name === 'QuotaExceededError') {
             toast.warning('Auto-save disabled', {

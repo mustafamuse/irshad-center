@@ -70,16 +70,6 @@ export function logEvent(
   })
 }
 
-// Utility: Handle errors gracefully
-export function handleError(action: string, eventId: string, error: unknown) {
-  const errorMessage = error instanceof Error ? error.message : String(error)
-  console.error(`[${action}] Error: ${eventId}`, {
-    errorMessage,
-    stack: error instanceof Error ? error.stack : undefined,
-  })
-  throw error // Re-throw to ensure Stripe retries the webhook if needed
-}
-
 export function getStatusColor(status: SubscriptionStatus) {
   switch (status) {
     case SubscriptionStatus.active:

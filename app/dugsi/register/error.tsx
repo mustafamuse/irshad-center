@@ -1,5 +1,8 @@
 'use client'
 
+import { useEffect } from 'react'
+
+import * as Sentry from '@sentry/nextjs'
 import { AlertCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -12,6 +15,12 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  useEffect(() => {
+    Sentry.captureException(error, {
+      tags: { route: 'dugsi-register' },
+    })
+  }, [error])
+
   return (
     <div className="container mx-auto p-4">
       <Card className="p-6">

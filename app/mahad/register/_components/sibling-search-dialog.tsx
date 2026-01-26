@@ -13,9 +13,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { createClientLogger } from '@/lib/logger-client'
 import { type SearchResult } from '@/lib/registration/schemas/registration'
 import { debounce } from '@/lib/registration/utils/form-utils'
 import { cn } from '@/lib/utils'
+
+const logger = createClientLogger('sibling-search-dialog')
 
 interface SiblingSearchDialogProps {
   isOpen: boolean
@@ -53,7 +56,7 @@ export function SiblingSearchDialog({
         )
         setSearchResults(filteredResults)
       } catch (error) {
-        console.error('Search error:', error)
+        logger.error('Search error:', error)
         setSearchResults([])
       } finally {
         setIsSearching(false)

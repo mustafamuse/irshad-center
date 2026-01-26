@@ -13,10 +13,13 @@ import {
   StudentBillingType,
 } from '@prisma/client'
 
+import { createActionLogger, logError } from '@/lib/logger'
 import {
   updateMahadStudent,
   StudentUpdateInput,
 } from '@/lib/services/mahad/student-service'
+
+const logger = createActionLogger('update-student')
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -67,7 +70,7 @@ export async function updateStudent(
 
     return { success: true }
   } catch (error) {
-    console.error('Update student error:', error)
+    await logError(logger, error, 'Failed to update student', { studentId })
     return {
       success: false,
       error:

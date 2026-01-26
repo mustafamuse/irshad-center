@@ -4,6 +4,9 @@ import { Path, UseFormReturn } from 'react-hook-form'
 
 import { checkParentEmailExists } from '@/app/dugsi/register/_actions'
 import { checkEmailExists } from '@/app/mahad/register/_actions'
+import { createClientLogger } from '@/lib/logger-client'
+
+const logger = createClientLogger('email-validation')
 
 type RegistrationValues = {
   email?: string
@@ -56,7 +59,7 @@ export function useEmailValidation<T extends RegistrationValues>(
         form.clearErrors(fieldName)
         return true
       } catch (error) {
-        console.error('Error checking email:', error)
+        logger.error('Error checking email:', error)
         return true // Allow submission on error, we'll catch it server-side
       } finally {
         setIsCheckingEmail(false)

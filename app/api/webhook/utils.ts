@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/nextjs'
+
 import { LogEventData } from './types'
 
 export function logEvent(
@@ -13,8 +15,7 @@ export function handleError(
   eventId: string,
   error: unknown
 ): void {
-  console.error(
-    `[${context}] Error processing event ${eventId}:`,
-    error instanceof Error ? error.message : error
-  )
+  Sentry.captureException(error, {
+    extra: { eventId, context },
+  })
 }

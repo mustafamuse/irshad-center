@@ -20,10 +20,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
+import { createClientLogger } from '@/lib/logger-client'
 import { cn } from '@/lib/utils'
 
 import { CheckinRecord, updateCheckinAction } from '../actions'
 import { formatFullDate } from './date-utils'
+
+const logger = createClientLogger('edit-checkin-dialog')
 
 interface Props {
   open: boolean
@@ -37,7 +40,7 @@ function formatDateForInput(date: Date | null | undefined): string {
   try {
     return format(new Date(date), "yyyy-MM-dd'T'HH:mm")
   } catch (error) {
-    console.error('Failed to format date for input:', date, error)
+    logger.error('Failed to format date for input:', date, error)
     return ''
   }
 }

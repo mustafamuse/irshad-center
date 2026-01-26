@@ -12,6 +12,7 @@
  */
 
 import { StripeAccountType } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
 
 import { DugsiRegistration } from '@/app/admin/dugsi/_types'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -77,33 +78,38 @@ export async function getAllDugsiRegistrations(
   limit?: number,
   filters?: { shift?: 'MORNING' | 'AFTERNOON' }
 ): Promise<DugsiRegistration[]> {
-  const validatedFilters = filters
-    ? DugsiRegistrationFiltersSchema.parse(filters)
-    : undefined
+  return Sentry.startSpan(
+    { name: 'registration.getAllDugsiRegistrations', op: 'db' },
+    async () => {
+      const validatedFilters = filters
+        ? DugsiRegistrationFiltersSchema.parse(filters)
+        : undefined
 
-  // Get family counts FIRST (unfiltered - for billing accuracy)
-  const familyCounts = await getFamilyChildCounts()
+      // Get family counts FIRST (unfiltered - for billing accuracy)
+      const familyCounts = await getFamilyChildCounts()
 
-  const profiles = await prisma.programProfile.findMany({
-    where: {
-      program: DUGSI_PROGRAM,
-      ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
-    },
-    include: programProfileFullInclude,
-    orderBy: {
-      createdAt: 'desc',
-    },
-    ...(limit && { take: limit }),
-  })
+      const profiles = await prisma.programProfile.findMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
+        },
+        include: programProfileFullInclude,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        ...(limit && { take: limit }),
+      })
 
-  return profiles
-    .map((profile) => {
-      const count = profile.familyReferenceId
-        ? familyCounts.get(profile.familyReferenceId) || 1
-        : 1
-      return mapProfileToDugsiRegistration(profile, count)
-    })
-    .filter(Boolean) as DugsiRegistration[]
+      return profiles
+        .map((profile) => {
+          const count = profile.familyReferenceId
+            ? familyCounts.get(profile.familyReferenceId) || 1
+            : 1
+          return mapProfileToDugsiRegistration(profile, count)
+        })
+        .filter(Boolean) as DugsiRegistration[]
+    }
+  )
 }
 
 /**
@@ -260,46 +266,52 @@ export interface DeleteFamilyResult {
 export async function deleteDugsiFamily(
   studentId: string
 ): Promise<DeleteFamilyResult> {
-  const profile = await getProgramProfileById(studentId)
+  return Sentry.startSpan(
+    { name: 'registration.deleteDugsiFamily', op: 'function' },
+    async () => {
+      const profile = await getProgramProfileById(studentId)
 
-  if (!profile || profile.program !== DUGSI_PROGRAM) {
-    throw new ActionError(
-      'Student not found or not in Dugsi program',
-      ERROR_CODES.STUDENT_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
+      if (!profile || profile.program !== DUGSI_PROGRAM) {
+        throw new ActionError(
+          'Student not found or not in Dugsi program',
+          ERROR_CODES.STUDENT_NOT_FOUND,
+          undefined,
+          404
+        )
+      }
 
-  const familyId = profile.familyReferenceId
+      const familyId = profile.familyReferenceId
 
-  // No family ID - delete just this profile
-  if (!familyId) {
-    // Cancel any subscriptions for this single profile
-    const subscriptionsCanceled = await cancelFamilySubscriptions([profile])
+      // No family ID - delete just this profile
+      if (!familyId) {
+        // Cancel any subscriptions for this single profile
+        const subscriptionsCanceled = await cancelFamilySubscriptions([profile])
 
-    await prisma.programProfile.delete({
-      where: { id: studentId },
-    })
-    return { studentsDeleted: 1, subscriptionsCanceled }
-  }
+        await prisma.programProfile.delete({
+          where: { id: studentId },
+        })
+        return { studentsDeleted: 1, subscriptionsCanceled }
+      }
 
-  // Get all family members with their billing assignments
-  const familyProfiles = await getProgramProfilesByFamilyId(familyId)
-  const profileIds = familyProfiles.map((p) => p.id)
+      // Get all family members with their billing assignments
+      const familyProfiles = await getProgramProfilesByFamilyId(familyId)
+      const profileIds = familyProfiles.map((p) => p.id)
 
-  // Cancel all active subscriptions for this family
-  const subscriptionsCanceled = await cancelFamilySubscriptions(familyProfiles)
+      // Cancel all active subscriptions for this family
+      const subscriptionsCanceled =
+        await cancelFamilySubscriptions(familyProfiles)
 
-  // Delete all program profiles in the family
-  // Cascade deletes will handle related records
-  await prisma.programProfile.deleteMany({
-    where: {
-      id: { in: profileIds },
-    },
-  })
+      // Delete all program profiles in the family
+      // Cascade deletes will handle related records
+      await prisma.programProfile.deleteMany({
+        where: {
+          id: { in: profileIds },
+        },
+      })
 
-  return { studentsDeleted: profileIds.length, subscriptionsCanceled }
+      return { studentsDeleted: profileIds.length, subscriptionsCanceled }
+    }
+  )
 }
 
 /**
@@ -314,44 +326,49 @@ export async function deleteDugsiFamily(
 async function cancelFamilySubscriptions(
   profiles: Awaited<ReturnType<typeof getProgramProfilesByFamilyId>>
 ): Promise<number> {
-  // Collect unique active subscription IDs
-  const subscriptionIds = new Set<string>()
+  return Sentry.startSpan(
+    { name: 'registration.cancelFamilySubscriptions', op: 'http.client' },
+    async () => {
+      // Collect unique active subscription IDs
+      const subscriptionIds = new Set<string>()
 
-  for (const profile of profiles) {
-    for (const assignment of profile.assignments) {
-      if (
-        assignment.subscription &&
-        assignment.subscription.status === 'active'
-      ) {
-        subscriptionIds.add(assignment.subscription.stripeSubscriptionId)
-      }
-    }
-  }
-
-  // Cancel each subscription in both DB and Stripe
-  let canceled = 0
-  for (const stripeSubscriptionId of Array.from(subscriptionIds)) {
-    try {
-      await cancelSubscription(
-        stripeSubscriptionId,
-        true,
-        StripeAccountType.DUGSI
-      )
-      canceled++
-    } catch (error) {
-      await logWarning(
-        logger,
-        'Subscription cancellation failed during family deletion',
-        {
-          stripeSubscriptionId,
-          familyId: profiles[0]?.familyReferenceId,
-          error: error instanceof Error ? error.message : 'Unknown error',
+      for (const profile of profiles) {
+        for (const assignment of profile.assignments) {
+          if (
+            assignment.subscription &&
+            assignment.subscription.status === 'active'
+          ) {
+            subscriptionIds.add(assignment.subscription.stripeSubscriptionId)
+          }
         }
-      )
-    }
-  }
+      }
 
-  return canceled
+      // Cancel each subscription in both DB and Stripe
+      let canceled = 0
+      for (const stripeSubscriptionId of Array.from(subscriptionIds)) {
+        try {
+          await cancelSubscription(
+            stripeSubscriptionId,
+            true,
+            StripeAccountType.DUGSI
+          )
+          canceled++
+        } catch (error) {
+          await logWarning(
+            logger,
+            'Subscription cancellation failed during family deletion',
+            {
+              stripeSubscriptionId,
+              familyId: profiles[0]?.familyReferenceId,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            }
+          )
+        }
+      }
+
+      return canceled
+    }
+  )
 }
 
 /**
@@ -369,63 +386,68 @@ export async function searchDugsiRegistrationsByContact(
   contact: string,
   contactType: 'EMAIL' | 'PHONE'
 ): Promise<DugsiRegistration[]> {
-  const normalizedContact = contact.toLowerCase().trim()
+  return Sentry.startSpan(
+    { name: 'registration.searchDugsiRegistrationsByContact', op: 'db' },
+    async () => {
+      const normalizedContact = contact.toLowerCase().trim()
 
-  // Get family counts for billing accuracy
-  const familyCounts = await getFamilyChildCounts()
+      // Get family counts for billing accuracy
+      const familyCounts = await getFamilyChildCounts()
 
-  // Search for profiles where either:
-  // 1. The student has this contact
-  // 2. The parent (guardian) has this contact
-  const profiles = await prisma.programProfile.findMany({
-    where: {
-      program: DUGSI_PROGRAM,
-      OR: [
-        {
-          // Student's own contact
-          person: {
-            contactPoints: {
-              some: {
-                type: contactType,
-                value: normalizedContact,
+      // Search for profiles where either:
+      // 1. The student has this contact
+      // 2. The parent (guardian) has this contact
+      const profiles = await prisma.programProfile.findMany({
+        where: {
+          program: DUGSI_PROGRAM,
+          OR: [
+            {
+              // Student's own contact
+              person: {
+                contactPoints: {
+                  some: {
+                    type: contactType,
+                    value: normalizedContact,
+                  },
+                },
               },
             },
-          },
-        },
-        {
-          // Parent's contact (via guardian relationship)
-          person: {
-            guardianRelationships: {
-              some: {
-                isActive: true,
-                guardian: {
-                  contactPoints: {
-                    some: {
-                      type: contactType,
-                      value: normalizedContact,
+            {
+              // Parent's contact (via guardian relationship)
+              person: {
+                guardianRelationships: {
+                  some: {
+                    isActive: true,
+                    guardian: {
+                      contactPoints: {
+                        some: {
+                          type: contactType,
+                          value: normalizedContact,
+                        },
+                      },
                     },
                   },
                 },
               },
             },
-          },
+          ],
         },
-      ],
-    },
-    include: programProfileFullInclude,
-  })
+        include: programProfileFullInclude,
+      })
 
-  // Map to DTOs
-  const registrations: DugsiRegistration[] = []
-  for (const profile of profiles) {
-    const count = profile.familyReferenceId
-      ? familyCounts.get(profile.familyReferenceId) || 1
-      : 1
-    const registration = mapProfileToDugsiRegistration(profile, count)
-    if (registration) {
-      registrations.push(registration)
+      // Map to DTOs
+      const registrations: DugsiRegistration[] = []
+      for (const profile of profiles) {
+        const count = profile.familyReferenceId
+          ? familyCounts.get(profile.familyReferenceId) || 1
+          : 1
+        const registration = mapProfileToDugsiRegistration(profile, count)
+        if (registration) {
+          registrations.push(registration)
+        }
+      }
+
+      return registrations
     }
-  }
-
-  return registrations
+  )
 }
