@@ -26,7 +26,7 @@ import {
   ClassNotFoundError,
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
-import { createServiceLogger, logError } from '@/lib/logger'
+import { createServiceLogger, logError, logInfo } from '@/lib/logger'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -184,6 +184,12 @@ export async function deleteDugsiFamily(
     const result = await deleteDugsiFamilyService(studentId)
     revalidatePath('/admin/dugsi')
 
+    await logInfo(logger, 'Dugsi family deleted', {
+      studentId,
+      studentsDeleted: result.studentsDeleted,
+      subscriptionsCanceled: result.subscriptionsCanceled,
+    })
+
     const parts: string[] = []
     parts.push(
       `${result.studentsDeleted} ${result.studentsDeleted === 1 ? 'student' : 'students'}`
@@ -230,6 +236,12 @@ export async function linkDugsiSubscription(params: {
       subscriptionId
     )
     revalidatePath('/admin/dugsi')
+
+    await logInfo(logger, 'Dugsi subscription linked', {
+      parentEmail,
+      subscriptionId,
+      studentsUpdated: result.updated,
+    })
 
     return {
       success: true,
@@ -1542,6 +1554,14 @@ export async function consolidateDugsiSubscription(input: {
     const result = await consolidateStripeSubscriptionService(validated)
 
     revalidatePath('/admin/dugsi')
+
+    await logInfo(logger, 'Dugsi subscription consolidated', {
+      subscriptionId: input.stripeSubscriptionId,
+      familyId: input.familyId,
+      assignmentsCreated: result.assignmentsCreated,
+      stripeCustomerSynced: result.stripeCustomerSynced,
+      previousFamilyUnlinked: result.previousFamilyUnlinked,
+    })
 
     const parts: string[] = []
     parts.push('Subscription linked')

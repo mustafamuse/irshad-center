@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 
 import * as Sentry from '@sentry/nextjs'
+import { useLogger } from 'next-axiom'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -20,11 +21,19 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const log = useLogger()
+
   useEffect(() => {
     Sentry.captureException(error, {
       tags: { route: 'mahad-register' },
     })
-  }, [error])
+
+    log.error('Mahad registration error', {
+      message: error.message,
+      digest: error.digest,
+      stack: error.stack,
+    })
+  }, [error, log])
 
   return (
     <div className="container mx-auto flex min-h-screen items-center justify-center px-4 py-16">

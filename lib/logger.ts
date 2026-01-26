@@ -7,12 +7,13 @@
  * - Child loggers for context binding
  * - Pretty-printed output in development, JSON in production
  * - Optimized for Next.js 15 App Router and Vercel deployment
- * - Integrated with Sentry for error tracking and correlation
+ * - Integrated with Axiom for log aggregation and querying
  */
 
 import { headers } from 'next/headers'
 
 import * as Sentry from '@sentry/nextjs'
+import { Logger as AxiomLogger } from 'next-axiom'
 import pino from 'pino'
 import pretty from 'pino-pretty'
 
@@ -234,6 +235,28 @@ export type Logger = typeof logger
 export type ChildLogger = ReturnType<typeof createLogger>
 
 // ============================================================================
+// Axiom Log Aggregation
+// ============================================================================
+
+let axiomLogger: AxiomLogger | null = null
+
+function getAxiomLogger(): AxiomLogger | null {
+  if (process.env.NODE_ENV !== 'production') {
+    return null
+  }
+  if (!axiomLogger) {
+    axiomLogger = new AxiomLogger({ source: 'app' })
+  }
+  return axiomLogger
+}
+
+export async function flushAxiomLogs(): Promise<void> {
+  if (axiomLogger) {
+    await axiomLogger.flush()
+  }
+}
+
+// ============================================================================
 // Enhanced Error Handling & Correlation
 // ============================================================================
 
@@ -402,10 +425,10 @@ export async function logError(
   const serialized = serializeError(error)
   const fullContext = { ...serialized, ...requestContext, ...context }
 
-  // Log to Pino for structured logs
+  // 1. Log to Pino for structured logs
   logger.error(fullContext, message)
 
-  // Send to Sentry for error tracking
+  // 2. Send to Sentry for error tracking
   const sentryTags: Record<string, string> = {}
   if (requestContext.requestId) {
     sentryTags.requestId = String(requestContext.requestId)
@@ -419,6 +442,17 @@ export async function logError(
     extra: context,
     level: 'error',
   })
+
+  // 3. Send to Axiom for log aggregation
+  const axiom = getAxiomLogger()
+  if (axiom) {
+    axiom.error(message, {
+      error: serialized.err.message,
+      stack: serialized.err.stack,
+      requestId: requestContext.requestId,
+      ...context,
+    })
+  }
 }
 
 /**
@@ -442,13 +476,61 @@ export async function logWarning(
   const requestContext = await getRequestContext()
   const fullContext = { ...requestContext, ...context }
 
-  // Log to Pino
+  // 1. Log to Pino
   logger.warn(fullContext, message)
 
-  // Add breadcrumb to Sentry (helps debug future errors)
+  // 2. Add breadcrumb to Sentry (helps debug future errors)
   Sentry.addBreadcrumb({
     message,
     level: 'warning',
     data: context,
   })
+
+  // 3. Send to Axiom for log aggregation
+  const axiom = getAxiomLogger()
+  if (axiom) {
+    axiom.warn(message, {
+      requestId: requestContext.requestId,
+      ...context,
+    })
+  }
+}
+
+/**
+ * Logs an info message to both Pino and Axiom
+ *
+ * Use this for important business events that need audit trails:
+ * - Family/subscription deletions or modifications
+ * - Payment link generations
+ * - Class/teacher assignments
+ * - Other significant state changes
+ *
+ * For routine operations, use logger.info() directly (Pino only).
+ *
+ * @param logger - Pino logger instance
+ * @param message - Info message
+ * @param context - Additional context
+ *
+ * @example
+ * await logInfo(logger, 'Family deleted', { familyId, studentsDeleted: 3 })
+ */
+export async function logInfo(
+  logger: Logger | ChildLogger,
+  message: string,
+  context: Record<string, unknown> = {}
+): Promise<void> {
+  const requestContext = await getRequestContext()
+  const fullContext = { ...requestContext, ...context }
+
+  // 1. Log to Pino
+  logger.info(fullContext, message)
+
+  // 2. Send to Axiom for audit trail
+  const axiom = getAxiomLogger()
+  if (axiom) {
+    axiom.info(message, {
+      requestId: requestContext.requestId,
+      ...context,
+    })
+  }
 }

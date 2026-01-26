@@ -4,6 +4,7 @@ import { useEffect } from 'react'
 
 import * as Sentry from '@sentry/nextjs'
 import { AlertCircle } from 'lucide-react'
+import { useLogger } from 'next-axiom'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -15,11 +16,19 @@ export default function Error({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const log = useLogger()
+
   useEffect(() => {
     Sentry.captureException(error, {
       tags: { route: 'dugsi-register' },
     })
-  }, [error])
+
+    log.error('Dugsi registration error', {
+      message: error.message,
+      digest: error.digest,
+      stack: error.stack,
+    })
+  }, [error, log])
 
   return (
     <div className="container mx-auto p-4">
