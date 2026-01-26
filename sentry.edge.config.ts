@@ -70,6 +70,10 @@ Sentry.init({
   release: process.env.SENTRY_RELEASE,
 
   beforeSend(event, _hint) {
+    if (process.env.NODE_ENV === 'development' && !process.env.SENTRY_DEBUG) {
+      return null
+    }
+
     if (event.request?.data && typeof event.request.data === 'object') {
       event.request.data = redactSensitiveData(
         event.request.data as Record<string, unknown>
