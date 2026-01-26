@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createActionLogger, logError } from '@/lib/logger'
+import { createActionLogger, logError, logInfo } from '@/lib/logger'
 import {
   getAllOrphanedSubscriptions,
   searchStudentsForLinking,
@@ -77,6 +77,11 @@ export async function linkSubscriptionToStudent(
   )
 
   if (result.success) {
+    await logInfo(logger, 'Subscription linked to student', {
+      subscriptionId,
+      studentId,
+      program,
+    })
     revalidatePath('/admin/link-subscriptions')
   }
 
@@ -99,6 +104,11 @@ export async function ignoreSubscription(
   )
 
   if (result.success) {
+    await logInfo(logger, 'Subscription ignored', {
+      subscriptionId,
+      program,
+      reason,
+    })
     revalidatePath('/admin/link-subscriptions')
   }
 
@@ -115,6 +125,10 @@ export async function unignoreSubscription(
   const result = await unignoreSubscriptionService(subscriptionId, program)
 
   if (result.success) {
+    await logInfo(logger, 'Subscription unignored', {
+      subscriptionId,
+      program,
+    })
     revalidatePath('/admin/link-subscriptions')
   }
 

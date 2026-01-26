@@ -27,7 +27,7 @@ import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
 import { DuplicateError } from '@/lib/errors'
-import { createWebhookLogger, logError } from '@/lib/logger'
+import { createWebhookLogger, logError, logInfo } from '@/lib/logger'
 
 /**
  * Webhook source identifier
@@ -135,7 +135,11 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
 
       eventId = event.id
 
-      logger.info({ eventType: event.type, eventId }, 'Webhook received')
+      await logInfo(logger, 'Webhook received', {
+        eventType: event.type,
+        eventId,
+        source,
+      })
 
       // 6. Check for idempotency - prevent processing the same event twice
       const existingEvent = await Sentry.startSpan(
@@ -220,7 +224,11 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
           },
           async () => await handler(event)
         )
-        logger.info({ eventType: event.type }, 'Successfully processed event')
+        await logInfo(logger, 'Webhook processed successfully', {
+          eventType: event.type,
+          eventId,
+          source,
+        })
       } else {
         logger.warn({ eventType: event.type }, 'Unhandled event type')
       }
