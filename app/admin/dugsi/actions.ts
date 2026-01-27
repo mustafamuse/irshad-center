@@ -1016,7 +1016,7 @@ export async function assignTeacherToClassAction(
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
-    await logInfo(logger, 'Teacher assigned to class', { classId, teacherId })
+    logger.info({ classId, teacherId }, 'Teacher assigned to class')
 
     return {
       success: true,
@@ -1082,7 +1082,7 @@ export async function removeTeacherFromClassAction(
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
-    await logInfo(logger, 'Teacher removed from class', { classId, teacherId })
+    logger.info({ classId, teacherId }, 'Teacher removed from class')
 
     return {
       success: true,
@@ -1191,10 +1191,7 @@ export async function enrollStudentInClassAction(
 
     revalidatePath('/admin/dugsi/classes')
 
-    await logInfo(logger, 'Student enrolled in class', {
-      classId,
-      programProfileId,
-    })
+    logger.info({ classId, programProfileId }, 'Student enrolled in class')
 
     return {
       success: true,
@@ -1245,7 +1242,7 @@ export async function removeStudentFromClassAction(
 
     revalidatePath('/admin/dugsi/classes')
 
-    await logInfo(logger, 'Student removed from class', { programProfileId })
+    logger.info({ programProfileId }, 'Student removed from class')
 
     return {
       success: true,
@@ -1283,11 +1280,10 @@ export async function bulkEnrollStudentsAction(
 
     revalidatePath('/admin/dugsi/classes')
 
-    await logInfo(logger, 'Bulk enrollment completed', {
-      classId,
-      enrolled: result.enrolled,
-      moved: result.moved,
-    })
+    logger.info(
+      { classId, enrolled: result.enrolled, moved: result.moved },
+      'Bulk enrollment completed'
+    )
 
     return {
       success: true,
@@ -1324,11 +1320,7 @@ export async function createClassAction(
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
-    await logInfo(logger, 'Class created', {
-      classId: newClass.id,
-      name,
-      shift,
-    })
+    logger.info({ classId: newClass.id, name, shift }, 'Class created')
 
     return {
       success: true,
@@ -1390,7 +1382,7 @@ export async function updateClassAction(
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
-    await logInfo(logger, 'Class updated', { classId, name })
+    logger.info({ classId, name }, 'Class updated')
 
     return {
       success: true,
@@ -1458,7 +1450,7 @@ export async function deleteClassAction(
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
 
-    await logInfo(logger, 'Class deleted', { classId })
+    logger.info({ classId }, 'Class deleted')
 
     return {
       success: true,

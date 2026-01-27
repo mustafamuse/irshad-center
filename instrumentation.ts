@@ -25,7 +25,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
 ) => {
   Sentry.captureRequestError(error, request, context)
 
-  if (process.env.NEXT_PUBLIC_AXIOM_TOKEN) {
+  try {
     const { Logger } = await import('next-axiom')
     const logger = new Logger({ source: 'request-error' })
     logger.error('Request error', {
@@ -36,5 +36,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
       routePath: context.routePath,
     })
     await logger.flush()
+  } catch {
+    // Axiom logging failure must not interfere with error reporting
   }
 }

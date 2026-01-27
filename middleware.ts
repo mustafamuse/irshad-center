@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import type { NextFetchEvent, NextRequest } from 'next/server'
 
 import { Logger } from 'next-axiom'
 
 import { verifyAuthTokenEdge } from '@/lib/auth/admin-auth.edge'
 
-export async function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest, event: NextFetchEvent) {
   const path = request.nextUrl.pathname
   const startTime = Date.now()
 
@@ -13,12 +13,6 @@ export async function middleware(request: NextRequest) {
     process.env.NODE_ENV === 'production'
       ? new Logger({ source: 'middleware' })
       : null
-
-  axiomLogger?.info('Request', {
-    path,
-    method: request.method,
-    userAgent: request.headers.get('user-agent'),
-  })
 
   let response: NextResponse
 
@@ -36,18 +30,19 @@ export async function middleware(request: NextRequest) {
     response = NextResponse.next()
   }
 
-  const duration = Date.now() - startTime
-  response.headers.set('x-response-time', `${duration}ms`)
-
-  axiomLogger?.info('Response', {
+  axiomLogger?.info('Request handled', {
     path,
     method: request.method,
-    duration,
+    duration: Date.now() - startTime,
   })
+
+  if (axiomLogger) {
+    event.waitUntil(axiomLogger.flush())
+  }
 
   return response
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/api/:path*'],
+  matcher: ['/admin/:path*'],
 }

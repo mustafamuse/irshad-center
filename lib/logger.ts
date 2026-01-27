@@ -238,22 +238,25 @@ export type ChildLogger = ReturnType<typeof createLogger>
 // Axiom Log Aggregation
 // ============================================================================
 
-let axiomLogger: AxiomLogger | null = null
+let _axiomLogger: AxiomLogger | null = null
 
 function getAxiomLogger(): AxiomLogger | null {
-  if (process.env.NODE_ENV !== 'production') {
-    return null
+  if (process.env.NODE_ENV !== 'production') return null
+  if (!_axiomLogger) {
+    _axiomLogger = new AxiomLogger({ source: 'app' })
   }
-  if (!axiomLogger) {
-    axiomLogger = new AxiomLogger({ source: 'app' })
-  }
-  return axiomLogger
+  return _axiomLogger
 }
 
-export async function flushAxiomLogs(): Promise<void> {
-  if (axiomLogger) {
-    await axiomLogger.flush()
-  }
+async function sendToAxiom(
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  context: Record<string, unknown>
+): Promise<void> {
+  const axiom = getAxiomLogger()
+  if (!axiom) return
+  axiom[level](message, context)
+  await axiom.flush()
 }
 
 // ============================================================================
@@ -444,15 +447,12 @@ export async function logError(
   })
 
   // 3. Send to Axiom for log aggregation
-  const axiom = getAxiomLogger()
-  if (axiom) {
-    axiom.error(message, {
-      error: serialized.err.message,
-      stack: serialized.err.stack,
-      requestId: requestContext.requestId,
-      ...context,
-    })
-  }
+  await sendToAxiom('error', message, {
+    error: serialized.err.message,
+    stack: serialized.err.stack,
+    requestId: requestContext.requestId,
+    ...context,
+  })
 }
 
 /**
@@ -487,13 +487,10 @@ export async function logWarning(
   })
 
   // 3. Send to Axiom for log aggregation
-  const axiom = getAxiomLogger()
-  if (axiom) {
-    axiom.warn(message, {
-      requestId: requestContext.requestId,
-      ...context,
-    })
-  }
+  await sendToAxiom('warn', message, {
+    requestId: requestContext.requestId,
+    ...context,
+  })
 }
 
 /**
@@ -526,11 +523,8 @@ export async function logInfo(
   logger.info(fullContext, message)
 
   // 2. Send to Axiom for audit trail
-  const axiom = getAxiomLogger()
-  if (axiom) {
-    axiom.info(message, {
-      requestId: requestContext.requestId,
-      ...context,
-    })
-  }
+  await sendToAxiom('info', message, {
+    requestId: requestContext.requestId,
+    ...context,
+  })
 }

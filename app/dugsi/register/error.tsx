@@ -28,6 +28,7 @@ export default function Error({
       digest: error.digest,
       stack: error.stack,
     })
+    void log.flush()
   }, [error, log])
 
   return (

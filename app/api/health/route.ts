@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
+import { createAPILogger } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+const logger = createAPILogger('/api/health')
 
 export async function GET() {
   const startTime = Date.now()
@@ -19,13 +22,16 @@ export async function GET() {
         database: { status: 'up', latency: `${dbLatency}ms` },
       },
     })
-  } catch {
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error({ err: error }, 'Health check: database unreachable')
+
     return NextResponse.json(
       {
         status: 'unhealthy',
         timestamp: new Date().toISOString(),
         checks: {
-          database: { status: 'down' },
+          database: { status: 'down', error: errorMessage },
         },
       },
       { status: 503 }

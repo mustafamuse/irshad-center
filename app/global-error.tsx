@@ -25,6 +25,7 @@ export default function GlobalError({
       digest: error.digest,
       stack: error.stack,
     })
+    void log.flush()
   }, [error, log])
 
   return (
