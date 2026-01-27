@@ -238,25 +238,7 @@ export type ChildLogger = ReturnType<typeof createLogger>
 // Axiom Log Aggregation
 // ============================================================================
 
-let _axiomLogger: AxiomLogger | null = null
 let _axiomWarned = false
-
-function getAxiomLogger(): AxiomLogger | null {
-  if (process.env.NODE_ENV !== 'production') return null
-  if (!process.env.NEXT_PUBLIC_AXIOM_TOKEN) {
-    if (!_axiomWarned) {
-      console.warn(
-        'NEXT_PUBLIC_AXIOM_TOKEN is not set — Axiom logging disabled'
-      )
-      _axiomWarned = true
-    }
-    return null
-  }
-  if (!_axiomLogger) {
-    _axiomLogger = new AxiomLogger({ source: 'app' })
-  }
-  return _axiomLogger
-}
 
 async function sendToAxiom(
   level: 'info' | 'warn' | 'error',
@@ -264,8 +246,17 @@ async function sendToAxiom(
   context: Record<string, unknown>
 ): Promise<void> {
   try {
-    const axiom = getAxiomLogger()
-    if (!axiom) return
+    if (process.env.NODE_ENV !== 'production') return
+    if (!process.env.NEXT_PUBLIC_AXIOM_TOKEN) {
+      if (!_axiomWarned) {
+        console.warn(
+          'NEXT_PUBLIC_AXIOM_TOKEN is not set — Axiom logging disabled'
+        )
+        _axiomWarned = true
+      }
+      return
+    }
+    const axiom = new AxiomLogger({ source: 'app' })
     axiom[level](message, context)
     await axiom.flush()
   } catch {

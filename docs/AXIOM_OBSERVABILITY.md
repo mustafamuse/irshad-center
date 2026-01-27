@@ -71,7 +71,7 @@ The Irshad Center uses a three-tier observability stack:
 ```apl
 ['vercel']
 | where ['vercel.source'] == "middleware"
-| where message == "Response"
+| where message == "Request handled"
 | where _time > ago(1h)
 | summarize count(), avg(['fields.duration']) by ['fields.path']
 | order by count_ desc
@@ -82,7 +82,7 @@ The Irshad Center uses a three-tier observability stack:
 ```apl
 ['vercel']
 | where ['vercel.source'] == "middleware"
-| where message == "Response"
+| where message == "Request handled"
 | where _time > ago(1h)
 | summarize
     p50 = percentile(['fields.duration'], 50),

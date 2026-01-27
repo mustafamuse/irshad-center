@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 import { prisma } from '@/lib/db'
-import { createAPILogger } from '@/lib/logger'
+import { createAPILogger, logError } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -24,7 +24,7 @@ export async function GET() {
     })
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
-    logger.error({ err: error }, 'Health check: database unreachable')
+    await logError(logger, error, 'Health check: database unreachable')
 
     return NextResponse.json(
       {
