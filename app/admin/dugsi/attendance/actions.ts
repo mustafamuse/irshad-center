@@ -1,55 +1,163 @@
 'use server'
 
+import { revalidatePath, revalidateTag } from 'next/cache'
+
 import { z } from 'zod'
 
-import { createStubbedAction } from '@/lib/utils/stub-helpers'
+import {
+  getActiveClasses,
+  getAttendanceStats,
+  getEnrolledStudentsByClass,
+  getSessions,
+  type AttendanceStats,
+  type PaginatedSessions,
+} from '@/lib/db/queries/dugsi-attendance'
+import { createActionLogger, logError } from '@/lib/logger'
+import {
+  createAttendanceSession,
+  deleteAttendanceSession,
+  markAttendanceRecords,
+} from '@/lib/services/dugsi/attendance-service'
+import { ValidationError } from '@/lib/services/validation-service'
+import { ActionResult } from '@/lib/utils/action-helpers'
+import {
+  AttendanceFiltersSchema,
+  CreateSessionSchema,
+  DeleteSessionSchema,
+  MarkAttendanceSchema,
+} from '@/lib/validations/attendance'
 
-import { AttendanceStatus } from './_types'
+const logger = createActionLogger('attendance-actions')
 
-/**
- * Attendance Actions
- *
- * NOTE: The attendance feature is incomplete. The database models
- * (AttendanceSession, AttendanceRecord) were removed from the schema.
- * These functions are stubbed out until the feature is implemented.
- * TODO: Implement in future PR when attendance feature is prioritized.
- */
+const REVALIDATE_PATH = '/admin/dugsi/attendance'
 
-const createSessionSchema = z.object({
-  batchId: z.string(),
-  date: z.string(),
-  notes: z.string().optional(),
-})
+export type ClassOption = { id: string; name: string; shift: string }
+export type StudentOption = { programProfileId: string; name: string }
 
-export const createSession = createStubbedAction<
-  [z.infer<typeof createSessionSchema>]
->({
-  feature: 'createSession',
-  reason: 'schema_migration',
-  userMessage: 'Attendance feature is not yet implemented.',
-})
+export async function createSession(
+  input: unknown
+): Promise<ActionResult<{ sessionId: string }>> {
+  const parsed = CreateSessionSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
 
-const markAttendanceSchema = z.object({
-  sessionId: z.string(),
-  records: z.array(
-    z.object({
-      studentId: z.string(),
-      status: z.nativeEnum(AttendanceStatus),
-      notes: z.string().optional(),
-    })
-  ),
-})
+  try {
+    const { session } = await createAttendanceSession(parsed.data)
+    revalidatePath(REVALIDATE_PATH)
+    revalidateTag('attendance-stats')
+    return { success: true, data: { sessionId: session.id } }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to create session')
+    return { success: false, error: 'Failed to create session' }
+  }
+}
 
-export const markAttendance = createStubbedAction<
-  [z.infer<typeof markAttendanceSchema>]
->({
-  feature: 'markAttendance',
-  reason: 'schema_migration',
-  userMessage: 'Attendance feature is not yet implemented.',
-})
+export async function markAttendance(
+  input: unknown
+): Promise<ActionResult<{ recordCount: number }>> {
+  const parsed = MarkAttendanceSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
 
-export const deleteSession = createStubbedAction<[string]>({
-  feature: 'deleteSession',
-  reason: 'schema_migration',
-  userMessage: 'Attendance feature is not yet implemented.',
-})
+  try {
+    const result = await markAttendanceRecords(parsed.data)
+    revalidatePath(REVALIDATE_PATH)
+    revalidateTag('attendance-stats')
+    return { success: true, data: result }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to mark attendance')
+    return { success: false, error: 'Failed to mark attendance' }
+  }
+}
+
+export async function deleteSession(
+  input: unknown
+): Promise<ActionResult<void>> {
+  const parsed = DeleteSessionSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
+
+  try {
+    await deleteAttendanceSession(parsed.data.sessionId)
+    revalidatePath(REVALIDATE_PATH)
+    revalidateTag('attendance-stats')
+    return { success: true }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to delete session')
+    return { success: false, error: 'Failed to delete session' }
+  }
+}
+
+export async function getSessionsAction(
+  input: unknown
+): Promise<ActionResult<PaginatedSessions>> {
+  const parsed = AttendanceFiltersSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
+
+  try {
+    const { page, limit, ...filters } = parsed.data
+    const result = await getSessions(filters, { page, limit })
+    return { success: true, data: result }
+  } catch (error) {
+    await logError(logger, error, 'Failed to fetch sessions')
+    return { success: false, error: 'Failed to fetch sessions' }
+  }
+}
+
+export async function getAttendanceStatsAction(): Promise<
+  ActionResult<AttendanceStats>
+> {
+  try {
+    const stats = await getAttendanceStats()
+    return { success: true, data: stats }
+  } catch (error) {
+    await logError(logger, error, 'Failed to fetch attendance stats')
+    return { success: false, error: 'Failed to fetch attendance stats' }
+  }
+}
+
+export async function getClassesForDropdownAction(): Promise<
+  ActionResult<ClassOption[]>
+> {
+  try {
+    const classes = await getActiveClasses()
+    return {
+      success: true,
+      data: classes.map((c) => ({ id: c.id, name: c.name, shift: c.shift })),
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to fetch classes')
+    return { success: false, error: 'Failed to fetch classes' }
+  }
+}
+
+export async function getStudentsForClassAction(
+  classId: string
+): Promise<ActionResult<StudentOption[]>> {
+  const parsed = z.string().uuid('Invalid class ID').safeParse(classId)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
+
+  try {
+    const students = await getEnrolledStudentsByClass(parsed.data)
+    return { success: true, data: students }
+  } catch (error) {
+    await logError(logger, error, 'Failed to fetch students')
+    return { success: false, error: 'Failed to fetch students' }
+  }
+}

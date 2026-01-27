@@ -1,15 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { getAttendanceStats } from '@/lib/db/queries/dugsi-attendance'
 
-/**
- * Attendance Stats Component
- *
- * NOTE: The attendance feature is incomplete. The database models
- * (AttendanceSession, AttendanceRecord) were removed from the schema.
- * This component is stubbed out until the feature is implemented.
- */
 export async function AttendanceStats() {
+  const stats = await getAttendanceStats()
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -17,39 +13,41 @@ export async function AttendanceStats() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">-</div>
+          <div className="text-2xl font-bold">{stats.totalSessions}</div>
         </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Active Students
+            Total Records
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">-</div>
+          <div className="text-2xl font-bold">{stats.totalStudents}</div>
         </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            Avg Attendance
+            Attendance Rate
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">-</div>
+          <div className="text-2xl font-bold">{stats.attendanceRate}%</div>
         </CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-muted-foreground">
-            This Month
+            Present / Late / Absent
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">-</div>
+          <div className="text-2xl font-bold">
+            {stats.presentCount} / {stats.lateCount} / {stats.absentCount}
+          </div>
         </CardContent>
       </Card>
-    </div>
+    </>
   )
 }

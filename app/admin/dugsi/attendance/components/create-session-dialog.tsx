@@ -35,26 +35,27 @@ import {
 import { createSession } from '../actions'
 
 type FormData = {
-  batchId: string
+  classId: string
   date: string
   notes?: string
 }
 
 interface Props {
-  batches: { id: string; name: string }[]
+  classes: { id: string; name: string; shift: string }[]
 }
 
-export function CreateSessionDialog({ batches }: Props) {
+export function CreateSessionDialog({ classes }: Props) {
   const [open, setOpen] = useState(false)
   const form = useForm<FormData>()
 
   async function onSubmit(data: FormData) {
-    try {
-      await createSession(data)
+    const result = await createSession(data)
+    if (result.success) {
       setOpen(false)
+      form.reset()
       toast.success('Session created successfully')
-    } catch {
-      toast.error('Failed to create session')
+    } else {
+      toast.error(result.error || 'Failed to create session')
     }
   }
 
@@ -76,23 +77,23 @@ export function CreateSessionDialog({ batches }: Props) {
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <FormField
               control={form.control}
-              name="batchId"
+              name="classId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Batch</FormLabel>
+                  <FormLabel>Class</FormLabel>
                   <Select
                     defaultValue={field.value}
                     onValueChange={field.onChange}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a batch" />
+                        <SelectValue placeholder="Select a class" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {batches.map((batch) => (
-                        <SelectItem key={batch.id} value={batch.id}>
-                          {batch.name}
+                      {classes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.name} ({c.shift})
                         </SelectItem>
                       ))}
                     </SelectContent>

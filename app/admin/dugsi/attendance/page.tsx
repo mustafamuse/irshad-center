@@ -14,8 +14,7 @@ interface Props {
     page?: string
     fromDate?: string
     toDate?: string
-    batchId?: string
-    search?: string
+    classId?: string
   }>
 }
 

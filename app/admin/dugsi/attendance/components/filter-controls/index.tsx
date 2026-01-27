@@ -22,20 +22,21 @@ import {
 } from '@/components/ui/select'
 import { cn, isValidDate } from '@/lib/utils'
 
-interface Batch {
+interface ClassOption {
   id: string
   name: string
+  shift: string
 }
 
 interface FilterControlsProps {
-  batches: Batch[]
+  classes: ClassOption[]
 }
 
-export function FilterControls({ batches }: FilterControlsProps) {
+export function FilterControls({ classes }: FilterControlsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const batchId = searchParams.get('batchId') || ''
+  const classId = searchParams.get('classId') || ''
   const fromDate = searchParams.get('fromDate') || ''
   const toDate = searchParams.get('toDate') || ''
 
@@ -46,13 +47,12 @@ export function FilterControls({ batches }: FilterControlsProps) {
     } else {
       params.delete(key)
     }
-    // Reset to first page when filters change
     params.delete('page')
-    router.push(`/admin/shared/attendance?${params.toString()}`)
+    router.push(`/admin/dugsi/attendance?${params.toString()}`)
   }
 
   const clearFilters = () => {
-    router.push('/admin/shared/attendance')
+    router.push('/admin/dugsi/attendance')
   }
 
   return (
@@ -62,30 +62,28 @@ export function FilterControls({ batches }: FilterControlsProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Batch Filter */}
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="batch-select">
-              Batch
+            <label className="text-sm font-medium" htmlFor="class-select">
+              Class
             </label>
             <Select
-              value={batchId || 'all'}
-              onValueChange={(value) => updateSearchParams('batchId', value)}
+              value={classId || 'all'}
+              onValueChange={(value) => updateSearchParams('classId', value)}
             >
-              <SelectTrigger id="batch-select">
-                <SelectValue placeholder="All batches" />
+              <SelectTrigger id="class-select">
+                <SelectValue placeholder="All classes" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All batches</SelectItem>
-                {batches.map((batch) => (
-                  <SelectItem key={batch.id} value={batch.id}>
-                    {batch.name}
+                <SelectItem value="all">All classes</SelectItem>
+                {classes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} ({c.shift})
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* From Date Filter */}
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="from-date">
               From Date
@@ -126,7 +124,6 @@ export function FilterControls({ batches }: FilterControlsProps) {
             </Popover>
           </div>
 
-          {/* To Date Filter */}
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="to-date">
               To Date
@@ -166,8 +163,7 @@ export function FilterControls({ batches }: FilterControlsProps) {
           </div>
         </div>
 
-        {/* Clear Filters */}
-        {(batchId || fromDate || toDate) && (
+        {(classId || fromDate || toDate) && (
           <Button
             className="min-h-[44px] w-full"
             variant="outline"

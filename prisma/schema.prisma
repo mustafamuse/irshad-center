@@ -595,6 +595,7 @@ model DugsiAttendanceSession {
   @@index([date])
   @@index([classId])
   @@index([teacherId, date])
+  @@index([classId, date(sort: Desc)])
 }
 
 model DugsiAttendanceRecord {
@@ -620,6 +621,7 @@ model DugsiAttendanceRecord {
   @@index([programProfileId])
   @@index([status])
   @@index([programProfileId, status])
+  @@index([sessionId, status])
 }
 
 model DugsiTeacherCheckIn {
