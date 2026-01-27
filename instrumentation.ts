@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/nextjs'
+import { type Instrumentation } from 'next'
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
@@ -17,4 +18,25 @@ export async function register() {
   }
 }
 
-export const onRequestError = Sentry.captureRequestError
+export const onRequestError: Instrumentation.onRequestError = async (
+  error,
+  request,
+  context
+) => {
+  Sentry.captureRequestError(error, request, context)
+
+  try {
+    const { Logger } = await import('next-axiom')
+    const logger = new Logger({ source: 'request-error' })
+    logger.error('Request error', {
+      error: error instanceof Error ? error.message : String(error),
+      path: request.path,
+      method: request.method,
+      routeType: context.routeType,
+      routePath: context.routePath,
+    })
+    await logger.flush()
+  } catch (e) {
+    console.error('Axiom logging failed in onRequestError:', e)
+  }
+}

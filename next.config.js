@@ -1,4 +1,5 @@
 const { withSentryConfig } = require('@sentry/nextjs')
+const { withAxiom } = require('next-axiom')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -23,8 +24,8 @@ const nextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' 'wasm-unsafe-eval' https://js.stripe.com https://*.js.stripe.com https://maps.googleapis.com https://va.vercel-scripts.com https://*.vercel-scripts.com",
               "style-src 'self' 'unsafe-inline'",
               process.env.NODE_ENV === 'development'
-                ? "connect-src 'self' ws: wss: blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com"
-                : "connect-src 'self' blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com",
+                ? "connect-src 'self' ws: wss: blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com https://*.axiom.co"
+                : "connect-src 'self' blob: data: https://api.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com https://*.axiom.co",
               "worker-src 'self' blob:",
               "child-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
               "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com https://www.google.com https://maps.google.com",
@@ -60,7 +61,7 @@ const nextConfig = {
   },
 }
 
-module.exports = withSentryConfig(nextConfig, {
+const sentryConfig = withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
   silent: !process.env.CI,
@@ -69,3 +70,5 @@ module.exports = withSentryConfig(nextConfig, {
   disableLogger: true,
   automaticVercelMonitors: true,
 })
+
+module.exports = withAxiom(sentryConfig)

@@ -98,6 +98,7 @@
     "input-otp": "^1.4.1",
     "lucide-react": "^0.323.0",
     "next": "^15.3.6",
+    "next-axiom": "^1.10.0",
     "next-intl": "^4.3.12",
     "next-themes": "^0.2.1",
     "nuqs": "^2.4.3",

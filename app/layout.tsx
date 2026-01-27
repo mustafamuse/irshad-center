@@ -1,5 +1,6 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata } from 'next'
+import { AxiomWebVitals } from 'next-axiom'
 import { Toaster } from 'sonner'
 
 import { ThemeProvider } from '@/providers/theme-provider'
@@ -196,6 +197,7 @@ export default function RootLayout({
           </ThemeProvider>
         </Providers>
         <Analytics />
+        <AxiomWebVitals />
       </body>
     </html>
   )
