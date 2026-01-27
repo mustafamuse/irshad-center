@@ -253,10 +253,14 @@ async function sendToAxiom(
   message: string,
   context: Record<string, unknown>
 ): Promise<void> {
-  const axiom = getAxiomLogger()
-  if (!axiom) return
-  axiom[level](message, context)
-  await axiom.flush()
+  try {
+    const axiom = getAxiomLogger()
+    if (!axiom) return
+    axiom[level](message, context)
+    await axiom.flush()
+  } catch {
+    // Axiom failure must never interrupt application logging
+  }
 }
 
 // ============================================================================

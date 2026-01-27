@@ -36,7 +36,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
       routePath: context.routePath,
     })
     await logger.flush()
-  } catch {
-    // Axiom logging failure must not interfere with error reporting
+  } catch (e) {
+    console.error('Axiom logging failed in onRequestError:', e)
   }
 }
