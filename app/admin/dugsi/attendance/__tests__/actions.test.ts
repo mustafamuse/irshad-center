@@ -57,12 +57,14 @@ vi.mock('@/lib/logger', () => ({
   logError: vi.fn(),
 }))
 
+import { logError } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
 
 import {
   createSession,
   markAttendance,
   deleteSession,
+  ensureTodaySessions,
   getSessionsAction,
   getAttendanceStatsAction,
   getClassesForDropdownAction,
@@ -82,18 +84,43 @@ describe('attendance actions', () => {
 
       const result = await createSession({
         classId: '00000000-0000-0000-0000-000000000001',
-        date: '2025-01-01',
+        date: '2025-01-04',
       })
 
       expect(result.success).toBe(true)
       expect(result.data?.sessionId).toBe('session-1')
+      expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/attendance')
       expect(mockRevalidateTag).toHaveBeenCalledWith('attendance-stats')
+    })
+
+    it('returns generic error for non-validation errors', async () => {
+      mockCreateSession.mockRejectedValue(
+        new Error('Database connection failed')
+      )
+
+      const result = await createSession({
+        classId: '00000000-0000-0000-0000-000000000001',
+        date: '2025-01-04',
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Failed to create session')
+      expect(logError).toHaveBeenCalled()
     })
 
     it('returns error for invalid input', async () => {
       const result = await createSession({ classId: 'not-a-uuid' })
       expect(result.success).toBe(false)
       expect(result.error).toBeDefined()
+    })
+
+    it('rejects weekday dates via schema validation', async () => {
+      const result = await createSession({
+        classId: '00000000-0000-0000-0000-000000000001',
+        date: '2025-01-06', // Monday
+      })
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('weekends')
     })
 
     it('returns validation error message', async () => {
@@ -103,7 +130,7 @@ describe('attendance actions', () => {
 
       const result = await createSession({
         classId: '00000000-0000-0000-0000-000000000001',
-        date: '2025-01-01',
+        date: '2025-01-04',
       })
 
       expect(result.success).toBe(false)
@@ -127,6 +154,7 @@ describe('attendance actions', () => {
 
       expect(result.success).toBe(true)
       expect(result.data?.recordCount).toBe(2)
+      expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/attendance')
       expect(mockRevalidateTag).toHaveBeenCalledWith('attendance-stats')
     })
 
@@ -136,6 +164,39 @@ describe('attendance actions', () => {
         records: [],
       })
       expect(result.success).toBe(false)
+    })
+
+    it('returns generic error for non-validation errors', async () => {
+      mockMarkRecords.mockRejectedValue(new Error('Database connection failed'))
+
+      const result = await markAttendance({
+        sessionId: '00000000-0000-0000-0000-000000000001',
+        records: [
+          {
+            programProfileId: '00000000-0000-0000-0000-000000000002',
+            status: 'PRESENT',
+          },
+        ],
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Failed to mark attendance')
+      expect(logError).toHaveBeenCalled()
+    })
+
+    it('calls service with empty records array', async () => {
+      mockMarkRecords.mockResolvedValue({ recordCount: 0 })
+
+      const result = await markAttendance({
+        sessionId: '00000000-0000-0000-0000-000000000001',
+        records: [],
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockMarkRecords).toHaveBeenCalledWith({
+        sessionId: '00000000-0000-0000-0000-000000000001',
+        records: [],
+      })
     })
   })
 
@@ -148,6 +209,7 @@ describe('attendance actions', () => {
       })
 
       expect(result.success).toBe(true)
+      expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/attendance')
       expect(mockRevalidateTag).toHaveBeenCalledWith('attendance-stats')
     })
 
@@ -186,7 +248,7 @@ describe('attendance actions', () => {
     it('returns stats', async () => {
       const stats = {
         totalSessions: 5,
-        totalStudents: 50,
+        totalRecords: 50,
         presentCount: 40,
         absentCount: 5,
         lateCount: 3,
@@ -224,6 +286,79 @@ describe('attendance actions', () => {
       )
       expect(result.success).toBe(true)
       expect(result.data).toHaveLength(1)
+    })
+  })
+
+  describe('ensureTodaySessions', () => {
+    it('returns success without creating sessions on weekdays', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-06T12:00:00Z'))
+
+      const result = await ensureTodaySessions()
+
+      expect(result.success).toBe(true)
+      expect(mockGetClasses).not.toHaveBeenCalled()
+      expect(mockCreateSession).not.toHaveBeenCalled()
+
+      vi.useRealTimers()
+    })
+
+    it('creates sessions for all active classes on Saturday', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-04T12:00:00Z'))
+
+      mockGetClasses.mockResolvedValue([
+        { id: 'c1', name: 'Class A', shift: 'MORNING' },
+        { id: 'c2', name: 'Class B', shift: 'AFTERNOON' },
+      ])
+      mockCreateSession.mockResolvedValue({ session: { id: 's1' } })
+
+      const result = await ensureTodaySessions()
+
+      expect(result.success).toBe(true)
+      expect(mockGetClasses).toHaveBeenCalled()
+      expect(mockCreateSession).toHaveBeenCalledTimes(2)
+      expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/attendance')
+      expect(mockRevalidateTag).toHaveBeenCalledWith('attendance-stats')
+
+      vi.useRealTimers()
+    })
+
+    it('creates sessions for all active classes on Sunday', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-05T12:00:00Z'))
+
+      mockGetClasses.mockResolvedValue([
+        { id: 'c1', name: 'Class A', shift: 'MORNING' },
+      ])
+      mockCreateSession.mockResolvedValue({ session: { id: 's1' } })
+
+      const result = await ensureTodaySessions()
+
+      expect(result.success).toBe(true)
+      expect(mockCreateSession).toHaveBeenCalledTimes(1)
+
+      vi.useRealTimers()
+    })
+
+    it('succeeds even when some session creations fail', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2025-01-04T12:00:00Z'))
+
+      mockGetClasses.mockResolvedValue([
+        { id: 'c1', name: 'Class A', shift: 'MORNING' },
+        { id: 'c2', name: 'Class B', shift: 'AFTERNOON' },
+      ])
+      mockCreateSession
+        .mockResolvedValueOnce({ session: { id: 's1' } })
+        .mockRejectedValueOnce(new Error('Duplicate session'))
+
+      const result = await ensureTodaySessions()
+
+      expect(result.success).toBe(true)
+      expect(mockCreateSession).toHaveBeenCalledTimes(2)
+
+      vi.useRealTimers()
     })
   })
 })

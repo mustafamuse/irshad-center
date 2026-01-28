@@ -1,0 +1,45 @@
+'use server'
+
+import { revalidatePath, revalidateTag } from 'next/cache'
+
+import { getAuthenticatedTeacherId } from '@/lib/auth/get-teacher'
+import { getSessionById } from '@/lib/db/queries/dugsi-attendance'
+import { createActionLogger, logError } from '@/lib/logger'
+import { markAttendanceRecords } from '@/lib/services/dugsi/attendance-service'
+import { ValidationError } from '@/lib/services/validation-service'
+import { ActionResult } from '@/lib/utils/action-helpers'
+import { MarkAttendanceSchema } from '@/lib/validations/attendance'
+
+const logger = createActionLogger('teacher-attendance-actions')
+
+export async function teacherMarkAttendance(
+  input: unknown
+): Promise<ActionResult<{ recordCount: number }>> {
+  const parsed = MarkAttendanceSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0].message }
+  }
+
+  const teacherId = await getAuthenticatedTeacherId()
+
+  const session = await getSessionById(parsed.data.sessionId)
+  if (!session || session.teacherId !== teacherId) {
+    return {
+      success: false,
+      error: 'Unauthorized: session does not belong to you',
+    }
+  }
+
+  try {
+    const result = await markAttendanceRecords(parsed.data)
+    revalidatePath('/teacher/attendance')
+    revalidateTag('attendance-stats')
+    return { success: true, data: result }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to mark attendance')
+    return { success: false, error: 'Failed to mark attendance' }
+  }
+}

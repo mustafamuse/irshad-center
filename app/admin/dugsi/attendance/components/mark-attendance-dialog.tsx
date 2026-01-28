@@ -44,6 +44,7 @@ interface Props {
   sessionId: string
   students: Student[]
   attendance: AttendanceRecordForMarking[]
+  triggerLabel?: string
 }
 
 const statusOptions = [
@@ -55,7 +56,7 @@ const statusOptions = [
 
 interface RecordState {
   programProfileId: string
-  status: DugsiAttendanceStatus
+  status: DugsiAttendanceStatus | null
   lessonCompleted: boolean
   surahName: string
   ayatFrom: string
@@ -164,6 +165,7 @@ export function MarkAttendanceDialog({
   sessionId,
   students,
   attendance,
+  triggerLabel,
 }: Props) {
   const [open, setOpen] = useState(false)
   const [records, setRecords] = useState<RecordState[]>(() =>
@@ -173,7 +175,7 @@ export function MarkAttendanceDialog({
       )
       return {
         programProfileId: student.programProfileId,
-        status: existing?.status ?? DugsiAttendanceStatus.ABSENT,
+        status: existing?.status ?? null,
         lessonCompleted: existing?.lessonCompleted ?? false,
         surahName: existing?.surahName ?? '',
         ayatFrom: existing?.ayatFrom?.toString() ?? '',
@@ -185,11 +187,15 @@ export function MarkAttendanceDialog({
   )
 
   async function handleSubmit() {
+    if (records.some((r) => r.status === null)) {
+      toast.error('Please mark attendance for all students')
+      return
+    }
     const result = await markAttendance({
       sessionId,
       records: records.map((r) => ({
         programProfileId: r.programProfileId,
-        status: r.status,
+        status: r.status as DugsiAttendanceStatus,
         lessonCompleted: r.lessonCompleted,
         surahName: r.surahName || undefined,
         ayatFrom: r.ayatFrom ? parseInt(r.ayatFrom) : undefined,
@@ -225,7 +231,7 @@ export function MarkAttendanceDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="w-full md:w-auto" variant="outline">
-          Mark Attendance
+          {triggerLabel ?? 'Mark Attendance'}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[95vh] max-w-[95vw] overflow-hidden md:max-w-4xl">
@@ -302,7 +308,7 @@ export function MarkAttendanceDialog({
                       Status
                     </label>
                     <Select
-                      value={record.status}
+                      value={record.status ?? ''}
                       onValueChange={(value) =>
                         updateRecord(student.programProfileId, {
                           status: value as DugsiAttendanceStatus,
@@ -310,7 +316,7 @@ export function MarkAttendanceDialog({
                       }
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue />
+                        <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                       <SelectContent>
                         {statusOptions.map((option) => (
@@ -389,7 +395,11 @@ export function MarkAttendanceDialog({
           >
             Cancel
           </Button>
-          <Button className="w-full sm:w-auto" onClick={handleSubmit}>
+          <Button
+            className="w-full sm:w-auto"
+            disabled={records.some((r) => r.status === null)}
+            onClick={handleSubmit}
+          >
             Save Attendance
           </Button>
         </div>

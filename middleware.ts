@@ -4,6 +4,7 @@ import type { NextFetchEvent, NextRequest } from 'next/server'
 import { Logger } from 'next-axiom'
 
 import { verifyAuthTokenEdge } from '@/lib/auth/admin-auth.edge'
+import { verifyTeacherAuthTokenEdge } from '@/lib/auth/teacher-auth.edge'
 
 export async function middleware(request: NextRequest, event: NextFetchEvent) {
   const path = request.nextUrl.pathname
@@ -21,6 +22,19 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
 
     if (!authCookie || !(await verifyAuthTokenEdge(authCookie.value))) {
       const loginUrl = new URL('/admin/login', request.url)
+      loginUrl.searchParams.set('redirect', path)
+      response = NextResponse.redirect(loginUrl)
+    } else {
+      response = NextResponse.next()
+    }
+  } else if (
+    path.startsWith('/teacher') &&
+    !path.startsWith('/teacher/login')
+  ) {
+    const authCookie = request.cookies.get('teacher_auth')
+
+    if (!authCookie || !(await verifyTeacherAuthTokenEdge(authCookie.value))) {
+      const loginUrl = new URL('/teacher/login', request.url)
       loginUrl.searchParams.set('redirect', path)
       response = NextResponse.redirect(loginUrl)
     } else {
@@ -44,5 +58,5 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/teacher/:path*'],
 }

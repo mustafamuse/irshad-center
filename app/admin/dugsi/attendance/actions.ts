@@ -90,7 +90,7 @@ export async function deleteSession(
     await deleteAttendanceSession(parsed.data.sessionId)
     revalidatePath(REVALIDATE_PATH)
     revalidateTag('attendance-stats')
-    return { success: true }
+    return { success: true, data: undefined }
   } catch (error) {
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
@@ -142,6 +142,28 @@ export async function getClassesForDropdownAction(): Promise<
   } catch (error) {
     await logError(logger, error, 'Failed to fetch classes')
     return { success: false, error: 'Failed to fetch classes' }
+  }
+}
+
+export async function ensureTodaySessions(): Promise<ActionResult<void>> {
+  const today = new Date()
+  const day = today.getUTCDay()
+  if (day !== 0 && day !== 6) return { success: true, data: undefined }
+
+  try {
+    const classes = await getActiveClasses()
+    const dateOnly = new Date(today.toISOString().split('T')[0])
+    await Promise.allSettled(
+      classes.map((c) =>
+        createAttendanceSession({ classId: c.id, date: dateOnly })
+      )
+    )
+    revalidatePath(REVALIDATE_PATH)
+    revalidateTag('attendance-stats')
+    return { success: true, data: undefined }
+  } catch (error) {
+    await logError(logger, error, 'Failed to ensure today sessions')
+    return { success: false, error: 'Failed to create today sessions' }
   }
 }
 

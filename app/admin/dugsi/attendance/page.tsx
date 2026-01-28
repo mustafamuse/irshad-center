@@ -7,7 +7,9 @@ import { AttendanceStats } from './components/attendance-stats'
 import {
   AttendanceStatsCardSkeleton,
   SessionsTableSkeleton as SessionsTableSkeletonComponent,
+  TodaySessionsSkeleton,
 } from './components/skeletons'
+import { TodaySessions } from './components/today-sessions'
 
 interface Props {
   searchParams: Promise<{
@@ -15,6 +17,7 @@ interface Props {
     fromDate?: string
     toDate?: string
     classId?: string
+    teacherId?: string
   }>
 }
 
@@ -36,6 +39,10 @@ export default async function AttendancePage({ searchParams }: Props) {
           <AttendanceStats />
         </Suspense>
       </div>
+
+      <Suspense fallback={<TodaySessionsSkeleton />}>
+        <TodaySessions />
+      </Suspense>
 
       <Card className="p-4 sm:p-6">
         <Suspense fallback={<SessionsTableSkeletonComponent />}>

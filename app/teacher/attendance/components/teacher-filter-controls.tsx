@@ -13,54 +13,28 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { cn, isValidDate } from '@/lib/utils'
 
-interface ClassOption {
-  id: string
-  name: string
-  shift: string
-  label: string
-}
-
-interface TeacherOption {
-  id: string
-  name: string
-}
-
-interface FilterControlsProps {
-  classes: ClassOption[]
-  teachers?: TeacherOption[]
-}
-
-export function FilterControls({ classes, teachers }: FilterControlsProps) {
+export function TeacherFilterControls() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const classId = searchParams.get('classId') || ''
-  const teacherId = searchParams.get('teacherId') || ''
   const fromDate = searchParams.get('fromDate') || ''
   const toDate = searchParams.get('toDate') || ''
 
   const updateSearchParams = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString())
-    if (value && value !== 'all') {
+    if (value) {
       params.set(key, value)
     } else {
       params.delete(key)
     }
     params.delete('page')
-    router.push(`/admin/dugsi/attendance?${params.toString()}`)
+    router.push(`/teacher/attendance?${params.toString()}`)
   }
 
   const clearFilters = () => {
-    router.push('/admin/dugsi/attendance')
+    router.push('/teacher/attendance')
   }
 
   return (
@@ -69,55 +43,7 @@ export function FilterControls({ classes, teachers }: FilterControlsProps) {
         <CardTitle>Filter Sessions</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {teachers && teachers.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="teacher-select">
-                Teacher
-              </label>
-              <Select
-                value={teacherId || 'all'}
-                onValueChange={(value) =>
-                  updateSearchParams('teacherId', value)
-                }
-              >
-                <SelectTrigger id="teacher-select">
-                  <SelectValue placeholder="All teachers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All teachers</SelectItem>
-                  {teachers.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="class-select">
-              Class
-            </label>
-            <Select
-              value={classId || 'all'}
-              onValueChange={(value) => updateSearchParams('classId', value)}
-            >
-              <SelectTrigger id="class-select">
-                <SelectValue placeholder="All classes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All classes</SelectItem>
-                {classes.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="from-date">
               From Date
@@ -197,7 +123,7 @@ export function FilterControls({ classes, teachers }: FilterControlsProps) {
           </div>
         </div>
 
-        {(classId || teacherId || fromDate || toDate) && (
+        {(fromDate || toDate) && (
           <Button
             className="min-h-[44px] w-full"
             variant="outline"

@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 
+import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -31,8 +33,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CreateSessionSchema } from '@/lib/validations/attendance'
 
 import { createSession } from '../actions'
+
+function getUpcomingWeekendDates(count: number): Date[] {
+  const dates: Date[] = []
+  const today = new Date()
+  const current = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  )
+  while (dates.length < count) {
+    const day = current.getDay()
+    if (day === 0 || day === 6) {
+      dates.push(new Date(current))
+    }
+    current.setDate(current.getDate() + 1)
+  }
+  return dates
+}
 
 type FormData = {
   classId: string
@@ -41,12 +62,14 @@ type FormData = {
 }
 
 interface Props {
-  classes: { id: string; name: string; shift: string }[]
+  classes: { id: string; name: string; shift: string; label: string }[]
 }
 
 export function CreateSessionDialog({ classes }: Props) {
   const [open, setOpen] = useState(false)
-  const form = useForm<FormData>()
+  const form = useForm<FormData>({
+    resolver: zodResolver(CreateSessionSchema),
+  })
 
   async function onSubmit(data: FormData) {
     const result = await createSession(data)
@@ -93,7 +116,7 @@ export function CreateSessionDialog({ classes }: Props) {
                     <SelectContent>
                       {classes.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c.name} ({c.shift})
+                          {c.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -108,9 +131,26 @@ export function CreateSessionDialog({ classes }: Props) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Date</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
+                  <Select
+                    defaultValue={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a weekend date" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {getUpcomingWeekendDates(8).map((date) => (
+                        <SelectItem
+                          key={date.toISOString()}
+                          value={format(date, 'yyyy-MM-dd')}
+                        >
+                          {format(date, 'EEEE, MMM d')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

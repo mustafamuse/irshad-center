@@ -23,7 +23,7 @@ export async function AttendanceStats() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.totalStudents}</div>
+          <div className="text-2xl font-bold">{stats.totalRecords}</div>
         </CardContent>
       </Card>
       <Card>

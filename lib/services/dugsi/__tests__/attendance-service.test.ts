@@ -64,17 +64,30 @@ import {
   ATTENDANCE_ERROR_CODES,
 } from '../attendance-service'
 
+const TEST_IDS = {
+  session: '00000000-0000-0000-0000-000000000001',
+  class: '00000000-0000-0000-0000-000000000002',
+  teacher: '00000000-0000-0000-0000-000000000003',
+  person: '00000000-0000-0000-0000-000000000004',
+  profile1: '00000000-0000-0000-0000-000000000005',
+  profile2: '00000000-0000-0000-0000-000000000006',
+  nonexistent: '00000000-0000-0000-0000-000000000099',
+}
+
 const mockSession = {
-  id: 'session-1',
-  classId: 'class-1',
-  teacherId: 'teacher-1',
-  date: new Date('2025-01-01'),
+  id: TEST_IDS.session,
+  classId: TEST_IDS.class,
+  teacherId: TEST_IDS.teacher,
+  date: new Date('2025-01-04'),
   notes: null,
   isClosed: false,
   createdAt: new Date(),
   updatedAt: new Date(),
-  class: { id: 'class-1', name: 'Class A', shift: 'MORNING' },
-  teacher: { id: 'teacher-1', person: { id: 'person-1', name: 'Teacher One' } },
+  class: { id: TEST_IDS.class, name: 'Class A', shift: 'MORNING' },
+  teacher: {
+    id: TEST_IDS.teacher,
+    person: { id: TEST_IDS.person, name: 'Teacher One' },
+  },
   records: [],
 }
 
@@ -86,14 +99,14 @@ describe('attendance-service', () => {
   describe('createAttendanceSession', () => {
     it('creates a session when class exists with teacher', async () => {
       mockFindUnique.mockResolvedValue({
-        id: 'class-1',
-        teachers: [{ teacherId: 'teacher-1' }],
+        id: TEST_IDS.class,
+        teachers: [{ teacherId: TEST_IDS.teacher }],
       })
       mockCreate.mockResolvedValue(mockSession)
 
       const result = await createAttendanceSession({
-        classId: 'class-1',
-        date: new Date('2025-01-01'),
+        classId: TEST_IDS.class,
+        date: new Date('2025-01-04'),
       })
 
       expect(result.session).toEqual(mockSession)
@@ -105,15 +118,15 @@ describe('attendance-service', () => {
 
       await expect(
         createAttendanceSession({
-          classId: 'nonexistent',
-          date: new Date('2025-01-01'),
+          classId: TEST_IDS.nonexistent,
+          date: new Date('2025-01-04'),
         })
       ).rejects.toThrow(ValidationError)
 
       try {
         await createAttendanceSession({
-          classId: 'nonexistent',
-          date: new Date('2025-01-01'),
+          classId: TEST_IDS.nonexistent,
+          date: new Date('2025-01-04'),
         })
       } catch (error) {
         expect((error as ValidationError).code).toBe(
@@ -124,22 +137,31 @@ describe('attendance-service', () => {
 
     it('throws NO_TEACHER_ASSIGNED if class has no active teacher', async () => {
       mockFindUnique.mockResolvedValue({
-        id: 'class-1',
+        id: TEST_IDS.class,
         teachers: [],
       })
 
       await expect(
         createAttendanceSession({
-          classId: 'class-1',
-          date: new Date('2025-01-01'),
+          classId: TEST_IDS.class,
+          date: new Date('2025-01-04'),
         })
       ).rejects.toThrow(ValidationError)
     })
 
+    it('throws for weekday dates', async () => {
+      await expect(
+        createAttendanceSession({
+          classId: TEST_IDS.class,
+          date: new Date('2025-01-06'), // Monday
+        })
+      ).rejects.toThrow()
+    })
+
     it('throws DUPLICATE_SESSION on P2002 error', async () => {
       mockFindUnique.mockResolvedValue({
-        id: 'class-1',
-        teachers: [{ teacherId: 'teacher-1' }],
+        id: TEST_IDS.class,
+        teachers: [{ teacherId: TEST_IDS.teacher }],
       })
       const p2002Error = new Prisma.PrismaClientKnownRequestError(
         'Unique constraint violation',
@@ -149,8 +171,8 @@ describe('attendance-service', () => {
 
       await expect(
         createAttendanceSession({
-          classId: 'class-1',
-          date: new Date('2025-01-01'),
+          classId: TEST_IDS.class,
+          date: new Date('2025-01-04'),
         })
       ).rejects.toThrow(ValidationError)
     })
@@ -158,7 +180,14 @@ describe('attendance-service', () => {
 
   describe('markAttendanceRecords', () => {
     it('upserts records concurrently for an open session', async () => {
-      mockGetSessionById.mockResolvedValue(mockSession)
+      const nextSaturday = new Date()
+      nextSaturday.setDate(
+        nextSaturday.getDate() + ((6 - nextSaturday.getDay() + 7) % 7 || 7)
+      )
+      mockGetSessionById.mockResolvedValue({
+        ...mockSession,
+        date: nextSaturday,
+      })
       mockTransaction.mockImplementation(async (fn: Function) => {
         await fn({
           dugsiAttendanceRecord: {
@@ -169,14 +198,14 @@ describe('attendance-service', () => {
       mockUpsert.mockResolvedValue({})
 
       const result = await markAttendanceRecords({
-        sessionId: 'session-1',
+        sessionId: TEST_IDS.session,
         records: [
           {
-            programProfileId: 'profile-1',
+            programProfileId: TEST_IDS.profile1,
             status: DugsiAttendanceStatus.PRESENT,
           },
           {
-            programProfileId: 'profile-2',
+            programProfileId: TEST_IDS.profile2,
             status: DugsiAttendanceStatus.ABSENT,
           },
         ],
@@ -191,7 +220,7 @@ describe('attendance-service', () => {
 
       await expect(
         markAttendanceRecords({
-          sessionId: 'nonexistent',
+          sessionId: TEST_IDS.nonexistent,
           records: [],
         })
       ).rejects.toThrow(ValidationError)
@@ -202,10 +231,10 @@ describe('attendance-service', () => {
 
       await expect(
         markAttendanceRecords({
-          sessionId: 'session-1',
+          sessionId: TEST_IDS.session,
           records: [
             {
-              programProfileId: 'profile-1',
+              programProfileId: TEST_IDS.profile1,
               status: DugsiAttendanceStatus.PRESENT,
             },
           ],
@@ -219,19 +248,19 @@ describe('attendance-service', () => {
       mockGetSessionById.mockResolvedValue(mockSession)
       mockDelete.mockResolvedValue(mockSession)
 
-      await deleteAttendanceSession('session-1')
+      await deleteAttendanceSession(TEST_IDS.session)
 
       expect(mockDelete).toHaveBeenCalledWith({
-        where: { id: 'session-1' },
+        where: { id: TEST_IDS.session },
       })
     })
 
     it('throws SESSION_NOT_FOUND if session does not exist', async () => {
       mockGetSessionById.mockResolvedValue(null)
 
-      await expect(deleteAttendanceSession('nonexistent')).rejects.toThrow(
-        ValidationError
-      )
+      await expect(
+        deleteAttendanceSession(TEST_IDS.nonexistent)
+      ).rejects.toThrow(ValidationError)
     })
   })
 })

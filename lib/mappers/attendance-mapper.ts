@@ -11,20 +11,11 @@ export interface AttendanceRecordForMarking {
   notes: string | null
 }
 
-interface FullAttendanceRecord {
-  programProfileId: string
-  status: DugsiAttendanceStatus
-  lessonCompleted: boolean
-  surahName: string | null
-  ayatFrom: number | null
-  ayatTo: number | null
-  lessonNotes: string | null
-  notes: string | null
-  [key: string]: unknown
-}
+type AttendanceRecordInput = AttendanceRecordForMarking &
+  Record<string, unknown>
 
 export function mapRecordToMarkingDTO(
-  record: FullAttendanceRecord
+  record: AttendanceRecordInput
 ): AttendanceRecordForMarking {
   return {
     programProfileId: record.programProfileId,
@@ -39,7 +30,7 @@ export function mapRecordToMarkingDTO(
 }
 
 export function mapRecordsToMarkingDTOs(
-  records: FullAttendanceRecord[]
+  records: AttendanceRecordInput[]
 ): AttendanceRecordForMarking[] {
   return records.map(mapRecordToMarkingDTO)
 }

@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { addDays, endOfDay, isPast } from 'date-fns'
 
 import { prisma } from '@/lib/db'
 import {
@@ -9,6 +10,10 @@ import {
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
+import {
+  CreateSessionSchema,
+  MarkAttendanceSchema,
+} from '@/lib/validations/attendance'
 import type {
   CreateSessionInput,
   MarkAttendanceInput,
@@ -22,6 +27,7 @@ export const ATTENDANCE_ERROR_CODES = {
   SESSION_CLOSED: 'SESSION_CLOSED',
   DUPLICATE_SESSION: 'DUPLICATE_SESSION',
   NO_TEACHER_ASSIGNED: 'NO_TEACHER_ASSIGNED',
+  INVALID_DAY: 'INVALID_DAY',
 } as const
 
 export interface CreateSessionResult {
@@ -36,8 +42,18 @@ export async function createAttendanceSession(
   input: CreateSessionInput,
   client: DatabaseClient = prisma
 ): Promise<CreateSessionResult> {
-  const { classId, date, notes } = input
+  const validated = CreateSessionSchema.parse(input)
+  const { classId, date, notes } = validated
   const dateOnly = new Date(date.toISOString().split('T')[0])
+
+  const day = dateOnly.getUTCDay()
+  if (day !== 0 && day !== 6) {
+    throw new ValidationError(
+      'Dugsi sessions can only be created on weekends (Saturday or Sunday)',
+      ATTENDANCE_ERROR_CODES.INVALID_DAY,
+      { classId, date: dateOnly.toISOString() }
+    )
+  }
 
   const dugsiClass = await client.dugsiClass.findUnique({
     where: { id: classId },
@@ -112,7 +128,8 @@ export async function markAttendanceRecords(
   input: MarkAttendanceInput,
   client: DatabaseClient = prisma
 ): Promise<MarkAttendanceResult> {
-  const { sessionId, records } = input
+  const validated = MarkAttendanceSchema.parse(input)
+  const { sessionId, records } = validated
 
   const session = await getSessionById(sessionId, client)
   if (!session) {
@@ -123,7 +140,12 @@ export async function markAttendanceRecords(
     )
   }
 
-  if (session.isClosed) {
+  const sessionDate = new Date(session.date)
+  const day = sessionDate.getUTCDay()
+  const sundayDate = day === 6 ? addDays(sessionDate, 1) : sessionDate
+  const isEffectivelyClosed = session.isClosed || isPast(endOfDay(sundayDate))
+
+  if (isEffectivelyClosed) {
     throw new ValidationError(
       'Cannot modify a closed session',
       ATTENDANCE_ERROR_CODES.SESSION_CLOSED,
