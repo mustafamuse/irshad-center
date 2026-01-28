@@ -123,7 +123,7 @@ export function TeacherFilterControls() {
           </div>
         </div>
 
-        {(fromDate || toDate) && (
+        {fromDate || toDate ? (
           <Button
             className="min-h-[44px] w-full"
             variant="outline"
@@ -131,7 +131,7 @@ export function TeacherFilterControls() {
           >
             Clear Filters
           </Button>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   )

@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { format } from 'date-fns'
@@ -39,7 +41,10 @@ interface FilterControlsProps {
   teachers?: TeacherOption[]
 }
 
-export function FilterControls({ classes, teachers }: FilterControlsProps) {
+export const FilterControls = memo(function FilterControls({
+  classes,
+  teachers,
+}: FilterControlsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -70,7 +75,7 @@ export function FilterControls({ classes, teachers }: FilterControlsProps) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {teachers && teachers.length > 0 && (
+          {teachers && teachers.length > 0 ? (
             <div className="space-y-2">
               <label className="text-sm font-medium" htmlFor="teacher-select">
                 Teacher
@@ -94,7 +99,7 @@ export function FilterControls({ classes, teachers }: FilterControlsProps) {
                 </SelectContent>
               </Select>
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="class-select">
@@ -197,7 +202,7 @@ export function FilterControls({ classes, teachers }: FilterControlsProps) {
           </div>
         </div>
 
-        {(classId || teacherId || fromDate || toDate) && (
+        {classId || teacherId || fromDate || toDate ? (
           <Button
             className="min-h-[44px] w-full"
             variant="outline"
@@ -205,8 +210,8 @@ export function FilterControls({ classes, teachers }: FilterControlsProps) {
           >
             Clear Filters
           </Button>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   )
-}
+})

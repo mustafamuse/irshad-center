@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('@/lib/db/queries/teacher', () => ({
   findTeachersByPhoneLastFour: vi.fn(),
@@ -46,6 +46,8 @@ describe('generateTeacherAuthToken', () => {
     vi.stubEnv('TEACHER_AUTH_SECRET', 'test-secret-key')
   })
 
+  afterEach(() => vi.unstubAllEnvs())
+
   it('returns string in format id.timestamp.signature', () => {
     const token = generateTeacherAuthToken('teacher-123')
     const parts = token.split('.')
@@ -66,6 +68,8 @@ describe('verifyTeacherAuthToken', () => {
   beforeEach(() => {
     vi.stubEnv('TEACHER_AUTH_SECRET', 'test-secret-key')
   })
+
+  afterEach(() => vi.unstubAllEnvs())
 
   it('valid token returns teacherId', () => {
     const token = generateTeacherAuthToken('teacher-abc')

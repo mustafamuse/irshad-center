@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 import { Area, AreaChart, XAxis, YAxis } from 'recharts'
 
 import {
@@ -20,7 +22,7 @@ const chartConfig = {
   },
 }
 
-export function AttendanceTrend({ data }: Props) {
+export const AttendanceTrend = memo(function AttendanceTrend({ data }: Props) {
   if (data.length === 0) {
     return (
       <p className="py-8 text-center text-sm text-muted-foreground">
@@ -66,4 +68,4 @@ export function AttendanceTrend({ data }: Props) {
       </AreaChart>
     </ChartContainer>
   )
-}
+})

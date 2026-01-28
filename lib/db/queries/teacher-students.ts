@@ -87,11 +87,18 @@ export async function getStudentAttendanceStats(
   profileId: string,
   client: DatabaseClient = prisma
 ) {
-  const statusCounts = await client.dugsiAttendanceRecord.groupBy({
-    by: ['status'],
-    where: { programProfileId: profileId },
-    _count: { status: true },
-  })
+  const [statusCounts, recentRecords] = await Promise.all([
+    client.dugsiAttendanceRecord.groupBy({
+      by: ['status'],
+      where: { programProfileId: profileId },
+      _count: { status: true },
+    }),
+    client.dugsiAttendanceRecord.findMany({
+      where: { programProfileId: profileId },
+      select: { status: true, session: { select: { date: true } } },
+      orderBy: { session: { date: 'desc' } },
+    }),
+  ])
 
   const countByStatus = aggregateStatusCounts(statusCounts)
 
@@ -105,12 +112,6 @@ export async function getStudentAttendanceStats(
       ? Math.round(computeAttendanceRate(presentCount, lateCount, total) * 10) /
         10
       : 0
-
-  const recentRecords = await client.dugsiAttendanceRecord.findMany({
-    where: { programProfileId: profileId },
-    select: { status: true, session: { select: { date: true } } },
-    orderBy: { session: { date: 'desc' } },
-  })
 
   return {
     totalSessions: total,

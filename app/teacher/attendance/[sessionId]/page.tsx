@@ -1,5 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 
+import { addDays, endOfDay, isPast } from 'date-fns'
+
 import { getAuthenticatedTeacherId } from '@/lib/auth/get-teacher'
 import {
   getEnrolledStudentsByClass,
@@ -27,6 +29,10 @@ export default async function TeacherAttendanceSessionPage({ params }: Props) {
   const students = await getEnrolledStudentsByClass(session.classId)
   const attendance = mapRecordsToMarkingDTOs(session.records)
 
+  const sessionDay = session.date.getDay()
+  const sunday = sessionDay === 6 ? addDays(session.date, 1) : session.date
+  const isEffectivelyClosed = session.isClosed || isPast(endOfDay(sunday))
+
   return (
     <TeacherMarkAttendancePage
       session={{
@@ -39,6 +45,7 @@ export default async function TeacherAttendanceSessionPage({ params }: Props) {
       }}
       students={students}
       attendance={attendance}
+      isEffectivelyClosed={isEffectivelyClosed}
     />
   )
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -11,7 +13,9 @@ interface Props {
   sessionId: string
 }
 
-export function DeleteSessionButton({ sessionId }: Props) {
+export const DeleteSessionButton = memo(function DeleteSessionButton({
+  sessionId,
+}: Props) {
   async function handleDelete() {
     if (!confirm('Delete this session and all its records?')) return
 
@@ -28,4 +32,4 @@ export function DeleteSessionButton({ sessionId }: Props) {
       <Trash2 className="size-4" />
     </Button>
   )
-}
+})

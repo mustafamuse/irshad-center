@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { memo, useState, useTransition } from 'react'
 
 import { Button } from '@/components/ui/button'
 import type { SessionHistoryItem } from '@/lib/mappers/teacher-student-mapper'
@@ -20,7 +20,7 @@ interface Props {
   initialHasMore: boolean
 }
 
-export function SessionHistoryList({
+export const SessionHistoryList = memo(function SessionHistoryList({
   initialData,
   profileId,
   initialHasMore,
@@ -89,4 +89,4 @@ export function SessionHistoryList({
       )}
     </div>
   )
-}
+})

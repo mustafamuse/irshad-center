@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { memo, useState } from 'react'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
@@ -65,7 +65,9 @@ interface Props {
   classes: { id: string; name: string; shift: string; label: string }[]
 }
 
-export function CreateSessionDialog({ classes }: Props) {
+export const CreateSessionDialog = memo(function CreateSessionDialog({
+  classes,
+}: Props) {
   const [open, setOpen] = useState(false)
   const form = useForm<FormData>({
     resolver: zodResolver(CreateSessionSchema),
@@ -176,4 +178,4 @@ export function CreateSessionDialog({ classes }: Props) {
       </DialogContent>
     </Dialog>
   )
-}
+})

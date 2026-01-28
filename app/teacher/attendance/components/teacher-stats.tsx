@@ -1,7 +1,6 @@
 import { Shift } from '@prisma/client'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   getTeacherShiftStats,
@@ -28,19 +27,9 @@ export async function TeacherStats({ teacherId }: Props) {
   const totalSessions = shiftStats.reduce((s, x) => s + x.sessions, 0)
   const totalStudents = shiftStats.reduce((s, x) => s + x.students, 0)
 
+  const weightedSum = shiftStats.reduce((s, x) => s + x.rate * x.students, 0)
   const overallRate =
-    shiftStats.length > 0
-      ? (() => {
-          const totalWeighted = shiftStats.reduce(
-            (s, x) => s + x.rate * x.students,
-            0
-          )
-          const totalSt = shiftStats.reduce((s, x) => s + x.students, 0)
-          return totalSt > 0
-            ? Math.round((totalWeighted / totalSt) * 10) / 10
-            : 0
-        })()
-      : 0
+    totalStudents > 0 ? Math.round((weightedSum / totalStudents) * 10) / 10 : 0
 
   return (
     <>
@@ -52,14 +41,14 @@ export async function TeacherStats({ teacherId }: Props) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{totalSessions}</div>
-          {hasMultipleShifts && (
+          {hasMultipleShifts ? (
             <ShiftBreakdown
               items={shiftStats.map((s) => ({
                 shift: s.shift,
                 value: String(s.sessions),
               }))}
             />
-          )}
+          ) : null}
         </CardContent>
       </Card>
       <Card>
@@ -70,14 +59,14 @@ export async function TeacherStats({ teacherId }: Props) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{totalStudents}</div>
-          {hasMultipleShifts && (
+          {hasMultipleShifts ? (
             <ShiftBreakdown
               items={shiftStats.map((s) => ({
                 shift: s.shift,
                 value: String(s.students),
               }))}
             />
-          )}
+          ) : null}
         </CardContent>
       </Card>
       <Card>
@@ -88,14 +77,14 @@ export async function TeacherStats({ teacherId }: Props) {
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{overallRate}%</div>
-          {hasMultipleShifts && (
+          {hasMultipleShifts ? (
             <ShiftBreakdown
               items={shiftStats.map((s) => ({
                 shift: s.shift,
                 value: `${s.rate}%`,
               }))}
             />
-          )}
+          ) : null}
         </CardContent>
       </Card>
       <Card>
@@ -110,7 +99,7 @@ export async function TeacherStats({ teacherId }: Props) {
           ) : (
             <TrendValue diff={trendData.overall.diff} size="lg" />
           )}
-          {hasMultipleShifts && trendData.byShift.length > 1 && (
+          {hasMultipleShifts && trendData.byShift.length > 1 ? (
             <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
               {trendData.byShift.map((s) => (
                 <span key={s.shift} className="flex items-center gap-0.5">
@@ -123,7 +112,7 @@ export async function TeacherStats({ teacherId }: Props) {
                 </span>
               ))}
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
     </>
