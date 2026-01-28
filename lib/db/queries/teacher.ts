@@ -124,10 +124,41 @@ export async function isPersonATeacher(
   return teacher !== null
 }
 
-/**
- * Get all roles for a Person (teacher, student, parent, payer)
- * @param client - Optional database client (for transaction support)
- */
+export async function findTeachersByPhoneLastFour(
+  lastFour: string,
+  client: DatabaseClient = prisma
+) {
+  return client.teacher.findMany({
+    where: {
+      person: {
+        is: {
+          contactPoints: {
+            some: {
+              type: 'PHONE',
+              isActive: true,
+              value: { endsWith: lastFour },
+            },
+          },
+        },
+      },
+    },
+    include: {
+      person: { select: { name: true } },
+    },
+  })
+}
+
+export async function getTeacherName(
+  teacherId: string,
+  client: DatabaseClient = prisma
+): Promise<string | null> {
+  const teacher = await client.teacher.findUnique({
+    where: { id: teacherId },
+    select: { person: { select: { name: true } } },
+  })
+  return teacher?.person.name ?? null
+}
+
 export async function getPersonRoles(
   personId: string,
   client: DatabaseClient = prisma

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import { DugsiAttendanceStatus } from '@prisma/client'
 import { addDays, endOfDay, format, isPast } from 'date-fns'
 
 import { Badge } from '@/components/ui/badge'
@@ -67,7 +68,9 @@ export async function TeacherSessionHistory({
               const isEffectivelyClosed =
                 session.isClosed || isPast(endOfDay(sunday))
               const presentCount = session.records.filter(
-                (r) => r.status === 'PRESENT' || r.status === 'LATE'
+                (r) =>
+                  r.status === DugsiAttendanceStatus.PRESENT ||
+                  r.status === DugsiAttendanceStatus.LATE
               ).length
               const total = session.records.length
               const pct =

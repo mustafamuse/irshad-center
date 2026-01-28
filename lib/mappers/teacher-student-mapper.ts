@@ -38,9 +38,12 @@ export function computeCurrentStreak(
 ): number {
   let streak = 0
   for (const r of records) {
-    if (r.status === 'PRESENT' || r.status === 'LATE') {
+    if (
+      r.status === DugsiAttendanceStatus.PRESENT ||
+      r.status === DugsiAttendanceStatus.LATE
+    ) {
       streak++
-    } else if (r.status === 'EXCUSED') {
+    } else if (r.status === DugsiAttendanceStatus.EXCUSED) {
       continue
     } else {
       break
@@ -69,7 +72,10 @@ export function groupRecordsByWeekend(
 
     const entry = weekendMap.get(key) ?? { present: 0, total: 0, saturday }
     entry.total++
-    if (r.status === 'PRESENT' || r.status === 'LATE') {
+    if (
+      r.status === DugsiAttendanceStatus.PRESENT ||
+      r.status === DugsiAttendanceStatus.LATE
+    ) {
       entry.present++
     }
     weekendMap.set(key, entry)

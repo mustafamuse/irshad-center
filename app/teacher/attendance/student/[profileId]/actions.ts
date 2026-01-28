@@ -31,11 +31,13 @@ export async function loadMoreStudentHistory(
     const teacherId = await getAuthenticatedTeacherId()
 
     const student = await getStudentProfile(parsed.data.profileId)
-    if (!student) return { success: true, data: { data: [], hasMore: false } }
+    if (!student) {
+      return { success: false, error: 'Student not found in your classes' }
+    }
 
     const classIds = await getTeacherClassIds(teacherId)
     if (!classIds.includes(student.classId)) {
-      return { success: true, data: { data: [], hasMore: false } }
+      return { success: false, error: 'Student not found in your classes' }
     }
 
     const result = await getStudentAttendanceRecords(parsed.data.profileId, {

@@ -1,29 +1,19 @@
 import Link from 'next/link'
 
+import { DugsiAttendanceStatus } from '@prisma/client'
+
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { getTodaySessions } from '@/lib/db/queries/dugsi-attendance'
+import { getNextWeekendDate, isWeekendDay } from '@/lib/utils/attendance-dates'
 
 interface Props {
   teacherId: string
 }
 
-function getNextWeekendDate(): string {
-  const today = new Date()
-  const day = today.getDay()
-  const daysUntilSaturday = (6 - day + 7) % 7 || 7
-  const nextSaturday = new Date(today)
-  nextSaturday.setDate(today.getDate() + daysUntilSaturday)
-  return nextSaturday.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 export async function TeacherTodaySessions({ teacherId }: Props) {
   const today = new Date()
-  const isWeekend = today.getUTCDay() === 0 || today.getUTCDay() === 6
+  const isWeekend = isWeekendDay(today)
 
   if (!isWeekend) {
     return (
@@ -56,7 +46,9 @@ export async function TeacherTodaySessions({ teacherId }: Props) {
           {sessions.map((session) => {
             const totalStudents = session.records.length
             const presentCount = session.records.filter(
-              (r) => r.status === 'PRESENT' || r.status === 'LATE'
+              (r) =>
+                r.status === DugsiAttendanceStatus.PRESENT ||
+                r.status === DugsiAttendanceStatus.LATE
             ).length
 
             let statusText: string

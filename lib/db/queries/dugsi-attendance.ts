@@ -4,6 +4,11 @@ import { Prisma, Shift } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import {
+  sortByFamilyThenName,
+  aggregateStatusCounts,
+  computeAttendanceRate,
+} from '@/lib/utils/attendance-math'
 
 export const attendanceSessionInclude = {
   class: true,
@@ -145,16 +150,7 @@ export async function getEnrolledStudentsByClass(
     familyReferenceId: e.programProfile.familyReferenceId,
   }))
 
-  students.sort((a, b) => {
-    if (a.familyReferenceId && b.familyReferenceId) {
-      if (a.familyReferenceId === b.familyReferenceId)
-        return a.name.localeCompare(b.name)
-      return a.familyReferenceId.localeCompare(b.familyReferenceId)
-    }
-    if (a.familyReferenceId) return -1
-    if (b.familyReferenceId) return 1
-    return a.name.localeCompare(b.name)
-  })
+  sortByFamilyThenName(students)
 
   return students
 }
@@ -306,21 +302,7 @@ export async function getEnrolledStudentsByClasses(
   }
 
   for (const students of Array.from(map.values())) {
-    students.sort(
-      (
-        a: { familyReferenceId: string | null; name: string },
-        b: { familyReferenceId: string | null; name: string }
-      ) => {
-        if (a.familyReferenceId && b.familyReferenceId) {
-          if (a.familyReferenceId === b.familyReferenceId)
-            return a.name.localeCompare(b.name)
-          return a.familyReferenceId.localeCompare(b.familyReferenceId)
-        }
-        if (a.familyReferenceId) return -1
-        if (b.familyReferenceId) return 1
-        return a.name.localeCompare(b.name)
-      }
-    )
+    sortByFamilyThenName(students)
   }
 
   return map
@@ -379,17 +361,18 @@ export async function getAttendanceStats(
     }),
   ])
 
-  const countByStatus = Object.fromEntries(
-    statusCounts.map((s) => [s.status, s._count.status])
-  )
+  const countByStatus = aggregateStatusCounts(statusCounts)
 
   const presentCount = countByStatus['PRESENT'] ?? 0
   const absentCount = countByStatus['ABSENT'] ?? 0
   const lateCount = countByStatus['LATE'] ?? 0
   const excusedCount = countByStatus['EXCUSED'] ?? 0
   const totalRecords = presentCount + absentCount + lateCount + excusedCount
-  const attendanceRate =
-    totalRecords > 0 ? ((presentCount + lateCount) / totalRecords) * 100 : 0
+  const attendanceRate = computeAttendanceRate(
+    presentCount,
+    lateCount,
+    totalRecords
+  )
 
   return {
     totalSessions,
@@ -474,26 +457,27 @@ export async function getTeacherMonthlyTrend(
     }),
   ])
 
-  const computeRate = (
+  const rateFromRecords = (
     records: { status: string; _count: { status: number } }[]
   ) => {
-    const counts = Object.fromEntries(
-      records.map((r) => [r.status, r._count.status])
-    )
-    const present = (counts['PRESENT'] ?? 0) + (counts['LATE'] ?? 0)
+    const counts = aggregateStatusCounts(records)
     const total =
       (counts['PRESENT'] ?? 0) +
       (counts['ABSENT'] ?? 0) +
       (counts['LATE'] ?? 0) +
       (counts['EXCUSED'] ?? 0)
-    return total > 0 ? (present / total) * 100 : 0
+    return computeAttendanceRate(
+      counts['PRESENT'] ?? 0,
+      counts['LATE'] ?? 0,
+      total
+    )
   }
 
   const prevTotal = previousRecords.reduce((sum, r) => sum + r._count.status, 0)
   if (prevTotal === 0) return null
 
-  const currentRate = computeRate(currentRecords)
-  const previousRate = computeRate(previousRecords)
+  const currentRate = rateFromRecords(currentRecords)
+  const previousRate = rateFromRecords(previousRecords)
   return { diff: Math.round((currentRate - previousRate) * 10) / 10 }
 }
 
@@ -542,9 +526,7 @@ export async function getTeacherShiftStats(
       }),
     ])
 
-    const counts = Object.fromEntries(
-      statusCounts.map((s) => [s.status, s._count.status])
-    )
+    const counts = aggregateStatusCounts(statusCounts)
     const present = (counts['PRESENT'] ?? 0) + (counts['LATE'] ?? 0)
     const total =
       (counts['PRESENT'] ?? 0) +
@@ -597,19 +579,23 @@ export async function getTeacherMonthlyTrendWithShifts(
     shiftGroups.set(c.shift, ids)
   }
 
-  const computeRate = (
+  const computeRateWithTotal = (
     records: { status: string; _count: { status: number } }[]
   ) => {
-    const counts = Object.fromEntries(
-      records.map((r) => [r.status, r._count.status])
-    )
-    const present = (counts['PRESENT'] ?? 0) + (counts['LATE'] ?? 0)
+    const counts = aggregateStatusCounts(records)
     const total =
       (counts['PRESENT'] ?? 0) +
       (counts['ABSENT'] ?? 0) +
       (counts['LATE'] ?? 0) +
       (counts['EXCUSED'] ?? 0)
-    return { rate: total > 0 ? (present / total) * 100 : 0, total }
+    return {
+      rate: computeAttendanceRate(
+        counts['PRESENT'] ?? 0,
+        counts['LATE'] ?? 0,
+        total
+      ),
+      total,
+    }
   }
 
   const [currentAll, previousAll] = await Promise.all([
@@ -632,13 +618,15 @@ export async function getTeacherMonthlyTrendWithShifts(
     }),
   ])
 
-  const prevAll = computeRate(previousAll)
+  const prevAll = computeRateWithTotal(previousAll)
   const overall =
     prevAll.total === 0
       ? null
       : {
           diff:
-            Math.round((computeRate(currentAll).rate - prevAll.rate) * 10) / 10,
+            Math.round(
+              (computeRateWithTotal(currentAll).rate - prevAll.rate) * 10
+            ) / 10,
         }
 
   const byShift: { shift: Shift; diff: number | null }[] = []
@@ -668,14 +656,16 @@ export async function getTeacherMonthlyTrendWithShifts(
       }),
     ])
 
-    const prev = computeRate(previousShift)
+    const prev = computeRateWithTotal(previousShift)
     if (prev.total === 0) {
       byShift.push({ shift, diff: null })
     } else {
       byShift.push({
         shift,
         diff:
-          Math.round((computeRate(currentShift).rate - prev.rate) * 10) / 10,
+          Math.round(
+            (computeRateWithTotal(currentShift).rate - prev.rate) * 10
+          ) / 10,
       })
     }
   }

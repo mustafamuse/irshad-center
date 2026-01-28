@@ -1,5 +1,12 @@
+import { DugsiAttendanceStatus } from '@prisma/client'
+
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import {
+  sortByFamilyThenName,
+  aggregateStatusCounts,
+  computeAttendanceRate,
+} from '@/lib/utils/attendance-math'
 
 export async function getTeacherClassIds(
   teacherId: string,
@@ -50,16 +57,7 @@ export async function getStudentsByTeacher(
     }
   })
 
-  students.sort((a, b) => {
-    if (a.familyReferenceId && b.familyReferenceId) {
-      if (a.familyReferenceId === b.familyReferenceId)
-        return a.name.localeCompare(b.name)
-      return a.familyReferenceId.localeCompare(b.familyReferenceId)
-    }
-    if (a.familyReferenceId) return -1
-    if (b.familyReferenceId) return 1
-    return a.name.localeCompare(b.name)
-  })
+  sortByFamilyThenName(students)
 
   return students
 }
@@ -95,17 +93,18 @@ export async function getStudentAttendanceStats(
     _count: { status: true },
   })
 
-  const countByStatus = Object.fromEntries(
-    statusCounts.map((s) => [s.status, s._count.status])
-  )
+  const countByStatus = aggregateStatusCounts(statusCounts)
 
-  const presentCount = countByStatus['PRESENT'] ?? 0
-  const absentCount = countByStatus['ABSENT'] ?? 0
-  const lateCount = countByStatus['LATE'] ?? 0
-  const excusedCount = countByStatus['EXCUSED'] ?? 0
+  const presentCount = countByStatus[DugsiAttendanceStatus.PRESENT] ?? 0
+  const absentCount = countByStatus[DugsiAttendanceStatus.ABSENT] ?? 0
+  const lateCount = countByStatus[DugsiAttendanceStatus.LATE] ?? 0
+  const excusedCount = countByStatus[DugsiAttendanceStatus.EXCUSED] ?? 0
   const total = presentCount + absentCount + lateCount + excusedCount
   const attendanceRate =
-    total > 0 ? Math.round(((presentCount + lateCount) / total) * 1000) / 10 : 0
+    total > 0
+      ? Math.round(computeAttendanceRate(presentCount, lateCount, total) * 10) /
+        10
+      : 0
 
   const recentRecords = await client.dugsiAttendanceRecord.findMany({
     where: { programProfileId: profileId },
@@ -157,16 +156,17 @@ export async function getStudentMonthlyComparison(
   if (prevRecords.length === 0) return null
 
   const rate = (records: typeof currentRecords) => {
-    const counts = Object.fromEntries(
-      records.map((r) => [r.status, r._count.status])
-    )
-    const present = (counts['PRESENT'] ?? 0) + (counts['LATE'] ?? 0)
+    const counts = aggregateStatusCounts(records)
     const total =
-      (counts['PRESENT'] ?? 0) +
-      (counts['ABSENT'] ?? 0) +
-      (counts['LATE'] ?? 0) +
-      (counts['EXCUSED'] ?? 0)
-    return total > 0 ? (present / total) * 100 : 0
+      (counts[DugsiAttendanceStatus.PRESENT] ?? 0) +
+      (counts[DugsiAttendanceStatus.ABSENT] ?? 0) +
+      (counts[DugsiAttendanceStatus.LATE] ?? 0) +
+      (counts[DugsiAttendanceStatus.EXCUSED] ?? 0)
+    return computeAttendanceRate(
+      counts[DugsiAttendanceStatus.PRESENT] ?? 0,
+      counts[DugsiAttendanceStatus.LATE] ?? 0,
+      total
+    )
   }
 
   const currentRate = rate(currentRecords)

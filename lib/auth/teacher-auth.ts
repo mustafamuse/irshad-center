@@ -1,30 +1,13 @@
 import crypto from 'crypto'
 
-import { prisma } from '@/lib/db'
+import { findTeachersByPhoneLastFour } from '@/lib/db/queries/teacher'
 
 const MAX_TOKEN_AGE_MS = 24 * 60 * 60 * 1000
 
 export async function authenticateTeacher(
   lastFour: string
 ): Promise<{ teacherId: string; teacherName: string } | null> {
-  const teachers = await prisma.teacher.findMany({
-    where: {
-      person: {
-        is: {
-          contactPoints: {
-            some: {
-              type: 'PHONE',
-              isActive: true,
-              value: { endsWith: lastFour },
-            },
-          },
-        },
-      },
-    },
-    include: {
-      person: { select: { name: true } },
-    },
-  })
+  const teachers = await findTeachersByPhoneLastFour(lastFour)
 
   if (teachers.length !== 1) return null
 

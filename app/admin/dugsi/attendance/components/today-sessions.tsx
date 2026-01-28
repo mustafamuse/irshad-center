@@ -3,25 +3,13 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { getTodaySessions } from '@/lib/db/queries/dugsi-attendance'
+import { getNextWeekendDate, isWeekendDay } from '@/lib/utils/attendance-dates'
 
 import { ensureTodaySessions } from '../actions'
 
-function getNextWeekendDate(): string {
-  const today = new Date()
-  const day = today.getDay()
-  const daysUntilSaturday = (6 - day + 7) % 7 || 7
-  const nextSaturday = new Date(today)
-  nextSaturday.setDate(today.getDate() + daysUntilSaturday)
-  return nextSaturday.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 export async function TodaySessions() {
   const today = new Date()
-  const isWeekend = today.getDay() === 0 || today.getDay() === 6
+  const isWeekend = isWeekendDay(today)
 
   if (!isWeekend) {
     return (
