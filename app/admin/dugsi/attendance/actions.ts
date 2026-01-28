@@ -4,6 +4,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 
 import { z } from 'zod'
 
+import { requireAdmin } from '@/lib/auth/get-admin'
 import {
   getActiveClasses,
   getAttendanceStats,
@@ -37,6 +38,7 @@ export type StudentOption = { programProfileId: string; name: string }
 export async function createSession(
   input: unknown
 ): Promise<ActionResult<{ sessionId: string }>> {
+  await requireAdmin()
   const parsed = CreateSessionSchema.safeParse(input)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -51,7 +53,7 @@ export async function createSession(
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    await logError(logger, error, 'Failed to create session')
+    void logError(logger, error, 'Failed to create session')
     return { success: false, error: 'Failed to create session' }
   }
 }
@@ -59,6 +61,7 @@ export async function createSession(
 export async function markAttendance(
   input: unknown
 ): Promise<ActionResult<{ recordCount: number }>> {
+  await requireAdmin()
   const parsed = MarkAttendanceSchema.safeParse(input)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -73,7 +76,7 @@ export async function markAttendance(
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    await logError(logger, error, 'Failed to mark attendance')
+    void logError(logger, error, 'Failed to mark attendance')
     return { success: false, error: 'Failed to mark attendance' }
   }
 }
@@ -81,6 +84,7 @@ export async function markAttendance(
 export async function deleteSession(
   input: unknown
 ): Promise<ActionResult<void>> {
+  await requireAdmin()
   const parsed = DeleteSessionSchema.safeParse(input)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -95,7 +99,7 @@ export async function deleteSession(
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    await logError(logger, error, 'Failed to delete session')
+    void logError(logger, error, 'Failed to delete session')
     return { success: false, error: 'Failed to delete session' }
   }
 }
@@ -113,7 +117,7 @@ export async function getSessionsAction(
     const result = await getSessions(filters, { page, limit })
     return { success: true, data: result }
   } catch (error) {
-    await logError(logger, error, 'Failed to fetch sessions')
+    void logError(logger, error, 'Failed to fetch sessions')
     return { success: false, error: 'Failed to fetch sessions' }
   }
 }
@@ -125,7 +129,7 @@ export async function getAttendanceStatsAction(): Promise<
     const stats = await getAttendanceStats()
     return { success: true, data: stats }
   } catch (error) {
-    await logError(logger, error, 'Failed to fetch attendance stats')
+    void logError(logger, error, 'Failed to fetch attendance stats')
     return { success: false, error: 'Failed to fetch attendance stats' }
   }
 }
@@ -140,29 +144,42 @@ export async function getClassesForDropdownAction(): Promise<
       data: classes.map((c) => ({ id: c.id, name: c.name, shift: c.shift })),
     }
   } catch (error) {
-    await logError(logger, error, 'Failed to fetch classes')
+    void logError(logger, error, 'Failed to fetch classes')
     return { success: false, error: 'Failed to fetch classes' }
   }
 }
 
 export async function ensureTodaySessions(): Promise<ActionResult<void>> {
-  const today = new Date()
-  const day = today.getUTCDay()
-  if (day !== 0 && day !== 6) return { success: true, data: undefined }
+  await requireAdmin()
+  const now = Date.now()
+  const utcDay = new Date(now).getUTCDay()
+  if (utcDay !== 0 && utcDay !== 6) return { success: true, data: undefined }
 
   try {
     const classes = await getActiveClasses()
-    const dateOnly = new Date(today.toISOString().split('T')[0])
-    await Promise.allSettled(
+    const dateOnly = new Date(new Date(now).toISOString().split('T')[0])
+    const results = await Promise.allSettled(
       classes.map((c) =>
         createAttendanceSession({ classId: c.id, date: dateOnly })
       )
     )
+    const failures = results.filter(
+      (r): r is PromiseRejectedResult => r.status === 'rejected'
+    )
+    if (failures.length > 0) {
+      void logError(
+        logger,
+        new Error(
+          `${failures.length}/${results.length} session creations failed`
+        ),
+        'Partial failure in ensureTodaySessions'
+      )
+    }
     revalidatePath(REVALIDATE_PATH)
     revalidateTag('attendance-stats')
     return { success: true, data: undefined }
   } catch (error) {
-    await logError(logger, error, 'Failed to ensure today sessions')
+    void logError(logger, error, 'Failed to ensure today sessions')
     return { success: false, error: 'Failed to create today sessions' }
   }
 }
@@ -179,7 +196,7 @@ export async function getStudentsForClassAction(
     const students = await getEnrolledStudentsByClass(parsed.data)
     return { success: true, data: students }
   } catch (error) {
-    await logError(logger, error, 'Failed to fetch students')
+    void logError(logger, error, 'Failed to fetch students')
     return { success: false, error: 'Failed to fetch students' }
   }
 }

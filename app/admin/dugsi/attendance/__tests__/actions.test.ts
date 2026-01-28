@@ -41,6 +41,10 @@ vi.mock('next/cache', () => ({
   revalidateTag: (...args: unknown[]) => mockRevalidateTag(...args),
 }))
 
+vi.mock('@/lib/auth/get-admin', () => ({
+  requireAdmin: vi.fn(),
+}))
+
 vi.mock('@/lib/logger', () => ({
   createActionLogger: vi.fn(() => ({
     info: vi.fn(),

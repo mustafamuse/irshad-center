@@ -20,17 +20,18 @@ export async function teacherMarkAttendance(
     return { success: false, error: parsed.error.issues[0].message }
   }
 
-  const teacherId = await getAuthenticatedTeacherId()
-
-  const session = await getSessionById(parsed.data.sessionId)
-  if (!session || session.teacherId !== teacherId) {
-    return {
-      success: false,
-      error: 'Unauthorized: session does not belong to you',
-    }
-  }
-
   try {
+    const [teacherId, session] = await Promise.all([
+      getAuthenticatedTeacherId(),
+      getSessionById(parsed.data.sessionId),
+    ])
+    if (!session || session.teacherId !== teacherId) {
+      return {
+        success: false,
+        error: 'Unauthorized: session does not belong to you',
+      }
+    }
+
     const result = await markAttendanceRecords(parsed.data)
     revalidatePath('/teacher/attendance')
     revalidateTag('attendance-stats')
@@ -39,7 +40,7 @@ export async function teacherMarkAttendance(
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    await logError(logger, error, 'Failed to mark attendance')
+    void logError(logger, error, 'Failed to mark attendance')
     return { success: false, error: 'Failed to mark attendance' }
   }
 }
