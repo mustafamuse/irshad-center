@@ -322,6 +322,37 @@ export async function getTodaySessions(
   })
 }
 
+export async function fetchTodaySessionsForList(
+  teacherId?: string,
+  client: DatabaseClient = prisma
+): Promise<AttendanceSessionListView[]> {
+  const today = new Date()
+  const dateOnly = new Date(
+    Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  )
+  const where: Prisma.DugsiAttendanceSessionWhereInput = { date: dateOnly }
+  if (teacherId) where.teacherId = teacherId
+  return client.dugsiAttendanceSession.findMany({
+    where,
+    include: attendanceSessionListInclude,
+    orderBy: { class: { shift: 'asc' } },
+  })
+}
+
+export async function getTodaySessionsForList(
+  teacherId?: string,
+  client: DatabaseClient = prisma
+): Promise<AttendanceSessionListView[]> {
+  if (client !== prisma) return fetchTodaySessionsForList(teacherId, client)
+
+  const cached = unstable_cache(
+    async () => fetchTodaySessionsForList(teacherId),
+    ['today-sessions', teacherId ?? ''],
+    { tags: ['today-sessions'], revalidate: 60 }
+  )
+  return cached()
+}
+
 export interface AttendanceStats {
   totalSessions: number
   totalRecords: number
@@ -383,7 +414,7 @@ export async function getAttendanceStatsCached(
   const cached = unstable_cache(
     async () => getAttendanceStats(filters),
     ['attendance-stats', key],
-    { tags: ['attendance-stats'], revalidate: 300 }
+    { tags: ['attendance-stats'], revalidate: 60 }
   )
 
   return cached()
@@ -433,27 +464,48 @@ export async function getTeacherShiftStats(
     shiftGroups.set(c.shift, ids)
   }
 
+  const allClassIds = classes.map((c) => c.id)
+
+  const [sessionCounts, studentCounts] = await Promise.all([
+    client.dugsiAttendanceSession.groupBy({
+      by: ['classId'],
+      where: { teacherId, classId: { in: allClassIds } },
+      _count: { _all: true },
+    }),
+    client.dugsiClassEnrollment.groupBy({
+      by: ['classId'],
+      where: { classId: { in: allClassIds }, isActive: true },
+      _count: { _all: true },
+    }),
+  ])
+
+  const sessionCountByClass = new Map(
+    sessionCounts.map((r) => [r.classId, r._count._all])
+  )
+  const studentCountByClass = new Map(
+    studentCounts.map((r) => [r.classId, r._count._all])
+  )
+
   const results = await Promise.all(
     Array.from(shiftGroups).map(async ([shift, classIds]) => {
-      const [sessionCount, studentCount, statusCounts] = await Promise.all([
-        client.dugsiAttendanceSession.count({
-          where: { teacherId, classId: { in: classIds } },
-        }),
-        client.dugsiClassEnrollment.count({
-          where: { classId: { in: classIds }, isActive: true },
-        }),
-        client.dugsiAttendanceRecord.groupBy({
-          by: ['status'],
-          where: { session: { teacherId, classId: { in: classIds } } },
-          _count: { status: true },
-        }),
-      ])
+      let sessions = 0
+      let students = 0
+      for (const id of classIds) {
+        sessions += sessionCountByClass.get(id) ?? 0
+        students += studentCountByClass.get(id) ?? 0
+      }
+
+      const statusCounts = await client.dugsiAttendanceRecord.groupBy({
+        by: ['status'],
+        where: { session: { teacherId, classId: { in: classIds } } },
+        _count: { status: true },
+      })
 
       const { rate: rawRate } = rateFromStatusCounts(statusCounts)
       return {
         shift,
-        sessions: sessionCount,
-        students: studentCount,
+        sessions,
+        students,
         rate: Math.round(rawRate * 10) / 10,
       }
     })

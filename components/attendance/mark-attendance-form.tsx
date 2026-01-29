@@ -310,17 +310,21 @@ export function MarkAttendanceForm({
     })
   }
 
-  const { unmarkedCount, presentCount } = records.reduce(
-    (acc, r) => {
-      if (r.status === null) acc.unmarkedCount++
-      else if (
-        r.status === DugsiAttendanceStatus.PRESENT ||
-        r.status === DugsiAttendanceStatus.LATE
-      )
-        acc.presentCount++
-      return acc
-    },
-    { unmarkedCount: 0, presentCount: 0 }
+  const { unmarkedCount, presentCount } = useMemo(
+    () =>
+      records.reduce(
+        (acc, r) => {
+          if (r.status === null) acc.unmarkedCount++
+          else if (
+            r.status === DugsiAttendanceStatus.PRESENT ||
+            r.status === DugsiAttendanceStatus.LATE
+          )
+            acc.presentCount++
+          return acc
+        },
+        { unmarkedCount: 0, presentCount: 0 }
+      ),
+    [records]
   )
 
   return (

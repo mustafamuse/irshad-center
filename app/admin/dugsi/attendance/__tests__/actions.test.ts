@@ -8,6 +8,7 @@ const {
   mockGetStats,
   mockGetClasses,
   mockGetStudents,
+  mockFetchTodaySessionsForList,
 } = vi.hoisted(() => ({
   mockCreateSession: vi.fn(),
   mockMarkRecords: vi.fn(),
@@ -16,6 +17,7 @@ const {
   mockGetStats: vi.fn(),
   mockGetClasses: vi.fn(),
   mockGetStudents: vi.fn(),
+  mockFetchTodaySessionsForList: vi.fn(),
 }))
 
 vi.mock('@/lib/services/dugsi/attendance-service', () => ({
@@ -29,6 +31,8 @@ vi.mock('@/lib/db/queries/dugsi-attendance', () => ({
   getAttendanceStats: (...args: unknown[]) => mockGetStats(...args),
   getActiveClasses: (...args: unknown[]) => mockGetClasses(...args),
   getEnrolledStudentsByClass: (...args: unknown[]) => mockGetStudents(...args),
+  fetchTodaySessionsForList: (...args: unknown[]) =>
+    mockFetchTodaySessionsForList(...args),
 }))
 
 const { mockRevalidatePath, mockRevalidateTag } = vi.hoisted(() => ({
@@ -294,6 +298,9 @@ describe('attendance actions', () => {
   })
 
   describe('ensureTodaySessions', () => {
+    beforeEach(() => {
+      mockFetchTodaySessionsForList.mockResolvedValue([])
+    })
     afterEach(() => vi.useRealTimers())
 
     it('returns success without creating sessions on weekdays', async () => {

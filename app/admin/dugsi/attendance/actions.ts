@@ -10,6 +10,7 @@ import {
   getAttendanceStats,
   getEnrolledStudentsByClass,
   getSessions,
+  fetchTodaySessionsForList,
   type AttendanceStats,
   type PaginatedSessions,
 } from '@/lib/db/queries/dugsi-attendance'
@@ -48,6 +49,7 @@ export async function createSession(
     const { session } = await createAttendanceSession(parsed.data)
     revalidatePath(REVALIDATE_PATH)
     revalidateTag('attendance-stats')
+    revalidateTag('today-sessions')
     return { success: true, data: { sessionId: session.id } }
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -71,6 +73,7 @@ export async function markAttendance(
     const result = await markAttendanceRecords(parsed.data)
     revalidatePath(REVALIDATE_PATH)
     revalidateTag('attendance-stats')
+    revalidateTag('today-sessions')
     return { success: true, data: result }
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -94,6 +97,7 @@ export async function deleteSession(
     await deleteAttendanceSession(parsed.data.sessionId)
     revalidatePath(REVALIDATE_PATH)
     revalidateTag('attendance-stats')
+    revalidateTag('today-sessions')
     return { success: true, data: undefined }
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -156,27 +160,43 @@ export async function ensureTodaySessions(): Promise<ActionResult<void>> {
   if (utcDay !== 0 && utcDay !== 6) return { success: true, data: undefined }
 
   try {
-    const classes = await getActiveClasses()
     const dateOnly = new Date(new Date(now).toISOString().split('T')[0])
+    const [classes, existingSessions] = await Promise.all([
+      getActiveClasses(),
+      fetchTodaySessionsForList(),
+    ])
+    const existingClassIds = new Set(existingSessions.map((s) => s.classId))
+    const missing = classes.filter((c) => !existingClassIds.has(c.id))
+
+    if (missing.length === 0) {
+      return { success: true, data: undefined }
+    }
+
     const results = await Promise.allSettled(
-      classes.map((c) =>
+      missing.map((c) =>
         createAttendanceSession({ classId: c.id, date: dateOnly })
       )
     )
-    const failures = results.filter(
-      (r): r is PromiseRejectedResult => r.status === 'rejected'
+    const realFailures = results.filter(
+      (r): r is PromiseRejectedResult =>
+        r.status === 'rejected' &&
+        !(
+          r.reason instanceof ValidationError &&
+          r.reason.code === 'DUPLICATE_SESSION'
+        )
     )
-    if (failures.length > 0) {
+    if (realFailures.length > 0) {
       void logError(
         logger,
         new Error(
-          `${failures.length}/${results.length} session creations failed`
+          `${realFailures.length}/${results.length} session creations failed`
         ),
         'Partial failure in ensureTodaySessions'
       )
     }
     revalidatePath(REVALIDATE_PATH)
     revalidateTag('attendance-stats')
+    revalidateTag('today-sessions')
     return { success: true, data: undefined }
   } catch (error) {
     void logError(logger, error, 'Failed to ensure today sessions')

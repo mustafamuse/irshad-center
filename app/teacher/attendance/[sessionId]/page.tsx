@@ -14,8 +14,10 @@ interface Props {
 }
 
 export default async function TeacherAttendanceSessionPage({ params }: Props) {
-  const teacherId = await getAuthenticatedTeacherId()
-  const { sessionId } = await params
+  const [teacherId, { sessionId }] = await Promise.all([
+    getAuthenticatedTeacherId(),
+    params,
+  ])
 
   const session = await getSessionById(sessionId)
   if (!session) notFound()

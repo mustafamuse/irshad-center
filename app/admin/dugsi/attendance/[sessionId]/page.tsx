@@ -13,8 +13,7 @@ interface Props {
 }
 
 export default async function AttendanceSessionPage({ params }: Props) {
-  await requireAdmin()
-  const { sessionId } = await params
+  const [, { sessionId }] = await Promise.all([requireAdmin(), params])
 
   const session = await getSessionById(sessionId)
   if (!session) notFound()

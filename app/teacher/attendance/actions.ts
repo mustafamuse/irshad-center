@@ -34,7 +34,9 @@ export async function teacherMarkAttendance(
 
     const result = await markAttendanceRecords(parsed.data)
     revalidatePath('/teacher/attendance')
+    revalidatePath('/admin/dugsi/attendance')
     revalidateTag('attendance-stats')
+    revalidateTag('today-sessions')
     return { success: true, data: result }
   } catch (error) {
     if (error instanceof ValidationError) {

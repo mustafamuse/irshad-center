@@ -214,6 +214,14 @@ export async function getLateArrivals(
   })
 }
 
+export interface TeacherCheckinSummary {
+  id: string
+  shift: Shift
+  clockInTime: Date
+  clockOutTime: Date | null
+  isLate: boolean
+}
+
 export interface TeacherWithCheckinStatus {
   id: string
   personId: string
@@ -221,8 +229,8 @@ export interface TeacherWithCheckinStatus {
   email: string | null
   phone: string | null
   shifts: Shift[]
-  morningCheckin: TeacherCheckinWithRelations | null
-  afternoonCheckin: TeacherCheckinWithRelations | null
+  morningCheckin: TeacherCheckinSummary | null
+  afternoonCheckin: TeacherCheckinSummary | null
 }
 
 export async function getAllDugsiTeachersWithTodayStatus(
@@ -268,7 +276,13 @@ export async function getAllDugsiTeachersWithTodayStatus(
         where: {
           date: dateOnly,
         },
-        include: teacherCheckinInclude,
+        select: {
+          id: true,
+          shift: true,
+          clockInTime: true,
+          clockOutTime: true,
+          isLate: true,
+        },
       },
     },
     orderBy: {

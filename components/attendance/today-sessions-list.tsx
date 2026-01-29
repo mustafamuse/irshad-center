@@ -1,6 +1,6 @@
 import { SessionCard } from '@/components/attendance/session-card'
 import { Card } from '@/components/ui/card'
-import { getTodaySessions } from '@/lib/db/queries/dugsi-attendance'
+import { getTodaySessionsForList } from '@/lib/db/queries/dugsi-attendance'
 import { getNextWeekendDate, isWeekendDay } from '@/lib/utils/attendance-dates'
 
 interface Props {
@@ -36,7 +36,7 @@ export async function TodaySessionsList({
   }
 
   if (ensureSessions) await ensureSessions()
-  const sessions = await getTodaySessions(teacherId)
+  const sessions = await getTodaySessionsForList(teacherId)
 
   if (sessions.length === 0) {
     return (

@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 
-import { format } from 'date-fns'
 import { ArrowLeft } from 'lucide-react'
 
 import {
@@ -53,8 +52,12 @@ export function MarkAttendancePage({ session, students, attendance }: Props) {
               {session.isClosed && <Badge variant="secondary">Closed</Badge>}
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {format(new Date(session.date), 'EEE, MM/dd')} · {students.length}{' '}
-              students
+              {new Intl.DateTimeFormat('en-US', {
+                weekday: 'short',
+                month: '2-digit',
+                day: '2-digit',
+              }).format(new Date(session.date))}{' '}
+              · {students.length} students
             </p>
           </div>
         </div>
