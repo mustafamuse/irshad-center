@@ -1,32 +1,152 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
+
+import { format } from 'date-fns'
+
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { DEFAULT_PAGE_SIZE, SHIFT_SHORT_LABEL } from '@/lib/constants/dugsi'
+import {
+  getActiveClassesCachedQuery,
+  getActiveTeachers,
+  getSessionsForList,
+} from '@/lib/db/queries/dugsi-attendance'
+import { countPresentStudents } from '@/lib/utils/attendance-math'
+
+import { CreateSessionDialog } from './create-session-dialog'
+import { DeleteSessionButton } from './delete-session-button'
+import { FilterControls } from './filter-controls'
+import { PaginationControls } from './pagination-controls'
 
 interface Props {
   searchParams: {
     page?: string
     fromDate?: string
     toDate?: string
-    batchId?: string
+    classId?: string
+    teacherId?: string
   }
 }
 
-/**
- * Attendance Management Component
- *
- * NOTE: The attendance feature is incomplete. The database models
- * (AttendanceSession, AttendanceRecord) were removed from the schema.
- * This component is stubbed out until the feature is implemented.
- */
-export async function AttendanceManagement(_props: Props) {
+export async function AttendanceManagement({ searchParams }: Props) {
+  const filters = {
+    classId: searchParams.classId || undefined,
+    teacherId: searchParams.teacherId || undefined,
+    dateFrom: searchParams.fromDate
+      ? new Date(searchParams.fromDate)
+      : undefined,
+    dateTo: searchParams.toDate ? new Date(searchParams.toDate) : undefined,
+  }
+  const page = parseInt(searchParams.page || '1')
+
+  const [classes, teachers, { data: sessions, total, totalPages }] =
+    await Promise.all([
+      getActiveClassesCachedQuery(),
+      getActiveTeachers(),
+      getSessionsForList(filters, { page, limit: DEFAULT_PAGE_SIZE }),
+    ])
+
+  const classOptions = classes.map((c) => {
+    const teacherFirst =
+      c.teachers?.[0]?.teacher?.person?.name?.split(' ')[0] ?? ''
+    const shiftLabel = SHIFT_SHORT_LABEL[c.shift]
+    return {
+      id: c.id,
+      name: c.name,
+      shift: c.shift,
+      label: teacherFirst ? `${teacherFirst} - ${shiftLabel}` : shiftLabel,
+    }
+  })
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Attendance Management</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-semibold">Session History</h2>
+        <CreateSessionDialog classes={classOptions} />
+      </div>
+
+      <FilterControls
+        classes={classOptions}
+        teachers={teachers.map((t) => ({ id: t.id, name: t.person.name }))}
+      />
+
+      {sessions.length === 0 ? (
         <div className="flex h-48 items-center justify-center text-muted-foreground">
-          <p>Attendance feature is not yet implemented.</p>
+          <p>No attendance sessions found.</p>
         </div>
-      </CardContent>
-    </Card>
+      ) : (
+        <>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Session</TableHead>
+                  <TableHead>Records</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sessions.map((session) => {
+                  const presentCount = countPresentStudents(session.records)
+
+                  return (
+                    <TableRow key={session.id}>
+                      <TableCell>
+                        {format(new Date(session.date), 'MMM d, yyyy')}
+                      </TableCell>
+                      <TableCell>
+                        {session.teacher.person.name.split(' ')[0]} -{' '}
+                        {SHIFT_SHORT_LABEL[session.class.shift]}
+                      </TableCell>
+                      <TableCell>
+                        {presentCount}/{session.records.length} present
+                      </TableCell>
+                      <TableCell>
+                        {session.isClosed ? (
+                          <Badge variant="secondary">Closed</Badge>
+                        ) : (
+                          <Badge variant="default">Open</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {!session.isClosed && (
+                            <Link
+                              href={`/admin/dugsi/attendance/${session.id}`}
+                            >
+                              <Button size="sm" variant="outline">
+                                Mark
+                              </Button>
+                            </Link>
+                          )}
+                          <DeleteSessionButton sessionId={session.id} />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+
+          {totalPages > 1 && (
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              total={total}
+            />
+          )}
+        </>
+      )}
+    </div>
   )
 }

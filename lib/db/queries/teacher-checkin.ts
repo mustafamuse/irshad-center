@@ -7,6 +7,7 @@
 
 import { Prisma, Shift } from '@prisma/client'
 
+import { DEFAULT_QUERY_LIMIT } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
@@ -126,7 +127,7 @@ export async function getCheckinHistory(
   client: DatabaseClient = prisma
 ): Promise<PaginatedCheckins> {
   const { dateFrom, dateTo, shift, teacherId, isLate, clockInValid } = filters
-  const { page = 1, limit = 50 } = pagination
+  const { page = 1, limit = DEFAULT_QUERY_LIMIT } = pagination
   const skip = (page - 1) * limit
 
   const where: Prisma.DugsiTeacherCheckInWhereInput = {}
@@ -213,6 +214,14 @@ export async function getLateArrivals(
   })
 }
 
+export interface TeacherCheckinSummary {
+  id: string
+  shift: Shift
+  clockInTime: Date
+  clockOutTime: Date | null
+  isLate: boolean
+}
+
 export interface TeacherWithCheckinStatus {
   id: string
   personId: string
@@ -220,8 +229,8 @@ export interface TeacherWithCheckinStatus {
   email: string | null
   phone: string | null
   shifts: Shift[]
-  morningCheckin: TeacherCheckinWithRelations | null
-  afternoonCheckin: TeacherCheckinWithRelations | null
+  morningCheckin: TeacherCheckinSummary | null
+  afternoonCheckin: TeacherCheckinSummary | null
 }
 
 export async function getAllDugsiTeachersWithTodayStatus(
@@ -267,7 +276,13 @@ export async function getAllDugsiTeachersWithTodayStatus(
         where: {
           date: dateOnly,
         },
-        include: teacherCheckinInclude,
+        select: {
+          id: true,
+          shift: true,
+          clockInTime: true,
+          clockOutTime: true,
+          isLate: true,
+        },
       },
     },
     orderBy: {

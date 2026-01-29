@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import { format } from 'date-fns'
 import { ChevronDown, Clock, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -24,12 +23,23 @@ interface Props {
   teacherId: string | null
 }
 
+const timeFormatter = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+})
+
+const dateFormatter = new Intl.DateTimeFormat('en-US', {
+  weekday: 'short',
+  month: 'short',
+  day: 'numeric',
+})
+
 function formatTime(date: Date): string {
-  return format(new Date(date), 'h:mm a')
+  return timeFormatter.format(new Date(date))
 }
 
 function formatDate(date: Date): string {
-  return format(new Date(date), 'EEE, MMM d')
+  return dateFormatter.format(new Date(date))
 }
 
 export function CheckinHistory({ teacherId }: Props) {
@@ -47,7 +57,7 @@ export function CheckinHistory({ teacherId }: Props) {
   function loadHistory() {
     if (!teacherId || hasLoaded) return
     startTransition(async () => {
-      const result = await getTeacherCheckinHistory(teacherId)
+      const result = await getTeacherCheckinHistory()
       if (result.success && result.data) {
         setHistory(result.data)
       }
@@ -68,10 +78,11 @@ export function CheckinHistory({ teacherId }: Props) {
     <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
       <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-white p-4 text-left hover:bg-gray-50">
         <div className="flex items-center gap-2">
-          <Clock className="h-4 w-4 text-[#007078]" />
+          <Clock aria-hidden="true" className="h-4 w-4 text-[#007078]" />
           <span className="text-sm font-medium">My Recent Check-ins</span>
         </div>
         <ChevronDown
+          aria-hidden="true"
           className={cn(
             'h-4 w-4 text-gray-500 transition-transform',
             isOpen && 'rotate-180'
@@ -83,7 +94,10 @@ export function CheckinHistory({ teacherId }: Props) {
         <div className="rounded-lg border bg-white">
           {isPending && !history ? (
             <div className="flex items-center justify-center py-6">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <Loader2
+                aria-hidden="true"
+                className="h-5 w-5 animate-spin text-muted-foreground"
+              />
             </div>
           ) : !history || history.data.length === 0 ? (
             <div className="py-6 text-center">

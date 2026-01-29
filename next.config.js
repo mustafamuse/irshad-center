@@ -51,6 +51,9 @@ const nextConfig = {
     KV_REST_API_READ_ONLY_TOKEN: process.env.KV_REST_API_READ_ONLY_TOKEN,
     KV_URL: process.env.KV_URL,
   },
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'date-fns'],
+  },
   transpilePackages: ['@react-pdf/renderer'],
   webpack: (config) => {
     config.externals = config.externals || []
