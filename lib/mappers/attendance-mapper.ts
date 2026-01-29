@@ -10,27 +10,3 @@ export interface AttendanceRecordForMarking {
   lessonNotes: string | null
   notes: string | null
 }
-
-type AttendanceRecordInput = AttendanceRecordForMarking &
-  Record<string, unknown>
-
-export function mapRecordToMarkingDTO(
-  record: AttendanceRecordInput
-): AttendanceRecordForMarking {
-  return {
-    programProfileId: record.programProfileId,
-    status: record.status,
-    lessonCompleted: record.lessonCompleted,
-    surahName: record.surahName,
-    ayatFrom: record.ayatFrom,
-    ayatTo: record.ayatTo,
-    lessonNotes: record.lessonNotes,
-    notes: record.notes,
-  }
-}
-
-export function mapRecordsToMarkingDTOs(
-  records: AttendanceRecordInput[]
-): AttendanceRecordForMarking[] {
-  return records.map(mapRecordToMarkingDTO)
-}

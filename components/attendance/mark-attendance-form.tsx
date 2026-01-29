@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input'
 import type { AttendanceRecordForMarking } from '@/lib/mappers/attendance-mapper'
 import { ActionResult } from '@/lib/utils/action-helpers'
 
-interface SessionInfo {
+export interface SessionInfo {
   id: string
   date: string
   isClosed: boolean
@@ -35,7 +35,7 @@ interface SessionInfo {
   teacherName: string
 }
 
-interface Student {
+export interface Student {
   programProfileId: string
   name: string
 }
@@ -97,10 +97,9 @@ function initRecords(
   students: Student[],
   attendance: AttendanceRecordForMarking[]
 ): RecordState[] {
+  const attendanceMap = new Map(attendance.map((a) => [a.programProfileId, a]))
   return students.map((student) => {
-    const existing = attendance.find(
-      (a) => a.programProfileId === student.programProfileId
-    )
+    const existing = attendanceMap.get(student.programProfileId)
     return {
       programProfileId: student.programProfileId,
       status: existing?.status ?? null,

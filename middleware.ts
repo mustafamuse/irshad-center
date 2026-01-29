@@ -15,33 +15,36 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
       ? new Logger({ source: 'middleware' })
       : null
 
-  let response: NextResponse
+  const authRoutes = [
+    {
+      prefix: '/admin',
+      cookie: 'admin_auth',
+      verify: verifyAuthTokenEdge,
+    },
+    {
+      prefix: '/teacher',
+      cookie: 'teacher_auth',
+      verify: verifyTeacherAuthTokenEdge,
+    },
+  ] as const
 
-  if (path.startsWith('/admin') && !path.startsWith('/admin/login')) {
-    const authCookie = request.cookies.get('admin_auth')
+  let response: NextResponse = NextResponse.next()
 
-    if (!authCookie || !(await verifyAuthTokenEdge(authCookie.value))) {
-      const loginUrl = new URL('/admin/login', request.url)
-      loginUrl.searchParams.set('redirect', path)
+  for (const route of authRoutes) {
+    if (
+      !path.startsWith(route.prefix) ||
+      path.startsWith(`${route.prefix}/login`)
+    )
+      continue
+
+    const authCookie = request.cookies.get(route.cookie)
+    if (!authCookie || !(await route.verify(authCookie.value))) {
+      const loginUrl = new URL(`${route.prefix}/login`, request.url)
+      const safeRedirect = /^\/[a-zA-Z]/.test(path) ? path : `${route.prefix}`
+      loginUrl.searchParams.set('redirect', safeRedirect)
       response = NextResponse.redirect(loginUrl)
-    } else {
-      response = NextResponse.next()
     }
-  } else if (
-    path.startsWith('/teacher') &&
-    !path.startsWith('/teacher/login')
-  ) {
-    const authCookie = request.cookies.get('teacher_auth')
-
-    if (!authCookie || !(await verifyTeacherAuthTokenEdge(authCookie.value))) {
-      const loginUrl = new URL('/teacher/login', request.url)
-      loginUrl.searchParams.set('redirect', path)
-      response = NextResponse.redirect(loginUrl)
-    } else {
-      response = NextResponse.next()
-    }
-  } else {
-    response = NextResponse.next()
+    break
   }
 
   axiomLogger?.info('Request handled', {

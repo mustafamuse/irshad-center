@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useState } from 'react'
 
+import { DugsiAttendanceStatus } from '@prisma/client'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -32,7 +33,6 @@ import {
 } from '@/components/ui/table'
 import type { AttendanceRecordForMarking } from '@/lib/mappers/attendance-mapper'
 
-import { DugsiAttendanceStatus } from '../_types'
 import { markAttendance } from '../actions'
 
 interface Student {

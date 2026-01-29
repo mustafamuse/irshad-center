@@ -1,6 +1,6 @@
 export function getNextWeekendDate(): string {
   const today = new Date()
-  const day = today.getDay()
+  const day = today.getUTCDay()
   const daysUntilSaturday = (6 - day + 7) % 7 || 7
   const nextSaturday = new Date(today)
   nextSaturday.setDate(today.getDate() + daysUntilSaturday)
@@ -12,6 +12,6 @@ export function getNextWeekendDate(): string {
 }
 
 export function isWeekendDay(date: Date): boolean {
-  const day = date.getDay()
+  const day = date.getUTCDay()
   return day === 0 || day === 6
 }

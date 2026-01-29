@@ -7,7 +7,6 @@ import {
   getEnrolledStudentsByClass,
   getSessionById,
 } from '@/lib/db/queries/dugsi-attendance'
-import { mapRecordsToMarkingDTOs } from '@/lib/mappers/attendance-mapper'
 
 import { TeacherMarkAttendancePage } from './teacher-mark-attendance-page'
 
@@ -27,9 +26,9 @@ export default async function TeacherAttendanceSessionPage({ params }: Props) {
   }
 
   const students = await getEnrolledStudentsByClass(session.classId)
-  const attendance = mapRecordsToMarkingDTOs(session.records)
+  const attendance = session.records
 
-  const sessionDay = session.date.getDay()
+  const sessionDay = session.date.getUTCDay()
   const sunday = sessionDay === 6 ? addDays(session.date, 1) : session.date
   const isEffectivelyClosed = session.isClosed || isPast(endOfDay(sunday))
 

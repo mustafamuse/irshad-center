@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation'
 
+import { requireAdmin } from '@/lib/auth/get-admin'
 import {
   getEnrolledStudentsByClass,
   getSessionById,
 } from '@/lib/db/queries/dugsi-attendance'
-import { mapRecordsToMarkingDTOs } from '@/lib/mappers/attendance-mapper'
 
 import { MarkAttendancePage } from './mark-attendance-page'
 
@@ -13,13 +13,14 @@ interface Props {
 }
 
 export default async function AttendanceSessionPage({ params }: Props) {
+  await requireAdmin()
   const { sessionId } = await params
 
   const session = await getSessionById(sessionId)
   if (!session) notFound()
 
   const students = await getEnrolledStudentsByClass(session.classId)
-  const attendance = mapRecordsToMarkingDTOs(session.records)
+  const attendance = session.records
 
   return (
     <MarkAttendancePage

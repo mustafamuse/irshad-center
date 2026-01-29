@@ -5,24 +5,14 @@ import Link from 'next/link'
 import { format } from 'date-fns'
 import { ArrowLeft } from 'lucide-react'
 
-import { MarkAttendanceForm } from '@/components/attendance/mark-attendance-form'
+import {
+  MarkAttendanceForm,
+  type SessionInfo,
+  type Student,
+} from '@/components/attendance/mark-attendance-form'
 import type { AttendanceRecordForMarking } from '@/lib/mappers/attendance-mapper'
 
 import { teacherMarkAttendance } from '../actions'
-
-interface SessionInfo {
-  id: string
-  date: string
-  isClosed: boolean
-  className: string
-  shift: string
-  teacherName: string
-}
-
-interface Student {
-  programProfileId: string
-  name: string
-}
 
 interface Props {
   session: SessionInfo

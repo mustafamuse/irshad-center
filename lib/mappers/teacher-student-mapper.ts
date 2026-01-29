@@ -62,7 +62,7 @@ export function groupRecordsByWeekend(
 
   for (const r of records) {
     const d = new Date(r.date)
-    const day = d.getDay()
+    const day = d.getUTCDay()
     if (day !== 0 && day !== 6) continue
     const saturday = new Date(d)
     if (day === 0) {

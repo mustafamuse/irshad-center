@@ -1,9 +1,6 @@
-'use client'
-
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Simple skeleton for loading states - used in main page
 export function AttendanceStatsCardSkeleton() {
   return (
     <Card className="space-y-3 p-4">
