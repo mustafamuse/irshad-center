@@ -29,21 +29,19 @@ export default async function StudentDetailPage({ params }: Props) {
   const { profileId } = await params
   const teacherId = await getAuthenticatedTeacherId()
 
-  const [student, classIds] = await Promise.all([
-    getStudentProfile(profileId),
-    getTeacherClassIds(teacherId),
-  ])
+  const [student, classIds, rawStats, monthlyComparison, rawTrend, history] =
+    await Promise.all([
+      getStudentProfile(profileId),
+      getTeacherClassIds(teacherId),
+      getStudentAttendanceStats(profileId),
+      getStudentMonthlyComparison(profileId),
+      getStudentWeeklyTrend(profileId),
+      getStudentAttendanceRecords(profileId),
+    ])
 
   if (!student || !classIds.includes(student.classId)) {
     redirect('/teacher/attendance')
   }
-
-  const [rawStats, monthlyComparison, rawTrend, history] = await Promise.all([
-    getStudentAttendanceStats(profileId),
-    getStudentMonthlyComparison(profileId),
-    getStudentWeeklyTrend(profileId),
-    getStudentAttendanceRecords(profileId),
-  ])
 
   const currentStreak = computeCurrentStreak(rawStats.recentRecords)
   const stats = { ...rawStats, currentStreak }
@@ -54,9 +52,10 @@ export default async function StudentDetailPage({ params }: Props) {
       <div className="flex items-center gap-3">
         <Link
           href="/teacher/attendance"
+          aria-label="Back to attendance"
           className="rounded-lg p-1.5 hover:bg-muted"
         >
-          <ArrowLeft className="h-5 w-5" />
+          <ArrowLeft aria-hidden="true" className="h-5 w-5" />
         </Link>
         <div>
           <h1 className="text-lg font-semibold">{student.name}</h1>
@@ -69,11 +68,15 @@ export default async function StudentDetailPage({ params }: Props) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="p-3">
           <p className="text-xs text-muted-foreground">Attendance Rate</p>
-          <p className="text-xl font-bold">{stats.attendanceRate}%</p>
+          <p className="text-xl font-bold tabular-nums">
+            {stats.attendanceRate}%
+          </p>
         </Card>
         <Card className="p-3">
           <p className="text-xs text-muted-foreground">Current Streak</p>
-          <p className="text-xl font-bold">{stats.currentStreak}</p>
+          <p className="text-xl font-bold tabular-nums">
+            {stats.currentStreak}
+          </p>
         </Card>
         <Card className="p-3">
           <p className="text-xs text-muted-foreground">vs Last Month</p>
@@ -82,20 +85,24 @@ export default async function StudentDetailPage({ params }: Props) {
               className={`flex items-center gap-1 text-xl font-bold ${monthlyComparison.diff >= 0 ? 'text-green-600' : 'text-red-600'}`}
             >
               {monthlyComparison.diff >= 0 ? (
-                <ArrowUp className="h-4 w-4" />
+                <ArrowUp aria-hidden="true" className="h-4 w-4" />
               ) : (
-                <ArrowDown className="h-4 w-4" />
+                <ArrowDown aria-hidden="true" className="h-4 w-4" />
               )}
               {monthlyComparison.diff >= 0 ? '+' : ''}
               {monthlyComparison.diff}%
             </p>
           ) : (
-            <p className="text-xl font-bold text-muted-foreground">N/A</p>
+            <p className="text-xl font-bold tabular-nums text-muted-foreground">
+              N/A
+            </p>
           )}
         </Card>
         <Card className="p-3">
           <p className="text-xs text-muted-foreground">Total Sessions</p>
-          <p className="text-xl font-bold">{stats.totalSessions}</p>
+          <p className="text-xl font-bold tabular-nums">
+            {stats.totalSessions}
+          </p>
         </Card>
       </div>
 

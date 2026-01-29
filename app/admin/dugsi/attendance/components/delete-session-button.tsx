@@ -28,8 +28,13 @@ export const DeleteSessionButton = memo(function DeleteSessionButton({
   }
 
   return (
-    <Button size="sm" variant="ghost" onClick={handleDelete}>
-      <Trash2 className="size-4" />
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={handleDelete}
+      aria-label="Delete session"
+    >
+      <Trash2 aria-hidden="true" className="size-4" />
     </Button>
   )
 })

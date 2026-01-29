@@ -26,7 +26,7 @@ export function TeacherHeader({ teacherName }: Props) {
           disabled={isPending}
           onClick={() => startTransition(() => logoutTeacher())}
         >
-          {isPending ? 'Logging out...' : 'Logout'}
+          {isPending ? 'Logging out\u2026' : 'Logout'}
         </Button>
       </div>
     </header>

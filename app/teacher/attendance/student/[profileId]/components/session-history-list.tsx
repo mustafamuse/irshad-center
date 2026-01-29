@@ -84,7 +84,7 @@ export const SessionHistoryList = memo(function SessionHistoryList({
           onClick={handleLoadMore}
           disabled={isPending}
         >
-          {isPending ? 'Loading...' : 'Load more'}
+          {isPending ? 'Loading\u2026' : 'Load more'}
         </Button>
       )}
     </div>

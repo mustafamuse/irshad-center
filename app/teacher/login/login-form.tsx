@@ -86,7 +86,9 @@ function LoginFormInner() {
             onKeyDown={(e) => handleKeyDown(index, e)}
             onPaste={index === 0 ? handlePaste : undefined}
             disabled={isPending}
-            className="h-14 w-14 rounded-lg border-2 border-gray-300 text-center text-2xl font-bold focus:border-[#007078] focus:outline-none focus:ring-2 focus:ring-[#007078]/20 disabled:opacity-50"
+            aria-label={`PIN digit ${index + 1}`}
+            autoComplete="off"
+            className="h-14 w-14 rounded-lg border-2 border-gray-300 text-center text-2xl font-bold focus-visible:border-[#007078] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#007078]/20 disabled:opacity-50"
             autoFocus={index === 0}
           />
         ))}
@@ -97,7 +99,9 @@ function LoginFormInner() {
       )}
 
       {isPending && (
-        <p className="text-center text-sm text-gray-500">Verifying...</p>
+        <p className="text-center text-sm text-gray-500" aria-live="polite">
+          Verifying&hellip;
+        </p>
       )}
     </div>
   )
@@ -105,7 +109,7 @@ function LoginFormInner() {
 
 export function LoginForm() {
   return (
-    <Suspense fallback={<div className="text-gray-500">Loading...</div>}>
+    <Suspense fallback={<div className="text-gray-500">Loading&hellip;</div>}>
       <LoginFormInner />
     </Suspense>
   )

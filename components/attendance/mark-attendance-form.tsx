@@ -145,7 +145,10 @@ const StudentRow = memo(function StudentRow({
           )}
           <CollapsibleTrigger className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
             <span>Lesson</span>
-            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+            <ChevronDown
+              aria-hidden="true"
+              className="h-4 w-4 shrink-0 transition-transform duration-200 [[data-state=open]_&]:rotate-180"
+            />
           </CollapsibleTrigger>
         </div>
         <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
@@ -173,6 +176,7 @@ const StudentRow = memo(function StudentRow({
         <div className="space-y-3 border-t px-3 pb-3 pt-3">
           <div className="flex items-center gap-2">
             <Checkbox
+              id={`lesson-${student.programProfileId}`}
               disabled={isClosed}
               checked={record.lessonCompleted}
               onCheckedChange={(checked) =>
@@ -181,12 +185,18 @@ const StudentRow = memo(function StudentRow({
                 })
               }
             />
-            <label className="text-sm">Lesson completed</label>
+            <label
+              htmlFor={`lesson-${student.programProfileId}`}
+              className="text-sm"
+            >
+              Lesson completed
+            </label>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <Input
               disabled={isClosed}
-              placeholder="Surah"
+              aria-label="Surah name"
+              placeholder="Surah…"
               value={record.surahName}
               onChange={(e) =>
                 updateRecord(student.programProfileId, {
@@ -196,7 +206,8 @@ const StudentRow = memo(function StudentRow({
             />
             <Input
               disabled={isClosed}
-              placeholder="From"
+              aria-label="Ayat from"
+              placeholder="From…"
               type="number"
               value={record.ayatFrom}
               onChange={(e) =>
@@ -207,7 +218,8 @@ const StudentRow = memo(function StudentRow({
             />
             <Input
               disabled={isClosed}
-              placeholder="To"
+              aria-label="Ayat to"
+              placeholder="To…"
               type="number"
               value={record.ayatTo}
               onChange={(e) =>
@@ -219,7 +231,8 @@ const StudentRow = memo(function StudentRow({
           </div>
           <Input
             disabled={isClosed}
-            placeholder="Notes..."
+            aria-label="Notes"
+            placeholder="Notes…"
             value={record.notes}
             onChange={(e) =>
               updateRecord(student.programProfileId, {
@@ -377,7 +390,7 @@ export function MarkAttendanceForm({
               onClick={handleSave}
             >
               {isPending
-                ? 'Saving...'
+                ? 'Saving\u2026'
                 : unmarkedCount > 0
                   ? `Mark all students (${unmarkedCount} remaining)`
                   : hasExistingRecords

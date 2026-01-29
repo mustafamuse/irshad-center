@@ -35,9 +35,10 @@ export function MarkAttendancePage({ session, students, attendance }: Props) {
         <div className="flex items-start gap-3">
           <Link
             href="/admin/dugsi/attendance"
+            aria-label="Back to attendance"
             className="mt-1 rounded-md p-1 hover:bg-muted"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft aria-hidden="true" className="h-5 w-5" />
           </Link>
           <div>
             <div className="flex items-center gap-2">

@@ -144,7 +144,7 @@ function TrendValue({ diff, size }: { diff: number; size: 'lg' | 'sm' }) {
   if (size === 'lg') {
     return (
       <div className={`flex items-center gap-1 text-2xl font-bold ${color}`}>
-        <Icon className="h-5 w-5" />
+        <Icon aria-hidden="true" className="h-5 w-5" />
         {isPositive ? '+' : ''}
         {diff}%
       </div>
@@ -153,7 +153,7 @@ function TrendValue({ diff, size }: { diff: number; size: 'lg' | 'sm' }) {
 
   return (
     <span className={`inline-flex items-center gap-0.5 ${color}`}>
-      <Icon className="h-3 w-3" />
+      <Icon aria-hidden="true" className="h-3 w-3" />
       {isPositive ? '+' : ''}
       {diff}%
     </span>

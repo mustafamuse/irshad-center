@@ -137,7 +137,7 @@ export const FilterControls = memo(function FilterControls({
                   id="from-date"
                   variant="outline"
                 >
-                  <CalendarIcon className="mr-2 size-4" />
+                  <CalendarIcon aria-hidden="true" className="mr-2 size-4" />
                   {fromDate && isValidDate(fromDate)
                     ? format(new Date(fromDate), 'PPP')
                     : 'Pick a date'}
@@ -177,7 +177,7 @@ export const FilterControls = memo(function FilterControls({
                   id="to-date"
                   variant="outline"
                 >
-                  <CalendarIcon className="mr-2 size-4" />
+                  <CalendarIcon aria-hidden="true" className="mr-2 size-4" />
                   {toDate && isValidDate(toDate)
                     ? format(new Date(toDate), 'PPP')
                     : 'Pick a date'}

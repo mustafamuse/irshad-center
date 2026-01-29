@@ -49,9 +49,10 @@ export function TeacherMarkAttendancePage({
         <div className="flex items-start gap-3">
           <Link
             href="/teacher/attendance"
+            aria-label="Back to attendance"
             className="mt-1 rounded-md p-1 hover:bg-muted"
           >
-            <ArrowLeft className="h-5 w-5" />
+            <ArrowLeft aria-hidden="true" className="h-5 w-5" />
           </Link>
           <div>
             <h1 className="text-xl font-bold">
