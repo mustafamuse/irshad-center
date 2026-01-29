@@ -19,7 +19,8 @@ export async function verifyAuthTokenEdge(token: string): Promise<boolean> {
       return false
     }
 
-    const secret = process.env.ADMIN_PIN || ''
+    const secret = process.env.ADMIN_PIN
+    if (!secret) throw new Error('ADMIN_PIN environment variable is required')
     const encoder = new TextEncoder()
     const key = await crypto.subtle.importKey(
       'raw',
@@ -38,7 +39,10 @@ export async function verifyAuthTokenEdge(token: string): Promise<boolean> {
       .join('')
 
     return constantTimeEqual(signature, expectedSignature)
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('ADMIN_PIN')) {
+      throw error
+    }
     return false
   }
 }

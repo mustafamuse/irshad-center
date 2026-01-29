@@ -42,7 +42,7 @@ export async function teacherMarkAttendance(
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    void logError(logger, error, 'Failed to mark attendance')
+    await logError(logger, error, 'Failed to mark attendance')
     return { success: false, error: 'Failed to mark attendance' }
   }
 }

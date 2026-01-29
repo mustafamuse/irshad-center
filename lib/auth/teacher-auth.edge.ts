@@ -46,7 +46,13 @@ export async function verifyTeacherAuthTokenEdge(
       .join('')
 
     return constantTimeEqual(signature, expectedSignature)
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('TEACHER_AUTH_SECRET')
+    ) {
+      throw error
+    }
     return false
   }
 }

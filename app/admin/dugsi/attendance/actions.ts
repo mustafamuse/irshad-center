@@ -33,6 +33,12 @@ const logger = createActionLogger('attendance-actions')
 
 const REVALIDATE_PATH = '/admin/dugsi/attendance'
 
+function revalidateAttendance() {
+  revalidatePath(REVALIDATE_PATH)
+  revalidateTag('attendance-stats')
+  revalidateTag('today-sessions')
+}
+
 export type ClassOption = { id: string; name: string; shift: string }
 export type StudentOption = { programProfileId: string; name: string }
 
@@ -47,15 +53,13 @@ export async function createSession(
 
   try {
     const { session } = await createAttendanceSession(parsed.data)
-    revalidatePath(REVALIDATE_PATH)
-    revalidateTag('attendance-stats')
-    revalidateTag('today-sessions')
+    revalidateAttendance()
     return { success: true, data: { sessionId: session.id } }
   } catch (error) {
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    void logError(logger, error, 'Failed to create session')
+    await logError(logger, error, 'Failed to create session')
     return { success: false, error: 'Failed to create session' }
   }
 }
@@ -71,15 +75,13 @@ export async function markAttendance(
 
   try {
     const result = await markAttendanceRecords(parsed.data)
-    revalidatePath(REVALIDATE_PATH)
-    revalidateTag('attendance-stats')
-    revalidateTag('today-sessions')
+    revalidateAttendance()
     return { success: true, data: result }
   } catch (error) {
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    void logError(logger, error, 'Failed to mark attendance')
+    await logError(logger, error, 'Failed to mark attendance')
     return { success: false, error: 'Failed to mark attendance' }
   }
 }
@@ -95,15 +97,13 @@ export async function deleteSession(
 
   try {
     await deleteAttendanceSession(parsed.data.sessionId)
-    revalidatePath(REVALIDATE_PATH)
-    revalidateTag('attendance-stats')
-    revalidateTag('today-sessions')
+    revalidateAttendance()
     return { success: true, data: undefined }
   } catch (error) {
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
-    void logError(logger, error, 'Failed to delete session')
+    await logError(logger, error, 'Failed to delete session')
     return { success: false, error: 'Failed to delete session' }
   }
 }
@@ -111,6 +111,7 @@ export async function deleteSession(
 export async function getSessionsAction(
   input: unknown
 ): Promise<ActionResult<PaginatedSessions>> {
+  await requireAdmin()
   const parsed = AttendanceFiltersSchema.safeParse(input)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -121,7 +122,7 @@ export async function getSessionsAction(
     const result = await getSessions(filters, { page, limit })
     return { success: true, data: result }
   } catch (error) {
-    void logError(logger, error, 'Failed to fetch sessions')
+    await logError(logger, error, 'Failed to fetch sessions')
     return { success: false, error: 'Failed to fetch sessions' }
   }
 }
@@ -129,11 +130,12 @@ export async function getSessionsAction(
 export async function getAttendanceStatsAction(): Promise<
   ActionResult<AttendanceStats>
 > {
+  await requireAdmin()
   try {
     const stats = await getAttendanceStats()
     return { success: true, data: stats }
   } catch (error) {
-    void logError(logger, error, 'Failed to fetch attendance stats')
+    await logError(logger, error, 'Failed to fetch attendance stats')
     return { success: false, error: 'Failed to fetch attendance stats' }
   }
 }
@@ -141,6 +143,7 @@ export async function getAttendanceStatsAction(): Promise<
 export async function getClassesForDropdownAction(): Promise<
   ActionResult<ClassOption[]>
 > {
+  await requireAdmin()
   try {
     const classes = await getActiveClasses()
     return {
@@ -148,7 +151,7 @@ export async function getClassesForDropdownAction(): Promise<
       data: classes.map((c) => ({ id: c.id, name: c.name, shift: c.shift })),
     }
   } catch (error) {
-    void logError(logger, error, 'Failed to fetch classes')
+    await logError(logger, error, 'Failed to fetch classes')
     return { success: false, error: 'Failed to fetch classes' }
   }
 }
@@ -186,20 +189,23 @@ export async function ensureTodaySessions(): Promise<ActionResult<void>> {
         )
     )
     if (realFailures.length > 0) {
-      void logError(
+      await logError(
         logger,
         new Error(
-          `${realFailures.length}/${results.length} session creations failed`
+          `${realFailures.length}/${results.length} session creations failed: ${realFailures.map((f) => (f.reason as Error).message).join('; ')}`
         ),
         'Partial failure in ensureTodaySessions'
       )
+      revalidateAttendance()
+      return {
+        success: false,
+        error: `${realFailures.length} of ${results.length} sessions failed to create`,
+      }
     }
-    revalidatePath(REVALIDATE_PATH)
-    revalidateTag('attendance-stats')
-    revalidateTag('today-sessions')
+    revalidateAttendance()
     return { success: true, data: undefined }
   } catch (error) {
-    void logError(logger, error, 'Failed to ensure today sessions')
+    await logError(logger, error, 'Failed to ensure today sessions')
     return { success: false, error: 'Failed to create today sessions' }
   }
 }
@@ -207,6 +213,7 @@ export async function ensureTodaySessions(): Promise<ActionResult<void>> {
 export async function getStudentsForClassAction(
   classId: string
 ): Promise<ActionResult<StudentOption[]>> {
+  await requireAdmin()
   const parsed = z.string().uuid('Invalid class ID').safeParse(classId)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -216,7 +223,7 @@ export async function getStudentsForClassAction(
     const students = await getEnrolledStudentsByClass(parsed.data)
     return { success: true, data: students }
   } catch (error) {
-    void logError(logger, error, 'Failed to fetch students')
+    await logError(logger, error, 'Failed to fetch students')
     return { success: false, error: 'Failed to fetch students' }
   }
 }

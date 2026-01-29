@@ -126,7 +126,6 @@ export const SHIFT_COLORS = {
   AFTERNOON: 'bg-[#007078]',
 } as const
 
-// Shift Short Labels (for compact display)
 export const SHIFT_SHORT_LABEL: Record<DugsiShift, string> = {
   MORNING: 'AM',
   AFTERNOON: 'PM',

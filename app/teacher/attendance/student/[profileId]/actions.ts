@@ -49,7 +49,7 @@ export async function loadMoreStudentHistory(
     })
     return { success: true, data: result }
   } catch (error) {
-    void logError(logger, error, 'Failed to load student history', {
+    await logError(logger, error, 'Failed to load student history', {
       profileId: parsed.data.profileId,
     })
     return { success: false, error: 'Failed to load attendance history' }

@@ -1,10 +1,10 @@
-import { DugsiAttendanceStatus } from '@prisma/client'
+import { DugsiAttendanceStatus, Shift } from '@prisma/client'
 
 export interface StudentDetailDTO {
   profileId: string
   name: string
   className: string
-  shift: string
+  shift: Shift
 }
 
 export interface StudentAttendanceStatsDTO {

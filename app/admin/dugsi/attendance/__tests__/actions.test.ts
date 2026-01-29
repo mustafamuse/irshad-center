@@ -354,7 +354,7 @@ describe('attendance actions', () => {
       vi.useRealTimers()
     })
 
-    it('succeeds even when some session creations fail', async () => {
+    it('returns failure when some session creations fail', async () => {
       vi.useFakeTimers()
       vi.setSystemTime(new Date('2025-01-04T12:00:00Z'))
 
@@ -368,7 +368,8 @@ describe('attendance actions', () => {
 
       const result = await ensureTodaySessions()
 
-      expect(result.success).toBe(true)
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('1 of 2 sessions failed to create')
       expect(mockCreateSession).toHaveBeenCalledTimes(2)
 
       vi.useRealTimers()

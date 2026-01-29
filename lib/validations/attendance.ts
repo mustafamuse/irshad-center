@@ -65,29 +65,37 @@ export const DeleteSessionSchema = z.object({
   sessionId: z.string().uuid('Invalid session ID'),
 })
 
-export const AttendanceFiltersSchema = z.object({
-  classId: z.string().uuid('Invalid class ID').optional(),
-  teacherId: z.string().uuid('Invalid teacher ID').optional(),
-  dateFrom: z.coerce
-    .date({ errorMap: () => ({ message: 'Invalid start date' }) })
-    .optional(),
-  dateTo: z.coerce
-    .date({ errorMap: () => ({ message: 'Invalid end date' }) })
-    .optional(),
-  page: z.coerce
-    .number()
-    .int()
-    .positive('Page must be positive')
-    .optional()
-    .default(1),
-  limit: z.coerce
-    .number()
-    .int()
-    .positive('Limit must be positive')
-    .max(100, 'Limit cannot exceed 100')
-    .optional()
-    .default(DEFAULT_QUERY_LIMIT),
-})
+export const AttendanceFiltersSchema = z
+  .object({
+    classId: z.string().uuid('Invalid class ID').optional(),
+    teacherId: z.string().uuid('Invalid teacher ID').optional(),
+    dateFrom: z.coerce
+      .date({ errorMap: () => ({ message: 'Invalid start date' }) })
+      .optional(),
+    dateTo: z.coerce
+      .date({ errorMap: () => ({ message: 'Invalid end date' }) })
+      .optional(),
+    page: z.coerce
+      .number()
+      .int()
+      .positive('Page must be positive')
+      .optional()
+      .default(1),
+    limit: z.coerce
+      .number()
+      .int()
+      .positive('Limit must be positive')
+      .max(100, 'Limit cannot exceed 100')
+      .optional()
+      .default(DEFAULT_QUERY_LIMIT),
+  })
+  .refine(
+    (data) => !data.dateFrom || !data.dateTo || data.dateFrom <= data.dateTo,
+    {
+      message: 'Start date must be before or equal to end date',
+      path: ['dateFrom'],
+    }
+  )
 
 export const LoadMoreHistorySchema = z.object({
   profileId: z.string().uuid('Invalid profile ID'),

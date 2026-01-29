@@ -57,7 +57,13 @@ export function verifyTeacherAuthToken(
     )
 
     return isValid ? { teacherId } : null
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('TEACHER_AUTH_SECRET')
+    ) {
+      throw error
+    }
     return null
   }
 }

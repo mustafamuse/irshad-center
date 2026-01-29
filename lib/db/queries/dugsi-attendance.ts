@@ -8,7 +8,6 @@ import { DatabaseClient } from '@/lib/db/types'
 import {
   sortByFamilyThenName,
   aggregateStatusCounts,
-  computeAttendanceRate,
   rateFromStatusCounts,
 } from '@/lib/utils/attendance-math'
 
@@ -383,7 +382,7 @@ export async function getAttendanceStats(
   const absentCount = countByStatus['ABSENT'] ?? 0
   const lateCount = countByStatus['LATE'] ?? 0
   const excusedCount = countByStatus['EXCUSED'] ?? 0
-  const totalRecords = presentCount + absentCount + lateCount + excusedCount
+  const { rate, total: totalRecords } = rateFromStatusCounts(statusCounts)
 
   return {
     totalSessions,
@@ -392,10 +391,7 @@ export async function getAttendanceStats(
     absentCount,
     lateCount,
     excusedCount,
-    attendanceRate:
-      Math.round(
-        computeAttendanceRate(presentCount, lateCount, totalRecords) * 10
-      ) / 10,
+    attendanceRate: Math.round(rate * 10) / 10,
   }
 }
 
@@ -511,7 +507,10 @@ export async function getTeacherShiftStats(
     })
   )
 
-  results.sort((a) => (a.shift === 'MORNING' ? -1 : 1))
+  results.sort((a, b) => {
+    if (a.shift === b.shift) return 0
+    return a.shift === 'MORNING' ? -1 : 1
+  })
   return results
 }
 
@@ -619,7 +618,10 @@ export async function getTeacherMonthlyTrendWithShifts(
     })
   )
 
-  byShift.sort((a) => (a.shift === 'MORNING' ? -1 : 1))
+  byShift.sort((a, b) => {
+    if (a.shift === b.shift) return 0
+    return a.shift === 'MORNING' ? -1 : 1
+  })
   return { overall, byShift }
 }
 

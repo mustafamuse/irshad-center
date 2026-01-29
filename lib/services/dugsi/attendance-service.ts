@@ -150,8 +150,18 @@ export async function markAttendanceRecords(
     }
 
     await Promise.all(
-      records.map((record) =>
-        tx.dugsiAttendanceRecord.upsert({
+      records.map((record) => {
+        const data = {
+          status: record.status,
+          lessonCompleted: record.lessonCompleted ?? false,
+          surahName: record.surahName ?? null,
+          ayatFrom: record.ayatFrom ?? null,
+          ayatTo: record.ayatTo ?? null,
+          lessonNotes: record.lessonNotes ?? null,
+          notes: record.notes ?? null,
+          markedAt: new Date(),
+        }
+        return tx.dugsiAttendanceRecord.upsert({
           where: {
             sessionId_programProfileId: {
               sessionId,
@@ -161,27 +171,11 @@ export async function markAttendanceRecords(
           create: {
             sessionId,
             programProfileId: record.programProfileId,
-            status: record.status,
-            lessonCompleted: record.lessonCompleted ?? false,
-            surahName: record.surahName ?? null,
-            ayatFrom: record.ayatFrom ?? null,
-            ayatTo: record.ayatTo ?? null,
-            lessonNotes: record.lessonNotes ?? null,
-            notes: record.notes ?? null,
-            markedAt: new Date(),
+            ...data,
           },
-          update: {
-            status: record.status,
-            lessonCompleted: record.lessonCompleted ?? false,
-            surahName: record.surahName ?? null,
-            ayatFrom: record.ayatFrom ?? null,
-            ayatTo: record.ayatTo ?? null,
-            lessonNotes: record.lessonNotes ?? null,
-            notes: record.notes ?? null,
-            markedAt: new Date(),
-          },
+          update: data,
         })
-      )
+      })
     )
   }
 
