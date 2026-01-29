@@ -8,7 +8,6 @@ interface SessionRecord {
 }
 
 interface SessionCardProps {
-  sessionId: string
   label: string
   records: SessionRecord[]
   isClosed: boolean

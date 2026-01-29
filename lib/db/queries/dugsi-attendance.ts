@@ -9,6 +9,7 @@ import {
   sortByFamilyThenName,
   aggregateStatusCounts,
   computeAttendanceRate,
+  rateFromStatusCounts,
 } from '@/lib/utils/attendance-math'
 
 function buildDateFilter(
@@ -20,25 +21,6 @@ function buildDateFilter(
   if (dateFrom) filter.gte = new Date(dateFrom.toISOString().split('T')[0])
   if (dateTo) filter.lte = new Date(dateTo.toISOString().split('T')[0])
   return filter
-}
-
-function rateFromStatusCounts(
-  statusCounts: { status: string; _count: { status: number } }[]
-): { rate: number; total: number } {
-  const counts = aggregateStatusCounts(statusCounts)
-  const total =
-    (counts['PRESENT'] ?? 0) +
-    (counts['ABSENT'] ?? 0) +
-    (counts['LATE'] ?? 0) +
-    (counts['EXCUSED'] ?? 0)
-  return {
-    rate: computeAttendanceRate(
-      counts['PRESENT'] ?? 0,
-      counts['LATE'] ?? 0,
-      total
-    ),
-    total,
-  }
 }
 
 export const attendanceSessionInclude = {
@@ -354,13 +336,7 @@ export async function getAttendanceStats(
   filters: AttendanceSessionFilters = {},
   client: DatabaseClient = prisma
 ): Promise<AttendanceStats> {
-  const { classId, teacherId, dateFrom, dateTo } = filters
-
-  const sessionWhere: Prisma.DugsiAttendanceSessionWhereInput = {
-    ...(classId && { classId }),
-    ...(teacherId && { teacherId }),
-    ...((dateFrom || dateTo) && { date: buildDateFilter(dateFrom, dateTo) }),
-  }
+  const sessionWhere = buildSessionWhereClause(filters)
 
   const [totalSessions, statusCounts] = await Promise.all([
     client.dugsiAttendanceSession.count({ where: sessionWhere }),
@@ -427,47 +403,6 @@ export async function getActiveStudentCount(
       },
     },
   })
-}
-
-export async function getTeacherMonthlyTrend(
-  teacherId: string,
-  client: DatabaseClient = prisma
-): Promise<{ diff: number } | null> {
-  const now = new Date()
-  const currentMonthStart = new Date(
-    Date.UTC(now.getFullYear(), now.getMonth(), 1)
-  )
-  const previousMonthStart = new Date(
-    Date.UTC(now.getFullYear(), now.getMonth() - 1, 1)
-  )
-
-  const sessionWhere = { teacherId }
-
-  const [currentRecords, previousRecords] = await Promise.all([
-    client.dugsiAttendanceRecord.groupBy({
-      by: ['status'],
-      where: {
-        session: { ...sessionWhere, date: { gte: currentMonthStart } },
-      },
-      _count: { status: true },
-    }),
-    client.dugsiAttendanceRecord.groupBy({
-      by: ['status'],
-      where: {
-        session: {
-          ...sessionWhere,
-          date: { gte: previousMonthStart, lt: currentMonthStart },
-        },
-      },
-      _count: { status: true },
-    }),
-  ])
-
-  const prev = rateFromStatusCounts(previousRecords)
-  if (prev.total === 0) return null
-
-  const current = rateFromStatusCounts(currentRecords)
-  return { diff: Math.round((current.rate - prev.rate) * 10) / 10 }
 }
 
 export interface ShiftStat {

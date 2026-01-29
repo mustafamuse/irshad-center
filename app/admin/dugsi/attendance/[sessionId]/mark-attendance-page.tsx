@@ -28,7 +28,6 @@ export function MarkAttendancePage({ session, students, attendance }: Props) {
       session={session}
       students={students}
       attendance={attendance}
-      backHref="/admin/dugsi/attendance"
       isClosed={session.isClosed}
       saveAction={markAttendance}
       redirectTo="/admin/dugsi/attendance"

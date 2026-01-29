@@ -6,11 +6,9 @@
 
 import type { Shift as DugsiShift } from '@prisma/client'
 
-// Pagination Defaults
 export const DEFAULT_PAGE_SIZE = 20
 export const DEFAULT_QUERY_LIMIT = 50
 
-// Display Constants
 export const STRIPE_ID_DISPLAY_LENGTH = 20
 export const MAX_FAMILY_SIZE = 20
 export const MIN_FAMILY_SIZE = 1

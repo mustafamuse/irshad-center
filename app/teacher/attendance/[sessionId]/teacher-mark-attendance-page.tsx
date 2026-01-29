@@ -33,7 +33,6 @@ export function TeacherMarkAttendancePage({
       session={session}
       students={students}
       attendance={attendance}
-      backHref="/teacher/attendance"
       isClosed={isEffectivelyClosed}
       saveAction={teacherMarkAttendance}
       redirectTo="/teacher/attendance"

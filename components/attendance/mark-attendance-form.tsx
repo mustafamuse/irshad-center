@@ -55,7 +55,6 @@ interface MarkAttendanceFormProps {
   session: SessionInfo
   students: Student[]
   attendance: AttendanceRecordForMarking[]
-  backHref: string
   header: ReactNode
   isClosed: boolean
   saveAction: (input: unknown) => Promise<ActionResult<{ recordCount: number }>>

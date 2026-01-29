@@ -34,3 +34,22 @@ export function computeAttendanceRate(
   if (total === 0) return 0
   return ((present + late) / total) * 100
 }
+
+export function rateFromStatusCounts(
+  statusCounts: { status: string; _count: { status: number } }[]
+): { rate: number; total: number } {
+  const counts = aggregateStatusCounts(statusCounts)
+  const total =
+    (counts['PRESENT'] ?? 0) +
+    (counts['ABSENT'] ?? 0) +
+    (counts['LATE'] ?? 0) +
+    (counts['EXCUSED'] ?? 0)
+  return {
+    rate: computeAttendanceRate(
+      counts['PRESENT'] ?? 0,
+      counts['LATE'] ?? 0,
+      total
+    ),
+    total,
+  }
+}

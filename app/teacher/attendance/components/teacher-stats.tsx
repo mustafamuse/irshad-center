@@ -2,15 +2,11 @@ import { Shift } from '@prisma/client'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { SHIFT_SHORT_LABEL } from '@/lib/constants/dugsi'
 import {
   getTeacherShiftStats,
   getTeacherMonthlyTrendWithShifts,
 } from '@/lib/db/queries/dugsi-attendance'
-
-const SHIFT_LABEL: Record<Shift, string> = {
-  MORNING: 'AM',
-  AFTERNOON: 'PM',
-}
 
 interface Props {
   teacherId: string
@@ -103,7 +99,7 @@ export async function TeacherStats({ teacherId }: Props) {
             <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
               {trendData.byShift.map((s) => (
                 <span key={s.shift} className="flex items-center gap-0.5">
-                  {SHIFT_LABEL[s.shift]}{' '}
+                  {SHIFT_SHORT_LABEL[s.shift]}{' '}
                   {s.diff === null ? (
                     'N/A'
                   ) : (
@@ -129,7 +125,7 @@ function ShiftBreakdown({
       {items.map((item, i) => (
         <span key={item.shift}>
           {i > 0 && <span className="mx-1.5">&middot;</span>}
-          {SHIFT_LABEL[item.shift]} {item.value}
+          {SHIFT_SHORT_LABEL[item.shift]} {item.value}
         </span>
       ))}
     </div>

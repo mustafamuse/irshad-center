@@ -54,7 +54,6 @@ export async function TodaySessionsList({
           {sessions.map((session) => (
             <SessionCard
               key={session.id}
-              sessionId={session.id}
               label={getLabel(session)}
               records={session.records}
               isClosed={session.isClosed}

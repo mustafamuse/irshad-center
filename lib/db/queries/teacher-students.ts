@@ -7,6 +7,7 @@ import {
   sortByFamilyThenName,
   aggregateStatusCounts,
   computeAttendanceRate,
+  rateFromStatusCounts,
 } from '@/lib/utils/attendance-math'
 
 export async function getTeacherClassIds(
@@ -153,25 +154,11 @@ export async function getStudentMonthlyComparison(
     }),
   ])
 
-  if (prevRecords.length === 0) return null
+  const prev = rateFromStatusCounts(prevRecords)
+  if (prev.total === 0) return null
 
-  const rate = (records: typeof currentRecords) => {
-    const counts = aggregateStatusCounts(records)
-    const total =
-      (counts[DugsiAttendanceStatus.PRESENT] ?? 0) +
-      (counts[DugsiAttendanceStatus.ABSENT] ?? 0) +
-      (counts[DugsiAttendanceStatus.LATE] ?? 0) +
-      (counts[DugsiAttendanceStatus.EXCUSED] ?? 0)
-    return computeAttendanceRate(
-      counts[DugsiAttendanceStatus.PRESENT] ?? 0,
-      counts[DugsiAttendanceStatus.LATE] ?? 0,
-      total
-    )
-  }
-
-  const currentRate = rate(currentRecords)
-  const prevRate = rate(prevRecords)
-  return { diff: Math.round((currentRate - prevRate) * 10) / 10 }
+  const current = rateFromStatusCounts(currentRecords)
+  return { diff: Math.round((current.rate - prev.rate) * 10) / 10 }
 }
 
 export async function getStudentWeeklyTrend(

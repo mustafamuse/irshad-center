@@ -1,12 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 
-import { addDays, endOfDay, isPast } from 'date-fns'
-
 import { getAuthenticatedTeacherId } from '@/lib/auth/get-teacher'
 import {
   getEnrolledStudentsByClass,
   getSessionById,
 } from '@/lib/db/queries/dugsi-attendance'
+import { isSessionEffectivelyClosed } from '@/lib/utils/attendance-dates'
 
 import { TeacherMarkAttendancePage } from './teacher-mark-attendance-page'
 
@@ -28,9 +27,10 @@ export default async function TeacherAttendanceSessionPage({ params }: Props) {
   const students = await getEnrolledStudentsByClass(session.classId)
   const attendance = session.records
 
-  const sessionDay = session.date.getUTCDay()
-  const sunday = sessionDay === 6 ? addDays(session.date, 1) : session.date
-  const isEffectivelyClosed = session.isClosed || isPast(endOfDay(sunday))
+  const isEffectivelyClosed = isSessionEffectivelyClosed(
+    session.date,
+    session.isClosed
+  )
 
   return (
     <TeacherMarkAttendancePage
