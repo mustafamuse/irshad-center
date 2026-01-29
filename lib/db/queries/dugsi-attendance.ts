@@ -10,6 +10,36 @@ import {
   computeAttendanceRate,
 } from '@/lib/utils/attendance-math'
 
+function buildDateFilter(
+  dateFrom?: Date,
+  dateTo?: Date
+): Prisma.DateTimeFilter | undefined {
+  if (!dateFrom && !dateTo) return undefined
+  const filter: Prisma.DateTimeFilter = {}
+  if (dateFrom) filter.gte = new Date(dateFrom.toISOString().split('T')[0])
+  if (dateTo) filter.lte = new Date(dateTo.toISOString().split('T')[0])
+  return filter
+}
+
+function rateFromStatusCounts(
+  statusCounts: { status: string; _count: { status: number } }[]
+): { rate: number; total: number } {
+  const counts = aggregateStatusCounts(statusCounts)
+  const total =
+    (counts['PRESENT'] ?? 0) +
+    (counts['ABSENT'] ?? 0) +
+    (counts['LATE'] ?? 0) +
+    (counts['EXCUSED'] ?? 0)
+  return {
+    rate: computeAttendanceRate(
+      counts['PRESENT'] ?? 0,
+      counts['LATE'] ?? 0,
+      total
+    ),
+    total,
+  }
+}
+
 export const attendanceSessionInclude = {
   class: true,
   teacher: {
@@ -67,19 +97,10 @@ export async function getSessions(
   const { page = 1, limit = 50 } = pagination
   const skip = (page - 1) * limit
 
-  const where: Prisma.DugsiAttendanceSessionWhereInput = {}
-
-  if (classId) where.classId = classId
-  if (teacherId) where.teacherId = teacherId
-
-  if (dateFrom || dateTo) {
-    where.date = {}
-    if (dateFrom) {
-      where.date.gte = new Date(dateFrom.toISOString().split('T')[0])
-    }
-    if (dateTo) {
-      where.date.lte = new Date(dateTo.toISOString().split('T')[0])
-    }
+  const where: Prisma.DugsiAttendanceSessionWhereInput = {
+    ...(classId && { classId }),
+    ...(teacherId && { teacherId }),
+    ...((dateFrom || dateTo) && { date: buildDateFilter(dateFrom, dateTo) }),
   }
 
   const [data, total] = await Promise.all([
@@ -144,15 +165,15 @@ export async function getEnrolledStudentsByClass(
     },
   })
 
-  const students = enrollments.map((e) => ({
+  const studentsWithFamily = enrollments.map((e) => ({
     programProfileId: e.programProfileId,
     name: e.programProfile.person.name,
     familyReferenceId: e.programProfile.familyReferenceId,
   }))
 
-  sortByFamilyThenName(students)
-
-  return students
+  return sortByFamilyThenName(studentsWithFamily).map(
+    ({ programProfileId, name }) => ({ programProfileId, name })
+  )
 }
 
 export async function getActiveClasses(client: DatabaseClient = prisma) {
@@ -221,19 +242,10 @@ export async function getSessionsForList(
   const { page = 1, limit = 50 } = pagination
   const skip = (page - 1) * limit
 
-  const where: Prisma.DugsiAttendanceSessionWhereInput = {}
-
-  if (classId) where.classId = classId
-  if (teacherId) where.teacherId = teacherId
-
-  if (dateFrom || dateTo) {
-    where.date = {}
-    if (dateFrom) {
-      where.date.gte = new Date(dateFrom.toISOString().split('T')[0])
-    }
-    if (dateTo) {
-      where.date.lte = new Date(dateTo.toISOString().split('T')[0])
-    }
+  const where: Prisma.DugsiAttendanceSessionWhereInput = {
+    ...(classId && { classId }),
+    ...(teacherId && { teacherId }),
+    ...((dateFrom || dateTo) && { date: buildDateFilter(dateFrom, dateTo) }),
   }
 
   const [data, total] = await Promise.all([
@@ -301,8 +313,8 @@ export async function getEnrolledStudentsByClasses(
     map.set(e.classId, list)
   }
 
-  for (const students of Array.from(map.values())) {
-    sortByFamilyThenName(students)
+  for (const [classId, students] of Array.from(map.entries())) {
+    map.set(classId, sortByFamilyThenName(students))
   }
 
   return map
@@ -341,15 +353,10 @@ export async function getAttendanceStats(
 ): Promise<AttendanceStats> {
   const { classId, teacherId, dateFrom, dateTo } = filters
 
-  const sessionWhere: Prisma.DugsiAttendanceSessionWhereInput = {}
-  if (classId) sessionWhere.classId = classId
-  if (teacherId) sessionWhere.teacherId = teacherId
-  if (dateFrom || dateTo) {
-    sessionWhere.date = {}
-    if (dateFrom)
-      sessionWhere.date.gte = new Date(dateFrom.toISOString().split('T')[0])
-    if (dateTo)
-      sessionWhere.date.lte = new Date(dateTo.toISOString().split('T')[0])
+  const sessionWhere: Prisma.DugsiAttendanceSessionWhereInput = {
+    ...(classId && { classId }),
+    ...(teacherId && { teacherId }),
+    ...((dateFrom || dateTo) && { date: buildDateFilter(dateFrom, dateTo) }),
   }
 
   const [totalSessions, statusCounts] = await Promise.all([
@@ -362,17 +369,11 @@ export async function getAttendanceStats(
   ])
 
   const countByStatus = aggregateStatusCounts(statusCounts)
-
   const presentCount = countByStatus['PRESENT'] ?? 0
   const absentCount = countByStatus['ABSENT'] ?? 0
   const lateCount = countByStatus['LATE'] ?? 0
   const excusedCount = countByStatus['EXCUSED'] ?? 0
   const totalRecords = presentCount + absentCount + lateCount + excusedCount
-  const attendanceRate = computeAttendanceRate(
-    presentCount,
-    lateCount,
-    totalRecords
-  )
 
   return {
     totalSessions,
@@ -381,7 +382,10 @@ export async function getAttendanceStats(
     absentCount,
     lateCount,
     excusedCount,
-    attendanceRate: Math.round(attendanceRate * 10) / 10,
+    attendanceRate:
+      Math.round(
+        computeAttendanceRate(presentCount, lateCount, totalRecords) * 10
+      ) / 10,
   }
 }
 
@@ -410,7 +414,7 @@ export async function getActiveStudentCount(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const count = await client.dugsiClassEnrollment.count({
+  return client.dugsiClassEnrollment.count({
     where: {
       isActive: true,
       class: {
@@ -420,7 +424,6 @@ export async function getActiveStudentCount(
       },
     },
   })
-  return count
 }
 
 export async function getTeacherMonthlyTrend(
@@ -457,28 +460,11 @@ export async function getTeacherMonthlyTrend(
     }),
   ])
 
-  const rateFromRecords = (
-    records: { status: string; _count: { status: number } }[]
-  ) => {
-    const counts = aggregateStatusCounts(records)
-    const total =
-      (counts['PRESENT'] ?? 0) +
-      (counts['ABSENT'] ?? 0) +
-      (counts['LATE'] ?? 0) +
-      (counts['EXCUSED'] ?? 0)
-    return computeAttendanceRate(
-      counts['PRESENT'] ?? 0,
-      counts['LATE'] ?? 0,
-      total
-    )
-  }
+  const prev = rateFromStatusCounts(previousRecords)
+  if (prev.total === 0) return null
 
-  const prevTotal = previousRecords.reduce((sum, r) => sum + r._count.status, 0)
-  if (prevTotal === 0) return null
-
-  const currentRate = rateFromRecords(currentRecords)
-  const previousRate = rateFromRecords(previousRecords)
-  return { diff: Math.round((currentRate - previousRate) * 10) / 10 }
+  const current = rateFromStatusCounts(currentRecords)
+  return { diff: Math.round((current.rate - prev.rate) * 10) / 10 }
 }
 
 export interface ShiftStat {
@@ -509,39 +495,31 @@ export async function getTeacherShiftStats(
     shiftGroups.set(c.shift, ids)
   }
 
-  const results: ShiftStat[] = []
+  const results = await Promise.all(
+    Array.from(shiftGroups).map(async ([shift, classIds]) => {
+      const [sessionCount, studentCount, statusCounts] = await Promise.all([
+        client.dugsiAttendanceSession.count({
+          where: { teacherId, classId: { in: classIds } },
+        }),
+        client.dugsiClassEnrollment.count({
+          where: { classId: { in: classIds }, isActive: true },
+        }),
+        client.dugsiAttendanceRecord.groupBy({
+          by: ['status'],
+          where: { session: { teacherId, classId: { in: classIds } } },
+          _count: { status: true },
+        }),
+      ])
 
-  for (const [shift, classIds] of Array.from(shiftGroups)) {
-    const [sessionCount, studentCount, statusCounts] = await Promise.all([
-      client.dugsiAttendanceSession.count({
-        where: { teacherId, classId: { in: classIds } },
-      }),
-      client.dugsiClassEnrollment.count({
-        where: { classId: { in: classIds }, isActive: true },
-      }),
-      client.dugsiAttendanceRecord.groupBy({
-        by: ['status'],
-        where: { session: { teacherId, classId: { in: classIds } } },
-        _count: { status: true },
-      }),
-    ])
-
-    const counts = aggregateStatusCounts(statusCounts)
-    const present = (counts['PRESENT'] ?? 0) + (counts['LATE'] ?? 0)
-    const total =
-      (counts['PRESENT'] ?? 0) +
-      (counts['ABSENT'] ?? 0) +
-      (counts['LATE'] ?? 0) +
-      (counts['EXCUSED'] ?? 0)
-    const rate = total > 0 ? Math.round((present / total) * 1000) / 10 : 0
-
-    results.push({
-      shift,
-      sessions: sessionCount,
-      students: studentCount,
-      rate,
+      const { rate: rawRate } = rateFromStatusCounts(statusCounts)
+      return {
+        shift,
+        sessions: sessionCount,
+        students: studentCount,
+        rate: Math.round(rawRate * 10) / 10,
+      }
     })
-  }
+  )
 
   results.sort((a) => (a.shift === 'MORNING' ? -1 : 1))
   return results
@@ -579,25 +557,6 @@ export async function getTeacherMonthlyTrendWithShifts(
     shiftGroups.set(c.shift, ids)
   }
 
-  const computeRateWithTotal = (
-    records: { status: string; _count: { status: number } }[]
-  ) => {
-    const counts = aggregateStatusCounts(records)
-    const total =
-      (counts['PRESENT'] ?? 0) +
-      (counts['ABSENT'] ?? 0) +
-      (counts['LATE'] ?? 0) +
-      (counts['EXCUSED'] ?? 0)
-    return {
-      rate: computeAttendanceRate(
-        counts['PRESENT'] ?? 0,
-        counts['LATE'] ?? 0,
-        total
-      ),
-      total,
-    }
-  }
-
   const [currentAll, previousAll] = await Promise.all([
     client.dugsiAttendanceRecord.groupBy({
       by: ['status'],
@@ -618,57 +577,57 @@ export async function getTeacherMonthlyTrendWithShifts(
     }),
   ])
 
-  const prevAll = computeRateWithTotal(previousAll)
+  const prevAll = rateFromStatusCounts(previousAll)
   const overall =
     prevAll.total === 0
       ? null
       : {
           diff:
             Math.round(
-              (computeRateWithTotal(currentAll).rate - prevAll.rate) * 10
+              (rateFromStatusCounts(currentAll).rate - prevAll.rate) * 10
             ) / 10,
         }
 
-  const byShift: { shift: Shift; diff: number | null }[] = []
-  for (const [shift, classIds] of Array.from(shiftGroups)) {
-    const [currentShift, previousShift] = await Promise.all([
-      client.dugsiAttendanceRecord.groupBy({
-        by: ['status'],
-        where: {
-          session: {
-            teacherId,
-            classId: { in: classIds },
-            date: { gte: currentMonthStart },
+  const byShift = await Promise.all(
+    Array.from(shiftGroups).map(async ([shift, classIds]) => {
+      const [currentShift, previousShift] = await Promise.all([
+        client.dugsiAttendanceRecord.groupBy({
+          by: ['status'],
+          where: {
+            session: {
+              teacherId,
+              classId: { in: classIds },
+              date: { gte: currentMonthStart },
+            },
           },
-        },
-        _count: { status: true },
-      }),
-      client.dugsiAttendanceRecord.groupBy({
-        by: ['status'],
-        where: {
-          session: {
-            teacherId,
-            classId: { in: classIds },
-            date: { gte: previousMonthStart, lt: currentMonthStart },
+          _count: { status: true },
+        }),
+        client.dugsiAttendanceRecord.groupBy({
+          by: ['status'],
+          where: {
+            session: {
+              teacherId,
+              classId: { in: classIds },
+              date: { gte: previousMonthStart, lt: currentMonthStart },
+            },
           },
-        },
-        _count: { status: true },
-      }),
-    ])
+          _count: { status: true },
+        }),
+      ])
 
-    const prev = computeRateWithTotal(previousShift)
-    if (prev.total === 0) {
-      byShift.push({ shift, diff: null })
-    } else {
-      byShift.push({
+      const prev = rateFromStatusCounts(previousShift)
+      if (prev.total === 0) {
+        return { shift, diff: null }
+      }
+      return {
         shift,
         diff:
           Math.round(
-            (computeRateWithTotal(currentShift).rate - prev.rate) * 10
+            (rateFromStatusCounts(currentShift).rate - prev.rate) * 10
           ) / 10,
-      })
-    }
-  }
+      }
+    })
+  )
 
   byShift.sort((a) => (a.shift === 'MORNING' ? -1 : 1))
   return { overall, byShift }

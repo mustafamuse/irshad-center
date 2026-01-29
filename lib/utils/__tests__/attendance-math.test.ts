@@ -14,8 +14,18 @@ describe('sortByFamilyThenName', () => {
       { familyReferenceId: 'B', name: 'Adam' },
       { familyReferenceId: 'A', name: 'Omar' },
     ]
-    sortByFamilyThenName(items)
-    expect(items.map((i) => i.name)).toEqual(['Ali', 'Omar', 'Adam', 'Zara'])
+    const result = sortByFamilyThenName(items)
+    expect(result.map((i) => i.name)).toEqual(['Ali', 'Omar', 'Adam', 'Zara'])
+  })
+
+  it('returns a new array without mutating the original', () => {
+    const items = [
+      { familyReferenceId: null, name: 'Zara' },
+      { familyReferenceId: null, name: 'Ali' },
+    ]
+    const result = sortByFamilyThenName(items)
+    expect(result).not.toBe(items)
+    expect(items[0].name).toBe('Zara')
   })
 
   it('sorts alphabetically within same family', () => {
@@ -23,8 +33,8 @@ describe('sortByFamilyThenName', () => {
       { familyReferenceId: 'A', name: 'Zara' },
       { familyReferenceId: 'A', name: 'Ali' },
     ]
-    sortByFamilyThenName(items)
-    expect(items.map((i) => i.name)).toEqual(['Ali', 'Zara'])
+    const result = sortByFamilyThenName(items)
+    expect(result.map((i) => i.name)).toEqual(['Ali', 'Zara'])
   })
 
   it('puts family students before non-family', () => {
@@ -32,8 +42,8 @@ describe('sortByFamilyThenName', () => {
       { familyReferenceId: null, name: 'Ali' },
       { familyReferenceId: 'A', name: 'Zara' },
     ]
-    sortByFamilyThenName(items)
-    expect(items.map((i) => i.name)).toEqual(['Zara', 'Ali'])
+    const result = sortByFamilyThenName(items)
+    expect(result.map((i) => i.name)).toEqual(['Zara', 'Ali'])
   })
 
   it('sorts non-family students alphabetically', () => {
@@ -41,20 +51,20 @@ describe('sortByFamilyThenName', () => {
       { familyReferenceId: null, name: 'Zara' },
       { familyReferenceId: null, name: 'Ali' },
     ]
-    sortByFamilyThenName(items)
-    expect(items.map((i) => i.name)).toEqual(['Ali', 'Zara'])
+    const result = sortByFamilyThenName(items)
+    expect(result.map((i) => i.name)).toEqual(['Ali', 'Zara'])
   })
 
   it('handles empty array', () => {
     const items: { familyReferenceId: string | null; name: string }[] = []
-    sortByFamilyThenName(items)
-    expect(items).toEqual([])
+    expect(sortByFamilyThenName(items)).toEqual([])
   })
 
   it('handles single element', () => {
     const items = [{ familyReferenceId: null, name: 'Ali' }]
-    sortByFamilyThenName(items)
-    expect(items).toEqual([{ familyReferenceId: null, name: 'Ali' }])
+    expect(sortByFamilyThenName(items)).toEqual([
+      { familyReferenceId: null, name: 'Ali' },
+    ])
   })
 
   it('handles all null familyReferenceId', () => {
@@ -63,8 +73,8 @@ describe('sortByFamilyThenName', () => {
       { familyReferenceId: null, name: 'Alice' },
       { familyReferenceId: null, name: 'Bob' },
     ]
-    sortByFamilyThenName(items)
-    expect(items.map((i) => i.name)).toEqual(['Alice', 'Bob', 'Charlie'])
+    const result = sortByFamilyThenName(items)
+    expect(result.map((i) => i.name)).toEqual(['Alice', 'Bob', 'Charlie'])
   })
 })
 

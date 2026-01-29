@@ -11,8 +11,6 @@ datasource db {
 // Archive tables removed - legacy data retention no longer needed
 // ArchivedBatch and ArchivedStudent models have been removed
 
-// Attendance models removed - incomplete feature
-
 // Batch (Cohort) - MAHAD ONLY
 // Groups Mahad students into cohorts for scheduling and management
 // Dugsi program does NOT use batches
@@ -29,10 +27,6 @@ model Batch {
   @@index([endDate])
   @@index([startDate])
 }
-
-// ClassSchedule, ClassSession, Subject, Semester removed - incomplete attendance feature
-// Each program will have different class and frequency schedules
-// Will be redesigned when attendance feature is ready
 
 // Legacy Sibling model removed - use SiblingRelationship instead
 // Legacy Student model removed - use Person + ProgramProfile + Enrollment instead
@@ -105,10 +99,6 @@ enum DugsiAttendanceStatus {
   LATE
   EXCUSED
 }
-
-// AttendanceStatus and CheckInMethod enums removed - incomplete feature
-
-// DayOfWeek enum removed - was only used by ClassSchedule (removed)
 
 // EducationLevel enum REMOVED - replaced by GraduationStatus for billing purposes
 // Mahad students are now categorized as GRADUATE or NON_GRADUATE for tuition rates

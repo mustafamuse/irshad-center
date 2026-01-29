@@ -16,6 +16,7 @@ const logger = createActionLogger('teacher-student-actions')
 interface LoadMoreResult {
   data: SessionHistoryItem[]
   hasMore: boolean
+  total: number
 }
 
 export async function loadMoreStudentHistory(
@@ -28,9 +29,10 @@ export async function loadMoreStudentHistory(
   }
 
   try {
-    const teacherId = await getAuthenticatedTeacherId()
-
-    const student = await getStudentProfile(parsed.data.profileId)
+    const [teacherId, student] = await Promise.all([
+      getAuthenticatedTeacherId(),
+      getStudentProfile(parsed.data.profileId),
+    ])
     if (!student) {
       return { success: false, error: 'Student not found in your classes' }
     }
@@ -46,7 +48,7 @@ export async function loadMoreStudentHistory(
     })
     return { success: true, data: result }
   } catch (error) {
-    await logError(logger, error, 'Failed to load student history', {
+    void logError(logger, error, 'Failed to load student history', {
       profileId: parsed.data.profileId,
     })
     return { success: false, error: 'Failed to load attendance history' }

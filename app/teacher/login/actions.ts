@@ -19,6 +19,11 @@ export async function validateTeacherLogin(
   lastFour: string,
   redirectTo: string
 ): Promise<ActionResult<void>> {
+  const parsed = TeacherLoginSchema.safeParse({ lastFour, redirectTo })
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid format. Enter 4 digits.' }
+  }
+
   const headersList = await headers()
   const ip = headersList.get('x-forwarded-for')?.split(',')[0] || 'unknown'
 
@@ -31,14 +36,9 @@ export async function validateTeacherLogin(
     }
   }
 
-  const parsed = TeacherLoginSchema.safeParse({ lastFour, redirectTo })
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid format. Enter 4 digits.' }
-  }
-
   const teacher = await authenticateTeacher(parsed.data.lastFour)
   if (!teacher) {
-    await logError(
+    void logError(
       logger,
       new Error('Teacher login failed'),
       'No unique teacher match',
@@ -57,7 +57,7 @@ export async function validateTeacherLogin(
     path: '/teacher',
   })
 
-  await logInfo(logger, 'Teacher login successful', {
+  void logInfo(logger, 'Teacher login successful', {
     ip,
     teacherId: teacher.teacherId,
   })

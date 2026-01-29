@@ -1,7 +1,7 @@
 export function sortByFamilyThenName<
   T extends { familyReferenceId: string | null; name: string },
->(items: T[]): void {
-  items.sort((a, b) => {
+>(items: T[]): T[] {
+  return items.toSorted((a, b) => {
     if (a.familyReferenceId && b.familyReferenceId) {
       if (a.familyReferenceId === b.familyReferenceId)
         return a.name.localeCompare(b.name)

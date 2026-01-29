@@ -188,13 +188,15 @@ describe('attendance-service', () => {
         ...mockSession,
         date: nextSaturday,
       })
-      mockTransaction.mockImplementation(async (fn: Function) => {
-        await fn({
-          dugsiAttendanceRecord: {
-            upsert: mockUpsert,
-          },
-        })
-      })
+      mockTransaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          await fn({
+            dugsiAttendanceRecord: {
+              upsert: mockUpsert,
+            },
+          })
+        }
+      )
       mockUpsert.mockResolvedValue({})
 
       const result = await markAttendanceRecords({

@@ -131,29 +131,29 @@ export async function markAttendanceRecords(
   const validated = MarkAttendanceSchema.parse(input)
   const { sessionId, records } = validated
 
-  const session = await getSessionById(sessionId, client)
-  if (!session) {
-    throw new ValidationError(
-      'Session not found',
-      ATTENDANCE_ERROR_CODES.SESSION_NOT_FOUND,
-      { sessionId }
-    )
-  }
+  const verifyAndUpsert = async (tx: DatabaseClient) => {
+    const session = await getSessionById(sessionId, tx)
+    if (!session) {
+      throw new ValidationError(
+        'Session not found',
+        ATTENDANCE_ERROR_CODES.SESSION_NOT_FOUND,
+        { sessionId }
+      )
+    }
 
-  const sessionDate = new Date(session.date)
-  const day = sessionDate.getUTCDay()
-  const sundayDate = day === 6 ? addDays(sessionDate, 1) : sessionDate
-  const isEffectivelyClosed = session.isClosed || isPast(endOfDay(sundayDate))
+    const sessionDate = new Date(session.date)
+    const day = sessionDate.getUTCDay()
+    const sundayDate = day === 6 ? addDays(sessionDate, 1) : sessionDate
+    const isEffectivelyClosed = session.isClosed || isPast(endOfDay(sundayDate))
 
-  if (isEffectivelyClosed) {
-    throw new ValidationError(
-      'Cannot modify a closed session',
-      ATTENDANCE_ERROR_CODES.SESSION_CLOSED,
-      { sessionId }
-    )
-  }
+    if (isEffectivelyClosed) {
+      throw new ValidationError(
+        'Cannot modify a closed session',
+        ATTENDANCE_ERROR_CODES.SESSION_CLOSED,
+        { sessionId }
+      )
+    }
 
-  const upsertRecords = async (tx: DatabaseClient) => {
     await Promise.all(
       records.map((record) =>
         tx.dugsiAttendanceRecord.upsert({
@@ -191,9 +191,9 @@ export async function markAttendanceRecords(
   }
 
   if (isPrismaClient(client)) {
-    await client.$transaction(async (tx) => upsertRecords(tx))
+    await client.$transaction(async (tx) => verifyAndUpsert(tx))
   } else {
-    await upsertRecords(client)
+    await verifyAndUpsert(client)
   }
 
   logger.info(

@@ -1,9 +1,3 @@
-/**
- * Teacher Query Functions
- *
- * Query functions for Teacher model linked to Person.
- */
-
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
@@ -13,42 +7,26 @@ import type {
   TeacherWithPersonRelations,
 } from '@/lib/types/teacher'
 
-/**
- * Get teacher by ID with Person relation
- * @param client - Optional database client (for transaction support)
- */
 export async function getTeacherById(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<TeacherWithPerson | null> {
   return client.teacher.findUnique({
     where: { id: teacherId },
-    include: {
-      person: true,
-    },
+    include: { person: true },
   })
 }
 
-/**
- * Get teacher by Person ID
- * @param client - Optional database client (for transaction support)
- */
 export async function getTeacherByPersonId(
   personId: string,
   client: DatabaseClient = prisma
 ): Promise<TeacherWithPerson | null> {
   return client.teacher.findUnique({
     where: { personId },
-    include: {
-      person: true,
-    },
+    include: { person: true },
   })
 }
 
-/**
- * Get teacher with full Person relations (contact points, etc.)
- * @param client - Optional database client (for transaction support)
- */
 export async function getTeacherWithPersonRelations(
   teacherId: string,
   client: DatabaseClient = prisma
@@ -67,10 +45,6 @@ export async function getTeacherWithPersonRelations(
   })
 }
 
-/**
- * Get all teachers with Person relations
- * @param client - Optional database client (for transaction support)
- */
 export async function getAllTeachers(
   params?: {
     search?: string
@@ -109,10 +83,6 @@ export async function getAllTeachers(
   })
 }
 
-/**
- * Check if a Person is a teacher
- * @param client - Optional database client (for transaction support)
- */
 export async function isPersonATeacher(
   personId: string,
   client: DatabaseClient = prisma

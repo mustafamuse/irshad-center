@@ -87,13 +87,13 @@ export const AttendanceFiltersSchema = z.object({
     .default(50),
 })
 
-export type CreateSessionInput = z.infer<typeof CreateSessionSchema>
-export type MarkAttendanceInput = z.infer<typeof MarkAttendanceSchema>
-export type DeleteSessionInput = z.infer<typeof DeleteSessionSchema>
 export const LoadMoreHistorySchema = z.object({
   profileId: z.string().uuid('Invalid profile ID'),
   offset: z.number().int().nonnegative('Offset must be non-negative'),
 })
 
+export type CreateSessionInput = z.infer<typeof CreateSessionSchema>
+export type MarkAttendanceInput = z.infer<typeof MarkAttendanceSchema>
+export type DeleteSessionInput = z.infer<typeof DeleteSessionSchema>
 export type AttendanceFiltersInput = z.infer<typeof AttendanceFiltersSchema>
 export type LoadMoreHistoryInput = z.infer<typeof LoadMoreHistorySchema>

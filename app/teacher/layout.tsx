@@ -12,9 +12,9 @@ export default async function TeacherLayout({
 }) {
   const cookieStore = await cookies()
   const token = cookieStore.get('teacher_auth')?.value
-  const result = token ? verifyTeacherAuthToken(token) : null
-  const teacherName = result
-    ? ((await getTeacherName(result.teacherId)) ?? 'Teacher')
+  const auth = token ? verifyTeacherAuthToken(token) : null
+  const teacherName = auth
+    ? ((await getTeacherName(auth.teacherId)) ?? 'Teacher')
     : null
 
   return (

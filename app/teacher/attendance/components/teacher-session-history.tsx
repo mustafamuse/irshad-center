@@ -63,7 +63,7 @@ export async function TeacherSessionHistory({
           <div className="divide-y rounded-lg border">
             {sessions.map((session) => {
               const sessionDate = new Date(session.date)
-              const day = sessionDate.getDay()
+              const day = sessionDate.getUTCDay()
               const sunday = day === 6 ? addDays(sessionDate, 1) : sessionDate
               const isEffectivelyClosed =
                 session.isClosed || isPast(endOfDay(sunday))
@@ -75,12 +75,9 @@ export async function TeacherSessionHistory({
               const total = session.records.length
               const pct =
                 total > 0 ? Math.round((presentCount / total) * 100) : 0
-              const attendanceColor =
-                pct >= 75
-                  ? 'text-green-600'
-                  : pct >= 50
-                    ? 'text-yellow-600'
-                    : 'text-red-600'
+              let attendanceColor = 'text-red-600'
+              if (pct >= 75) attendanceColor = 'text-green-600'
+              else if (pct >= 50) attendanceColor = 'text-yellow-600'
               const shift = session.class.shift === 'MORNING' ? 'AM' : 'PM'
 
               const content = (

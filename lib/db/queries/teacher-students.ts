@@ -57,9 +57,7 @@ export async function getStudentsByTeacher(
     }
   })
 
-  sortByFamilyThenName(students)
-
-  return students
+  return sortByFamilyThenName(students)
 }
 
 export async function getStudentProfile(
