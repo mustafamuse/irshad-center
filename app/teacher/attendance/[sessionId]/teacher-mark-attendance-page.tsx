@@ -10,6 +10,7 @@ import {
   type SessionInfo,
   type Student,
 } from '@/components/attendance/mark-attendance-form'
+import { SHIFT_SHORT_LABEL } from '@/lib/constants/dugsi'
 import type { AttendanceRecordForMarking } from '@/lib/mappers/attendance-mapper'
 
 import { teacherMarkAttendance } from '../actions'
@@ -56,7 +57,12 @@ export function TeacherMarkAttendancePage({
           </Link>
           <div>
             <h1 className="text-xl font-bold">
-              {session.shift === 'MORNING' ? 'AM' : 'PM'} Session
+              {
+                SHIFT_SHORT_LABEL[
+                  session.shift as keyof typeof SHIFT_SHORT_LABEL
+                ]
+              }{' '}
+              Session
             </h1>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {format(new Date(session.date), 'EEE, MM/dd')} · {students.length}{' '}

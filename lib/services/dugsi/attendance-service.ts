@@ -1,5 +1,4 @@
 import { Prisma } from '@prisma/client'
-import { addDays, endOfDay, isPast } from 'date-fns'
 
 import { prisma } from '@/lib/db'
 import {
@@ -10,6 +9,7 @@ import {
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
+import { isSessionEffectivelyClosed } from '@/lib/utils/attendance-dates'
 import {
   CreateSessionSchema,
   MarkAttendanceSchema,
@@ -141,12 +141,7 @@ export async function markAttendanceRecords(
       )
     }
 
-    const sessionDate = new Date(session.date)
-    const day = sessionDate.getUTCDay()
-    const sundayDate = day === 6 ? addDays(sessionDate, 1) : sessionDate
-    const isEffectivelyClosed = session.isClosed || isPast(endOfDay(sundayDate))
-
-    if (isEffectivelyClosed) {
+    if (isSessionEffectivelyClosed(new Date(session.date), session.isClosed)) {
       throw new ValidationError(
         'Cannot modify a closed session',
         ATTENDANCE_ERROR_CODES.SESSION_CLOSED,

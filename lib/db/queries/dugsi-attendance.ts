@@ -2,6 +2,7 @@ import { unstable_cache } from 'next/cache'
 
 import { Prisma, Shift } from '@prisma/client'
 
+import { DEFAULT_QUERY_LIMIT } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import {
@@ -88,20 +89,28 @@ export interface PaginatedSessions {
   totalPages: number
 }
 
+function buildSessionWhereClause(
+  filters: AttendanceSessionFilters
+): Prisma.DugsiAttendanceSessionWhereInput {
+  const { classId, teacherId, dateFrom, dateTo } = filters
+  return {
+    ...(classId && { classId }),
+    ...(teacherId && { teacherId }),
+    ...((dateFrom || dateTo) && { date: buildDateFilter(dateFrom, dateTo) }),
+  }
+}
+
+const SESSION_ORDER_BY: Prisma.DugsiAttendanceSessionOrderByWithRelationInput[] =
+  [{ date: 'desc' }, { createdAt: 'desc' }]
+
 export async function getSessions(
   filters: AttendanceSessionFilters = {},
   pagination: { page?: number; limit?: number } = {},
   client: DatabaseClient = prisma
 ): Promise<PaginatedSessions> {
-  const { classId, teacherId, dateFrom, dateTo } = filters
-  const { page = 1, limit = 50 } = pagination
+  const { page = 1, limit = DEFAULT_QUERY_LIMIT } = pagination
   const skip = (page - 1) * limit
-
-  const where: Prisma.DugsiAttendanceSessionWhereInput = {
-    ...(classId && { classId }),
-    ...(teacherId && { teacherId }),
-    ...((dateFrom || dateTo) && { date: buildDateFilter(dateFrom, dateTo) }),
-  }
+  const where = buildSessionWhereClause(filters)
 
   const [data, total] = await Promise.all([
     client.dugsiAttendanceSession.findMany({
@@ -109,7 +118,7 @@ export async function getSessions(
       include: attendanceSessionInclude,
       skip,
       take: limit,
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      orderBy: SESSION_ORDER_BY,
     }),
     client.dugsiAttendanceSession.count({ where }),
   ])
@@ -238,15 +247,9 @@ export async function getSessionsForList(
   pagination: { page?: number; limit?: number } = {},
   client: DatabaseClient = prisma
 ): Promise<PaginatedSessionList> {
-  const { classId, teacherId, dateFrom, dateTo } = filters
-  const { page = 1, limit = 50 } = pagination
+  const { page = 1, limit = DEFAULT_QUERY_LIMIT } = pagination
   const skip = (page - 1) * limit
-
-  const where: Prisma.DugsiAttendanceSessionWhereInput = {
-    ...(classId && { classId }),
-    ...(teacherId && { teacherId }),
-    ...((dateFrom || dateTo) && { date: buildDateFilter(dateFrom, dateTo) }),
-  }
+  const where = buildSessionWhereClause(filters)
 
   const [data, total] = await Promise.all([
     client.dugsiAttendanceSession.findMany({
@@ -254,7 +257,7 @@ export async function getSessionsForList(
       include: attendanceSessionListInclude,
       skip,
       take: limit,
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      orderBy: SESSION_ORDER_BY,
     }),
     client.dugsiAttendanceSession.count({ where }),
   ])

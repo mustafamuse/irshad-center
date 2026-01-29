@@ -1,3 +1,8 @@
+export function countPresentStudents(records: { status: string }[]): number {
+  return records.filter((r) => r.status === 'PRESENT' || r.status === 'LATE')
+    .length
+}
+
 export function sortByFamilyThenName<
   T extends { familyReferenceId: string | null; name: string },
 >(items: T[]): T[] {

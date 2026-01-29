@@ -1,5 +1,6 @@
 import { DugsiAttendanceStatus } from '@prisma/client'
 
+import { DEFAULT_PAGE_SIZE } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import {
@@ -195,7 +196,10 @@ export async function getStudentWeeklyTrend(
 
 export async function getStudentAttendanceRecords(
   profileId: string,
-  pagination: { offset: number; limit: number } = { offset: 0, limit: 20 },
+  pagination: { offset: number; limit: number } = {
+    offset: 0,
+    limit: DEFAULT_PAGE_SIZE,
+  },
   client: DatabaseClient = prisma
 ) {
   const { offset, limit } = pagination

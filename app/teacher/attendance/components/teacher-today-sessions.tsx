@@ -1,4 +1,5 @@
 import { TodaySessionsList } from '@/components/attendance/today-sessions-list'
+import { SHIFT_SHORT_LABEL } from '@/lib/constants/dugsi'
 
 interface Props {
   teacherId: string
@@ -10,7 +11,7 @@ export async function TeacherTodaySessions({ teacherId }: Props) {
       teacherId={teacherId}
       basePath="/teacher/attendance"
       getLabel={(session) =>
-        `${session.class.shift === 'MORNING' ? 'AM' : 'PM'} Session`
+        `${SHIFT_SHORT_LABEL[session.class.shift as keyof typeof SHIFT_SHORT_LABEL]} Session`
       }
     />
   )

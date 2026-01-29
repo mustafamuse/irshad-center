@@ -12,11 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { DEFAULT_PAGE_SIZE, SHIFT_SHORT_LABEL } from '@/lib/constants/dugsi'
 import {
   getActiveClassesCachedQuery,
   getActiveTeachers,
   getSessionsForList,
 } from '@/lib/db/queries/dugsi-attendance'
+import { countPresentStudents } from '@/lib/utils/attendance-math'
 
 import { CreateSessionDialog } from './create-session-dialog'
 import { DeleteSessionButton } from './delete-session-button'
@@ -48,13 +50,13 @@ export async function AttendanceManagement({ searchParams }: Props) {
     await Promise.all([
       getActiveClassesCachedQuery(),
       getActiveTeachers(),
-      getSessionsForList(filters, { page, limit: 20 }),
+      getSessionsForList(filters, { page, limit: DEFAULT_PAGE_SIZE }),
     ])
 
   const classOptions = classes.map((c) => {
     const teacherFirst =
       c.teachers?.[0]?.teacher?.person?.name?.split(' ')[0] ?? ''
-    const shiftLabel = c.shift === 'MORNING' ? 'AM' : 'PM'
+    const shiftLabel = SHIFT_SHORT_LABEL[c.shift]
     return {
       id: c.id,
       name: c.name,
@@ -94,9 +96,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
               </TableHeader>
               <TableBody>
                 {sessions.map((session) => {
-                  const presentCount = session.records.filter(
-                    (r) => r.status === 'PRESENT' || r.status === 'LATE'
-                  ).length
+                  const presentCount = countPresentStudents(session.records)
 
                   return (
                     <TableRow key={session.id}>
@@ -105,7 +105,7 @@ export async function AttendanceManagement({ searchParams }: Props) {
                       </TableCell>
                       <TableCell>
                         {session.teacher.person.name.split(' ')[0]} -{' '}
-                        {session.class.shift === 'MORNING' ? 'AM' : 'PM'}
+                        {SHIFT_SHORT_LABEL[session.class.shift]}
                       </TableCell>
                       <TableCell>
                         {presentCount}/{session.records.length} present

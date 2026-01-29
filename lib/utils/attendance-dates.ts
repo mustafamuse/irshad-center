@@ -1,3 +1,14 @@
+import { addDays, endOfDay, isPast } from 'date-fns'
+
+export function isSessionEffectivelyClosed(
+  sessionDate: Date,
+  isClosed: boolean
+): boolean {
+  const day = sessionDate.getUTCDay()
+  const sunday = day === 6 ? addDays(sessionDate, 1) : sessionDate
+  return isClosed || isPast(endOfDay(sunday))
+}
+
 export function getNextWeekendDate(): string {
   const today = new Date()
   const day = today.getUTCDay()

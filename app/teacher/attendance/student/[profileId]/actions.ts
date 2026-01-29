@@ -1,6 +1,7 @@
 'use server'
 
 import { getAuthenticatedTeacherId } from '@/lib/auth/get-teacher'
+import { DEFAULT_PAGE_SIZE } from '@/lib/constants/dugsi'
 import {
   getTeacherClassIds,
   getStudentProfile,
@@ -44,7 +45,7 @@ export async function loadMoreStudentHistory(
 
     const result = await getStudentAttendanceRecords(parsed.data.profileId, {
       offset: parsed.data.offset,
-      limit: 20,
+      limit: DEFAULT_PAGE_SIZE,
     })
     return { success: true, data: result }
   } catch (error) {

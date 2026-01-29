@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { DEFAULT_QUERY_LIMIT } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import type {
@@ -53,7 +54,7 @@ export async function getAllTeachers(
   },
   client: DatabaseClient = prisma
 ): Promise<TeacherWithPerson[]> {
-  const { search, page = 1, limit = 50 } = params || {}
+  const { search, page = 1, limit = DEFAULT_QUERY_LIMIT } = params || {}
   const skip = (page - 1) * limit
 
   const where: Prisma.TeacherWhereInput = {}

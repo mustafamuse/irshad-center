@@ -1,11 +1,13 @@
 import Link from 'next/link'
 
-import { DugsiAttendanceStatus } from '@prisma/client'
-import { addDays, endOfDay, format, isPast } from 'date-fns'
+import { format } from 'date-fns'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { DEFAULT_PAGE_SIZE, SHIFT_SHORT_LABEL } from '@/lib/constants/dugsi'
 import { getSessionsForList } from '@/lib/db/queries/dugsi-attendance'
+import { isSessionEffectivelyClosed } from '@/lib/utils/attendance-dates'
+import { countPresentStudents } from '@/lib/utils/attendance-math'
 
 import { TeacherFilterControls } from './teacher-filter-controls'
 
@@ -45,7 +47,7 @@ export async function TeacherSessionHistory({
 
   const { data: sessions, totalPages } = await getSessionsForList(filters, {
     page,
-    limit: 20,
+    limit: DEFAULT_PAGE_SIZE,
   })
 
   return (
@@ -62,23 +64,18 @@ export async function TeacherSessionHistory({
         <>
           <div className="divide-y rounded-lg border">
             {sessions.map((session) => {
-              const sessionDate = new Date(session.date)
-              const day = sessionDate.getUTCDay()
-              const sunday = day === 6 ? addDays(sessionDate, 1) : sessionDate
-              const isEffectivelyClosed =
-                session.isClosed || isPast(endOfDay(sunday))
-              const presentCount = session.records.filter(
-                (r) =>
-                  r.status === DugsiAttendanceStatus.PRESENT ||
-                  r.status === DugsiAttendanceStatus.LATE
-              ).length
+              const effectivelyClosed = isSessionEffectivelyClosed(
+                new Date(session.date),
+                session.isClosed
+              )
+              const presentCount = countPresentStudents(session.records)
               const total = session.records.length
               const pct =
                 total > 0 ? Math.round((presentCount / total) * 100) : 0
               let attendanceColor = 'text-red-600'
               if (pct >= 75) attendanceColor = 'text-green-600'
               else if (pct >= 50) attendanceColor = 'text-yellow-600'
-              const shift = session.class.shift === 'MORNING' ? 'AM' : 'PM'
+              const shift = SHIFT_SHORT_LABEL[session.class.shift]
 
               const content = (
                 <div className="flex items-center justify-between px-4 py-3">
@@ -99,7 +96,7 @@ export async function TeacherSessionHistory({
                     </p>
                   </div>
 
-                  {!isEffectivelyClosed && (
+                  {!effectivelyClosed && (
                     <Link href={`/teacher/attendance/${session.id}`}>
                       <Button size="sm" className="min-h-[44px] min-w-[44px]">
                         {total === 0 ? 'Take Attendance' : 'Edit'}
@@ -109,7 +106,7 @@ export async function TeacherSessionHistory({
                 </div>
               )
 
-              if (isEffectivelyClosed) {
+              if (effectivelyClosed) {
                 return (
                   <Link
                     key={session.id}

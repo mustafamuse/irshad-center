@@ -11,6 +11,7 @@ import {
   type Student,
 } from '@/components/attendance/mark-attendance-form'
 import { Badge } from '@/components/ui/badge'
+import { SHIFT_SHORT_LABEL } from '@/lib/constants/dugsi'
 import type { AttendanceRecordForMarking } from '@/lib/mappers/attendance-mapper'
 
 import { markAttendance } from '../actions'
@@ -44,7 +45,11 @@ export function MarkAttendancePage({ session, students, attendance }: Props) {
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold">
                 {session.teacherName.split(' ')[0]} -{' '}
-                {session.shift === 'MORNING' ? 'AM' : 'PM'}
+                {
+                  SHIFT_SHORT_LABEL[
+                    session.shift as keyof typeof SHIFT_SHORT_LABEL
+                  ]
+                }
               </h1>
               {session.isClosed && <Badge variant="secondary">Closed</Badge>}
             </div>

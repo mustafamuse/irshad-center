@@ -4,6 +4,12 @@
  * Centralized constants for the Dugsi program
  */
 
+import type { Shift as DugsiShift } from '@prisma/client'
+
+// Pagination Defaults
+export const DEFAULT_PAGE_SIZE = 20
+export const DEFAULT_QUERY_LIMIT = 50
+
 // Display Constants
 export const STRIPE_ID_DISPLAY_LENGTH = 20
 export const MAX_FAMILY_SIZE = 20
@@ -121,6 +127,12 @@ export const SHIFT_COLORS = {
   MORNING: 'bg-[#deb43e]',
   AFTERNOON: 'bg-[#007078]',
 } as const
+
+// Shift Short Labels (for compact display)
+export const SHIFT_SHORT_LABEL: Record<DugsiShift, string> = {
+  MORNING: 'AM',
+  AFTERNOON: 'PM',
+}
 
 // Shift Filter Constants
 export const SHIFT_FILTER_ALL = 'all' as const

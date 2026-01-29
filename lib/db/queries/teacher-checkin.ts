@@ -7,6 +7,7 @@
 
 import { Prisma, Shift } from '@prisma/client'
 
+import { DEFAULT_QUERY_LIMIT } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
@@ -126,7 +127,7 @@ export async function getCheckinHistory(
   client: DatabaseClient = prisma
 ): Promise<PaginatedCheckins> {
   const { dateFrom, dateTo, shift, teacherId, isLate, clockInValid } = filters
-  const { page = 1, limit = 50 } = pagination
+  const { page = 1, limit = DEFAULT_QUERY_LIMIT } = pagination
   const skip = (page - 1) * limit
 
   const where: Prisma.DugsiTeacherCheckInWhereInput = {}

@@ -1,6 +1,8 @@
 import { DugsiAttendanceStatus } from '@prisma/client'
 import { z } from 'zod'
 
+import { DEFAULT_QUERY_LIMIT } from '@/lib/constants/dugsi'
+
 export const CreateSessionSchema = z.object({
   classId: z.string().uuid('Invalid class ID'),
   date: z.coerce.date().refine(
@@ -84,7 +86,7 @@ export const AttendanceFiltersSchema = z.object({
     .positive('Limit must be positive')
     .max(100, 'Limit cannot exceed 100')
     .optional()
-    .default(50),
+    .default(DEFAULT_QUERY_LIMIT),
 })
 
 export const LoadMoreHistorySchema = z.object({

@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { DEFAULT_PAGE_SIZE } from '@/lib/constants/dugsi'
 
 import {
   CheckinRecord,
@@ -103,7 +104,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
           dateFrom: filters.dateRange.start,
           dateTo: filters.dateRange.end,
           page,
-          limit: 20,
+          limit: DEFAULT_PAGE_SIZE,
         }
         if (filters.shiftFilter !== 'all') {
           queryFilters.shift = filters.shiftFilter
