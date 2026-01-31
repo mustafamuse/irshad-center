@@ -134,6 +134,15 @@ export interface BulkPaymentLinkResult {
   failed: BulkPaymentLinkFailure[]
 }
 
+export interface UnassignedStudent {
+  profileId: string
+  name: string
+  dateOfBirth: Date | null
+  age: number | null
+  shift: Shift | null
+  siblings: { name: string; teacherName: string; classShift: Shift }[]
+}
+
 // Re-export ActionResult from canonical location
 export type { ActionResult } from '@/lib/utils/action-helpers'
 
