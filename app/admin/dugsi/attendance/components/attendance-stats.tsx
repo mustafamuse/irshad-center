@@ -1,55 +1,33 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { getAttendanceStats } from '@/lib/db/queries/dugsi-attendance'
 
-/**
- * Attendance Stats Component
- *
- * NOTE: The attendance feature is incomplete. The database models
- * (AttendanceSession, AttendanceRecord) were removed from the schema.
- * This component is stubbed out until the feature is implemented.
- */
-export async function AttendanceStats() {
+function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Total Sessions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">-</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Active Students
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">-</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Avg Attendance
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">-</div>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            This Month
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">-</div>
-        </CardContent>
-      </Card>
-    </div>
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          {label}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{value}</div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export async function AttendanceStats() {
+  const stats = await getAttendanceStats()
+
+  return (
+    <>
+      <StatCard label="Total Sessions" value={stats.totalSessions} />
+      <StatCard label="Total Records" value={stats.totalRecords} />
+      <StatCard label="Attendance Rate" value={`${stats.attendanceRate}%`} />
+      <StatCard
+        label="Present / Late / Absent"
+        value={`${stats.presentCount} / ${stats.lateCount} / ${stats.absentCount}`}
+      />
+    </>
   )
 }

@@ -4,6 +4,8 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { CHECKIN_ERROR_CODES } from '@/lib/constants/teacher-checkin'
 import { ValidationError } from '@/lib/services/validation-service'
 
+const MOCK_AUTHENTICATED_TEACHER_ID = '550e8400-e29b-41d4-a716-446655440001'
+
 const {
   mockRevalidatePath,
   mockGetTeachersForDropdown,
@@ -12,6 +14,7 @@ const {
   mockClockOut,
   mockCalculateDistance,
   mockIsWithinGeofence,
+  mockGetAuthenticatedTeacherId,
 } = vi.hoisted(() => ({
   mockRevalidatePath: vi.fn(),
   mockGetTeachersForDropdown: vi.fn(),
@@ -20,10 +23,15 @@ const {
   mockClockOut: vi.fn(),
   mockCalculateDistance: vi.fn(),
   mockIsWithinGeofence: vi.fn(),
+  mockGetAuthenticatedTeacherId: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
+}))
+
+vi.mock('@/lib/auth/get-teacher', () => ({
+  getAuthenticatedTeacherId: () => mockGetAuthenticatedTeacherId(),
 }))
 
 vi.mock('@/lib/db/queries/teacher-checkin', () => ({
@@ -171,6 +179,9 @@ describe('getTeacherCurrentStatus', () => {
 describe('teacherClockInAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetAuthenticatedTeacherId.mockResolvedValue(
+      MOCK_AUTHENTICATED_TEACHER_ID
+    )
     mockClockIn.mockResolvedValue({ checkIn: mockCheckin })
     mockGetTeacherCheckin.mockResolvedValue(null)
   })
@@ -315,6 +326,9 @@ describe('teacherClockOutAction', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetAuthenticatedTeacherId.mockResolvedValue(
+      MOCK_AUTHENTICATED_TEACHER_ID
+    )
     mockClockOut.mockResolvedValue({ checkIn: clockedOutCheckin })
     mockGetTeacherCheckin.mockResolvedValue(clockedOutCheckin)
   })

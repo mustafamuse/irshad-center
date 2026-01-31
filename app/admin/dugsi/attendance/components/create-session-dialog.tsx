@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { memo, useState } from 'react'
 
+import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -31,30 +33,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CreateSessionSchema } from '@/lib/validations/attendance'
 
 import { createSession } from '../actions'
 
+function getUpcomingWeekendDates(count: number): Date[] {
+  const dates: Date[] = []
+  const today = new Date()
+  const current = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate()
+  )
+  while (dates.length < count) {
+    const day = current.getDay()
+    if (day === 0 || day === 6) {
+      dates.push(new Date(current))
+    }
+    current.setDate(current.getDate() + 1)
+  }
+  return dates
+}
+
 type FormData = {
-  batchId: string
+  classId: string
   date: string
   notes?: string
 }
 
 interface Props {
-  batches: { id: string; name: string }[]
+  classes: { id: string; name: string; shift: string; label: string }[]
 }
 
-export function CreateSessionDialog({ batches }: Props) {
+export const CreateSessionDialog = memo(function CreateSessionDialog({
+  classes,
+}: Props) {
   const [open, setOpen] = useState(false)
-  const form = useForm<FormData>()
+  const form = useForm<FormData>({
+    resolver: zodResolver(CreateSessionSchema),
+  })
 
   async function onSubmit(data: FormData) {
-    try {
-      await createSession(data)
+    const result = await createSession(data)
+    if (result.success) {
       setOpen(false)
+      form.reset()
       toast.success('Session created successfully')
-    } catch {
-      toast.error('Failed to create session')
+    } else {
+      toast.error(result.error || 'Failed to create session')
     }
   }
 
@@ -76,23 +102,23 @@ export function CreateSessionDialog({ batches }: Props) {
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <FormField
               control={form.control}
-              name="batchId"
+              name="classId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Batch</FormLabel>
+                  <FormLabel>Class</FormLabel>
                   <Select
                     defaultValue={field.value}
                     onValueChange={field.onChange}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a batch" />
+                        <SelectValue placeholder="Select a class" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {batches.map((batch) => (
-                        <SelectItem key={batch.id} value={batch.id}>
-                          {batch.name}
+                      {classes.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.label}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -107,9 +133,26 @@ export function CreateSessionDialog({ batches }: Props) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Date</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
+                  <Select
+                    defaultValue={field.value}
+                    onValueChange={field.onChange}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a weekend date" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {getUpcomingWeekendDates(8).map((date) => (
+                        <SelectItem
+                          key={date.toISOString()}
+                          value={format(date, 'yyyy-MM-dd')}
+                        >
+                          {format(date, 'EEEE, MMM d')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -135,4 +178,4 @@ export function CreateSessionDialog({ batches }: Props) {
       </DialogContent>
     </Dialog>
   )
-}
+})

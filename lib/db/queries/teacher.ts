@@ -1,11 +1,6 @@
-/**
- * Teacher Query Functions
- *
- * Query functions for Teacher model linked to Person.
- */
-
 import { Prisma } from '@prisma/client'
 
+import { DEFAULT_QUERY_LIMIT } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import type {
@@ -13,42 +8,26 @@ import type {
   TeacherWithPersonRelations,
 } from '@/lib/types/teacher'
 
-/**
- * Get teacher by ID with Person relation
- * @param client - Optional database client (for transaction support)
- */
 export async function getTeacherById(
   teacherId: string,
   client: DatabaseClient = prisma
 ): Promise<TeacherWithPerson | null> {
   return client.teacher.findUnique({
     where: { id: teacherId },
-    include: {
-      person: true,
-    },
+    include: { person: true },
   })
 }
 
-/**
- * Get teacher by Person ID
- * @param client - Optional database client (for transaction support)
- */
 export async function getTeacherByPersonId(
   personId: string,
   client: DatabaseClient = prisma
 ): Promise<TeacherWithPerson | null> {
   return client.teacher.findUnique({
     where: { personId },
-    include: {
-      person: true,
-    },
+    include: { person: true },
   })
 }
 
-/**
- * Get teacher with full Person relations (contact points, etc.)
- * @param client - Optional database client (for transaction support)
- */
 export async function getTeacherWithPersonRelations(
   teacherId: string,
   client: DatabaseClient = prisma
@@ -67,10 +46,6 @@ export async function getTeacherWithPersonRelations(
   })
 }
 
-/**
- * Get all teachers with Person relations
- * @param client - Optional database client (for transaction support)
- */
 export async function getAllTeachers(
   params?: {
     search?: string
@@ -79,7 +54,7 @@ export async function getAllTeachers(
   },
   client: DatabaseClient = prisma
 ): Promise<TeacherWithPerson[]> {
-  const { search, page = 1, limit = 50 } = params || {}
+  const { search, page = 1, limit = DEFAULT_QUERY_LIMIT } = params || {}
   const skip = (page - 1) * limit
 
   const where: Prisma.TeacherWhereInput = {}
@@ -109,10 +84,6 @@ export async function getAllTeachers(
   })
 }
 
-/**
- * Check if a Person is a teacher
- * @param client - Optional database client (for transaction support)
- */
 export async function isPersonATeacher(
   personId: string,
   client: DatabaseClient = prisma
@@ -124,10 +95,41 @@ export async function isPersonATeacher(
   return teacher !== null
 }
 
-/**
- * Get all roles for a Person (teacher, student, parent, payer)
- * @param client - Optional database client (for transaction support)
- */
+export async function findTeachersByPhoneLastFour(
+  lastFour: string,
+  client: DatabaseClient = prisma
+) {
+  return client.teacher.findMany({
+    where: {
+      person: {
+        is: {
+          contactPoints: {
+            some: {
+              type: 'PHONE',
+              isActive: true,
+              value: { endsWith: lastFour },
+            },
+          },
+        },
+      },
+    },
+    include: {
+      person: { select: { name: true } },
+    },
+  })
+}
+
+export async function getTeacherName(
+  teacherId: string,
+  client: DatabaseClient = prisma
+): Promise<string | null> {
+  const teacher = await client.teacher.findUnique({
+    where: { id: teacherId },
+    select: { person: { select: { name: true } } },
+  })
+  return teacher?.person.name ?? null
+}
+
 export async function getPersonRoles(
   personId: string,
   client: DatabaseClient = prisma
