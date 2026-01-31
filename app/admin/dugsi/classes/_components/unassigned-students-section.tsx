@@ -48,12 +48,12 @@ function formatSiblings(studentName: string, siblings: Sibling[]): string {
 
   let shown = 0
   const parts: string[] = []
-  for (const [key, names] of groups) {
-    if (shown >= 2) break
+  groups.forEach((names, key) => {
+    if (shown >= 2) return
     const take = Math.min(names.length, 2 - shown)
     parts.push(`${names.slice(0, take).join(', ')} (${key})`)
     shown += take
-  }
+  })
 
   const remaining = siblings.length - shown
   const suffix = remaining > 0 ? ` +${remaining} more` : ''
