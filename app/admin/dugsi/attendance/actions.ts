@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { isRedirectError } from 'next/dist/client/components/redirect-error'
 
 import { z } from 'zod'
 
@@ -19,9 +20,11 @@ import {
   createAttendanceSession,
   deleteAttendanceSession,
   markAttendanceRecords,
+  ATTENDANCE_ERROR_CODES,
 } from '@/lib/services/dugsi/attendance-service'
 import { ValidationError } from '@/lib/services/validation-service'
 import { ActionResult } from '@/lib/utils/action-helpers'
+import { getLocalDay, getLocalDateString } from '@/lib/utils/attendance-dates'
 import {
   AttendanceFiltersSchema,
   CreateSessionSchema,
@@ -56,6 +59,7 @@ export async function createSession(
     revalidateAttendance()
     return { success: true, data: { sessionId: session.id } }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
@@ -78,6 +82,7 @@ export async function markAttendance(
     revalidateAttendance()
     return { success: true, data: result }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
@@ -100,6 +105,7 @@ export async function deleteSession(
     revalidateAttendance()
     return { success: true, data: undefined }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
@@ -122,6 +128,7 @@ export async function getSessionsAction(
     const result = await getSessions(filters, { page, limit })
     return { success: true, data: result }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     await logError(logger, error, 'Failed to fetch sessions')
     return { success: false, error: 'Failed to fetch sessions' }
   }
@@ -135,6 +142,7 @@ export async function getAttendanceStatsAction(): Promise<
     const stats = await getAttendanceStats()
     return { success: true, data: stats }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     await logError(logger, error, 'Failed to fetch attendance stats')
     return { success: false, error: 'Failed to fetch attendance stats' }
   }
@@ -151,6 +159,7 @@ export async function getClassesForDropdownAction(): Promise<
       data: classes.map((c) => ({ id: c.id, name: c.name, shift: c.shift })),
     }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     await logError(logger, error, 'Failed to fetch classes')
     return { success: false, error: 'Failed to fetch classes' }
   }
@@ -158,12 +167,11 @@ export async function getClassesForDropdownAction(): Promise<
 
 export async function ensureTodaySessions(): Promise<ActionResult<void>> {
   await requireAdmin()
-  const now = Date.now()
-  const utcDay = new Date(now).getUTCDay()
-  if (utcDay !== 0 && utcDay !== 6) return { success: true, data: undefined }
+  const day = getLocalDay()
+  if (day !== 0 && day !== 6) return { success: true, data: undefined }
 
   try {
-    const dateOnly = new Date(new Date(now).toISOString().split('T')[0])
+    const dateOnly = new Date(getLocalDateString())
     const [classes, existingSessions] = await Promise.all([
       getActiveClasses(),
       fetchTodaySessionsForList(),
@@ -180,12 +188,16 @@ export async function ensureTodaySessions(): Promise<ActionResult<void>> {
         createAttendanceSession({ classId: c.id, date: dateOnly })
       )
     )
+    const acceptableCodes: Set<string> = new Set([
+      ATTENDANCE_ERROR_CODES.DUPLICATE_SESSION,
+      ATTENDANCE_ERROR_CODES.NO_TEACHER_ASSIGNED,
+    ])
     const realFailures = results.filter(
       (r): r is PromiseRejectedResult =>
         r.status === 'rejected' &&
         !(
           r.reason instanceof ValidationError &&
-          r.reason.code === 'DUPLICATE_SESSION'
+          acceptableCodes.has(r.reason.code)
         )
     )
     if (realFailures.length > 0) {
@@ -205,6 +217,7 @@ export async function ensureTodaySessions(): Promise<ActionResult<void>> {
     revalidateAttendance()
     return { success: true, data: undefined }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     await logError(logger, error, 'Failed to ensure today sessions')
     return { success: false, error: 'Failed to create today sessions' }
   }
@@ -223,6 +236,7 @@ export async function getStudentsForClassAction(
     const students = await getEnrolledStudentsByClass(parsed.data)
     return { success: true, data: students }
   } catch (error) {
+    if (isRedirectError(error)) throw error
     await logError(logger, error, 'Failed to fetch students')
     return { success: false, error: 'Failed to fetch students' }
   }

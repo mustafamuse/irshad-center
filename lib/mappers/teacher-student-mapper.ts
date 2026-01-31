@@ -1,5 +1,7 @@
 import { DugsiAttendanceStatus, Shift } from '@prisma/client'
 
+import { getLocalDay, getLocalDateString } from '@/lib/utils/attendance-dates'
+
 export interface StudentDetailDTO {
   profileId: string
   name: string
@@ -62,13 +64,13 @@ export function groupRecordsByWeekend(
 
   for (const r of records) {
     const d = new Date(r.date)
-    const day = d.getUTCDay()
+    const day = getLocalDay(d)
     if (day !== 0 && day !== 6) continue
     const saturday = new Date(d)
     if (day === 0) {
       saturday.setDate(d.getDate() - 1)
     }
-    const key = saturday.toISOString().split('T')[0]
+    const key = getLocalDateString(saturday)
 
     const entry = weekendMap.get(key) ?? { present: 0, total: 0, saturday }
     entry.total++

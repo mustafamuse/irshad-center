@@ -1,6 +1,20 @@
 import { Prisma, DugsiAttendanceStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
+vi.mock('date-fns-tz', () => ({
+  formatInTimeZone: (date: Date, _tz: string, fmt: string) => {
+    const d = new Date(date)
+    if (fmt === 'i') {
+      const jsDay = d.getUTCDay()
+      return String(jsDay === 0 ? 7 : jsDay)
+    }
+    if (fmt === 'yyyy-MM-dd') {
+      return d.toISOString().split('T')[0]
+    }
+    return ''
+  },
+}))
+
 const {
   mockGetSessionById,
   mockCreate,

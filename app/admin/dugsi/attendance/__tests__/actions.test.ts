@@ -1,5 +1,19 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 
+vi.mock('date-fns-tz', () => ({
+  formatInTimeZone: (date: Date, _tz: string, fmt: string) => {
+    const d = new Date(date)
+    if (fmt === 'i') {
+      const jsDay = d.getUTCDay()
+      return String(jsDay === 0 ? 7 : jsDay)
+    }
+    if (fmt === 'yyyy-MM-dd') {
+      return d.toISOString().split('T')[0]
+    }
+    return ''
+  },
+}))
+
 const {
   mockCreateSession,
   mockMarkRecords,
@@ -20,11 +34,18 @@ const {
   mockFetchTodaySessionsForList: vi.fn(),
 }))
 
-vi.mock('@/lib/services/dugsi/attendance-service', () => ({
-  createAttendanceSession: (...args: unknown[]) => mockCreateSession(...args),
-  markAttendanceRecords: (...args: unknown[]) => mockMarkRecords(...args),
-  deleteAttendanceSession: (...args: unknown[]) => mockDeleteSession(...args),
-}))
+vi.mock('@/lib/services/dugsi/attendance-service', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('@/lib/services/dugsi/attendance-service')
+    >()
+  return {
+    ...actual,
+    createAttendanceSession: (...args: unknown[]) => mockCreateSession(...args),
+    markAttendanceRecords: (...args: unknown[]) => mockMarkRecords(...args),
+    deleteAttendanceSession: (...args: unknown[]) => mockDeleteSession(...args),
+  }
+})
 
 vi.mock('@/lib/db/queries/dugsi-attendance', () => ({
   getSessions: (...args: unknown[]) => mockGetSessions(...args),
@@ -43,6 +64,11 @@ const { mockRevalidatePath, mockRevalidateTag } = vi.hoisted(() => ({
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
   revalidateTag: (...args: unknown[]) => mockRevalidateTag(...args),
+}))
+
+vi.mock('next/dist/client/components/redirect-error', () => ({
+  isRedirectError: vi.fn(() => false),
+  RedirectType: { push: 'push', replace: 'replace' },
 }))
 
 vi.mock('@/lib/auth/get-admin', () => ({
