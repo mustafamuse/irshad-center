@@ -3,6 +3,7 @@ import { Metadata } from 'next'
 import {
   getClassesWithDetailsAction,
   getAllTeachersForClassAssignmentAction,
+  getUnassignedStudentsAction,
 } from '../actions'
 import { ClassManagement } from './_components/class-management'
 
@@ -14,9 +15,10 @@ export const metadata: Metadata = {
 }
 
 export default async function ClassManagementPage() {
-  const [classesResult, teachersResult] = await Promise.all([
+  const [classesResult, teachersResult, unassignedResult] = await Promise.all([
     getClassesWithDetailsAction(),
     getAllTeachersForClassAssignmentAction(),
+    getUnassignedStudentsAction(),
   ])
 
   if (!classesResult.success || !teachersResult.success) {
@@ -36,6 +38,9 @@ export default async function ClassManagementPage() {
       <ClassManagement
         classes={classesResult.data ?? []}
         teachers={teachersResult.data ?? []}
+        unassignedStudents={
+          unassignedResult.success ? (unassignedResult.data ?? []) : []
+        }
       />
     </main>
   )

@@ -53,7 +53,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ClassFormDialog } from './class-form-dialog'
 import { DeleteClassDialog } from './delete-class-dialog'
 import { StudentEnrollmentDialog } from './student-enrollment-dialog'
-import type { ClassWithDetails } from '../../_types'
+import { UnassignedStudentsSection } from './unassigned-students-section'
+import type { ClassWithDetails, UnassignedStudent } from '../../_types'
 import {
   assignTeacherToClassAction,
   removeTeacherFromClassAction,
@@ -67,9 +68,14 @@ interface Teacher {
 interface ClassManagementProps {
   classes: ClassWithDetails[]
   teachers: Teacher[]
+  unassignedStudents: UnassignedStudent[]
 }
 
-export function ClassManagement({ classes, teachers }: ClassManagementProps) {
+export function ClassManagement({
+  classes,
+  teachers,
+  unassignedStudents,
+}: ClassManagementProps) {
   const router = useRouter()
   const [selectedClass, setSelectedClass] = useState<ClassWithDetails | null>(
     null
@@ -349,6 +355,13 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
           )}
         </TabsContent>
       </Tabs>
+
+      {unassignedStudents.length > 0 && (
+        <UnassignedStudentsSection
+          students={unassignedStudents}
+          classes={classes}
+        />
+      )}
 
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
         <DialogContent className="sm:max-w-md">
