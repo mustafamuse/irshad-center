@@ -10,6 +10,7 @@ import {
   getClassesWithDetails,
   getAllTeachersForAssignment,
   getAvailableStudentsForClass,
+  getUnassignedDugsiStudents,
   assignTeacherToClass,
   removeTeacherFromClass,
   enrollStudentInClass,
@@ -95,6 +96,7 @@ import {
   ClassWithDetails,
   StudentForEnrollment,
   StripePaymentHistoryItem,
+  UnassignedStudent,
 } from './_types'
 
 const logger = createServiceLogger('dugsi-admin-actions')
@@ -987,6 +989,24 @@ export async function getAvailableDugsiTeachers(): Promise<
     return {
       success: false,
       error: 'Failed to load available teachers',
+    }
+  }
+}
+
+/**
+ * Get Dugsi students not enrolled in any class.
+ */
+export async function getUnassignedStudentsAction(): Promise<
+  ActionResult<UnassignedStudent[]>
+> {
+  try {
+    const students = await getUnassignedDugsiStudents()
+    return { success: true, data: students }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get unassigned students')
+    return {
+      success: false,
+      error: 'Unable to load unassigned students. Please refresh the page.',
     }
   }
 }

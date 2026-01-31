@@ -21,6 +21,177 @@ import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('dugsi-class-queries')
 
+export async function getUnassignedDugsiStudents(
+  client: DatabaseClient = prisma
+) {
+  const profiles = await client.programProfile.findMany({
+    where: {
+      program: DUGSI_PROGRAM,
+      status: { in: ['ENROLLED', 'REGISTERED'] },
+      OR: [
+        { dugsiClassEnrollment: null },
+        { dugsiClassEnrollment: { isActive: false } },
+      ],
+    },
+    include: {
+      person: {
+        select: {
+          id: true,
+          name: true,
+          dateOfBirth: true,
+          siblingRelationships1: {
+            where: { isActive: true },
+            select: {
+              person2: {
+                select: {
+                  name: true,
+                  programProfiles: {
+                    where: { program: DUGSI_PROGRAM },
+                    select: {
+                      dugsiClassEnrollment: {
+                        where: { isActive: true },
+                        select: {
+                          class: {
+                            select: {
+                              shift: true,
+                              teachers: {
+                                where: { isActive: true },
+                                select: {
+                                  teacher: {
+                                    select: {
+                                      person: { select: { name: true } },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          siblingRelationships2: {
+            where: { isActive: true },
+            select: {
+              person1: {
+                select: {
+                  name: true,
+                  programProfiles: {
+                    where: { program: DUGSI_PROGRAM },
+                    select: {
+                      dugsiClassEnrollment: {
+                        where: { isActive: true },
+                        select: {
+                          class: {
+                            select: {
+                              shift: true,
+                              teachers: {
+                                where: { isActive: true },
+                                select: {
+                                  teacher: {
+                                    select: {
+                                      person: { select: { name: true } },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { person: { name: 'asc' } },
+  })
+
+  const now = new Date()
+
+  return profiles.map((p) => {
+    const dob = p.person.dateOfBirth
+    let age: number | null = null
+    if (dob) {
+      age = now.getFullYear() - dob.getFullYear()
+      const monthDiff = now.getMonth() - dob.getMonth()
+      if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+        age--
+      }
+    }
+
+    type SiblingEntry = { name: string; teacherName: string; classShift: Shift }
+    const siblings: SiblingEntry[] = []
+
+    const extractSiblings = (
+      relations: Array<{
+        person1?: {
+          name: string
+          programProfiles: Array<{
+            dugsiClassEnrollment: {
+              class: {
+                shift: Shift
+                teachers: Array<{ teacher: { person: { name: string } } }>
+              }
+            } | null
+          }>
+        }
+        person2?: {
+          name: string
+          programProfiles: Array<{
+            dugsiClassEnrollment: {
+              class: {
+                shift: Shift
+                teachers: Array<{ teacher: { person: { name: string } } }>
+              }
+            } | null
+          }>
+        }
+      }>
+    ) => {
+      for (const rel of relations) {
+        const sibling = rel.person1 ?? rel.person2
+        if (!sibling) continue
+        for (const profile of sibling.programProfiles) {
+          const enrollment = profile.dugsiClassEnrollment
+          if (!enrollment) continue
+          const teacherName =
+            enrollment.class.teachers[0]?.teacher.person.name ?? 'No teacher'
+          siblings.push({
+            name: sibling.name,
+            teacherName,
+            classShift: enrollment.class.shift,
+          })
+        }
+      }
+    }
+
+    extractSiblings(
+      p.person.siblingRelationships1 as Parameters<typeof extractSiblings>[0]
+    )
+    extractSiblings(
+      p.person.siblingRelationships2 as Parameters<typeof extractSiblings>[0]
+    )
+
+    return {
+      profileId: p.id,
+      name: p.person.name,
+      dateOfBirth: p.person.dateOfBirth,
+      age,
+      shift: p.shift,
+      siblings,
+    }
+  })
+}
+
 export const dugsiClassInclude = {
   teachers: {
     where: { isActive: true },
