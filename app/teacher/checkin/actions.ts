@@ -167,7 +167,7 @@ export async function checkGeofence(
 
 export interface CheckinHistoryItem {
   id: string
-  date: Date
+  date: string
   shift: Shift
   clockInTime: Date
   clockOutTime: Date | null
@@ -196,7 +196,7 @@ export async function getTeacherCheckinHistory(
       data: {
         data: result.data.map((item) => ({
           id: item.id,
-          date: item.date,
+          date: item.date.toISOString().split('T')[0],
           shift: item.shift,
           clockInTime: item.clockInTime,
           clockOutTime: item.clockOutTime,

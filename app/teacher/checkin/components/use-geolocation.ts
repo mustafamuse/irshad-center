@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 import {
   LocationData,
@@ -14,6 +14,8 @@ export type {
   GeolocationErrorCode,
 } from '@/lib/services/geolocation-service'
 
+export type PermissionState = 'prompt' | 'granted' | 'denied' | 'unknown'
+
 export function useGeolocation() {
   const [location, setLocation] = useState<LocationData>({
     latitude: null,
@@ -23,6 +25,18 @@ export function useGeolocation() {
     timestamp: null,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [permissionState, setPermissionState] =
+    useState<PermissionState>('unknown')
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !navigator.permissions) return
+    navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+      setPermissionState(result.state as PermissionState)
+      result.addEventListener('change', () => {
+        setPermissionState(result.state as PermissionState)
+      })
+    })
+  }, [])
 
   const requestLocation = useCallback(async (): Promise<LocationData> => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -48,5 +62,6 @@ export function useGeolocation() {
     requestLocation,
     hasLocation,
     hasError,
+    permissionState,
   }
 }

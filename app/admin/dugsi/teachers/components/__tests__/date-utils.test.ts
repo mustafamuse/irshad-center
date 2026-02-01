@@ -10,24 +10,20 @@ import {
 } from '../date-utils'
 
 describe('formatCheckinDate', () => {
-  it('formats UTC date correctly regardless of local timezone', () => {
-    const date = new Date('2025-12-27T00:00:00Z')
-    expect(formatCheckinDate(date)).toBe('Sat, Dec 27')
+  it('formats date string correctly', () => {
+    expect(formatCheckinDate('2025-12-27')).toBe('Sat, Dec 27')
   })
 
-  it('handles date at midnight UTC for Saturday', () => {
-    const date = new Date('2026-01-03T00:00:00Z')
-    expect(formatCheckinDate(date)).toBe('Sat, Jan 3')
+  it('handles Saturday date string', () => {
+    expect(formatCheckinDate('2026-01-03')).toBe('Sat, Jan 3')
   })
 
-  it('handles date at midnight UTC for Sunday', () => {
-    const date = new Date('2026-01-04T00:00:00Z')
-    expect(formatCheckinDate(date)).toBe('Sun, Jan 4')
+  it('handles Sunday date string', () => {
+    expect(formatCheckinDate('2026-01-04')).toBe('Sun, Jan 4')
   })
 
-  it('handles date at midnight UTC for Friday', () => {
-    const date = new Date('2025-12-26T00:00:00Z')
-    expect(formatCheckinDate(date)).toBe('Fri, Dec 26')
+  it('handles Friday date string', () => {
+    expect(formatCheckinDate('2025-12-26')).toBe('Fri, Dec 26')
   })
 })
 

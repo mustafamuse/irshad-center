@@ -28,8 +28,9 @@ function formatTime(date: Date): string {
   return format(new Date(date), 'h:mm a')
 }
 
-function formatDate(date: Date): string {
-  return format(new Date(date), 'EEE, MMM d')
+function formatDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return format(new Date(year, month - 1, day), 'EEE, MMM d')
 }
 
 export function CheckinHistory({ teacherId }: Props) {
@@ -105,8 +106,9 @@ export function CheckinHistory({ teacherId }: Props) {
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {formatTime(item.clockInTime)}
-                        {item.clockOutTime &&
-                          ` - ${formatTime(item.clockOutTime)}`}
+                        {item.clockOutTime
+                          ? ` - ${formatTime(item.clockOutTime)}`
+                          : ' (no clock out)'}
                       </p>
                     </div>
                   </div>

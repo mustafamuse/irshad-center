@@ -71,6 +71,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     requestLocation,
     hasLocation,
     hasError,
+    permissionState,
   } = useGeolocation()
   const { showOnboarding, dismissOnboarding, resetOnboarding } =
     useCheckinOnboarding()
@@ -99,6 +100,18 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers is stable from server props
   }, [selectedTeacherId])
+
+  useEffect(() => {
+    if (
+      selectedShift &&
+      !hasLocation &&
+      !isGeoLoading &&
+      permissionState === 'granted'
+    ) {
+      handleRequestLocation()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- trigger on shift selection or permission grant
+  }, [selectedShift, permissionState])
 
   const formatDistance = (meters: number): string => {
     const feet = meters * METERS_TO_FEET
@@ -318,14 +331,24 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                     </div>
                   ) : isClockedIn ? (
                     <div className="space-y-2">
-                      <Badge
-                        variant="outline"
-                        className="bg-green-100 text-green-800"
-                      >
-                        Clocked In
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2.5 w-2.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className="border-amber-200 bg-amber-50 text-amber-800"
+                        >
+                          Shift In Progress
+                        </Badge>
+                      </div>
                       <p className="text-sm text-muted-foreground">
-                        Since {formatTime(currentCheckin?.clockInTime ?? null)}
+                        Clocked in at{' '}
+                        {formatTime(currentCheckin?.clockInTime ?? null)}
+                      </p>
+                      <p className="text-sm font-medium text-amber-700">
+                        Remember to clock out before leaving
                       </p>
                     </div>
                   ) : (
@@ -339,118 +362,144 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                 </CardContent>
               </Card>
 
-              <Card className="border-0 shadow-md duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:150ms]">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
-                      <MapPin className="h-4 w-4 text-[#007078]" />
-                    </div>
-                    Location
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {hasLocation ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-sm text-green-600">
-                        <CheckCircle2 className="h-4 w-4" />
-                        <span>Location acquired</span>
-                      </div>
-                      {geofenceStatus && (
-                        <div
-                          className={`flex items-center gap-2 text-sm font-medium ${
-                            geofenceStatus.isWithinGeofence
-                              ? 'text-green-600'
-                              : 'text-red-600'
-                          }`}
-                        >
-                          {geofenceStatus.isWithinGeofence ? (
-                            <>
-                              <CheckCircle2 className="h-4 w-4" />
-                              <span>
-                                Within{' '}
-                                {Math.round(
-                                  geofenceStatus.allowedRadiusMeters *
-                                    METERS_TO_FEET
-                                )}
-                                ft of center
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle className="h-4 w-4" />
-                              <span>
-                                {formatDistance(geofenceStatus.distanceMeters)}{' '}
-                                away
-                                {' \u2022 '}
-                                Must be within{' '}
-                                {Math.round(
-                                  geofenceStatus.allowedRadiusMeters *
-                                    METERS_TO_FEET
-                                )}
-                                ft
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ) : hasError ? (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertTitle>Location Error</AlertTitle>
-                      <AlertDescription>{location.error}</AlertDescription>
-                    </Alert>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Location is required to clock in.
-                    </p>
-                  )}
-
+              {hasLocation && geofenceStatus?.isWithinGeofence ? (
+                <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:150ms]">
+                  <div className="flex items-center gap-2 text-sm text-green-600">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>At Irshad Center</span>
+                  </div>
                   <Button
-                    variant="outline"
+                    variant="ghost"
+                    size="sm"
                     onClick={handleRequestLocation}
                     disabled={isGeoLoading || isPending}
-                    className="w-full"
+                    className="h-auto px-2 py-1 text-xs text-muted-foreground"
                   >
                     {isGeoLoading ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Getting Location...
-                      </>
-                    ) : hasLocation ? (
-                      <>
-                        <MapPin className="mr-2 h-4 w-4" />
-                        Update Location
-                      </>
+                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
                     ) : (
-                      <>
-                        <MapPin className="mr-2 h-4 w-4" />
-                        Get Location
-                      </>
+                      <MapPin className="mr-1 h-3 w-3" />
                     )}
+                    Refresh
                   </Button>
-                </CardContent>
-              </Card>
-
-              {message && (
-                <Alert
-                  variant={message.type === 'error' ? 'destructive' : 'default'}
-                  className={
-                    message.type === 'warning'
-                      ? 'border-[#deb43e]/40 bg-[#deb43e]/10 text-[#996b1d] [&>svg]:text-[#deb43e]'
-                      : undefined
-                  }
-                >
-                  {message.type === 'success' ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                  ) : message.type === 'warning' ? (
-                    <AlertTriangle className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  <AlertDescription>{message.text}</AlertDescription>
-                </Alert>
+                </div>
+              ) : (
+                <Card className="border-0 shadow-md duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:150ms]">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
+                        <MapPin className="h-4 w-4 text-[#007078]" />
+                      </div>
+                      Location
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {hasLocation &&
+                    geofenceStatus &&
+                    !geofenceStatus.isWithinGeofence ? (
+                      <>
+                        <div className="flex items-center gap-2 text-sm font-medium text-red-600">
+                          <AlertCircle className="h-4 w-4" />
+                          <span>
+                            {formatDistance(geofenceStatus.distanceMeters)} away
+                            {' \u2022 '}
+                            Must be within{' '}
+                            {Math.round(
+                              geofenceStatus.allowedRadiusMeters *
+                                METERS_TO_FEET
+                            )}
+                            ft
+                          </span>
+                        </div>
+                        <Button
+                          variant="outline"
+                          onClick={handleRequestLocation}
+                          disabled={isGeoLoading || isPending}
+                          className="w-full"
+                        >
+                          <MapPin className="mr-2 h-4 w-4" />
+                          Retry Location
+                        </Button>
+                      </>
+                    ) : permissionState === 'denied' || hasError ? (
+                      <div className="space-y-3">
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Location Blocked</AlertTitle>
+                          <AlertDescription>
+                            Tap the lock icon in your browser&apos;s address
+                            bar, set Location to &quot;Allow&quot;, then reload.
+                          </AlertDescription>
+                        </Alert>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => window.location.reload()}
+                        >
+                          Reload Page
+                        </Button>
+                      </div>
+                    ) : isGeoLoading ? (
+                      <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Getting your location...</span>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="rounded-lg border border-[#007078]/20 bg-[#007078]/5 p-3">
+                          <p className="text-sm font-medium text-[#007078]">
+                            Your browser will ask for location access
+                          </p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Tap{' '}
+                            <span className="font-medium text-foreground">
+                              &quot;Allow&quot;
+                            </span>{' '}
+                            when you see the popup to verify you are at the
+                            center.
+                          </p>
+                        </div>
+                        <Button
+                          className="w-full bg-[#007078] text-white hover:bg-[#005a61]"
+                          onClick={handleRequestLocation}
+                          disabled={isPending}
+                        >
+                          <MapPin className="mr-2 h-4 w-4" />
+                          Enable Location
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
               )}
+
+              {message &&
+                (message.type === 'success' ? (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-center">
+                    <CheckCircle2 className="mx-auto mb-1.5 h-6 w-6 text-green-600" />
+                    <p className="text-sm font-medium text-green-800">
+                      {message.text}
+                    </p>
+                  </div>
+                ) : (
+                  <Alert
+                    variant={
+                      message.type === 'error' ? 'destructive' : 'default'
+                    }
+                    className={
+                      message.type === 'warning'
+                        ? 'border-[#deb43e]/40 bg-[#deb43e]/10 text-[#996b1d] [&>svg]:text-[#deb43e]'
+                        : undefined
+                    }
+                  >
+                    {message.type === 'warning' ? (
+                      <AlertTriangle className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    <AlertDescription>{message.text}</AlertDescription>
+                  </Alert>
+                ))}
 
               <div className="space-y-3">
                 {!isClockedIn ? (
@@ -474,7 +523,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                 ) : !isClockedOut ? (
                   <Button
                     size="lg"
-                    className="h-14 w-full border-2 border-[#007078] bg-white text-lg text-[#007078] shadow-md transition-all hover:bg-[#007078]/5 hover:shadow-lg active:scale-[0.98]"
+                    className="h-14 w-full bg-amber-600 text-lg text-white shadow-lg shadow-amber-600/25 transition-all hover:bg-amber-700 hover:shadow-xl hover:shadow-amber-600/30 active:scale-[0.98]"
                     onClick={handleClockOut}
                     disabled={!hasLocation || isPending}
                   >

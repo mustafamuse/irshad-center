@@ -9,7 +9,6 @@ import {
   addDays,
   getDay,
 } from 'date-fns'
-import { formatInTimeZone } from 'date-fns-tz'
 
 export interface WeekendDayOption {
   value: string
@@ -25,16 +24,18 @@ export interface FilterOption {
   end: Date
 }
 
-export function formatCheckinDate(date: Date): string {
-  return formatInTimeZone(date, 'UTC', 'EEE, MMM d')
+export function formatCheckinDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return format(new Date(year, month - 1, day), 'EEE, MMM d')
 }
 
 export function formatCheckinTime(date: Date): string {
   return format(new Date(date), 'h:mm a')
 }
 
-export function formatFullDate(date: Date): string {
-  return format(new Date(date), 'EEEE, MMMM d, yyyy')
+export function formatFullDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return format(new Date(year, month - 1, day), 'EEEE, MMMM d, yyyy')
 }
 
 function getDaysToSaturday(dayOfWeek: number): number {
