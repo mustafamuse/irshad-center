@@ -30,12 +30,21 @@ export function useGeolocation() {
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.permissions) return
-    navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-      setPermissionState(result.state as PermissionState)
-      result.addEventListener('change', () => {
+    let status: PermissionStatus | null = null
+    const onChange = () => {
+      if (status) setPermissionState(status.state as PermissionState)
+    }
+    navigator.permissions
+      .query({ name: 'geolocation' })
+      .then((result) => {
+        status = result
         setPermissionState(result.state as PermissionState)
+        result.addEventListener('change', onChange)
       })
-    })
+      .catch(() => {})
+    return () => {
+      status?.removeEventListener('change', onChange)
+    }
   }, [])
 
   const requestLocation = useCallback(async (): Promise<LocationData> => {

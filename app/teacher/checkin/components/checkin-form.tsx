@@ -421,7 +421,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                           Retry Location
                         </Button>
                       </>
-                    ) : permissionState === 'denied' || hasError ? (
+                    ) : permissionState === 'denied' ? (
                       <div className="space-y-3">
                         <Alert variant="destructive">
                           <AlertCircle className="h-4 w-4" />
@@ -437,6 +437,26 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                           onClick={() => window.location.reload()}
                         >
                           Reload Page
+                        </Button>
+                      </div>
+                    ) : hasError ? (
+                      <div className="space-y-3">
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Could Not Get Location</AlertTitle>
+                          <AlertDescription>
+                            Make sure you are not in airplane mode and have a
+                            clear view of the sky, then try again.
+                          </AlertDescription>
+                        </Alert>
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={handleRequestLocation}
+                          disabled={isGeoLoading || isPending}
+                        >
+                          <MapPin className="mr-2 h-4 w-4" />
+                          Retry Location
                         </Button>
                       </div>
                     ) : isGeoLoading ? (
