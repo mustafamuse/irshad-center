@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     if (!productId) {
       await logError(
         logger,
-        new Error('STRIPE_MAHAD_PRODUCT_ID_LIVE/TEST not configured'),
+        new Error('STRIPE_MAHAD_PRODUCT_ID not configured'),
         'Stripe product not configured',
         { profileId }
       )

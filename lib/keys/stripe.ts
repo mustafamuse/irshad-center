@@ -96,11 +96,7 @@ export function keys(): StripeKeysConfig {
     webhookSecret: dugsiWebhookSecret,
     publishableKey: dugsiPublishableKey,
     paymentLink: process.env.NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK,
-    productId: isProduction
-      ? process.env.STRIPE_DUGSI_PRODUCT_ID_LIVE ||
-        process.env.STRIPE_DUGSI_PRODUCT_ID
-      : process.env.STRIPE_DUGSI_PRODUCT_ID_TEST ||
-        process.env.STRIPE_DUGSI_PRODUCT_ID,
+    productId: process.env.STRIPE_DUGSI_PRODUCT_ID,
   }
 
   return {
@@ -144,7 +140,7 @@ export function getMahadKeys(): MahadConfig {
     if (!productIdResult.success) {
       throw new Error(
         'Mahad Stripe product ID has invalid format. ' +
-          'Please set STRIPE_MAHAD_PRODUCT_ID_TEST and STRIPE_MAHAD_PRODUCT_ID_LIVE (must start with prod_).'
+          'Please set STRIPE_MAHAD_PRODUCT_ID (must start with prod_).'
       )
     }
   }
@@ -184,7 +180,7 @@ export function getDugsiKeys(): DugsiConfig {
     if (!productIdResult.success) {
       throw new Error(
         'Dugsi Stripe product ID has invalid format. ' +
-          'Please set STRIPE_DUGSI_PRODUCT_ID_TEST and STRIPE_DUGSI_PRODUCT_ID_LIVE (must start with prod_).'
+          'Please set STRIPE_DUGSI_PRODUCT_ID (must start with prod_).'
       )
     }
   }
