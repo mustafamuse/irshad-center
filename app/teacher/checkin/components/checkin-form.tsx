@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
+import { format } from 'date-fns'
 import { Shift } from '@prisma/client'
 import {
   AlertCircle,
@@ -46,6 +47,15 @@ import { OnboardingModal } from './onboarding-modal'
 import { TeacherSelector } from './teacher-selector'
 import { useCheckinOnboarding } from './use-checkin-onboarding'
 import { useGeolocation } from './use-geolocation'
+
+function formatDistance(meters: number): string {
+  const feet = meters * METERS_TO_FEET
+  if (feet >= 1000) {
+    const miles = feet / 5280
+    return `${miles.toFixed(1)} miles`
+  }
+  return `${Math.round(feet)}ft`
+}
 
 interface CheckinFormProps {
   teachers: TeacherForDropdown[]
@@ -110,17 +120,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     ) {
       handleRequestLocation()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- trigger on shift selection or permission grant
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- omits handleRequestLocation (stable useCallback on requestLocation)
   }, [selectedShift, permissionState])
-
-  const formatDistance = (meters: number): string => {
-    const feet = meters * METERS_TO_FEET
-    if (feet >= 1000) {
-      const miles = feet / 5280
-      return `${miles.toFixed(1)} miles`
-    }
-    return `${Math.round(feet)}ft`
-  }
 
   const handleRequestLocation = useCallback(async () => {
     setMessage(null)
@@ -152,7 +153,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       : null
   }, [status, selectedShift])
   const isClockedIn = currentCheckin !== null
-  const isClockedOut = currentCheckin?.clockOutTime !== null
+  const isClockedOut = isClockedIn && currentCheckin.clockOutTime !== null
 
   const handleClockIn = async () => {
     if (
@@ -166,12 +167,15 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
 
     setMessage(null)
 
+    const lat = location.latitude
+    const lng = location.longitude
+
     startTransition(async () => {
       const result = await teacherClockInAction({
         teacherId: selectedTeacherId,
         shift: selectedShift,
-        latitude: location.latitude!,
-        longitude: location.longitude!,
+        latitude: lat!,
+        longitude: lng!,
       })
 
       if (result.success && result.data) {
@@ -195,12 +199,15 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
 
     setMessage(null)
 
+    const lat = location.latitude
+    const lng = location.longitude
+
     startTransition(async () => {
       const result = await teacherClockOutAction({
         checkInId: currentCheckin.id,
         teacherId: selectedTeacherId,
-        latitude: location.latitude!,
-        longitude: location.longitude!,
+        latitude: lat!,
+        longitude: lng!,
       })
 
       if (result.success && result.data) {
@@ -214,11 +221,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
 
   const formatTime = (date: Date | null) => {
     if (!date) return null
-    return new Date(date).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    })
+    return format(new Date(date), 'h:mm a')
   }
 
   return (
