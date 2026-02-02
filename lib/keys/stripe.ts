@@ -67,7 +67,11 @@ export function keys(): StripeKeysConfig {
     publishableKey: isProduction
       ? process.env.NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_LIVE
       : process.env.NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_TEST,
-    productId: process.env.STRIPE_MAHAD_PRODUCT_ID,
+    productId: isProduction
+      ? process.env.STRIPE_MAHAD_PRODUCT_ID_LIVE ||
+        process.env.STRIPE_MAHAD_PRODUCT_ID
+      : process.env.STRIPE_MAHAD_PRODUCT_ID_TEST ||
+        process.env.STRIPE_MAHAD_PRODUCT_ID,
     pricingTableId: process.env.NEXT_PUBLIC_STRIPE_MAHAD_PRICING_TABLE_ID,
   }
 
