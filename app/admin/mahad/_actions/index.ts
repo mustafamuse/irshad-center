@@ -833,7 +833,7 @@ export async function generatePaymentLinkAction(
       return {
         success: false,
         error:
-          'Stripe product not configured. Please set STRIPE_MAHAD_PRODUCT_ID_LIVE/TEST.',
+          'Stripe product not configured. Please set STRIPE_MAHAD_PRODUCT_ID.',
       }
     }
 
@@ -1172,7 +1172,7 @@ export async function generatePaymentLinkWithOverrideAction(
       return {
         success: false,
         error:
-          'Stripe product not configured. Please set STRIPE_MAHAD_PRODUCT_ID_LIVE/TEST.',
+          'Stripe product not configured. Please set STRIPE_MAHAD_PRODUCT_ID.',
       }
     }
 
