@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import { format } from 'date-fns'
 import {
   AlertCircle,
   CheckCircle2,
@@ -29,18 +28,10 @@ import {
   CheckinHistoryResult,
   getTeacherCheckinHistoryAction,
 } from '../actions'
+import { formatCheckinDate, formatCheckinTime } from './date-utils'
 
 interface Props {
   teacherId: string
-}
-
-function formatTime(date: Date): string {
-  return format(new Date(date), 'h:mm a')
-}
-
-function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return format(new Date(year, month - 1, day), 'EEE, MMM d')
 }
 
 export function CheckinHistoryTab({ teacherId }: Props) {
@@ -110,7 +101,7 @@ export function CheckinHistoryTab({ teacherId }: Props) {
             {history.data.map((item: CheckinHistoryItem) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium">
-                  {formatDate(item.date)}
+                  {formatCheckinDate(item.date)}
                 </TableCell>
                 <TableCell>
                   <Badge
@@ -131,14 +122,14 @@ export function CheckinHistoryTab({ teacherId }: Props) {
                       <XCircle className="h-3.5 w-3.5 text-red-500" />
                     )}
                     <span className="text-sm">
-                      {formatTime(item.clockInTime)}
+                      {formatCheckinTime(item.clockInTime)}
                     </span>
                   </div>
                 </TableCell>
                 <TableCell>
                   {item.clockOutTime ? (
                     <span className="text-sm">
-                      {formatTime(item.clockOutTime)}
+                      {formatCheckinTime(item.clockOutTime)}
                     </span>
                   ) : (
                     <span className="text-sm text-muted-foreground">—</span>
@@ -172,7 +163,7 @@ export function CheckinHistoryTab({ teacherId }: Props) {
             <div key={item.id} className="space-y-1 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">
-                  {formatDate(item.date)}
+                  {formatCheckinDate(item.date)}
                 </span>
                 <Badge
                   variant="outline"
@@ -188,10 +179,12 @@ export function CheckinHistoryTab({ teacherId }: Props) {
                   ) : (
                     <XCircle className="h-3.5 w-3.5 text-red-500" />
                   )}
-                  <span>{formatTime(item.clockInTime)}</span>
+                  <span>{formatCheckinTime(item.clockInTime)}</span>
                   <span className="text-muted-foreground">→</span>
                   <span>
-                    {item.clockOutTime ? formatTime(item.clockOutTime) : '—'}
+                    {item.clockOutTime
+                      ? formatCheckinTime(item.clockOutTime)
+                      : '—'}
                   </span>
                 </div>
                 {item.isLate ? (

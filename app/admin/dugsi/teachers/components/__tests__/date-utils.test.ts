@@ -5,6 +5,7 @@ import {
   generateWeekendDayOptions,
   formatCheckinDate,
   formatCheckinTime,
+  formatFullDate,
   getQuarterRange,
   getAvailableQuarters,
 } from '../date-utils'
@@ -24,6 +25,16 @@ describe('formatCheckinDate', () => {
 
   it('handles Friday date string', () => {
     expect(formatCheckinDate('2025-12-26')).toBe('Fri, Dec 26')
+  })
+})
+
+describe('formatFullDate', () => {
+  it('formats date string with full day and month names', () => {
+    expect(formatFullDate('2025-12-27')).toBe('Saturday, December 27, 2025')
+  })
+
+  it('handles first day of year', () => {
+    expect(formatFullDate('2026-01-01')).toBe('Thursday, January 1, 2026')
   })
 })
 

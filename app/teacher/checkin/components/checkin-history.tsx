@@ -2,9 +2,12 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import { format } from 'date-fns'
 import { ChevronDown, Clock, Loader2 } from 'lucide-react'
 
+import {
+  formatCheckinDate,
+  formatCheckinTime,
+} from '@/app/admin/dugsi/teachers/components/date-utils'
 import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
@@ -14,6 +17,7 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
+
 import {
   CheckinHistoryItem,
   CheckinHistoryResult,
@@ -22,15 +26,6 @@ import {
 
 interface Props {
   teacherId: string | null
-}
-
-function formatTime(date: Date): string {
-  return format(new Date(date), 'h:mm a')
-}
-
-function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return format(new Date(year, month - 1, day), 'EEE, MMM d')
 }
 
 export function CheckinHistory({ teacherId }: Props) {
@@ -102,12 +97,12 @@ export function CheckinHistory({ teacherId }: Props) {
                   <div className="flex items-center gap-3">
                     <div>
                       <p className="text-sm font-medium">
-                        {formatDate(item.date)}
+                        {formatCheckinDate(item.date)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatTime(item.clockInTime)}
+                        {formatCheckinTime(item.clockInTime)}
                         {item.clockOutTime
-                          ? ` - ${formatTime(item.clockOutTime)}`
+                          ? ` - ${formatCheckinTime(item.clockOutTime)}`
                           : ' (no clock out)'}
                       </p>
                     </div>

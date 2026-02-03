@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
-import { format } from 'date-fns'
 import { Shift } from '@prisma/client'
+import { format } from 'date-fns'
 import {
   AlertCircle,
   AlertTriangle,
@@ -95,13 +95,20 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       const shifts = teacher?.shifts ?? []
 
       startTransition(async () => {
-        const currentStatus = await getTeacherCurrentStatus(selectedTeacherId)
-        setStatus(currentStatus)
+        try {
+          const currentStatus = await getTeacherCurrentStatus(selectedTeacherId)
+          setStatus(currentStatus)
 
-        if (shifts.length === 1) {
-          setSelectedShift(shifts[0])
-        } else {
-          setSelectedShift(null)
+          if (shifts.length === 1) {
+            setSelectedShift(shifts[0])
+          } else {
+            setSelectedShift(null)
+          }
+        } catch {
+          setMessage({
+            type: 'error',
+            text: 'Could not load status. Please try again.',
+          })
         }
       })
     } else {
@@ -128,8 +135,15 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
     setGeofenceStatus(null)
     const loc = await requestLocation()
     if (loc.latitude !== null && loc.longitude !== null) {
-      const result = await checkGeofence(loc.latitude, loc.longitude)
-      setGeofenceStatus(result)
+      try {
+        const result = await checkGeofence(loc.latitude, loc.longitude)
+        setGeofenceStatus(result)
+      } catch {
+        setMessage({
+          type: 'error',
+          text: 'Could not verify your location. Please try again.',
+        })
+      }
     }
   }, [requestLocation])
 
@@ -162,6 +176,10 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       !location.latitude ||
       !location.longitude
     ) {
+      setMessage({
+        type: 'error',
+        text: 'Location is required. Please enable location and try again.',
+      })
       return
     }
 
@@ -174,8 +192,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       const result = await teacherClockInAction({
         teacherId: selectedTeacherId,
         shift: selectedShift,
-        latitude: lat!,
-        longitude: lng!,
+        latitude: lat,
+        longitude: lng,
       })
 
       if (result.success && result.data) {
@@ -194,6 +212,10 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       !location.latitude ||
       !location.longitude
     ) {
+      setMessage({
+        type: 'error',
+        text: 'Location is required. Please enable location and try again.',
+      })
       return
     }
 
@@ -206,8 +228,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       const result = await teacherClockOutAction({
         checkInId: currentCheckin.id,
         teacherId: selectedTeacherId,
-        latitude: lat!,
-        longitude: lng!,
+        latitude: lat,
+        longitude: lng,
       })
 
       if (result.success && result.data) {
@@ -327,9 +349,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                         Shift Complete
                       </Badge>
                       <p className="text-sm text-muted-foreground">
-                        Clocked in at{' '}
-                        {formatTime(currentCheckin?.clockInTime ?? null)}, out
-                        at {formatTime(currentCheckin?.clockOutTime ?? null)}
+                        Clocked in at {formatTime(currentCheckin.clockInTime)},
+                        out at {formatTime(currentCheckin.clockOutTime)}
                       </p>
                     </div>
                   ) : isClockedIn ? (
@@ -347,8 +368,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Clocked in at{' '}
-                        {formatTime(currentCheckin?.clockInTime ?? null)}
+                        Clocked in at {formatTime(currentCheckin.clockInTime)}
                       </p>
                       <p className="text-sm font-medium text-amber-700">
                         Remember to clock out before leaving
