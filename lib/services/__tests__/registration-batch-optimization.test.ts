@@ -62,6 +62,9 @@ vi.mock('@/lib/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   })),
+  logError: vi.fn(),
+  logWarning: vi.fn(),
+  logInfo: vi.fn(),
 }))
 
 describe('Batch Lookup Helpers', () => {

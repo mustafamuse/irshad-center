@@ -27,7 +27,6 @@ import {
 } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { mapEnrollmentToMahadStudent as _mapEnrollmentToMahadStudent } from '@/lib/mappers/mahad-mapper'
 
 /**
  * Student creation input
@@ -77,94 +76,107 @@ export interface StudentUpdateInput {
  * @returns Created program profile
  */
 export async function createMahadStudent(input: StudentCreateInput) {
-  // Normalize email and phone
   const normalizedEmail = input.email?.toLowerCase().trim() ?? null
   const normalizedPhone = input.phone?.trim() ?? null
 
-  // Check if person already exists by email
-  let person
-  if (normalizedEmail) {
-    person = await prisma.person.findFirst({
-      where: {
-        contactPoints: {
-          some: {
-            type: 'EMAIL',
-            value: normalizedEmail,
+  return prisma.$transaction(async (tx) => {
+    let person
+    if (normalizedEmail) {
+      person = await tx.person.findFirst({
+        where: {
+          contactPoints: {
+            some: {
+              type: 'EMAIL',
+              value: normalizedEmail,
+            },
           },
         },
-      },
-    })
-  }
-
-  // Create person if doesn't exist
-  if (!person) {
-    const contactPoints = []
-
-    if (normalizedEmail) {
-      contactPoints.push({
-        type: 'EMAIL' as const,
-        value: normalizedEmail,
-        isPrimary: true,
       })
     }
 
-    if (normalizedPhone) {
-      contactPoints.push({
-        type: 'PHONE' as const,
-        value: normalizedPhone,
+    if (person) {
+      const existingProfile = await tx.programProfile.findFirst({
+        where: { personId: person.id, program: MAHAD_PROGRAM },
       })
+      if (existingProfile) {
+        throw new ActionError(
+          'Student already registered for Mahad',
+          ERROR_CODES.DUPLICATE_EMAIL,
+          undefined,
+          409
+        )
+      }
     }
 
-    person = await prisma.person.create({
-      data: {
-        name: input.name,
-        dateOfBirth: input.dateOfBirth ?? null,
-        contactPoints: {
-          create: contactPoints,
+    if (!person) {
+      const contactPoints = []
+
+      if (normalizedEmail) {
+        contactPoints.push({
+          type: 'EMAIL' as const,
+          value: normalizedEmail,
+          isPrimary: true,
+        })
+      }
+
+      if (normalizedPhone) {
+        contactPoints.push({
+          type: 'PHONE' as const,
+          value: normalizedPhone,
+        })
+      }
+
+      person = await tx.person.create({
+        data: {
+          name: input.name,
+          dateOfBirth: input.dateOfBirth ?? null,
+          contactPoints: {
+            create: contactPoints,
+          },
         },
-      },
-    })
-  }
+      })
+    }
 
-  // Create program profile with billing fields
-  const profile = await createProgramProfile({
-    personId: person.id,
-    program: MAHAD_PROGRAM,
-    gradeLevel: input.gradeLevel ?? null,
-    schoolName: input.schoolName ?? null,
+    const profile = await createProgramProfile(
+      {
+        personId: person.id,
+        program: MAHAD_PROGRAM,
+        gradeLevel: input.gradeLevel ?? null,
+        schoolName: input.schoolName ?? null,
+      },
+      tx
+    )
+
+    if (
+      input.graduationStatus !== undefined ||
+      input.paymentFrequency !== undefined ||
+      input.billingType !== undefined ||
+      input.paymentNotes !== undefined
+    ) {
+      await tx.programProfile.update({
+        where: { id: profile.id },
+        data: {
+          graduationStatus: input.graduationStatus ?? null,
+          paymentFrequency: input.paymentFrequency ?? null,
+          billingType: input.billingType ?? null,
+          paymentNotes: input.paymentNotes ?? null,
+        },
+      })
+    }
+
+    if (input.batchId) {
+      await tx.enrollment.create({
+        data: {
+          programProfileId: profile.id,
+          batchId: input.batchId,
+          status: 'ENROLLED',
+          startDate: new Date(),
+        },
+      })
+    }
+
+    return profile
   })
-
-  // Update billing fields if provided
-  if (
-    input.graduationStatus !== undefined ||
-    input.paymentFrequency !== undefined ||
-    input.billingType !== undefined ||
-    input.paymentNotes !== undefined
-  ) {
-    await prisma.programProfile.update({
-      where: { id: profile.id },
-      data: {
-        graduationStatus: input.graduationStatus ?? null,
-        paymentFrequency: input.paymentFrequency ?? null,
-        billingType: input.billingType ?? null,
-        paymentNotes: input.paymentNotes ?? null,
-      },
-    })
-  }
-
-  // Create enrollment if batch specified
-  if (input.batchId) {
-    await prisma.enrollment.create({
-      data: {
-        programProfileId: profile.id,
-        batchId: input.batchId,
-        status: 'ENROLLED',
-        startDate: new Date(),
-      },
-    })
-  }
-
-  return profile
 }
 
 /**

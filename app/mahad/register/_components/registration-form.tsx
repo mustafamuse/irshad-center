@@ -1,7 +1,5 @@
 'use client'
 
-import { useState } from 'react'
-
 import Link from 'next/link'
 
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -19,14 +17,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
 import { Form } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import {
@@ -38,99 +28,100 @@ import {
 } from '@/components/ui/select'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import { useEmailValidation } from '@/lib/registration/hooks/use-email-validation'
-import { useSiblingSearch } from '@/lib/registration/hooks/use-sibling-search'
 import {
-  mahadRegistrationSchema as studentFormSchema,
-  type MahadRegistrationValues as StudentFormValues,
+  mahadRegistrationSchema,
+  type MahadRegistrationValues,
   MAHAD_GRADE_OPTIONS,
-  MAHAD_DEFAULT_FORM_VALUES as DEFAULT_FORM_VALUES,
-  type SearchResult,
+  MAHAD_DEFAULT_FORM_VALUES,
   SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
 import {
   buttonClassNames,
   getInputClassNames,
 } from '@/lib/registration/utils/form-utils'
+import { BASE_RATES } from '@/lib/utils/mahad-tuition'
 
-import { CheckoutDialog } from './checkout-dialog'
-import { SiblingManagementSection } from './sibling-management'
-import { SiblingSearchDialog } from './sibling-search-dialog'
 import { useRegistration } from '../_hooks/use-registration'
 
-export function RegisterForm() {
-  const [formData, setFormData] = useState<StudentFormValues | null>(null)
-  const [showSiblingPrompt, setShowSiblingPrompt] = useState(false)
-  const [showSiblingSearch, setShowSiblingSearch] = useState(false)
-  const [showSiblingSection, setShowSiblingSection] = useState(false)
-  const [siblings, setSiblings] = useState<SearchResult[]>([])
-  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
-  const [registeredStudentCount, setRegisteredStudentCount] = useState(1)
-  const [registeredProfileId, setRegisteredProfileId] = useState('')
-  const [registeredStudentName, setRegisteredStudentName] = useState('')
+const STUDENT_TYPE_OPTIONS = [
+  { value: 'NON_GRADUATE', label: 'Current Student' },
+  { value: 'GRADUATE', label: 'Graduate' },
+] as const
 
-  // Form setup
-  const form = useForm<StudentFormValues>({
-    resolver: zodResolver(studentFormSchema),
-    defaultValues: DEFAULT_FORM_VALUES,
+const FREQUENCY_OPTIONS = [
+  { value: 'MONTHLY', label: 'Monthly' },
+  { value: 'BI_MONTHLY', label: 'Every 2 months' },
+] as const
+
+function formatOptionPrice(
+  gradStatus: keyof typeof BASE_RATES,
+  freq: 'MONTHLY' | 'BI_MONTHLY'
+) {
+  const perMonth = BASE_RATES[gradStatus][freq] / 100
+  if (freq === 'BI_MONTHLY') {
+    const monthlyCost = BASE_RATES[gradStatus].MONTHLY / 100
+    const savings = monthlyCost - perMonth
+    return `$${perMonth * 2} (save $${savings}/mo)`
+  }
+  return `$${perMonth}/mo`
+}
+
+function EstimatedPrice({
+  graduationStatus,
+  paymentFrequency,
+}: {
+  graduationStatus?: string
+  paymentFrequency?: string
+}) {
+  if (!graduationStatus || !paymentFrequency) return null
+
+  const gradKey = graduationStatus as keyof typeof BASE_RATES
+  const freqKey = paymentFrequency as 'MONTHLY' | 'BI_MONTHLY'
+  const perMonth = BASE_RATES[gradKey]?.[freqKey]
+  if (!perMonth) return null
+
+  const isBiMonthly = freqKey === 'BI_MONTHLY'
+  const dollars = perMonth / 100
+  const label = isBiMonthly
+    ? `Estimated: $${dollars * 2} every 2 months`
+    : `Estimated: $${dollars}/month`
+
+  const savings = isBiMonthly ? BASE_RATES[gradKey].MONTHLY / 100 - dollars : 0
+
+  return (
+    <div className="rounded-lg bg-teal-50 p-3 text-sm">
+      <p className="font-medium text-teal-800">{label}</p>
+      {savings > 0 && (
+        <p className="text-teal-600">
+          Save ${savings}/month vs monthly billing
+        </p>
+      )}
+    </div>
+  )
+}
+
+export function RegisterForm() {
+  const form = useForm<MahadRegistrationValues>({
+    resolver: zodResolver(mahadRegistrationSchema),
+    defaultValues: MAHAD_DEFAULT_FORM_VALUES,
     mode: 'onBlur',
   })
 
-  // Custom hooks
   const { validateEmail, isCheckingEmail } = useEmailValidation(form)
-  const { searchSiblings } = useSiblingSearch(formData?.lastName)
-  const { registerStudent, isSubmitting } = useRegistration({
-    form,
-    onSuccess: (result) => {
-      setFormData(null)
-      setSiblings([])
-      setShowSiblingSection(false)
-      setShowSiblingPrompt(false)
-      setRegisteredStudentCount(result.studentCount)
-      setRegisteredProfileId(result.profileId)
-      setRegisteredStudentName(result.studentName)
-      setShowPaymentDialog(true)
-    },
-  })
+  const { registerStudent, isSubmitting } = useRegistration({ form })
 
-  // Handlers
-  const handleSubmit = async (data: StudentFormValues) => {
-    // Validate email before proceeding
+  const graduationStatus = form.watch('graduationStatus')
+  const paymentFrequency = form.watch('paymentFrequency')
+
+  const handleSubmit = async (data: MahadRegistrationValues) => {
     const isEmailValid = await validateEmail(data.email)
-    if (!isEmailValid) {
-      return
-    }
-
-    setFormData(data)
-    setShowSiblingPrompt(true)
-  }
-
-  const handleNoSiblingsRegistration = () => {
-    if (!formData) return
-    registerStudent(formData, [])
-  }
-
-  const handleSiblingRegistration = () => {
-    if (!formData) return
-    registerStudent(formData, siblings)
-  }
-
-  const handleAddSibling = (sibling: SearchResult) => {
-    setSiblings((prev) => [...prev, sibling])
-    setShowSiblingSearch(false)
-  }
-
-  const handleRemoveSibling = (siblingId: string) => {
-    setSiblings((prev) => prev.filter((s) => s.id !== siblingId))
-  }
-
-  const handleSiblingSearchOpen = () => {
-    setShowSiblingSearch(true)
+    if (!isEmailValid) return
+    registerStudent(data)
   }
 
   return (
     <div className="min-h-screen bg-white px-4 pb-20 pt-4 md:px-6 md:py-8">
       <div className="mx-auto max-w-3xl space-y-4 md:space-y-8">
-        {/* Navigation Context */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Link
@@ -162,7 +153,6 @@ export function RegisterForm() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6 px-0">
-                {/* Name Fields */}
                 <NameFields
                   control={form.control}
                   firstNameField="firstName"
@@ -173,7 +163,6 @@ export function RegisterForm() {
                   lastNamePlaceholder="Enter your legal last name"
                 />
 
-                {/* Contact Fields */}
                 <ContactFields
                   control={form.control}
                   emailField="email"
@@ -186,13 +175,11 @@ export function RegisterForm() {
                   }}
                 />
 
-                {/* Date of Birth Field */}
                 <DateOfBirthField
                   control={form.control}
                   fieldName="dateOfBirth"
                 />
 
-                {/* Grade & School Fields - controlled by SHOW_GRADE_SCHOOL feature flag */}
                 {SHOW_GRADE_SCHOOL && (
                   <>
                     <FormFieldWrapper
@@ -245,98 +232,89 @@ export function RegisterForm() {
                   </>
                 )}
 
-                {/* Submit Button */}
+                <FormFieldWrapper
+                  control={form.control}
+                  name="graduationStatus"
+                  label="Student Type"
+                  required
+                >
+                  {(field, fieldState) => (
+                    <Select
+                      value={field.value || ''}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger
+                        aria-invalid={!!fieldState.error}
+                        className={getInputClassNames(!!fieldState.error)}
+                      >
+                        <SelectValue placeholder="Select student type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STUDENT_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                            {paymentFrequency &&
+                              ` - ${formatOptionPrice(option.value, paymentFrequency as 'MONTHLY' | 'BI_MONTHLY')}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormFieldWrapper>
+
+                <FormFieldWrapper
+                  control={form.control}
+                  name="paymentFrequency"
+                  label="Payment Frequency"
+                  required
+                >
+                  {(field, fieldState) => (
+                    <Select
+                      value={field.value || ''}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger
+                        aria-invalid={!!fieldState.error}
+                        className={getInputClassNames(!!fieldState.error)}
+                      >
+                        <SelectValue placeholder="Select payment frequency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FREQUENCY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                            {graduationStatus &&
+                              ` - ${formatOptionPrice(graduationStatus as keyof typeof BASE_RATES, option.value)}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </FormFieldWrapper>
+
+                <EstimatedPrice
+                  graduationStatus={graduationStatus}
+                  paymentFrequency={paymentFrequency}
+                />
+
                 <Button
                   type="submit"
                   className={buttonClassNames.primary}
-                  disabled={form.formState.isSubmitting}
+                  disabled={isSubmitting || form.formState.isSubmitting}
                 >
-                  {form.formState.isSubmitting ? (
+                  {isSubmitting ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Submitting...
+                      Registering...
                     </span>
                   ) : (
-                    'Continue to Next Step'
+                    'Register'
                   )}
                 </Button>
               </CardContent>
             </Card>
           </form>
         </Form>
-
-        {/* Sibling Management Section */}
-        {showSiblingSection && (
-          <SiblingManagementSection
-            siblings={siblings}
-            onRemoveSibling={handleRemoveSibling}
-            onAddSiblingClick={handleSiblingSearchOpen}
-            onContinue={handleSiblingRegistration}
-            isSubmitting={isSubmitting}
-          />
-        )}
-
-        {/* Sibling Dialog */}
-        <Dialog open={showSiblingPrompt} onOpenChange={setShowSiblingPrompt}>
-          <DialogContent className="mx-4 max-w-[400px] rounded-2xl border-0 p-6 shadow-sm md:p-8">
-            <DialogHeader className="space-y-3">
-              <DialogTitle className="text-center text-xl font-semibold text-[#007078]">
-                Do you have any siblings at Irshād Māhad?
-              </DialogTitle>
-              <DialogDescription className="text-center text-base text-gray-600">
-                Let us know if you have any siblings currently enrolled. This
-                helps us keep family records together.
-              </DialogDescription>
-            </DialogHeader>
-
-            <DialogFooter className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Button
-                className={buttonClassNames.primary}
-                onClick={handleNoSiblingsRegistration}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <div className="flex flex-col gap-4 sm:gap-6">
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Processing...
-                  </div>
-                ) : (
-                  'No, Continue to Payment'
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                className={buttonClassNames.secondary}
-                onClick={() => {
-                  setShowSiblingPrompt(false)
-                  setShowSiblingSection(true)
-                }}
-                disabled={isSubmitting}
-              >
-                Yes, Add a Sibling
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Sibling Search Dialog */}
-        <SiblingSearchDialog
-          isOpen={showSiblingSearch}
-          onOpenChange={setShowSiblingSearch}
-          onAddSibling={handleAddSibling}
-          onSearch={searchSiblings}
-          studentLastName={formData?.lastName}
-          existingSiblingIds={siblings.map((s) => s.id)}
-        />
-
-        {/* Checkout Dialog */}
-        <CheckoutDialog
-          isOpen={showPaymentDialog}
-          onOpenChange={setShowPaymentDialog}
-          studentCount={registeredStudentCount}
-          profileId={registeredProfileId}
-          studentName={registeredStudentName}
-        />
       </div>
     </div>
   )

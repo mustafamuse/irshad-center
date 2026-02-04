@@ -1,98 +1,65 @@
-import { useState, useCallback } from 'react'
+import { useTransition, useCallback } from 'react'
 
-import { UseFormReturn } from 'react-hook-form'
+import { useRouter } from 'next/navigation'
+
+import { FieldPath, UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { createClientLogger } from '@/lib/logger-client'
-import {
-  MahadRegistrationValues as StudentFormValues,
-  type SearchResult,
-} from '@/lib/registration/schemas/registration'
+import type { MahadRegistrationValues } from '@/lib/registration/schemas/registration'
 
 import { registerStudent as registerStudentAction } from '../_actions'
 
 const logger = createClientLogger('mahad-registration')
 
-interface RegistrationResult {
-  studentCount: number
-  profileId: string
-  studentName: string
-}
-
-interface UseRegistrationProps {
-  form: UseFormReturn<StudentFormValues>
-  onSuccess: (result: RegistrationResult) => void
-}
-
-export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export function useRegistration({
+  form,
+}: {
+  form: UseFormReturn<MahadRegistrationValues>
+}) {
+  const [isSubmitting, startTransition] = useTransition()
+  const router = useRouter()
 
   const registerStudent = useCallback(
-    async (formData: StudentFormValues, siblings: SearchResult[]) => {
-      if (isSubmitting) return
+    (formData: MahadRegistrationValues) => {
+      startTransition(async () => {
+        try {
+          const result = await registerStudentAction(formData)
 
-      setIsSubmitting(true)
-
-      const successMessage =
-        siblings.length > 0
-          ? `Registration complete! Successfully enrolled ${siblings.length + 1} students.`
-          : 'Registration complete! Successfully enrolled 1 student.'
-
-      const registrationPromise = registerStudentAction({
-        studentData: formData,
-        siblingIds: siblings.length > 0 ? siblings.map((s) => s.id) : null,
-      })
-
-      try {
-        const result = await registrationPromise
-
-        if (!result.success) {
-          // If error has a specific field, show it under that field
-          // Note: field property is only available when service returns field-specific errors
-          const field = 'field' in result ? result.field : undefined
-          if (
-            field &&
-            typeof field === 'string' &&
-            (field === 'email' ||
-              field === 'phone' ||
-              field === 'firstName' ||
-              field === 'lastName' ||
-              field === 'dateOfBirth')
-          ) {
-            form.setError(field, {
-              type: 'manual',
-              message: result.error ?? 'Validation error',
-            })
-            // Also show toast for visibility
-            toast.error(result.error)
-          } else {
-            // General error, just show toast
+          if (!result.success) {
+            if (result.errors) {
+              for (const [field, messages] of Object.entries(result.errors)) {
+                if (messages?.[0]) {
+                  form.setError(field as FieldPath<MahadRegistrationValues>, {
+                    type: 'manual',
+                    message: messages[0],
+                  })
+                }
+              }
+            }
             toast.error(
               result.error || 'Registration failed. Please try again.'
             )
+            return
           }
-          return
-        }
 
-        toast.success(successMessage)
-        form.reset()
-        onSuccess({
-          studentCount: siblings.length + 1,
-          profileId: result.data.id,
-          studentName: result.data.name,
-        })
-      } catch (error) {
-        logger.error('Registration error:', error)
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'Registration failed. Please try again.'
-        )
-      } finally {
-        setIsSubmitting(false)
-      }
+          toast.success('Registration complete!')
+          form.reset()
+          const name = result.data?.name ?? ''
+          router.push(
+            `/mahad/register/success?name=${encodeURIComponent(name)}`
+          )
+        } catch (error) {
+          logger.error('Registration error:', error)
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : 'Registration failed. Please try again.'
+          )
+        }
+      })
     },
-    [isSubmitting, form, onSuccess]
+    [form, router]
   )
 
   return {
