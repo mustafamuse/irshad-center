@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import { UseFormReturn } from 'react-hook-form'
+import { FieldPath, UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { createClientLogger } from '@/lib/logger-client'
@@ -31,17 +31,9 @@ export function useRegistration({
 
         if (!result.success) {
           if (result.errors) {
-            const fieldNames = [
-              'email',
-              'phone',
-              'firstName',
-              'lastName',
-              'dateOfBirth',
-            ] as const
-            for (const field of fieldNames) {
-              const messages = result.errors[field]
+            for (const [field, messages] of Object.entries(result.errors)) {
               if (messages?.[0]) {
-                form.setError(field, {
+                form.setError(field as FieldPath<MahadRegistrationValues>, {
                   type: 'manual',
                   message: messages[0],
                 })
