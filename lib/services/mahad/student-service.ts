@@ -94,6 +94,20 @@ export async function createMahadStudent(input: StudentCreateInput) {
       })
     }
 
+    if (person) {
+      const existingProfile = await tx.programProfile.findFirst({
+        where: { personId: person.id, program: MAHAD_PROGRAM },
+      })
+      if (existingProfile) {
+        throw new ActionError(
+          'Student already registered for Mahad',
+          ERROR_CODES.DUPLICATE_EMAIL,
+          undefined,
+          409
+        )
+      }
+    }
+
     if (!person) {
       const contactPoints = []
 

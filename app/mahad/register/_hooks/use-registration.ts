@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useTransition, useCallback } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -17,49 +17,49 @@ export function useRegistration({
 }: {
   form: UseFormReturn<MahadRegistrationValues>
 }) {
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSubmitting, startTransition] = useTransition()
   const router = useRouter()
 
   const registerStudent = useCallback(
-    async (formData: MahadRegistrationValues) => {
-      if (isSubmitting) return
+    (formData: MahadRegistrationValues) => {
+      startTransition(async () => {
+        try {
+          const result = await registerStudentAction(formData)
 
-      setIsSubmitting(true)
-
-      try {
-        const result = await registerStudentAction(formData)
-
-        if (!result.success) {
-          if (result.errors) {
-            for (const [field, messages] of Object.entries(result.errors)) {
-              if (messages?.[0]) {
-                form.setError(field as FieldPath<MahadRegistrationValues>, {
-                  type: 'manual',
-                  message: messages[0],
-                })
+          if (!result.success) {
+            if (result.errors) {
+              for (const [field, messages] of Object.entries(result.errors)) {
+                if (messages?.[0]) {
+                  form.setError(field as FieldPath<MahadRegistrationValues>, {
+                    type: 'manual',
+                    message: messages[0],
+                  })
+                }
               }
             }
+            toast.error(
+              result.error || 'Registration failed. Please try again.'
+            )
+            return
           }
-          toast.error(result.error || 'Registration failed. Please try again.')
-          return
-        }
 
-        toast.success('Registration complete!')
-        form.reset()
-        const name = result.data?.name ?? ''
-        router.push(`/mahad/register/success?name=${encodeURIComponent(name)}`)
-      } catch (error) {
-        logger.error('Registration error:', error)
-        toast.error(
-          error instanceof Error
-            ? error.message
-            : 'Registration failed. Please try again.'
-        )
-      } finally {
-        setIsSubmitting(false)
-      }
+          toast.success('Registration complete!')
+          form.reset()
+          const name = result.data?.name ?? ''
+          router.push(
+            `/mahad/register/success?name=${encodeURIComponent(name)}`
+          )
+        } catch (error) {
+          logger.error('Registration error:', error)
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : 'Registration failed. Please try again.'
+          )
+        }
+      })
     },
-    [isSubmitting, form, router]
+    [form, router]
   )
 
   return {
