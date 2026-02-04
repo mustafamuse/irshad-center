@@ -6,22 +6,22 @@ import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { createClientLogger } from '@/lib/logger-client'
-import { MahadRegistrationValues as StudentFormValues } from '@/lib/registration/schemas/registration'
+import type { MahadRegistrationValues } from '@/lib/registration/schemas/registration'
 
 import { registerStudent as registerStudentAction } from '../_actions'
 
 const logger = createClientLogger('mahad-registration')
 
-interface UseRegistrationProps {
-  form: UseFormReturn<StudentFormValues>
-}
-
-export function useRegistration({ form }: UseRegistrationProps) {
+export function useRegistration({
+  form,
+}: {
+  form: UseFormReturn<MahadRegistrationValues>
+}) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
 
   const registerStudent = useCallback(
-    async (formData: StudentFormValues) => {
+    async (formData: MahadRegistrationValues) => {
       if (isSubmitting) return
 
       setIsSubmitting(true)

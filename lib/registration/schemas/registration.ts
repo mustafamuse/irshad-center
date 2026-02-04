@@ -329,13 +329,3 @@ export const DUGSI_DEFAULT_FORM_VALUES: Partial<DugsiRegistrationValues> = {
   primaryPayer: 'parent1',
   children: [DEFAULT_CHILD_VALUES, DEFAULT_CHILD_VALUES],
 }
-
-// ============================================================================
-// SHARED INTERFACES
-// ============================================================================
-
-export interface SearchResult {
-  id: string
-  name: string
-  lastName: string
-}

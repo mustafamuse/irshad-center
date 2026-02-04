@@ -3,18 +3,20 @@
 import { revalidatePath } from 'next/cache'
 
 import { Prisma } from '@prisma/client'
-import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
-import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
+import {
+  mahadRegistrationSchema,
+  type MahadRegistrationValues,
+} from '@/lib/registration/schemas/registration'
 import { createMahadStudent } from '@/lib/services/mahad/student-service'
 import type { ActionResult } from '@/lib/utils/action-helpers'
 
 const logger = createActionLogger('mahad-registration')
 
 export async function registerStudent(
-  studentData: z.infer<typeof mahadRegistrationSchema>
+  studentData: MahadRegistrationValues
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
     const validationResult = mahadRegistrationSchema.safeParse(studentData)
@@ -88,19 +90,14 @@ export async function registerStudent(
 }
 
 export async function checkEmailExists(email: string): Promise<boolean> {
-  try {
-    const normalizedEmail = email.toLowerCase().trim()
+  const normalizedEmail = email.toLowerCase().trim()
 
-    const existingContact = await prisma.contactPoint.findFirst({
-      where: {
-        type: 'EMAIL',
-        value: normalizedEmail,
-      },
-    })
+  const existingContact = await prisma.contactPoint.findFirst({
+    where: {
+      type: 'EMAIL',
+      value: normalizedEmail,
+    },
+  })
 
-    return existingContact !== null
-  } catch (error) {
-    await logError(logger, error, 'Email existence check failed', { email })
-    throw error
-  }
+  return existingContact !== null
 }

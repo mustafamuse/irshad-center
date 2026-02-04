@@ -29,10 +29,10 @@ import {
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
 import { useEmailValidation } from '@/lib/registration/hooks/use-email-validation'
 import {
-  mahadRegistrationSchema as studentFormSchema,
-  type MahadRegistrationValues as StudentFormValues,
+  mahadRegistrationSchema,
+  type MahadRegistrationValues,
   MAHAD_GRADE_OPTIONS,
-  MAHAD_DEFAULT_FORM_VALUES as DEFAULT_FORM_VALUES,
+  MAHAD_DEFAULT_FORM_VALUES,
   SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
 import {
@@ -77,38 +77,33 @@ function EstimatedPrice({
 
   const gradKey = graduationStatus as keyof typeof BASE_RATES
   const freqKey = paymentFrequency as 'MONTHLY' | 'BI_MONTHLY'
-  const monthlyRate = BASE_RATES[gradKey]?.[freqKey]
-  if (!monthlyRate) return null
+  const perMonth = BASE_RATES[gradKey]?.[freqKey]
+  if (!perMonth) return null
 
-  const dollars = monthlyRate / 100
+  const isBiMonthly = freqKey === 'BI_MONTHLY'
+  const dollars = perMonth / 100
+  const label = isBiMonthly
+    ? `Estimated: $${dollars * 2} every 2 months`
+    : `Estimated: $${dollars}/month`
 
-  if (freqKey === 'BI_MONTHLY') {
-    const totalBiMonthly = dollars * 2
-    const monthlyEquivalent = BASE_RATES[gradKey].MONTHLY / 100
-    const savings = monthlyEquivalent - dollars
-    return (
-      <div className="rounded-lg bg-teal-50 p-3 text-sm">
-        <p className="font-medium text-teal-800">
-          Estimated: ${totalBiMonthly} every 2 months
-        </p>
-        <p className="text-teal-600">
-          Save ${savings}/month vs monthly billing
-        </p>
-      </div>
-    )
-  }
+  const savings = isBiMonthly ? BASE_RATES[gradKey].MONTHLY / 100 - dollars : 0
 
   return (
     <div className="rounded-lg bg-teal-50 p-3 text-sm">
-      <p className="font-medium text-teal-800">Estimated: ${dollars}/month</p>
+      <p className="font-medium text-teal-800">{label}</p>
+      {savings > 0 && (
+        <p className="text-teal-600">
+          Save ${savings}/month vs monthly billing
+        </p>
+      )}
     </div>
   )
 }
 
 export function RegisterForm() {
-  const form = useForm<StudentFormValues>({
-    resolver: zodResolver(studentFormSchema),
-    defaultValues: DEFAULT_FORM_VALUES,
+  const form = useForm<MahadRegistrationValues>({
+    resolver: zodResolver(mahadRegistrationSchema),
+    defaultValues: MAHAD_DEFAULT_FORM_VALUES,
     mode: 'onBlur',
   })
 
@@ -118,7 +113,7 @@ export function RegisterForm() {
   const graduationStatus = form.watch('graduationStatus')
   const paymentFrequency = form.watch('paymentFrequency')
 
-  const handleSubmit = async (data: StudentFormValues) => {
+  const handleSubmit = async (data: MahadRegistrationValues) => {
     const isEmailValid = await validateEmail(data.email)
     if (!isEmailValid) return
     registerStudent(data)
