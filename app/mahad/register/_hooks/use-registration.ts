@@ -1,54 +1,35 @@
 import { useState, useCallback } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
 import { createClientLogger } from '@/lib/logger-client'
-import {
-  MahadRegistrationValues as StudentFormValues,
-  type SearchResult,
-} from '@/lib/registration/schemas/registration'
+import { MahadRegistrationValues as StudentFormValues } from '@/lib/registration/schemas/registration'
 
 import { registerStudent as registerStudentAction } from '../_actions'
 
 const logger = createClientLogger('mahad-registration')
 
-interface RegistrationResult {
-  studentCount: number
-  profileId: string
-  studentName: string
-}
-
 interface UseRegistrationProps {
   form: UseFormReturn<StudentFormValues>
-  onSuccess: (result: RegistrationResult) => void
 }
 
-export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
+export function useRegistration({ form }: UseRegistrationProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const router = useRouter()
 
   const registerStudent = useCallback(
-    async (formData: StudentFormValues, siblings: SearchResult[]) => {
+    async (formData: StudentFormValues) => {
       if (isSubmitting) return
 
       setIsSubmitting(true)
 
-      const successMessage =
-        siblings.length > 0
-          ? `Registration complete! Successfully enrolled ${siblings.length + 1} students.`
-          : 'Registration complete! Successfully enrolled 1 student.'
-
-      const registrationPromise = registerStudentAction({
-        studentData: formData,
-        siblingIds: siblings.length > 0 ? siblings.map((s) => s.id) : null,
-      })
-
       try {
-        const result = await registrationPromise
+        const result = await registerStudentAction(formData)
 
         if (!result.success) {
-          // If error has a specific field, show it under that field
-          // Note: field property is only available when service returns field-specific errors
           const field = 'field' in result ? result.field : undefined
           if (
             field &&
@@ -63,10 +44,8 @@ export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
               type: 'manual',
               message: result.error ?? 'Validation error',
             })
-            // Also show toast for visibility
             toast.error(result.error)
           } else {
-            // General error, just show toast
             toast.error(
               result.error || 'Registration failed. Please try again.'
             )
@@ -74,13 +53,11 @@ export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
           return
         }
 
-        toast.success(successMessage)
+        toast.success('Registration complete!')
         form.reset()
-        onSuccess({
-          studentCount: siblings.length + 1,
-          profileId: result.data.id,
-          studentName: result.data.name,
-        })
+        router.push(
+          `/mahad/register/success?name=${encodeURIComponent(result.data.name)}`
+        )
       } catch (error) {
         logger.error('Registration error:', error)
         toast.error(
@@ -92,7 +69,7 @@ export function useRegistration({ form, onSuccess }: UseRegistrationProps) {
         setIsSubmitting(false)
       }
     },
-    [isSubmitting, form, onSuccess]
+    [isSubmitting, form, router]
   )
 
   return {

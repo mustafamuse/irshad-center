@@ -1,4 +1,10 @@
-import { GradeLevel, Gender, Shift } from '@prisma/client'
+import {
+  GradeLevel,
+  Gender,
+  Shift,
+  GraduationStatus,
+  PaymentFrequency,
+} from '@prisma/client'
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -144,6 +150,12 @@ export const mahadRegistrationSchema = z.object({
   schoolName: SHOW_GRADE_SCHOOL
     ? schoolNameSchema
     : schoolNameSchema.nullable().optional(),
+  graduationStatus: z.nativeEnum(GraduationStatus, {
+    required_error: 'Please select your graduation status',
+  }),
+  paymentFrequency: z.nativeEnum(PaymentFrequency, {
+    required_error: 'Please select a payment frequency',
+  }),
 })
 
 export type MahadRegistrationValues = z.infer<typeof mahadRegistrationSchema>
@@ -160,6 +172,8 @@ export const MAHAD_DEFAULT_FORM_VALUES: Partial<MahadRegistrationValues> = {
   dateOfBirth: undefined,
   gradeLevel: undefined,
   schoolName: undefined,
+  graduationStatus: undefined,
+  paymentFrequency: undefined,
 }
 
 // ============================================================================
