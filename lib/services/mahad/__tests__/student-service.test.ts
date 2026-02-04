@@ -150,14 +150,27 @@ describe('createMahadStudent', () => {
     })
   })
 
-  it('should create enrollment when batchId is provided', async () => {
+  it('should always create enrollment record', async () => {
+    await createMahadStudent(baseInput)
+
+    expect(mockEnrollmentCreate).toHaveBeenCalledWith({
+      data: {
+        programProfileId: 'profile-1',
+        batchId: null,
+        status: 'REGISTERED',
+        startDate: expect.any(Date),
+      },
+    })
+  })
+
+  it('should create enrollment with batchId when provided', async () => {
     await createMahadStudent({ ...baseInput, batchId: 'batch-1' })
 
     expect(mockEnrollmentCreate).toHaveBeenCalledWith({
       data: {
         programProfileId: 'profile-1',
         batchId: 'batch-1',
-        status: 'ENROLLED',
+        status: 'REGISTERED',
         startDate: expect.any(Date),
       },
     })
