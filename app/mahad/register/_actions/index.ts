@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
-
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
