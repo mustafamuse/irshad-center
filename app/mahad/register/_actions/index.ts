@@ -9,43 +9,22 @@ import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { createMahadStudent } from '@/lib/services/mahad/student-service'
+import type { ActionResult } from '@/lib/utils/action-helpers'
 
 const logger = createActionLogger('mahad-registration')
 
-type MahadActionResult<T = void> = T extends void
-  ? {
-      success: boolean
-      data?: never
-      error?: string
-      field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
-    }
-  :
-      | {
-          success: true
-          data: T
-        }
-      | {
-          success: false
-          error: string
-          field?: 'email' | 'phone' | 'firstName' | 'lastName' | 'dateOfBirth'
-        }
-
 export async function registerStudent(
   studentData: z.infer<typeof mahadRegistrationSchema>
-): Promise<MahadActionResult<{ id: string; name: string }>> {
+): Promise<ActionResult<{ id: string; name: string }>> {
   try {
     const validationResult = mahadRegistrationSchema.safeParse(studentData)
     if (!validationResult.success) {
       const firstError = validationResult.error.errors[0]
+      const field = firstError.path[0] as string
       return {
         success: false,
         error: firstError.message,
-        field: firstError.path[0] as
-          | 'email'
-          | 'phone'
-          | 'firstName'
-          | 'lastName'
-          | 'dateOfBirth',
+        errors: field ? { [field]: [firstError.message] } : undefined,
       }
     }
 
@@ -57,7 +36,7 @@ export async function registerStudent(
       return {
         success: false,
         error: 'A student with this email already exists',
-        field: 'email',
+        errors: { email: ['A student with this email already exists'] },
       }
     }
 
@@ -74,6 +53,11 @@ export async function registerStudent(
 
     revalidatePath('/admin/mahad')
 
+    logger.info(
+      { profileId: profile.id, name: fullName },
+      'Student registration completed'
+    )
+
     return {
       success: true,
       data: {
@@ -89,7 +73,7 @@ export async function registerStudent(
       return {
         success: false,
         error: 'A student with this email already exists',
-        field: 'email',
+        errors: { email: ['A student with this email already exists'] },
       }
     }
     await logError(logger, error, 'Mahad registration failed')
@@ -120,5 +104,3 @@ export async function checkEmailExists(email: string): Promise<boolean> {
     throw error
   }
 }
-
-export type { MahadActionResult }

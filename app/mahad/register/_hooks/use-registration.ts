@@ -30,34 +30,32 @@ export function useRegistration({ form }: UseRegistrationProps) {
         const result = await registerStudentAction(formData)
 
         if (!result.success) {
-          const field = 'field' in result ? result.field : undefined
-          if (
-            field &&
-            typeof field === 'string' &&
-            (field === 'email' ||
-              field === 'phone' ||
-              field === 'firstName' ||
-              field === 'lastName' ||
-              field === 'dateOfBirth')
-          ) {
-            form.setError(field, {
-              type: 'manual',
-              message: result.error ?? 'Validation error',
-            })
-            toast.error(result.error)
-          } else {
-            toast.error(
-              result.error || 'Registration failed. Please try again.'
-            )
+          if (result.errors) {
+            const fieldNames = [
+              'email',
+              'phone',
+              'firstName',
+              'lastName',
+              'dateOfBirth',
+            ] as const
+            for (const field of fieldNames) {
+              const messages = result.errors[field]
+              if (messages?.[0]) {
+                form.setError(field, {
+                  type: 'manual',
+                  message: messages[0],
+                })
+              }
+            }
           }
+          toast.error(result.error || 'Registration failed. Please try again.')
           return
         }
 
         toast.success('Registration complete!')
         form.reset()
-        router.push(
-          `/mahad/register/success?name=${encodeURIComponent(result.data.name)}`
-        )
+        const name = result.data?.name ?? ''
+        router.push(`/mahad/register/success?name=${encodeURIComponent(name)}`)
       } catch (error) {
         logger.error('Registration error:', error)
         toast.error(
