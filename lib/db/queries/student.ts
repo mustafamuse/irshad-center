@@ -926,7 +926,7 @@ export async function resolveDuplicateStudents(
       where: { id: keepId },
       include: {
         person: { include: { contactPoints: true } },
-        assignments: { where: { isActive: true } },
+        assignments: true,
       },
     })
 
@@ -934,9 +934,16 @@ export async function resolveDuplicateStudents(
       where: { id: { in: deleteIds } },
       include: {
         person: { include: { contactPoints: true } },
-        assignments: { where: { isActive: true } },
+        assignments: true,
       },
     })
+
+    const invalidPrograms = deleteProfiles.filter(
+      (p) => p.program !== keepProfile.program
+    )
+    if (invalidPrograms.length > 0) {
+      throw new Error('Cannot merge profiles from different programs')
+    }
 
     if (mergeData) {
       const keepContacts = keepProfile.person.contactPoints
@@ -989,15 +996,21 @@ export async function resolveDuplicateStudents(
         })
       }
 
-      for (const delProfile of deleteProfiles) {
-        for (const assignment of delProfile.assignments) {
-          await tx.billingAssignment.update({
-            where: { id: assignment.id },
-            data: { programProfileId: keepId },
-          })
-        }
+      const allAssignmentIds = deleteProfiles.flatMap((p) =>
+        p.assignments.map((a) => a.id)
+      )
+      if (allAssignmentIds.length > 0) {
+        await tx.billingAssignment.updateMany({
+          where: { id: { in: allAssignmentIds } },
+          data: { programProfileId: keepId },
+        })
       }
     }
+
+    await tx.enrollment.updateMany({
+      where: { programProfileId: { in: deleteIds } },
+      data: { programProfileId: keepId },
+    })
 
     await tx.programProfile.deleteMany({
       where: { id: { in: deleteIds } },
