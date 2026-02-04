@@ -5,11 +5,11 @@ import { Layers, Users, AlertTriangle } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BatchWithCount } from '@/lib/db/queries/batch'
-import { StudentWithBatchData } from '@/lib/db/queries/student'
+import { MahadStudent } from '@/lib/db/queries/student'
 
 import { useStudentFilters } from '../_hooks/use-student-filters'
 import { useStudentStats, useDuplicates } from '../_hooks/use-student-groups'
-import { DuplicateGroup, MahadBatch, MahadStudent, TabValue } from '../_types'
+import { DuplicateGroup, MahadBatch, TabValue } from '../_types'
 import {
   useActiveTab,
   useDialogData,
@@ -27,45 +27,8 @@ import {
 } from './dialogs'
 
 interface MahadDashboardProps {
-  students: StudentWithBatchData[]
+  students: MahadStudent[]
   batches: BatchWithCount[]
-}
-
-function mapStudent(s: StudentWithBatchData): MahadStudent {
-  return {
-    id: s.id,
-    name: s.name,
-    email: s.email ?? null,
-    phone: s.phone ?? null,
-    dateOfBirth: s.dateOfBirth ?? null,
-    gradeLevel: s.gradeLevel ?? null,
-    schoolName: s.schoolName ?? null,
-    graduationStatus: s.graduationStatus ?? null,
-    paymentFrequency: s.paymentFrequency ?? null,
-    billingType: s.billingType ?? null,
-    paymentNotes: s.paymentNotes ?? null,
-    status: s.status,
-    batchId: s.batchId ?? null,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
-    batch: s.batch
-      ? {
-          id: s.batch.id,
-          name: s.batch.name,
-          startDate: s.batch.startDate,
-          endDate: s.batch.endDate,
-        }
-      : null,
-    subscription: s.subscription
-      ? {
-          id: s.subscription.id,
-          status: s.subscription.status,
-          stripeSubscriptionId: s.subscription.stripeSubscriptionId,
-          amount: s.subscription.amount,
-        }
-      : null,
-    siblingCount: s.siblingCount,
-  }
 }
 
 function mapBatch(b: BatchWithCount): MahadBatch {
@@ -86,12 +49,11 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
   const dialogData = useDialogData()
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
 
-  const mahadStudents = students.map(mapStudent)
   const mahadBatches = batches.map(mapBatch)
 
-  const filteredStudents = useStudentFilters(mahadStudents, filters)
-  const stats = useStudentStats(mahadStudents)
-  const duplicates = useDuplicates(mahadStudents)
+  const filteredStudents = useStudentFilters(students, filters)
+  const stats = useStudentStats(students)
+  const duplicates = useDuplicates(students)
 
   return (
     <div className="space-y-6">
@@ -162,7 +124,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
         <TabsContent value="batches" className="mt-6">
           <TabContent
             tab="batches"
-            students={mahadStudents}
+            students={students}
             batches={mahadBatches}
             duplicates={duplicates}
           />
@@ -171,7 +133,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
         <TabsContent value="duplicates" className="mt-6">
           <TabContent
             tab="duplicates"
-            students={mahadStudents}
+            students={students}
             batches={mahadBatches}
             duplicates={duplicates}
           />
@@ -179,7 +141,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
       </Tabs>
 
       <CreateBatchDialog />
-      <AssignStudentsDialog students={mahadStudents} batches={mahadBatches} />
+      <AssignStudentsDialog students={students} batches={mahadBatches} />
       <ResolveDuplicatesDialog group={dialogData as DuplicateGroup | null} />
     </div>
   )

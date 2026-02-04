@@ -28,35 +28,29 @@ import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
 import { isPrismaError } from '@/lib/utils/type-guards'
 
-/**
- * Type representing a student with all necessary data for the admin interface
- * Maps ProgramProfile + Enrollment data to a student-like structure
- */
-export interface StudentWithBatchData {
-  id: string // ProgramProfile.id
-  name: string // Person.name
-  email?: string | null // From ContactPoint
-  phone?: string | null // From ContactPoint
-  dateOfBirth?: Date | null // Person.dateOfBirth
-  gradeLevel?: GradeLevel | null
-  schoolName?: string | null
-  // Mahad billing fields
-  graduationStatus?: GraduationStatus | null
-  paymentFrequency?: PaymentFrequency | null
-  billingType?: StudentBillingType | null
-  paymentNotes?: string | null
-  status: StudentStatus // Mapped from EnrollmentStatus
-  batchId?: string | null // From Enrollment.batchId
+export interface MahadStudent {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  dateOfBirth: Date | null
+  gradeLevel: GradeLevel | null
+  schoolName: string | null
+  graduationStatus: GraduationStatus | null
+  paymentFrequency: PaymentFrequency | null
+  billingType: StudentBillingType | null
+  paymentNotes: string | null
+  status: StudentStatus
+  batchId: string | null
   createdAt: Date
   updatedAt: Date
-  // Related data
-  batch?: {
+  batch: {
     id: string
     name: string
     startDate: Date | null
     endDate: Date | null
   } | null
-  subscription?: {
+  subscription: {
     id: string
     status: string
     stripeSubscriptionId: string | null
@@ -99,7 +93,7 @@ function studentStatusToEnrollmentStatus(
 }
 
 /**
- * Helper: Transform ProgramProfile to StudentWithBatchData
+ * Helper: Transform ProgramProfile to MahadStudent
  */
 type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
   include: {
@@ -121,9 +115,7 @@ type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
   }
 }>
 
-function transformToStudent(
-  profile: ProfileWithRelations
-): StudentWithBatchData {
+function transformToStudent(profile: ProfileWithRelations): MahadStudent {
   // Extract primary contact points
   const emailContact = profile.person.contactPoints?.find(
     (cp) => cp.type === 'EMAIL'
