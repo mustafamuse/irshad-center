@@ -370,7 +370,7 @@ export async function assignStudentsToBatch(
           data: {
             programProfileId: studentId,
             batchId,
-            status: 'ENROLLED',
+            status: 'REGISTERED',
             startDate: new Date(),
           },
         })

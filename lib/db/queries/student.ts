@@ -26,6 +26,7 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 /**
  * Type representing a student with all necessary data for the admin interface
@@ -912,17 +913,109 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
 }
 
 /**
- * Resolve duplicate students by keeping one and soft-deleting others
- * Note: This should be done through admin actions with proper authorization
+ * Resolve duplicate students by keeping one and hard-deleting others.
+ * Cascades to enrollments, payments, and billing assignments.
  */
 export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
-  _mergeData: boolean = false
+  mergeData: boolean = false
 ) {
-  throw new Error(
-    'Duplicate resolution not supported here. Use resolveDuplicatesAction in app/admin/mahad/_actions/index.ts instead.'
-  )
+  await prisma.$transaction(async (tx) => {
+    const keepProfile = await tx.programProfile.findUniqueOrThrow({
+      where: { id: keepId },
+      include: {
+        person: { include: { contactPoints: true } },
+        assignments: { where: { isActive: true } },
+      },
+    })
+
+    const deleteProfiles = await tx.programProfile.findMany({
+      where: { id: { in: deleteIds } },
+      include: {
+        person: { include: { contactPoints: true } },
+        assignments: { where: { isActive: true } },
+      },
+    })
+
+    if (mergeData) {
+      const keepContacts = keepProfile.person.contactPoints
+      for (const delProfile of deleteProfiles) {
+        for (const contact of delProfile.person.contactPoints) {
+          const alreadyExists = keepContacts.some(
+            (kc) => kc.type === contact.type && kc.value === contact.value
+          )
+          if (!alreadyExists) {
+            try {
+              await tx.contactPoint.create({
+                data: {
+                  personId: keepProfile.personId,
+                  type: contact.type,
+                  value: contact.value,
+                  isPrimary: false,
+                  isActive: contact.isActive,
+                },
+              })
+            } catch (error) {
+              if (!isPrismaError(error) || error.code !== 'P2002') {
+                throw error
+              }
+            }
+          }
+        }
+      }
+
+      const billingFields = [
+        'graduationStatus',
+        'paymentFrequency',
+        'billingType',
+        'paymentNotes',
+      ] as const
+      const updates: Record<string, unknown> = {}
+      for (const field of billingFields) {
+        if (keepProfile[field] == null) {
+          for (const delProfile of deleteProfiles) {
+            if (delProfile[field] != null) {
+              updates[field] = delProfile[field]
+              break
+            }
+          }
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        await tx.programProfile.update({
+          where: { id: keepId },
+          data: updates,
+        })
+      }
+
+      for (const delProfile of deleteProfiles) {
+        for (const assignment of delProfile.assignments) {
+          await tx.billingAssignment.update({
+            where: { id: assignment.id },
+            data: { programProfileId: keepId },
+          })
+        }
+      }
+    }
+
+    await tx.programProfile.deleteMany({
+      where: { id: { in: deleteIds } },
+    })
+
+    const deletePersonIds = Array.from(
+      new Set(deleteProfiles.map((p) => p.personId))
+    ).filter((pid) => pid !== keepProfile.personId)
+
+    for (const personId of deletePersonIds) {
+      const remaining = await tx.programProfile.count({
+        where: { personId },
+      })
+      if (remaining === 0) {
+        await tx.person.delete({ where: { id: personId } })
+      }
+    }
+  })
 }
 
 /**

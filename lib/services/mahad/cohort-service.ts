@@ -23,11 +23,7 @@ import {
   getBatchesWithFilters,
 } from '@/lib/db/queries/batch'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import {
-  mapEnrollmentToMahadStudent as _mapEnrollmentToMahadStudent,
-  mapEnrollmentsToMahadStudents as _mapEnrollmentsToMahadStudents,
-  type MahadStudent,
-} from '@/lib/mappers/mahad-mapper'
+import { type MahadEnrollmentDTO } from '@/lib/mappers/mahad-mapper'
 
 /**
  * Batch creation input
@@ -136,11 +132,11 @@ export async function getMahadBatchesWithFilters(filters: BatchFilterOptions) {
  * Uses mapper to transform to UI-friendly format.
  *
  * @param batchId - Batch ID
- * @returns Array of MahadStudent DTOs
+ * @returns Array of MahadEnrollmentDTO
  */
 export async function getMahadBatchStudents(
   batchId: string
-): Promise<MahadStudent[]> {
+): Promise<MahadEnrollmentDTO[]> {
   return await getBatchStudents(batchId)
 }
 

@@ -48,7 +48,7 @@ export type MahadEnrollmentFull = Prisma.EnrollmentGetPayload<{
  * Mahad student DTO
  * Flattened structure for UI display
  */
-export interface MahadStudent {
+export interface MahadEnrollmentDTO {
   id: string
   name: string
   email: string | null
@@ -79,17 +79,17 @@ export interface MahadStudent {
 }
 
 /**
- * Maps an Enrollment (with programProfile and batch) to a MahadStudent DTO.
+ * Maps an Enrollment (with programProfile and batch) to a MahadEnrollmentDTO.
  *
  * This is a pure data transformation - no database calls, no business logic.
  * Used to transform query results into UI-friendly format.
  *
  * @param enrollment - Enrollment with programProfile, person, batch, and assignments
- * @returns MahadStudent DTO for UI display
+ * @returns MahadEnrollmentDTO for UI display
  */
-export function mapEnrollmentToMahadStudent(
+export function mapEnrollmentToDTO(
   enrollment: MahadEnrollmentFull
-): MahadStudent {
+): MahadEnrollmentDTO {
   const profile = enrollment.programProfile
   const person = profile.person
 
@@ -139,15 +139,15 @@ export function mapEnrollmentToMahadStudent(
 }
 
 /**
- * Maps an array of enrollments to MahadStudent DTOs.
+ * Maps an array of enrollments to MahadEnrollmentDTOs.
  *
  * @param enrollments - Array of enrollments
- * @returns Array of MahadStudent DTOs
+ * @returns Array of MahadEnrollmentDTO
  */
-export function mapEnrollmentsToMahadStudents(
+export function mapEnrollmentsToDTO(
   enrollments: MahadEnrollmentFull[]
-): MahadStudent[] {
-  return enrollments.map(mapEnrollmentToMahadStudent)
+): MahadEnrollmentDTO[] {
+  return enrollments.map(mapEnrollmentToDTO)
 }
 
 /**

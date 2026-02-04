@@ -231,10 +231,10 @@ export const POST = createWebhookHandler({
 
 ### Mappers (`lib/mappers/`)
 
-| Mapper            | Functions                                                 |
-| ----------------- | --------------------------------------------------------- |
-| `mahad-mapper.ts` | `mapEnrollmentToMahadStudent()`, `mahadEnrollmentInclude` |
-| `dugsi-mapper.ts` | `mapToFamilyDTO()`                                        |
+| Mapper            | Functions                                                                 |
+| ----------------- | ------------------------------------------------------------------------- |
+| `mahad-mapper.ts` | `mapEnrollmentToDTO()`, `mapEnrollmentsToDTO()`, `mahadEnrollmentInclude` |
+| `dugsi-mapper.ts` | `mapToFamilyDTO()`                                                        |
 
 ### Utilities (`lib/utils/`)
 

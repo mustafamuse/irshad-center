@@ -103,7 +103,7 @@ export async function assignStudentsToBatch(
           {
             programProfileId: studentId,
             batchId,
-            status: 'ENROLLED',
+            status: 'REGISTERED',
             startDate: new Date(),
           },
           tx
@@ -174,7 +174,7 @@ export async function transferStudentsToBatch(
           {
             programProfileId: studentId,
             batchId: targetBatchId,
-            status: 'ENROLLED',
+            status: 'REGISTERED',
             startDate: new Date(),
           },
           tx
