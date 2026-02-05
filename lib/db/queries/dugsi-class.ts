@@ -7,6 +7,7 @@
 
 import { DugsiClass, Prisma, Shift } from '@prisma/client'
 
+import type { UnassignedStudent } from '@/app/admin/dugsi/_types'
 import {
   BULK_ENROLLMENT_TIMEOUT_MS,
   DUGSI_PROGRAM,
@@ -23,7 +24,7 @@ const logger = createServiceLogger('dugsi-class-queries')
 
 export async function getUnassignedDugsiStudents(
   client: DatabaseClient = prisma
-) {
+): Promise<UnassignedStudent[]> {
   const profiles = await client.programProfile.findMany({
     where: {
       program: DUGSI_PROGRAM,
