@@ -120,8 +120,7 @@ export function UnassignedStudentsSection({
       } else {
         toast.error(result.error)
       }
-    } catch (error) {
-      console.error('Bulk assignment failed:', error)
+    } catch {
       toast.error('An unexpected error occurred. Please try again.')
     } finally {
       setIsLoading(false)

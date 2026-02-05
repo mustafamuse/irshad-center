@@ -45,9 +45,7 @@ export default async function ClassManagementPage() {
       <ClassManagement
         classes={classesResult.data ?? []}
         teachers={teachersResult.data ?? []}
-        unassignedStudents={
-          unassignedResult.success ? (unassignedResult.data ?? []) : []
-        }
+        unassignedStudents={unassignedResult.data ?? []}
       />
     </main>
   )

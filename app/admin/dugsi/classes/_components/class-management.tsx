@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 
 import {
   AlertCircle,
+  CheckCircle2,
   GraduationCap,
   MoreVertical,
   Pencil,
@@ -356,11 +357,18 @@ export function ClassManagement({
         </TabsContent>
       </Tabs>
 
-      {unassignedStudents.length > 0 && (
+      {unassignedStudents.length > 0 ? (
         <UnassignedStudentsSection
           students={unassignedStudents}
           classes={classes}
         />
+      ) : (
+        classes.length > 0 && (
+          <div className="mt-8 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            <CheckCircle2 className="h-4 w-4" />
+            All students are assigned to a class
+          </div>
+        )
       )}
 
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>

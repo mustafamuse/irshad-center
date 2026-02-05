@@ -22,6 +22,33 @@ import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('dugsi-class-queries')
 
+const siblingPersonSelect = {
+  name: true,
+  programProfiles: {
+    where: { program: DUGSI_PROGRAM },
+    select: {
+      dugsiClassEnrollment: {
+        where: { isActive: true },
+        select: {
+          class: {
+            select: {
+              shift: true,
+              teachers: {
+                where: { isActive: true },
+                select: {
+                  teacher: {
+                    select: { person: { select: { name: true } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const
+
 export async function getUnassignedDugsiStudents(
   client: DatabaseClient = prisma
 ): Promise<UnassignedStudent[]> {
@@ -42,73 +69,11 @@ export async function getUnassignedDugsiStudents(
           dateOfBirth: true,
           siblingRelationships1: {
             where: { isActive: true },
-            select: {
-              person2: {
-                select: {
-                  name: true,
-                  programProfiles: {
-                    where: { program: DUGSI_PROGRAM },
-                    select: {
-                      dugsiClassEnrollment: {
-                        where: { isActive: true },
-                        select: {
-                          class: {
-                            select: {
-                              shift: true,
-                              teachers: {
-                                where: { isActive: true },
-                                select: {
-                                  teacher: {
-                                    select: {
-                                      person: { select: { name: true } },
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
+            select: { person2: { select: siblingPersonSelect } },
           },
           siblingRelationships2: {
             where: { isActive: true },
-            select: {
-              person1: {
-                select: {
-                  name: true,
-                  programProfiles: {
-                    where: { program: DUGSI_PROGRAM },
-                    select: {
-                      dugsiClassEnrollment: {
-                        where: { isActive: true },
-                        select: {
-                          class: {
-                            select: {
-                              shift: true,
-                              teachers: {
-                                where: { isActive: true },
-                                select: {
-                                  teacher: {
-                                    select: {
-                                      person: { select: { name: true } },
-                                    },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
+            select: { person1: { select: siblingPersonSelect } },
           },
         },
       },
@@ -383,35 +348,26 @@ export async function bulkEnrollStudents(
   const enrollStudents = async (
     tx: DatabaseClient
   ): Promise<{ enrolled: number; moved: number }> => {
+    const existingEnrollments = await tx.dugsiClassEnrollment.findMany({
+      where: { programProfileId: { in: uniqueIds } },
+      select: { programProfileId: true, classId: true, isActive: true },
+    })
+
+    const existingMap = new Map(
+      existingEnrollments.map((e) => [e.programProfileId, e])
+    )
+
     let enrolled = 0
     let moved = 0
 
-    for (let i = 0; i < uniqueIds.length; i++) {
-      const programProfileId = uniqueIds[i]
-      logger.debug(
-        { programProfileId, index: i + 1, total: uniqueIds.length },
-        'Processing student'
-      )
-
-      const existing = await tx.dugsiClassEnrollment.findUnique({
-        where: { programProfileId },
-        select: { classId: true, isActive: true },
-      })
+    for (const programProfileId of uniqueIds) {
+      const existing = existingMap.get(programProfileId)
 
       if (existing?.classId === classId && existing.isActive) {
-        logger.debug(
-          { programProfileId },
-          'Skipping - already enrolled in this class'
-        )
         continue
       }
 
       const wasMoving = existing?.isActive && existing.classId !== classId
-
-      logger.debug(
-        { programProfileId, wasMoving, action: 'upsert' },
-        'Upserting enrollment'
-      )
 
       await tx.dugsiClassEnrollment.upsert({
         where: { programProfileId },
