@@ -32,13 +32,19 @@ import { bulkEnrollStudentsAction } from '../../actions'
 
 type Sibling = UnassignedStudent['siblings'][number]
 
-function formatSiblings(studentName: string, siblings: Sibling[]): string {
+const MAX_SIBLINGS_SHOWN = 2
+
+export function formatSiblings(
+  studentName: string,
+  siblings: Sibling[]
+): string {
   const studentLast = studentName.split(' ').slice(1).join(' ')
 
   const groups = new Map<string, string[]>()
   for (const s of siblings) {
     const sibLast = s.name.split(' ').slice(1).join(' ')
-    const displayName = sibLast === studentLast ? s.name.split(' ')[0] : s.name
+    const useFirstNameOnly = studentLast !== '' && sibLast === studentLast
+    const displayName = useFirstNameOnly ? s.name.split(' ')[0] : s.name
     const shift = s.classShift === 'MORNING' ? 'AM' : 'PM'
     const key = `${s.teacherName}, ${shift}`
     const list = groups.get(key) ?? []
@@ -49,8 +55,8 @@ function formatSiblings(studentName: string, siblings: Sibling[]): string {
   let shown = 0
   const parts: string[] = []
   groups.forEach((names, key) => {
-    if (shown >= 2) return
-    const take = Math.min(names.length, 2 - shown)
+    if (shown >= MAX_SIBLINGS_SHOWN) return
+    const take = Math.min(names.length, MAX_SIBLINGS_SHOWN - shown)
     parts.push(`${names.slice(0, take).join(', ')} (${key})`)
     shown += take
   })
@@ -165,7 +171,7 @@ export function UnassignedStudentsSection({
               {allSelected ? 'Deselect All' : 'Select All'}
             </span>
           </div>
-          <ScrollArea className="h-64">
+          <ScrollArea className="max-h-64">
             {sorted.map((student) => (
               <label
                 key={student.profileId}
@@ -174,6 +180,7 @@ export function UnassignedStudentsSection({
                 <Checkbox
                   checked={selected.has(student.profileId)}
                   onCheckedChange={() => toggle(student.profileId)}
+                  aria-label={`Select ${student.name}`}
                   className="mt-0.5"
                 />
                 <div className="min-w-0 flex-1">
