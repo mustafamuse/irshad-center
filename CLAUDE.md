@@ -358,3 +358,35 @@ Be rigorous and persistent in searching code for key facts. Thoroughly review th
 - Be straightforward and sharp in implementations
 - Avoid backwards-compatibility hacks like renaming unused `_vars`, re-exporting types, or adding `// removed` comments. If something is unused, delete it completely.
   </code_style>
+
+### Workflow Patterns
+
+#### Autonomous PR Pipeline
+
+When asked to implement a feature end-to-end, follow this sequence without stopping between steps:
+
+1. Implement the feature
+2. Run `tsc --noEmit` and fix type errors
+3. Run relevant tests and fix failures
+4. Commit with a descriptive message
+5. Report back with a summary and `git push` as manual next step
+
+Do not pause for confirmation between steps unless a step fails more than twice.
+
+#### Parallel Agent Swarm for Refactors
+
+When a refactor touches 3+ files independently, use the Task tool to spawn parallel agents:
+
+- One agent per file or module
+- Each agent reads the file, applies the pattern, and reports back
+- Merge results sequentially after all agents complete
+- Use this for: renames across files, pattern migrations, bulk type updates
+
+#### Self-Healing Test Loop
+
+When tests fail after implementation, automatically fix and re-run:
+
+1. Run tests
+2. If failures: analyze error output, apply fix, re-run
+3. Repeat up to 3 cycles
+4. If still failing after 3 cycles, stop and report what was tried
