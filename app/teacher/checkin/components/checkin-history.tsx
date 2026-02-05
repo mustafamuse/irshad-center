@@ -17,7 +17,6 @@ import {
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
 import { cn } from '@/lib/utils'
 
-
 import {
   CheckinHistoryItem,
   CheckinHistoryResult,
