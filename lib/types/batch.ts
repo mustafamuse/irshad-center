@@ -33,16 +33,8 @@ import { StudentStatus as StudentStatusEnum } from './student'
 // Use Prisma's generated type directly
 export type Batch = PrismaBatch
 
-// Batch with student count - simplified version returned from queries
-export interface BatchWithCount {
-  id: string
-  name: string
-  startDate: Date | null
-  endDate: Date | null
-  createdAt: Date
-  updatedAt: Date
-  studentCount: number
-}
+// Re-export from canonical source (lib/db/queries/batch.ts)
+export type { BatchWithCount } from '@/lib/db/queries/batch'
 
 // Simpler version for API responses
 export interface BatchSummaryDto {

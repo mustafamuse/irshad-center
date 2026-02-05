@@ -169,7 +169,6 @@ function transformToStudent(profile: ProfileWithRelations): MahadStudent {
     siblingCount: 0, // Will be populated separately if needed
   }
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Get all students with basic information (Mahad only)
@@ -682,64 +681,6 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
   })
 
   return profiles.map(transformToStudent)
-}
-
-/**
- * Create a new student (Note: Should use registration-service.ts instead)
- * Kept for backward compatibility but throws error to enforce proper flow
- */
-export async function createStudent(_data: {
-  name: string
-  email?: string | null
-  phone?: string | null
-  dateOfBirth?: Date | null
-  gradeLevel?: GradeLevel | null
-  schoolName?: string | null
-  graduationStatus?: GraduationStatus | null
-  paymentFrequency?: PaymentFrequency | null
-  billingType?: StudentBillingType | null
-  paymentNotes?: string | null
-  batchId?: string | null
-}) {
-  throw new Error(
-    'Direct student creation not supported. Use registration-service.ts createProgramProfileWithEnrollment() instead.'
-  )
-}
-
-/**
- * Update a student (Note: Use admin actions instead)
- * Kept for backward compatibility but throws error to enforce proper flow
- */
-export async function updateStudent(
-  _id: string,
-  _data: {
-    name?: string
-    email?: string | null
-    phone?: string | null
-    dateOfBirth?: Date | null
-    gradeLevel?: GradeLevel | null
-    schoolName?: string | null
-    status?: string
-    graduationStatus?: GraduationStatus | null
-    paymentFrequency?: PaymentFrequency | null
-    billingType?: StudentBillingType | null
-    paymentNotes?: string | null
-    batchId?: string | null
-  }
-) {
-  throw new Error(
-    'Direct student updates not supported. Use admin server actions in app/admin/mahad/_actions/index.ts instead.'
-  )
-}
-
-/**
- * Delete a student (Note: Use admin actions instead)
- * Kept for backward compatibility but throws error to enforce proper flow
- */
-export async function deleteStudent(_id: string) {
-  throw new Error(
-    'Direct student deletion not supported. Use admin server actions in app/admin/mahad/_actions/index.ts instead.'
-  )
 }
 
 /**

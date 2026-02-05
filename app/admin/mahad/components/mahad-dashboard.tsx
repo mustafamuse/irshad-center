@@ -9,7 +9,7 @@ import { MahadStudent } from '@/lib/db/queries/student'
 
 import { useStudentFilters } from '../_hooks/use-student-filters'
 import { useStudentStats, useDuplicates } from '../_hooks/use-student-groups'
-import { DuplicateGroup, MahadBatch, TabValue } from '../_types'
+import { DuplicateGroup, TabValue } from '../_types'
 import {
   useActiveTab,
   useDialogData,
@@ -31,25 +31,11 @@ interface MahadDashboardProps {
   batches: BatchWithCount[]
 }
 
-function mapBatch(b: BatchWithCount): MahadBatch {
-  return {
-    id: b.id,
-    name: b.name,
-    startDate: b.startDate,
-    endDate: b.endDate,
-    createdAt: b.createdAt,
-    updatedAt: b.updatedAt,
-    studentCount: b.studentCount,
-  }
-}
-
 export function MahadDashboard({ students, batches }: MahadDashboardProps) {
   const activeTab = useActiveTab()
   const filters = useMahadFilters()
   const dialogData = useDialogData()
   const setActiveTab = useMahadUIStore((s) => s.setActiveTab)
-
-  const mahadBatches = batches.map(mapBatch)
 
   const filteredStudents = useStudentFilters(students, filters)
   const stats = useStudentStats(students)
@@ -61,7 +47,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
 
       <DashboardStats stats={stats} />
 
-      <DashboardFilters batches={mahadBatches} />
+      <DashboardFilters batches={batches} />
 
       <Tabs
         value={activeTab}
@@ -92,7 +78,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
               variant="secondary"
               className="ml-1 px-1 text-[10px] sm:px-1.5 sm:text-xs"
             >
-              {mahadBatches.length}
+              {batches.length}
             </Badge>
           </TabsTrigger>
           <TabsTrigger
@@ -116,7 +102,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
           <TabContent
             tab="students"
             students={filteredStudents}
-            batches={mahadBatches}
+            batches={batches}
             duplicates={duplicates}
           />
         </TabsContent>
@@ -125,7 +111,7 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
           <TabContent
             tab="batches"
             students={students}
-            batches={mahadBatches}
+            batches={batches}
             duplicates={duplicates}
           />
         </TabsContent>
@@ -134,14 +120,14 @@ export function MahadDashboard({ students, batches }: MahadDashboardProps) {
           <TabContent
             tab="duplicates"
             students={students}
-            batches={mahadBatches}
+            batches={batches}
             duplicates={duplicates}
           />
         </TabsContent>
       </Tabs>
 
       <CreateBatchDialog />
-      <AssignStudentsDialog students={students} batches={mahadBatches} />
+      <AssignStudentsDialog students={students} batches={batches} />
       <ResolveDuplicatesDialog group={dialogData as DuplicateGroup | null} />
     </div>
   )

@@ -3,26 +3,15 @@
  * Single source of truth for all types used across components
  */
 
+import type { BatchWithCount } from '@/lib/db/queries/batch'
 import type { MahadStudent } from '@/lib/db/queries/student'
 import { StudentStatus } from '@/lib/types/student'
-
 
 export type { MahadStudent } from '@/lib/db/queries/student'
 export type { StudentFormData, UpdateStudentPayload } from './student-form'
 export { FORM_DEFAULTS, isNoneValue } from './student-form'
 
-/**
- * Batch with student count
- */
-export interface MahadBatch {
-  id: string
-  name: string
-  startDate: Date | null
-  endDate: Date | null
-  createdAt: Date
-  updatedAt: Date
-  studentCount: number
-}
+export type MahadBatch = BatchWithCount
 
 /**
  * Tab values for main navigation
