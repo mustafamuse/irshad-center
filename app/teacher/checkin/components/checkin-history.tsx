@@ -2,9 +2,12 @@
 
 import { useEffect, useState, useTransition } from 'react'
 
-import { format } from 'date-fns'
 import { ChevronDown, Clock, Loader2 } from 'lucide-react'
 
+import {
+  formatCheckinDate,
+  formatCheckinTime,
+} from '@/app/admin/dugsi/teachers/components/date-utils'
 import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
@@ -24,24 +27,18 @@ interface Props {
   teacherId: string | null
 }
 
-function formatTime(date: Date): string {
-  return format(new Date(date), 'h:mm a')
-}
-
-function formatDate(date: Date): string {
-  return format(new Date(date), 'EEE, MMM d')
-}
-
 export function CheckinHistory({ teacherId }: Props) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [history, setHistory] = useState<CheckinHistoryResult | null>(null)
   const [hasLoaded, setHasLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setHistory(null)
     setHasLoaded(false)
     setIsOpen(false)
+    setError(null)
   }, [teacherId])
 
   function loadHistory() {
@@ -50,6 +47,9 @@ export function CheckinHistory({ teacherId }: Props) {
       const result = await getTeacherCheckinHistory(teacherId)
       if (result.success && result.data) {
         setHistory(result.data)
+        setError(null)
+      } else {
+        setError(result.error ?? 'Failed to load history')
       }
       setHasLoaded(true)
     })
@@ -85,6 +85,10 @@ export function CheckinHistory({ teacherId }: Props) {
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
+          ) : error ? (
+            <div className="py-6 text-center">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
           ) : !history || history.data.length === 0 ? (
             <div className="py-6 text-center">
               <p className="text-sm text-muted-foreground">
@@ -101,12 +105,13 @@ export function CheckinHistory({ teacherId }: Props) {
                   <div className="flex items-center gap-3">
                     <div>
                       <p className="text-sm font-medium">
-                        {formatDate(item.date)}
+                        {formatCheckinDate(item.date)}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {formatTime(item.clockInTime)}
-                        {item.clockOutTime &&
-                          ` - ${formatTime(item.clockOutTime)}`}
+                        {formatCheckinTime(item.clockInTime)}
+                        {item.clockOutTime
+                          ? ` - ${formatCheckinTime(item.clockOutTime)}`
+                          : ' (no clock out)'}
                       </p>
                     </div>
                   </div>

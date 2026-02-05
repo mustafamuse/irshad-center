@@ -25,29 +25,12 @@ export default async function TeacherCheckinPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#007078]/5 via-white to-gray-50/50">
       <div className="mx-auto max-w-md px-4 py-6 sm:py-8">
-        <div className="mb-6 text-center sm:mb-8">
-          <div className="mb-3 flex justify-center sm:mb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#007078] shadow-lg shadow-[#007078]/25 ring-4 ring-[#deb43e]/30 ring-offset-2 sm:h-16 sm:w-16">
-              <svg
-                className="h-7 w-7 text-white sm:h-8 sm:w-8"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
+        <div className="mb-4 text-center sm:mb-6">
+          <h1 className="text-lg font-bold tracking-tight text-gray-900 sm:text-xl">
             Teacher Check-in
           </h1>
-          <p className="mt-1.5 text-sm text-gray-600 sm:mt-2">
-            Clock in and out for your Dugsi shift
+          <p className="mt-0.5 text-xs text-gray-500 sm:text-sm">
+            Dugsi shift clock in / clock out
           </p>
         </div>
 

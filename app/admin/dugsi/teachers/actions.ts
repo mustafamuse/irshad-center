@@ -1010,7 +1010,7 @@ export async function searchPeopleAction(
 
 export interface CheckinHistoryItem {
   id: string
-  date: Date
+  date: string
   shift: Shift
   clockInTime: Date
   clockOutTime: Date | null
@@ -1046,7 +1046,7 @@ export async function getTeacherCheckinHistoryAction(
 
     const items: CheckinHistoryItem[] = result.data.map((checkin) => ({
       id: checkin.id,
-      date: checkin.date,
+      date: checkin.date.toISOString().split('T')[0],
       shift: checkin.shift,
       clockInTime: checkin.clockInTime,
       clockOutTime: checkin.clockOutTime,
@@ -1082,7 +1082,7 @@ export interface CheckinRecord {
   id: string
   teacherId: string
   teacherName: string
-  date: Date
+  date: string
   shift: Shift
   clockInTime: Date
   clockOutTime: Date | null
@@ -1103,7 +1103,7 @@ function mapCheckinToRecord(
     id: checkin.id,
     teacherId: checkin.teacherId,
     teacherName: checkin.teacher.person.name,
-    date: checkin.date,
+    date: checkin.date.toISOString().split('T')[0],
     shift: checkin.shift,
     clockInTime: checkin.clockInTime,
     clockOutTime: checkin.clockOutTime,
