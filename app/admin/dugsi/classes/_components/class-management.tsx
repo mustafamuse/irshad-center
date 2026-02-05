@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -180,10 +180,13 @@ export function ClassManagement({
     }
   }
 
-  const assignedTeacherIds =
-    selectedClass?.teachers.map((t) => t.teacherId) ?? []
-  const availableTeachers = teachers.filter(
-    (t) => !assignedTeacherIds.includes(t.id)
+  const assignedTeacherIds = useMemo(
+    () => new Set(selectedClass?.teachers.map((t) => t.teacherId) ?? []),
+    [selectedClass]
+  )
+  const availableTeachers = useMemo(
+    () => teachers.filter((t) => !assignedTeacherIds.has(t.id)),
+    [teachers, assignedTeacherIds]
   )
 
   const renderClassCard = (classItem: ClassWithDetails, index: number) => {

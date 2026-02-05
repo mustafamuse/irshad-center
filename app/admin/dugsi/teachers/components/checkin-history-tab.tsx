@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 
 import {
   AlertCircle,
@@ -38,14 +38,23 @@ export function CheckinHistoryTab({ teacherId }: Props) {
   const [isPending, startTransition] = useTransition()
   const [history, setHistory] = useState<CheckinHistoryResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const currentTeacherRef = useRef(teacherId)
 
   useEffect(() => {
+    currentTeacherRef.current = teacherId
+    setHistory(null)
+    setError(null)
     loadHistory(1)
   }, [teacherId])
 
   function loadHistory(page: number) {
+    const requestTeacherId = teacherId
     startTransition(async () => {
-      const result = await getTeacherCheckinHistoryAction(teacherId, page)
+      const result = await getTeacherCheckinHistoryAction(
+        requestTeacherId,
+        page
+      )
+      if (currentTeacherRef.current !== requestTeacherId) return
       if (result.success && result.data) {
         setHistory(result.data)
         setError(null)

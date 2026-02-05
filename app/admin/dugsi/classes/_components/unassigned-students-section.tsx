@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -71,16 +71,20 @@ export function UnassignedStudentsSection({
   classes,
 }: UnassignedStudentsSectionProps) {
   const router = useRouter()
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [classId, setClassId] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
-  const sorted = [...students].sort((a, b) => {
-    if (a.siblings.length !== b.siblings.length) {
-      return b.siblings.length - a.siblings.length
-    }
-    return a.name.localeCompare(b.name)
-  })
+  const sorted = useMemo(
+    () =>
+      [...students].sort((a, b) => {
+        if (a.siblings.length !== b.siblings.length) {
+          return b.siblings.length - a.siblings.length
+        }
+        return a.name.localeCompare(b.name)
+      }),
+    [students]
+  )
 
   const allSelected = sorted.length > 0 && selected.size === sorted.length
 
@@ -127,8 +131,14 @@ export function UnassignedStudentsSection({
     }
   }
 
-  const morningClasses = classes.filter((c) => c.shift === 'MORNING')
-  const afternoonClasses = classes.filter((c) => c.shift === 'AFTERNOON')
+  const morningClasses = useMemo(
+    () => classes.filter((c) => c.shift === 'MORNING'),
+    [classes]
+  )
+  const afternoonClasses = useMemo(
+    () => classes.filter((c) => c.shift === 'AFTERNOON'),
+    [classes]
+  )
 
   return (
     <Card className="mt-8">
