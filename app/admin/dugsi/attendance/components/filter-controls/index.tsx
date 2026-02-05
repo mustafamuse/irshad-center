@@ -1,5 +1,7 @@
 'use client'
 
+import { memo } from 'react'
+
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { format } from 'date-fns'
@@ -22,20 +24,32 @@ import {
 } from '@/components/ui/select'
 import { cn, isValidDate } from '@/lib/utils'
 
-interface Batch {
+interface ClassOption {
+  id: string
+  name: string
+  shift: string
+  label: string
+}
+
+interface TeacherOption {
   id: string
   name: string
 }
 
 interface FilterControlsProps {
-  batches: Batch[]
+  classes: ClassOption[]
+  teachers?: TeacherOption[]
 }
 
-export function FilterControls({ batches }: FilterControlsProps) {
+export const FilterControls = memo(function FilterControls({
+  classes,
+  teachers,
+}: FilterControlsProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const batchId = searchParams.get('batchId') || ''
+  const classId = searchParams.get('classId') || ''
+  const teacherId = searchParams.get('teacherId') || ''
   const fromDate = searchParams.get('fromDate') || ''
   const toDate = searchParams.get('toDate') || ''
 
@@ -46,13 +60,12 @@ export function FilterControls({ batches }: FilterControlsProps) {
     } else {
       params.delete(key)
     }
-    // Reset to first page when filters change
     params.delete('page')
-    router.push(`/admin/shared/attendance?${params.toString()}`)
+    router.push(`/admin/dugsi/attendance?${params.toString()}`)
   }
 
   const clearFilters = () => {
-    router.push('/admin/shared/attendance')
+    router.push('/admin/dugsi/attendance')
   }
 
   return (
@@ -61,31 +74,55 @@ export function FilterControls({ batches }: FilterControlsProps) {
         <CardTitle>Filter Sessions</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Batch Filter */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {teachers && teachers.length > 0 ? (
+            <div className="space-y-2">
+              <label className="text-sm font-medium" htmlFor="teacher-select">
+                Teacher
+              </label>
+              <Select
+                value={teacherId || 'all'}
+                onValueChange={(value) =>
+                  updateSearchParams('teacherId', value)
+                }
+              >
+                <SelectTrigger id="teacher-select">
+                  <SelectValue placeholder="All teachers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All teachers</SelectItem>
+                  {teachers.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="batch-select">
-              Batch
+            <label className="text-sm font-medium" htmlFor="class-select">
+              Class
             </label>
             <Select
-              value={batchId || 'all'}
-              onValueChange={(value) => updateSearchParams('batchId', value)}
+              value={classId || 'all'}
+              onValueChange={(value) => updateSearchParams('classId', value)}
             >
-              <SelectTrigger id="batch-select">
-                <SelectValue placeholder="All batches" />
+              <SelectTrigger id="class-select">
+                <SelectValue placeholder="All classes" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All batches</SelectItem>
-                {batches.map((batch) => (
-                  <SelectItem key={batch.id} value={batch.id}>
-                    {batch.name}
+                <SelectItem value="all">All classes</SelectItem>
+                {classes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* From Date Filter */}
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="from-date">
               From Date
@@ -100,7 +137,7 @@ export function FilterControls({ batches }: FilterControlsProps) {
                   id="from-date"
                   variant="outline"
                 >
-                  <CalendarIcon className="mr-2 size-4" />
+                  <CalendarIcon aria-hidden="true" className="mr-2 size-4" />
                   {fromDate && isValidDate(fromDate)
                     ? format(new Date(fromDate), 'PPP')
                     : 'Pick a date'}
@@ -126,7 +163,6 @@ export function FilterControls({ batches }: FilterControlsProps) {
             </Popover>
           </div>
 
-          {/* To Date Filter */}
           <div className="space-y-2">
             <label className="text-sm font-medium" htmlFor="to-date">
               To Date
@@ -141,7 +177,7 @@ export function FilterControls({ batches }: FilterControlsProps) {
                   id="to-date"
                   variant="outline"
                 >
-                  <CalendarIcon className="mr-2 size-4" />
+                  <CalendarIcon aria-hidden="true" className="mr-2 size-4" />
                   {toDate && isValidDate(toDate)
                     ? format(new Date(toDate), 'PPP')
                     : 'Pick a date'}
@@ -166,8 +202,7 @@ export function FilterControls({ batches }: FilterControlsProps) {
           </div>
         </div>
 
-        {/* Clear Filters */}
-        {(batchId || fromDate || toDate) && (
+        {classId || teacherId || fromDate || toDate ? (
           <Button
             className="min-h-[44px] w-full"
             variant="outline"
@@ -175,8 +210,8 @@ export function FilterControls({ batches }: FilterControlsProps) {
           >
             Clear Filters
           </Button>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   )
-}
+})

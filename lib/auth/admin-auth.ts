@@ -4,7 +4,8 @@ const MAX_TOKEN_AGE_MS = 24 * 60 * 60 * 1000
 
 export function generateAuthToken(): string {
   const timestamp = Date.now().toString()
-  const secret = process.env.ADMIN_PIN || ''
+  const secret = process.env.ADMIN_PIN
+  if (!secret) throw new Error('ADMIN_PIN environment variable is required')
   const signature = crypto
     .createHmac('sha256', secret)
     .update(timestamp)
@@ -22,7 +23,8 @@ export function verifyAuthToken(token: string): boolean {
       return false
     }
 
-    const secret = process.env.ADMIN_PIN || ''
+    const secret = process.env.ADMIN_PIN
+    if (!secret) throw new Error('ADMIN_PIN environment variable is required')
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(timestamp)
@@ -32,7 +34,10 @@ export function verifyAuthToken(token: string): boolean {
       Buffer.from(signature),
       Buffer.from(expectedSignature)
     )
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('ADMIN_PIN')) {
+      throw error
+    }
     return false
   }
 }

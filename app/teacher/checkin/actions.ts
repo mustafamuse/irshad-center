@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { Shift } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
+import { getAuthenticatedTeacherId } from '@/lib/auth/get-teacher'
 import {
   GEOFENCE_RADIUS_METERS,
   isWithinGeofence,
@@ -72,11 +73,15 @@ export async function teacherClockInAction(
 ): Promise<ActionResult<{ checkInId: string; status: TeacherCurrentStatus }>> {
   try {
     const validated = ClockInSchema.parse(input)
-    const result = await clockIn(validated)
+    const authenticatedTeacherId = await getAuthenticatedTeacherId()
+    const result = await clockIn({
+      ...validated,
+      teacherId: authenticatedTeacherId,
+    })
     revalidatePath('/teacher/checkin')
     revalidatePath('/admin/dugsi/teacher-checkins')
 
-    const status = await getTeacherCurrentStatus(validated.teacherId)
+    const status = await getTeacherCurrentStatus(authenticatedTeacherId)
 
     return {
       success: true,
@@ -106,11 +111,12 @@ export async function teacherClockOutAction(
 ): Promise<ActionResult<{ status: TeacherCurrentStatus }>> {
   try {
     const validated = ClockOutSchema.parse(input)
-    await clockOut(validated)
+    const authenticatedTeacherId = await getAuthenticatedTeacherId()
+    await clockOut({ ...validated, teacherId: authenticatedTeacherId })
     revalidatePath('/teacher/checkin')
     revalidatePath('/admin/dugsi/teacher-checkins')
 
-    const status = await getTeacherCurrentStatus(validated.teacherId)
+    const status = await getTeacherCurrentStatus(authenticatedTeacherId)
 
     return {
       success: true,
@@ -179,10 +185,11 @@ export interface CheckinHistoryResult {
   total: number
 }
 
-export async function getTeacherCheckinHistory(
-  teacherId: string
-): Promise<ActionResult<CheckinHistoryResult>> {
+export async function getTeacherCheckinHistory(): Promise<
+  ActionResult<CheckinHistoryResult>
+> {
   try {
+    const teacherId = await getAuthenticatedTeacherId()
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 

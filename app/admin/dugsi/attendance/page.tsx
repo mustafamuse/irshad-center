@@ -6,16 +6,18 @@ import { AttendanceManagement } from './components/attendance-management'
 import { AttendanceStats } from './components/attendance-stats'
 import {
   AttendanceStatsCardSkeleton,
-  SessionsTableSkeleton as SessionsTableSkeletonComponent,
+  SessionsTableSkeleton,
+  TodaySessionsSkeleton,
 } from './components/skeletons'
+import { TodaySessions } from './components/today-sessions'
 
 interface Props {
   searchParams: Promise<{
     page?: string
     fromDate?: string
     toDate?: string
-    batchId?: string
-    search?: string
+    classId?: string
+    teacherId?: string
   }>
 }
 
@@ -38,8 +40,12 @@ export default async function AttendancePage({ searchParams }: Props) {
         </Suspense>
       </div>
 
+      <Suspense fallback={<TodaySessionsSkeleton />}>
+        <TodaySessions />
+      </Suspense>
+
       <Card className="p-4 sm:p-6">
-        <Suspense fallback={<SessionsTableSkeletonComponent />}>
+        <Suspense fallback={<SessionsTableSkeleton />}>
           <AttendanceManagement searchParams={resolvedSearchParams} />
         </Suspense>
       </Card>
