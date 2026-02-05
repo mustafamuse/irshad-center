@@ -32,11 +32,13 @@ export function CheckinHistory({ teacherId }: Props) {
   const [isPending, startTransition] = useTransition()
   const [history, setHistory] = useState<CheckinHistoryResult | null>(null)
   const [hasLoaded, setHasLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setHistory(null)
     setHasLoaded(false)
     setIsOpen(false)
+    setError(null)
   }, [teacherId])
 
   function loadHistory() {
@@ -45,6 +47,9 @@ export function CheckinHistory({ teacherId }: Props) {
       const result = await getTeacherCheckinHistory(teacherId)
       if (result.success && result.data) {
         setHistory(result.data)
+        setError(null)
+      } else {
+        setError(result.error ?? 'Failed to load history')
       }
       setHasLoaded(true)
     })
@@ -79,6 +84,10 @@ export function CheckinHistory({ teacherId }: Props) {
           {isPending && !history ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : error ? (
+            <div className="py-6 text-center">
+              <p className="text-sm text-red-600">{error}</p>
             </div>
           ) : !history || history.data.length === 0 ? (
             <div className="py-6 text-center">

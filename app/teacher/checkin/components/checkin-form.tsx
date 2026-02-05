@@ -104,10 +104,14 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
           } else {
             setSelectedShift(null)
           }
-        } catch {
+        } catch (error) {
+          console.error('Failed to load teacher status:', error)
           setMessage({
             type: 'error',
-            text: 'Could not load status. Please try again.',
+            text:
+              error instanceof Error
+                ? error.message
+                : 'Could not load status. Please try again.',
           })
         }
       })
@@ -138,10 +142,14 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
       try {
         const result = await checkGeofence(loc.latitude, loc.longitude)
         setGeofenceStatus(result)
-      } catch {
+      } catch (error) {
+        console.error('Geofence check failed:', error)
         setMessage({
           type: 'error',
-          text: 'Could not verify your location. Please try again.',
+          text:
+            error instanceof Error
+              ? error.message
+              : 'Could not verify your location. Please try again.',
         })
       }
     }

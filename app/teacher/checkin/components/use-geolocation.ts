@@ -42,7 +42,8 @@ export function useGeolocation() {
         result.addEventListener('change', onChange)
       })
       .catch((err) => {
-        console.warn('Permissions API query failed:', err)
+        console.warn('Permissions API not supported:', err)
+        setPermissionState('prompt')
       })
     return () => {
       status?.removeEventListener('change', onChange)
