@@ -180,6 +180,8 @@ export async function StudentsTableShell({
             | 'WITHDRAWN',
         })
       }
+    } else {
+      whereConditions.push({ status: { not: 'WITHDRAWN' } })
     }
   }
 

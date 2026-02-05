@@ -3,65 +3,15 @@
  * Single source of truth for all types used across components
  */
 
-import {
-  GradeLevel,
-  GraduationStatus,
-  PaymentFrequency,
-  StudentBillingType,
-} from '@prisma/client'
-
+import type { BatchWithCount } from '@/lib/db/queries/batch'
+import type { MahadStudent } from '@/lib/db/queries/student'
 import { StudentStatus } from '@/lib/types/student'
 
+export type { MahadStudent } from '@/lib/db/queries/student'
 export type { StudentFormData, UpdateStudentPayload } from './student-form'
 export { FORM_DEFAULTS, isNoneValue } from './student-form'
 
-/**
- * MahadStudent - DTO for Mahad student data displayed in admin UI
- * Mirrors StudentWithBatchData from lib/db/queries/student.ts
- */
-export interface MahadStudent {
-  id: string
-  name: string
-  email: string | null
-  phone: string | null
-  dateOfBirth: Date | null
-  gradeLevel: GradeLevel | null
-  schoolName: string | null
-  graduationStatus: GraduationStatus | null
-  paymentFrequency: PaymentFrequency | null
-  billingType: StudentBillingType | null
-  paymentNotes: string | null
-  status: StudentStatus
-  batchId: string | null
-  createdAt: Date
-  updatedAt: Date
-  batch: {
-    id: string
-    name: string
-    startDate: Date | null
-    endDate: Date | null
-  } | null
-  subscription: {
-    id: string
-    status: string
-    stripeSubscriptionId: string | null
-    amount: number
-  } | null
-  siblingCount?: number
-}
-
-/**
- * Batch with student count
- */
-export interface MahadBatch {
-  id: string
-  name: string
-  startDate: Date | null
-  endDate: Date | null
-  createdAt: Date
-  updatedAt: Date
-  studentCount: number
-}
+export type MahadBatch = BatchWithCount
 
 /**
  * Tab values for main navigation

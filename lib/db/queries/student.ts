@@ -26,36 +26,31 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
-/**
- * Type representing a student with all necessary data for the admin interface
- * Maps ProgramProfile + Enrollment data to a student-like structure
- */
-export interface StudentWithBatchData {
-  id: string // ProgramProfile.id
-  name: string // Person.name
-  email?: string | null // From ContactPoint
-  phone?: string | null // From ContactPoint
-  dateOfBirth?: Date | null // Person.dateOfBirth
-  gradeLevel?: GradeLevel | null
-  schoolName?: string | null
-  // Mahad billing fields
-  graduationStatus?: GraduationStatus | null
-  paymentFrequency?: PaymentFrequency | null
-  billingType?: StudentBillingType | null
-  paymentNotes?: string | null
-  status: StudentStatus // Mapped from EnrollmentStatus
-  batchId?: string | null // From Enrollment.batchId
+export interface MahadStudent {
+  id: string
+  name: string
+  email: string | null
+  phone: string | null
+  dateOfBirth: Date | null
+  gradeLevel: GradeLevel | null
+  schoolName: string | null
+  graduationStatus: GraduationStatus | null
+  paymentFrequency: PaymentFrequency | null
+  billingType: StudentBillingType | null
+  paymentNotes: string | null
+  status: StudentStatus
+  batchId: string | null
   createdAt: Date
   updatedAt: Date
-  // Related data
-  batch?: {
+  batch: {
     id: string
     name: string
     startDate: Date | null
     endDate: Date | null
   } | null
-  subscription?: {
+  subscription: {
     id: string
     status: string
     stripeSubscriptionId: string | null
@@ -98,7 +93,7 @@ function studentStatusToEnrollmentStatus(
 }
 
 /**
- * Helper: Transform ProgramProfile to StudentWithBatchData
+ * Helper: Transform ProgramProfile to MahadStudent
  */
 type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
   include: {
@@ -120,9 +115,7 @@ type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
   }
 }>
 
-function transformToStudent(
-  profile: ProfileWithRelations
-): StudentWithBatchData {
+function transformToStudent(profile: ProfileWithRelations): MahadStudent {
   // Extract primary contact points
   const emailContact = profile.person.contactPoints?.find(
     (cp) => cp.type === 'EMAIL'
@@ -176,7 +169,6 @@ function transformToStudent(
     siblingCount: 0, // Will be populated separately if needed
   }
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Get all students with basic information (Mahad only)
@@ -692,64 +684,6 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
 }
 
 /**
- * Create a new student (Note: Should use registration-service.ts instead)
- * Kept for backward compatibility but throws error to enforce proper flow
- */
-export async function createStudent(_data: {
-  name: string
-  email?: string | null
-  phone?: string | null
-  dateOfBirth?: Date | null
-  gradeLevel?: GradeLevel | null
-  schoolName?: string | null
-  graduationStatus?: GraduationStatus | null
-  paymentFrequency?: PaymentFrequency | null
-  billingType?: StudentBillingType | null
-  paymentNotes?: string | null
-  batchId?: string | null
-}) {
-  throw new Error(
-    'Direct student creation not supported. Use registration-service.ts createProgramProfileWithEnrollment() instead.'
-  )
-}
-
-/**
- * Update a student (Note: Use admin actions instead)
- * Kept for backward compatibility but throws error to enforce proper flow
- */
-export async function updateStudent(
-  _id: string,
-  _data: {
-    name?: string
-    email?: string | null
-    phone?: string | null
-    dateOfBirth?: Date | null
-    gradeLevel?: GradeLevel | null
-    schoolName?: string | null
-    status?: string
-    graduationStatus?: GraduationStatus | null
-    paymentFrequency?: PaymentFrequency | null
-    billingType?: StudentBillingType | null
-    paymentNotes?: string | null
-    batchId?: string | null
-  }
-) {
-  throw new Error(
-    'Direct student updates not supported. Use admin server actions in app/admin/mahad/_actions/index.ts instead.'
-  )
-}
-
-/**
- * Delete a student (Note: Use admin actions instead)
- * Kept for backward compatibility but throws error to enforce proper flow
- */
-export async function deleteStudent(_id: string) {
-  throw new Error(
-    'Direct student deletion not supported. Use admin server actions in app/admin/mahad/_actions/index.ts instead.'
-  )
-}
-
-/**
  * Search students with filters and pagination
  */
 export async function searchStudents(
@@ -912,17 +846,122 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
 }
 
 /**
- * Resolve duplicate students by keeping one and soft-deleting others
- * Note: This should be done through admin actions with proper authorization
+ * Resolve duplicate students by keeping one and hard-deleting others.
+ * Cascades to enrollments, payments, and billing assignments.
  */
 export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
-  _mergeData: boolean = false
+  mergeData: boolean = false
 ) {
-  throw new Error(
-    'Duplicate resolution not supported here. Use resolveDuplicatesAction in app/admin/mahad/_actions/index.ts instead.'
-  )
+  await prisma.$transaction(async (tx) => {
+    const keepProfile = await tx.programProfile.findUniqueOrThrow({
+      where: { id: keepId },
+      include: {
+        person: { include: { contactPoints: true } },
+        assignments: true,
+      },
+    })
+
+    const deleteProfiles = await tx.programProfile.findMany({
+      where: { id: { in: deleteIds } },
+      include: {
+        person: { include: { contactPoints: true } },
+        assignments: true,
+      },
+    })
+
+    const invalidPrograms = deleteProfiles.filter(
+      (p) => p.program !== keepProfile.program
+    )
+    if (invalidPrograms.length > 0) {
+      throw new Error('Cannot merge profiles from different programs')
+    }
+
+    if (mergeData) {
+      const keepContacts = keepProfile.person.contactPoints
+      for (const delProfile of deleteProfiles) {
+        for (const contact of delProfile.person.contactPoints) {
+          const alreadyExists = keepContacts.some(
+            (kc) => kc.type === contact.type && kc.value === contact.value
+          )
+          if (!alreadyExists) {
+            try {
+              await tx.contactPoint.create({
+                data: {
+                  personId: keepProfile.personId,
+                  type: contact.type,
+                  value: contact.value,
+                  isPrimary: false,
+                  isActive: contact.isActive,
+                },
+              })
+            } catch (error) {
+              if (!isPrismaError(error) || error.code !== 'P2002') {
+                throw error
+              }
+            }
+          }
+        }
+      }
+
+      const billingFields = [
+        'graduationStatus',
+        'paymentFrequency',
+        'billingType',
+        'paymentNotes',
+      ] as const
+      const updates: Record<string, unknown> = {}
+      for (const field of billingFields) {
+        if (keepProfile[field] == null) {
+          for (const delProfile of deleteProfiles) {
+            if (delProfile[field] != null) {
+              updates[field] = delProfile[field]
+              break
+            }
+          }
+        }
+      }
+      if (Object.keys(updates).length > 0) {
+        await tx.programProfile.update({
+          where: { id: keepId },
+          data: updates,
+        })
+      }
+
+      const allAssignmentIds = deleteProfiles.flatMap((p) =>
+        p.assignments.map((a) => a.id)
+      )
+      if (allAssignmentIds.length > 0) {
+        await tx.billingAssignment.updateMany({
+          where: { id: { in: allAssignmentIds } },
+          data: { programProfileId: keepId },
+        })
+      }
+    }
+
+    await tx.enrollment.updateMany({
+      where: { programProfileId: { in: deleteIds } },
+      data: { programProfileId: keepId },
+    })
+
+    await tx.programProfile.deleteMany({
+      where: { id: { in: deleteIds } },
+    })
+
+    const deletePersonIds = Array.from(
+      new Set(deleteProfiles.map((p) => p.personId))
+    ).filter((pid) => pid !== keepProfile.personId)
+
+    for (const personId of deletePersonIds) {
+      const remaining = await tx.programProfile.count({
+        where: { personId },
+      })
+      if (remaining === 0) {
+        await tx.person.delete({ where: { id: personId } })
+      }
+    }
+  })
 }
 
 /**

@@ -70,7 +70,7 @@ export interface StudentUpdateInput {
  * 1. Person record
  * 2. ContactPoints for email/phone
  * 3. ProgramProfile for MAHAD_PROGRAM
- * 4. (Optional) Enrollment in batch
+ * 4. Enrollment record (with optional batch assignment)
  *
  * @param input - Student creation data
  * @returns Created program profile
@@ -164,16 +164,14 @@ export async function createMahadStudent(input: StudentCreateInput) {
       })
     }
 
-    if (input.batchId) {
-      await tx.enrollment.create({
-        data: {
-          programProfileId: profile.id,
-          batchId: input.batchId,
-          status: 'ENROLLED',
-          startDate: new Date(),
-        },
-      })
-    }
+    await tx.enrollment.create({
+      data: {
+        programProfileId: profile.id,
+        batchId: input.batchId ?? null,
+        status: 'REGISTERED',
+        startDate: new Date(),
+      },
+    })
 
     return profile
   })
