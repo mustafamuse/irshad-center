@@ -14,6 +14,22 @@
 
 ---
 
+## Git Operations
+
+- After committing, list `git push` as a manual step for the user instead of running it directly
+- If git push fails with auth errors, stop immediately and tell the user to run `gh auth setup-git` or check SSH keys
+- Never retry a failed git push
+
+---
+
+## Environment Constraints
+
+- User sometimes connects from iPhone via Termius/SSH - keep terminal output concise
+- Do not assume browser/GUI access - prefer CLI-based solutions
+- Always detect the actual environment before making platform-specific recommendations
+
+---
+
 ## Critical Rules (Strict Enforcement)
 
 Claude should refuse to write code violating these rules.
@@ -71,51 +87,54 @@ Claude should refuse to write code violating these rules.
    await prisma.person.create({ data: validated })
    ```
 
-9. **Use Prisma enums from generated types**
-   ```typescript
-   import { Program, EnrollmentStatus } from '@prisma/client'
-   ```
+9. **Always create new files as `.ts`/`.tsx`, never `.js`/`.jsx`**
+
+10. **Use Prisma enums from generated types**
+
+```typescript
+import { Program, EnrollmentStatus } from '@prisma/client'
+```
 
 ### Stripe/Webhook Safety
 
-10. **Always verify webhook signatures** - Never process webhooks without `constructEvent()`. Use program-specific secrets (DEV vs PROD).
+11. **Always verify webhook signatures** - Never process webhooks without `constructEvent()`. Use program-specific secrets (DEV vs PROD).
 
-11. **Implement webhook idempotency** - Check `WebhookEvent` table before processing. Record event ID immediately.
+12. **Implement webhook idempotency** - Check `WebhookEvent` table before processing. Record event ID immediately.
 
-12. **Use correct Stripe client per program**
+13. **Use correct Stripe client per program**
 
     ```typescript
     // Mahad: import { stripeServerClient } from '@/lib/stripe'
     // Dugsi: import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
     ```
 
-13. **Validate billing amounts before assignment** - Never create BillingAssignment with amount <= 0.
+14. **Validate billing amounts before assignment** - Never create BillingAssignment with amount <= 0.
 
 ### Error Handling
 
-14. **Use ActionError with error codes**
+15. **Use ActionError with error codes**
 
     ```typescript
     throw new ActionError('Message', ERROR_CODES.NOT_FOUND, undefined, 404)
     ```
 
-15. **Log errors with structured context**
+16. **Log errors with structured context**
 
     ```typescript
     await logError(logger, error, 'Context message', { entityId })
     ```
 
-16. **Never log sensitive data** - Pino redacts: passwords, tokens, card numbers, API keys. Safe to log: emails, phones.
+17. **Never log sensitive data** - Pino redacts: passwords, tokens, card numbers, API keys. Safe to log: emails, phones.
 
 ### Server Actions
 
-17. **Always return ActionResult<T>**
+18. **Always return ActionResult<T>**
 
     ```typescript
     return { success: true, data } | { success: false, error }
     ```
 
-18. **Revalidate cache after mutations**
+19. **Revalidate cache after mutations**
     ```typescript
     revalidatePath('/admin/dugsi')
     ```
