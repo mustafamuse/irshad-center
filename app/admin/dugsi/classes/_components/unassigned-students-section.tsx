@@ -131,7 +131,7 @@ export function UnassignedStudentsSection({
         toast.error(result.error)
       }
     } catch {
-      toast.error('An unexpected error occurred. Please try again.')
+      toast.error('Something went wrong assigning students. Please try again.')
     } finally {
       setIsLoading(false)
     }
@@ -156,7 +156,7 @@ export function UnassignedStudentsSection({
           </CardTitle>
         </div>
         <CardDescription>
-          Select students and assign them to a class
+          Select students below, then choose a class to assign them
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -168,14 +168,16 @@ export function UnassignedStudentsSection({
               aria-label="Select all students"
             />
             <span className="text-sm text-muted-foreground">
-              {allSelected ? 'Deselect All' : 'Select All'}
+              {allSelected
+                ? `Deselect All (${sorted.length})`
+                : `Select All (${sorted.length})`}
             </span>
           </div>
-          <ScrollArea className="max-h-64">
+          <ScrollArea className="max-h-80">
             {sorted.map((student) => (
               <label
                 key={student.profileId}
-                className="flex cursor-pointer items-start gap-3 px-3 py-1.5 hover:bg-muted/50"
+                className="flex cursor-pointer items-start gap-3 px-3 py-2 hover:bg-muted/50"
               >
                 <Checkbox
                   checked={selected.has(student.profileId)}
@@ -194,7 +196,9 @@ export function UnassignedStudentsSection({
                         </span>
                       </>
                     )}
-                    <span className="text-muted-foreground">·</span>
+                    {(student.age !== null || student.shift) && (
+                      <span className="text-muted-foreground">·</span>
+                    )}
                     {student.shift ? (
                       <span className="inline-flex items-center gap-1 text-muted-foreground">
                         {student.shift === 'MORNING' ? (
@@ -205,12 +209,12 @@ export function UnassignedStudentsSection({
                         {student.shift === 'MORNING' ? 'AM' : 'PM'}
                       </span>
                     ) : (
-                      <span className="text-amber-600">No shift</span>
+                      <span className="text-amber-600">No shift set</span>
                     )}
                   </div>
                   {student.siblings.length > 0 && (
                     <div className="text-xs text-muted-foreground">
-                      {formatSiblings(student.name, student.siblings)}
+                      Sibling: {formatSiblings(student.name, student.siblings)}
                     </div>
                   )}
                 </div>
@@ -220,6 +224,11 @@ export function UnassignedStudentsSection({
         </div>
 
         <div className="space-y-3">
+          {selected.size > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {selected.size} of {sorted.length} selected
+            </p>
+          )}
           <Select value={classId} onValueChange={setClassId}>
             <SelectTrigger aria-label="Select a class">
               <SelectValue placeholder="Select a class" />
@@ -255,7 +264,9 @@ export function UnassignedStudentsSection({
           >
             {isLoading
               ? 'Assigning\u2026'
-              : `Assign ${selected.size} Student${selected.size !== 1 ? 's' : ''}`}
+              : selected.size > 0 && !classId
+                ? 'Select a class first'
+                : `Assign ${selected.size} Student${selected.size !== 1 ? 's' : ''}`}
           </Button>
         </div>
       </CardContent>

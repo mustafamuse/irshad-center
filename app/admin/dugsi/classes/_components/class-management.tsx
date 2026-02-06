@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import {
   AlertCircle,
@@ -78,6 +78,10 @@ export function ClassManagement({
   unassignedStudents,
 }: ClassManagementProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const activeTab =
+    searchParams.get('tab') === 'afternoon' ? 'afternoon' : 'morning'
+
   const [selectedClass, setSelectedClass] = useState<ClassWithDetails | null>(
     null
   )
@@ -348,7 +352,18 @@ export function ClassManagement({
         </Button>
       </div>
 
-      <Tabs defaultValue="morning">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const params = new URLSearchParams(searchParams.toString())
+          if (value === 'morning') {
+            params.delete('tab')
+          } else {
+            params.set('tab', value)
+          }
+          router.replace(`?${params.toString()}`, { scroll: false })
+        }}
+      >
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="morning" className="flex-1 sm:flex-initial">
             Morning ({morningClasses.length})
@@ -439,7 +454,10 @@ export function ClassManagement({
                   value={selectedTeacherId}
                   onValueChange={setSelectedTeacherId}
                 >
-                  <SelectTrigger className="w-full sm:flex-1">
+                  <SelectTrigger
+                    className="w-full sm:flex-1"
+                    aria-label="Select a teacher"
+                  >
                     <SelectValue placeholder="Select a teacher" />
                   </SelectTrigger>
                   <SelectContent>
