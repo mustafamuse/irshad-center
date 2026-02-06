@@ -12,7 +12,6 @@
  * - Provide consistent enrollment status management
  */
 
-import { prisma } from '@/lib/db'
 import {
   getActiveEnrollment,
   updateEnrollmentStatus,
@@ -51,34 +50,30 @@ export async function handleSubscriptionCancellationEnrollments(
 
   const assignments = await getSubscriptionAssignments(stripeSubscriptionId)
 
-  await prisma.$transaction(async (tx) => {
-    for (const assignment of assignments) {
-      if (assignment.isActive) {
-        try {
-          const activeEnrollment = await getActiveEnrollment(
-            assignment.programProfileId,
-            tx
-          )
+  for (const assignment of assignments) {
+    if (assignment.isActive) {
+      try {
+        const activeEnrollment = await getActiveEnrollment(
+          assignment.programProfileId
+        )
 
-          if (activeEnrollment) {
-            await updateEnrollmentStatus(
-              activeEnrollment.id,
-              'WITHDRAWN',
-              reason,
-              new Date(),
-              tx
-            )
-            results.withdrawn++
-          }
-        } catch (error) {
-          results.errors.push({
-            profileId: assignment.programProfileId,
-            error: error instanceof Error ? error.message : String(error),
-          })
+        if (activeEnrollment) {
+          await updateEnrollmentStatus(
+            activeEnrollment.id,
+            'WITHDRAWN',
+            reason,
+            new Date()
+          )
+          results.withdrawn++
         }
+      } catch (error) {
+        results.errors.push({
+          profileId: assignment.programProfileId,
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
     }
-  })
+  }
 
   return results
 }

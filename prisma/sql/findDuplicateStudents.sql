@@ -5,7 +5,6 @@ WITH duplicate_phones AS (
   JOIN "ContactPoint" cp ON cp."personId" = p.id
   WHERE pp.program = 'MAHAD_PROGRAM'
     AND cp.type IN ('PHONE', 'WHATSAPP')
-    AND cp."isActive" = true
   GROUP BY cp.value
   HAVING COUNT(DISTINCT pp.id) >= 2
 )
@@ -20,6 +19,5 @@ JOIN "Person" p ON p.id = pp."personId"
 JOIN "ContactPoint" cp ON cp."personId" = p.id
 WHERE pp.program = 'MAHAD_PROGRAM'
   AND cp.type IN ('PHONE', 'WHATSAPP')
-  AND cp."isActive" = true
   AND cp.value IN (SELECT contact_value FROM duplicate_phones)
 ORDER BY cp.value, pp."updatedAt" DESC

@@ -25,9 +25,12 @@ import { findDuplicateStudents as findDuplicateStudentsSql } from '@prisma/clien
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger } from '@/lib/logger'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
 import { isPrismaError } from '@/lib/utils/type-guards'
+
+const logger = createServiceLogger('student-queries')
 
 export interface MahadStudent {
   id: string
@@ -757,6 +760,9 @@ export async function searchStudents(
  * Find duplicate students by phone number.
  * Uses TypedSQL to identify duplicates in the database, then fetches
  * full profile data via Prisma for the matched profiles only.
+ *
+ * Note: No `client` parameter — $queryRawTyped requires the full PrismaClient
+ * and is not available on TransactionClient. Do not call inside a transaction.
  */
 export async function findDuplicateStudents() {
   const sqlResults = await prisma.$queryRawTyped(findDuplicateStudentsSql())
@@ -809,7 +815,13 @@ export async function findDuplicateStudents() {
   const phoneGroups = new Map<string, ProfileWithRelations[]>()
   for (const row of sqlResults) {
     const profile = profileMap.get(row.profile_id)
-    if (!profile) continue
+    if (!profile) {
+      logger.warn(
+        { profileId: row.profile_id, contactValue: row.contact_value },
+        'Profile from SQL duplicate detection not found in Prisma query'
+      )
+      continue
+    }
     if (!phoneGroups.has(row.contact_value)) {
       phoneGroups.set(row.contact_value, [])
     }
