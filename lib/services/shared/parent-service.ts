@@ -17,6 +17,7 @@
 import { ContactType, GuardianRole, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import type { DatabaseClient } from '@/lib/db/types'
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 
@@ -55,9 +56,10 @@ export interface GuardianCreateInput {
  */
 export async function updateGuardianInfo(
   guardianId: string,
-  input: GuardianUpdateInput
+  input: GuardianUpdateInput,
+  client: DatabaseClient = prisma
 ) {
-  return prisma.$transaction(async (tx) => {
+  async function performUpdate(tx: DatabaseClient) {
     const fullName = `${input.firstName} ${input.lastName}`.trim()
 
     await tx.person.update({
@@ -168,7 +170,14 @@ export async function updateGuardianInfo(
       where: { id: guardianId },
       include: { contactPoints: true },
     })
-  })
+  }
+
+  // If already in a transaction, reuse it; otherwise create new transaction
+  if (client !== prisma) {
+    return performUpdate(client)
+  }
+
+  return prisma.$transaction(performUpdate)
 }
 
 /**

@@ -19,7 +19,7 @@ import {
   ACTIVE_ENROLLMENT_WHERE,
   extractContactInfo,
 } from '@/lib/db/query-builders'
-import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
+import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('batch-queries')
@@ -322,14 +322,17 @@ export async function getBatchStudentCount(
 /**
  * Assign students to a batch (bulk update enrollments)
  * This updates existing enrollments or creates new ones.
- * Wrapped in a transaction for atomicity when using the full Prisma client.
+ *
+ * Uses partial-success pattern: each student is processed individually so
+ * one failure doesn't block the rest. NOT wrapped in a transaction because
+ * Postgres aborts the entire transaction on first error, which is incompatible
+ * with per-student error handling.
  */
 export async function assignStudentsToBatch(
   batchId: string,
   studentIds: string[], // These are ProgramProfile IDs
   client: DatabaseClient = prisma
 ) {
-  // Verify batch exists before starting transaction
   const batch = await client.batch.findUnique({
     where: { id: batchId },
   })
@@ -343,61 +346,53 @@ export async function assignStudentsToBatch(
     }
   }
 
-  async function processAssignments(tx: DatabaseClient) {
-    const results = {
-      success: true,
-      assignedCount: 0,
-      failedAssignments: [] as string[],
-      errors: [] as string[],
-    }
+  const results = {
+    success: true,
+    assignedCount: 0,
+    failedAssignments: [] as string[],
+    errors: [] as string[],
+  }
 
-    for (const studentId of studentIds) {
-      try {
-        const enrollment = await tx.enrollment.findFirst({
-          where: {
+  for (const studentId of studentIds) {
+    try {
+      const enrollment = await client.enrollment.findFirst({
+        where: {
+          programProfileId: studentId,
+          ...ACTIVE_ENROLLMENT_WHERE,
+        },
+      })
+
+      if (enrollment) {
+        await client.enrollment.update({
+          where: { id: enrollment.id },
+          data: { batchId },
+        })
+      } else {
+        await client.enrollment.create({
+          data: {
             programProfileId: studentId,
-            ...ACTIVE_ENROLLMENT_WHERE,
+            batchId,
+            status: 'REGISTERED',
+            startDate: new Date(),
           },
         })
-
-        if (enrollment) {
-          await tx.enrollment.update({
-            where: { id: enrollment.id },
-            data: { batchId },
-          })
-        } else {
-          await tx.enrollment.create({
-            data: {
-              programProfileId: studentId,
-              batchId,
-              status: 'REGISTERED',
-              startDate: new Date(),
-            },
-          })
-        }
-
-        results.assignedCount++
-      } catch (error) {
-        await logError(logger, error, 'Failed to assign student to batch', {
-          studentId,
-          batchId,
-        })
-        results.failedAssignments.push(studentId)
-        results.errors.push(
-          `Failed to assign student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`
-        )
       }
+
+      results.assignedCount++
+    } catch (error) {
+      await logError(logger, error, 'Failed to assign student to batch', {
+        studentId,
+        batchId,
+      })
+      results.failedAssignments.push(studentId)
+      results.errors.push(
+        `Failed to assign student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
-
-    results.success = results.failedAssignments.length === 0
-    return results
   }
 
-  if (isPrismaClient(client)) {
-    return client.$transaction((tx) => processAssignments(tx))
-  }
-
-  return processAssignments(client)
+  results.success = results.failedAssignments.length === 0
+  return results
 }
 
 /**

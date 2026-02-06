@@ -26,6 +26,7 @@ import {
   createProgramProfile,
 } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import type { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
 /**
@@ -191,7 +192,8 @@ export async function createMahadStudent(input: StudentCreateInput) {
  */
 export async function updateMahadStudent(
   studentId: string,
-  input: StudentUpdateInput
+  input: StudentUpdateInput,
+  client: DatabaseClient = prisma
 ) {
   const profile = await getProgramProfileById(studentId)
 
@@ -204,10 +206,12 @@ export async function updateMahadStudent(
     )
   }
 
-  return prisma.$transaction(async (tx) => {
+  const { personId } = profile
+
+  async function performUpdate(tx: DatabaseClient) {
     if (input.name !== undefined || input.dateOfBirth !== undefined) {
       await tx.person.update({
-        where: { id: profile.personId },
+        where: { id: personId },
         data: {
           name: input.name,
           dateOfBirth: input.dateOfBirth,
@@ -221,7 +225,7 @@ export async function updateMahadStudent(
       if (normalizedEmail) {
         const existingEmail = await tx.contactPoint.findFirst({
           where: {
-            personId: profile.personId,
+            personId: personId,
             type: 'EMAIL',
           },
         })
@@ -235,7 +239,7 @@ export async function updateMahadStudent(
           try {
             await tx.contactPoint.create({
               data: {
-                personId: profile.personId,
+                personId: personId,
                 type: 'EMAIL',
                 value: normalizedEmail,
                 isPrimary: true,
@@ -247,7 +251,7 @@ export async function updateMahadStudent(
               error.code === 'P2002'
             ) {
               const existing = await tx.contactPoint.findFirst({
-                where: { personId: profile.personId, type: 'EMAIL' },
+                where: { personId: personId, type: 'EMAIL' },
               })
               if (existing) {
                 await tx.contactPoint.update({
@@ -269,7 +273,7 @@ export async function updateMahadStudent(
       if (normalizedPhone) {
         const existingPhone = await tx.contactPoint.findFirst({
           where: {
-            personId: profile.personId,
+            personId: personId,
             type: 'PHONE',
           },
         })
@@ -283,7 +287,7 @@ export async function updateMahadStudent(
           try {
             await tx.contactPoint.create({
               data: {
-                personId: profile.personId,
+                personId: personId,
                 type: 'PHONE',
                 value: normalizedPhone,
               },
@@ -294,7 +298,7 @@ export async function updateMahadStudent(
               error.code === 'P2002'
             ) {
               const existing = await tx.contactPoint.findFirst({
-                where: { personId: profile.personId, type: 'PHONE' },
+                where: { personId: personId, type: 'PHONE' },
               })
               if (existing) {
                 await tx.contactPoint.update({
@@ -321,7 +325,14 @@ export async function updateMahadStudent(
         paymentNotes: input.paymentNotes,
       },
     })
-  })
+  }
+
+  // If already in a transaction, reuse it; otherwise create new transaction
+  if (client !== prisma) {
+    return performUpdate(client)
+  }
+
+  return prisma.$transaction(performUpdate)
 }
 
 /**
