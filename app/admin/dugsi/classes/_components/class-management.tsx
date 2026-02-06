@@ -92,8 +92,14 @@ export function ClassManagement({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [enrollmentDialogOpen, setEnrollmentDialogOpen] = useState(false)
 
-  const morningClasses = classes.filter((c) => c.shift === 'MORNING')
-  const afternoonClasses = classes.filter((c) => c.shift === 'AFTERNOON')
+  const morningClasses = useMemo(
+    () => classes.filter((c) => c.shift === 'MORNING'),
+    [classes]
+  )
+  const afternoonClasses = useMemo(
+    () => classes.filter((c) => c.shift === 'AFTERNOON'),
+    [classes]
+  )
 
   const handleOpenDetail = (classItem: ClassWithDetails) => {
     setSelectedClass(classItem)
