@@ -90,7 +90,7 @@ export function CheckinHistory({ teacherId }: Props) {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : error ? (
-            <div className="py-6 text-center">
+            <div className="py-6 text-center" role="alert">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           ) : !history || history.data.length === 0 ? (

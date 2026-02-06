@@ -221,7 +221,7 @@ export function UnassignedStudentsSection({
 
         <div className="space-y-3">
           <Select value={classId} onValueChange={setClassId}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Select a class">
               <SelectValue placeholder="Select a class" />
             </SelectTrigger>
             <SelectContent>
@@ -254,7 +254,7 @@ export function UnassignedStudentsSection({
             onClick={handleAssign}
           >
             {isLoading
-              ? 'Assigning...'
+              ? 'Assigning\u2026'
               : `Assign ${selected.size} Student${selected.size !== 1 ? 's' : ''}`}
           </Button>
         </div>

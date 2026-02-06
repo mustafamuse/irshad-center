@@ -203,7 +203,15 @@ export function ClassManagement({
     return (
       <Card
         key={classItem.id}
-        className={`cursor-pointer border-0 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleOpenDetail(classItem)
+          }
+        }}
+        className={`cursor-pointer border-0 shadow-md transition-[box-shadow,transform] duration-200 hover:-translate-y-1 hover:shadow-lg ${
           needsAttention
             ? 'ring-2 ring-[#deb43e]/40 hover:ring-[#deb43e]/60'
             : 'hover:ring-2 hover:ring-[#007078]/20'
@@ -241,7 +249,12 @@ export function ClassManagement({
                   asChild
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Class options"
+                  >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -391,7 +404,7 @@ export function ClassManagement({
 
           <div className="space-y-4">
             <div>
-              <h4 className="mb-2 text-sm font-medium">Assigned Teachers</h4>
+              <h3 className="mb-2 text-sm font-medium">Assigned Teachers</h3>
               {selectedClass?.teachers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No teachers assigned yet
@@ -409,6 +422,7 @@ export function ClassManagement({
                         size="sm"
                         onClick={() => handleRemoveTeacher(teacher.teacherId)}
                         disabled={isLoading}
+                        aria-label={`Remove ${teacher.teacherName}`}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -419,7 +433,7 @@ export function ClassManagement({
             </div>
 
             <div>
-              <h4 className="mb-2 text-sm font-medium">Add Teacher</h4>
+              <h3 className="mb-2 text-sm font-medium">Add Teacher</h3>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Select
                   value={selectedTeacherId}
@@ -446,6 +460,7 @@ export function ClassManagement({
                   onClick={handleAssignTeacher}
                   disabled={!selectedTeacherId || isLoading}
                   className="w-full sm:w-auto"
+                  aria-label="Add teacher"
                 >
                   <Plus className="mr-2 h-4 w-4 sm:mr-0" />
                   <span className="sm:hidden">Add Teacher</span>

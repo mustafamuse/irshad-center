@@ -74,7 +74,10 @@ export function CheckinHistoryTab({ teacherId }: Props) {
 
   if (error) {
     return (
-      <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4">
+      <div
+        className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4"
+        role="alert"
+      >
         <AlertCircle className="h-4 w-4 text-red-600" />
         <p className="text-sm text-red-800">{error}</p>
       </div>
