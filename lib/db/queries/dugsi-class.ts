@@ -7,6 +7,7 @@
 
 import { DugsiClass, Prisma, Shift } from '@prisma/client'
 
+import type { UnassignedStudent } from '@/app/admin/dugsi/_types'
 import {
   BULK_ENROLLMENT_TIMEOUT_MS,
   DUGSI_PROGRAM,
@@ -20,6 +21,115 @@ import {
 import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('dugsi-class-queries')
+
+const siblingPersonSelect = {
+  name: true,
+  programProfiles: {
+    where: { program: DUGSI_PROGRAM },
+    select: {
+      dugsiClassEnrollment: {
+        select: {
+          isActive: true,
+          class: {
+            select: {
+              shift: true,
+              teachers: {
+                where: { isActive: true },
+                select: {
+                  teacher: {
+                    select: { person: { select: { name: true } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const
+
+export async function getUnassignedDugsiStudents(
+  client: DatabaseClient = prisma
+): Promise<UnassignedStudent[]> {
+  const profiles = await client.programProfile.findMany({
+    where: {
+      program: DUGSI_PROGRAM,
+      status: { in: ['ENROLLED', 'REGISTERED'] },
+      OR: [
+        { dugsiClassEnrollment: null },
+        { dugsiClassEnrollment: { isActive: false } },
+      ],
+    },
+    include: {
+      person: {
+        select: {
+          id: true,
+          name: true,
+          dateOfBirth: true,
+          siblingRelationships1: {
+            where: { isActive: true },
+            select: { person2: { select: siblingPersonSelect } },
+          },
+          siblingRelationships2: {
+            where: { isActive: true },
+            select: { person1: { select: siblingPersonSelect } },
+          },
+        },
+      },
+    },
+    orderBy: { person: { name: 'asc' } },
+  })
+
+  const now = new Date()
+
+  return profiles.map((p) => {
+    const dob = p.person.dateOfBirth
+    let age: number | null = null
+    if (dob) {
+      age = now.getFullYear() - dob.getFullYear()
+      const monthDiff = now.getMonth() - dob.getMonth()
+      if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
+        age--
+      }
+    }
+
+    type SiblingPerson =
+      (typeof p.person.siblingRelationships1)[number]['person2']
+    type SiblingEntry = { name: string; teacherName: string; classShift: Shift }
+    const siblings: SiblingEntry[] = []
+
+    const extractFromPerson = (person: SiblingPerson) => {
+      for (const profile of person.programProfiles) {
+        const enrollment = profile.dugsiClassEnrollment
+        if (!enrollment?.isActive) continue
+        const teacherName =
+          enrollment.class.teachers[0]?.teacher.person.name ?? 'No teacher'
+        siblings.push({
+          name: person.name,
+          teacherName,
+          classShift: enrollment.class.shift,
+        })
+      }
+    }
+
+    for (const rel of p.person.siblingRelationships1) {
+      extractFromPerson(rel.person2)
+    }
+    for (const rel of p.person.siblingRelationships2) {
+      extractFromPerson(rel.person1)
+    }
+
+    return {
+      profileId: p.id,
+      name: p.person.name,
+      dateOfBirth: p.person.dateOfBirth,
+      age,
+      shift: p.shift,
+      siblings,
+    }
+  })
+}
 
 export const dugsiClassInclude = {
   teachers: {
@@ -211,35 +321,26 @@ export async function bulkEnrollStudents(
   const enrollStudents = async (
     tx: DatabaseClient
   ): Promise<{ enrolled: number; moved: number }> => {
+    const existingEnrollments = await tx.dugsiClassEnrollment.findMany({
+      where: { programProfileId: { in: uniqueIds } },
+      select: { programProfileId: true, classId: true, isActive: true },
+    })
+
+    const existingMap = new Map(
+      existingEnrollments.map((e) => [e.programProfileId, e])
+    )
+
     let enrolled = 0
     let moved = 0
 
-    for (let i = 0; i < uniqueIds.length; i++) {
-      const programProfileId = uniqueIds[i]
-      logger.debug(
-        { programProfileId, index: i + 1, total: uniqueIds.length },
-        'Processing student'
-      )
-
-      const existing = await tx.dugsiClassEnrollment.findUnique({
-        where: { programProfileId },
-        select: { classId: true, isActive: true },
-      })
+    for (const programProfileId of uniqueIds) {
+      const existing = existingMap.get(programProfileId)
 
       if (existing?.classId === classId && existing.isActive) {
-        logger.debug(
-          { programProfileId },
-          'Skipping - already enrolled in this class'
-        )
         continue
       }
 
       const wasMoving = existing?.isActive && existing.classId !== classId
-
-      logger.debug(
-        { programProfileId, wasMoving, action: 'upsert' },
-        'Upserting enrollment'
-      )
 
       await tx.dugsiClassEnrollment.upsert({
         where: { programProfileId },

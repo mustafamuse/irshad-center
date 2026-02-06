@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 
 import { ChevronDown, Clock, Loader2 } from 'lucide-react'
 
@@ -33,18 +33,22 @@ export function CheckinHistory({ teacherId }: Props) {
   const [history, setHistory] = useState<CheckinHistoryResult | null>(null)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const currentTeacherRef = useRef(teacherId)
 
   useEffect(() => {
+    currentTeacherRef.current = teacherId
     setHistory(null)
     setHasLoaded(false)
     setIsOpen(false)
     setError(null)
   }, [teacherId])
 
-  function loadHistory() {
+  const loadHistory = useCallback(() => {
     if (!teacherId || hasLoaded) return
+    const requestTeacherId = teacherId
     startTransition(async () => {
-      const result = await getTeacherCheckinHistory(teacherId)
+      const result = await getTeacherCheckinHistory(requestTeacherId)
+      if (currentTeacherRef.current !== requestTeacherId) return
       if (result.success && result.data) {
         setHistory(result.data)
         setError(null)
@@ -53,7 +57,7 @@ export function CheckinHistory({ teacherId }: Props) {
       }
       setHasLoaded(true)
     })
-  }
+  }, [teacherId, hasLoaded])
 
   function handleOpenChange(open: boolean) {
     setIsOpen(open)
@@ -86,7 +90,7 @@ export function CheckinHistory({ teacherId }: Props) {
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : error ? (
-            <div className="py-6 text-center">
+            <div className="py-6 text-center" role="alert">
               <p className="text-sm text-red-600">{error}</p>
             </div>
           ) : !history || history.data.length === 0 ? (

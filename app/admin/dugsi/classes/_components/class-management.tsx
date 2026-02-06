@@ -1,11 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 import {
   AlertCircle,
+  CheckCircle2,
   GraduationCap,
   MoreVertical,
   Pencil,
@@ -53,7 +54,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ClassFormDialog } from './class-form-dialog'
 import { DeleteClassDialog } from './delete-class-dialog'
 import { StudentEnrollmentDialog } from './student-enrollment-dialog'
-import type { ClassWithDetails } from '../../_types'
+import { UnassignedStudentsSection } from './unassigned-students-section'
+import type { ClassWithDetails, UnassignedStudent } from '../../_types'
 import {
   assignTeacherToClassAction,
   removeTeacherFromClassAction,
@@ -64,13 +66,24 @@ interface Teacher {
   name: string
 }
 
+const DEFAULT_TAB = 'morning'
+
 interface ClassManagementProps {
   classes: ClassWithDetails[]
   teachers: Teacher[]
+  unassignedStudents: UnassignedStudent[]
 }
 
-export function ClassManagement({ classes, teachers }: ClassManagementProps) {
+export function ClassManagement({
+  classes,
+  teachers,
+  unassignedStudents,
+}: ClassManagementProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const activeTab =
+    searchParams.get('tab') === 'afternoon' ? 'afternoon' : DEFAULT_TAB
+
   const [selectedClass, setSelectedClass] = useState<ClassWithDetails | null>(
     null
   )
@@ -85,8 +98,14 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [enrollmentDialogOpen, setEnrollmentDialogOpen] = useState(false)
 
-  const morningClasses = classes.filter((c) => c.shift === 'MORNING')
-  const afternoonClasses = classes.filter((c) => c.shift === 'AFTERNOON')
+  const morningClasses = useMemo(
+    () => classes.filter((c) => c.shift === 'MORNING'),
+    [classes]
+  )
+  const afternoonClasses = useMemo(
+    () => classes.filter((c) => c.shift === 'AFTERNOON'),
+    [classes]
+  )
 
   const handleOpenDetail = (classItem: ClassWithDetails) => {
     setSelectedClass(classItem)
@@ -173,10 +192,13 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
     }
   }
 
-  const assignedTeacherIds =
-    selectedClass?.teachers.map((t) => t.teacherId) ?? []
-  const availableTeachers = teachers.filter(
-    (t) => !assignedTeacherIds.includes(t.id)
+  const assignedTeacherIds = useMemo(
+    () => new Set(selectedClass?.teachers.map((t) => t.teacherId) ?? []),
+    [selectedClass]
+  )
+  const availableTeachers = useMemo(
+    () => teachers.filter((t) => !assignedTeacherIds.has(t.id)),
+    [teachers, assignedTeacherIds]
   )
 
   const renderClassCard = (classItem: ClassWithDetails, index: number) => {
@@ -187,7 +209,15 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
     return (
       <Card
         key={classItem.id}
-        className={`cursor-pointer border-0 shadow-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            handleOpenDetail(classItem)
+          }
+        }}
+        className={`cursor-pointer border-0 shadow-md transition-[box-shadow,transform] duration-200 hover:-translate-y-1 hover:shadow-lg ${
           needsAttention
             ? 'ring-2 ring-[#deb43e]/40 hover:ring-[#deb43e]/60'
             : 'hover:ring-2 hover:ring-[#007078]/20'
@@ -225,7 +255,12 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
                   asChild
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    aria-label="Class options"
+                  >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -312,14 +347,25 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
         </div>
         <Button
           onClick={handleCreateClass}
-          className="bg-[#007078] hover:bg-[#005a61]"
+          className="bg-brand hover:bg-brand-hover"
         >
           <Plus className="mr-2 h-4 w-4" />
           New Class
         </Button>
       </div>
 
-      <Tabs defaultValue="morning">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          const params = new URLSearchParams(searchParams.toString())
+          if (value === DEFAULT_TAB) {
+            params.delete('tab')
+          } else {
+            params.set('tab', value)
+          }
+          router.replace(`?${params.toString()}`, { scroll: false })
+        }}
+      >
         <TabsList className="w-full sm:w-auto">
           <TabsTrigger value="morning" className="flex-1 sm:flex-initial">
             Morning ({morningClasses.length})
@@ -350,6 +396,20 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
         </TabsContent>
       </Tabs>
 
+      {unassignedStudents.length > 0 ? (
+        <UnassignedStudentsSection
+          students={unassignedStudents}
+          classes={classes}
+        />
+      ) : (
+        classes.length > 0 && (
+          <div className="mt-8 flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            <CheckCircle2 className="h-4 w-4" />
+            All students are assigned to a class
+          </div>
+        )
+      )}
+
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -361,7 +421,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
 
           <div className="space-y-4">
             <div>
-              <h4 className="mb-2 text-sm font-medium">Assigned Teachers</h4>
+              <h3 className="mb-2 text-sm font-medium">Assigned Teachers</h3>
               {selectedClass?.teachers.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No teachers assigned yet
@@ -379,6 +439,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
                         size="sm"
                         onClick={() => handleRemoveTeacher(teacher.teacherId)}
                         disabled={isLoading}
+                        aria-label={`Remove ${teacher.teacherName}`}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -389,13 +450,16 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
             </div>
 
             <div>
-              <h4 className="mb-2 text-sm font-medium">Add Teacher</h4>
+              <h3 className="mb-2 text-sm font-medium">Add Teacher</h3>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Select
                   value={selectedTeacherId}
                   onValueChange={setSelectedTeacherId}
                 >
-                  <SelectTrigger className="w-full sm:flex-1">
+                  <SelectTrigger
+                    className="w-full sm:flex-1"
+                    aria-label="Select a teacher"
+                  >
                     <SelectValue placeholder="Select a teacher" />
                   </SelectTrigger>
                   <SelectContent>
@@ -416,6 +480,7 @@ export function ClassManagement({ classes, teachers }: ClassManagementProps) {
                   onClick={handleAssignTeacher}
                   disabled={!selectedTeacherId || isLoading}
                   className="w-full sm:w-auto"
+                  aria-label="Add teacher"
                 >
                   <Plus className="mr-2 h-4 w-4 sm:mr-0" />
                   <span className="sm:hidden">Add Teacher</span>
