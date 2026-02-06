@@ -253,7 +253,7 @@ export function UnassignedStudentsSection({
           </Select>
 
           <Button
-            className="w-full bg-[#007078] hover:bg-[#005a61]"
+            className="w-full bg-brand hover:bg-brand-hover"
             disabled={selected.size === 0 || !classId || isLoading}
             onClick={handleAssign}
           >

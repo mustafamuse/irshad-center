@@ -66,6 +66,8 @@ interface Teacher {
   name: string
 }
 
+const DEFAULT_TAB = 'morning'
+
 interface ClassManagementProps {
   classes: ClassWithDetails[]
   teachers: Teacher[]
@@ -80,7 +82,7 @@ export function ClassManagement({
   const router = useRouter()
   const searchParams = useSearchParams()
   const activeTab =
-    searchParams.get('tab') === 'afternoon' ? 'afternoon' : 'morning'
+    searchParams.get('tab') === 'afternoon' ? 'afternoon' : DEFAULT_TAB
 
   const [selectedClass, setSelectedClass] = useState<ClassWithDetails | null>(
     null
@@ -345,7 +347,7 @@ export function ClassManagement({
         </div>
         <Button
           onClick={handleCreateClass}
-          className="bg-[#007078] hover:bg-[#005a61]"
+          className="bg-brand hover:bg-brand-hover"
         >
           <Plus className="mr-2 h-4 w-4" />
           New Class
@@ -356,7 +358,7 @@ export function ClassManagement({
         value={activeTab}
         onValueChange={(value) => {
           const params = new URLSearchParams(searchParams.toString())
-          if (value === 'morning') {
+          if (value === DEFAULT_TAB) {
             params.delete('tab')
           } else {
             params.set('tab', value)
