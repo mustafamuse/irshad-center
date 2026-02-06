@@ -21,6 +21,7 @@ import {
   SubscriptionStatus,
   ContactType,
 } from '@prisma/client'
+import { findDuplicateStudents as findDuplicateStudentsSql } from '@prisma/client/sql'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -753,22 +754,19 @@ export async function searchStudents(
 }
 
 /**
- * Find duplicate students by phone number
- * Uses exact phone matching - the most reliable indicator of duplicates
+ * Find duplicate students by phone number.
+ * Uses TypedSQL to identify duplicates in the database, then fetches
+ * full profile data via Prisma for the matched profiles only.
  */
-export async function findDuplicateStudents(client: DatabaseClient = prisma) {
-  // Get all Mahad profiles with phone numbers
-  const profiles = await client.programProfile.findMany({
-    where: {
-      program: 'MAHAD_PROGRAM',
-      person: {
-        contactPoints: {
-          some: {
-            type: { in: ['PHONE', 'WHATSAPP'] },
-          },
-        },
-      },
-    },
+export async function findDuplicateStudents() {
+  const sqlResults = await prisma.$queryRawTyped(findDuplicateStudentsSql())
+
+  if (sqlResults.length === 0) return []
+
+  const profileIds = Array.from(new Set(sqlResults.map((r) => r.profile_id)))
+
+  const profiles = await prisma.programProfile.findMany({
+    where: { id: { in: profileIds } },
     relationLoadStrategy: 'join',
     include: {
       person: {
@@ -805,32 +803,31 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
     },
   })
 
-  // Group by phone number
-  const phoneGroups = new Map<string, typeof profiles>()
+  const profileMap = new Map(profiles.map((p) => [p.id, p]))
 
-  for (const profile of profiles) {
-    for (const contact of profile.person.contactPoints) {
-      if (contact.value) {
-        const phone = contact.value
-        if (!phoneGroups.has(phone)) {
-          phoneGroups.set(phone, [])
-        }
-        phoneGroups.get(phone)!.push(profile)
-      }
+  // Re-group by phone using SQL results' contact_value
+  const phoneGroups = new Map<string, ProfileWithRelations[]>()
+  for (const row of sqlResults) {
+    const profile = profileMap.get(row.profile_id)
+    if (!profile) continue
+    if (!phoneGroups.has(row.contact_value)) {
+      phoneGroups.set(row.contact_value, [])
+    }
+    const group = phoneGroups.get(row.contact_value)!
+    if (!group.some((p) => p.id === profile.id)) {
+      group.push(profile)
     }
   }
 
-  // Filter groups with duplicates (2+ profiles with same phone)
   const duplicateGroups = Array.from(phoneGroups.entries())
     .filter(([_, group]) => group.length > 1)
     .map(([phone, group]) => {
-      const profiles = group.map(transformToStudent)
+      const students = group.map(transformToStudent)
       const latestUpdate = Math.max(...group.map((p) => p.updatedAt.getTime()))
       const hasRecentActivity =
-        Date.now() - latestUpdate < 30 * 24 * 60 * 60 * 1000 // 30 days
+        Date.now() - latestUpdate < 30 * 24 * 60 * 60 * 1000
 
-      // Sort by most recent update - keep the most recently updated record
-      const sortedProfiles = [...profiles].sort(
+      const sortedProfiles = [...students].sort(
         (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
       )
       const keepRecord = sortedProfiles[0]
@@ -838,15 +835,15 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
 
       return {
         phone,
-        email: keepRecord.email || phone, // For backward compatibility with UI
-        profiles,
+        email: keepRecord.email || phone,
+        profiles: students,
         keepRecord,
         duplicateRecords,
         count: group.length,
-        hasSiblingGroup: false, // TODO: Check if any profiles have sibling relationships
+        hasSiblingGroup: false,
         hasRecentActivity,
         lastUpdated: latestUpdate,
-        differences: null, // TODO: Calculate field differences between profiles
+        differences: null,
       }
     })
 
@@ -865,6 +862,7 @@ export async function resolveDuplicateStudents(
   await prisma.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({
       where: { id: keepId },
+      relationLoadStrategy: 'join',
       include: {
         person: { include: { contactPoints: true } },
         assignments: true,

@@ -164,6 +164,7 @@ export class UnifiedMatcher {
       },
       async () =>
         await prisma.programProfile.findMany({
+          relationLoadStrategy: 'join',
           where: {
             personId: person.id,
             program,
@@ -297,6 +298,7 @@ export class UnifiedMatcher {
     // Find program profile with assignments included to avoid N+1
     const program = accountType === 'MAHAD' ? 'MAHAD_PROGRAM' : 'DUGSI_PROGRAM'
     const profiles = await prisma.programProfile.findMany({
+      relationLoadStrategy: 'join',
       where: {
         personId: person.id,
         program,
@@ -423,6 +425,7 @@ export class UnifiedMatcher {
 
     // Try to find billing account first (guardian payer)
     const billingAccount = await prisma.billingAccount.findFirst({
+      relationLoadStrategy: 'join',
       where: {
         personId: person.id,
         accountType,
@@ -459,6 +462,7 @@ export class UnifiedMatcher {
     // Otherwise, try to find program profile (self-pay student)
     const program = accountType === 'MAHAD' ? 'MAHAD_PROGRAM' : 'DUGSI_PROGRAM'
     const profiles = await prisma.programProfile.findMany({
+      relationLoadStrategy: 'join',
       where: {
         personId: person.id,
         program,
@@ -514,6 +518,7 @@ export class UnifiedMatcher {
     // For Dugsi, check if this person is a guardian for registered students
     if (accountType === 'DUGSI') {
       const guardianRelationships = await prisma.guardianRelationship.findMany({
+        relationLoadStrategy: 'join',
         where: {
           guardianId: person.id,
           isActive: true,

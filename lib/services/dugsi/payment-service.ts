@@ -123,6 +123,7 @@ export async function getPaymentStatus(
     },
     async () =>
       await prisma.person.findFirst({
+        relationLoadStrategy: 'join',
         where: {
           contactPoints: {
             some: {

@@ -93,6 +93,7 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
       status: { not: 'WITHDRAWN' },
       endDate: null,
     },
+    relationLoadStrategy: 'join',
     include: {
       ...mahadEnrollmentInclude,
       programProfile: {
@@ -342,6 +343,7 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
         type: 'EMAIL',
         value: dup.value,
       },
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {

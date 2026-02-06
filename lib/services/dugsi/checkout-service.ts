@@ -138,6 +138,7 @@ export async function createDugsiCheckoutSession(
 
   // Get family profiles with guardian information
   const familyProfiles = await prisma.programProfile.findMany({
+    relationLoadStrategy: 'join',
     where: {
       familyReferenceId: familyId,
       program: 'DUGSI_PROGRAM',

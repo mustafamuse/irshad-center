@@ -57,93 +57,45 @@ export async function updateGuardianInfo(
   guardianId: string,
   input: GuardianUpdateInput
 ) {
-  // Build full name
-  const fullName = `${input.firstName} ${input.lastName}`.trim()
+  return prisma.$transaction(async (tx) => {
+    const fullName = `${input.firstName} ${input.lastName}`.trim()
 
-  // Update Person name
-  await prisma.person.update({
-    where: { id: guardianId },
-    data: { name: fullName },
-  })
-
-  // Get existing contact points
-  const guardian = await prisma.person.findUnique({
-    where: { id: guardianId },
-    include: { contactPoints: true },
-  })
-
-  if (!guardian) {
-    throw new ValidationError('Guardian not found', 'GUARDIAN_NOT_FOUND', {
-      guardianId,
+    await tx.person.update({
+      where: { id: guardianId },
+      data: { name: fullName },
     })
-  }
 
-  // Update email if provided
-  if (input.email) {
-    const normalizedEmail = input.email.toLowerCase().trim()
-    const existingEmail = guardian.contactPoints.find(
-      (cp) => cp.type === 'EMAIL'
-    )
+    const guardian = await tx.person.findUnique({
+      relationLoadStrategy: 'join',
+      where: { id: guardianId },
+      include: { contactPoints: true },
+    })
 
-    if (existingEmail) {
-      await prisma.contactPoint.update({
-        where: { id: existingEmail.id },
-        data: { value: normalizedEmail },
+    if (!guardian) {
+      throw new ValidationError('Guardian not found', 'GUARDIAN_NOT_FOUND', {
+        guardianId,
       })
-    } else {
-      try {
-        await prisma.contactPoint.create({
-          data: {
-            personId: guardianId,
-            type: 'EMAIL',
-            value: normalizedEmail,
-            isPrimary: true,
-          },
-        })
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          // Race condition - contact point was created by another request
-          const existing = await prisma.contactPoint.findFirst({
-            where: { personId: guardianId, type: 'EMAIL' },
-          })
-          if (existing) {
-            await prisma.contactPoint.update({
-              where: { id: existing.id },
-              data: { value: normalizedEmail, isPrimary: true },
-            })
-          }
-        } else {
-          throw error
-        }
-      }
     }
-  }
 
-  // Update phone if provided
-  if (input.phone) {
-    const normalizedPhone = normalizePhone(input.phone)
-
-    // Only update if we have a valid normalized phone (not null)
-    if (normalizedPhone !== null) {
-      const existingPhone = guardian.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    if (input.email) {
+      const normalizedEmail = input.email.toLowerCase().trim()
+      const existingEmail = guardian.contactPoints.find(
+        (cp) => cp.type === 'EMAIL'
       )
 
-      if (existingPhone) {
-        await prisma.contactPoint.update({
-          where: { id: existingPhone.id },
-          data: { value: normalizedPhone },
+      if (existingEmail) {
+        await tx.contactPoint.update({
+          where: { id: existingEmail.id },
+          data: { value: normalizedEmail },
         })
       } else {
         try {
-          await prisma.contactPoint.create({
+          await tx.contactPoint.create({
             data: {
               personId: guardianId,
-              type: 'PHONE',
-              value: normalizedPhone,
+              type: 'EMAIL',
+              value: normalizedEmail,
+              isPrimary: true,
             },
           })
         } catch (error) {
@@ -151,14 +103,13 @@ export async function updateGuardianInfo(
             error instanceof Prisma.PrismaClientKnownRequestError &&
             error.code === 'P2002'
           ) {
-            // Race condition - contact point was created by another request
-            const existing = await prisma.contactPoint.findFirst({
-              where: { personId: guardianId, type: 'PHONE' },
+            const existing = await tx.contactPoint.findFirst({
+              where: { personId: guardianId, type: 'EMAIL' },
             })
             if (existing) {
-              await prisma.contactPoint.update({
+              await tx.contactPoint.update({
                 where: { id: existing.id },
-                data: { value: normalizedPhone },
+                data: { value: normalizedEmail, isPrimary: true },
               })
             }
           } else {
@@ -167,12 +118,56 @@ export async function updateGuardianInfo(
         }
       }
     }
-  }
 
-  // Return updated guardian
-  return await prisma.person.findUnique({
-    where: { id: guardianId },
-    include: { contactPoints: true },
+    if (input.phone) {
+      const normalizedPhone = normalizePhone(input.phone)
+
+      if (normalizedPhone !== null) {
+        const existingPhone = guardian.contactPoints.find(
+          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+        )
+
+        if (existingPhone) {
+          await tx.contactPoint.update({
+            where: { id: existingPhone.id },
+            data: { value: normalizedPhone },
+          })
+        } else {
+          try {
+            await tx.contactPoint.create({
+              data: {
+                personId: guardianId,
+                type: 'PHONE',
+                value: normalizedPhone,
+              },
+            })
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              const existing = await tx.contactPoint.findFirst({
+                where: { personId: guardianId, type: 'PHONE' },
+              })
+              if (existing) {
+                await tx.contactPoint.update({
+                  where: { id: existing.id },
+                  data: { value: normalizedPhone },
+                })
+              }
+            } else {
+              throw error
+            }
+          }
+        }
+      }
+    }
+
+    return await tx.person.findUnique({
+      relationLoadStrategy: 'join',
+      where: { id: guardianId },
+      include: { contactPoints: true },
+    })
   })
 }
 
@@ -333,6 +328,7 @@ export async function getGuardianDependents(
     : { guardianId }
 
   return await prisma.guardianRelationship.findMany({
+    relationLoadStrategy: 'join',
     where: whereClause,
     include: {
       dependent: {
@@ -375,6 +371,7 @@ export async function getDependentGuardians(
     : { dependentId }
 
   return await prisma.guardianRelationship.findMany({
+    relationLoadStrategy: 'join',
     where: whereClause,
     include: {
       guardian: {
@@ -402,6 +399,7 @@ export async function validateGuardianEmail(email: string) {
   const normalizedEmail = email.toLowerCase().trim()
 
   return await prisma.person.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       contactPoints: {
         some: {
@@ -427,6 +425,7 @@ export async function findGuardianByEmail(email: string) {
   const normalizedEmail = email.toLowerCase().trim()
 
   return await prisma.person.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       contactPoints: {
         some: {

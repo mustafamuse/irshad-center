@@ -294,6 +294,7 @@ export async function searchStudentsForLinking(
   // Batch fetch all assignments to avoid N+1 queries
   const profileIds = profiles.map((p) => p.id)
   const allAssignments = await prisma.billingAssignment.findMany({
+    relationLoadStrategy: 'join',
     where: {
       programProfileId: { in: profileIds },
       isActive: true,
@@ -367,6 +368,7 @@ export async function getPotentialStudentMatches(
   // Batch fetch all assignments to avoid N+1 queries
   const profileIds = profiles.map((p) => p.id)
   const allAssignments = await prisma.billingAssignment.findMany({
+    relationLoadStrategy: 'join',
     where: {
       programProfileId: { in: profileIds },
       isActive: true,

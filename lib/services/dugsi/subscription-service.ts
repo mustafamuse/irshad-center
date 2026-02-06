@@ -97,6 +97,7 @@ export async function linkDugsiSubscription(
 
   // Find person by email (parent)
   const person = await prisma.person.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       contactPoints: {
         some: {
@@ -177,6 +178,7 @@ export async function getDugsiPaymentStatus(
 ): Promise<PaymentStatusResult> {
   // Find person by email
   const person = await prisma.person.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       contactPoints: {
         some: {
