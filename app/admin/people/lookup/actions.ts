@@ -204,6 +204,7 @@ export async function lookupPersonAction(
           include: {
             programs: {
               where: { isActive: true },
+              select: { program: true },
             },
           },
         },

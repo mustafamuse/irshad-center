@@ -93,6 +93,7 @@ export async function getAllDugsiRegistrations(
           program: DUGSI_PROGRAM,
           ...(validatedFilters?.shift && { shift: validatedFilters.shift }),
         },
+        relationLoadStrategy: 'join',
         include: programProfileFullInclude,
         orderBy: {
           createdAt: 'desc',
@@ -146,6 +147,7 @@ export async function getFamilyMembers(
       familyReferenceId: familyId,
       program: DUGSI_PROGRAM,
     },
+    relationLoadStrategy: 'join',
     include: programProfileFullInclude,
     orderBy: {
       createdAt: 'asc',
@@ -432,6 +434,7 @@ export async function searchDugsiRegistrationsByContact(
             },
           ],
         },
+        relationLoadStrategy: 'join',
         include: programProfileFullInclude,
       })
 
