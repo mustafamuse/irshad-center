@@ -17,7 +17,7 @@ describe('formatSiblings', () => {
   describe('basic formatting', () => {
     it('shows a single sibling with teacher and shift', () => {
       const result = formatSiblings('Ahmed Hassan', [sib('Fatima Hassan')])
-      expect(result).toBe('Fatima (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima (Ustadh, AM)')
     })
 
     it('shows two siblings in the same class', () => {
@@ -25,7 +25,7 @@ describe('formatSiblings', () => {
         sib('Fatima Hassan'),
         sib('Omar Hassan'),
       ])
-      expect(result).toBe('Fatima, Omar (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima, Omar (Ustadh, AM)')
     })
 
     it('truncates after MAX_SIBLINGS_SHOWN and shows +N more', () => {
@@ -34,36 +34,36 @@ describe('formatSiblings', () => {
         sib('Omar Hassan'),
         sib('Aisha Hassan'),
       ])
-      expect(result).toBe('Fatima, Omar (Ustadh Ali, AM) +1 more')
+      expect(result).toBe('Fatima, Omar (Ustadh, AM) +1 more')
     })
   })
 
   describe('name abbreviation', () => {
     it('abbreviates to first name when sibling shares last name', () => {
       const result = formatSiblings('Ahmed Hassan', [sib('Fatima Hassan')])
-      expect(result).toBe('Fatima (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima (Ustadh, AM)')
     })
 
     it('shows full name when sibling has a different last name', () => {
       const result = formatSiblings('Ahmed Hassan', [sib('Fatima Ali')])
-      expect(result).toBe('Fatima Ali (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima Ali (Ustadh, AM)')
     })
   })
 
   describe('single-word names', () => {
     it('handles single-word student name without errors', () => {
       const result = formatSiblings('Ahmed', [sib('Fatima')])
-      expect(result).toBe('Fatima (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima (Ustadh, AM)')
     })
 
     it('shows full sibling name when student has single-word name and sibling has last name', () => {
       const result = formatSiblings('Ahmed', [sib('Fatima Hassan')])
-      expect(result).toBe('Fatima Hassan (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima Hassan (Ustadh, AM)')
     })
 
     it('handles both student and sibling with single-word names', () => {
       const result = formatSiblings('Ahmed', [sib('Fatima'), sib('Omar')])
-      expect(result).toBe('Fatima, Omar (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima, Omar (Ustadh, AM)')
     })
   })
 
@@ -73,14 +73,14 @@ describe('formatSiblings', () => {
         sib('Fatima Hassan', 'Ustadh Ali', 'MORNING'),
         sib('Omar Hassan', 'Ustadh Khalid', 'AFTERNOON'),
       ])
-      expect(result).toBe('Fatima (Ustadh Ali, AM), Omar (Ustadh Khalid, PM)')
+      expect(result).toBe('Fatima (Ustadh, AM), Omar (Ustadh, PM)')
     })
 
     it('shows PM for afternoon shift', () => {
       const result = formatSiblings('Ahmed Hassan', [
         sib('Fatima Hassan', 'Ustadh Ali', 'AFTERNOON'),
       ])
-      expect(result).toBe('Fatima (Ustadh Ali, PM)')
+      expect(result).toBe('Fatima (Ustadh, PM)')
     })
   })
 
@@ -92,7 +92,7 @@ describe('formatSiblings', () => {
         sib('Aisha Hassan', 'Ustadh Ali', 'MORNING'),
         sib('Khalid Hassan', 'Ustadh Ali', 'MORNING'),
       ])
-      expect(result).toBe('Fatima, Omar (Ustadh Ali, AM) +2 more')
+      expect(result).toBe('Fatima, Omar (Ustadh, AM) +2 more')
     })
 
     it('returns no suffix when siblings fit within limit', () => {
@@ -114,7 +114,7 @@ describe('formatSiblings', () => {
       const result = formatSiblings('Ahmed bin Ali Hassan', [
         sib('Fatima bin Ali Hassan'),
       ])
-      expect(result).toBe('Fatima (Ustadh Ali, AM)')
+      expect(result).toBe('Fatima (Ustadh, AM)')
     })
   })
 })

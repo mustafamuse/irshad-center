@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 
 import { useRouter } from 'next/navigation'
 
-import { Sun, Sunset, UserRoundX } from 'lucide-react'
+import { UserRoundX } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -46,7 +46,7 @@ export function formatSiblings(
     const useFirstNameOnly = studentLast !== '' && sibLast === studentLast
     const displayName = useFirstNameOnly ? s.name.split(' ')[0] : s.name
     const shift = s.classShift === 'MORNING' ? 'AM' : 'PM'
-    const key = `${s.teacherName}, ${shift}`
+    const key = `${s.teacherName.split(' ')[0]}, ${shift}`
     const list = groups.get(key) ?? []
     list.push(displayName)
     groups.set(key, list)
@@ -200,16 +200,11 @@ export function UnassignedStudentsSection({
                       <span className="text-muted-foreground">·</span>
                     )}
                     {student.shift ? (
-                      <span className="inline-flex items-center gap-1 text-muted-foreground">
-                        {student.shift === 'MORNING' ? (
-                          <Sun className="h-3 w-3" />
-                        ) : (
-                          <Sunset className="h-3 w-3" />
-                        )}
+                      <span className="text-muted-foreground">
                         {student.shift === 'MORNING' ? 'AM' : 'PM'}
                       </span>
                     ) : (
-                      <span className="text-amber-600">No shift set</span>
+                      <span className="text-amber-600">No shift</span>
                     )}
                   </div>
                   {student.siblings.length > 0 && (
