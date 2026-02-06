@@ -28,8 +28,8 @@ const siblingPersonSelect = {
     where: { program: DUGSI_PROGRAM },
     select: {
       dugsiClassEnrollment: {
-        where: { isActive: true },
         select: {
+          isActive: true,
           class: {
             select: {
               shift: true,
@@ -94,58 +94,31 @@ export async function getUnassignedDugsiStudents(
       }
     }
 
+    type SiblingPerson =
+      (typeof p.person.siblingRelationships1)[number]['person2']
     type SiblingEntry = { name: string; teacherName: string; classShift: Shift }
     const siblings: SiblingEntry[] = []
 
-    const extractSiblings = (
-      relations: Array<{
-        person1?: {
-          name: string
-          programProfiles: Array<{
-            dugsiClassEnrollment: {
-              class: {
-                shift: Shift
-                teachers: Array<{ teacher: { person: { name: string } } }>
-              }
-            } | null
-          }>
-        }
-        person2?: {
-          name: string
-          programProfiles: Array<{
-            dugsiClassEnrollment: {
-              class: {
-                shift: Shift
-                teachers: Array<{ teacher: { person: { name: string } } }>
-              }
-            } | null
-          }>
-        }
-      }>
-    ) => {
-      for (const rel of relations) {
-        const sibling = rel.person1 ?? rel.person2
-        if (!sibling) continue
-        for (const profile of sibling.programProfiles) {
-          const enrollment = profile.dugsiClassEnrollment
-          if (!enrollment) continue
-          const teacherName =
-            enrollment.class.teachers[0]?.teacher.person.name ?? 'No teacher'
-          siblings.push({
-            name: sibling.name,
-            teacherName,
-            classShift: enrollment.class.shift,
-          })
-        }
+    const extractFromPerson = (person: SiblingPerson) => {
+      for (const profile of person.programProfiles) {
+        const enrollment = profile.dugsiClassEnrollment
+        if (!enrollment?.isActive) continue
+        const teacherName =
+          enrollment.class.teachers[0]?.teacher.person.name ?? 'No teacher'
+        siblings.push({
+          name: person.name,
+          teacherName,
+          classShift: enrollment.class.shift,
+        })
       }
     }
 
-    extractSiblings(
-      p.person.siblingRelationships1 as Parameters<typeof extractSiblings>[0]
-    )
-    extractSiblings(
-      p.person.siblingRelationships2 as Parameters<typeof extractSiblings>[0]
-    )
+    for (const rel of p.person.siblingRelationships1) {
+      extractFromPerson(rel.person2)
+    }
+    for (const rel of p.person.siblingRelationships2) {
+      extractFromPerson(rel.person1)
+    }
 
     return {
       profileId: p.id,

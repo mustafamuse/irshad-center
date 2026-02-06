@@ -187,12 +187,12 @@ export function UnassignedStudentsSection({
                   <div className="flex flex-wrap items-center gap-x-2 text-sm">
                     <span className="font-medium">{student.name}</span>
                     {student.age !== null && (
-                      <span className="text-muted-foreground">·</span>
-                    )}
-                    {student.age !== null && (
-                      <span className="text-muted-foreground">
-                        {student.age}
-                      </span>
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <span className="text-muted-foreground">
+                          {student.age}
+                        </span>
+                      </>
                     )}
                     <span className="text-muted-foreground">·</span>
                     {student.shift ? (
