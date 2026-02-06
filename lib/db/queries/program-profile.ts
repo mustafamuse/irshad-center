@@ -99,6 +99,7 @@ export async function getProgramProfiles(
   const [profiles, total] = await Promise.all([
     client.programProfile.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {
@@ -166,6 +167,7 @@ export async function getProgramProfileById(
 ) {
   return client.programProfile.findUnique({
     where: { id: profileId },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -236,6 +238,7 @@ export async function getProgramProfilesByPersonId(
 ) {
   return client.programProfile.findMany({
     where: { personId },
+    relationLoadStrategy: 'join',
     include: {
       enrollments: {
         where: {
@@ -304,6 +307,7 @@ export async function findPersonByContact(
 
   return client.person.findFirst({
     where,
+    relationLoadStrategy: 'join',
     include: {
       contactPoints: true,
       programProfiles: {
@@ -368,6 +372,7 @@ export async function getProgramProfilesByFamilyId(
       familyReferenceId: familyId,
       program: 'DUGSI_PROGRAM',
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -551,6 +556,7 @@ export async function getProgramProfilesWithBilling(
 
   return client.programProfile.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -720,6 +726,7 @@ export async function searchProgramProfilesByNameOrContact(
 
   return client.programProfile.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -790,6 +797,7 @@ export async function getProgramProfilesByStatus(
 
   return client.programProfile.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {

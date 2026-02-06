@@ -59,6 +59,7 @@ export async function getWhatsAppMessages(
     orderBy: { createdAt: 'desc' },
     take: limit,
     skip: offset,
+    relationLoadStrategy: 'join',
     include: {
       person: {
         select: {
@@ -85,6 +86,7 @@ export async function getWhatsAppMessageById(
 ) {
   return client.whatsAppMessage.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         select: {

@@ -61,6 +61,7 @@ export async function getEnrollmentsByProgramProfile(
     where: {
       programProfileId: profileId,
     },
+    relationLoadStrategy: 'join',
     include: ENROLLMENT_WITH_PROFILE_INCLUDE,
     orderBy: {
       startDate: 'desc',
@@ -81,6 +82,7 @@ export async function getActiveEnrollment(
       programProfileId: profileId,
       ...ACTIVE_ENROLLMENT_WHERE,
     },
+    relationLoadStrategy: 'join',
     include: {
       batch: true,
       programProfile: {
@@ -110,6 +112,7 @@ export async function getEnrollmentsByBatch(
       status: status || { not: 'WITHDRAWN' },
       endDate: null,
     },
+    relationLoadStrategy: 'join',
     include: ENROLLMENT_WITH_PROFILE_INCLUDE,
     orderBy: {
       startDate: 'desc',
@@ -129,6 +132,7 @@ export async function getEnrollmentById(
     where: {
       id: enrollmentId,
     },
+    relationLoadStrategy: 'join',
     include: ENROLLMENT_WITH_PROFILE_INCLUDE,
   })
 }
@@ -244,6 +248,7 @@ export async function updateEnrollmentStatus(
 ) {
   const enrollment = await client.enrollment.findUnique({
     where: { id: enrollmentId },
+    relationLoadStrategy: 'join',
     include: {
       programProfile: {
         select: { program: true },
@@ -355,6 +360,7 @@ export async function getEnrollmentsByProgram(
 
   return client.enrollment.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: ENROLLMENT_WITH_PROFILE_INCLUDE,
     orderBy: {
       startDate: 'desc',

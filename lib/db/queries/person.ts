@@ -47,6 +47,7 @@ export async function getMultiRolePeople(
 
   const people = await client.person.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: {
       teacher: {
         include: {

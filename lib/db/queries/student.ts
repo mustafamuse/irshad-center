@@ -178,6 +178,7 @@ export async function getStudents(client: DatabaseClient = prisma) {
     where: {
       program: 'MAHAD_PROGRAM',
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -227,6 +228,7 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -411,6 +413,7 @@ export async function getStudentsWithBatchFiltered(
   const [profiles, totalCount] = await Promise.all([
     client.programProfile.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {
@@ -467,6 +470,7 @@ export async function getStudentById(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -534,6 +538,7 @@ export async function getStudentByEmail(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -586,6 +591,7 @@ export async function getStudentsByBatch(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -648,6 +654,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       ],
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -762,6 +769,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -865,6 +873,7 @@ export async function resolveDuplicateStudents(
 
     const deleteProfiles = await tx.programProfile.findMany({
       where: { id: { in: deleteIds } },
+      relationLoadStrategy: 'join',
       include: {
         person: { include: { contactPoints: true } },
         assignments: true,
@@ -1000,6 +1009,7 @@ export async function getStudentCompleteness(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -1071,6 +1081,7 @@ export async function getStudentDeleteWarnings(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -1108,6 +1119,7 @@ export async function getStudentDeleteWarnings(
 
 /**
  * Export students data (returns array for CSV export)
+ * Uses select instead of include to fetch only the fields needed for export
  */
 export async function exportStudents(
   filters?: {
@@ -1139,32 +1151,149 @@ export async function exportStudents(
   },
   client: DatabaseClient = prisma
 ) {
-  const result = await getStudentsWithBatchFiltered(
-    {
-      page: 1,
-      limit: 10000, // Large limit for export
-      search: filters?.search?.query,
-      batchIds: filters?.batch?.selected,
-      includeUnassigned: filters?.batch?.includeUnassigned,
-      statuses: filters?.status?.selected,
-      gradeLevels: filters?.gradeLevel?.selected,
-      graduationStatuses: filters?.graduationStatus?.selected,
-      billingTypes: filters?.billingType?.selected,
-    },
-    client
-  )
+  const where: Prisma.ProgramProfileWhereInput = {
+    program: 'MAHAD_PROGRAM',
+  }
 
-  return result.students.map((student) => ({
-    id: student.id,
-    name: student.name,
-    email: student.email || '',
-    phone: student.phone || '',
-    batch: student.batch?.name || 'Unassigned',
-    status: student.status,
-    gradeLevel: student.gradeLevel || '',
-    graduationStatus: student.graduationStatus || '',
-    billingType: student.billingType || '',
-    subscriptionStatus: student.subscription?.status || 'none',
-    createdAt: student.createdAt.toISOString(),
-  }))
+  if (filters?.search?.query?.trim()) {
+    const searchTerm = filters.search.query.trim()
+    const normalizedPhone = normalizePhone(searchTerm)
+    where.person = {
+      OR: [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          contactPoints: {
+            some: {
+              OR: [
+                {
+                  type: 'EMAIL',
+                  value: { contains: searchTerm, mode: 'insensitive' },
+                },
+                ...(normalizedPhone
+                  ? [
+                      {
+                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
+                        value: normalizedPhone,
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          },
+        },
+      ],
+    }
+  }
+
+  const batchIds = filters?.batch?.selected ?? []
+  if (batchIds.length > 0) {
+    const batchConditions: Prisma.EnrollmentWhereInput[] = batchIds.map(
+      (batchId) => ({
+        batchId,
+        status: { not: 'WITHDRAWN' as const },
+        endDate: null,
+      })
+    )
+    if (filters?.batch?.includeUnassigned) {
+      batchConditions.push({
+        batchId: null,
+        status: { not: 'WITHDRAWN' as const },
+        endDate: null,
+      })
+    }
+    where.enrollments = { some: { OR: batchConditions } }
+  }
+
+  if (filters?.status?.selected?.length) {
+    const enrollmentStatuses = filters.status.selected.map((s) =>
+      studentStatusToEnrollmentStatus(s as StudentStatus)
+    )
+    const existingSome =
+      where.enrollments && 'some' in where.enrollments
+        ? where.enrollments.some
+        : {}
+    where.enrollments = {
+      ...where.enrollments,
+      some: {
+        ...(typeof existingSome === 'object' ? existingSome : {}),
+        status: { in: enrollmentStatuses },
+        endDate: null,
+      },
+    }
+  }
+
+  if (filters?.gradeLevel?.selected?.length) {
+    where.gradeLevel = { in: filters.gradeLevel.selected }
+  }
+  if (filters?.graduationStatus?.selected?.length) {
+    where.graduationStatus = { in: filters.graduationStatus.selected }
+  }
+  if (filters?.billingType?.selected?.length) {
+    where.billingType = { in: filters.billingType.selected }
+  }
+
+  const profiles = await client.programProfile.findMany({
+    where,
+    relationLoadStrategy: 'join',
+    select: {
+      id: true,
+      gradeLevel: true,
+      graduationStatus: true,
+      billingType: true,
+      createdAt: true,
+      person: {
+        select: {
+          name: true,
+          contactPoints: {
+            select: { type: true, value: true },
+          },
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        select: {
+          status: true,
+          batch: { select: { name: true } },
+        },
+        orderBy: { startDate: 'desc' as const },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        select: {
+          subscription: { select: { status: true } },
+        },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10000,
+  })
+
+  return profiles.map((p) => {
+    const email = p.person.contactPoints.find((c) => c.type === 'EMAIL')
+    const phone = p.person.contactPoints.find(
+      (c) => c.type === 'PHONE' || c.type === 'WHATSAPP'
+    )
+    const enrollment = p.enrollments[0]
+
+    return {
+      id: p.id,
+      name: p.person.name,
+      email: email?.value || '',
+      phone: phone?.value || '',
+      batch: enrollment?.batch?.name || 'Unassigned',
+      status: enrollment
+        ? enrollmentStatusToStudentStatus(enrollment.status)
+        : StudentStatus.REGISTERED,
+      gradeLevel: p.gradeLevel || '',
+      graduationStatus: p.graduationStatus || '',
+      billingType: p.billingType || '',
+      subscriptionStatus: p.assignments[0]?.subscription?.status || 'none',
+      createdAt: p.createdAt.toISOString(),
+    }
+  })
 }
