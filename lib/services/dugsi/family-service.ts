@@ -513,6 +513,7 @@ export async function addChildToFamily(
             schoolName: input.schoolName || null,
             healthInfo: input.healthInfo || null,
             status: 'REGISTERED',
+            shift: existingProfile.shift,
           },
         })
 
