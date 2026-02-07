@@ -173,7 +173,7 @@ export function UnassignedStudentsSection({
                 : `Select All (${sorted.length})`}
             </span>
           </div>
-          <ScrollArea className="max-h-80">
+          <ScrollArea className="h-80">
             {sorted.map((student) => (
               <label
                 key={student.profileId}
