@@ -93,6 +93,7 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
       status: { not: 'WITHDRAWN' },
       endDate: null,
     },
+    relationLoadStrategy: 'join',
     include: {
       ...mahadEnrollmentInclude,
       programProfile: {
@@ -333,37 +334,52 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
     },
   })
 
-  const duplicateGroups: DuplicateStudentGroup[] = []
+  const dupEmailValues = duplicateEmails.map((d) => d.value)
 
-  for (const dup of duplicateEmails) {
-    // Get all persons with this email
-    const contactPoints = await prisma.contactPoint.findMany({
-      where: {
-        type: 'EMAIL',
-        value: dup.value,
-      },
-      include: {
-        person: {
-          include: {
-            contactPoints: true,
-            programProfiles: {
-              where: {
-                program: MAHAD_PROGRAM,
-              },
-              include: {
-                enrollments: {
-                  where: {
-                    status: { not: 'WITHDRAWN' },
-                    endDate: null,
-                  },
-                  take: 1,
+  if (dupEmailValues.length === 0) {
+    return []
+  }
+
+  const allContactPoints = await prisma.contactPoint.findMany({
+    where: {
+      type: 'EMAIL',
+      value: { in: dupEmailValues },
+    },
+    relationLoadStrategy: 'join',
+    include: {
+      person: {
+        include: {
+          contactPoints: true,
+          programProfiles: {
+            where: {
+              program: MAHAD_PROGRAM,
+            },
+            include: {
+              enrollments: {
+                where: {
+                  status: { not: 'WITHDRAWN' },
+                  endDate: null,
                 },
+                take: 1,
               },
             },
           },
         },
       },
-    })
+    },
+  })
+
+  const contactsByEmail = new Map<string, typeof allContactPoints>()
+  for (const cp of allContactPoints) {
+    const existing = contactsByEmail.get(cp.value) ?? []
+    existing.push(cp)
+    contactsByEmail.set(cp.value, existing)
+  }
+
+  const duplicateGroups: DuplicateStudentGroup[] = []
+
+  for (const email of dupEmailValues) {
+    const contactPoints = contactsByEmail.get(email) ?? []
 
     const students = contactPoints
       .filter((cp) => cp.person.programProfiles.length > 0)
@@ -376,7 +392,7 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
         return {
           id: profile.id,
           name: cp.person.name,
-          email: dup.value,
+          email,
           phone: phoneContact?.value ?? null,
           status: profile.enrollments[0]?.status || 'REGISTERED',
           createdAt: profile.createdAt,
@@ -385,7 +401,7 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
 
     if (students.length > 1) {
       duplicateGroups.push({
-        email: dup.value,
+        email,
         count: students.length,
         students,
       })

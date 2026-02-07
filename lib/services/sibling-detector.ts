@@ -24,6 +24,7 @@ export async function detectPotentialSiblings(
   personId: string
 ): Promise<PotentialSibling[]> {
   const person = await prisma.person.findUnique({
+    relationLoadStrategy: 'join',
     where: { id: personId },
     include: {
       contactPoints: true,
@@ -75,6 +76,7 @@ export async function detectPotentialSiblings(
 
     if (guardianIds.length > 0) {
       const siblingsViaGuardians = await prisma.guardianRelationship.findMany({
+        relationLoadStrategy: 'join',
         where: {
           guardianId: { in: guardianIds },
           dependentId: { not: personId },
@@ -152,6 +154,7 @@ export async function detectPotentialSiblings(
     )
 
     const contactMatches = await prisma.contactPoint.findMany({
+      relationLoadStrategy: 'join',
       where: {
         value: {
           in: contactValues,

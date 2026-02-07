@@ -213,14 +213,14 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByRole('button', { name: /update location/i })
+          screen.getByRole('button', { name: /enable location/i })
         ).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: /update location/i }))
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
 
       await waitFor(() => {
-        expect(screen.getByText('Clock In')).toBeInTheDocument()
+        expect(screen.getByText(/at irshad center/i)).toBeInTheDocument()
         expect(
           screen.getByRole('button', { name: /clock in/i })
         ).not.toBeDisabled()
@@ -273,8 +273,8 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('option', { name: /bob johnson/i }))
 
       await waitFor(() => {
-        expect(screen.getByText('Clocked In')).toBeInTheDocument()
-        expect(screen.getByText(/since/i)).toBeInTheDocument()
+        expect(screen.getByText('Shift In Progress')).toBeInTheDocument()
+        expect(screen.getByText(/clocked in at/i)).toBeInTheDocument()
       })
     })
 
@@ -324,17 +324,32 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByRole('button', { name: /get location/i })
+          screen.getByRole('button', { name: /enable location/i })
         ).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: /get location/i }))
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
 
       expect(mockRequestLocation).toHaveBeenCalled()
     })
 
-    it('should show Location acquired when location is obtained', async () => {
-      mockUseGeolocation.mockReturnValue(locationAcquired)
+    it('should show At Irshad Center when location is within geofence', async () => {
+      const mockRequestLocation = vi.fn().mockResolvedValue({
+        latitude: 44.9778,
+        longitude: -93.265,
+        accuracy: 10,
+        error: null,
+        timestamp: Date.now(),
+      })
+      mockUseGeolocation.mockReturnValue({
+        ...locationAcquired,
+        requestLocation: mockRequestLocation,
+      })
+      mockCheckGeofence.mockResolvedValue({
+        isWithinGeofence: true,
+        distanceMeters: 5,
+        allowedRadiusMeters: 50,
+      })
 
       const user = userEvent.setup()
       render(<CheckinForm teachers={mockTeachers} />)
@@ -344,7 +359,15 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('option', { name: /bob johnson/i }))
 
       await waitFor(() => {
-        expect(screen.getByText('Location acquired')).toBeInTheDocument()
+        expect(
+          screen.getByRole('button', { name: /enable location/i })
+        ).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
+
+      await waitFor(() => {
+        expect(screen.getByText(/at irshad center/i)).toBeInTheDocument()
       })
     })
 
@@ -375,11 +398,11 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByRole('button', { name: /update location/i })
+          screen.getByRole('button', { name: /enable location/i })
         ).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: /update location/i }))
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
 
       await waitFor(() => {
         expect(screen.getByText(/492ft away/i)).toBeInTheDocument()
@@ -404,10 +427,8 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('option', { name: /bob johnson/i }))
 
       await waitFor(() => {
-        expect(screen.getByText('Location Error')).toBeInTheDocument()
-        expect(
-          screen.getByText('Location permission denied')
-        ).toBeInTheDocument()
+        expect(screen.getByText('Could Not Get Location')).toBeInTheDocument()
+        expect(screen.getByText(/airplane mode/i)).toBeInTheDocument()
       })
     })
   })
@@ -454,13 +475,14 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByRole('button', { name: /update location/i })
+          screen.getByRole('button', { name: /enable location/i })
         ).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: /update location/i }))
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
 
       await waitFor(() => {
+        expect(screen.getByText(/at irshad center/i)).toBeInTheDocument()
         const clockInButton = screen.getByRole('button', { name: /clock in/i })
         expect(clockInButton).not.toBeDisabled()
       })
@@ -530,13 +552,14 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByRole('button', { name: /update location/i })
+          screen.getByRole('button', { name: /enable location/i })
         ).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: /update location/i }))
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
 
       await waitFor(() => {
+        expect(screen.getByText(/at irshad center/i)).toBeInTheDocument()
         expect(
           screen.getByRole('button', { name: /clock in/i })
         ).not.toBeDisabled()
@@ -589,13 +612,14 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(
-          screen.getByRole('button', { name: /update location/i })
+          screen.getByRole('button', { name: /enable location/i })
         ).toBeInTheDocument()
       })
 
-      await user.click(screen.getByRole('button', { name: /update location/i }))
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
 
       await waitFor(() => {
+        expect(screen.getByText(/at irshad center/i)).toBeInTheDocument()
         expect(
           screen.getByRole('button', { name: /clock in/i })
         ).not.toBeDisabled()

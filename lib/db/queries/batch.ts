@@ -48,6 +48,7 @@ export async function getBatches(
     orderBy: {
       startDate: 'desc',
     },
+    relationLoadStrategy: 'join',
     include: {
       _count: {
         select: {
@@ -247,6 +248,7 @@ export async function getBatchStudents(
       batchId,
       ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
+    relationLoadStrategy: 'join',
     include: {
       programProfile: {
         include: {
@@ -319,21 +321,18 @@ export async function getBatchStudentCount(
 
 /**
  * Assign students to a batch (bulk update enrollments)
- * This updates existing enrollments or creates new ones
+ * This updates existing enrollments or creates new ones.
+ *
+ * Uses partial-success pattern: each student is processed individually so
+ * one failure doesn't block the rest. NOT wrapped in a transaction because
+ * Postgres aborts the entire transaction on first error, which is incompatible
+ * with per-student error handling.
  */
 export async function assignStudentsToBatch(
   batchId: string,
   studentIds: string[], // These are ProgramProfile IDs
   client: DatabaseClient = prisma
 ) {
-  const results = {
-    success: true,
-    assignedCount: 0,
-    failedAssignments: [] as string[],
-    errors: [] as string[],
-  }
-
-  // Verify batch exists
   const batch = await client.batch.findUnique({
     where: { id: batchId },
   })
@@ -347,11 +346,16 @@ export async function assignStudentsToBatch(
     }
   }
 
-  // Process each student
+  const results = {
+    success: true,
+    assignedCount: 0,
+    failedAssignments: [] as string[],
+    errors: [] as string[],
+  }
+
   for (const studentId of studentIds) {
     try {
-      // Get or create active enrollment for this profile
-      let enrollment = await client.enrollment.findFirst({
+      const enrollment = await client.enrollment.findFirst({
         where: {
           programProfileId: studentId,
           ...ACTIVE_ENROLLMENT_WHERE,
@@ -359,13 +363,11 @@ export async function assignStudentsToBatch(
       })
 
       if (enrollment) {
-        // Update existing enrollment with new batch
         await client.enrollment.update({
           where: { id: enrollment.id },
           data: { batchId },
         })
       } else {
-        // Create new enrollment with batch
         await client.enrollment.create({
           data: {
             programProfileId: studentId,
@@ -390,7 +392,6 @@ export async function assignStudentsToBatch(
   }
 
   results.success = results.failedAssignments.length === 0
-
   return results
 }
 
@@ -565,6 +566,7 @@ export async function getBatchesWithFilters(
     orderBy: {
       startDate: 'desc',
     },
+    relationLoadStrategy: 'join',
     include: {
       _count: {
         select: {
@@ -598,6 +600,7 @@ export async function getBatchWithEnrollments(
 ) {
   const batch = await client.batch.findUnique({
     where: { id: batchId },
+    relationLoadStrategy: 'join',
     include: {
       Enrollment: {
         where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
@@ -658,6 +661,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       ],
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {

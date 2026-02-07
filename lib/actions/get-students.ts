@@ -81,6 +81,7 @@ export async function getStudents(
       status: includeInactive ? undefined : { not: 'WITHDRAWN' },
       endDate: includeInactive ? undefined : null,
     },
+    relationLoadStrategy: 'join',
     include: mahadEnrollmentInclude,
     orderBy: {
       programProfile: {
@@ -125,6 +126,7 @@ export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
       status: { in: ['REGISTERED', 'ENROLLED'] },
       endDate: null,
     },
+    relationLoadStrategy: 'join',
     include: mahadEnrollmentInclude,
     orderBy: {
       programProfile: {
@@ -171,6 +173,7 @@ export async function getSiblings(studentId: string): Promise<StudentDTO[]> {
       status: { not: 'WITHDRAWN' },
       endDate: null,
     },
+    relationLoadStrategy: 'join',
     include: mahadEnrollmentInclude,
   })
 

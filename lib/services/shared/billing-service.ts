@@ -399,6 +399,7 @@ export async function getBillingStatusByEmail(
 ): Promise<BillingStatusResult> {
   // Find person by email
   const person = await prisma.person.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       contactPoints: {
         some: {

@@ -573,6 +573,7 @@ export async function updateStudentAction(
     await prisma.$transaction(async (tx) => {
       const profile = await tx.programProfile.findUnique({
         where: { id },
+        relationLoadStrategy: 'join',
         include: {
           person: { include: { contactPoints: true } },
           enrollments: { orderBy: { startDate: 'desc' }, take: 1 },
@@ -748,6 +749,7 @@ export async function generatePaymentLinkAction(
     // 1. Fetch profile with billing config and contact info
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {
@@ -928,6 +930,7 @@ export async function generatePaymentLinkWithDefaultsAction(
       // 1. Check student exists and get batch info via enrollment
       const profile = await tx.programProfile.findUnique({
         where: { id: profileId },
+        relationLoadStrategy: 'join',
         include: {
           enrollments: {
             where: { status: { in: ['REGISTERED', 'ENROLLED'] } },
@@ -1064,6 +1067,7 @@ export async function generatePaymentLinkWithOverrideAction(
     // 1. Fetch profile with billing config and contact info
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {
