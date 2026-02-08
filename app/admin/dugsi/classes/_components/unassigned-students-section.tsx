@@ -234,7 +234,10 @@ export function UnassignedStudentsSection({
                   <SelectLabel>Morning</SelectLabel>
                   {morningClasses.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.name} ({c.studentCount} students)
+                      {c.teachers.length > 0
+                        ? c.teachers.map((t) => t.teacherName).join(', ')
+                        : c.name}{' '}
+                      ({c.studentCount} students)
                     </SelectItem>
                   ))}
                 </SelectGroup>
@@ -244,7 +247,10 @@ export function UnassignedStudentsSection({
                   <SelectLabel>Afternoon</SelectLabel>
                   {afternoonClasses.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
-                      {c.name} ({c.studentCount} students)
+                      {c.teachers.length > 0
+                        ? c.teachers.map((t) => t.teacherName).join(', ')
+                        : c.name}{' '}
+                      ({c.studentCount} students)
                     </SelectItem>
                   ))}
                 </SelectGroup>

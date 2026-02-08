@@ -430,6 +430,7 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
  * Add a new child to an existing family.
  *
  * Copies guardian relationships from an existing sibling.
+ * Inherits shift assignment from the existing sibling if available.
  * Creates Person, ProgramProfile, and Enrollment records.
  *
  * @security Authorization must be enforced at the API route/action layer.
@@ -513,6 +514,7 @@ export async function addChildToFamily(
             schoolName: input.schoolName || null,
             healthInfo: input.healthInfo || null,
             status: 'REGISTERED',
+            shift: existingProfile.shift,
           },
         })
 
