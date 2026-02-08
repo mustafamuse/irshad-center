@@ -20,6 +20,13 @@ const logger = createServiceLogger('dugsi-insights')
 
 const ACTIVE_STUDENT_STATUSES = ['REGISTERED', 'ENROLLED'] as const
 
+const ACTIVE_PROFILE_WHERE = {
+  program: DUGSI_PROGRAM,
+  status: { in: [...ACTIVE_STUDENT_STATUSES] },
+}
+
+// Family status = best subscription across all siblings.
+// Lower number = higher priority (active family > past_due family).
 const STATUS_PRIORITY: Record<SubscriptionStatus, number> = {
   active: 1,
   trialing: 2,
@@ -59,32 +66,34 @@ async function getHealthStats(): Promise<ProgramHealthStats> {
   return Sentry.startSpan(
     { name: 'insights.getHealthStats', op: 'db' },
     async () => {
-      const [totalStudents, activeStudents, familyData, paymentMethodData] =
-        await Promise.all([
-          prisma.programProfile.count({
-            where: { program: DUGSI_PROGRAM },
-          }),
-          prisma.programProfile.count({
-            where: {
-              program: DUGSI_PROGRAM,
-              status: { in: [...ACTIVE_STUDENT_STATUSES] },
-            },
-          }),
-          getFamilyStatusBreakdown(),
-          getPaymentMethodCaptureRate(),
-        ])
+      try {
+        const [totalStudents, activeStudents, familyData, paymentMethodData] =
+          await Promise.all([
+            prisma.programProfile.count({
+              where: { program: DUGSI_PROGRAM },
+            }),
+            prisma.programProfile.count({
+              where: ACTIVE_PROFILE_WHERE,
+            }),
+            getFamilyStatusBreakdown(),
+            getPaymentMethodCaptureRate(),
+          ])
 
-      const totalFamilies = Object.values(familyData).reduce(
-        (sum, count) => sum + count,
-        0
-      )
+        const totalFamilies = Object.values(familyData).reduce(
+          (sum, count) => sum + count,
+          0
+        )
 
-      return {
-        totalFamilies,
-        totalStudents,
-        activeStudents,
-        familyStatusBreakdown: familyData,
-        paymentMethodCaptureRate: paymentMethodData,
+        return {
+          totalFamilies,
+          totalStudents,
+          activeStudents,
+          familyStatusBreakdown: familyData,
+          paymentMethodCaptureRate: paymentMethodData,
+        }
+      } catch (error) {
+        await logError(logger, error, 'Failed to compute health stats', {})
+        throw error
       }
     }
   )
@@ -94,10 +103,7 @@ async function getFamilyStatusBreakdown(): Promise<
   Record<SubscriptionStatus | 'none', number>
 > {
   const profiles = await prisma.programProfile.findMany({
-    where: {
-      program: DUGSI_PROGRAM,
-      status: { in: [...ACTIVE_STUDENT_STATUSES] },
-    },
+    where: ACTIVE_PROFILE_WHERE,
     select: {
       familyReferenceId: true,
       assignments: {
@@ -127,13 +133,18 @@ async function getFamilyStatusBreakdown(): Promise<
   let soloCounter = 0
 
   for (const profile of profiles) {
+    // Profiles without familyReferenceId are treated as individual families
     const key = profile.familyReferenceId ?? `solo-${soloCounter++}`
     if (!familyStatuses.has(key)) {
       familyStatuses.set(key, [])
     }
     const statuses = familyStatuses.get(key)!
     for (const assignment of profile.assignments) {
-      statuses.push(assignment.subscription.status)
+      const status = assignment.subscription.status
+      if (!(status in STATUS_PRIORITY)) {
+        logger.warn({ status }, 'Unknown subscription status in insights')
+      }
+      statuses.push(status)
     }
   }
 
@@ -153,41 +164,26 @@ async function getFamilyStatusBreakdown(): Promise<
 }
 
 async function getPaymentMethodCaptureRate(): Promise<number> {
+  const dugsiAccountWithActiveStudents = {
+    accountType: 'DUGSI' as const,
+    subscriptions: {
+      some: {
+        assignments: {
+          some: { programProfile: ACTIVE_PROFILE_WHERE },
+        },
+      },
+    },
+  }
+
   const [captured, total] = await Promise.all([
     prisma.billingAccount.count({
       where: {
-        accountType: 'DUGSI',
+        ...dugsiAccountWithActiveStudents,
         paymentMethodCaptured: true,
-        subscriptions: {
-          some: {
-            assignments: {
-              some: {
-                programProfile: {
-                  program: DUGSI_PROGRAM,
-                  status: { in: [...ACTIVE_STUDENT_STATUSES] },
-                },
-              },
-            },
-          },
-        },
       },
     }),
     prisma.billingAccount.count({
-      where: {
-        accountType: 'DUGSI',
-        subscriptions: {
-          some: {
-            assignments: {
-              some: {
-                programProfile: {
-                  program: DUGSI_PROGRAM,
-                  status: { in: [...ACTIVE_STUDENT_STATUSES] },
-                },
-              },
-            },
-          },
-        },
-      },
+      where: dugsiAccountWithActiveStudents,
     }),
   ])
 
@@ -198,110 +194,115 @@ async function getRevenueStats(): Promise<RevenueStats> {
   return Sentry.startSpan(
     { name: 'insights.getRevenueStats', op: 'db' },
     async () => {
-      const [subscriptions, familyCounts] = await Promise.all([
-        prisma.subscription.findMany({
-          where: {
-            status: 'active',
-            assignments: {
-              some: {
-                isActive: true,
-                programProfile: {
-                  program: DUGSI_PROGRAM,
-                  status: { in: [...ACTIVE_STUDENT_STATUSES] },
+      try {
+        const activeAssignmentWhere = {
+          isActive: true,
+          programProfile: ACTIVE_PROFILE_WHERE,
+        }
+
+        const [subscriptions, familyCounts] = await Promise.all([
+          prisma.subscription.findMany({
+            where: {
+              status: 'active',
+              assignments: { some: activeAssignmentWhere },
+            },
+            select: {
+              id: true,
+              amount: true,
+              assignments: {
+                where: activeAssignmentWhere,
+                select: {
+                  programProfile: {
+                    select: { familyReferenceId: true },
+                  },
                 },
               },
             },
-          },
-          select: {
-            id: true,
-            amount: true,
-            assignments: {
-              where: {
-                isActive: true,
-                programProfile: {
-                  program: DUGSI_PROGRAM,
-                  status: { in: [...ACTIVE_STUDENT_STATUSES] },
-                },
-              },
-              select: {
-                programProfile: {
-                  select: { familyReferenceId: true },
-                },
-              },
-            },
-          },
-        }),
-        getFamilyChildCounts(),
-      ])
+          }),
+          getFamilyChildCounts(),
+        ])
 
-      let monthlyRevenue = 0
-      let expectedRevenue = 0
-      let mismatchCount = 0
-      const tierMap = new Map<
-        number,
-        { familyCount: number; expected: number; actual: number }
-      >()
+        let monthlyRevenue = 0
+        let expectedRevenue = 0
+        let mismatchCount = 0
+        const tierMap = new Map<
+          number,
+          { familyCount: number; expected: number; actual: number }
+        >()
 
-      const familySubscriptions = new Map<
-        string,
-        { totalActual: number; childCount: number }
-      >()
+        const familySubscriptions = new Map<
+          string,
+          { totalActual: number; childCount: number }
+        >()
 
-      for (const sub of subscriptions) {
-        monthlyRevenue += sub.amount
+        for (const sub of subscriptions) {
+          monthlyRevenue += sub.amount
 
-        const familyRefId = sub.assignments[0]?.programProfile.familyReferenceId
-        const key = familyRefId ?? sub.id
+          if (sub.assignments.length === 0) {
+            logger.warn(
+              { subscriptionId: sub.id },
+              'Active subscription has no matching Dugsi assignments'
+            )
+            continue
+          }
 
-        if (!familySubscriptions.has(key)) {
-          const childCount = familyRefId
-            ? (familyCounts.get(familyRefId) ?? 1)
-            : 1
-          familySubscriptions.set(key, { totalActual: 0, childCount })
-        }
-        familySubscriptions.get(key)!.totalActual += sub.amount
-      }
+          const familyRefId =
+            sub.assignments[0]?.programProfile.familyReferenceId
+          const key = familyRefId ?? sub.id
 
-      for (const [, { totalActual, childCount }] of Array.from(
-        familySubscriptions
-      )) {
-        const expected = calculateDugsiRate(childCount)
-        expectedRevenue += expected
-
-        if (totalActual !== expected) {
-          mismatchCount++
+          if (!familySubscriptions.has(key)) {
+            const childCount = familyRefId
+              ? (familyCounts.get(familyRefId) ?? 1)
+              : 1
+            familySubscriptions.set(key, { totalActual: 0, childCount })
+          }
+          familySubscriptions.get(key)!.totalActual += sub.amount
         }
 
-        const existing = tierMap.get(childCount)
-        if (existing) {
-          existing.familyCount++
-          existing.expected += expected
-          existing.actual += totalActual
-        } else {
-          tierMap.set(childCount, {
-            familyCount: 1,
-            expected,
-            actual: totalActual,
-          })
+        for (const [, { totalActual, childCount }] of Array.from(
+          familySubscriptions
+        )) {
+          const expected = calculateDugsiRate(childCount)
+          expectedRevenue += expected
+
+          if (totalActual !== expected) {
+            mismatchCount++
+          }
+
+          const existing = tierMap.get(childCount)
+          if (existing) {
+            existing.familyCount++
+            existing.expected += expected
+            existing.actual += totalActual
+          } else {
+            tierMap.set(childCount, {
+              familyCount: 1,
+              expected,
+              actual: totalActual,
+            })
+          }
         }
-      }
 
-      const revenueByTier: RevenueByTier[] = Array.from(tierMap.entries())
-        .sort(([a], [b]) => a - b)
-        .map(([childCount, data]) => ({
-          tier: childCount === 1 ? '1 child' : `${childCount} children`,
-          childCount,
-          familyCount: data.familyCount,
-          expectedRevenue: data.expected,
-          actualRevenue: data.actual,
-        }))
+        const revenueByTier: RevenueByTier[] = Array.from(tierMap.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([childCount, data]) => ({
+            tier: childCount === 1 ? '1 child' : `${childCount} children`,
+            childCount,
+            familyCount: data.familyCount,
+            expectedRevenue: data.expected,
+            actualRevenue: data.actual,
+          }))
 
-      return {
-        monthlyRevenue,
-        expectedRevenue,
-        variance: monthlyRevenue - expectedRevenue,
-        mismatchCount,
-        revenueByTier,
+        return {
+          monthlyRevenue,
+          expectedRevenue,
+          variance: monthlyRevenue - expectedRevenue,
+          mismatchCount,
+          revenueByTier,
+        }
+      } catch (error) {
+        await logError(logger, error, 'Failed to compute revenue stats', {})
+        throw error
       }
     }
   )
@@ -310,10 +311,7 @@ async function getRevenueStats(): Promise<RevenueStats> {
 async function getFamilyChildCounts(): Promise<Map<string, number>> {
   const counts = await prisma.programProfile.groupBy({
     by: ['familyReferenceId'],
-    where: {
-      program: DUGSI_PROGRAM,
-      status: { in: [...ACTIVE_STUDENT_STATUSES] },
-    },
+    where: ACTIVE_PROFILE_WHERE,
     _count: { id: true },
   })
 
@@ -330,122 +328,133 @@ async function getEnrollmentDistribution(): Promise<EnrollmentDistribution> {
   return Sentry.startSpan(
     { name: 'insights.getEnrollmentDistribution', op: 'db' },
     async () => {
-      const [shiftCounts, assignedCount, totalActive] = await Promise.all([
-        prisma.programProfile.groupBy({
-          by: ['shift'],
-          where: {
-            program: DUGSI_PROGRAM,
-            status: { in: [...ACTIVE_STUDENT_STATUSES] },
-            shift: { not: null },
-          },
-          _count: { id: true },
-        }),
-        prisma.dugsiClassEnrollment.count({
-          where: {
-            isActive: true,
-            programProfile: {
-              program: DUGSI_PROGRAM,
-              status: { in: [...ACTIVE_STUDENT_STATUSES] },
+      try {
+        const [shiftCounts, assignedCount, totalActive] = await Promise.all([
+          prisma.programProfile.groupBy({
+            by: ['shift'],
+            where: {
+              ...ACTIVE_PROFILE_WHERE,
+              shift: { not: null },
             },
-          },
-        }),
-        prisma.programProfile.count({
-          where: {
-            program: DUGSI_PROGRAM,
-            status: { in: [...ACTIVE_STUDENT_STATUSES] },
-          },
-        }),
-      ])
+            _count: { id: true },
+          }),
+          prisma.dugsiClassEnrollment.count({
+            where: {
+              isActive: true,
+              programProfile: ACTIVE_PROFILE_WHERE,
+            },
+          }),
+          prisma.programProfile.count({
+            where: ACTIVE_PROFILE_WHERE,
+          }),
+        ])
 
-      const morning =
-        shiftCounts.find((s) => s.shift === 'MORNING')?._count.id ?? 0
-      const afternoon =
-        shiftCounts.find((s) => s.shift === 'AFTERNOON')?._count.id ?? 0
+        const morning =
+          shiftCounts.find((s) => s.shift === 'MORNING')?._count.id ?? 0
+        const afternoon =
+          shiftCounts.find((s) => s.shift === 'AFTERNOON')?._count.id ?? 0
 
-      return {
-        morningStudents: morning,
-        afternoonStudents: afternoon,
-        assignedToClass: assignedCount,
-        unassignedToClass: totalActive - assignedCount,
+        return {
+          morningStudents: morning,
+          afternoonStudents: afternoon,
+          assignedToClass: assignedCount,
+          unassignedToClass: totalActive - assignedCount,
+        }
+      } catch (error) {
+        await logError(
+          logger,
+          error,
+          'Failed to compute enrollment distribution',
+          {}
+        )
+        throw error
       }
     }
   )
 }
 
+function toMonthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
 async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
   return Sentry.startSpan(
     { name: 'insights.getRegistrationTrend', op: 'db' },
     async () => {
-      const twelveMonthsAgo = new Date()
-      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11)
-      twelveMonthsAgo.setDate(1)
-      twelveMonthsAgo.setHours(0, 0, 0, 0)
+      try {
+        const twelveMonthsAgo = new Date()
+        // Go back 11 months (+ current month = 12 total)
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11)
+        twelveMonthsAgo.setDate(1)
+        twelveMonthsAgo.setHours(0, 0, 0, 0)
 
-      const profiles = await prisma.programProfile.findMany({
-        where: {
-          program: DUGSI_PROGRAM,
-          status: { in: [...ACTIVE_STUDENT_STATUSES] },
-          createdAt: { gte: twelveMonthsAgo },
-        },
-        select: {
-          createdAt: true,
-          familyReferenceId: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      })
+        const profiles = await prisma.programProfile.findMany({
+          where: {
+            ...ACTIVE_PROFILE_WHERE,
+            createdAt: { gte: twelveMonthsAgo },
+          },
+          select: {
+            createdAt: true,
+            familyReferenceId: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        })
 
-      const monthMap = new Map<
-        string,
-        { students: number; families: Set<string> }
-      >()
+        const monthMap = new Map<
+          string,
+          { students: number; families: Set<string> }
+        >()
 
-      // Initialize all 12 months
-      for (let i = 0; i < 12; i++) {
-        const d = new Date(twelveMonthsAgo)
-        d.setMonth(d.getMonth() + i)
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        monthMap.set(key, { students: 0, families: new Set() })
-      }
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(twelveMonthsAgo)
+          d.setMonth(d.getMonth() + i)
+          monthMap.set(toMonthKey(d), { students: 0, families: new Set() })
+        }
 
-      let soloCounter = 0
-      for (const profile of profiles) {
-        const d = profile.createdAt
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        const bucket = monthMap.get(key)
-        if (bucket) {
-          bucket.students++
-          if (profile.familyReferenceId) {
-            bucket.families.add(profile.familyReferenceId)
-          } else {
-            bucket.families.add(`solo-${soloCounter++}`)
+        let soloCounter = 0
+        for (const profile of profiles) {
+          const bucket = monthMap.get(toMonthKey(profile.createdAt))
+          if (bucket) {
+            bucket.students++
+            bucket.families.add(
+              profile.familyReferenceId ?? `solo-${soloCounter++}`
+            )
           }
         }
+
+        return Array.from(monthMap.entries()).map(([month, data]) => {
+          const monthIdx = parseInt(month.split('-')[1]) - 1
+          return {
+            month,
+            label: MONTH_NAMES[monthIdx],
+            familyCount: data.families.size,
+            studentCount: data.students,
+          }
+        })
+      } catch (error) {
+        await logError(
+          logger,
+          error,
+          'Failed to compute registration trend',
+          {}
+        )
+        throw error
       }
-
-      const monthNames = [
-        'Jan',
-        'Feb',
-        'Mar',
-        'Apr',
-        'May',
-        'Jun',
-        'Jul',
-        'Aug',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dec',
-      ]
-
-      return Array.from(monthMap.entries()).map(([month, data]) => {
-        const monthIdx = parseInt(month.split('-')[1]) - 1
-        return {
-          month,
-          label: monthNames[monthIdx],
-          familyCount: data.families.size,
-          studentCount: data.students,
-        }
-      })
     }
   )
 }

@@ -276,4 +276,15 @@ describe('getDugsiInsights', () => {
       ])
     })
   })
+
+  describe('error handling', () => {
+    it('propagates query errors through logError', async () => {
+      const { logError } = await import('@/lib/logger')
+      const dbError = new Error('connection refused')
+      mockProgramProfileCount.mockRejectedValue(dbError)
+
+      await expect(getDugsiInsights()).rejects.toThrow('connection refused')
+      expect(logError).toHaveBeenCalled()
+    })
+  })
 })

@@ -6,12 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { getDugsiInsights } from '@/lib/services/dugsi/insights-service'
 
-const formatRevenue = (cents: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(cents / 100)
+import { formatCentsWhole } from '../../_utils/format'
 
 export async function CompactStatsSummary() {
   const data = await getDugsiInsights()
@@ -38,7 +33,7 @@ export async function CompactStatsSummary() {
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Revenue</span>
           <span className="text-sm font-bold">
-            {formatRevenue(data.revenue.monthlyRevenue)}
+            {formatCentsWhole(data.revenue.monthlyRevenue)}
           </span>
         </div>
 

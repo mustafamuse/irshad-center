@@ -63,11 +63,11 @@ export function EnrollmentDistribution({
               {enrollment.assignedToClass}
             </div>
             <p className="text-xs text-muted-foreground">
-              {enrollment.morningStudents + enrollment.afternoonStudents > 0
+              {enrollment.assignedToClass + enrollment.unassignedToClass > 0
                 ? Math.round(
                     (enrollment.assignedToClass /
-                      (enrollment.morningStudents +
-                        enrollment.afternoonStudents)) *
+                      (enrollment.assignedToClass +
+                        enrollment.unassignedToClass)) *
                       100
                   )
                 : 0}

@@ -5,6 +5,7 @@ import { useMemo } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 
 import type { RevenueByTier } from '@/app/admin/dugsi/_types/insights'
+import { formatCentsWhole } from '@/app/admin/dugsi/_utils/format'
 import {
   ChartContainer,
   ChartTooltip,
@@ -24,6 +25,10 @@ const chartConfig = {
     color: '#deb43e',
   },
 } satisfies ChartConfig
+
+function formatDollarsWhole(dollars: number): string {
+  return formatCentsWhole(dollars * 100)
+}
 
 interface RevenueTierBarChartProps {
   data: RevenueByTier[]
@@ -54,24 +59,12 @@ export function RevenueTierBarChart({ data }: RevenueTierBarChartProps) {
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickFormatter={(value: number) =>
-            new Intl.NumberFormat('en-US', {
-              style: 'currency',
-              currency: 'USD',
-              maximumFractionDigits: 0,
-            }).format(value)
-          }
+          tickFormatter={(value: number) => formatDollarsWhole(value)}
         />
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value) =>
-                new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'USD',
-                  maximumFractionDigits: 0,
-                }).format(value as number)
-              }
+              formatter={(value) => formatDollarsWhole(value as number)}
             />
           }
         />

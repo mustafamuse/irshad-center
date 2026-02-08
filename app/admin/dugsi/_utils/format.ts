@@ -36,6 +36,18 @@ export function formatRegistrationDate(date: Date | string | null): string {
   return format(dateObj, DATE_FORMAT)
 }
 
+const wholeUsdFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  maximumFractionDigits: 0,
+})
+
+function formatCentsWhole(cents: number): string {
+  return wholeUsdFormatter.format(cents / 100)
+}
+
+export { formatCentsWhole }
+
 /**
  * Calculate age from date of birth
  */

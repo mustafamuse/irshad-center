@@ -5,21 +5,41 @@ import { cn } from '@/lib/utils'
 
 import { RevenueTierBarChart } from './charts/revenue-tier-bar-chart'
 import type { RevenueStats } from '../../_types/insights'
+import { formatCentsWhole } from '../../_utils/format'
 
 interface RevenueAnalyticsProps {
   data: RevenueStats
 }
 
-function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-  }).format(cents / 100)
+function getVarianceStyle(variance: number): {
+  barColor: string
+  bgColor: string
+  iconColor: string
+} {
+  if (variance === 0) {
+    return {
+      barColor: 'bg-gray-200',
+      bgColor: 'bg-gray-100',
+      iconColor: 'text-muted-foreground',
+    }
+  }
+  if (variance > 0) {
+    return {
+      barColor: 'bg-green-500',
+      bgColor: 'bg-green-100',
+      iconColor: 'text-green-600',
+    }
+  }
+  return {
+    barColor: 'bg-red-500',
+    bgColor: 'bg-red-100',
+    iconColor: 'text-red-600',
+  }
 }
 
 export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
   const varianceIsPositive = data.variance >= 0
+  const vs = getVarianceStyle(data.variance)
 
   return (
     <div className="space-y-4">
@@ -41,7 +61,7 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold tabular-nums tracking-tight">
-                {formatCurrency(data.monthlyRevenue)}
+                {formatCentsWhole(data.monthlyRevenue)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Active subscriptions
@@ -62,7 +82,7 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold tabular-nums tracking-tight">
-                {formatCurrency(data.expectedRevenue)}
+                {formatCentsWhole(data.expectedRevenue)}
               </div>
               <p className="text-xs text-muted-foreground">
                 Based on tier rates
@@ -76,42 +96,24 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
               data.mismatchCount > 0 && 'ring-2 ring-amber-200'
             )}
           >
-            <div
-              className={cn(
-                'h-1',
-                data.variance === 0
-                  ? 'bg-gray-200'
-                  : varianceIsPositive
-                    ? 'bg-green-500'
-                    : 'bg-red-500'
-              )}
-            />
+            <div className={cn('h-1', vs.barColor)} />
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Variance</CardTitle>
               <div
                 className={cn(
                   'flex h-8 w-8 items-center justify-center rounded-lg',
-                  data.variance === 0
-                    ? 'bg-gray-100'
-                    : varianceIsPositive
-                      ? 'bg-green-100'
-                      : 'bg-red-100'
+                  vs.bgColor
                 )}
               >
                 {varianceIsPositive ? (
                   <TrendingUp
                     aria-hidden="true"
-                    className={cn(
-                      'h-4 w-4',
-                      data.variance === 0
-                        ? 'text-muted-foreground'
-                        : 'text-green-600'
-                    )}
+                    className={cn('h-4 w-4', vs.iconColor)}
                   />
                 ) : (
                   <TrendingDown
                     aria-hidden="true"
-                    className="h-4 w-4 text-red-600"
+                    className={cn('h-4 w-4', vs.iconColor)}
                   />
                 )}
               </div>
@@ -126,7 +128,7 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
               >
                 {data.variance === 0
                   ? '$0'
-                  : `${varianceIsPositive ? '+' : ''}${formatCurrency(data.variance)}`}
+                  : `${varianceIsPositive ? '+' : ''}${formatCentsWhole(data.variance)}`}
               </div>
               <p className="text-xs text-muted-foreground">
                 {data.mismatchCount === 0
