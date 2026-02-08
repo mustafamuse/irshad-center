@@ -20,6 +20,17 @@ const logger = createServiceLogger('dugsi-insights')
 
 const ACTIVE_STUDENT_STATUSES = ['REGISTERED', 'ENROLLED'] as const
 
+const STATUS_PRIORITY: Record<SubscriptionStatus, number> = {
+  active: 1,
+  trialing: 2,
+  past_due: 3,
+  incomplete: 4,
+  paused: 5,
+  unpaid: 6,
+  incomplete_expired: 7,
+  canceled: 8,
+}
+
 export const getDugsiInsights = cache(
   async function getDugsiInsights(): Promise<DugsiInsightsData> {
     return Sentry.startSpan(
@@ -82,7 +93,7 @@ async function getHealthStats(): Promise<ProgramHealthStats> {
 async function getFamilyStatusBreakdown(): Promise<
   Record<SubscriptionStatus | 'none', number>
 > {
-  const families = await prisma.programProfile.findMany({
+  const profiles = await prisma.programProfile.findMany({
     where: {
       program: DUGSI_PROGRAM,
       status: { in: [...ACTIVE_STUDENT_STATUSES] },
@@ -96,10 +107,8 @@ async function getFamilyStatusBreakdown(): Promise<
             select: { status: true },
           },
         },
-        take: 1,
       },
     },
-    distinct: ['familyReferenceId'],
   })
 
   const breakdown: Record<SubscriptionStatus | 'none', number> = {
@@ -114,18 +123,30 @@ async function getFamilyStatusBreakdown(): Promise<
     none: 0,
   }
 
-  const seen = new Set<string>()
-  for (const profile of families) {
-    const key = profile.familyReferenceId
-    if (key && seen.has(key)) continue
-    if (key) seen.add(key)
+  const familyStatuses = new Map<string, SubscriptionStatus[]>()
+  let soloCounter = 0
 
-    const subscription = profile.assignments[0]?.subscription
-    if (subscription) {
-      breakdown[subscription.status]++
-    } else {
-      breakdown.none++
+  for (const profile of profiles) {
+    const key = profile.familyReferenceId ?? `solo-${soloCounter++}`
+    if (!familyStatuses.has(key)) {
+      familyStatuses.set(key, [])
     }
+    const statuses = familyStatuses.get(key)!
+    for (const assignment of profile.assignments) {
+      statuses.push(assignment.subscription.status)
+    }
+  }
+
+  for (const [, statuses] of Array.from(familyStatuses)) {
+    if (statuses.length === 0) {
+      breakdown.none++
+      continue
+    }
+    const bestStatus = statuses.reduce(
+      (best: SubscriptionStatus, current: SubscriptionStatus) =>
+        STATUS_PRIORITY[current] < STATUS_PRIORITY[best] ? current : best
+    )
+    breakdown[bestStatus]++
   }
 
   return breakdown
@@ -221,17 +242,33 @@ async function getRevenueStats(): Promise<RevenueStats> {
         { familyCount: number; expected: number; actual: number }
       >()
 
-      for (const sub of subscriptions) {
-        const familyRefId = sub.assignments[0]?.programProfile.familyReferenceId
-        const childCount = familyRefId
-          ? (familyCounts.get(familyRefId) ?? 1)
-          : 1
-        const expected = calculateDugsiRate(childCount)
+      const familySubscriptions = new Map<
+        string,
+        { totalActual: number; childCount: number }
+      >()
 
+      for (const sub of subscriptions) {
         monthlyRevenue += sub.amount
+
+        const familyRefId = sub.assignments[0]?.programProfile.familyReferenceId
+        const key = familyRefId ?? sub.id
+
+        if (!familySubscriptions.has(key)) {
+          const childCount = familyRefId
+            ? (familyCounts.get(familyRefId) ?? 1)
+            : 1
+          familySubscriptions.set(key, { totalActual: 0, childCount })
+        }
+        familySubscriptions.get(key)!.totalActual += sub.amount
+      }
+
+      for (const [, { totalActual, childCount }] of Array.from(
+        familySubscriptions
+      )) {
+        const expected = calculateDugsiRate(childCount)
         expectedRevenue += expected
 
-        if (sub.amount !== expected) {
+        if (totalActual !== expected) {
           mismatchCount++
         }
 
@@ -239,12 +276,12 @@ async function getRevenueStats(): Promise<RevenueStats> {
         if (existing) {
           existing.familyCount++
           existing.expected += expected
-          existing.actual += sub.amount
+          existing.actual += totalActual
         } else {
           tierMap.set(childCount, {
             familyCount: 1,
             expected,
-            actual: sub.amount,
+            actual: totalActual,
           })
         }
       }
