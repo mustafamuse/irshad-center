@@ -403,6 +403,8 @@ async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
         twelveMonthsAgo.setDate(1)
         twelveMonthsAgo.setHours(0, 0, 0, 0)
 
+        // Intentionally filters by current status: shows active students by registration month,
+        // not all historical registrations (withdrawn students are excluded).
         const profiles = await prisma.programProfile.findMany({
           where: {
             ...ACTIVE_PROFILE_WHERE,
