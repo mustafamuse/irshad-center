@@ -1,3 +1,5 @@
+import { cache } from 'react'
+
 import { SubscriptionStatus } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
@@ -18,27 +20,29 @@ const logger = createServiceLogger('dugsi-insights')
 
 const ACTIVE_STUDENT_STATUSES = ['REGISTERED', 'ENROLLED'] as const
 
-export async function getDugsiInsights(): Promise<DugsiInsightsData> {
-  return Sentry.startSpan(
-    { name: 'insights.getDugsiInsights', op: 'function' },
-    async () => {
-      try {
-        const [health, revenue, enrollment, registrationTrend] =
-          await Promise.all([
-            getHealthStats(),
-            getRevenueStats(),
-            getEnrollmentDistribution(),
-            getRegistrationTrend(),
-          ])
+export const getDugsiInsights = cache(
+  async function getDugsiInsights(): Promise<DugsiInsightsData> {
+    return Sentry.startSpan(
+      { name: 'insights.getDugsiInsights', op: 'function' },
+      async () => {
+        try {
+          const [health, revenue, enrollment, registrationTrend] =
+            await Promise.all([
+              getHealthStats(),
+              getRevenueStats(),
+              getEnrollmentDistribution(),
+              getRegistrationTrend(),
+            ])
 
-        return { health, revenue, enrollment, registrationTrend }
-      } catch (error) {
-        logError(logger, error, 'Failed to fetch Dugsi insights', {})
-        throw error
+          return { health, revenue, enrollment, registrationTrend }
+        } catch (error) {
+          logError(logger, error, 'Failed to fetch Dugsi insights', {})
+          throw error
+        }
       }
-    }
-  )
-}
+    )
+  }
+)
 
 async function getHealthStats(): Promise<ProgramHealthStats> {
   return Sentry.startSpan(
@@ -175,42 +179,41 @@ async function getRevenueStats(): Promise<RevenueStats> {
   return Sentry.startSpan(
     { name: 'insights.getRevenueStats', op: 'db' },
     async () => {
-      // Get all active subscriptions linked to Dugsi profiles
-      const subscriptions = await prisma.subscription.findMany({
-        where: {
-          status: 'active',
-          assignments: {
-            some: {
-              isActive: true,
-              programProfile: {
-                program: DUGSI_PROGRAM,
-                status: { in: [...ACTIVE_STUDENT_STATUSES] },
+      const [subscriptions, familyCounts] = await Promise.all([
+        prisma.subscription.findMany({
+          where: {
+            status: 'active',
+            assignments: {
+              some: {
+                isActive: true,
+                programProfile: {
+                  program: DUGSI_PROGRAM,
+                  status: { in: [...ACTIVE_STUDENT_STATUSES] },
+                },
               },
             },
           },
-        },
-        select: {
-          id: true,
-          amount: true,
-          assignments: {
-            where: {
-              isActive: true,
-              programProfile: {
-                program: DUGSI_PROGRAM,
-                status: { in: [...ACTIVE_STUDENT_STATUSES] },
+          select: {
+            id: true,
+            amount: true,
+            assignments: {
+              where: {
+                isActive: true,
+                programProfile: {
+                  program: DUGSI_PROGRAM,
+                  status: { in: [...ACTIVE_STUDENT_STATUSES] },
+                },
               },
-            },
-            select: {
-              programProfile: {
-                select: { familyReferenceId: true },
+              select: {
+                programProfile: {
+                  select: { familyReferenceId: true },
+                },
               },
             },
           },
-        },
-      })
-
-      // Get family child counts for expected rate calculation
-      const familyCounts = await getFamilyChildCounts()
+        }),
+        getFamilyChildCounts(),
+      ])
 
       let monthlyRevenue = 0
       let expectedRevenue = 0
