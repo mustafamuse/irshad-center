@@ -50,7 +50,7 @@ export const SHIFT_START_TIMES: Record<
   { hour: number; minute: number }
 > = {
   MORNING: { hour: 8, minute: 30 },
-  AFTERNOON: { hour: 14, minute: 0 },
+  AFTERNOON: { hour: 14, minute: 15 },
 } as const
 
 /**
@@ -58,7 +58,7 @@ export const SHIFT_START_TIMES: Record<
  */
 export const SHIFT_TIME_LABELS: Record<Shift, string> = {
   MORNING: '8:30 AM',
-  AFTERNOON: '2:00 PM',
+  AFTERNOON: '2:15 PM',
 } as const
 
 // ============================================================================
