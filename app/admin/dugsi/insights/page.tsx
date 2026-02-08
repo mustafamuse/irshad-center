@@ -70,8 +70,8 @@ export default function DugsiInsightsPage() {
       <AppErrorBoundary
         context="Dugsi insights"
         variant="card"
-        fallbackUrl="/admin/dugsi/insights"
-        fallbackLabel="Reload Insights"
+        fallbackUrl="/admin/dugsi"
+        fallbackLabel="Back to Dashboard"
       >
         <Suspense fallback={<Loading />}>
           <InsightsContent />

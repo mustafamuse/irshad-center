@@ -105,6 +105,7 @@ async function getFamilyStatusBreakdown(): Promise<
   const profiles = await prisma.programProfile.findMany({
     where: ACTIVE_PROFILE_WHERE,
     select: {
+      id: true,
       familyReferenceId: true,
       assignments: {
         where: { isActive: true },
@@ -130,11 +131,10 @@ async function getFamilyStatusBreakdown(): Promise<
   }
 
   const familyStatuses = new Map<string, SubscriptionStatus[]>()
-  let soloCounter = 0
 
   for (const profile of profiles) {
     // Profiles without familyReferenceId are treated as individual families
-    const key = profile.familyReferenceId ?? `solo-${soloCounter++}`
+    const key = profile.familyReferenceId ?? `solo-${profile.id}`
     if (!familyStatuses.has(key)) {
       familyStatuses.set(key, [])
     }
@@ -374,7 +374,7 @@ async function getEnrollmentDistribution(): Promise<EnrollmentDistribution> {
 }
 
 function toMonthKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 const MONTH_NAMES = [
@@ -398,10 +398,10 @@ async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
     async () => {
       try {
         const twelveMonthsAgo = new Date()
-        // Go back 11 months (+ current month = 12 total)
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11)
-        twelveMonthsAgo.setDate(1)
-        twelveMonthsAgo.setHours(0, 0, 0, 0)
+        // Go back 11 months (+ current month = 12 total). Use UTC to match Prisma timestamps.
+        twelveMonthsAgo.setUTCMonth(twelveMonthsAgo.getUTCMonth() - 11)
+        twelveMonthsAgo.setUTCDate(1)
+        twelveMonthsAgo.setUTCHours(0, 0, 0, 0)
 
         // Intentionally filters by current status: shows active students by registration month,
         // not all historical registrations (withdrawn students are excluded).
@@ -411,6 +411,7 @@ async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
             createdAt: { gte: twelveMonthsAgo },
           },
           select: {
+            id: true,
             createdAt: true,
             familyReferenceId: true,
           },
@@ -424,17 +425,16 @@ async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
 
         for (let i = 0; i < 12; i++) {
           const d = new Date(twelveMonthsAgo)
-          d.setMonth(d.getMonth() + i)
+          d.setUTCMonth(d.getUTCMonth() + i)
           monthMap.set(toMonthKey(d), { students: 0, families: new Set() })
         }
 
-        let soloCounter = 0
         for (const profile of profiles) {
           const bucket = monthMap.get(toMonthKey(profile.createdAt))
           if (bucket) {
             bucket.students++
             bucket.families.add(
-              profile.familyReferenceId ?? `solo-${soloCounter++}`
+              profile.familyReferenceId ?? `solo-${profile.id}`
             )
           }
         }

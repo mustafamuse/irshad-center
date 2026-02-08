@@ -133,10 +133,12 @@ describe('getDugsiInsights', () => {
           if (where.createdAt) return Promise.resolve([])
           return Promise.resolve([
             {
+              id: 'profile-solo-1',
               familyReferenceId: null,
               assignments: [{ subscription: { status: 'active' } }],
             },
             {
+              id: 'profile-solo-2',
               familyReferenceId: null,
               assignments: [{ subscription: { status: 'canceled' } }],
             },
