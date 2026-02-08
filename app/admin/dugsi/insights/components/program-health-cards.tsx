@@ -83,11 +83,11 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Families</CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700/10">
-              <Users className="h-4 w-4 text-teal-700" />
+              <Users aria-hidden="true" className="h-4 w-4 text-teal-700" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight">
+            <div className="text-3xl font-bold tabular-nums tracking-tight">
               {data.totalFamilies}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -103,11 +103,14 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
               Active & Paying
             </CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
-              <UserCheck className="h-4 w-4 text-green-600" />
+              <UserCheck
+                aria-hidden="true"
+                className="h-4 w-4 text-green-600"
+              />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-green-600">
+            <div className="text-3xl font-bold tabular-nums tracking-tight text-green-600">
               {data.familyStatusBreakdown.active}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -145,6 +148,7 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
               )}
             >
               <AlertTriangle
+                aria-hidden="true"
                 className={cn(
                   'h-4 w-4',
                   needsAttention > 0
@@ -157,7 +161,7 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
           <CardContent>
             <div
               className={cn(
-                'text-3xl font-bold tracking-tight',
+                'text-3xl font-bold tabular-nums tracking-tight',
                 needsAttention > 0 && 'text-amber-600'
               )}
             >
@@ -176,11 +180,14 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
               Payment Capture
             </CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-              <CreditCard className="h-4 w-4 text-blue-600" />
+              <CreditCard
+                aria-hidden="true"
+                className="h-4 w-4 text-blue-600"
+              />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight">
+            <div className="text-3xl font-bold tabular-nums tracking-tight">
               {data.paymentMethodCaptureRate}%
             </div>
             <p className="text-xs text-muted-foreground">
@@ -192,7 +199,11 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
 
       {statusSegments.length > 0 && (
         <div className="space-y-2">
-          <div className="flex h-3 overflow-hidden rounded-full">
+          <div
+            className="flex h-3 overflow-hidden rounded-full"
+            role="img"
+            aria-label="Family subscription status breakdown"
+          >
             {statusSegments.map((segment) => (
               <div
                 key={segment.key}

@@ -54,12 +54,24 @@ export function RevenueTierBarChart({ data }: RevenueTierBarChartProps) {
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickFormatter={(value: number) => `$${value}`}
+          tickFormatter={(value: number) =>
+            new Intl.NumberFormat('en-US', {
+              style: 'currency',
+              currency: 'USD',
+              maximumFractionDigits: 0,
+            }).format(value)
+          }
         />
         <ChartTooltip
           content={
             <ChartTooltipContent
-              formatter={(value) => `$${(value as number).toLocaleString()}`}
+              formatter={(value) =>
+                new Intl.NumberFormat('en-US', {
+                  style: 'currency',
+                  currency: 'USD',
+                  maximumFractionDigits: 0,
+                }).format(value as number)
+              }
             />
           }
         />

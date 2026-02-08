@@ -33,11 +33,14 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
                 Monthly Revenue
               </CardTitle>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-                <DollarSign className="h-4 w-4 text-blue-600" />
+                <DollarSign
+                  aria-hidden="true"
+                  className="h-4 w-4 text-blue-600"
+                />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold tracking-tight">
+              <div className="text-2xl font-bold tabular-nums tracking-tight">
                 {formatCurrency(data.monthlyRevenue)}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -51,11 +54,14 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Expected</CardTitle>
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700/10">
-                <DollarSign className="h-4 w-4 text-teal-700" />
+                <DollarSign
+                  aria-hidden="true"
+                  className="h-4 w-4 text-teal-700"
+                />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold tracking-tight">
+              <div className="text-2xl font-bold tabular-nums tracking-tight">
                 {formatCurrency(data.expectedRevenue)}
               </div>
               <p className="text-xs text-muted-foreground">
@@ -94,6 +100,7 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
               >
                 {varianceIsPositive ? (
                   <TrendingUp
+                    aria-hidden="true"
                     className={cn(
                       'h-4 w-4',
                       data.variance === 0
@@ -102,21 +109,24 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
                     )}
                   />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-red-600" />
+                  <TrendingDown
+                    aria-hidden="true"
+                    className="h-4 w-4 text-red-600"
+                  />
                 )}
               </div>
             </CardHeader>
             <CardContent>
               <div
                 className={cn(
-                  'text-2xl font-bold tracking-tight',
+                  'text-2xl font-bold tabular-nums tracking-tight',
                   data.variance > 0 && 'text-green-600',
                   data.variance < 0 && 'text-red-600'
                 )}
               >
                 {data.variance === 0
                   ? '$0'
-                  : `${varianceIsPositive ? '+' : '-'}${formatCurrency(Math.abs(data.variance)).replace('$', '$')}`}
+                  : `${varianceIsPositive ? '+' : ''}${formatCurrency(data.variance)}`}
               </div>
               <p className="text-xs text-muted-foreground">
                 {data.mismatchCount === 0

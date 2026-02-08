@@ -59,7 +59,7 @@ export default function DugsiInsightsPage() {
   return (
     <main className="container mx-auto space-y-6 p-4 sm:space-y-8 sm:p-6 lg:p-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">
+        <h1 className="text-balance text-2xl font-bold tracking-tight">
           Dugsi Program Insights
         </h1>
         <p className="text-sm text-muted-foreground">

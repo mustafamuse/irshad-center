@@ -61,7 +61,7 @@ export async function CompactStatsSummary() {
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
             View Insights
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
           </Link>
         </div>
       </CardContent>

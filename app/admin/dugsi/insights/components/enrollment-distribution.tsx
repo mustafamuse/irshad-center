@@ -55,11 +55,11 @@ export function EnrollmentDistribution({
               Assigned to Class
             </CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-100">
-              <BookOpen className="h-4 w-4 text-green-600" />
+              <BookOpen aria-hidden="true" className="h-4 w-4 text-green-600" />
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold tracking-tight text-green-600">
+            <div className="text-3xl font-bold tabular-nums tracking-tight text-green-600">
               {enrollment.assignedToClass}
             </div>
             <p className="text-xs text-muted-foreground">
@@ -99,6 +99,7 @@ export function EnrollmentDistribution({
               )}
             >
               <UserX
+                aria-hidden="true"
                 className={cn(
                   'h-4 w-4',
                   enrollment.unassignedToClass > 0
@@ -111,7 +112,7 @@ export function EnrollmentDistribution({
           <CardContent>
             <div
               className={cn(
-                'text-3xl font-bold tracking-tight',
+                'text-3xl font-bold tabular-nums tracking-tight',
                 enrollment.unassignedToClass > 0 && 'text-amber-600'
               )}
             >
