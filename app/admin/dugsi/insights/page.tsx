@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import { Metadata } from 'next'
+import type { Metadata } from 'next'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
 import { getDugsiInsights } from '@/lib/services/dugsi/insights-service'

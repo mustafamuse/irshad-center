@@ -62,11 +62,18 @@ export default async function DugsiAdminPage({
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
-      <Suspense
-        fallback={<div className="h-20 animate-pulse rounded-lg bg-muted" />}
+      <AppErrorBoundary
+        context="Dugsi stats summary"
+        variant="card"
+        fallbackUrl="/admin/dugsi"
+        fallbackLabel="Reload Dashboard"
       >
-        <CompactStatsSummary />
-      </Suspense>
+        <Suspense
+          fallback={<div className="h-20 animate-pulse rounded-lg bg-muted" />}
+        >
+          <CompactStatsSummary />
+        </Suspense>
+      </AppErrorBoundary>
       <AppErrorBoundary
         context="Dugsi admin dashboard"
         variant="card"

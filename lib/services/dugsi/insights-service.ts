@@ -36,7 +36,7 @@ export const getDugsiInsights = cache(
 
           return { health, revenue, enrollment, registrationTrend }
         } catch (error) {
-          logError(logger, error, 'Failed to fetch Dugsi insights', {})
+          await logError(logger, error, 'Failed to fetch Dugsi insights', {})
           throw error
         }
       }
@@ -79,7 +79,6 @@ async function getHealthStats(): Promise<ProgramHealthStats> {
   )
 }
 
-// Bug 1 fix: categorize families by ALL subscription statuses
 async function getFamilyStatusBreakdown(): Promise<
   Record<SubscriptionStatus | 'none', number>
 > {
@@ -117,7 +116,7 @@ async function getFamilyStatusBreakdown(): Promise<
 
   const seen = new Set<string>()
   for (const profile of families) {
-    const key = profile.familyReferenceId ?? profile.familyReferenceId
+    const key = profile.familyReferenceId
     if (key && seen.has(key)) continue
     if (key) seen.add(key)
 
@@ -174,7 +173,6 @@ async function getPaymentMethodCaptureRate(): Promise<number> {
   return total > 0 ? Math.round((captured / total) * 100) : 0
 }
 
-// Bug 3 fix: query Subscription directly instead of members[0]
 async function getRevenueStats(): Promise<RevenueStats> {
   return Sentry.startSpan(
     { name: 'insights.getRevenueStats', op: 'db' },
@@ -272,7 +270,6 @@ async function getRevenueStats(): Promise<RevenueStats> {
   )
 }
 
-// Bug 2 fix: only count REGISTERED/ENROLLED students
 async function getFamilyChildCounts(): Promise<Map<string, number>> {
   const counts = await prisma.programProfile.groupBy({
     by: ['familyReferenceId'],
@@ -373,6 +370,7 @@ async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
         monthMap.set(key, { students: 0, families: new Set() })
       }
 
+      let soloCounter = 0
       for (const profile of profiles) {
         const d = profile.createdAt
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
@@ -382,7 +380,7 @@ async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
           if (profile.familyReferenceId) {
             bucket.families.add(profile.familyReferenceId)
           } else {
-            bucket.families.add(`solo-${bucket.families.size}`)
+            bucket.families.add(`solo-${soloCounter++}`)
           }
         }
       }
