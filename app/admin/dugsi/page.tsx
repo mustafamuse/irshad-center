@@ -6,6 +6,7 @@ import { AppErrorBoundary } from '@/components/error-boundary'
 import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
 import { getDugsiRegistrations } from './actions'
+import { CompactStatsSummary } from './components/dashboard/compact-stats-summary'
 import { DugsiDashboard } from './components/dugsi-dashboard'
 
 export const dynamic = 'force-dynamic'
@@ -61,6 +62,11 @@ export default async function DugsiAdminPage({
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
+      <Suspense
+        fallback={<div className="h-20 animate-pulse rounded-lg bg-muted" />}
+      >
+        <CompactStatsSummary />
+      </Suspense>
       <AppErrorBoundary
         context="Dugsi admin dashboard"
         variant="card"
