@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -21,22 +21,7 @@ interface AtRiskFamiliesTableProps {
 }
 
 export function AtRiskFamiliesTable({ data }: AtRiskFamiliesTableProps) {
-  if (data.families.length === 0) {
-    return (
-      <Card className="border-0 shadow-md">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">
-            At-Risk Families
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No at-risk families found
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
+  if (data.families.length === 0) return null
 
   return (
     <div className="space-y-4">
@@ -47,7 +32,7 @@ export function AtRiskFamiliesTable({ data }: AtRiskFamiliesTableProps) {
         </span>
       </div>
       <Card className="border-0 shadow-md">
-        <CardContent className="p-0">
+        <CardContent className="overflow-x-auto p-0">
           <Table>
             <TableHeader>
               <TableRow>

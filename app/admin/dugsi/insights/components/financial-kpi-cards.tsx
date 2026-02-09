@@ -15,7 +15,7 @@ export function FinancialKPICards({ data }: FinancialKPICardsProps) {
   const collectionHealthy = data.collectionRate >= 95
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       <Card className="overflow-hidden border-0 shadow-md">
         <div className="h-1 bg-teal-700" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -25,7 +25,7 @@ export function FinancialKPICards({ data }: FinancialKPICardsProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold tabular-nums tracking-tight">
+          <div className="text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">
             {data.totalFamilies}
           </div>
           <p className="text-xs text-muted-foreground">Active Dugsi families</p>
@@ -64,13 +64,13 @@ export function FinancialKPICards({ data }: FinancialKPICardsProps) {
         <CardContent>
           <div
             className={cn(
-              'text-3xl font-bold tabular-nums tracking-tight',
+              'text-2xl font-bold tabular-nums tracking-tight sm:text-3xl',
               collectionHealthy ? 'text-green-600' : 'text-amber-600'
             )}
           >
             {data.collectionRate}%
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="hidden text-xs text-muted-foreground sm:block">
             {formatCentsWhole(data.monthlyRevenue)} of{' '}
             {formatCentsWhole(data.expectedRevenue)} expected
           </p>
@@ -106,7 +106,7 @@ export function FinancialKPICards({ data }: FinancialKPICardsProps) {
         <CardContent>
           <div
             className={cn(
-              'text-3xl font-bold tabular-nums tracking-tight',
+              'text-2xl font-bold tabular-nums tracking-tight sm:text-3xl',
               !atRiskIsZero && 'text-red-600'
             )}
           >
@@ -119,15 +119,15 @@ export function FinancialKPICards({ data }: FinancialKPICardsProps) {
       </Card>
 
       <Card className="overflow-hidden border-0 shadow-md">
-        <div className="h-1 bg-blue-500" />
+        <div className="h-1 bg-teal-700" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Payment Capture</CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-            <CreditCard aria-hidden="true" className="h-4 w-4 text-blue-600" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-700/10">
+            <CreditCard aria-hidden="true" className="h-4 w-4 text-teal-700" />
           </div>
         </CardHeader>
         <CardContent>
-          <div className="text-3xl font-bold tabular-nums tracking-tight">
+          <div className="text-2xl font-bold tabular-nums tracking-tight sm:text-3xl">
             {data.paymentCaptureRate}%
           </div>
           <p className="text-xs text-muted-foreground">

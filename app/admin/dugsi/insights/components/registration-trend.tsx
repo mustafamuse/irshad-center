@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-import { VisxRegistrationTrendChart } from './charts/visx-registration-trend-chart'
+import { VisxRegistrationTrendChart } from './charts/registration-trend-chart'
 import type { RegistrationTrendItem } from '../../_types/insights'
 
 interface RegistrationTrendProps {
