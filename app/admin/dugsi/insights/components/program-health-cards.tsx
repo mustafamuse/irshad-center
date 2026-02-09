@@ -1,8 +1,13 @@
+import type { SubscriptionStatus } from '@prisma/client'
 import { AlertTriangle, CreditCard, UserCheck, Users } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
+import {
+  STATUS_LABELS,
+  STATUS_TAILWIND_BG,
+} from '../../_constants/status-display'
 import type { ProgramHealthStats } from '../../_types/insights'
 
 interface ProgramHealthCardsProps {
@@ -15,65 +20,32 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
     data.familyStatusBreakdown.incomplete +
     data.familyStatusBreakdown.none
 
-  const statusSegments = [
-    {
-      key: 'active',
-      color: 'bg-green-500',
-      count: data.familyStatusBreakdown.active,
-    },
-    {
-      key: 'trialing',
-      color: 'bg-blue-500',
-      count: data.familyStatusBreakdown.trialing,
-    },
-    {
-      key: 'past_due',
-      color: 'bg-orange-500',
-      count: data.familyStatusBreakdown.past_due,
-    },
-    {
-      key: 'incomplete',
-      color: 'bg-yellow-500',
-      count: data.familyStatusBreakdown.incomplete,
-    },
-    {
-      key: 'canceled',
-      color: 'bg-red-500',
-      count: data.familyStatusBreakdown.canceled,
-    },
-    {
-      key: 'unpaid',
-      color: 'bg-red-700',
-      count: data.familyStatusBreakdown.unpaid,
-    },
-    {
-      key: 'paused',
-      color: 'bg-gray-500',
-      count: data.familyStatusBreakdown.paused,
-    },
-    {
-      key: 'incomplete_expired',
-      color: 'bg-gray-400',
-      count: data.familyStatusBreakdown.incomplete_expired,
-    },
-    {
-      key: 'none',
-      color: 'bg-slate-300',
-      count: data.familyStatusBreakdown.none,
-    },
-  ].filter((s) => s.count > 0)
-
-  const statusLabels: Record<string, string> = {
-    active: 'Active',
-    trialing: 'Trialing',
-    past_due: 'Past Due',
-    incomplete: 'Incomplete',
-    canceled: 'Canceled',
-    unpaid: 'Unpaid',
-    paused: 'Paused',
+  const HEALTH_CARD_LABELS: Partial<
+    Record<SubscriptionStatus | 'none', string>
+  > = {
     incomplete_expired: 'Expired',
     none: 'No Subscription',
   }
+
+  const allStatuses: (SubscriptionStatus | 'none')[] = [
+    'active',
+    'trialing',
+    'past_due',
+    'incomplete',
+    'canceled',
+    'unpaid',
+    'paused',
+    'incomplete_expired',
+    'none',
+  ]
+
+  const statusSegments = allStatuses
+    .map((key) => ({
+      key,
+      color: STATUS_TAILWIND_BG[key],
+      count: data.familyStatusBreakdown[key],
+    }))
+    .filter((s) => s.count > 0)
 
   return (
     <div className="space-y-4">
@@ -223,7 +195,8 @@ export function ProgramHealthCards({ data }: ProgramHealthCardsProps) {
                 <div
                   className={cn('h-2.5 w-2.5 rounded-full', segment.color)}
                 />
-                {statusLabels[segment.key]} ({segment.count})
+                {HEALTH_CARD_LABELS[segment.key] ?? STATUS_LABELS[segment.key]}{' '}
+                ({segment.count})
               </div>
             ))}
           </div>

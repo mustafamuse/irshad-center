@@ -246,6 +246,8 @@ async function getRevenueStats(): Promise<RevenueStats> {
             continue
           }
 
+          // All assignments on a subscription belong to the same family (billing is family-scoped).
+          // Use first assignment's familyReferenceId; fall back to subscription ID for solo students.
           const familyRefId =
             sub.assignments[0]?.programProfile.familyReferenceId
           const key = familyRefId ?? sub.id

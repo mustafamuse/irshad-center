@@ -279,6 +279,106 @@ describe('getDugsiInsights', () => {
     })
   })
 
+  describe('enrollment distribution', () => {
+    it('counts morning/afternoon from shift groupBy', async () => {
+      mockProgramProfileGroupBy.mockImplementation(
+        ({ by }: { by: string[] }) => {
+          if (by[0] === 'shift') {
+            return Promise.resolve([
+              { shift: 'MORNING', _count: { id: 7 } },
+              { shift: 'AFTERNOON', _count: { id: 3 } },
+            ])
+          }
+          return Promise.resolve([])
+        }
+      )
+      mockDugsiClassEnrollmentCount.mockResolvedValue(8)
+      mockProgramProfileCount.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) => {
+          if (where.status) return Promise.resolve(10)
+          return Promise.resolve(15)
+        }
+      )
+
+      const result = await getDugsiInsights()
+      expect(result.enrollment.morningStudents).toBe(7)
+      expect(result.enrollment.afternoonStudents).toBe(3)
+    })
+
+    it('calculates unassigned = totalActive - assignedCount', async () => {
+      mockProgramProfileGroupBy.mockImplementation(
+        ({ by }: { by: string[] }) => {
+          if (by[0] === 'shift') {
+            return Promise.resolve([{ shift: 'MORNING', _count: { id: 4 } }])
+          }
+          return Promise.resolve([])
+        }
+      )
+      mockDugsiClassEnrollmentCount.mockResolvedValue(3)
+      mockProgramProfileCount.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) => {
+          if (where.status) return Promise.resolve(6)
+          return Promise.resolve(10)
+        }
+      )
+
+      const result = await getDugsiInsights()
+      expect(result.enrollment.assignedToClass).toBe(3)
+      expect(result.enrollment.unassignedToClass).toBe(3)
+    })
+  })
+
+  describe('registration trend', () => {
+    it('buckets profiles into correct months', async () => {
+      const now = new Date()
+      const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+
+      mockProgramProfileFindMany.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) => {
+          if (where.createdAt) {
+            return Promise.resolve([
+              { id: 'p1', createdAt: new Date(), familyReferenceId: 'FAM-1' },
+              { id: 'p2', createdAt: new Date(), familyReferenceId: 'FAM-1' },
+            ])
+          }
+          return Promise.resolve([])
+        }
+      )
+
+      const result = await getDugsiInsights()
+      const currentBucket = result.registrationTrend.find(
+        (t) => t.month === currentMonth
+      )
+      expect(currentBucket?.studentCount).toBe(2)
+      expect(result.registrationTrend).toHaveLength(12)
+    })
+
+    it('counts unique families per month (solo profiles counted separately)', async () => {
+      const now = new Date()
+      const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`
+
+      mockProgramProfileFindMany.mockImplementation(
+        ({ where }: { where: Record<string, unknown> }) => {
+          if (where.createdAt) {
+            return Promise.resolve([
+              { id: 'p1', createdAt: new Date(), familyReferenceId: 'FAM-1' },
+              { id: 'p2', createdAt: new Date(), familyReferenceId: 'FAM-1' },
+              { id: 'p3', createdAt: new Date(), familyReferenceId: null },
+            ])
+          }
+          return Promise.resolve([])
+        }
+      )
+
+      const result = await getDugsiInsights()
+      const currentBucket = result.registrationTrend.find(
+        (t) => t.month === currentMonth
+      )
+      expect(currentBucket?.familyCount).toBe(2)
+      expect(currentBucket?.studentCount).toBe(3)
+    })
+  })
+
   describe('error handling', () => {
     it('propagates query errors through logError', async () => {
       const { logError } = await import('@/lib/logger')

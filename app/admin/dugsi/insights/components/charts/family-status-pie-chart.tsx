@@ -12,29 +12,10 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 
-const STATUS_COLORS: Record<SubscriptionStatus | 'none', string> = {
-  active: '#22c55e',
-  canceled: '#ef4444',
-  past_due: '#f97316',
-  incomplete: '#eab308',
-  trialing: '#3b82f6',
-  unpaid: '#b91c1c',
-  paused: '#6b7280',
-  incomplete_expired: '#9ca3af',
-  none: '#cbd5e1',
-}
-
-const STATUS_LABELS: Record<SubscriptionStatus | 'none', string> = {
-  active: 'Active',
-  canceled: 'Canceled',
-  past_due: 'Past Due',
-  incomplete: 'Incomplete',
-  trialing: 'Trialing',
-  unpaid: 'Unpaid',
-  paused: 'Paused',
-  incomplete_expired: 'Incomplete Expired',
-  none: 'None',
-}
+import {
+  STATUS_COLORS,
+  STATUS_LABELS,
+} from '../../../_constants/status-display'
 
 interface FamilyStatusPieChartProps {
   data: Record<SubscriptionStatus | 'none', number>
