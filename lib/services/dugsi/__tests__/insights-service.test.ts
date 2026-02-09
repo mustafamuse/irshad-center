@@ -86,6 +86,7 @@ describe('getDugsiInsights', () => {
       mockProgramProfileFindMany.mockImplementation(
         ({ where }: { where: Record<string, unknown> }) => {
           if (where.createdAt) return Promise.resolve([])
+          if (where.assignments) return Promise.resolve([])
           return Promise.resolve([
             {
               familyReferenceId: 'FAM-1',
@@ -109,6 +110,7 @@ describe('getDugsiInsights', () => {
       mockProgramProfileFindMany.mockImplementation(
         ({ where }: { where: Record<string, unknown> }) => {
           if (where.createdAt) return Promise.resolve([])
+          if (where.assignments) return Promise.resolve([])
           return Promise.resolve([
             {
               familyReferenceId: 'FAM-2',
@@ -131,6 +133,7 @@ describe('getDugsiInsights', () => {
       mockProgramProfileFindMany.mockImplementation(
         ({ where }: { where: Record<string, unknown> }) => {
           if (where.createdAt) return Promise.resolve([])
+          if (where.assignments) return Promise.resolve([])
           return Promise.resolve([
             {
               id: 'profile-solo-1',
@@ -156,6 +159,7 @@ describe('getDugsiInsights', () => {
       mockProgramProfileFindMany.mockImplementation(
         ({ where }: { where: Record<string, unknown> }) => {
           if (where.createdAt) return Promise.resolve([])
+          if (where.assignments) return Promise.resolve([])
           return Promise.resolve([
             { familyReferenceId: 'FAM-3', assignments: [] },
             { familyReferenceId: 'FAM-3', assignments: [] },

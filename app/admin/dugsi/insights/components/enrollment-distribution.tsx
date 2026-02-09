@@ -3,8 +3,8 @@ import { BookOpen, UserX } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-import { FamilyStatusPieChart } from './charts/family-status-pie-chart'
-import { ShiftDistributionChart } from './charts/shift-distribution-chart'
+import { VisxFamilyStatusChart } from './charts/visx-family-status-chart'
+import { VisxShiftChart } from './charts/visx-shift-chart'
 import type {
   EnrollmentDistribution as EnrollmentDistributionData,
   ProgramHealthStats,
@@ -30,7 +30,7 @@ export function EnrollmentDistribution({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ShiftDistributionChart
+            <VisxShiftChart
               morning={enrollment.morningStudents}
               afternoon={enrollment.afternoonStudents}
             />
@@ -42,7 +42,7 @@ export function EnrollmentDistribution({
             <CardTitle className="text-sm font-medium">Family Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <FamilyStatusPieChart data={health.familyStatusBreakdown} />
+            <VisxFamilyStatusChart data={health.familyStatusBreakdown} />
           </CardContent>
         </Card>
       </div>

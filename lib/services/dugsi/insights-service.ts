@@ -4,8 +4,11 @@ import { SubscriptionStatus } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import {
+  AtRiskData,
+  AtRiskFamily,
   DugsiInsightsData,
   EnrollmentDistribution,
+  FinancialKPIs,
   ProgramHealthStats,
   RegistrationTrendItem,
   RevenueByTier,
@@ -24,6 +27,12 @@ const ACTIVE_PROFILE_WHERE = {
   program: DUGSI_PROGRAM,
   status: { in: [...ACTIVE_STUDENT_STATUSES] },
 }
+
+const AT_RISK_STATUSES: SubscriptionStatus[] = [
+  'past_due',
+  'incomplete',
+  'unpaid',
+]
 
 // Family status = best subscription across all siblings.
 // Lower number = higher priority (active family > past_due family).
@@ -44,15 +53,25 @@ export const getDugsiInsights = cache(
       { name: 'insights.getDugsiInsights', op: 'function' },
       async () => {
         try {
-          const [health, revenue, enrollment, registrationTrend] =
+          const [health, revenue, enrollment, registrationTrend, atRisk] =
             await Promise.all([
               getHealthStats(),
               getRevenueStats(),
               getEnrollmentDistribution(),
               getRegistrationTrend(),
+              getAtRiskFamilies(),
             ])
 
-          return { health, revenue, enrollment, registrationTrend }
+          const financialKPIs = deriveFinancialKPIs(health, revenue, atRisk)
+
+          return {
+            health,
+            revenue,
+            enrollment,
+            registrationTrend,
+            financialKPIs,
+            atRisk,
+          }
         } catch (error) {
           await logError(logger, error, 'Failed to fetch Dugsi insights', {})
           throw error
@@ -461,4 +480,161 @@ async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
       }
     }
   )
+}
+
+async function getAtRiskFamilies(): Promise<AtRiskData> {
+  return Sentry.startSpan(
+    { name: 'insights.getAtRiskFamilies', op: 'db' },
+    async () => {
+      try {
+        const profiles = await prisma.programProfile.findMany({
+          where: {
+            ...ACTIVE_PROFILE_WHERE,
+            assignments: {
+              some: {
+                isActive: true,
+                subscription: { status: { in: AT_RISK_STATUSES } },
+              },
+            },
+          },
+          select: {
+            id: true,
+            familyReferenceId: true,
+            person: {
+              select: {
+                name: true,
+                dependentRelationships: {
+                  where: { isActive: true, role: 'PARENT' },
+                  select: {
+                    guardian: { select: { name: true } },
+                  },
+                  take: 1,
+                },
+              },
+            },
+            assignments: {
+              where: {
+                isActive: true,
+                subscription: { status: { in: AT_RISK_STATUSES } },
+              },
+              select: {
+                subscription: {
+                  select: {
+                    status: true,
+                    amount: true,
+                    currentPeriodEnd: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        const familyMap = new Map<
+          string,
+          {
+            familyName: string
+            statuses: SubscriptionStatus[]
+            studentCount: number
+            actualAmount: number
+            currentPeriodEnd: Date | null
+          }
+        >()
+
+        for (const profile of profiles) {
+          const key = profile.familyReferenceId ?? `solo-${profile.id}`
+          const parentName =
+            profile.person.dependentRelationships[0]?.guardian.name ??
+            profile.person.name
+
+          if (!familyMap.has(key)) {
+            familyMap.set(key, {
+              familyName: parentName,
+              statuses: [],
+              studentCount: 0,
+              actualAmount: 0,
+              currentPeriodEnd: null,
+            })
+          }
+
+          const family = familyMap.get(key)!
+          family.studentCount++
+
+          for (const assignment of profile.assignments) {
+            const sub = assignment.subscription
+            family.statuses.push(sub.status)
+            family.actualAmount += sub.amount
+            if (
+              sub.currentPeriodEnd &&
+              (!family.currentPeriodEnd ||
+                sub.currentPeriodEnd < family.currentPeriodEnd)
+            ) {
+              family.currentPeriodEnd = sub.currentPeriodEnd
+            }
+          }
+        }
+
+        const now = new Date()
+        const families: AtRiskFamily[] = []
+        let totalAtRiskAmount = 0
+
+        for (const [familyRefId, family] of Array.from(familyMap)) {
+          const worstStatus = family.statuses.reduce(
+            (worst: SubscriptionStatus, current: SubscriptionStatus) =>
+              STATUS_PRIORITY[current] > STATUS_PRIORITY[worst]
+                ? current
+                : worst
+          )
+          const expectedAmount = calculateDugsiRate(family.studentCount)
+          const gap = expectedAmount - family.actualAmount
+          totalAtRiskAmount += gap > 0 ? gap : expectedAmount
+
+          let daysPastDue: number | null = null
+          if (family.currentPeriodEnd) {
+            const diffMs = now.getTime() - family.currentPeriodEnd.getTime()
+            if (diffMs > 0) {
+              daysPastDue = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+            }
+          }
+
+          families.push({
+            familyReferenceId: familyRefId,
+            familyName: family.familyName,
+            status: worstStatus,
+            studentCount: family.studentCount,
+            expectedAmount,
+            actualAmount: family.actualAmount,
+            daysPastDue,
+          })
+        }
+
+        families.sort((a, b) => (b.daysPastDue ?? 0) - (a.daysPastDue ?? 0))
+
+        return { families, totalAtRiskAmount }
+      } catch (error) {
+        await logError(logger, error, 'Failed to fetch at-risk families', {})
+        throw error
+      }
+    }
+  )
+}
+
+function deriveFinancialKPIs(
+  health: ProgramHealthStats,
+  revenue: RevenueStats,
+  atRisk: AtRiskData
+): FinancialKPIs {
+  const collectionRate =
+    revenue.expectedRevenue > 0
+      ? Math.round((revenue.monthlyRevenue / revenue.expectedRevenue) * 100)
+      : 0
+
+  return {
+    totalFamilies: health.totalFamilies,
+    collectionRate,
+    dollarAtRisk: atRisk.totalAtRiskAmount,
+    paymentCaptureRate: health.paymentMethodCaptureRate,
+    monthlyRevenue: revenue.monthlyRevenue,
+    expectedRevenue: revenue.expectedRevenue,
+  }
 }

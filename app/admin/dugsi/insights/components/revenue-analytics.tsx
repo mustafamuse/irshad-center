@@ -3,7 +3,7 @@ import { DollarSign, TrendingDown, TrendingUp } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
-import { RevenueTierBarChart } from './charts/revenue-tier-bar-chart'
+import { VisxRevenueTierChart } from './charts/visx-revenue-tier-chart'
 import type { RevenueStats } from '../../_types/insights'
 import { formatCentsWhole } from '../../_utils/format'
 
@@ -147,7 +147,7 @@ export function RevenueAnalytics({ data }: RevenueAnalyticsProps) {
           </CardHeader>
           <CardContent>
             {data.revenueByTier.length > 0 ? (
-              <RevenueTierBarChart data={data.revenueByTier} />
+              <VisxRevenueTierChart data={data.revenueByTier} />
             ) : (
               <p className="text-sm text-muted-foreground">
                 No active subscriptions

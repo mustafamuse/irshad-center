@@ -38,9 +38,35 @@ export interface RegistrationTrendItem {
   studentCount: number
 }
 
+export interface FinancialKPIs {
+  totalFamilies: number
+  collectionRate: number
+  dollarAtRisk: number
+  paymentCaptureRate: number
+  monthlyRevenue: number
+  expectedRevenue: number
+}
+
+export interface AtRiskFamily {
+  familyReferenceId: string
+  familyName: string
+  status: SubscriptionStatus
+  studentCount: number
+  expectedAmount: number
+  actualAmount: number
+  daysPastDue: number | null
+}
+
+export interface AtRiskData {
+  families: AtRiskFamily[]
+  totalAtRiskAmount: number
+}
+
 export interface DugsiInsightsData {
   health: ProgramHealthStats
   revenue: RevenueStats
   enrollment: EnrollmentDistribution
   registrationTrend: RegistrationTrendItem[]
+  financialKPIs: FinancialKPIs
+  atRisk: AtRiskData
 }
