@@ -190,7 +190,7 @@ async function handleInvoicePaymentSucceededEvent(
     'Processing invoice.payment_succeeded'
   )
 
-  await handleInvoiceFinalized(invoice)
+  await handleInvoiceFinalized(invoice, { setLastPaymentDate: true })
 }
 
 /**
