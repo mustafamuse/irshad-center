@@ -35,7 +35,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function VisxRegistrationTrendChart({ data }: Props) {
+export function RegistrationTrendChart({ data }: Props) {
   return (
     <ChartContainer config={chartConfig} className="min-h-[220px] w-full">
       <ComposedChart accessibilityLayer data={data}>

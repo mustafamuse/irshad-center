@@ -28,7 +28,7 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function VisxRevenueTierChart({ data }: Props) {
+export function RevenueTierChart({ data }: Props) {
   const chartData = data.map((d) => ({
     tier: d.tier,
     expected: d.expectedRevenue,

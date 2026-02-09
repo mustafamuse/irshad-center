@@ -1,9 +1,7 @@
-import type { SubscriptionStatus } from '@prisma/client'
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { cn } from '@/lib/utils'
 
-import { STATUS_COLORS, STATUS_LABELS } from '../../_constants/status-display'
+import { FamilyStatusChart } from './charts/family-status-chart'
+import { ShiftDistributionChart } from './charts/shift-distribution-chart'
 import type {
   EnrollmentDistribution as EnrollmentDistributionData,
   ProgramHealthStats,
@@ -12,108 +10,6 @@ import type {
 interface EnrollmentDistributionProps {
   enrollment: EnrollmentDistributionData
   health: ProgramHealthStats
-}
-
-function ShiftRatioBar({
-  morning,
-  afternoon,
-}: {
-  morning: number
-  afternoon: number
-}) {
-  const total = morning + afternoon
-  const morningPct = total > 0 ? (morning / total) * 100 : 50
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-end justify-between">
-        <div>
-          <span className="text-2xl font-bold tabular-nums">{morning}</span>
-          <span className="ml-1.5 text-sm text-muted-foreground">Morning</span>
-        </div>
-        <div className="text-right">
-          <span className="text-2xl font-bold tabular-nums">{afternoon}</span>
-          <span className="ml-1.5 text-sm text-muted-foreground">
-            Afternoon
-          </span>
-        </div>
-      </div>
-      <div className="flex h-3 overflow-hidden rounded-full bg-gray-100">
-        <div
-          className="rounded-l-full transition-all"
-          style={{
-            width: `${morningPct}%`,
-            backgroundColor: '#deb43e',
-          }}
-        />
-        <div
-          className="rounded-r-full transition-all"
-          style={{
-            width: `${100 - morningPct}%`,
-            backgroundColor: '#0ea5a0',
-          }}
-        />
-      </div>
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{Math.round(morningPct)}%</span>
-        <span>{Math.round(100 - morningPct)}%</span>
-      </div>
-    </div>
-  )
-}
-
-function FamilyStatusBar({
-  data,
-}: {
-  data: Record<SubscriptionStatus | 'none', number>
-}) {
-  const entries = (
-    Object.entries(data) as [SubscriptionStatus | 'none', number][]
-  ).filter(([, count]) => count > 0)
-
-  const total = entries.reduce((sum, [, c]) => sum + c, 0)
-  if (total === 0) return null
-
-  return (
-    <div className="space-y-3">
-      <div className="flex h-3 overflow-hidden rounded-full bg-gray-100">
-        {entries.map(([status, count], i) => {
-          const pct = (count / total) * 100
-          const isFirst = i === 0
-          const isLast = i === entries.length - 1
-          return (
-            <div
-              key={status}
-              className={cn(
-                'transition-all',
-                isFirst && 'rounded-l-full',
-                isLast && 'rounded-r-full'
-              )}
-              style={{
-                width: `${pct}%`,
-                backgroundColor: STATUS_COLORS[status],
-                minWidth: count > 0 ? 4 : 0,
-              }}
-            />
-          )
-        })}
-      </div>
-      <div className="flex flex-wrap gap-x-4 gap-y-1">
-        {entries.map(([status, count]) => (
-          <div key={status} className="flex items-center gap-1.5 text-xs">
-            <div
-              className="h-2 w-2 shrink-0 rounded-full"
-              style={{ backgroundColor: STATUS_COLORS[status] }}
-            />
-            <span className="text-muted-foreground">
-              {STATUS_LABELS[status]}
-            </span>
-            <span className="font-medium tabular-nums">{count}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
 }
 
 export function EnrollmentDistribution({
@@ -134,11 +30,11 @@ export function EnrollmentDistribution({
         <Card className="border-0 shadow-md">
           <CardHeader>
             <CardTitle className="text-sm font-medium">
-              Shift & Assignment
+              Shift Distribution
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <ShiftRatioBar
+            <ShiftDistributionChart
               morning={enrollment.morningStudents}
               afternoon={enrollment.afternoonStudents}
             />
@@ -176,17 +72,13 @@ export function EnrollmentDistribution({
 
         <Card className="border-0 shadow-md">
           <CardHeader>
-            <div className="flex items-baseline justify-between">
-              <CardTitle className="text-sm font-medium">
-                Family Status
-              </CardTitle>
-              <span className="text-2xl font-bold tabular-nums">
-                {health.totalFamilies}
-              </span>
-            </div>
+            <CardTitle className="text-sm font-medium">Family Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <FamilyStatusBar data={health.familyStatusBreakdown} />
+            <FamilyStatusChart
+              data={health.familyStatusBreakdown}
+              totalFamilies={health.totalFamilies}
+            />
           </CardContent>
         </Card>
       </div>

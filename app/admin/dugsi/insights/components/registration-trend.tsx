@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-import { VisxRegistrationTrendChart } from './charts/registration-trend-chart'
+import { RegistrationTrendChart } from './charts/registration-trend-chart'
 import type { RegistrationTrendItem } from '../../_types/insights'
 
 interface RegistrationTrendProps {
@@ -19,7 +19,7 @@ export function RegistrationTrend({ data }: RegistrationTrendProps) {
         </CardHeader>
         <CardContent>
           {data.some((d) => d.studentCount > 0) ? (
-            <VisxRegistrationTrendChart data={data} />
+            <RegistrationTrendChart data={data} />
           ) : (
             <p className="text-sm text-muted-foreground">
               No registrations in the last 12 months
