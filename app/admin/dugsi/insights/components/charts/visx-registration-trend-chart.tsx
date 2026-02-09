@@ -6,8 +6,7 @@ import { GridRows } from '@visx/grid'
 import { Group } from '@visx/group'
 import { ParentSize } from '@visx/responsive'
 import { scaleBand, scaleLinear } from '@visx/scale'
-import { Bar } from '@visx/shape'
-import { LinePath } from '@visx/shape'
+import { AreaClosed, Bar, LinePath } from '@visx/shape'
 import { useTooltip, TooltipWithBounds } from '@visx/tooltip'
 
 import type { RegistrationTrendItem } from '@/app/admin/dugsi/_types/insights'
@@ -15,8 +14,9 @@ import type { RegistrationTrendItem } from '@/app/admin/dugsi/_types/insights'
 import {
   BRAND_COLORS,
   CHART_MARGINS,
-  TooltipContainer,
+  ChartGradients,
   ChartLegend,
+  TooltipContainer,
 } from './visx-primitives'
 
 interface Props {
@@ -68,12 +68,14 @@ function Chart({
   return (
     <div className="relative">
       <svg width={width} height={height}>
+        <ChartGradients />
+        <rect width={width} height={height} fill="url(#grad-bg-teal)" rx={14} />
         <Group left={CHART_MARGINS.left} top={CHART_MARGINS.top}>
           <GridRows
             scale={yScale}
             width={xMax}
-            stroke="currentColor"
-            strokeOpacity={0.1}
+            stroke="white"
+            strokeOpacity={0.08}
             numTicks={5}
           />
 
@@ -87,8 +89,9 @@ function Chart({
                 y={yMax - barHeight}
                 width={bandwidth}
                 height={barHeight}
-                fill={BRAND_COLORS.teal}
-                rx={2}
+                fill="url(#grad-teal)"
+                opacity={0.7}
+                rx={3}
                 onMouseMove={() => {
                   showTooltip({
                     tooltipData: {
@@ -106,12 +109,21 @@ function Chart({
             )
           })}
 
+          <AreaClosed
+            data={data}
+            x={(d) => (xScale(d.label) ?? 0) + bandwidth / 2}
+            y={(d) => yScale(d.familyCount) ?? 0}
+            yScale={yScale}
+            fill="url(#grad-area)"
+            curve={curveMonotoneX}
+          />
+
           <LinePath
             data={data}
             x={(d) => (xScale(d.label) ?? 0) + bandwidth / 2}
             y={(d) => yScale(d.familyCount) ?? 0}
-            stroke={BRAND_COLORS.gold}
-            strokeWidth={2}
+            stroke={BRAND_COLORS.goldLight}
+            strokeWidth={2.5}
             curve={curveMonotoneX}
           />
 
@@ -121,9 +133,9 @@ function Chart({
               cx={(xScale(d.label) ?? 0) + bandwidth / 2}
               cy={yScale(d.familyCount) ?? 0}
               r={4}
-              fill={BRAND_COLORS.gold}
+              fill={BRAND_COLORS.goldLight}
               stroke="white"
-              strokeWidth={1.5}
+              strokeWidth={2}
             />
           ))}
 
@@ -132,11 +144,10 @@ function Chart({
             scale={xScale}
             tickLabelProps={{
               fontSize: 11,
-              textAnchor: 'middle',
-              fill: 'currentColor',
+              textAnchor: 'middle' as const,
+              fill: 'rgba(255,255,255,0.6)',
             }}
-            stroke="currentColor"
-            strokeWidth={0}
+            stroke="transparent"
             tickStroke="transparent"
           />
 
@@ -144,12 +155,11 @@ function Chart({
             scale={yScale}
             tickLabelProps={{
               fontSize: 11,
-              textAnchor: 'end',
-              fill: 'currentColor',
+              textAnchor: 'end' as const,
+              fill: 'rgba(255,255,255,0.6)',
               dx: -4,
             }}
-            stroke="currentColor"
-            strokeWidth={0}
+            stroke="transparent"
             tickStroke="transparent"
             numTicks={5}
           />
@@ -165,10 +175,10 @@ function Chart({
         >
           <TooltipContainer>
             <p className="font-medium">{tooltipData.label}</p>
-            <p style={{ color: BRAND_COLORS.teal }}>
+            <p style={{ color: BRAND_COLORS.tealLight }}>
               Students: {tooltipData.studentCount}
             </p>
-            <p style={{ color: BRAND_COLORS.gold }}>
+            <p style={{ color: BRAND_COLORS.goldLight }}>
               Families: {tooltipData.familyCount}
             </p>
           </TooltipContainer>
@@ -180,18 +190,20 @@ function Chart({
 
 export function VisxRegistrationTrendChart({ data }: Props) {
   return (
-    <div style={{ minHeight: 250 }}>
-      <ParentSize>
-        {({ width, height }) =>
-          width > 0 && height > 0 ? (
-            <Chart data={data} width={width} height={Math.max(height, 250)} />
-          ) : null
-        }
-      </ParentSize>
+    <div>
+      <div style={{ minHeight: 250 }}>
+        <ParentSize>
+          {({ width, height }) =>
+            width > 0 ? (
+              <Chart data={data} width={width} height={Math.max(height, 250)} />
+            ) : null
+          }
+        </ParentSize>
+      </div>
       <ChartLegend
         items={[
-          { label: 'Students', color: BRAND_COLORS.teal },
-          { label: 'Families', color: BRAND_COLORS.gold },
+          { label: 'Students', color: BRAND_COLORS.tealLight },
+          { label: 'Families', color: BRAND_COLORS.goldLight },
         ]}
       />
     </div>

@@ -85,6 +85,7 @@
     "@vercel/kv": "^3.0.0",
     "@visx/axis": "^3.12.0",
     "@visx/curve": "^3.12.0",
+    "@visx/gradient": "^3.12.0",
     "@visx/grid": "^3.12.0",
     "@visx/group": "^3.12.0",
     "@visx/responsive": "^3.12.0",

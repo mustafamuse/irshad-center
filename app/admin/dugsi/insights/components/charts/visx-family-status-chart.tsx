@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 
 import type { SubscriptionStatus } from '@prisma/client'
+import { LinearGradient } from '@visx/gradient'
 import { Group } from '@visx/group'
 import { ParentSize } from '@visx/responsive'
 import { Pie } from '@visx/shape'
@@ -52,30 +53,45 @@ export function VisxFamilyStatusChart({ data }: VisxFamilyStatusChartProps) {
       <ParentSize>
         {({ width, height }) => {
           const radius = Math.min(width, height) / 2
-          const innerRadius = radius * 0.65
-          const outerRadius = radius * 0.9
+          const innerRadius = radius * 0.6
+          const outerRadius = radius * 0.88
 
           return (
-            <div style={{ position: 'relative' }}>
+            <div className="relative">
               <svg width={width} height={height}>
+                <LinearGradient
+                  id="grad-bg-donut"
+                  from="#1e1b4b"
+                  to="#0f172a"
+                />
+                <rect
+                  width={width}
+                  height={height}
+                  fill="url(#grad-bg-donut)"
+                  rx={14}
+                />
                 <Group top={height / 2} left={width / 2}>
                   <Pie
                     data={slices}
                     pieValue={(d) => d.count}
                     innerRadius={innerRadius}
                     outerRadius={outerRadius}
+                    cornerRadius={3}
                     padAngle={0.02}
                   >
                     {(pie) =>
                       pie.arcs.map((arc) => {
                         const path = pie.path(arc) ?? ''
                         const isActive = activeStatus === arc.data.status
+                        const baseColor = STATUS_COLORS[arc.data.status]
                         return (
                           <path
                             key={arc.data.status}
                             d={path}
-                            fill={STATUS_COLORS[arc.data.status]}
-                            opacity={activeStatus && !isActive ? 0.4 : 1}
+                            fill={baseColor}
+                            opacity={activeStatus && !isActive ? 0.3 : 0.85}
+                            stroke="rgba(255,255,255,0.15)"
+                            strokeWidth={1}
                             style={{ transition: 'opacity 150ms' }}
                             onMouseEnter={(e) => {
                               setActiveStatus(arc.data.status)
@@ -105,7 +121,7 @@ export function VisxFamilyStatusChart({ data }: VisxFamilyStatusChartProps) {
                     textAnchor="middle"
                     verticalAnchor="middle"
                     dy={-8}
-                    className="fill-foreground text-3xl font-bold"
+                    fill="white"
                     style={{ fontSize: 28, fontWeight: 700 }}
                   >
                     {total}
@@ -114,7 +130,7 @@ export function VisxFamilyStatusChart({ data }: VisxFamilyStatusChartProps) {
                     textAnchor="middle"
                     verticalAnchor="middle"
                     dy={18}
-                    className="fill-muted-foreground"
+                    fill="rgba(255,255,255,0.5)"
                     style={{ fontSize: 13 }}
                   >
                     Families
@@ -131,7 +147,7 @@ export function VisxFamilyStatusChart({ data }: VisxFamilyStatusChartProps) {
                   <TooltipContainer>
                     <div className="flex items-center gap-2">
                       <div
-                        className="h-2 w-2 rounded-full"
+                        className="h-2.5 w-2.5 rounded-full"
                         style={{
                           backgroundColor: STATUS_COLORS[tooltipData.status],
                         }}
@@ -139,9 +155,7 @@ export function VisxFamilyStatusChart({ data }: VisxFamilyStatusChartProps) {
                       <span className="font-medium">
                         {STATUS_LABELS[tooltipData.status]}
                       </span>
-                      <span className="text-muted-foreground">
-                        {tooltipData.count}
-                      </span>
+                      <span className="text-white/60">{tooltipData.count}</span>
                     </div>
                   </TooltipContainer>
                 </TooltipWithBounds>

@@ -14,8 +14,9 @@ import { formatCentsWhole } from '@/app/admin/dugsi/_utils/format'
 import {
   BRAND_COLORS,
   CHART_MARGINS,
-  TooltipContainer,
+  ChartGradients,
   ChartLegend,
+  TooltipContainer,
 } from './visx-primitives'
 
 interface Props {
@@ -23,7 +24,6 @@ interface Props {
 }
 
 const keys = ['expected', 'actual'] as const
-const colorMap = { expected: BRAND_COLORS.teal, actual: BRAND_COLORS.gold }
 
 interface TierTooltip {
   tier: string
@@ -72,15 +72,16 @@ function Chart({
   })
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="relative">
       <svg width={width} height={height}>
+        <ChartGradients />
+        <rect width={width} height={height} fill="url(#grad-bg-teal)" rx={14} />
         <Group left={CHART_MARGINS.left} top={CHART_MARGINS.top}>
           <GridRows
             scale={valueScale}
             width={xMax}
-            strokeDasharray="3,3"
-            stroke="#e5e7eb"
-            strokeOpacity={0.6}
+            stroke="white"
+            strokeOpacity={0.08}
           />
           {data.map((d) => {
             const tierX = tierScale(d.tier) ?? 0
@@ -99,8 +100,12 @@ function Chart({
                       y={barY}
                       width={groupScale.bandwidth()}
                       height={Math.max(barHeight, 0)}
-                      fill={colorMap[key]}
-                      rx={2}
+                      fill={
+                        key === 'expected'
+                          ? 'url(#grad-teal)'
+                          : 'url(#grad-gold)'
+                      }
+                      rx={4}
                       onMouseMove={() => {
                         showTooltip({
                           tooltipData: {
@@ -128,8 +133,8 @@ function Chart({
             scale={tierScale}
             tickLabelProps={{
               fontSize: 11,
-              textAnchor: 'middle',
-              fill: '#6b7280',
+              textAnchor: 'middle' as const,
+              fill: 'rgba(255,255,255,0.6)',
             }}
             hideTicks
             hideAxisLine
@@ -139,8 +144,8 @@ function Chart({
             tickFormat={(v) => formatCentsWhole(v as number)}
             tickLabelProps={{
               fontSize: 11,
-              textAnchor: 'end',
-              fill: '#6b7280',
+              textAnchor: 'end' as const,
+              fill: 'rgba(255,255,255,0.6)',
               dx: -4,
             }}
             hideTicks
@@ -153,12 +158,17 @@ function Chart({
         <TooltipWithBounds
           left={tooltipLeft}
           top={tooltipTop}
-          style={{ position: 'absolute' }}
+          unstyled
+          applyPositionStyle
         >
           <TooltipContainer>
             <p className="font-medium">{tooltipData.tier}</p>
-            <p>Expected: {formatCentsWhole(tooltipData.expected)}</p>
-            <p>Actual: {formatCentsWhole(tooltipData.actual)}</p>
+            <p style={{ color: BRAND_COLORS.tealLight }}>
+              Expected: {formatCentsWhole(tooltipData.expected)}
+            </p>
+            <p style={{ color: BRAND_COLORS.goldLight }}>
+              Actual: {formatCentsWhole(tooltipData.actual)}
+            </p>
           </TooltipContainer>
         </TooltipWithBounds>
       )}
@@ -172,7 +182,7 @@ export function VisxRevenueTierChart({ data }: Props) {
       <div style={{ minHeight: 250 }}>
         <ParentSize>
           {({ width, height }) =>
-            width > 0 && height > 0 ? (
+            width > 0 ? (
               <Chart data={data} width={width} height={Math.max(height, 250)} />
             ) : null
           }
@@ -180,8 +190,8 @@ export function VisxRevenueTierChart({ data }: Props) {
       </div>
       <ChartLegend
         items={[
-          { label: 'Expected', color: BRAND_COLORS.teal },
-          { label: 'Actual', color: BRAND_COLORS.gold },
+          { label: 'Expected', color: BRAND_COLORS.tealLight },
+          { label: 'Actual', color: BRAND_COLORS.goldLight },
         ]}
       />
     </div>
