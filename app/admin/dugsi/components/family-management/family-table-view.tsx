@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 
 import { Users, MoreHorizontal, Eye, Trash2 } from 'lucide-react'
 
@@ -90,8 +90,13 @@ interface FamilyTableViewProps {
 }
 
 export function FamilyTableView({ families }: FamilyTableViewProps) {
-  const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
+  const [selectedFamilyKey, setSelectedFamilyKey] = useState<string | null>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
+
+  const selectedFamily = useMemo(
+    () => families.find((f) => f.familyKey === selectedFamilyKey) ?? null,
+    [families, selectedFamilyKey]
+  )
   const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
     null
   )
@@ -109,24 +114,9 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
   )
 
   const handleRowClick = (family: Family) => {
-    setSelectedFamily(family)
+    setSelectedFamilyKey(family.familyKey)
     setIsSheetOpen(true)
   }
-
-  const handleFamilyUpdate = useCallback(
-    (shift: 'MORNING' | 'AFTERNOON') => {
-      if (selectedFamily) {
-        setSelectedFamily({
-          ...selectedFamily,
-          members: selectedFamily.members.map((member) => ({
-            ...member,
-            shift,
-          })),
-        })
-      }
-    },
-    [selectedFamily]
-  )
 
   if (families.length === 0) {
     return (
@@ -280,7 +270,6 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
         family={selectedFamily}
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
-        onFamilyUpdate={handleFamilyUpdate}
         onVerifyBankAccount={(paymentIntentId, parentEmail) => {
           setVerifyBankDialogData({ paymentIntentId, parentEmail })
           setDialogOpen('verifyBank', true)

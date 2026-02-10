@@ -62,7 +62,6 @@ interface FamilyDetailSheetProps {
   family: Family | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onFamilyUpdate?: (shift: Shift) => void
   onVerifyBankAccount?: (paymentIntentId: string, parentEmail: string) => void
 }
 
@@ -70,7 +69,6 @@ export function FamilyDetailSheet({
   family,
   open,
   onOpenChange,
-  onFamilyUpdate,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
   const { state, actions } = useSheetState()
@@ -88,9 +86,6 @@ export function FamilyDetailSheet({
         pendingShiftRef.current = null
       },
       onError: () => {
-        if (pendingShiftRef.current?.previousShift) {
-          onFamilyUpdate?.(pendingShiftRef.current.previousShift)
-        }
         actions.setPendingShift(null)
         pendingShiftRef.current = null
       },
@@ -127,7 +122,6 @@ export function FamilyDetailSheet({
     const shiftData = { newShift: shift, previousShift }
     pendingShiftRef.current = shiftData
     actions.setPendingShift(shiftData)
-    onFamilyUpdate?.(shift)
 
     await executeUpdateFamilyShift({
       familyReferenceId: firstMember.familyReferenceId,
