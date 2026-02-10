@@ -1,4 +1,4 @@
-import { StripeAccountType } from '@prisma/client'
+import { type Subscription, StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -198,16 +198,16 @@ export async function reEnrollChild(
         profile.familyReferenceId
       )
 
-      const activeCount = await prisma.programProfile.count({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: profile.familyReferenceId,
-          status: { in: ['REGISTERED', 'ENROLLED'] },
-        },
-      })
-      const initialAmount = calculateDugsiRate(activeCount + 1)
-
       await prisma.$transaction(async (tx) => {
+        const activeCount = await tx.programProfile.count({
+          where: {
+            program: DUGSI_PROGRAM,
+            familyReferenceId: profile.familyReferenceId,
+            status: { in: ['REGISTERED', 'ENROLLED'] },
+          },
+        })
+        const initialAmount = calculateDugsiRate(activeCount + 1)
+
         await tx.programProfile.update({
           where: { id: studentId },
           data: { status: 'ENROLLED' },
@@ -360,14 +360,21 @@ export async function withdrawAllChildren(
           if (isLast) lastChildResult = result
         } catch (error) {
           failedCount++
-          await logWarning(
-            logger,
-            'Failed to withdraw child in bulk operation',
-            {
+          if (error instanceof ActionError) {
+            await logWarning(logger, 'Expected failure in bulk withdrawal', {
               studentId: activeProfiles[i].id,
-              error: error instanceof Error ? error.message : 'Unknown',
-            }
-          )
+              error: error.message,
+            })
+          } else {
+            await logError(
+              logger,
+              error,
+              'Unexpected failure in bulk withdrawal',
+              {
+                studentId: activeProfiles[i].id,
+              }
+            )
+          }
         }
       }
 
@@ -536,24 +543,32 @@ async function applyBillingAdjustment(
   billingAdjustment:
     | WithdrawChildInput['billingAdjustment']
     | ReEnrollChildInput['billingAdjustment'],
-  fallbackSubscription?: {
-    id: string
-    stripeSubscriptionId: string
-    status: string
-    amount: number
-  } | null
+  fallbackSubscription?: Pick<
+    Subscription,
+    'id' | 'stripeSubscriptionId' | 'status' | 'amount'
+  > | null
 ): Promise<{ updated: boolean; error?: string }> {
   const profile = await prisma.programProfile.findUnique({
     where: { id: studentId },
     select: { familyReferenceId: true },
   })
 
-  const subscription =
-    (await findFamilySubscription(profile?.familyReferenceId ?? null)) ??
-    fallbackSubscription ??
-    null
+  const queriedSubscription = await findFamilySubscription(
+    profile?.familyReferenceId ?? null
+  )
+  const subscription = queriedSubscription ?? fallbackSubscription ?? null
+
+  if (!queriedSubscription && fallbackSubscription) {
+    await logWarning(logger, 'Using pre-transaction subscription fallback', {
+      studentId,
+      subscriptionId: fallbackSubscription.stripeSubscriptionId,
+    })
+  }
 
   if (!subscription) {
+    if (billingAdjustment.type === 'cancel_subscription') {
+      return { updated: false, error: 'No active subscription to cancel' }
+    }
     return { updated: true }
   }
 
@@ -566,14 +581,27 @@ async function applyBillingAdjustment(
 
     if (billingAdjustment.type === 'cancel_subscription') {
       await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { status: 'canceled' },
-      })
-      await prisma.billingAssignment.updateMany({
-        where: { subscriptionId: subscription.id, isActive: true },
-        data: { isActive: false, endDate: new Date() },
-      })
+      try {
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { status: 'canceled' },
+        })
+        await prisma.billingAssignment.updateMany({
+          where: { subscriptionId: subscription.id, isActive: true },
+          data: { isActive: false, endDate: new Date() },
+        })
+      } catch (dbError) {
+        await logError(
+          logger,
+          dbError,
+          'CRITICAL: Stripe subscription canceled but DB update failed - states diverged',
+          {
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            operation: 'cancel_subscription',
+          }
+        )
+        throw dbError
+      }
       return { updated: true }
     }
 
@@ -594,14 +622,27 @@ async function applyBillingAdjustment(
     if (newAmount <= 0) {
       if (billingAdjustment.type === 'auto_recalculate') {
         await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { status: 'canceled' },
-        })
-        await prisma.billingAssignment.updateMany({
-          where: { subscriptionId: subscription.id, isActive: true },
-          data: { isActive: false, endDate: new Date() },
-        })
+        try {
+          await prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { status: 'canceled' },
+          })
+          await prisma.billingAssignment.updateMany({
+            where: { subscriptionId: subscription.id, isActive: true },
+            data: { isActive: false, endDate: new Date() },
+          })
+        } catch (dbError) {
+          await logError(
+            logger,
+            dbError,
+            'CRITICAL: Stripe subscription canceled but DB update failed - states diverged',
+            {
+              stripeSubscriptionId: subscription.stripeSubscriptionId,
+              operation: 'auto_recalculate_cancel',
+            }
+          )
+          throw dbError
+        }
         return { updated: true }
       }
       return { updated: false, error: 'Calculated amount is zero or negative' }
@@ -635,10 +676,24 @@ async function applyBillingAdjustment(
       proration_behavior: 'none',
     })
 
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: { amount: newAmount },
-    })
+    try {
+      await prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { amount: newAmount },
+      })
+    } catch (dbError) {
+      await logError(
+        logger,
+        dbError,
+        'CRITICAL: Stripe amount updated but DB update failed - states diverged',
+        {
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          operation: 'amount_update',
+          newAmount,
+        }
+      )
+      throw dbError
+    }
 
     await logInfo(logger, 'Stripe subscription amount updated', {
       subscriptionId: subscription.stripeSubscriptionId,
@@ -649,10 +704,12 @@ async function applyBillingAdjustment(
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Unknown Stripe error'
-    await logWarning(logger, 'Billing adjustment failed after withdrawal', {
-      subscriptionId: subscription.stripeSubscriptionId,
-      error: message,
-    })
+    await logError(
+      logger,
+      error,
+      'Billing adjustment failed after withdrawal',
+      { subscriptionId: subscription.stripeSubscriptionId }
+    )
     return { updated: false, error: message }
   }
 }
