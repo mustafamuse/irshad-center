@@ -49,7 +49,7 @@ import { useActionHandler } from '../../_hooks/use-action-handler'
 import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
-import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { getOrderedParentNames, hasSecondParent } from '../../_utils/format'
 import { updateFamilyShift } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { ConsolidateSubscriptionDialog } from '../dialogs/consolidate-subscription-dialog'
@@ -134,20 +134,11 @@ export function FamilyDetailSheet({
   )
 
   const getSheetTitle = () => {
-    const firstParentName = formatParentName(
-      family.members[0]?.parentFirstName,
-      family.members[0]?.parentLastName
-    )
-
+    const { payer, other } = getOrderedParentNames(family.members[0])
     if (family.members[0] && hasSecondParent(family.members[0])) {
-      const secondParentName = formatParentName(
-        family.members[0].parent2FirstName,
-        family.members[0].parent2LastName
-      )
-      return `${firstParentName} & ${secondParentName}`
+      return `${payer} & ${other}`
     }
-
-    return firstParentName
+    return payer
   }
 
   return (

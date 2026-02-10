@@ -18,7 +18,7 @@ import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
-import { formatParentName } from '../../_utils/format'
+import { getOrderedParentNames } from '../../_utils/format'
 import { FamilyStatusBadge } from '../family-management/family-status-badge'
 import { ShiftBadge } from '../shared/shift-badge'
 
@@ -112,19 +112,12 @@ export function createColumns(actions: ColumnActions): ColumnDef<Family>[] {
       header: ({ column }) => (
         <SortableHeader column={column}>Parent</SortableHeader>
       ),
-      accessorFn: (row) =>
-        formatParentName(
-          row.members[0]?.parentFirstName,
-          row.members[0]?.parentLastName
-        ),
-      cell: ({ row }) => {
-        const member = row.original.members[0]
-        return (
-          <span className="font-medium">
-            {formatParentName(member?.parentFirstName, member?.parentLastName)}
-          </span>
-        )
-      },
+      accessorFn: (row) => getOrderedParentNames(row.members[0]).payer,
+      cell: ({ row }) => (
+        <span className="font-medium">
+          {getOrderedParentNames(row.original.members[0]).payer}
+        </span>
+      ),
     },
     {
       accessorKey: 'childCount',
