@@ -59,7 +59,8 @@ export interface ReEnrollResult {
 // ============================================================================
 
 export async function withdrawChild(
-  input: WithdrawChildInput
+  input: WithdrawChildInput,
+  options?: { skipLastChildGuard?: boolean }
 ): Promise<WithdrawResult> {
   return Sentry.startSpan(
     { name: 'withdrawal.withdrawChild', op: 'function' },
@@ -96,6 +97,26 @@ export async function withdrawChild(
           'Student is already withdrawn',
           ERROR_CODES.ALREADY_WITHDRAWN
         )
+      }
+
+      if (
+        !options?.skipLastChildGuard &&
+        (billingAdjustment.type === 'keep_current' ||
+          billingAdjustment.type === 'custom')
+      ) {
+        const activeCount = await prisma.programProfile.count({
+          where: {
+            program: DUGSI_PROGRAM,
+            familyReferenceId: profile.familyReferenceId,
+            status: { in: ['REGISTERED', 'ENROLLED'] },
+          },
+        })
+        if (activeCount <= 1) {
+          throw new ActionError(
+            `Cannot use "${billingAdjustment.type}" when withdrawing the last active child`,
+            ERROR_CODES.INVALID_INPUT
+          )
+        }
       }
 
       const reasonLabel = buildReasonString(reason, reasonNote)
@@ -339,28 +360,30 @@ export async function withdrawAllChildren(
         )
       }
 
+      const preWithdrawalSubscription = await findFamilySubscription(
+        profile.familyReferenceId
+      )
+
       let withdrawnCount = 0
       let failedCount = 0
-      let lastChildResult: WithdrawResult | null = null
 
-      for (let i = 0; i < activeProfiles.length; i++) {
-        const isLast = i === activeProfiles.length - 1
+      for (const activeProfile of activeProfiles) {
         try {
-          const result = await withdrawChild({
-            studentId: activeProfiles[i].id,
-            reason,
-            reasonNote,
-            billingAdjustment: isLast
-              ? billingAdjustment
-              : { type: 'keep_current' },
-          })
+          await withdrawChild(
+            {
+              studentId: activeProfile.id,
+              reason,
+              reasonNote,
+              billingAdjustment: { type: 'keep_current' },
+            },
+            { skipLastChildGuard: true }
+          )
           withdrawnCount++
-          if (isLast) lastChildResult = result
         } catch (error) {
           failedCount++
           if (error instanceof ActionError) {
             await logWarning(logger, 'Expected failure in bulk withdrawal', {
-              studentId: activeProfiles[i].id,
+              studentId: activeProfile.id,
               error: error.message,
             })
           } else {
@@ -368,13 +391,31 @@ export async function withdrawAllChildren(
               logger,
               error,
               'Unexpected failure in bulk withdrawal',
-              {
-                studentId: activeProfiles[i].id,
-              }
+              { studentId: activeProfile.id }
             )
           }
         }
       }
+
+      let effectiveBilling = billingAdjustment
+      if (failedCount > 0 && billingAdjustment.type === 'cancel_subscription') {
+        effectiveBilling = { type: 'auto_recalculate' }
+        await logWarning(
+          logger,
+          'Downgraded cancel_subscription to auto_recalculate due to partial failure',
+          {
+            familyReferenceId: profile.familyReferenceId,
+            withdrawnCount,
+            failedCount,
+          }
+        )
+      }
+
+      const billingResult = await applyBillingAdjustment(
+        studentId,
+        effectiveBilling,
+        preWithdrawalSubscription
+      )
 
       await logInfo(logger, 'Bulk withdrawal completed', {
         familyReferenceId: profile.familyReferenceId,
@@ -385,9 +426,9 @@ export async function withdrawAllChildren(
       return {
         withdrawnCount,
         failedCount,
-        billingUpdated: lastChildResult?.billingUpdated ?? false,
+        billingUpdated: billingResult.updated,
         billingError:
-          lastChildResult?.billingError ??
+          billingResult.error ??
           (failedCount > 0
             ? `${failedCount} child(ren) could not be withdrawn`
             : undefined),
