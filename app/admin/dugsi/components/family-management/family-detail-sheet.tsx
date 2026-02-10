@@ -8,6 +8,8 @@ import {
   ExternalLink,
   Send,
   Mail,
+  Pause,
+  Play,
   ShieldCheck,
   Loader2,
   Link,
@@ -50,13 +52,19 @@ import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { getOrderedParentNames, hasSecondParent } from '../../_utils/format'
-import { updateFamilyShift } from '../../actions'
+import {
+  pauseFamilyBillingAction,
+  resumeFamilyBillingAction,
+  updateFamilyShift,
+} from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { ConsolidateSubscriptionDialog } from '../dialogs/consolidate-subscription-dialog'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
+import { ReEnrollChildDialog } from '../dialogs/re-enroll-child-dialog'
+import { WithdrawChildDialog } from '../dialogs/withdraw-child-dialog'
 
 interface FamilyDetailSheetProps {
   family: Family | null
@@ -90,6 +98,12 @@ export function FamilyDetailSheet({
         pendingShiftRef.current = null
       },
     })
+
+  const { execute: executePauseBilling, isPending: isPausingBilling } =
+    useActionHandler(pauseFamilyBillingAction)
+
+  const { execute: executeResumeBilling, isPending: isResumingBilling } =
+    useActionHandler(resumeFamilyBillingAction)
 
   if (!family) return null
 
@@ -256,6 +270,8 @@ export function FamilyDetailSheet({
                 onEditParent={actions.openEditParent}
                 onEditChild={actions.openEditChild}
                 onAddChild={() => actions.setAddChildDialog(true)}
+                onWithdraw={actions.openWithdrawChild}
+                onReEnroll={actions.openReEnrollChild}
               />
             </TabsContent>
 
@@ -324,13 +340,41 @@ export function FamilyDetailSheet({
                   View in Stripe
                 </DropdownMenuItem>
               )}
+              {firstMember.subscriptionStatus === 'active' &&
+                firstMember.familyReferenceId && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      executePauseBilling({
+                        familyReferenceId: firstMember.familyReferenceId!,
+                      })
+                    }
+                    disabled={isPausingBilling}
+                  >
+                    <Pause className="mr-2 h-4 w-4" />
+                    Pause Billing
+                  </DropdownMenuItem>
+                )}
+              {firstMember.subscriptionStatus === 'paused' &&
+                firstMember.familyReferenceId && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      executeResumeBilling({
+                        familyReferenceId: firstMember.familyReferenceId!,
+                      })
+                    }
+                    disabled={isResumingBilling}
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    Resume Billing
+                  </DropdownMenuItem>
+                )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600"
                 onClick={() => actions.setDeleteFamilyDialog(true)}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
-                Delete Family
+                Withdraw All
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -414,6 +458,29 @@ export function FamilyDetailSheet({
           familyName={getSheetTitle()}
         />
       )}
+
+      {state.withdrawChildDialog.open &&
+        state.withdrawChildDialog.studentId && (
+          <WithdrawChildDialog
+            studentId={state.withdrawChildDialog.studentId}
+            open={state.withdrawChildDialog.open}
+            onOpenChange={(open) => {
+              if (!open) actions.closeWithdrawChild()
+            }}
+          />
+        )}
+
+      {state.reEnrollChildDialog.open &&
+        state.reEnrollChildDialog.studentId && (
+          <ReEnrollChildDialog
+            studentId={state.reEnrollChildDialog.studentId}
+            childName={state.reEnrollChildDialog.childName || ''}
+            open={state.reEnrollChildDialog.open}
+            onOpenChange={(open) => {
+              if (!open) actions.closeReEnrollChild()
+            }}
+          />
+        )}
     </Sheet>
   )
 }

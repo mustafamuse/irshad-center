@@ -330,6 +330,7 @@ describe('getPrimaryPayerPhone', () => {
       {
         id: 'id-1',
         name: 'Child',
+        status: 'REGISTERED',
         gender: null,
         dateOfBirth: null,
         gradeLevel: null,
@@ -516,6 +517,7 @@ describe('getPrimaryPayerName', () => {
       {
         id: 'id-1',
         name: 'Child',
+        status: 'REGISTERED',
         gender: null,
         dateOfBirth: null,
         gradeLevel: null,

@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator'
 
 import { useActionHandler } from '../../../_hooks/use-action-handler'
 import { Family, DugsiRegistration } from '../../../_types'
+import { getActiveMembers } from '../../../_utils/family'
 import { getOrderedParentData } from '../../../_utils/format'
 import { setPrimaryPayer } from '../../../actions'
 import { ChildInfoCard } from '../../ui/child-info-card'
@@ -21,6 +22,8 @@ interface OverviewTabProps {
   onEditParent: (parentNumber: 1 | 2, isAdding: boolean) => void
   onEditChild: (studentId: string) => void
   onAddChild: () => void
+  onWithdraw: (studentId: string) => void
+  onReEnroll: (studentId: string, childName: string) => void
 }
 
 interface ParentContactProps {
@@ -132,6 +135,8 @@ export function OverviewTab({
   onEditParent,
   onEditChild,
   onAddChild,
+  onWithdraw,
+  onReEnroll,
 }: OverviewTabProps) {
   const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
     useActionHandler(setPrimaryPayer)
@@ -155,6 +160,8 @@ export function OverviewTab({
 
   const parents = getOrderedParentData(firstMember)
   const hasParent2 = parents.length > 1
+  const activeMembers = getActiveMembers(family)
+  const hasWithdrawn = activeMembers.length < family.members.length
 
   const membersKey = family.members
     .map((m) => `${m.id}:${m.dateOfBirth ?? ''}`)
@@ -221,7 +228,10 @@ export function OverviewTab({
       <div className="space-y-4 rounded-lg border bg-card p-5">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold">
-            Kids ({family.members.length})
+            Kids{' '}
+            {hasWithdrawn
+              ? `(${activeMembers.length} active / ${family.members.length} total)`
+              : `(${family.members.length})`}
           </h3>
           <Button
             variant="ghost"
@@ -239,16 +249,10 @@ export function OverviewTab({
               key={child.id}
               child={child}
               index={index}
-              editButton={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEditChild(child.id)}
-                  className="h-7 px-2"
-                >
-                  <Edit className="h-3.5 w-3.5" />
-                </Button>
-              }
+              status={child.status}
+              onEdit={() => onEditChild(child.id)}
+              onWithdraw={() => onWithdraw(child.id)}
+              onReEnroll={() => onReEnroll(child.id, child.name)}
             />
           ))}
         </div>

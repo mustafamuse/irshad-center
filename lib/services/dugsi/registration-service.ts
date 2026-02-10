@@ -152,8 +152,9 @@ export async function getFamilyMembers(
     },
   })
 
-  // Count is derived from the family profiles we just fetched
-  const familyCount = familyProfiles.length
+  const familyCount = familyProfiles.filter(
+    (p) => p.status === 'REGISTERED' || p.status === 'ENROLLED'
+  ).length
 
   // Map to DTOs
   const registrations: DugsiRegistration[] = []

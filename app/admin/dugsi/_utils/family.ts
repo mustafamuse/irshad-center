@@ -3,10 +3,22 @@
  * Single source of truth for family identification logic
  */
 
+import { EnrollmentStatus } from '@prisma/client'
+
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { formatFullName } from '@/lib/utils/formatters'
 
 import { DugsiRegistration, Family, FamilyStatus } from '../_types'
+
+const ACTIVE_STATUSES: EnrollmentStatus[] = ['REGISTERED', 'ENROLLED']
+
+export function getActiveMembers(family: Family): DugsiRegistration[] {
+  return family.members.filter((m) => ACTIVE_STATUSES.includes(m.status))
+}
+
+export function getActiveMemberCount(family: Family): number {
+  return getActiveMembers(family).length
+}
 
 /**
  * Get family key from registration - SINGLE SOURCE OF TRUTH for family identification.
@@ -154,6 +166,10 @@ export function groupRegistrationsByFamily(
  * Calculate family status
  */
 export function getFamilyStatus(family: Family): FamilyStatus {
+  if (family.members.length > 0 && getActiveMemberCount(family) === 0)
+    return 'inactive'
+  if (family.members.some((m) => m.subscriptionStatus === 'paused'))
+    return 'paused'
   if (family.hasSubscription) return 'active'
   if (family.hasChurned) return 'churned'
   return 'no-payment'
