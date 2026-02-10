@@ -39,7 +39,13 @@ interface FamilyDataTableProps {
 
 export function FamilyDataTable({ families }: FamilyDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
-  const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
+  const [selectedFamilyKey, setSelectedFamilyKey] = useState<string | null>(
+    null
+  )
+  const selectedFamily = useMemo(
+    () => families.find((f) => f.familyKey === selectedFamilyKey) ?? null,
+    [families, selectedFamilyKey]
+  )
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
     null
@@ -65,7 +71,7 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
   )
 
   const handleViewDetails = useCallback((family: Family) => {
-    setSelectedFamily(family)
+    setSelectedFamilyKey(family.familyKey)
     setIsSheetOpen(true)
   }, [])
 
