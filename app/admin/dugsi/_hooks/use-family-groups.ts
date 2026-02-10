@@ -9,7 +9,10 @@ import { useMemo } from 'react'
 
 import { DugsiRegistration, Family } from '../_types'
 import { hasBillingMismatch } from '../_utils/billing'
-import { groupRegistrationsByFamily } from '../_utils/family'
+import {
+  getActiveMemberCount,
+  groupRegistrationsByFamily,
+} from '../_utils/family'
 
 export function useFamilyGroups(registrations: DugsiRegistration[]): Family[] {
   return useMemo(
@@ -25,6 +28,10 @@ export function useFamilyStats(families: Family[]) {
       active: families.filter((f) => f.hasSubscription).length,
       churned: families.filter((f) => f.hasChurned && !f.hasSubscription)
         .length,
+      paused: families.filter((f) =>
+        f.members.some((m) => m.subscriptionStatus === 'paused')
+      ).length,
+      inactive: families.filter((f) => getActiveMemberCount(f) === 0).length,
       needsAttention: families.filter((f) => !f.hasPayment && !f.hasChurned)
         .length,
       billingMismatch: families.filter(

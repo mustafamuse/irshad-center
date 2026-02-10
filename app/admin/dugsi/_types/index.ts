@@ -4,6 +4,7 @@
  */
 
 import {
+  EnrollmentStatus,
   Gender,
   GradeLevel,
   Shift,
@@ -23,6 +24,7 @@ export interface DugsiRegistration {
   // Student info (from Person + ProgramProfile)
   id: string
   name: string
+  status: EnrollmentStatus
   gender: Gender | null
   dateOfBirth: Date | null
   gradeLevel: GradeLevel | null // K-12 grade level for Dugsi students
@@ -96,12 +98,19 @@ export interface FamilyFilters {
 export type TabValue =
   | 'overview'
   | 'active'
+  | 'paused'
+  | 'inactive'
   | 'needs-attention'
   | 'churned'
   | 'billing-mismatch'
   | 'all'
 export type DateFilter = 'all' | 'today' | 'yesterday' | 'thisWeek' | 'lastWeek'
-export type FamilyStatus = 'active' | 'churned' | 'no-payment'
+export type FamilyStatus =
+  | 'active'
+  | 'paused'
+  | 'inactive'
+  | 'churned'
+  | 'no-payment'
 export type SearchField = 'all' | 'childName' | 'parentName' | 'email' | 'phone'
 
 // Stripe payment history types

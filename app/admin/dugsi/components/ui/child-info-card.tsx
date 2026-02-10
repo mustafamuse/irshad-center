@@ -9,8 +9,17 @@
 
 import React from 'react'
 
-import { AlertCircle } from 'lucide-react'
+import { EnrollmentStatus } from '@prisma/client'
+import { AlertCircle, MoreHorizontal } from 'lucide-react'
 
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { GenderDisplay } from '@/components/ui/gender-display'
 
 import { DugsiRegistration } from '../../_types'
@@ -31,19 +40,26 @@ function calculateAge(dateOfBirth: Date | null): number | null {
 interface ChildInfoCardProps {
   child: DugsiRegistration
   index: number
-  editButton?: React.ReactNode
+  status: EnrollmentStatus
+  onEdit?: () => void
+  onWithdraw?: () => void
+  onReEnroll?: () => void
 }
 
 export function ChildInfoCard({
   child,
   index,
-  editButton,
+  status,
+  onEdit,
+  onWithdraw,
+  onReEnroll,
 }: ChildInfoCardProps) {
   const age = calculateAge(child.dateOfBirth)
+  const isWithdrawn = status === 'WITHDRAWN'
 
   return (
     <div
-      className="flex items-start gap-3 rounded-lg bg-muted/30 p-3"
+      className={`flex items-start gap-3 rounded-lg bg-muted/30 p-3 ${isWithdrawn ? 'border border-dashed opacity-60' : ''}`}
       role="listitem"
       aria-label={`Child ${index + 1}: ${child.name}`}
     >
@@ -54,11 +70,41 @@ export function ChildInfoCard({
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold">{child.name}</span>
+            {isWithdrawn && (
+              <Badge
+                variant="outline"
+                className="border-orange-200 bg-orange-50 px-1.5 text-[10px] text-orange-700"
+              >
+                Withdrawn
+              </Badge>
+            )}
             {child.gender && (
               <GenderDisplay gender={child.gender} size="sm" showLabel />
             )}
           </div>
-          {editButton}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit}>Edit</DropdownMenuItem>
+              {!isWithdrawn && onWithdraw && (
+                <DropdownMenuItem
+                  onClick={onWithdraw}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  Withdraw
+                </DropdownMenuItem>
+              )}
+              {isWithdrawn && onReEnroll && (
+                <DropdownMenuItem onClick={onReEnroll}>
+                  Re-enroll
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {age !== null && <span className="font-medium">{age} years old</span>}

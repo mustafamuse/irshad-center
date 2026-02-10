@@ -109,6 +109,114 @@ describe('getFamilyStatus', () => {
     }
     expect(getFamilyStatus(family)).toBe('active')
   })
+
+  it('should return "inactive" when all members are WITHDRAWN', () => {
+    const family = {
+      familyKey: 'family-1',
+      members: [
+        {
+          id: 'id-1',
+          name: 'Child 1',
+          status: 'WITHDRAWN' as const,
+          gender: null,
+          dateOfBirth: null,
+          gradeLevel: null,
+          shift: null,
+          schoolName: null,
+          healthInfo: null,
+          createdAt: new Date(),
+          parentFirstName: 'Parent',
+          parentLastName: 'Last',
+          parentEmail: 'parent@example.com',
+          parentPhone: '123',
+          parent2FirstName: null,
+          parent2LastName: null,
+          parent2Email: null,
+          parent2Phone: null,
+          primaryPayerParentNumber: 1 as const,
+          paymentMethodCaptured: false,
+          paymentMethodCapturedAt: null,
+          stripeCustomerIdDugsi: null,
+          stripeSubscriptionIdDugsi: null,
+          paymentIntentIdDugsi: null,
+          subscriptionStatus: null,
+          subscriptionAmount: null,
+          paidUntil: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          familyReferenceId: 'family-1',
+          stripeAccountType: null,
+          teacherName: null,
+          teacherEmail: null,
+          teacherPhone: null,
+          morningTeacher: null,
+          afternoonTeacher: null,
+          hasTeacherAssigned: false,
+          familyChildCount: 1,
+        },
+      ],
+      hasPayment: true,
+      hasSubscription: false,
+      hasChurned: false,
+      parentEmail: 'parent@example.com',
+      parentPhone: '123',
+    }
+    expect(getFamilyStatus(family)).toBe('inactive')
+  })
+
+  it('should return "paused" when a member has subscriptionStatus: paused', () => {
+    const family = {
+      familyKey: 'family-1',
+      members: [
+        {
+          id: 'id-1',
+          name: 'Child 1',
+          status: 'ENROLLED' as const,
+          gender: null,
+          dateOfBirth: null,
+          gradeLevel: null,
+          shift: null,
+          schoolName: null,
+          healthInfo: null,
+          createdAt: new Date(),
+          parentFirstName: 'Parent',
+          parentLastName: 'Last',
+          parentEmail: 'parent@example.com',
+          parentPhone: '123',
+          parent2FirstName: null,
+          parent2LastName: null,
+          parent2Email: null,
+          parent2Phone: null,
+          primaryPayerParentNumber: 1 as const,
+          paymentMethodCaptured: true,
+          paymentMethodCapturedAt: null,
+          stripeCustomerIdDugsi: 'cus_123',
+          stripeSubscriptionIdDugsi: 'sub_123',
+          paymentIntentIdDugsi: null,
+          subscriptionStatus: 'paused' as const,
+          subscriptionAmount: 8000,
+          paidUntil: null,
+          currentPeriodStart: null,
+          currentPeriodEnd: null,
+          familyReferenceId: 'family-1',
+          stripeAccountType: null,
+          teacherName: null,
+          teacherEmail: null,
+          teacherPhone: null,
+          morningTeacher: null,
+          afternoonTeacher: null,
+          hasTeacherAssigned: false,
+          familyChildCount: 1,
+        },
+      ],
+      hasPayment: true,
+      hasSubscription: true,
+      hasChurned: false,
+      parentEmail: 'parent@example.com',
+      parentPhone: '123',
+    }
+    expect(getFamilyStatus(family)).toBe('paused')
+  })
 })
 
 describe('groupRegistrationsByFamily', () => {
@@ -330,6 +438,7 @@ describe('getPrimaryPayerPhone', () => {
       {
         id: 'id-1',
         name: 'Child',
+        status: 'REGISTERED',
         gender: null,
         dateOfBirth: null,
         gradeLevel: null,
@@ -516,6 +625,7 @@ describe('getPrimaryPayerName', () => {
       {
         id: 'id-1',
         name: 'Child',
+        status: 'REGISTERED',
         gender: null,
         dateOfBirth: null,
         gradeLevel: null,
