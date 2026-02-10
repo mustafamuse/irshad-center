@@ -49,7 +49,7 @@ import { useActionHandler } from '../../_hooks/use-action-handler'
 import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
-import { formatParentName, hasSecondParent } from '../../_utils/format'
+import { getOrderedParentNames, hasSecondParent } from '../../_utils/format'
 import { updateFamilyShift } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { ConsolidateSubscriptionDialog } from '../dialogs/consolidate-subscription-dialog'
@@ -62,7 +62,6 @@ interface FamilyDetailSheetProps {
   family: Family | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onFamilyUpdate?: (shift: Shift) => void
   onVerifyBankAccount?: (paymentIntentId: string, parentEmail: string) => void
 }
 
@@ -70,7 +69,6 @@ export function FamilyDetailSheet({
   family,
   open,
   onOpenChange,
-  onFamilyUpdate,
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
   const { state, actions } = useSheetState()
@@ -88,9 +86,6 @@ export function FamilyDetailSheet({
         pendingShiftRef.current = null
       },
       onError: () => {
-        if (pendingShiftRef.current?.previousShift) {
-          onFamilyUpdate?.(pendingShiftRef.current.previousShift)
-        }
         actions.setPendingShift(null)
         pendingShiftRef.current = null
       },
@@ -127,7 +122,6 @@ export function FamilyDetailSheet({
     const shiftData = { newShift: shift, previousShift }
     pendingShiftRef.current = shiftData
     actions.setPendingShift(shiftData)
-    onFamilyUpdate?.(shift)
 
     await executeUpdateFamilyShift({
       familyReferenceId: firstMember.familyReferenceId,
@@ -140,20 +134,11 @@ export function FamilyDetailSheet({
   )
 
   const getSheetTitle = () => {
-    const firstParentName = formatParentName(
-      family.members[0]?.parentFirstName,
-      family.members[0]?.parentLastName
-    )
-
+    const { payer, other } = getOrderedParentNames(family.members[0])
     if (family.members[0] && hasSecondParent(family.members[0])) {
-      const secondParentName = formatParentName(
-        family.members[0].parent2FirstName,
-        family.members[0].parent2LastName
-      )
-      return `${firstParentName} & ${secondParentName}`
+      return `${payer} & ${other}`
     }
-
-    return firstParentName
+    return payer
   }
 
   return (

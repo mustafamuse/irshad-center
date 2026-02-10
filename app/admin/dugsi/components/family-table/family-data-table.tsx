@@ -39,7 +39,13 @@ interface FamilyDataTableProps {
 
 export function FamilyDataTable({ families }: FamilyDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
-  const [selectedFamily, setSelectedFamily] = useState<Family | null>(null)
+  const [selectedFamilyKey, setSelectedFamilyKey] = useState<string | null>(
+    null
+  )
+  const selectedFamily = useMemo(
+    () => families.find((f) => f.familyKey === selectedFamilyKey) ?? null,
+    [families, selectedFamilyKey]
+  )
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
     null
@@ -65,28 +71,13 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
   )
 
   const handleViewDetails = useCallback((family: Family) => {
-    setSelectedFamily(family)
+    setSelectedFamilyKey(family.familyKey)
     setIsSheetOpen(true)
   }, [])
 
   const handleDelete = useCallback((family: Family) => {
     setDeleteDialogFamily(family)
   }, [])
-
-  const handleFamilyUpdate = useCallback(
-    (shift: 'MORNING' | 'AFTERNOON') => {
-      if (selectedFamily) {
-        setSelectedFamily({
-          ...selectedFamily,
-          members: selectedFamily.members.map((member) => ({
-            ...member,
-            shift,
-          })),
-        })
-      }
-    },
-    [selectedFamily]
-  )
 
   const columns = useMemo(
     () =>
@@ -233,7 +224,6 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
         family={selectedFamily}
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
-        onFamilyUpdate={handleFamilyUpdate}
         onVerifyBankAccount={(paymentIntentId, parentEmail) => {
           setVerifyBankDialogData({ paymentIntentId, parentEmail })
           setDialogOpen('verifyBank', true)
