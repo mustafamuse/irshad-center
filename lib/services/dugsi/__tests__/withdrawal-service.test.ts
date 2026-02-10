@@ -788,11 +788,7 @@ describe('getWithdrawPreview', () => {
       familyReferenceId: 'family-1',
       person: { name: 'Ali Hassan' },
     })
-    mockProgramProfileFindMany.mockResolvedValue([
-      { id: 'student-1' },
-      { id: 'student-2' },
-      { id: 'student-3' },
-    ])
+    mockProgramProfileCount.mockResolvedValue(3)
     mockBillingAssignmentFindFirst.mockResolvedValue(
       makeSubscriptionAssignment('active', 23000)
     )
@@ -823,7 +819,7 @@ describe('getWithdrawPreview', () => {
       familyReferenceId: 'family-1',
       person: { name: 'Ali Hassan' },
     })
-    mockProgramProfileFindMany.mockResolvedValue([{ id: 'student-1' }])
+    mockProgramProfileCount.mockResolvedValue(1)
     mockBillingAssignmentFindFirst.mockResolvedValue(
       makeSubscriptionAssignment('active')
     )
@@ -840,10 +836,7 @@ describe('getWithdrawPreview', () => {
       familyReferenceId: 'family-1',
       person: { name: 'Ali Hassan' },
     })
-    mockProgramProfileFindMany.mockResolvedValue([
-      { id: 'student-1' },
-      { id: 'student-2' },
-    ])
+    mockProgramProfileCount.mockResolvedValue(2)
     mockBillingAssignmentFindFirst.mockResolvedValue(null)
 
     const preview = await getWithdrawPreview('student-1')

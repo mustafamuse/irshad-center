@@ -273,15 +273,13 @@ export async function getWithdrawPreview(
     )
   }
 
-  const familyProfiles = await prisma.programProfile.findMany({
+  const activeCount = await prisma.programProfile.count({
     where: {
       program: DUGSI_PROGRAM,
       familyReferenceId: profile.familyReferenceId,
       status: { in: ['REGISTERED', 'ENROLLED'] },
     },
   })
-
-  const activeCount = familyProfiles.length
   const afterWithdrawalCount = activeCount - 1
 
   const subscription = await findFamilySubscription(profile.familyReferenceId)
