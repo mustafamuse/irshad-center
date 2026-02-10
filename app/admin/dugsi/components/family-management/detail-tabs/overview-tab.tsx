@@ -156,6 +156,9 @@ export function OverviewTab({
   const parents = getOrderedParentData(firstMember)
   const hasParent2 = parents.length > 1
 
+  const membersKey = family.members
+    .map((m) => `${m.id}:${m.dateOfBirth ?? ''}`)
+    .join(',')
   const sortedChildren = useMemo(
     () =>
       [...family.members].sort((a, b) => {
@@ -166,7 +169,8 @@ export function OverviewTab({
           new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime()
         )
       }),
-    [family.members]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [membersKey]
   )
 
   return (
