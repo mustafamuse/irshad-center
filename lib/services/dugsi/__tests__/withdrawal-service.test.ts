@@ -140,6 +140,7 @@ vi.mock('@/lib/utils/dugsi-tuition', () => ({
 
 import {
   withdrawChild,
+  withdrawAllChildren,
   reEnrollChild,
   getWithdrawPreview,
   pauseFamilyBilling,
@@ -472,6 +473,64 @@ describe('reEnrollChild', () => {
       })
     ).rejects.toThrow('Student is not withdrawn')
   })
+
+  it('should throw STUDENT_NOT_FOUND when student does not exist', async () => {
+    mockProgramProfileFindUnique.mockResolvedValueOnce(null)
+
+    await expect(
+      reEnrollChild({
+        studentId: 'nonexistent',
+        billingAdjustment: { type: 'auto_recalculate' },
+      })
+    ).rejects.toThrow('Student not found')
+  })
+
+  it('should enroll without BillingAssignment when no family subscription', async () => {
+    const profile = makeActiveProfile({
+      status: 'WITHDRAWN',
+      assignments: [],
+    })
+    mockProgramProfileFindUnique
+      .mockResolvedValueOnce(profile)
+      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+    mockProgramProfileCount.mockResolvedValue(0)
+
+    const result = await reEnrollChild({
+      studentId: 'student-1',
+      billingAdjustment: { type: 'auto_recalculate' },
+    })
+
+    expect(result.reEnrolled).toBe(true)
+    expect(mockBillingAssignmentCreate).not.toHaveBeenCalled()
+  })
+
+  it('should create BillingAssignment with calculated rate, not zero', async () => {
+    const profile = makeActiveProfile({
+      status: 'WITHDRAWN',
+      assignments: [],
+    })
+    mockProgramProfileFindUnique
+      .mockResolvedValueOnce(profile)
+      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+    mockBillingAssignmentFindFirst
+      .mockResolvedValueOnce(makeSubscriptionAssignment())
+      .mockResolvedValueOnce(makeSubscriptionAssignment())
+    mockProgramProfileCount.mockResolvedValue(1)
+
+    await reEnrollChild({
+      studentId: 'student-1',
+      billingAdjustment: { type: 'auto_recalculate' },
+    })
+
+    expect(mockBillingAssignmentCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          amount: 16000,
+        }),
+      })
+    )
+  })
 })
 
 describe('pauseFamilyBilling', () => {
@@ -498,6 +557,24 @@ describe('pauseFamilyBilling', () => {
       })
     )
   })
+
+  it('should throw NO_ACTIVE_SUBSCRIPTION when no subscription exists', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+
+    await expect(pauseFamilyBilling('family-1')).rejects.toThrow(
+      'No active subscription found for this family'
+    )
+  })
+
+  it('should throw INVALID_INPUT when subscription is already paused', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment('paused')
+    )
+
+    await expect(pauseFamilyBilling('family-1')).rejects.toThrow(
+      'Cannot pause subscription with status "paused"'
+    )
+  })
 })
 
 describe('resumeFamilyBilling', () => {
@@ -515,13 +592,31 @@ describe('resumeFamilyBilling', () => {
 
     expect(mockStripe.subscriptions.update).toHaveBeenCalledWith(
       'sub_stripe_1',
-      { pause_collection: '' }
+      { pause_collection: null }
     )
     expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'sub-1' },
         data: { status: 'active' },
       })
+    )
+  })
+
+  it('should throw NO_ACTIVE_SUBSCRIPTION when no subscription exists', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+
+    await expect(resumeFamilyBilling('family-1')).rejects.toThrow(
+      'No subscription found for this family'
+    )
+  })
+
+  it('should throw INVALID_INPUT when subscription is not paused', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment('active')
+    )
+
+    await expect(resumeFamilyBilling('family-1')).rejects.toThrow(
+      'Cannot resume subscription with status "active"'
     )
   })
 })
@@ -556,5 +651,134 @@ describe('getWithdrawPreview', () => {
     expect(preview.isLastActiveChild).toBe(false)
     expect(preview.hasActiveSubscription).toBe(true)
     expect(preview.isPaused).toBe(false)
+  })
+
+  it('should throw STUDENT_NOT_FOUND when student does not exist', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue(null)
+
+    await expect(getWithdrawPreview('nonexistent')).rejects.toThrow(
+      'Student not found'
+    )
+  })
+
+  it('should return isLastActiveChild: true when only one active child', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      id: 'student-1',
+      program: 'DUGSI_PROGRAM',
+      familyReferenceId: 'family-1',
+      person: { name: 'Ali Hassan' },
+    })
+    mockProgramProfileFindMany.mockResolvedValue([{ id: 'student-1' }])
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment('active')
+    )
+
+    const preview = await getWithdrawPreview('student-1')
+
+    expect(preview.isLastActiveChild).toBe(true)
+  })
+
+  it('should return hasActiveSubscription: false when no subscription', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      id: 'student-1',
+      program: 'DUGSI_PROGRAM',
+      familyReferenceId: 'family-1',
+      person: { name: 'Ali Hassan' },
+    })
+    mockProgramProfileFindMany.mockResolvedValue([
+      { id: 'student-1' },
+      { id: 'student-2' },
+    ])
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+
+    const preview = await getWithdrawPreview('student-1')
+
+    expect(preview.hasActiveSubscription).toBe(false)
+    expect(preview.currentAmount).toBeNull()
+  })
+})
+
+describe('withdrawAllChildren', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockStripe.subscriptions.retrieve.mockResolvedValue({
+      items: { data: [{ id: 'si_item_1' }] },
+    })
+    mockStripe.subscriptions.update.mockResolvedValue({})
+    mockStripe.subscriptions.cancel.mockResolvedValue({})
+  })
+
+  it('should withdraw all active children and apply billing to last only', async () => {
+    mockProgramProfileFindUnique
+      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+      .mockResolvedValueOnce(makeActiveProfile({ id: 'student-1' }))
+      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+      .mockResolvedValueOnce(makeActiveProfile({ id: 'student-2' }))
+      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+      .mockResolvedValueOnce(makeActiveProfile({ id: 'student-3' }))
+      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+
+    mockProgramProfileFindMany.mockResolvedValue([
+      { id: 'student-1' },
+      { id: 'student-2' },
+      { id: 'student-3' },
+    ])
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+
+    const result = await withdrawAllChildren({
+      studentId: 'student-1',
+      reason: 'family_moved',
+      billingAdjustment: { type: 'cancel_subscription' },
+    })
+
+    expect(result.withdrawnCount).toBe(3)
+    expect(result.failedCount).toBe(0)
+  })
+
+  it('should handle partial failure and reflect counts', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      familyReferenceId: 'family-1',
+    })
+    mockProgramProfileFindMany.mockResolvedValue([
+      { id: 'student-1' },
+      { id: 'student-2' },
+    ])
+
+    let withdrawCallCount = 0
+    mockProgramProfileFindUnique.mockImplementation(() => {
+      withdrawCallCount++
+      if (withdrawCallCount === 2) {
+        return Promise.resolve(makeActiveProfile({ id: 'student-1' }))
+      }
+      if (withdrawCallCount === 3) {
+        return Promise.resolve(null)
+      }
+      return Promise.resolve({ familyReferenceId: 'family-1' })
+    })
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+
+    const result = await withdrawAllChildren({
+      studentId: 'student-1',
+      reason: 'family_moved',
+      billingAdjustment: { type: 'auto_recalculate' },
+    })
+
+    expect(result.withdrawnCount).toBe(1)
+    expect(result.failedCount).toBe(1)
+  })
+
+  it('should throw ALREADY_WITHDRAWN when no active children exist', async () => {
+    mockProgramProfileFindUnique.mockResolvedValue({
+      familyReferenceId: 'family-1',
+    })
+    mockProgramProfileFindMany.mockResolvedValue([])
+
+    await expect(
+      withdrawAllChildren({
+        studentId: 'student-1',
+        reason: 'family_moved',
+        billingAdjustment: { type: 'cancel_subscription' },
+      })
+    ).rejects.toThrow('No active children to withdraw')
   })
 })

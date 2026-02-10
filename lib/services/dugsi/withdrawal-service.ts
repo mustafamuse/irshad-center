@@ -5,7 +5,12 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
-import { createServiceLogger, logInfo, logWarning } from '@/lib/logger'
+import {
+  createServiceLogger,
+  logError,
+  logInfo,
+  logWarning,
+} from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import type {
@@ -94,6 +99,8 @@ export async function withdrawChild(
       }
 
       const reasonLabel = buildReasonString(reason, reasonNote)
+      const preTransactionSubscription =
+        profile.assignments[0]?.subscription ?? null
 
       await prisma.$transaction(async (tx) => {
         await tx.programProfile.update({
@@ -135,7 +142,8 @@ export async function withdrawChild(
 
       const billingResult = await applyBillingAdjustment(
         studentId,
-        billingAdjustment
+        billingAdjustment,
+        preTransactionSubscription
       )
 
       return {
@@ -190,6 +198,15 @@ export async function reEnrollChild(
         profile.familyReferenceId
       )
 
+      const activeCount = await prisma.programProfile.count({
+        where: {
+          program: DUGSI_PROGRAM,
+          familyReferenceId: profile.familyReferenceId,
+          status: { in: ['REGISTERED', 'ENROLLED'] },
+        },
+      })
+      const initialAmount = calculateDugsiRate(activeCount + 1)
+
       await prisma.$transaction(async (tx) => {
         await tx.programProfile.update({
           where: { id: studentId },
@@ -209,7 +226,7 @@ export async function reEnrollChild(
             data: {
               subscriptionId: familySubscription.id,
               programProfileId: studentId,
-              amount: 0,
+              amount: initialAmount,
               isActive: true,
             },
           })
@@ -326,11 +343,12 @@ export async function withdrawAllChildren(
 
       let withdrawnCount = 0
       let failedCount = 0
+      let lastChildResult: WithdrawResult | null = null
 
       for (let i = 0; i < activeProfiles.length; i++) {
         const isLast = i === activeProfiles.length - 1
         try {
-          await withdrawChild({
+          const result = await withdrawChild({
             studentId: activeProfiles[i].id,
             reason,
             reasonNote,
@@ -339,6 +357,7 @@ export async function withdrawAllChildren(
               : { type: 'keep_current' },
           })
           withdrawnCount++
+          if (isLast) lastChildResult = result
         } catch (error) {
           failedCount++
           await logWarning(
@@ -361,11 +380,12 @@ export async function withdrawAllChildren(
       return {
         withdrawnCount,
         failedCount,
-        billingUpdated: withdrawnCount > 0 && failedCount === 0,
+        billingUpdated: lastChildResult?.billingUpdated ?? false,
         billingError:
-          failedCount > 0
+          lastChildResult?.billingError ??
+          (failedCount > 0
             ? `${failedCount} child(ren) could not be withdrawn`
-            : undefined,
+            : undefined),
       }
     }
   )
@@ -403,10 +423,24 @@ export async function pauseFamilyBilling(
         pause_collection: { behavior: 'void' },
       })
 
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { status: 'paused' },
-      })
+      try {
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { status: 'paused' },
+        })
+      } catch (dbError) {
+        await logError(
+          logger,
+          dbError,
+          'CRITICAL: Stripe paused but DB update failed - states diverged',
+          {
+            familyReferenceId,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            intendedStatus: 'paused',
+          }
+        )
+        throw dbError
+      }
 
       await logInfo(logger, 'Family billing paused', {
         familyReferenceId,
@@ -441,13 +475,27 @@ export async function resumeFamilyBilling(
       const stripe = getDugsiStripeClient()
 
       await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        pause_collection: '',
+        pause_collection: null,
       })
 
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { status: 'active' },
-      })
+      try {
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { status: 'active' },
+        })
+      } catch (dbError) {
+        await logError(
+          logger,
+          dbError,
+          'CRITICAL: Stripe resumed but DB update failed - states diverged',
+          {
+            familyReferenceId,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            intendedStatus: 'active',
+          }
+        )
+        throw dbError
+      }
 
       await logInfo(logger, 'Family billing resumed', {
         familyReferenceId,
@@ -487,16 +535,23 @@ async function applyBillingAdjustment(
   studentId: string,
   billingAdjustment:
     | WithdrawChildInput['billingAdjustment']
-    | ReEnrollChildInput['billingAdjustment']
+    | ReEnrollChildInput['billingAdjustment'],
+  fallbackSubscription?: {
+    id: string
+    stripeSubscriptionId: string
+    status: string
+    amount: number
+  } | null
 ): Promise<{ updated: boolean; error?: string }> {
   const profile = await prisma.programProfile.findUnique({
     where: { id: studentId },
     select: { familyReferenceId: true },
   })
 
-  const subscription = await findFamilySubscription(
-    profile?.familyReferenceId ?? null
-  )
+  const subscription =
+    (await findFamilySubscription(profile?.familyReferenceId ?? null)) ??
+    fallbackSubscription ??
+    null
 
   if (!subscription) {
     return { updated: true }
@@ -537,7 +592,19 @@ async function applyBillingAdjustment(
     }
 
     if (newAmount <= 0) {
-      return { updated: true }
+      if (billingAdjustment.type === 'auto_recalculate') {
+        await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
+        await prisma.subscription.update({
+          where: { id: subscription.id },
+          data: { status: 'canceled' },
+        })
+        await prisma.billingAssignment.updateMany({
+          where: { subscriptionId: subscription.id, isActive: true },
+          data: { isActive: false, endDate: new Date() },
+        })
+        return { updated: true }
+      }
+      return { updated: false, error: 'Calculated amount is zero or negative' }
     }
 
     const { productId } = getDugsiKeys()
@@ -590,14 +657,17 @@ async function applyBillingAdjustment(
   }
 }
 
-function buildReasonString(reason: string, note?: string): string {
-  const labels: Record<string, string> = {
+function buildReasonString(
+  reason: WithdrawChildInput['reason'],
+  note?: string
+): string {
+  const labels: Record<WithdrawChildInput['reason'], string> = {
     family_moved: 'Family moved',
     financial: 'Financial reasons',
     behavioral: 'Behavioral',
     seasonal_break: 'Seasonal break',
     other: 'Other',
   }
-  const label = labels[reason] ?? reason
+  const label = labels[reason]
   return note ? `${label}: ${note}` : label
 }

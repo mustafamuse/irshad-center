@@ -57,6 +57,7 @@ export function WithdrawChildDialog({
 }: WithdrawChildDialogProps) {
   const [preview, setPreview] = useState<WithdrawPreview | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [reason, setReason] = useState<string>('')
   const [reasonNote, setReasonNote] = useState('')
   const [billingType, setBillingType] = useState<string>('auto_recalculate')
@@ -75,13 +76,18 @@ export function WithdrawChildDialog({
   useEffect(() => {
     if (open && !preview) {
       setIsLoadingPreview(true)
-      getWithdrawChildPreviewAction(studentId)
+      setPreviewError(null)
+      getWithdrawChildPreviewAction({ studentId })
         .then((result) => {
           if (result.success && result.data) {
             setPreview(result.data)
+          } else {
+            setPreviewError(result.error ?? 'Failed to load preview')
           }
         })
-        .catch(() => {})
+        .catch((err: Error) => {
+          setPreviewError(err.message || 'Failed to load preview')
+        })
         .finally(() => setIsLoadingPreview(false))
     }
   }, [open, studentId, preview])
@@ -89,6 +95,7 @@ export function WithdrawChildDialog({
   useEffect(() => {
     if (!open) {
       setPreview(null)
+      setPreviewError(null)
       setReason('')
       setReasonNote('')
       setBillingType('auto_recalculate')
@@ -143,6 +150,10 @@ export function WithdrawChildDialog({
                   <Skeleton className="h-4 w-1/2" />
                   <Skeleton className="h-8 w-full" />
                 </div>
+              )}
+
+              {!isLoadingPreview && previewError && (
+                <p className="text-sm text-red-600">{previewError}</p>
               )}
 
               {!isLoadingPreview && preview && (
@@ -295,7 +306,7 @@ export function WithdrawChildDialog({
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleSubmit}
-            disabled={isPending || isLoadingPreview || !reason}
+            disabled={isPending || isLoadingPreview || !reason || !preview}
             className="bg-red-600 hover:bg-red-700"
           >
             {isPending ? 'Withdrawing...' : 'Withdraw'}

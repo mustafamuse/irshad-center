@@ -1660,8 +1660,17 @@ export async function consolidateDugsiSubscription(input: {
 // ============================================================================
 
 export async function getWithdrawChildPreviewAction(
-  studentId: string
+  rawInput: unknown
 ): Promise<ActionResult<WithdrawPreview>> {
+  const parsed = z.object({ studentId: z.string().min(1) }).safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  const { studentId } = parsed.data
   try {
     const preview = await getWithdrawPreviewService(studentId)
     return { success: true, data: preview }

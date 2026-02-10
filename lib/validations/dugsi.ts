@@ -70,16 +70,18 @@ export const WithdrawChildSchema = z.object({
   billingAdjustment: BillingAdjustmentSchema,
 })
 
+const ReEnrollBillingAdjustmentSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('auto_recalculate') }),
+  z.object({ type: z.literal('keep_current') }),
+  z.object({
+    type: z.literal('custom'),
+    amount: z.number().int().positive('Custom amount must be positive'),
+  }),
+])
+
 export const ReEnrollChildSchema = z.object({
   studentId: z.string().min(1, 'Student ID is required'),
-  billingAdjustment: z.discriminatedUnion('type', [
-    z.object({ type: z.literal('auto_recalculate') }),
-    z.object({ type: z.literal('keep_current') }),
-    z.object({
-      type: z.literal('custom'),
-      amount: z.number().int().positive('Custom amount must be positive'),
-    }),
-  ]),
+  billingAdjustment: ReEnrollBillingAdjustmentSchema,
 })
 
 export const WithdrawAllChildrenSchema = z.object({
