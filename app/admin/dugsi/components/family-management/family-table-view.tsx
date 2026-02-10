@@ -28,29 +28,13 @@ import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
 import { FamilyDetailSheet } from './family-detail-sheet'
 import { FamilyStatusBadge } from './family-status-badge'
-import { DugsiRegistration, Family } from '../../_types'
+import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
-import { formatParentName } from '../../_utils/format'
+import { formatParentName, getOrderedParentNames } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
 import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
 import { ShiftBadge } from '../shared/shift-badge'
-
-function getOrderedParents(member: DugsiRegistration | undefined) {
-  if (!member) return { payer: '', other: '' }
-  const parent1 = formatParentName(
-    member.parentFirstName,
-    member.parentLastName
-  )
-  const parent2 = formatParentName(
-    member.parent2FirstName,
-    member.parent2LastName
-  )
-  if (member.primaryPayerParentNumber === 2 && parent2) {
-    return { payer: parent2, other: parent1 }
-  }
-  return { payer: parent1, other: parent2 }
-}
 
 function BillingCell({ family }: { family: Family }) {
   const member = family.members[0]
@@ -90,7 +74,9 @@ interface FamilyTableViewProps {
 }
 
 export function FamilyTableView({ families }: FamilyTableViewProps) {
-  const [selectedFamilyKey, setSelectedFamilyKey] = useState<string | null>(null)
+  const [selectedFamilyKey, setSelectedFamilyKey] = useState<string | null>(
+    null
+  )
   const [isSheetOpen, setIsSheetOpen] = useState(false)
 
   const selectedFamily = useMemo(
@@ -133,7 +119,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
       {/* Mobile Card Layout */}
       <div className="block space-y-4 lg:hidden">
         {families.map((family) => {
-          const { payer, other } = getOrderedParents(family.members[0])
+          const { payer, other } = getOrderedParentNames(family.members[0])
           const status = getFamilyStatus(family)
 
           return (
@@ -193,7 +179,7 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
           </TableHeader>
           <TableBody>
             {families.map((family) => {
-              const { payer, other } = getOrderedParents(family.members[0])
+              const { payer, other } = getOrderedParentNames(family.members[0])
               const status = getFamilyStatus(family)
 
               return (

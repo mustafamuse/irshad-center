@@ -36,6 +36,60 @@ export function formatRegistrationDate(date: Date | string | null): string {
   return format(dateObj, DATE_FORMAT)
 }
 
+export interface OrderedParent {
+  parentNumber: 1 | 2
+  name: string
+  email: string | null
+  phone: string | null
+}
+
+export function getOrderedParentData(
+  member: DugsiRegistration
+): OrderedParent[] {
+  const parents: OrderedParent[] = [
+    {
+      parentNumber: 1,
+      name: formatParentName(member.parentFirstName, member.parentLastName),
+      email: member.parentEmail,
+      phone: member.parentPhone,
+    },
+  ]
+
+  if (hasSecondParent(member)) {
+    parents.push({
+      parentNumber: 2,
+      name: formatParentName(member.parent2FirstName, member.parent2LastName),
+      email: member.parent2Email,
+      phone: member.parent2Phone,
+    })
+
+    if (member.primaryPayerParentNumber === 2) {
+      parents.reverse()
+    }
+  }
+
+  return parents
+}
+
+export function getOrderedParentNames(member: DugsiRegistration | undefined): {
+  payer: string
+  other: string
+} {
+  if (!member) return { payer: '', other: '' }
+  const parent1 = formatParentName(
+    member.parentFirstName,
+    member.parentLastName
+  )
+  const parent2 = formatParentName(
+    member.parent2FirstName,
+    member.parent2LastName
+  )
+  if (member.primaryPayerParentNumber === 2 && parent2) {
+    return { payer: parent2, other: parent1 }
+  }
+  return { payer: parent1, other: parent2 }
+}
+
 /**
  * Calculate age from date of birth
  */

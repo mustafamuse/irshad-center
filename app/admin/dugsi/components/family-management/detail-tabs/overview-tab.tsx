@@ -1,6 +1,7 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useMemo } from 'react'
+
 import { Mail, Phone, Copy, Edit, UserPlus, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -10,7 +11,7 @@ import { Separator } from '@/components/ui/separator'
 
 import { useActionHandler } from '../../../_hooks/use-action-handler'
 import { Family, DugsiRegistration } from '../../../_types'
-import { formatParentName, hasSecondParent } from '../../../_utils/format'
+import { getOrderedParentData } from '../../../_utils/format'
 import { setPrimaryPayer } from '../../../actions'
 import { ChildInfoCard } from '../../ui/child-info-card'
 
@@ -23,7 +24,6 @@ interface OverviewTabProps {
 }
 
 interface ParentContactProps {
-  parentNumber: 1 | 2
   name: string
   email: string | null
   phone: string | null
@@ -36,7 +36,6 @@ interface ParentContactProps {
 }
 
 function ParentContact({
-  parentNumber,
   name,
   email,
   phone,
@@ -51,9 +50,6 @@ function ParentContact({
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
-            {parentNumber}
-          </div>
           <span className="font-medium">{name}</span>
           {isPrimaryPayer && (
             <Badge variant="outline" className="text-xs">
@@ -85,7 +81,7 @@ function ParentContact({
         </div>
       </div>
       {email && (
-        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Mail className="h-3.5 w-3.5 shrink-0" />
           <a
             href={`mailto:${email}`}
@@ -105,7 +101,7 @@ function ParentContact({
         </div>
       )}
       {phone && (
-        <div className="ml-8 flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Phone className="h-3.5 w-3.5 shrink-0" />
           <a
             href={`https://wa.me/${phone.replace(/\D/g, '')}`}
@@ -157,41 +153,21 @@ export function OverviewTab({
     executeSetPrimaryPayer({ studentId: firstMember.id, parentNumber })
   }
 
-  const hasParent2 = hasSecondParent(firstMember)
+  const parents = getOrderedParentData(firstMember)
+  const hasParent2 = parents.length > 1
 
-  const parents: Array<{
-    parentNumber: 1 | 2
-    name: string
-    email: string | null
-    phone: string | null
-  }> = [
-    {
-      parentNumber: 1,
-      name: formatParentName(firstMember.parentFirstName, firstMember.parentLastName),
-      email: firstMember.parentEmail,
-      phone: firstMember.parentPhone,
-    },
-  ]
-
-  if (hasParent2) {
-    parents.push({
-      parentNumber: 2,
-      name: formatParentName(firstMember.parent2FirstName, firstMember.parent2LastName),
-      email: firstMember.parent2Email,
-      phone: firstMember.parent2Phone,
-    })
-
-    if (firstMember.primaryPayerParentNumber === 2) {
-      parents.reverse()
-    }
-  }
-
-  const sortedChildren = [...family.members].sort((a, b) => {
-    if (!a.dateOfBirth && !b.dateOfBirth) return 0
-    if (!a.dateOfBirth) return 1
-    if (!b.dateOfBirth) return -1
-    return new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime()
-  })
+  const sortedChildren = useMemo(
+    () =>
+      [...family.members].sort((a, b) => {
+        if (!a.dateOfBirth && !b.dateOfBirth) return 0
+        if (!a.dateOfBirth) return 1
+        if (!b.dateOfBirth) return -1
+        return (
+          new Date(a.dateOfBirth).getTime() - new Date(b.dateOfBirth).getTime()
+        )
+      }),
+    [family.members]
+  )
 
   return (
     <div className="space-y-5">
@@ -202,12 +178,16 @@ export function OverviewTab({
             <Fragment key={parent.parentNumber}>
               {i > 0 && <Separator />}
               <ParentContact
-                parentNumber={parent.parentNumber}
                 name={parent.name}
                 email={parent.email}
                 phone={parent.phone}
-                isPrimaryPayer={firstMember.primaryPayerParentNumber === parent.parentNumber}
-                showSetAsPayer={firstMember.primaryPayerParentNumber !== parent.parentNumber && hasParent2}
+                isPrimaryPayer={
+                  firstMember.primaryPayerParentNumber === parent.parentNumber
+                }
+                showSetAsPayer={
+                  firstMember.primaryPayerParentNumber !==
+                    parent.parentNumber && hasParent2
+                }
                 isSettingPayer={isSettingPrimaryPayer}
                 onSetAsPayer={() => handleSetPrimaryPayer(parent.parentNumber)}
                 onEdit={() => onEditParent(parent.parentNumber, false)}
@@ -219,7 +199,12 @@ export function OverviewTab({
             <>
               <Separator />
               <div className="flex items-center justify-center pt-2">
-                <Button variant="ghost" size="sm" onClick={() => onEditParent(2, true)} className="h-8 px-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onEditParent(2, true)}
+                  className="h-8 px-3"
+                >
                   <UserPlus className="mr-1.5 h-3.5 w-3.5" />
                   Add Parent 2
                 </Button>

@@ -73,21 +73,6 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
     setDeleteDialogFamily(family)
   }, [])
 
-  const handleFamilyUpdate = useCallback(
-    (shift: 'MORNING' | 'AFTERNOON') => {
-      if (selectedFamily) {
-        setSelectedFamily({
-          ...selectedFamily,
-          members: selectedFamily.members.map((member) => ({
-            ...member,
-            shift,
-          })),
-        })
-      }
-    },
-    [selectedFamily]
-  )
-
   const columns = useMemo(
     () =>
       createColumns({
@@ -233,7 +218,6 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
         family={selectedFamily}
         open={isSheetOpen}
         onOpenChange={setIsSheetOpen}
-        onFamilyUpdate={handleFamilyUpdate}
         onVerifyBankAccount={(paymentIntentId, parentEmail) => {
           setVerifyBankDialogData({ paymentIntentId, parentEmail })
           setDialogOpen('verifyBank', true)
