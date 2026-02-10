@@ -1,0 +1,640 @@
+import { cache } from 'react'
+
+import { SubscriptionStatus } from '@prisma/client'
+import * as Sentry from '@sentry/nextjs'
+
+import {
+  AtRiskData,
+  AtRiskFamily,
+  DugsiInsightsData,
+  EnrollmentDistribution,
+  FinancialKPIs,
+  ProgramHealthStats,
+  RegistrationTrendItem,
+  RevenueByTier,
+  RevenueStats,
+} from '@/app/admin/dugsi/_types/insights'
+import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
+import { prisma } from '@/lib/db'
+import { createServiceLogger, logError } from '@/lib/logger'
+import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
+
+const logger = createServiceLogger('dugsi-insights')
+
+const ACTIVE_STUDENT_STATUSES = ['REGISTERED', 'ENROLLED'] as const
+
+const ACTIVE_PROFILE_WHERE = {
+  program: DUGSI_PROGRAM,
+  status: { in: [...ACTIVE_STUDENT_STATUSES] },
+}
+
+const AT_RISK_STATUSES: SubscriptionStatus[] = [
+  'past_due',
+  'incomplete',
+  'unpaid',
+]
+
+// Family status = best subscription across all siblings.
+// Lower number = higher priority (active family > past_due family).
+const STATUS_PRIORITY: Record<SubscriptionStatus, number> = {
+  active: 1,
+  trialing: 2,
+  past_due: 3,
+  incomplete: 4,
+  paused: 5,
+  unpaid: 6,
+  incomplete_expired: 7,
+  canceled: 8,
+}
+
+export const getDugsiInsights = cache(
+  async function getDugsiInsights(): Promise<DugsiInsightsData> {
+    return Sentry.startSpan(
+      { name: 'insights.getDugsiInsights', op: 'function' },
+      async () => {
+        try {
+          const [health, revenue, enrollment, registrationTrend, atRisk] =
+            await Promise.all([
+              getHealthStats(),
+              getRevenueStats(),
+              getEnrollmentDistribution(),
+              getRegistrationTrend(),
+              getAtRiskFamilies(),
+            ])
+
+          const financialKPIs = deriveFinancialKPIs(health, revenue, atRisk)
+
+          return {
+            health,
+            revenue,
+            enrollment,
+            registrationTrend,
+            financialKPIs,
+            atRisk,
+          }
+        } catch (error) {
+          await logError(logger, error, 'Failed to fetch Dugsi insights', {})
+          throw error
+        }
+      }
+    )
+  }
+)
+
+async function getHealthStats(): Promise<ProgramHealthStats> {
+  return Sentry.startSpan(
+    { name: 'insights.getHealthStats', op: 'db' },
+    async () => {
+      try {
+        const [totalStudents, activeStudents, familyData, paymentMethodData] =
+          await Promise.all([
+            prisma.programProfile.count({
+              where: { program: DUGSI_PROGRAM },
+            }),
+            prisma.programProfile.count({
+              where: ACTIVE_PROFILE_WHERE,
+            }),
+            getFamilyStatusBreakdown(),
+            getPaymentMethodCaptureRate(),
+          ])
+
+        const totalFamilies = Object.values(familyData).reduce(
+          (sum, count) => sum + count,
+          0
+        )
+
+        return {
+          totalFamilies,
+          totalStudents,
+          activeStudents,
+          familyStatusBreakdown: familyData,
+          paymentMethodCaptureRate: paymentMethodData,
+        }
+      } catch (error) {
+        await logError(logger, error, 'Failed to compute health stats', {})
+        throw error
+      }
+    }
+  )
+}
+
+async function getFamilyStatusBreakdown(): Promise<
+  Record<SubscriptionStatus | 'none', number>
+> {
+  const profiles = await prisma.programProfile.findMany({
+    where: ACTIVE_PROFILE_WHERE,
+    select: {
+      id: true,
+      familyReferenceId: true,
+      assignments: {
+        where: { isActive: true },
+        select: {
+          subscription: {
+            select: { status: true },
+          },
+        },
+      },
+    },
+  })
+
+  const breakdown: Record<SubscriptionStatus | 'none', number> = {
+    active: 0,
+    canceled: 0,
+    past_due: 0,
+    incomplete: 0,
+    incomplete_expired: 0,
+    trialing: 0,
+    unpaid: 0,
+    paused: 0,
+    none: 0,
+  }
+
+  const familyStatuses = new Map<string, SubscriptionStatus[]>()
+
+  for (const profile of profiles) {
+    // Profiles without familyReferenceId are treated as individual families
+    const key = profile.familyReferenceId ?? `solo-${profile.id}`
+    if (!familyStatuses.has(key)) {
+      familyStatuses.set(key, [])
+    }
+    const statuses = familyStatuses.get(key)!
+    for (const assignment of profile.assignments) {
+      const status = assignment.subscription.status
+      if (!(status in STATUS_PRIORITY)) {
+        logger.warn({ status }, 'Unknown subscription status in insights')
+      }
+      statuses.push(status)
+    }
+  }
+
+  for (const [, statuses] of Array.from(familyStatuses)) {
+    if (statuses.length === 0) {
+      breakdown.none++
+      continue
+    }
+    const bestStatus = statuses.reduce(
+      (best: SubscriptionStatus, current: SubscriptionStatus) =>
+        STATUS_PRIORITY[current] < STATUS_PRIORITY[best] ? current : best
+    )
+    breakdown[bestStatus]++
+  }
+
+  return breakdown
+}
+
+async function getPaymentMethodCaptureRate(): Promise<number> {
+  const dugsiAccountWithActiveStudents = {
+    accountType: 'DUGSI' as const,
+    subscriptions: {
+      some: {
+        assignments: {
+          some: { programProfile: ACTIVE_PROFILE_WHERE },
+        },
+      },
+    },
+  }
+
+  const [captured, total] = await Promise.all([
+    prisma.billingAccount.count({
+      where: {
+        ...dugsiAccountWithActiveStudents,
+        paymentMethodCaptured: true,
+      },
+    }),
+    prisma.billingAccount.count({
+      where: dugsiAccountWithActiveStudents,
+    }),
+  ])
+
+  return total > 0 ? Math.round((captured / total) * 100) : 0
+}
+
+async function getRevenueStats(): Promise<RevenueStats> {
+  return Sentry.startSpan(
+    { name: 'insights.getRevenueStats', op: 'db' },
+    async () => {
+      try {
+        const activeAssignmentWhere = {
+          isActive: true,
+          programProfile: ACTIVE_PROFILE_WHERE,
+        }
+
+        const [subscriptions, familyCounts] = await Promise.all([
+          prisma.subscription.findMany({
+            where: {
+              status: 'active',
+              assignments: { some: activeAssignmentWhere },
+            },
+            select: {
+              id: true,
+              amount: true,
+              assignments: {
+                where: activeAssignmentWhere,
+                select: {
+                  programProfile: {
+                    select: { familyReferenceId: true },
+                  },
+                },
+              },
+            },
+          }),
+          getFamilyChildCounts(),
+        ])
+
+        let monthlyRevenue = 0
+        let expectedRevenue = 0
+        let mismatchCount = 0
+        const tierMap = new Map<
+          number,
+          { familyCount: number; expected: number; actual: number }
+        >()
+
+        const familySubscriptions = new Map<
+          string,
+          { totalActual: number; childCount: number }
+        >()
+
+        for (const sub of subscriptions) {
+          monthlyRevenue += sub.amount
+
+          if (sub.assignments.length === 0) {
+            logger.warn(
+              { subscriptionId: sub.id },
+              'Active subscription has no matching Dugsi assignments'
+            )
+            continue
+          }
+
+          // All assignments on a subscription belong to the same family (billing is family-scoped).
+          // Use first assignment's familyReferenceId; fall back to subscription ID for solo students.
+          const familyRefId =
+            sub.assignments[0]?.programProfile.familyReferenceId
+          const key = familyRefId ?? sub.id
+
+          if (!familySubscriptions.has(key)) {
+            const childCount = familyRefId
+              ? (familyCounts.get(familyRefId) ?? 1)
+              : 1
+            familySubscriptions.set(key, { totalActual: 0, childCount })
+          }
+          familySubscriptions.get(key)!.totalActual += sub.amount
+        }
+
+        for (const [, { totalActual, childCount }] of Array.from(
+          familySubscriptions
+        )) {
+          const expected = calculateDugsiRate(childCount)
+          expectedRevenue += expected
+
+          if (totalActual !== expected) {
+            mismatchCount++
+          }
+
+          const existing = tierMap.get(childCount)
+          if (existing) {
+            existing.familyCount++
+            existing.expected += expected
+            existing.actual += totalActual
+          } else {
+            tierMap.set(childCount, {
+              familyCount: 1,
+              expected,
+              actual: totalActual,
+            })
+          }
+        }
+
+        const revenueByTier: RevenueByTier[] = Array.from(tierMap.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([childCount, data]) => ({
+            tier: childCount === 1 ? '1 child' : `${childCount} children`,
+            childCount,
+            familyCount: data.familyCount,
+            expectedRevenue: data.expected,
+            actualRevenue: data.actual,
+          }))
+
+        return {
+          monthlyRevenue,
+          expectedRevenue,
+          variance: monthlyRevenue - expectedRevenue,
+          mismatchCount,
+          revenueByTier,
+        }
+      } catch (error) {
+        await logError(logger, error, 'Failed to compute revenue stats', {})
+        throw error
+      }
+    }
+  )
+}
+
+async function getFamilyChildCounts(): Promise<Map<string, number>> {
+  const counts = await prisma.programProfile.groupBy({
+    by: ['familyReferenceId'],
+    where: ACTIVE_PROFILE_WHERE,
+    _count: { id: true },
+  })
+
+  const map = new Map<string, number>()
+  for (const row of counts) {
+    if (row.familyReferenceId) {
+      map.set(row.familyReferenceId, row._count.id)
+    }
+  }
+  return map
+}
+
+async function getEnrollmentDistribution(): Promise<EnrollmentDistribution> {
+  return Sentry.startSpan(
+    { name: 'insights.getEnrollmentDistribution', op: 'db' },
+    async () => {
+      try {
+        const [shiftCounts, assignedCount, totalActive] = await Promise.all([
+          prisma.programProfile.groupBy({
+            by: ['shift'],
+            where: {
+              ...ACTIVE_PROFILE_WHERE,
+              shift: { not: null },
+            },
+            _count: { id: true },
+          }),
+          prisma.dugsiClassEnrollment.count({
+            where: {
+              isActive: true,
+              programProfile: ACTIVE_PROFILE_WHERE,
+            },
+          }),
+          prisma.programProfile.count({
+            where: ACTIVE_PROFILE_WHERE,
+          }),
+        ])
+
+        const morning =
+          shiftCounts.find((s) => s.shift === 'MORNING')?._count.id ?? 0
+        const afternoon =
+          shiftCounts.find((s) => s.shift === 'AFTERNOON')?._count.id ?? 0
+
+        return {
+          morningStudents: morning,
+          afternoonStudents: afternoon,
+          assignedToClass: assignedCount,
+          unassignedToClass: totalActive - assignedCount,
+        }
+      } catch (error) {
+        await logError(
+          logger,
+          error,
+          'Failed to compute enrollment distribution',
+          {}
+        )
+        throw error
+      }
+    }
+  )
+}
+
+function toMonthKey(date: Date): string {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+const MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+async function getRegistrationTrend(): Promise<RegistrationTrendItem[]> {
+  return Sentry.startSpan(
+    { name: 'insights.getRegistrationTrend', op: 'db' },
+    async () => {
+      try {
+        const twelveMonthsAgo = new Date()
+        // Go back 11 months (+ current month = 12 total). Use UTC to match Prisma timestamps.
+        twelveMonthsAgo.setUTCMonth(twelveMonthsAgo.getUTCMonth() - 11)
+        twelveMonthsAgo.setUTCDate(1)
+        twelveMonthsAgo.setUTCHours(0, 0, 0, 0)
+
+        // Intentionally filters by current status: shows active students by registration month,
+        // not all historical registrations (withdrawn students are excluded).
+        const profiles = await prisma.programProfile.findMany({
+          where: {
+            ...ACTIVE_PROFILE_WHERE,
+            createdAt: { gte: twelveMonthsAgo },
+          },
+          select: {
+            id: true,
+            createdAt: true,
+            familyReferenceId: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+
+        const monthMap = new Map<
+          string,
+          { students: number; families: Set<string> }
+        >()
+
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(twelveMonthsAgo)
+          d.setUTCMonth(d.getUTCMonth() + i)
+          monthMap.set(toMonthKey(d), { students: 0, families: new Set() })
+        }
+
+        for (const profile of profiles) {
+          const bucket = monthMap.get(toMonthKey(profile.createdAt))
+          if (bucket) {
+            bucket.students++
+            bucket.families.add(
+              profile.familyReferenceId ?? `solo-${profile.id}`
+            )
+          }
+        }
+
+        return Array.from(monthMap.entries()).map(([month, data]) => {
+          const monthIdx = parseInt(month.split('-')[1]) - 1
+          return {
+            month,
+            label: MONTH_NAMES[monthIdx],
+            familyCount: data.families.size,
+            studentCount: data.students,
+          }
+        })
+      } catch (error) {
+        await logError(
+          logger,
+          error,
+          'Failed to compute registration trend',
+          {}
+        )
+        throw error
+      }
+    }
+  )
+}
+
+async function getAtRiskFamilies(): Promise<AtRiskData> {
+  return Sentry.startSpan(
+    { name: 'insights.getAtRiskFamilies', op: 'db' },
+    async () => {
+      try {
+        const profiles = await prisma.programProfile.findMany({
+          where: {
+            ...ACTIVE_PROFILE_WHERE,
+            assignments: {
+              some: {
+                isActive: true,
+                subscription: { status: { in: AT_RISK_STATUSES } },
+              },
+            },
+          },
+          select: {
+            id: true,
+            familyReferenceId: true,
+            person: {
+              select: {
+                name: true,
+                dependentRelationships: {
+                  where: { isActive: true, role: 'PARENT' },
+                  select: {
+                    guardian: { select: { name: true } },
+                  },
+                  take: 1,
+                },
+              },
+            },
+            assignments: {
+              where: {
+                isActive: true,
+                subscription: { status: { in: AT_RISK_STATUSES } },
+              },
+              select: {
+                subscription: {
+                  select: {
+                    status: true,
+                    amount: true,
+                    currentPeriodEnd: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        const familyMap = new Map<
+          string,
+          {
+            familyName: string
+            statuses: SubscriptionStatus[]
+            studentCount: number
+            actualAmount: number
+            currentPeriodEnd: Date | null
+          }
+        >()
+
+        for (const profile of profiles) {
+          const key = profile.familyReferenceId ?? `solo-${profile.id}`
+          const parentName =
+            profile.person.dependentRelationships[0]?.guardian.name ??
+            profile.person.name
+
+          if (!familyMap.has(key)) {
+            familyMap.set(key, {
+              familyName: parentName,
+              statuses: [],
+              studentCount: 0,
+              actualAmount: 0,
+              currentPeriodEnd: null,
+            })
+          }
+
+          const family = familyMap.get(key)!
+          family.studentCount++
+
+          for (const assignment of profile.assignments) {
+            const sub = assignment.subscription
+            family.statuses.push(sub.status)
+            family.actualAmount += sub.amount
+            if (
+              sub.currentPeriodEnd &&
+              (!family.currentPeriodEnd ||
+                sub.currentPeriodEnd < family.currentPeriodEnd)
+            ) {
+              family.currentPeriodEnd = sub.currentPeriodEnd
+            }
+          }
+        }
+
+        const now = new Date()
+        const families: AtRiskFamily[] = []
+        let totalAtRiskAmount = 0
+
+        for (const [familyRefId, family] of Array.from(familyMap)) {
+          const worstStatus = family.statuses.reduce(
+            (worst: SubscriptionStatus, current: SubscriptionStatus) =>
+              STATUS_PRIORITY[current] > STATUS_PRIORITY[worst]
+                ? current
+                : worst
+          )
+          const expectedAmount = calculateDugsiRate(family.studentCount)
+          const gap = expectedAmount - family.actualAmount
+          totalAtRiskAmount += gap > 0 ? gap : expectedAmount
+
+          let daysPastDue: number | null = null
+          if (family.currentPeriodEnd) {
+            const diffMs = now.getTime() - family.currentPeriodEnd.getTime()
+            if (diffMs > 0) {
+              daysPastDue = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+            }
+          }
+
+          families.push({
+            familyReferenceId: familyRefId,
+            familyName: family.familyName,
+            status: worstStatus,
+            studentCount: family.studentCount,
+            expectedAmount,
+            actualAmount: family.actualAmount,
+            daysPastDue,
+          })
+        }
+
+        families.sort((a, b) => (b.daysPastDue ?? 0) - (a.daysPastDue ?? 0))
+
+        return { families, totalAtRiskAmount }
+      } catch (error) {
+        await logError(logger, error, 'Failed to fetch at-risk families', {})
+        throw error
+      }
+    }
+  )
+}
+
+function deriveFinancialKPIs(
+  health: ProgramHealthStats,
+  revenue: RevenueStats,
+  atRisk: AtRiskData
+): FinancialKPIs {
+  const collectionRate =
+    revenue.expectedRevenue > 0
+      ? Math.round((revenue.monthlyRevenue / revenue.expectedRevenue) * 100)
+      : 0
+
+  return {
+    totalFamilies: health.totalFamilies,
+    collectionRate,
+    dollarAtRisk: atRisk.totalAtRiskAmount,
+    paymentCaptureRate: health.paymentMethodCaptureRate,
+    monthlyRevenue: revenue.monthlyRevenue,
+    expectedRevenue: revenue.expectedRevenue,
+  }
+}

@@ -498,7 +498,8 @@ export async function handleSubscriptionDeleted(
  * @returns Updated subscription or null
  */
 export async function handleInvoiceFinalized(
-  invoice: Stripe.Invoice
+  invoice: Stripe.Invoice,
+  options?: { setLastPaymentDate?: boolean }
 ): Promise<{ subscriptionId: string; paidUntil: Date | null } | null> {
   // Extract subscription ID (may be expanded object or just the ID string)
   // Type assertion needed because Stripe's Invoice type doesn't include expanded subscription
@@ -536,6 +537,7 @@ export async function handleInvoiceFinalized(
     dbSubscription.status,
     {
       paidUntil,
+      ...(options?.setLastPaymentDate && { lastPaymentDate: new Date() }),
     }
   )
 

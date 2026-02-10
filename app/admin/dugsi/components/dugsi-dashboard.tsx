@@ -40,7 +40,6 @@ import {
 } from '../store'
 import { DashboardFilters } from './dashboard/dashboard-filters'
 import { DashboardHeader } from './dashboard/dashboard-header'
-import { DugsiStats } from './dashboard/dashboard-stats'
 import { QuickFilterChips } from './dashboard/quick-filter-chips'
 import { FamilyDataTable } from './family-table'
 
@@ -116,9 +115,6 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
 
         {/* Filters */}
         <DashboardFilters />
-
-        {/* Dashboard Stats */}
-        <DugsiStats registrations={registrations} onStatClick={setActiveTab} />
 
         {/* Quick Filter Chips */}
         <QuickFilterChips />

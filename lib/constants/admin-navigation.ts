@@ -14,6 +14,7 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
     title: 'Dugsi',
     items: [
       { title: 'Dashboard', url: '/admin/dugsi' },
+      { title: 'Insights', url: '/admin/dugsi/insights' },
       { title: 'Classes', url: '/admin/dugsi/classes' },
       { title: 'Teachers', url: '/admin/dugsi/teachers' },
       { title: 'Attendance', url: '/admin/dugsi/attendance' },
