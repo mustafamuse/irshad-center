@@ -194,6 +194,7 @@ export async function lookupPersonAction(
           },
         ],
       },
+      relationLoadStrategy: 'join',
       include: {
         contactPoints: {
           where: { isActive: true },
@@ -203,6 +204,7 @@ export async function lookupPersonAction(
           include: {
             programs: {
               where: { isActive: true },
+              select: { program: true },
             },
           },
         },

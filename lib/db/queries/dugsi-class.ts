@@ -158,6 +158,7 @@ export async function getClassesWithDetails(
 ): Promise<DugsiClassWithRelations[]> {
   return client.dugsiClass.findMany({
     where: { isActive: true },
+    relationLoadStrategy: 'join',
     include: dugsiClassInclude,
     orderBy: [{ shift: 'asc' }, { name: 'asc' }],
   })
@@ -167,6 +168,7 @@ export async function getAllTeachersForAssignment(
   client: DatabaseClient = prisma
 ): Promise<Array<{ id: string; name: string }>> {
   const teachers = await client.teacher.findMany({
+    relationLoadStrategy: 'join',
     include: {
       person: {
         select: { name: true },
@@ -202,6 +204,7 @@ export async function getAvailableStudentsForClass(
       status: { in: ['ENROLLED', 'REGISTERED'] },
       shift,
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         select: { name: true },
@@ -440,6 +443,7 @@ export async function getClassById(
 ): Promise<DugsiClassWithRelations | null> {
   return client.dugsiClass.findUnique({
     where: { id: classId, isActive: true },
+    relationLoadStrategy: 'join',
     include: dugsiClassInclude,
   })
 }
@@ -450,6 +454,7 @@ export async function getClassPreviewForDelete(
 ): Promise<{ teacherCount: number; studentCount: number } | null> {
   const dugsiClass = await client.dugsiClass.findUnique({
     where: { id: classId, isActive: true },
+    relationLoadStrategy: 'join',
     include: {
       teachers: {
         where: { isActive: true },

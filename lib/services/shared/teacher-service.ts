@@ -122,6 +122,7 @@ export async function assignTeacherToProgram(
 
   // Check teacher exists
   const teacher = await client.teacher.findUnique({
+    relationLoadStrategy: 'join',
     where: { id: teacherId },
     include: {
       person: true,
@@ -389,6 +390,7 @@ export async function getAllTeachers(
   if (program) {
     // Get teachers enrolled in specific program
     const teacherPrograms = await client.teacherProgram.findMany({
+      relationLoadStrategy: 'join',
       where: {
         program,
         isActive: true,
@@ -412,6 +414,7 @@ export async function getAllTeachers(
 
   // Get all teachers
   return client.teacher.findMany({
+    relationLoadStrategy: 'join',
     include: teacherWithDetailsInclude,
     orderBy: {
       person: {

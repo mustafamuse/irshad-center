@@ -2,7 +2,7 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 echo "🔨 Running production build check..."
-npm run build
+npm run build:local
 
 if [ $? -ne 0 ]; then
   echo "❌ Build failed! Fix the errors before pushing."

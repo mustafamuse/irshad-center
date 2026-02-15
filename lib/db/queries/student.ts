@@ -21,12 +21,16 @@ import {
   SubscriptionStatus,
   ContactType,
 } from '@prisma/client'
+import { findDuplicateStudents as findDuplicateStudentsSql } from '@prisma/client/sql'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger } from '@/lib/logger'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
 import { isPrismaError } from '@/lib/utils/type-guards'
+
+const logger = createServiceLogger('student-queries')
 
 export interface MahadStudent {
   id: string
@@ -178,6 +182,7 @@ export async function getStudents(client: DatabaseClient = prisma) {
     where: {
       program: 'MAHAD_PROGRAM',
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -227,6 +232,7 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -411,6 +417,7 @@ export async function getStudentsWithBatchFiltered(
   const [profiles, totalCount] = await Promise.all([
     client.programProfile.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {
@@ -467,6 +474,7 @@ export async function getStudentById(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -534,6 +542,7 @@ export async function getStudentByEmail(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -586,6 +595,7 @@ export async function getStudentsByBatch(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -648,6 +658,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       ],
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -746,22 +757,23 @@ export async function searchStudents(
 }
 
 /**
- * Find duplicate students by phone number
- * Uses exact phone matching - the most reliable indicator of duplicates
+ * Find duplicate students by phone number.
+ * Uses TypedSQL to identify duplicates in the database, then fetches
+ * full profile data via Prisma for the matched profiles only.
+ *
+ * Note: No `client` parameter — $queryRawTyped requires the full PrismaClient
+ * and is not available on TransactionClient. Do not call inside a transaction.
  */
-export async function findDuplicateStudents(client: DatabaseClient = prisma) {
-  // Get all Mahad profiles with phone numbers
-  const profiles = await client.programProfile.findMany({
-    where: {
-      program: 'MAHAD_PROGRAM',
-      person: {
-        contactPoints: {
-          some: {
-            type: { in: ['PHONE', 'WHATSAPP'] },
-          },
-        },
-      },
-    },
+export async function findDuplicateStudents() {
+  const sqlResults = await prisma.$queryRawTyped(findDuplicateStudentsSql())
+
+  if (sqlResults.length === 0) return []
+
+  const profileIds = Array.from(new Set(sqlResults.map((r) => r.profile_id)))
+
+  const profiles = await prisma.programProfile.findMany({
+    where: { id: { in: profileIds } },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -797,32 +809,37 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
     },
   })
 
-  // Group by phone number
-  const phoneGroups = new Map<string, typeof profiles>()
+  const profileMap = new Map(profiles.map((p) => [p.id, p]))
 
-  for (const profile of profiles) {
-    for (const contact of profile.person.contactPoints) {
-      if (contact.value) {
-        const phone = contact.value
-        if (!phoneGroups.has(phone)) {
-          phoneGroups.set(phone, [])
-        }
-        phoneGroups.get(phone)!.push(profile)
-      }
+  // Re-group by phone using SQL results' contact_value
+  const phoneGroups = new Map<string, ProfileWithRelations[]>()
+  for (const row of sqlResults) {
+    const profile = profileMap.get(row.profile_id)
+    if (!profile) {
+      logger.warn(
+        { profileId: row.profile_id, contactValue: row.contact_value },
+        'Profile from SQL duplicate detection not found in Prisma query'
+      )
+      continue
+    }
+    if (!phoneGroups.has(row.contact_value)) {
+      phoneGroups.set(row.contact_value, [])
+    }
+    const group = phoneGroups.get(row.contact_value)!
+    if (!group.some((p) => p.id === profile.id)) {
+      group.push(profile)
     }
   }
 
-  // Filter groups with duplicates (2+ profiles with same phone)
   const duplicateGroups = Array.from(phoneGroups.entries())
     .filter(([_, group]) => group.length > 1)
     .map(([phone, group]) => {
-      const profiles = group.map(transformToStudent)
+      const students = group.map(transformToStudent)
       const latestUpdate = Math.max(...group.map((p) => p.updatedAt.getTime()))
       const hasRecentActivity =
-        Date.now() - latestUpdate < 30 * 24 * 60 * 60 * 1000 // 30 days
+        Date.now() - latestUpdate < 30 * 24 * 60 * 60 * 1000
 
-      // Sort by most recent update - keep the most recently updated record
-      const sortedProfiles = [...profiles].sort(
+      const sortedProfiles = [...students].sort(
         (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
       )
       const keepRecord = sortedProfiles[0]
@@ -830,15 +847,15 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
 
       return {
         phone,
-        email: keepRecord.email || phone, // For backward compatibility with UI
-        profiles,
+        email: keepRecord.email || phone,
+        profiles: students,
         keepRecord,
         duplicateRecords,
         count: group.length,
-        hasSiblingGroup: false, // TODO: Check if any profiles have sibling relationships
+        hasSiblingGroup: false,
         hasRecentActivity,
         lastUpdated: latestUpdate,
-        differences: null, // TODO: Calculate field differences between profiles
+        differences: null,
       }
     })
 
@@ -857,6 +874,7 @@ export async function resolveDuplicateStudents(
   await prisma.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({
       where: { id: keepId },
+      relationLoadStrategy: 'join',
       include: {
         person: { include: { contactPoints: true } },
         assignments: true,
@@ -865,6 +883,7 @@ export async function resolveDuplicateStudents(
 
     const deleteProfiles = await tx.programProfile.findMany({
       where: { id: { in: deleteIds } },
+      relationLoadStrategy: 'join',
       include: {
         person: { include: { contactPoints: true } },
         assignments: true,
@@ -1000,6 +1019,7 @@ export async function getStudentCompleteness(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -1071,6 +1091,7 @@ export async function getStudentDeleteWarnings(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -1108,6 +1129,7 @@ export async function getStudentDeleteWarnings(
 
 /**
  * Export students data (returns array for CSV export)
+ * Uses select instead of include to fetch only the fields needed for export
  */
 export async function exportStudents(
   filters?: {
@@ -1139,32 +1161,149 @@ export async function exportStudents(
   },
   client: DatabaseClient = prisma
 ) {
-  const result = await getStudentsWithBatchFiltered(
-    {
-      page: 1,
-      limit: 10000, // Large limit for export
-      search: filters?.search?.query,
-      batchIds: filters?.batch?.selected,
-      includeUnassigned: filters?.batch?.includeUnassigned,
-      statuses: filters?.status?.selected,
-      gradeLevels: filters?.gradeLevel?.selected,
-      graduationStatuses: filters?.graduationStatus?.selected,
-      billingTypes: filters?.billingType?.selected,
-    },
-    client
-  )
+  const where: Prisma.ProgramProfileWhereInput = {
+    program: 'MAHAD_PROGRAM',
+  }
 
-  return result.students.map((student) => ({
-    id: student.id,
-    name: student.name,
-    email: student.email || '',
-    phone: student.phone || '',
-    batch: student.batch?.name || 'Unassigned',
-    status: student.status,
-    gradeLevel: student.gradeLevel || '',
-    graduationStatus: student.graduationStatus || '',
-    billingType: student.billingType || '',
-    subscriptionStatus: student.subscription?.status || 'none',
-    createdAt: student.createdAt.toISOString(),
-  }))
+  if (filters?.search?.query?.trim()) {
+    const searchTerm = filters.search.query.trim()
+    const normalizedPhone = normalizePhone(searchTerm)
+    where.person = {
+      OR: [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          contactPoints: {
+            some: {
+              OR: [
+                {
+                  type: 'EMAIL',
+                  value: { contains: searchTerm, mode: 'insensitive' },
+                },
+                ...(normalizedPhone
+                  ? [
+                      {
+                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
+                        value: normalizedPhone,
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          },
+        },
+      ],
+    }
+  }
+
+  const batchIds = filters?.batch?.selected ?? []
+  if (batchIds.length > 0) {
+    const batchConditions: Prisma.EnrollmentWhereInput[] = batchIds.map(
+      (batchId) => ({
+        batchId,
+        status: { not: 'WITHDRAWN' as const },
+        endDate: null,
+      })
+    )
+    if (filters?.batch?.includeUnassigned) {
+      batchConditions.push({
+        batchId: null,
+        status: { not: 'WITHDRAWN' as const },
+        endDate: null,
+      })
+    }
+    where.enrollments = { some: { OR: batchConditions } }
+  }
+
+  if (filters?.status?.selected?.length) {
+    const enrollmentStatuses = filters.status.selected.map((s) =>
+      studentStatusToEnrollmentStatus(s as StudentStatus)
+    )
+    const existingSome =
+      where.enrollments && 'some' in where.enrollments
+        ? where.enrollments.some
+        : {}
+    where.enrollments = {
+      ...where.enrollments,
+      some: {
+        ...(typeof existingSome === 'object' ? existingSome : {}),
+        status: { in: enrollmentStatuses },
+        endDate: null,
+      },
+    }
+  }
+
+  if (filters?.gradeLevel?.selected?.length) {
+    where.gradeLevel = { in: filters.gradeLevel.selected }
+  }
+  if (filters?.graduationStatus?.selected?.length) {
+    where.graduationStatus = { in: filters.graduationStatus.selected }
+  }
+  if (filters?.billingType?.selected?.length) {
+    where.billingType = { in: filters.billingType.selected }
+  }
+
+  const profiles = await client.programProfile.findMany({
+    where,
+    relationLoadStrategy: 'join',
+    select: {
+      id: true,
+      gradeLevel: true,
+      graduationStatus: true,
+      billingType: true,
+      createdAt: true,
+      person: {
+        select: {
+          name: true,
+          contactPoints: {
+            select: { type: true, value: true },
+          },
+        },
+      },
+      enrollments: {
+        where: {
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
+        select: {
+          status: true,
+          batch: { select: { name: true } },
+        },
+        orderBy: { startDate: 'desc' as const },
+        take: 1,
+      },
+      assignments: {
+        where: { isActive: true },
+        select: {
+          subscription: { select: { status: true } },
+        },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10000,
+  })
+
+  return profiles.map((p) => {
+    const email = p.person.contactPoints.find((c) => c.type === 'EMAIL')
+    const phone = p.person.contactPoints.find(
+      (c) => c.type === 'PHONE' || c.type === 'WHATSAPP'
+    )
+    const enrollment = p.enrollments[0]
+
+    return {
+      id: p.id,
+      name: p.person.name,
+      email: email?.value || '',
+      phone: phone?.value || '',
+      batch: enrollment?.batch?.name || 'Unassigned',
+      status: enrollment
+        ? enrollmentStatusToStudentStatus(enrollment.status)
+        : StudentStatus.REGISTERED,
+      gradeLevel: p.gradeLevel || '',
+      graduationStatus: p.graduationStatus || '',
+      billingType: p.billingType || '',
+      subscriptionStatus: p.assignments[0]?.subscription?.status || 'none',
+      createdAt: p.createdAt.toISOString(),
+    }
+  })
 }

@@ -26,6 +26,7 @@ import {
   createProgramProfile,
 } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import type { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
 /**
@@ -191,9 +192,9 @@ export async function createMahadStudent(input: StudentCreateInput) {
  */
 export async function updateMahadStudent(
   studentId: string,
-  input: StudentUpdateInput
+  input: StudentUpdateInput,
+  client: DatabaseClient = prisma
 ) {
-  // Get profile to access personId
   const profile = await getProgramProfileById(studentId)
 
   if (!profile || profile.program !== MAHAD_PROGRAM) {
@@ -205,129 +206,133 @@ export async function updateMahadStudent(
     )
   }
 
-  // Update person if name or dateOfBirth changed
-  if (input.name !== undefined || input.dateOfBirth !== undefined) {
-    await prisma.person.update({
-      where: { id: profile.personId },
+  const { personId } = profile
+
+  async function performUpdate(tx: DatabaseClient) {
+    if (input.name !== undefined || input.dateOfBirth !== undefined) {
+      await tx.person.update({
+        where: { id: personId },
+        data: {
+          name: input.name,
+          dateOfBirth: input.dateOfBirth,
+        },
+      })
+    }
+
+    if (input.email !== undefined) {
+      const normalizedEmail = input.email?.toLowerCase().trim() ?? null
+
+      if (normalizedEmail) {
+        const existingEmail = await tx.contactPoint.findFirst({
+          where: {
+            personId: personId,
+            type: 'EMAIL',
+          },
+        })
+
+        if (existingEmail) {
+          await tx.contactPoint.update({
+            where: { id: existingEmail.id },
+            data: { value: normalizedEmail },
+          })
+        } else {
+          try {
+            await tx.contactPoint.create({
+              data: {
+                personId: personId,
+                type: 'EMAIL',
+                value: normalizedEmail,
+                isPrimary: true,
+              },
+            })
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              const existing = await tx.contactPoint.findFirst({
+                where: { personId: personId, type: 'EMAIL' },
+              })
+              if (existing) {
+                await tx.contactPoint.update({
+                  where: { id: existing.id },
+                  data: { value: normalizedEmail },
+                })
+              }
+            } else {
+              throw error
+            }
+          }
+        }
+      }
+    }
+
+    if (input.phone !== undefined) {
+      const normalizedPhone = input.phone?.trim() ?? null
+
+      if (normalizedPhone) {
+        const existingPhone = await tx.contactPoint.findFirst({
+          where: {
+            personId: personId,
+            type: 'PHONE',
+          },
+        })
+
+        if (existingPhone) {
+          await tx.contactPoint.update({
+            where: { id: existingPhone.id },
+            data: { value: normalizedPhone },
+          })
+        } else {
+          try {
+            await tx.contactPoint.create({
+              data: {
+                personId: personId,
+                type: 'PHONE',
+                value: normalizedPhone,
+              },
+            })
+          } catch (error) {
+            if (
+              error instanceof Prisma.PrismaClientKnownRequestError &&
+              error.code === 'P2002'
+            ) {
+              const existing = await tx.contactPoint.findFirst({
+                where: { personId: personId, type: 'PHONE' },
+              })
+              if (existing) {
+                await tx.contactPoint.update({
+                  where: { id: existing.id },
+                  data: { value: normalizedPhone },
+                })
+              }
+            } else {
+              throw error
+            }
+          }
+        }
+      }
+    }
+
+    return await tx.programProfile.update({
+      where: { id: studentId },
       data: {
-        name: input.name,
-        dateOfBirth: input.dateOfBirth,
+        gradeLevel: input.gradeLevel,
+        schoolName: input.schoolName,
+        graduationStatus: input.graduationStatus,
+        paymentFrequency: input.paymentFrequency,
+        billingType: input.billingType,
+        paymentNotes: input.paymentNotes,
       },
     })
   }
 
-  // Update email if provided (with P2002 race condition handling)
-  if (input.email !== undefined) {
-    const normalizedEmail = input.email?.toLowerCase().trim() ?? null
-
-    if (normalizedEmail) {
-      // Find existing email contact point
-      const existingEmail = await prisma.contactPoint.findFirst({
-        where: {
-          personId: profile.personId,
-          type: 'EMAIL',
-        },
-      })
-
-      if (existingEmail) {
-        await prisma.contactPoint.update({
-          where: { id: existingEmail.id },
-          data: { value: normalizedEmail },
-        })
-      } else {
-        try {
-          await prisma.contactPoint.create({
-            data: {
-              personId: profile.personId,
-              type: 'EMAIL',
-              value: normalizedEmail,
-              isPrimary: true,
-            },
-          })
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            // Race condition - contact point was created by another transaction
-            const existing = await prisma.contactPoint.findFirst({
-              where: { personId: profile.personId, type: 'EMAIL' },
-            })
-            if (existing) {
-              await prisma.contactPoint.update({
-                where: { id: existing.id },
-                data: { value: normalizedEmail },
-              })
-            }
-          } else {
-            throw error
-          }
-        }
-      }
-    }
+  // If already in a transaction, reuse it; otherwise create new transaction
+  if (client !== prisma) {
+    return performUpdate(client)
   }
 
-  // Update phone if provided (with P2002 race condition handling)
-  if (input.phone !== undefined) {
-    const normalizedPhone = input.phone?.trim() ?? null
-
-    if (normalizedPhone) {
-      const existingPhone = await prisma.contactPoint.findFirst({
-        where: {
-          personId: profile.personId,
-          type: 'PHONE',
-        },
-      })
-
-      if (existingPhone) {
-        await prisma.contactPoint.update({
-          where: { id: existingPhone.id },
-          data: { value: normalizedPhone },
-        })
-      } else {
-        try {
-          await prisma.contactPoint.create({
-            data: {
-              personId: profile.personId,
-              type: 'PHONE',
-              value: normalizedPhone,
-            },
-          })
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            // Race condition - contact point was created by another transaction
-            const existing = await prisma.contactPoint.findFirst({
-              where: { personId: profile.personId, type: 'PHONE' },
-            })
-            if (existing) {
-              await prisma.contactPoint.update({
-                where: { id: existing.id },
-                data: { value: normalizedPhone },
-              })
-            }
-          } else {
-            throw error
-          }
-        }
-      }
-    }
-  }
-
-  // Update program profile fields
-  return await prisma.programProfile.update({
-    where: { id: studentId },
-    data: {
-      gradeLevel: input.gradeLevel,
-      schoolName: input.schoolName,
-      graduationStatus: input.graduationStatus,
-      paymentFrequency: input.paymentFrequency,
-      billingType: input.billingType,
-      paymentNotes: input.paymentNotes,
-    },
-  })
+  return prisma.$transaction(performUpdate)
 }
 
 /**
@@ -338,6 +343,7 @@ export async function updateMahadStudent(
  */
 export async function getMahadStudent(studentId: string) {
   const profile = await prisma.programProfile.findUnique({
+    relationLoadStrategy: 'join',
     where: { id: studentId },
     include: {
       person: {

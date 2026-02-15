@@ -49,8 +49,9 @@ export async function getActiveEnrollments(
     where: {
       programProfileId,
       status: { in: ['REGISTERED', 'ENROLLED'] },
-      endDate: null, // Active enrollments don't have endDate
+      endDate: null,
     },
+    relationLoadStrategy: 'join',
     include: {
       programProfile: {
         include: {
@@ -76,6 +77,7 @@ export async function getAllEnrollments(
     where: {
       programProfileId,
     },
+    relationLoadStrategy: 'join',
     include: {
       programProfile: {
         include: {
@@ -221,6 +223,7 @@ export async function getBillingAssignmentSummary(
         subscriptionId,
         isActive: true,
       },
+      relationLoadStrategy: 'join',
       include: {
         programProfile: {
           include: {
@@ -266,6 +269,7 @@ export async function getPersonProgramProfiles(
       personId,
       ...(program && { program }),
     },
+    relationLoadStrategy: 'join',
     include: {
       person: true,
       enrollments: {
@@ -354,6 +358,7 @@ export async function getEnrollmentHistory(
     where: {
       programProfileId,
     },
+    relationLoadStrategy: 'join',
     include: {
       batch: true,
     },
@@ -376,6 +381,7 @@ export async function isPersonEnrolled(
       personId,
       program,
     },
+    relationLoadStrategy: 'join',
     include: {
       enrollments: {
         where: {

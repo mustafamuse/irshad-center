@@ -35,6 +35,7 @@ export async function getPersonSiblings(
       OR: [{ person1Id: personId }, { person2Id: personId }],
       isActive: true,
     },
+    relationLoadStrategy: 'join',
     include: {
       person1: {
         include: {
@@ -111,6 +112,7 @@ export async function getSiblingDetails(
 }> {
   const person = await client.person.findUnique({
     where: { id: personId },
+    relationLoadStrategy: 'join',
     include: {
       programProfiles: {
         include: {
@@ -159,6 +161,7 @@ export async function getSiblingGroupsByProgram(
     where: {
       isActive: true,
     },
+    relationLoadStrategy: 'join',
     include: {
       person1: {
         include: {
@@ -335,6 +338,7 @@ export async function getSiblingsByFamilyId(
       familyReferenceId: familyId,
       program: 'DUGSI_PROGRAM',
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -369,6 +373,7 @@ export async function getSiblingsByFamilyId(
         { person2Id: { in: personIds }, isActive: true },
       ],
     },
+    relationLoadStrategy: 'join',
     include: {
       person1: {
         include: {
