@@ -1,22 +1,16 @@
-import { type Subscription, StripeAccountType } from '@prisma/client'
+import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
-import {
-  createServiceLogger,
-  logError,
-  logInfo,
-  logWarning,
-} from '@/lib/logger'
+import { createServiceLogger, logError, logInfo } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import type {
   WithdrawChildInput,
   ReEnrollChildInput,
-  WithdrawAllChildrenInput,
 } from '@/lib/validations/dugsi'
 
 const logger = createServiceLogger('dugsi-withdrawal')
@@ -41,13 +35,6 @@ export interface WithdrawResult {
   billingError?: string
 }
 
-export interface WithdrawAllResult {
-  withdrawnCount: number
-  failedCount: number
-  billingUpdated: boolean
-  billingError?: string
-}
-
 export interface ReEnrollResult {
   reEnrolled: boolean
   billingUpdated: boolean
@@ -59,8 +46,7 @@ export interface ReEnrollResult {
 // ============================================================================
 
 export async function withdrawChild(
-  input: WithdrawChildInput,
-  options?: { skipLastChildGuard?: boolean }
+  input: WithdrawChildInput
 ): Promise<WithdrawResult> {
   return Sentry.startSpan(
     { name: 'withdrawal.withdrawChild', op: 'function' },
@@ -97,26 +83,6 @@ export async function withdrawChild(
           'Student is already withdrawn',
           ERROR_CODES.ALREADY_WITHDRAWN
         )
-      }
-
-      if (
-        !options?.skipLastChildGuard &&
-        (billingAdjustment.type === 'keep_current' ||
-          billingAdjustment.type === 'custom')
-      ) {
-        const activeCount = await prisma.programProfile.count({
-          where: {
-            program: DUGSI_PROGRAM,
-            familyReferenceId: profile.familyReferenceId,
-            status: { in: ['REGISTERED', 'ENROLLED'] },
-          },
-        })
-        if (activeCount <= 1) {
-          throw new ActionError(
-            `Cannot use "${billingAdjustment.type}" when withdrawing the last active child`,
-            ERROR_CODES.INVALID_INPUT
-          )
-        }
       }
 
       const reasonLabel = buildReasonString(reason, reasonNote)
@@ -161,11 +127,17 @@ export async function withdrawChild(
         reason,
       })
 
-      const billingResult = await applyBillingAdjustment(
-        studentId,
-        billingAdjustment,
-        preTransactionSubscription
-      )
+      const billingResult = await applyBillingAdjustment({
+        familyReferenceId: profile.familyReferenceId,
+        billingAdjustmentType: billingAdjustment.type,
+        subscription: preTransactionSubscription
+          ? {
+              id: preTransactionSubscription.id,
+              stripeSubscriptionId:
+                preTransactionSubscription.stripeSubscriptionId,
+            }
+          : null,
+      })
 
       return {
         withdrawn: true,
@@ -186,7 +158,7 @@ export async function reEnrollChild(
   return Sentry.startSpan(
     { name: 'withdrawal.reEnrollChild', op: 'function' },
     async () => {
-      const { studentId, billingAdjustment } = input
+      const { studentId } = input
 
       const profile = await prisma.programProfile.findUnique({
         where: { id: studentId },
@@ -265,10 +237,22 @@ export async function reEnrollChild(
         childName: profile.person.name,
       })
 
-      const billingResult = await applyBillingAdjustment(
-        studentId,
-        billingAdjustment
-      )
+      if (!familySubscription) {
+        return {
+          reEnrolled: true,
+          billingUpdated: false,
+          billingError: 'No active subscription to update',
+        }
+      }
+
+      const billingResult = await applyBillingAdjustment({
+        familyReferenceId: profile.familyReferenceId,
+        billingAdjustmentType: 'auto_recalculate',
+        subscription: {
+          id: familySubscription.id,
+          stripeSubscriptionId: familySubscription.stripeSubscriptionId,
+        },
+      })
 
       return {
         reEnrolled: true,
@@ -286,158 +270,47 @@ export async function reEnrollChild(
 export async function getWithdrawPreview(
   studentId: string
 ): Promise<WithdrawPreview> {
-  const profile = await prisma.programProfile.findUnique({
-    where: { id: studentId },
-    include: { person: true },
-  })
-
-  if (!profile || profile.program !== DUGSI_PROGRAM) {
-    throw new ActionError(
-      'Student not found',
-      ERROR_CODES.STUDENT_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  const activeCount = await prisma.programProfile.count({
-    where: {
-      program: DUGSI_PROGRAM,
-      familyReferenceId: profile.familyReferenceId,
-      status: { in: ['REGISTERED', 'ENROLLED'] },
-    },
-  })
-  const afterWithdrawalCount = activeCount - 1
-
-  const subscription = await findFamilySubscription(profile.familyReferenceId)
-
-  return {
-    childName: profile.person.name,
-    activeChildrenCount: activeCount,
-    currentAmount: subscription?.amount ?? null,
-    recalculatedAmount: calculateDugsiRate(afterWithdrawalCount),
-    isLastActiveChild: afterWithdrawalCount === 0,
-    hasActiveSubscription:
-      !!subscription &&
-      (subscription.status === 'active' || subscription.status === 'paused'),
-    isPaused: subscription?.status === 'paused',
-  }
-}
-
-// ============================================================================
-// WITHDRAW ALL CHILDREN
-// ============================================================================
-
-export async function withdrawAllChildren(
-  input: WithdrawAllChildrenInput
-): Promise<WithdrawAllResult> {
   return Sentry.startSpan(
-    { name: 'withdrawal.withdrawAllChildren', op: 'function' },
+    { name: 'withdrawal.getWithdrawPreview', op: 'function' },
     async () => {
-      const { studentId, reason, reasonNote, billingAdjustment } = input
-
       const profile = await prisma.programProfile.findUnique({
         where: { id: studentId },
-        select: { familyReferenceId: true },
+        include: { person: true },
       })
 
-      if (!profile?.familyReferenceId) {
+      if (!profile || profile.program !== DUGSI_PROGRAM) {
         throw new ActionError(
-          'Family not found',
+          'Student not found',
           ERROR_CODES.STUDENT_NOT_FOUND,
           undefined,
           404
         )
       }
 
-      const activeProfiles = await prisma.programProfile.findMany({
+      const activeCount = await prisma.programProfile.count({
         where: {
           program: DUGSI_PROGRAM,
           familyReferenceId: profile.familyReferenceId,
           status: { in: ['REGISTERED', 'ENROLLED'] },
         },
-        select: { id: true },
       })
+      const afterWithdrawalCount = activeCount - 1
 
-      if (activeProfiles.length === 0) {
-        throw new ActionError(
-          'No active children to withdraw',
-          ERROR_CODES.ALREADY_WITHDRAWN
-        )
-      }
-
-      const preWithdrawalSubscription = await findFamilySubscription(
+      const subscription = await findFamilySubscription(
         profile.familyReferenceId
       )
 
-      let withdrawnCount = 0
-      let failedCount = 0
-
-      for (const activeProfile of activeProfiles) {
-        try {
-          await withdrawChild(
-            {
-              studentId: activeProfile.id,
-              reason,
-              reasonNote,
-              billingAdjustment: { type: 'keep_current' },
-            },
-            { skipLastChildGuard: true }
-          )
-          withdrawnCount++
-        } catch (error) {
-          failedCount++
-          if (error instanceof ActionError) {
-            await logWarning(logger, 'Expected failure in bulk withdrawal', {
-              studentId: activeProfile.id,
-              error: error.message,
-            })
-          } else {
-            await logError(
-              logger,
-              error,
-              'Unexpected failure in bulk withdrawal',
-              { studentId: activeProfile.id }
-            )
-          }
-        }
-      }
-
-      let effectiveBilling = billingAdjustment
-      if (failedCount > 0 && billingAdjustment.type === 'cancel_subscription') {
-        effectiveBilling = { type: 'auto_recalculate' }
-        await logWarning(
-          logger,
-          'Downgraded cancel_subscription to auto_recalculate due to partial failure',
-          {
-            familyReferenceId: profile.familyReferenceId,
-            withdrawnCount,
-            failedCount,
-          }
-        )
-      }
-
-      const billingResult = await applyBillingAdjustment(
-        studentId,
-        effectiveBilling,
-        preWithdrawalSubscription
-      )
-
-      await logInfo(logger, 'Bulk withdrawal completed', {
-        familyReferenceId: profile.familyReferenceId,
-        withdrawnCount,
-        failedCount,
-      })
-
       return {
-        withdrawnCount,
-        failedCount,
-        billingUpdated: billingResult.updated,
-        billingError:
-          billingResult.error ??
-          (failedCount > 0
-            ? `${failedCount} child(ren) could not be withdrawn`
-            : undefined),
+        childName: profile.person.name,
+        activeChildrenCount: activeCount,
+        currentAmount: subscription?.amount ?? null,
+        recalculatedAmount: calculateDugsiRate(afterWithdrawalCount),
+        isLastActiveChild: afterWithdrawalCount === 0,
+        hasActiveSubscription:
+          !!subscription &&
+          (subscription.status === 'active' ||
+            subscription.status === 'paused'),
+        isPaused: subscription?.status === 'paused',
       }
     }
   )
@@ -583,114 +456,70 @@ async function findFamilySubscription(familyReferenceId: string | null) {
   return assignment?.subscription ?? null
 }
 
-async function applyBillingAdjustment(
-  studentId: string,
-  billingAdjustment:
-    | WithdrawChildInput['billingAdjustment']
-    | ReEnrollChildInput['billingAdjustment'],
-  fallbackSubscription?: Pick<
-    Subscription,
-    'id' | 'stripeSubscriptionId' | 'status' | 'amount'
-  > | null
+async function cancelAndDeactivateSubscription(
+  subscription: { id: string; stripeSubscriptionId: string },
+  operation: string
 ): Promise<{ updated: boolean; error?: string }> {
-  const profile = await prisma.programProfile.findUnique({
-    where: { id: studentId },
-    select: { familyReferenceId: true },
-  })
+  const stripe = getDugsiStripeClient()
+  await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
 
-  const queriedSubscription = await findFamilySubscription(
-    profile?.familyReferenceId ?? null
-  )
-  const subscription = queriedSubscription ?? fallbackSubscription ?? null
-
-  if (!queriedSubscription && fallbackSubscription) {
-    await logWarning(logger, 'Using pre-transaction subscription fallback', {
-      studentId,
-      subscriptionId: fallbackSubscription.stripeSubscriptionId,
+  try {
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: { status: 'canceled' },
     })
+    await prisma.billingAssignment.updateMany({
+      where: { subscriptionId: subscription.id, isActive: true },
+      data: { isActive: false, endDate: new Date() },
+    })
+  } catch (dbError) {
+    await logError(
+      logger,
+      dbError,
+      'CRITICAL: Stripe subscription canceled but DB update failed - states diverged',
+      { stripeSubscriptionId: subscription.stripeSubscriptionId, operation }
+    )
+    throw dbError
   }
+  return { updated: true }
+}
+
+async function applyBillingAdjustment(params: {
+  familyReferenceId: string | null
+  billingAdjustmentType: 'auto_recalculate' | 'cancel_subscription'
+  subscription: { id: string; stripeSubscriptionId: string } | null
+}): Promise<{ updated: boolean; error?: string }> {
+  const { familyReferenceId, billingAdjustmentType, subscription } = params
 
   if (!subscription) {
-    if (billingAdjustment.type === 'cancel_subscription') {
+    if (billingAdjustmentType === 'cancel_subscription') {
       return { updated: false, error: 'No active subscription to cancel' }
     }
     return { updated: true }
   }
 
   try {
-    const stripe = getDugsiStripeClient()
-
-    if (billingAdjustment.type === 'keep_current') {
-      return { updated: true }
+    if (billingAdjustmentType === 'cancel_subscription') {
+      return await cancelAndDeactivateSubscription(
+        subscription,
+        'cancel_subscription'
+      )
     }
 
-    if (billingAdjustment.type === 'cancel_subscription') {
-      await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
-      try {
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { status: 'canceled' },
-        })
-        await prisma.billingAssignment.updateMany({
-          where: { subscriptionId: subscription.id, isActive: true },
-          data: { isActive: false, endDate: new Date() },
-        })
-      } catch (dbError) {
-        await logError(
-          logger,
-          dbError,
-          'CRITICAL: Stripe subscription canceled but DB update failed - states diverged',
-          {
-            stripeSubscriptionId: subscription.stripeSubscriptionId,
-            operation: 'cancel_subscription',
-          }
-        )
-        throw dbError
-      }
-      return { updated: true }
-    }
-
-    let newAmount: number
-    if (billingAdjustment.type === 'custom') {
-      newAmount = billingAdjustment.amount
-    } else {
-      const activeCount = await prisma.programProfile.count({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: profile?.familyReferenceId,
-          status: { in: ['REGISTERED', 'ENROLLED'] },
-        },
-      })
-      newAmount = calculateDugsiRate(activeCount)
-    }
+    const activeCount = await prisma.programProfile.count({
+      where: {
+        program: DUGSI_PROGRAM,
+        familyReferenceId,
+        status: { in: ['REGISTERED', 'ENROLLED'] },
+      },
+    })
+    const newAmount = calculateDugsiRate(activeCount)
 
     if (newAmount <= 0) {
-      if (billingAdjustment.type === 'auto_recalculate') {
-        await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
-        try {
-          await prisma.subscription.update({
-            where: { id: subscription.id },
-            data: { status: 'canceled' },
-          })
-          await prisma.billingAssignment.updateMany({
-            where: { subscriptionId: subscription.id, isActive: true },
-            data: { isActive: false, endDate: new Date() },
-          })
-        } catch (dbError) {
-          await logError(
-            logger,
-            dbError,
-            'CRITICAL: Stripe subscription canceled but DB update failed - states diverged',
-            {
-              stripeSubscriptionId: subscription.stripeSubscriptionId,
-              operation: 'auto_recalculate_cancel',
-            }
-          )
-          throw dbError
-        }
-        return { updated: true }
-      }
-      return { updated: false, error: 'Calculated amount is zero or negative' }
+      return await cancelAndDeactivateSubscription(
+        subscription,
+        'auto_recalculate_cancel'
+      )
     }
 
     const { productId } = getDugsiKeys()
@@ -698,6 +527,7 @@ async function applyBillingAdjustment(
       return { updated: false, error: 'Stripe product ID not configured' }
     }
 
+    const stripe = getDugsiStripeClient()
     const stripeSub = await stripe.subscriptions.retrieve(
       subscription.stripeSubscriptionId
     )

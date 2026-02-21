@@ -49,11 +49,6 @@ export const DugsiRegistrationFiltersSchema = z.object({
 
 const BillingAdjustmentSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('auto_recalculate') }),
-  z.object({ type: z.literal('keep_current') }),
-  z.object({
-    type: z.literal('custom'),
-    amount: z.number().int().positive('Custom amount must be positive'),
-  }),
   z.object({ type: z.literal('cancel_subscription') }),
 ])
 
@@ -70,31 +65,12 @@ export const WithdrawChildSchema = z.object({
   billingAdjustment: BillingAdjustmentSchema,
 })
 
-const ReEnrollBillingAdjustmentSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('auto_recalculate') }),
-  z.object({ type: z.literal('keep_current') }),
-  z.object({
-    type: z.literal('custom'),
-    amount: z.number().int().positive('Custom amount must be positive'),
-  }),
-])
-
 export const ReEnrollChildSchema = z.object({
   studentId: z.string().min(1, 'Student ID is required'),
-  billingAdjustment: ReEnrollBillingAdjustmentSchema,
 })
 
-export const WithdrawAllChildrenSchema = z.object({
+export const GetWithdrawPreviewSchema = z.object({
   studentId: z.string().min(1, 'Student ID is required'),
-  reason: z.enum([
-    'family_moved',
-    'financial',
-    'behavioral',
-    'seasonal_break',
-    'other',
-  ]),
-  reasonNote: z.string().max(500).optional(),
-  billingAdjustment: BillingAdjustmentSchema,
 })
 
 export const PauseFamilyBillingSchema = z.object({
@@ -115,4 +91,3 @@ export type DugsiRegistrationFilters = z.infer<
 >
 export type WithdrawChildInput = z.infer<typeof WithdrawChildSchema>
 export type ReEnrollChildInput = z.infer<typeof ReEnrollChildSchema>
-export type WithdrawAllChildrenInput = z.infer<typeof WithdrawAllChildrenSchema>

@@ -30,7 +30,7 @@ import { WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 import { useActionHandler } from '../../_hooks/use-action-handler'
 import {
   getDeleteFamilyPreview,
-  withdrawAllChildrenAction,
+  withdrawAllFamilyChildrenAction,
 } from '../../actions'
 
 interface DeleteFamilyDialogProps {
@@ -62,7 +62,7 @@ export function DeleteFamilyDialog({
   const [reasonNote, setReasonNote] = useState('')
 
   const { execute: executeWithdrawAll, isPending } = useActionHandler(
-    withdrawAllChildrenAction,
+    withdrawAllFamilyChildrenAction,
     {
       onSuccess: () => {
         onOpenChange(false)
@@ -108,7 +108,6 @@ export function DeleteFamilyDialog({
       studentId,
       reason,
       reasonNote: reasonNote || undefined,
-      billingAdjustment: { type: 'cancel_subscription' },
     })
   }
 

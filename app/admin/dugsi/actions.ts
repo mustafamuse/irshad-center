@@ -58,13 +58,11 @@ import {
   withdrawChild as withdrawChildService,
   reEnrollChild as reEnrollChildService,
   getWithdrawPreview as getWithdrawPreviewService,
-  withdrawAllChildren as withdrawAllChildrenService,
   pauseFamilyBilling as pauseFamilyBillingService,
   resumeFamilyBilling as resumeFamilyBillingService,
   type WithdrawPreview,
   type WithdrawResult,
   type ReEnrollResult,
-  type WithdrawAllResult,
 } from '@/lib/services/dugsi'
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
@@ -74,7 +72,7 @@ import {
   UpdateFamilyShiftSchema,
   WithdrawChildSchema,
   ReEnrollChildSchema,
-  WithdrawAllChildrenSchema,
+  GetWithdrawPreviewSchema,
   PauseFamilyBillingSchema,
   ResumeFamilyBillingSchema,
   type UpdateFamilyShiftInput,
@@ -1662,7 +1660,7 @@ export async function consolidateDugsiSubscription(input: {
 export async function getWithdrawChildPreviewAction(
   rawInput: unknown
 ): Promise<ActionResult<WithdrawPreview>> {
-  const parsed = z.object({ studentId: z.string().min(1) }).safeParse(rawInput)
+  const parsed = GetWithdrawPreviewSchema.safeParse(rawInput)
   if (!parsed.success) {
     return {
       success: false,
@@ -1830,10 +1828,23 @@ export async function resumeFamilyBillingAction(
   }
 }
 
-export async function withdrawAllChildrenAction(
+export async function withdrawAllFamilyChildrenAction(
   rawInput: unknown
-): Promise<ActionResult<WithdrawAllResult>> {
-  const parsed = WithdrawAllChildrenSchema.safeParse(rawInput)
+): Promise<ActionResult<{ withdrawnCount: number; failedCount: number }>> {
+  const parsed = z
+    .object({
+      studentId: z.string().min(1),
+      reason: z.enum([
+        'family_moved',
+        'financial',
+        'behavioral',
+        'seasonal_break',
+        'other',
+      ]),
+      reasonNote: z.string().max(500).optional(),
+    })
+    .safeParse(rawInput)
+
   if (!parsed.success) {
     return {
       success: false,
@@ -1842,29 +1853,53 @@ export async function withdrawAllChildrenAction(
   }
 
   try {
-    const result = await withdrawAllChildrenService(parsed.data)
+    const preview = await getDeleteFamilyPreviewService(parsed.data.studentId)
+    if (preview.count === 0) {
+      return { success: false, error: 'No active children to withdraw' }
+    }
+
+    let withdrawnCount = 0
+    let failedCount = 0
+
+    for (const student of preview.students) {
+      try {
+        await withdrawChildService({
+          studentId: student.id,
+          reason: parsed.data.reason,
+          reasonNote: parsed.data.reasonNote,
+          billingAdjustment: { type: 'auto_recalculate' },
+        })
+        withdrawnCount++
+      } catch (error) {
+        failedCount++
+        if (error instanceof ActionError) {
+          await logError(logger, error, 'Expected failure in bulk withdrawal', {
+            studentId: student.id,
+          })
+        } else {
+          await logError(
+            logger,
+            error,
+            'Unexpected failure in bulk withdrawal',
+            {
+              studentId: student.id,
+            }
+          )
+        }
+      }
+    }
+
     revalidatePath('/admin/dugsi')
-
-    await logInfo(logger, 'All children withdrawn', {
-      studentId: parsed.data.studentId,
-      withdrawnCount: result.withdrawnCount,
-      failedCount: result.failedCount,
-    })
-
-    const parts = [`${result.withdrawnCount} child(ren) withdrawn`]
-    if (result.failedCount > 0) {
-      parts.push(`${result.failedCount} failed`)
-    }
-    if (result.billingError) {
-      parts.push(result.billingError)
-    }
-
-    return { success: true, data: result, message: parts.join('. ') }
+    const message =
+      failedCount > 0
+        ? `${withdrawnCount} child(ren) withdrawn, ${failedCount} failed`
+        : `${withdrawnCount} child(ren) withdrawn`
+    return { success: true, data: { withdrawnCount, failedCount }, message }
   } catch (error) {
     if (error instanceof ActionError) {
       return { success: false, error: error.message }
     }
-    await logError(logger, error, 'Failed to withdraw all children', {
+    await logError(logger, error, 'Failed to withdraw all family children', {
       studentId: parsed.data.studentId,
     })
     return {

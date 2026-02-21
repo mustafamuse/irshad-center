@@ -14,7 +14,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
@@ -36,12 +35,6 @@ import {
   withdrawChildAction,
 } from '../../actions'
 
-type BillingAdjustment =
-  | { type: 'auto_recalculate' }
-  | { type: 'keep_current' }
-  | { type: 'custom'; amount: number }
-  | { type: 'cancel_subscription' }
-
 interface WithdrawChildDialogProps {
   studentId: string
   open: boolean
@@ -61,7 +54,6 @@ export function WithdrawChildDialog({
   const [reason, setReason] = useState<string>('')
   const [reasonNote, setReasonNote] = useState('')
   const [billingType, setBillingType] = useState<string>('auto_recalculate')
-  const [customAmount, setCustomAmount] = useState('')
 
   const { execute: executeWithdraw, isPending } = useActionHandler(
     withdrawChildAction,
@@ -99,39 +91,16 @@ export function WithdrawChildDialog({
       setReason('')
       setReasonNote('')
       setBillingType('auto_recalculate')
-      setCustomAmount('')
     }
   }, [open])
-
-  useEffect(() => {
-    if (
-      preview?.isLastActiveChild &&
-      (billingType === 'keep_current' || billingType === 'custom')
-    ) {
-      setBillingType('auto_recalculate')
-    }
-  }, [preview?.isLastActiveChild, billingType])
 
   const handleSubmit = () => {
     if (!reason) return
 
-    let billingAdjustment: BillingAdjustment
-    switch (billingType) {
-      case 'keep_current':
-        billingAdjustment = { type: 'keep_current' }
-        break
-      case 'custom':
-        billingAdjustment = {
-          type: 'custom',
-          amount: Math.round(parseFloat(customAmount) * 100),
-        }
-        break
-      case 'cancel_subscription':
-        billingAdjustment = { type: 'cancel_subscription' }
-        break
-      default:
-        billingAdjustment = { type: 'auto_recalculate' }
-    }
+    const billingAdjustment =
+      preview?.isLastActiveChild && billingType === 'cancel_subscription'
+        ? { type: 'cancel_subscription' as const }
+        : { type: 'auto_recalculate' as const }
 
     executeWithdraw({
       studentId,
@@ -140,12 +109,6 @@ export function WithdrawChildDialog({
       billingAdjustment,
     })
   }
-
-  const isCustomInvalid =
-    billingType === 'custom' &&
-    (customAmount === '' ||
-      isNaN(parseFloat(customAmount)) ||
-      parseFloat(customAmount) <= 0)
 
   const remainingChildren = preview ? preview.activeChildrenCount - 1 : 0
 
@@ -207,94 +170,44 @@ export function WithdrawChildDialog({
                       </div>
                     )}
 
-                    {preview.hasActiveSubscription && (
-                      <div className="space-y-2">
-                        <Label>Billing adjustment</Label>
-                        <RadioGroup
-                          value={billingType}
-                          onValueChange={setBillingType}
-                          className="space-y-2"
-                        >
-                          <div className="flex items-start space-x-2">
-                            <RadioGroupItem
-                              value="auto_recalculate"
-                              id="auto_recalculate"
-                            />
-                            <div className="grid gap-0.5">
-                              <Label
-                                htmlFor="auto_recalculate"
-                                className="font-normal"
-                              >
-                                Auto-recalculate
-                              </Label>
-                              <p className="text-xs text-muted-foreground">
-                                New rate:{' '}
-                                {formatRate(preview.recalculatedAmount)}
-                                /mo for {remainingChildren}{' '}
-                                {remainingChildren === 1 ? 'child' : 'children'}
-                              </p>
+                    {preview.hasActiveSubscription &&
+                      !preview.isLastActiveChild && (
+                        <p className="text-sm text-muted-foreground">
+                          Billing will be auto-recalculated to{' '}
+                          {formatRate(preview.recalculatedAmount)}/mo for{' '}
+                          {remainingChildren}{' '}
+                          {remainingChildren === 1 ? 'child' : 'children'}.
+                        </p>
+                      )}
+
+                    {preview.hasActiveSubscription &&
+                      preview.isLastActiveChild && (
+                        <div className="space-y-2">
+                          <Label>Billing adjustment</Label>
+                          <RadioGroup
+                            value={billingType}
+                            onValueChange={setBillingType}
+                            className="space-y-2"
+                          >
+                            <div className="flex items-start space-x-2">
+                              <RadioGroupItem
+                                value="auto_recalculate"
+                                id="auto_recalculate"
+                              />
+                              <div className="grid gap-0.5">
+                                <Label
+                                  htmlFor="auto_recalculate"
+                                  className="font-normal"
+                                >
+                                  Auto-recalculate
+                                </Label>
+                                <p className="text-xs text-muted-foreground">
+                                  Subscription will be canceled (no remaining
+                                  children)
+                                </p>
+                              </div>
                             </div>
-                          </div>
 
-                          {!preview.isLastActiveChild && (
-                            <>
-                              <div className="flex items-start space-x-2">
-                                <RadioGroupItem
-                                  value="keep_current"
-                                  id="keep_current"
-                                />
-                                <div className="grid gap-0.5">
-                                  <Label
-                                    htmlFor="keep_current"
-                                    className="font-normal"
-                                  >
-                                    Keep current
-                                  </Label>
-                                  {preview.currentAmount !== null && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Keep {formatRate(preview.currentAmount)}
-                                      /mo unchanged
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-start space-x-2">
-                                <RadioGroupItem value="custom" id="custom" />
-                                <div className="grid gap-0.5">
-                                  <Label
-                                    htmlFor="custom"
-                                    className="font-normal"
-                                  >
-                                    Custom amount
-                                  </Label>
-                                  {billingType === 'custom' && (
-                                    <div className="flex items-center gap-1.5 pt-1">
-                                      <span className="text-sm text-muted-foreground">
-                                        $
-                                      </span>
-                                      <Input
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        value={customAmount}
-                                        onChange={(e) =>
-                                          setCustomAmount(e.target.value)
-                                        }
-                                        className="h-8 w-28"
-                                        placeholder="0.00"
-                                      />
-                                      <span className="text-xs text-muted-foreground">
-                                        /mo
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </>
-                          )}
-
-                          {preview.isLastActiveChild && (
                             <div className="flex items-start space-x-2">
                               <RadioGroupItem
                                 value="cancel_subscription"
@@ -313,10 +226,9 @@ export function WithdrawChildDialog({
                                 </p>
                               </div>
                             </div>
-                          )}
-                        </RadioGroup>
-                      </div>
-                    )}
+                          </RadioGroup>
+                        </div>
+                      )}
                   </div>
                 </>
               )}
@@ -328,13 +240,7 @@ export function WithdrawChildDialog({
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleSubmit}
-            disabled={
-              isPending ||
-              isLoadingPreview ||
-              !reason ||
-              !preview ||
-              isCustomInvalid
-            }
+            disabled={isPending || isLoadingPreview || !reason || !preview}
             className="bg-red-600 hover:bg-red-700"
           >
             {isPending ? 'Withdrawing...' : 'Withdraw'}

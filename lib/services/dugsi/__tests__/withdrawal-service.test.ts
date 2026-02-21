@@ -2,7 +2,6 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockProgramProfileFindUnique,
-  mockProgramProfileFindMany,
   mockProgramProfileCount,
   mockProgramProfileCountTx,
   mockProgramProfileUpdate,
@@ -17,7 +16,6 @@ const {
   mockTransaction,
 } = vi.hoisted(() => {
   const mockProgramProfileFindUnique = vi.fn()
-  const mockProgramProfileFindMany = vi.fn()
   const mockProgramProfileCount = vi.fn()
   const mockProgramProfileCountTx = vi.fn()
   const mockProgramProfileUpdate = vi.fn()
@@ -54,7 +52,6 @@ const {
 
   return {
     mockProgramProfileFindUnique,
-    mockProgramProfileFindMany,
     mockProgramProfileCount,
     mockProgramProfileCountTx,
     mockProgramProfileUpdate,
@@ -74,7 +71,6 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     programProfile: {
       findUnique: (...args: unknown[]) => mockProgramProfileFindUnique(...args),
-      findMany: (...args: unknown[]) => mockProgramProfileFindMany(...args),
       count: (...args: unknown[]) => mockProgramProfileCount(...args),
     },
     enrollment: {
@@ -142,11 +138,10 @@ vi.mock('@/lib/utils/dugsi-tuition', () => ({
   calculateDugsiRate: vi.fn((count: number) => count * 8000),
 }))
 
-import { logError, logWarning } from '@/lib/logger'
+import { logError } from '@/lib/logger'
 
 import {
   withdrawChild,
-  withdrawAllChildren,
   reEnrollChild,
   getWithdrawPreview,
   pauseFamilyBilling,
@@ -209,12 +204,7 @@ describe('withdrawChild', () => {
 
   it('should set WITHDRAWN status, deactivate billing and class enrollment, close enrollment', async () => {
     const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(
-      makeSubscriptionAssignment()
-    )
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
     mockProgramProfileCount.mockResolvedValue(1)
 
     const result = await withdrawChild(baseWithdrawInput)
@@ -248,12 +238,7 @@ describe('withdrawChild', () => {
 
   it('should call stripe.subscriptions.update with recalculated amount for auto_recalculate', async () => {
     const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(
-      makeSubscriptionAssignment()
-    )
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
     mockProgramProfileCount.mockResolvedValue(2)
 
     const result = await withdrawChild(baseWithdrawInput)
@@ -275,62 +260,9 @@ describe('withdrawChild', () => {
     )
   })
 
-  it('should not call Stripe update for keep_current', async () => {
+  it('should cancel subscription for cancel_subscription', async () => {
     const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(
-      makeSubscriptionAssignment()
-    )
-    mockProgramProfileCount.mockResolvedValue(2)
-
-    const result = await withdrawChild({
-      ...baseWithdrawInput,
-      billingAdjustment: { type: 'keep_current' },
-    })
-
-    expect(result.billingUpdated).toBe(true)
-    expect(mockStripe.subscriptions.update).not.toHaveBeenCalled()
-    expect(mockStripe.subscriptions.retrieve).not.toHaveBeenCalled()
-  })
-
-  it('should call Stripe with custom amount for custom billing adjustment', async () => {
-    const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(
-      makeSubscriptionAssignment()
-    )
-    mockProgramProfileCount.mockResolvedValue(2)
-
-    const result = await withdrawChild({
-      ...baseWithdrawInput,
-      billingAdjustment: { type: 'custom', amount: 5000 },
-    })
-
-    expect(result.billingUpdated).toBe(true)
-    expect(mockStripe.subscriptions.update).toHaveBeenCalledWith(
-      'sub_stripe_1',
-      expect.objectContaining({
-        items: [
-          expect.objectContaining({
-            price_data: expect.objectContaining({ unit_amount: 5000 }),
-          }),
-        ],
-      })
-    )
-  })
-
-  it('should cancel subscription for cancel_subscription when last child', async () => {
-    const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(
-      makeSubscriptionAssignment()
-    )
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
 
     const result = await withdrawChild({
       ...baseWithdrawInput,
@@ -352,6 +284,18 @@ describe('withdrawChild', () => {
     )
   })
 
+  it('should auto-cancel when auto_recalculate yields 0 remaining children', async () => {
+    const profile = makeActiveProfile()
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+    mockProgramProfileCount.mockResolvedValue(0)
+
+    const result = await withdrawChild(baseWithdrawInput)
+
+    expect(result.billingUpdated).toBe(true)
+    expect(mockStripe.subscriptions.cancel).toHaveBeenCalledWith('sub_stripe_1')
+    expect(mockStripe.subscriptions.update).not.toHaveBeenCalled()
+  })
+
   it('should throw ALREADY_WITHDRAWN for already withdrawn student', async () => {
     const profile = makeActiveProfile({ status: 'WITHDRAWN' })
     mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
@@ -371,10 +315,7 @@ describe('withdrawChild', () => {
 
   it('should skip Stripe and return success when no active subscription', async () => {
     const profile = makeActiveProfile({ assignments: [] })
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
 
     const result = await withdrawChild(baseWithdrawInput)
 
@@ -385,12 +326,7 @@ describe('withdrawChild', () => {
 
   it('should return billingUpdated: false with error when Stripe fails', async () => {
     const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(
-      makeSubscriptionAssignment()
-    )
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
     mockProgramProfileCount.mockResolvedValue(2)
     mockStripe.subscriptions.retrieve.mockRejectedValue(
       new Error('Stripe API error')
@@ -411,9 +347,7 @@ describe('withdrawChild', () => {
 
   it('should store reason in Enrollment record', async () => {
     const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
     mockBillingAssignmentFindFirst.mockResolvedValue(null)
 
     await withdrawChild({
@@ -433,10 +367,7 @@ describe('withdrawChild', () => {
 
   it('should return billingUpdated: false when cancel_subscription and no subscription', async () => {
     const profile = makeActiveProfile({ assignments: [] })
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
 
     const result = await withdrawChild({
       ...baseWithdrawInput,
@@ -448,68 +379,10 @@ describe('withdrawChild', () => {
     expect(result.billingError).toContain('No active subscription')
   })
 
-  it('should log warning when using fallback subscription', async () => {
-    const profile = makeActiveProfile()
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(null)
-    mockProgramProfileCount.mockResolvedValue(2)
-
-    await withdrawChild({
-      ...baseWithdrawInput,
-      billingAdjustment: { type: 'keep_current' },
-    })
-
-    expect(logWarning).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('fallback'),
-      expect.objectContaining({
-        studentId: 'student-1',
-        subscriptionId: 'sub_stripe_1',
-      })
-    )
-  })
-
-  it('should throw INVALID_INPUT when using keep_current for last active child', async () => {
-    const profile = makeActiveProfile()
-    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
-    mockProgramProfileCount.mockResolvedValue(1)
-
-    await expect(
-      withdrawChild({
-        ...baseWithdrawInput,
-        billingAdjustment: { type: 'keep_current' },
-      })
-    ).rejects.toThrow(
-      'Cannot use "keep_current" when withdrawing the last active child'
-    )
-  })
-
-  it('should throw INVALID_INPUT when using custom for last active child', async () => {
-    const profile = makeActiveProfile()
-    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
-    mockProgramProfileCount.mockResolvedValue(1)
-
-    await expect(
-      withdrawChild({
-        ...baseWithdrawInput,
-        billingAdjustment: { type: 'custom', amount: 5000 },
-      })
-    ).rejects.toThrow(
-      'Cannot use "custom" when withdrawing the last active child'
-    )
-  })
-
   describe('applyBillingAdjustment Stripe/DB divergence', () => {
     it('should log CRITICAL when DB fails after Stripe cancel for cancel_subscription', async () => {
       const profile = makeActiveProfile()
-      mockProgramProfileFindUnique
-        .mockResolvedValueOnce(profile)
-        .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      mockBillingAssignmentFindFirst.mockResolvedValue(
-        makeSubscriptionAssignment()
-      )
+      mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
       mockSubscriptionUpdate.mockRejectedValueOnce(new Error('DB fail'))
 
       const result = await withdrawChild({
@@ -531,12 +404,7 @@ describe('withdrawChild', () => {
 
     it('should log CRITICAL when DB fails after Stripe cancel for auto_recalculate zero children', async () => {
       const profile = makeActiveProfile()
-      mockProgramProfileFindUnique
-        .mockResolvedValueOnce(profile)
-        .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      mockBillingAssignmentFindFirst.mockResolvedValue(
-        makeSubscriptionAssignment()
-      )
+      mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
       mockProgramProfileCount.mockResolvedValue(0)
       mockSubscriptionUpdate.mockRejectedValueOnce(new Error('DB fail'))
 
@@ -556,12 +424,7 @@ describe('withdrawChild', () => {
 
     it('should log CRITICAL when DB fails after Stripe amount update', async () => {
       const profile = makeActiveProfile()
-      mockProgramProfileFindUnique
-        .mockResolvedValueOnce(profile)
-        .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      mockBillingAssignmentFindFirst.mockResolvedValue(
-        makeSubscriptionAssignment()
-      )
+      mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
       mockProgramProfileCount.mockResolvedValue(2)
       mockSubscriptionUpdate.mockRejectedValueOnce(new Error('DB fail'))
 
@@ -595,19 +458,14 @@ describe('reEnrollChild', () => {
       status: 'WITHDRAWN',
       assignments: [],
     })
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
     mockProgramProfileCountTx.mockResolvedValue(2)
     mockProgramProfileCount.mockResolvedValue(3)
 
-    const result = await reEnrollChild({
-      studentId: 'student-1',
-      billingAdjustment: { type: 'auto_recalculate' },
-    })
+    const result = await reEnrollChild({ studentId: 'student-1' })
 
     expect(result.reEnrolled).toBe(true)
     expect(mockProgramProfileUpdate).toHaveBeenCalledWith(
@@ -626,69 +484,68 @@ describe('reEnrollChild', () => {
     )
   })
 
+  it('should always auto-recalculate billing via Stripe', async () => {
+    const profile = makeActiveProfile({
+      status: 'WITHDRAWN',
+      assignments: [],
+    })
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
+    mockProgramProfileCountTx.mockResolvedValue(1)
+    mockProgramProfileCount.mockResolvedValue(2)
+
+    const result = await reEnrollChild({ studentId: 'student-1' })
+
+    expect(result.billingUpdated).toBe(true)
+    expect(mockStripe.subscriptions.update).toHaveBeenCalledWith(
+      'sub_stripe_1',
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            price_data: expect.objectContaining({
+              unit_amount: 16000,
+            }),
+          }),
+        ],
+      })
+    )
+  })
+
   it('should throw NOT_WITHDRAWN when student is not withdrawn', async () => {
     const profile = makeActiveProfile({ status: 'ENROLLED' })
     mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
 
-    await expect(
-      reEnrollChild({
-        studentId: 'student-1',
-        billingAdjustment: { type: 'auto_recalculate' },
-      })
-    ).rejects.toThrow('Student is not withdrawn')
+    await expect(reEnrollChild({ studentId: 'student-1' })).rejects.toThrow(
+      'Student is not withdrawn'
+    )
   })
 
   it('should throw STUDENT_NOT_FOUND when student does not exist', async () => {
     mockProgramProfileFindUnique.mockResolvedValueOnce(null)
 
-    await expect(
-      reEnrollChild({
-        studentId: 'nonexistent',
-        billingAdjustment: { type: 'auto_recalculate' },
-      })
-    ).rejects.toThrow('Student not found')
+    await expect(reEnrollChild({ studentId: 'nonexistent' })).rejects.toThrow(
+      'Student not found'
+    )
   })
 
-  it('should succeed with keep_current when no family subscription', async () => {
+  it('should return billingUpdated: false with error when no subscription', async () => {
     const profile = makeActiveProfile({
       status: 'WITHDRAWN',
       assignments: [],
     })
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
     mockBillingAssignmentFindFirst.mockResolvedValue(null)
     mockProgramProfileCountTx.mockResolvedValue(0)
 
-    const result = await reEnrollChild({
-      studentId: 'student-1',
-      billingAdjustment: { type: 'keep_current' },
-    })
+    const result = await reEnrollChild({ studentId: 'student-1' })
 
     expect(result.reEnrolled).toBe(true)
-    expect(result.billingUpdated).toBe(true)
+    expect(result.billingUpdated).toBe(false)
+    expect(result.billingError).toContain('No active subscription')
     expect(mockBillingAssignmentCreate).not.toHaveBeenCalled()
     expect(mockStripe.subscriptions.update).not.toHaveBeenCalled()
-  })
-
-  it('should enroll without BillingAssignment when no family subscription', async () => {
-    const profile = makeActiveProfile({
-      status: 'WITHDRAWN',
-      assignments: [],
-    })
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst.mockResolvedValue(null)
-    mockProgramProfileCountTx.mockResolvedValue(0)
-
-    const result = await reEnrollChild({
-      studentId: 'student-1',
-      billingAdjustment: { type: 'auto_recalculate' },
-    })
-
-    expect(result.reEnrolled).toBe(true)
-    expect(mockBillingAssignmentCreate).not.toHaveBeenCalled()
   })
 
   it('should create BillingAssignment with calculated rate, not zero', async () => {
@@ -696,19 +553,14 @@ describe('reEnrollChild', () => {
       status: 'WITHDRAWN',
       assignments: [],
     })
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
     mockProgramProfileCountTx.mockResolvedValue(1)
     mockProgramProfileCount.mockResolvedValue(2)
 
-    await reEnrollChild({
-      studentId: 'student-1',
-      billingAdjustment: { type: 'auto_recalculate' },
-    })
+    await reEnrollChild({ studentId: 'student-1' })
 
     expect(mockBillingAssignmentCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -724,19 +576,14 @@ describe('reEnrollChild', () => {
       status: 'WITHDRAWN',
       assignments: [],
     })
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce(profile)
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockBillingAssignmentFindFirst
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
     mockProgramProfileCountTx.mockResolvedValue(2)
     mockProgramProfileCount.mockResolvedValue(3)
 
-    await reEnrollChild({
-      studentId: 'student-1',
-      billingAdjustment: { type: 'auto_recalculate' },
-    })
+    await reEnrollChild({ studentId: 'student-1' })
 
     expect(mockProgramProfileCountTx).toHaveBeenCalled()
     expect(mockProgramProfileCount).toHaveBeenCalled()
@@ -898,183 +745,5 @@ describe('getWithdrawPreview', () => {
 
     expect(preview.hasActiveSubscription).toBe(false)
     expect(preview.currentAmount).toBeNull()
-  })
-})
-
-describe('withdrawAllChildren', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockStripe.subscriptions.retrieve.mockResolvedValue({
-      items: { data: [{ id: 'si_item_1' }] },
-    })
-    mockStripe.subscriptions.update.mockResolvedValue({})
-    mockStripe.subscriptions.cancel.mockResolvedValue({})
-  })
-
-  it('should withdraw all active children and apply billing after loop', async () => {
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      .mockResolvedValueOnce(makeActiveProfile({ id: 'student-1' }))
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      .mockResolvedValueOnce(makeActiveProfile({ id: 'student-2' }))
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      .mockResolvedValueOnce(makeActiveProfile({ id: 'student-3' }))
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-
-    mockProgramProfileFindMany.mockResolvedValue([
-      { id: 'student-1' },
-      { id: 'student-2' },
-      { id: 'student-3' },
-    ])
-    mockBillingAssignmentFindFirst
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
-      .mockResolvedValue(null)
-
-    const result = await withdrawAllChildren({
-      studentId: 'student-1',
-      reason: 'family_moved',
-      billingAdjustment: { type: 'cancel_subscription' },
-    })
-
-    expect(result.withdrawnCount).toBe(3)
-    expect(result.failedCount).toBe(0)
-    expect(result.billingUpdated).toBe(true)
-    expect(mockStripe.subscriptions.cancel).toHaveBeenCalledWith('sub_stripe_1')
-  })
-
-  it('should handle partial failure and reflect counts', async () => {
-    let findUniqueCallCount = 0
-    mockProgramProfileFindUnique.mockImplementation(() => {
-      findUniqueCallCount++
-      if (findUniqueCallCount === 2) {
-        return Promise.resolve(makeActiveProfile({ id: 'student-1' }))
-      }
-      if (findUniqueCallCount === 4) {
-        return Promise.resolve(null)
-      }
-      return Promise.resolve({ familyReferenceId: 'family-1' })
-    })
-    mockProgramProfileFindMany.mockResolvedValue([
-      { id: 'student-1' },
-      { id: 'student-2' },
-    ])
-    mockBillingAssignmentFindFirst.mockResolvedValue(null)
-    mockProgramProfileCount.mockResolvedValue(1)
-
-    const result = await withdrawAllChildren({
-      studentId: 'student-1',
-      reason: 'family_moved',
-      billingAdjustment: { type: 'auto_recalculate' },
-    })
-
-    expect(result.withdrawnCount).toBe(1)
-    expect(result.failedCount).toBe(1)
-  })
-
-  it('should throw ALREADY_WITHDRAWN when no active children exist', async () => {
-    mockProgramProfileFindUnique.mockResolvedValue({
-      familyReferenceId: 'family-1',
-    })
-    mockProgramProfileFindMany.mockResolvedValue([])
-
-    await expect(
-      withdrawAllChildren({
-        studentId: 'student-1',
-        reason: 'family_moved',
-        billingAdjustment: { type: 'cancel_subscription' },
-      })
-    ).rejects.toThrow('No active children to withdraw')
-  })
-
-  it('should downgrade cancel_subscription to auto_recalculate on partial failure', async () => {
-    let findUniqueCallCount = 0
-    mockProgramProfileFindUnique.mockImplementation(() => {
-      findUniqueCallCount++
-      if (findUniqueCallCount === 2) {
-        return Promise.resolve(makeActiveProfile({ id: 'student-1' }))
-      }
-      if (findUniqueCallCount === 4) {
-        return Promise.resolve(null)
-      }
-      return Promise.resolve({ familyReferenceId: 'family-1' })
-    })
-    mockProgramProfileFindMany.mockResolvedValue([
-      { id: 'student-1' },
-      { id: 'student-2' },
-    ])
-    mockBillingAssignmentFindFirst
-      .mockResolvedValueOnce(makeSubscriptionAssignment())
-      .mockResolvedValue(null)
-    mockProgramProfileCount.mockResolvedValue(1)
-
-    const result = await withdrawAllChildren({
-      studentId: 'student-1',
-      reason: 'family_moved',
-      billingAdjustment: { type: 'cancel_subscription' },
-    })
-
-    expect(result.failedCount).toBe(1)
-    expect(result.withdrawnCount).toBe(1)
-    expect(logWarning).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('Downgraded cancel_subscription'),
-      expect.objectContaining({
-        familyReferenceId: 'family-1',
-        withdrawnCount: 1,
-        failedCount: 1,
-      })
-    )
-    expect(mockStripe.subscriptions.cancel).not.toHaveBeenCalled()
-  })
-
-  it('should use logWarning for ActionError in bulk withdrawal', async () => {
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      .mockResolvedValueOnce(makeActiveProfile({ status: 'WITHDRAWN' }))
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockProgramProfileFindMany.mockResolvedValue([{ id: 'student-1' }])
-    mockBillingAssignmentFindFirst.mockResolvedValue(null)
-    mockProgramProfileCount.mockResolvedValue(0)
-
-    const result = await withdrawAllChildren({
-      studentId: 'student-1',
-      reason: 'family_moved',
-      billingAdjustment: { type: 'cancel_subscription' },
-    })
-
-    expect(result.failedCount).toBe(1)
-    expect(logWarning).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('Expected failure'),
-      expect.objectContaining({ studentId: 'student-1' })
-    )
-  })
-
-  it('should use logError for unexpected errors in bulk withdrawal', async () => {
-    mockProgramProfileFindUnique
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-      .mockResolvedValueOnce(makeActiveProfile({ id: 'student-1' }))
-      .mockResolvedValueOnce({ familyReferenceId: 'family-1' })
-    mockProgramProfileFindMany.mockResolvedValue([{ id: 'student-1' }])
-    mockBillingAssignmentFindFirst.mockResolvedValue(null)
-    mockProgramProfileUpdate.mockRejectedValueOnce(
-      new Error('DB connection failed')
-    )
-    mockProgramProfileCount.mockResolvedValue(0)
-
-    const result = await withdrawAllChildren({
-      studentId: 'student-1',
-      reason: 'family_moved',
-      billingAdjustment: { type: 'cancel_subscription' },
-    })
-
-    expect(result.failedCount).toBe(1)
-    expect(logError).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.any(Error),
-      expect.stringContaining('Unexpected failure'),
-      expect.objectContaining({ studentId: 'student-1' })
-    )
   })
 })

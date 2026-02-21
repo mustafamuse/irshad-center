@@ -1,7 +1,5 @@
 'use client'
 
-import { useRef } from 'react'
-
 import { Shift } from '@prisma/client'
 import {
   CreditCard,
@@ -13,7 +11,7 @@ import {
   ShieldCheck,
   Loader2,
   Link,
-  Trash2,
+  UserX,
   User,
   Receipt,
   Clock,
@@ -80,10 +78,6 @@ export function FamilyDetailSheet({
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
   const { state, actions } = useSheetState()
-  const pendingShiftRef = useRef<{
-    newShift: Shift
-    previousShift: Shift | null
-  } | null>(null)
 
   const { execute: executeUpdateFamilyShift, isPending: isUpdatingShift } =
     useActionHandler(updateFamilyShift, {
@@ -91,11 +85,9 @@ export function FamilyDetailSheet({
       onSuccess: () => {
         actions.setShiftPopover(false)
         actions.setPendingShift(null)
-        pendingShiftRef.current = null
       },
       onError: () => {
         actions.setPendingShift(null)
-        pendingShiftRef.current = null
       },
     })
 
@@ -133,9 +125,7 @@ export function FamilyDetailSheet({
     }
 
     const previousShift = firstMember.shift
-    const shiftData = { newShift: shift, previousShift }
-    pendingShiftRef.current = shiftData
-    actions.setPendingShift(shiftData)
+    actions.setPendingShift({ newShift: shift, previousShift })
 
     await executeUpdateFamilyShift({
       familyReferenceId: firstMember.familyReferenceId,
@@ -373,7 +363,7 @@ export function FamilyDetailSheet({
                 className="text-red-600 focus:text-red-600"
                 onClick={() => actions.setDeleteFamilyDialog(true)}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
+                <UserX className="mr-2 h-4 w-4" />
                 Withdraw All
               </DropdownMenuItem>
             </DropdownMenuContent>
