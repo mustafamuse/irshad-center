@@ -428,7 +428,6 @@ export function FamilyDetailSheet({
 
       {state.withdrawFamilyDialog && (
         <WithdrawFamilyDialog
-          studentId={firstMember.id}
           familyReferenceId={firstMember.familyReferenceId!}
           familyName={getSheetTitle()}
           hasActiveSubscription={

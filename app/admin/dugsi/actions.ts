@@ -57,6 +57,7 @@ import {
   // Withdrawal service
   withdrawChild as withdrawChildService,
   withdrawFamily as withdrawFamilyService,
+  getWithdrawFamilyPreview as getWithdrawFamilyPreviewService,
   reEnrollChild as reEnrollChildService,
   getWithdrawPreview as getWithdrawPreviewService,
   pauseFamilyBilling as pauseFamilyBillingService,
@@ -1815,6 +1816,38 @@ export async function resumeFamilyBillingAction(
       success: false,
       error:
         error instanceof Error ? error.message : 'Failed to resume billing',
+    }
+  }
+}
+
+export async function getWithdrawFamilyPreviewAction(
+  rawInput: unknown
+): Promise<
+  ActionResult<{
+    count: number
+    students: Array<{ id: string; name: string }>
+  }>
+> {
+  const parsed = z
+    .object({ familyReferenceId: z.string().min(1) })
+    .safeParse(rawInput)
+
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid input' }
+  }
+
+  try {
+    const preview = await getWithdrawFamilyPreviewService(
+      parsed.data.familyReferenceId
+    )
+    return { success: true, data: preview }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get withdraw family preview', {
+      familyReferenceId: parsed.data.familyReferenceId,
+    })
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to load preview',
     }
   }
 }

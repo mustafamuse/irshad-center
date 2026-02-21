@@ -159,6 +159,29 @@ export async function withdrawChild(
 // WITHDRAW FAMILY (BATCH)
 // ============================================================================
 
+export interface WithdrawFamilyPreviewResult {
+  count: number
+  students: Array<{ id: string; name: string }>
+}
+
+export async function getWithdrawFamilyPreview(
+  familyReferenceId: string
+): Promise<WithdrawFamilyPreviewResult> {
+  const activeProfiles = await prisma.programProfile.findMany({
+    where: {
+      familyReferenceId,
+      program: DUGSI_PROGRAM,
+      status: { in: ['REGISTERED', 'ENROLLED'] },
+    },
+    include: { person: { select: { name: true } } },
+  })
+
+  return {
+    count: activeProfiles.length,
+    students: activeProfiles.map((p) => ({ id: p.id, name: p.person.name })),
+  }
+}
+
 export async function withdrawFamily(
   input: WithdrawFamilyInput
 ): Promise<WithdrawFamilyResult> {
@@ -585,14 +608,16 @@ async function cancelAndDeactivateSubscription(
   await stripe.subscriptions.cancel(subscription.stripeSubscriptionId)
 
   try {
-    await prisma.subscription.update({
-      where: { id: subscription.id },
-      data: { status: 'canceled' },
-    })
-    await prisma.billingAssignment.updateMany({
-      where: { subscriptionId: subscription.id, isActive: true },
-      data: { isActive: false, endDate: new Date() },
-    })
+    await prisma.$transaction([
+      prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { status: 'canceled' },
+      }),
+      prisma.billingAssignment.updateMany({
+        where: { subscriptionId: subscription.id, isActive: true },
+        data: { isActive: false, endDate: new Date() },
+      }),
+    ])
   } catch (dbError) {
     await logError(
       logger,
@@ -600,7 +625,10 @@ async function cancelAndDeactivateSubscription(
       'CRITICAL: Stripe subscription canceled but DB update failed - states diverged',
       { stripeSubscriptionId: subscription.stripeSubscriptionId, operation }
     )
-    throw dbError
+    return {
+      updated: false,
+      error: `Stripe canceled but DB update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
+    }
   }
   return { updated: true }
 }

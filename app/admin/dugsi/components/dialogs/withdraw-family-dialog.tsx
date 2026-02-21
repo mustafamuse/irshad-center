@@ -30,12 +30,11 @@ import { WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 import { useActionHandler } from '../../_hooks/use-action-handler'
 import { usePreviewDialog } from '../../_hooks/use-preview-dialog'
 import {
-  getDeleteFamilyPreview,
+  getWithdrawFamilyPreviewAction,
   withdrawAllFamilyChildrenAction,
 } from '../../actions'
 
 interface WithdrawFamilyDialogProps {
-  studentId: string
   familyReferenceId: string
   familyName: string
   hasActiveSubscription: boolean
@@ -46,11 +45,10 @@ interface WithdrawFamilyDialogProps {
 
 interface WithdrawFamilyPreview {
   count: number
-  students: Array<{ id: string; name: string; parentEmail: string | null }>
+  students: Array<{ id: string; name: string }>
 }
 
 export function WithdrawFamilyDialog({
-  studentId,
   familyReferenceId,
   familyName,
   hasActiveSubscription,
@@ -59,8 +57,8 @@ export function WithdrawFamilyDialog({
   onSuccess,
 }: WithdrawFamilyDialogProps) {
   const fetchPreview = useCallback(
-    () => getDeleteFamilyPreview(studentId),
-    [studentId]
+    () => getWithdrawFamilyPreviewAction({ familyReferenceId }),
+    [familyReferenceId]
   )
   const {
     preview,

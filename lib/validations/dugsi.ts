@@ -7,7 +7,7 @@
 import { Shift } from '@prisma/client'
 import { z } from 'zod'
 
-import { SHIFT_FILTER_ALL } from '@/lib/constants/dugsi'
+import { SHIFT_FILTER_ALL, WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 
 // ============================================================================
 // FAMILY SHIFT VALIDATION
@@ -52,28 +52,22 @@ const BillingAdjustmentSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('cancel_subscription') }),
 ])
 
+const withdrawalReasonValues = WITHDRAWAL_REASONS.map((r) => r.value) as [
+  string,
+  ...string[],
+]
+const WithdrawalReasonSchema = z.enum(withdrawalReasonValues)
+
 export const WithdrawChildSchema = z.object({
   studentId: z.string().min(1, 'Student ID is required'),
-  reason: z.enum([
-    'family_moved',
-    'financial',
-    'behavioral',
-    'seasonal_break',
-    'other',
-  ]),
+  reason: WithdrawalReasonSchema,
   reasonNote: z.string().max(500).optional(),
   billingAdjustment: BillingAdjustmentSchema,
 })
 
 export const WithdrawFamilySchema = z.object({
   familyReferenceId: z.string().min(1, 'Family reference ID is required'),
-  reason: z.enum([
-    'family_moved',
-    'financial',
-    'behavioral',
-    'seasonal_break',
-    'other',
-  ]),
+  reason: WithdrawalReasonSchema,
   reasonNote: z.string().max(500).optional(),
 })
 

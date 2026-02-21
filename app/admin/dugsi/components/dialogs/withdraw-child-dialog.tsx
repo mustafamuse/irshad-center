@@ -61,7 +61,9 @@ export function WithdrawChildDialog({
 
   const [reason, setReason] = useState<string>('')
   const [reasonNote, setReasonNote] = useState('')
-  const [billingType, setBillingType] = useState<string>('auto_recalculate')
+  const [billingType, setBillingType] = useState<
+    'auto_recalculate' | 'cancel_subscription'
+  >('auto_recalculate')
 
   useEffect(() => {
     if (!open) {
@@ -173,7 +175,11 @@ export function WithdrawChildDialog({
                           <Label>Billing adjustment</Label>
                           <RadioGroup
                             value={billingType}
-                            onValueChange={setBillingType}
+                            onValueChange={(v) =>
+                              setBillingType(
+                                v as 'auto_recalculate' | 'cancel_subscription'
+                              )
+                            }
                             className="space-y-2"
                           >
                             <div className="flex items-start space-x-2">

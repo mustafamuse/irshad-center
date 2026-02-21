@@ -247,7 +247,6 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
       {/* Withdraw Family Dialog */}
       {withdrawDialogFamily && (
         <WithdrawFamilyDialog
-          studentId={withdrawDialogFamily.members[0]?.id || ''}
           familyReferenceId={
             withdrawDialogFamily.members[0]?.familyReferenceId || ''
           }

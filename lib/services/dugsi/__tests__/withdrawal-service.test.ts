@@ -54,7 +54,12 @@ const {
   }
 
   const mockTransaction = vi.fn(
-    async (fn: (tx: typeof tx) => Promise<unknown>) => fn(tx)
+    async (fnOrArray: ((tx: typeof tx) => Promise<unknown>) | unknown[]) => {
+      if (Array.isArray(fnOrArray)) {
+        return Promise.all(fnOrArray)
+      }
+      return fnOrArray(tx)
+    }
   )
 
   return {
