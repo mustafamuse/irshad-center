@@ -28,10 +28,14 @@ export function useFamilyStats(families: Family[]) {
       active: families.filter((f) => f.hasSubscription).length,
       churned: families.filter((f) => f.hasChurned && !f.hasSubscription)
         .length,
-      paused: families.filter((f) =>
-        f.members.some((m) => m.subscriptionStatus === 'paused')
+      paused: families.filter(
+        (f) =>
+          getActiveMemberCount(f) > 0 &&
+          f.members.some((m) => m.subscriptionStatus === 'paused')
       ).length,
-      inactive: families.filter((f) => getActiveMemberCount(f) === 0).length,
+      inactive: families.filter(
+        (f) => getActiveMemberCount(f) === 0 && !f.hasChurned
+      ).length,
       needsAttention: families.filter((f) => !f.hasPayment && !f.hasChurned)
         .length,
       billingMismatch: families.filter(

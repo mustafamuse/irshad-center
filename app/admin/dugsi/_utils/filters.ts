@@ -187,11 +187,15 @@ export function filterFamiliesByTab(
     case 'needs-attention':
       return families.filter((f) => !f.hasPayment && !f.hasChurned)
     case 'paused':
-      return families.filter((f) =>
-        f.members.some((m) => m.subscriptionStatus === 'paused')
+      return families.filter(
+        (f) =>
+          getActiveMemberCount(f) > 0 &&
+          f.members.some((m) => m.subscriptionStatus === 'paused')
       )
     case 'inactive':
-      return families.filter((f) => getActiveMemberCount(f) === 0)
+      return families.filter(
+        (f) => getActiveMemberCount(f) === 0 && !f.hasChurned
+      )
     case 'billing-mismatch':
       return families.filter(
         (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))
