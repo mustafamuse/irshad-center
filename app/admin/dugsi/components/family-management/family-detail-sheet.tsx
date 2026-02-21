@@ -361,6 +361,7 @@ export function FamilyDetailSheet({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600"
+                disabled={!firstMember.familyReferenceId}
                 onClick={() => actions.setWithdrawFamilyDialog(true)}
               >
                 <UserX className="mr-2 h-4 w-4" />

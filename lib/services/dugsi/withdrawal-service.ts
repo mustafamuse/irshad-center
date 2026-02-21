@@ -385,7 +385,6 @@ export async function reEnrollChild(
         return {
           reEnrolled: true,
           billingUpdated: false,
-          billingError: 'No active subscription to update',
         }
       }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  GetWithdrawFamilyPreviewSchema,
   PauseFamilyBillingSchema,
   ReEnrollChildSchema,
   ResumeFamilyBillingSchema,
@@ -115,6 +116,17 @@ describe('WithdrawFamilySchema', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects non-UUID familyReferenceId', () => {
+    const result = WithdrawFamilySchema.safeParse({
+      ...validInput,
+      familyReferenceId: 'family-ref-456',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0].message).toBe(
+      'Invalid family reference ID format'
+    )
+  })
+
   it('rejects invalid reason', () => {
     const result = WithdrawFamilySchema.safeParse({
       ...validInput,
@@ -139,6 +151,32 @@ describe('ReEnrollChildSchema', () => {
 
   it('rejects missing studentId', () => {
     const result = ReEnrollChildSchema.safeParse({})
+    expect(result.success).toBe(false)
+  })
+})
+
+describe('GetWithdrawFamilyPreviewSchema', () => {
+  it('accepts a valid UUID', () => {
+    const result = GetWithdrawFamilyPreviewSchema.safeParse({
+      familyReferenceId: '550e8400-e29b-41d4-a716-446655440000',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects a non-UUID string', () => {
+    const result = GetWithdrawFamilyPreviewSchema.safeParse({
+      familyReferenceId: 'not-a-uuid',
+    })
+    expect(result.success).toBe(false)
+    expect(result.error?.issues[0].message).toBe(
+      'Invalid family reference ID format'
+    )
+  })
+
+  it('rejects empty string', () => {
+    const result = GetWithdrawFamilyPreviewSchema.safeParse({
+      familyReferenceId: '',
+    })
     expect(result.success).toBe(false)
   })
 })

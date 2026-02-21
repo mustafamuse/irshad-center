@@ -1838,7 +1838,10 @@ export async function getWithdrawFamilyPreviewAction(
   const parsed = GetWithdrawFamilyPreviewSchema.safeParse(rawInput)
 
   if (!parsed.success) {
-    return { success: false, error: 'Invalid input' }
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
   }
 
   try {

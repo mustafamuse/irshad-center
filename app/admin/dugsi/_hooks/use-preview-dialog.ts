@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 
+import * as Sentry from '@sentry/nextjs'
+
 import type { ActionResult } from '../_types'
 
 interface UsePreviewDialogOptions<T> {
@@ -30,6 +32,9 @@ export function usePreviewDialog<T>({
           }
         })
         .catch((err: unknown) => {
+          Sentry.captureException(err, {
+            tags: { component: 'usePreviewDialog' },
+          })
           setError(
             err instanceof Error ? err.message : 'Failed to load preview'
           )

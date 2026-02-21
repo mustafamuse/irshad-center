@@ -19,6 +19,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
+    warning: vi.fn(),
     error: vi.fn(),
   },
 }))
@@ -113,6 +114,54 @@ describe('useActionHandler', () => {
       await waitFor(() => {
         expect(callOrder[0]).toBe('optimistic')
         expect(callOrder[1]).toBe('action')
+      })
+    })
+  })
+
+  describe('partial success with warning', () => {
+    it('should call toast.warning when result has warning field', async () => {
+      const { toast } = await import('sonner')
+      const mockAction = vi.fn().mockResolvedValue({
+        success: true,
+        data: { id: '123' },
+        warning: 'Billing update failed',
+      } as ActionResult<{ id: string }>)
+
+      const { result } = renderHook(() =>
+        useActionHandler(mockAction, { refreshOnSuccess: false })
+      )
+
+      await act(async () => {
+        result.current.execute()
+      })
+
+      await waitFor(() => {
+        expect(toast.warning).toHaveBeenCalledWith('Billing update failed', {
+          duration: 10000,
+        })
+        expect(toast.success).not.toHaveBeenCalled()
+      })
+    })
+
+    it('should still call onSuccess when result has warning', async () => {
+      const mockAction = vi.fn().mockResolvedValue({
+        success: true,
+        data: { id: '123' },
+        warning: 'Billing update failed',
+      } as ActionResult<{ id: string }>)
+
+      const onSuccess = vi.fn()
+
+      const { result } = renderHook(() =>
+        useActionHandler(mockAction, { onSuccess, refreshOnSuccess: false })
+      )
+
+      await act(async () => {
+        result.current.execute()
+      })
+
+      await waitFor(() => {
+        expect(onSuccess).toHaveBeenCalledWith({ id: '123' })
       })
     })
   })

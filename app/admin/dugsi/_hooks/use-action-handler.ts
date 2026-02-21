@@ -45,7 +45,7 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
 
         if (result.success) {
           if (result.warning) {
-            toast.warning(result.warning)
+            toast.warning(result.warning, { duration: 10000 })
           } else {
             const message =
               result.message ||

@@ -457,6 +457,8 @@ describe('withdrawChild', () => {
         })
       )
       expect(result.billingUpdated).toBe(false)
+      expect(result.billingError).toContain('Stripe updated to')
+      expect(result.billingError).toContain('DB fail')
     })
   })
 })
@@ -547,7 +549,7 @@ describe('reEnrollChild', () => {
     )
   })
 
-  it('should return billingUpdated: false with error when no subscription', async () => {
+  it('should return billingUpdated: false without error when no subscription', async () => {
     const profile = makeActiveProfile({
       status: 'WITHDRAWN',
       assignments: [],
@@ -560,7 +562,7 @@ describe('reEnrollChild', () => {
 
     expect(result.reEnrolled).toBe(true)
     expect(result.billingUpdated).toBe(false)
-    expect(result.billingError).toContain('No active subscription')
+    expect(result.billingError).toBeUndefined()
     expect(mockBillingAssignmentCreate).not.toHaveBeenCalled()
     expect(mockStripe.subscriptions.update).not.toHaveBeenCalled()
   })
