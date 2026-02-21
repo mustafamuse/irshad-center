@@ -17,6 +17,7 @@ export type ActionResult<T = void> = {
   data?: T
   error?: string
   message?: string
+  warning?: string
   errors?: Partial<Record<string, string[]>>
 }
 

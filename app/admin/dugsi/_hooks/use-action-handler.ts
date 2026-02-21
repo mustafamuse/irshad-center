@@ -44,9 +44,15 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
         const result = await action(...args)
 
         if (result.success) {
-          const message =
-            result.message || successMessage || 'Action completed successfully'
-          toast.success(message)
+          if (result.warning) {
+            toast.warning(result.warning)
+          } else {
+            const message =
+              result.message ||
+              successMessage ||
+              'Action completed successfully'
+            toast.success(message)
+          }
 
           if (refreshOnSuccess) {
             router.refresh()

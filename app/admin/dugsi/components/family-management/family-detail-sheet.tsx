@@ -426,9 +426,9 @@ export function FamilyDetailSheet({
         onOpenChange={actions.setPaymentLinkDialog}
       />
 
-      {state.withdrawFamilyDialog && (
+      {state.withdrawFamilyDialog && firstMember.familyReferenceId && (
         <WithdrawFamilyDialog
-          familyReferenceId={firstMember.familyReferenceId!}
+          familyReferenceId={firstMember.familyReferenceId}
           familyName={getSheetTitle()}
           hasActiveSubscription={
             family.hasSubscription &&

@@ -154,6 +154,7 @@ vi.mock('@/lib/utils/dugsi-tuition', () => ({
 }))
 
 import { logError } from '@/lib/logger'
+import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 
 import {
   withdrawChild,
@@ -604,6 +605,24 @@ describe('reEnrollChild', () => {
     expect(mockProgramProfileCountTx).toHaveBeenCalled()
     expect(mockProgramProfileCount).toHaveBeenCalled()
   })
+
+  it('should throw INVALID_INPUT when calculateDugsiRate returns 0', async () => {
+    const profile = makeActiveProfile({
+      status: 'WITHDRAWN',
+      assignments: [],
+    })
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
+    mockProgramProfileCountTx.mockResolvedValue(1)
+    vi.mocked(calculateDugsiRate).mockReturnValueOnce(0)
+
+    await expect(reEnrollChild({ studentId: 'student-1' })).rejects.toThrow(
+      'Calculated billing amount is invalid'
+    )
+    expect(mockBillingAssignmentCreate).not.toHaveBeenCalled()
+  })
 })
 
 describe('pauseFamilyBilling', () => {
@@ -648,6 +667,29 @@ describe('pauseFamilyBilling', () => {
       'Cannot pause subscription with status "paused"'
     )
   })
+
+  it('should log CRITICAL and re-throw when Stripe succeeds but DB fails', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment('active')
+    )
+    mockSubscriptionUpdate.mockRejectedValueOnce(
+      new Error('DB connection lost')
+    )
+
+    await expect(pauseFamilyBilling('family-1')).rejects.toThrow(
+      'DB connection lost'
+    )
+    expect(mockStripe.subscriptions.update).toHaveBeenCalledTimes(1)
+    expect(logError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Error),
+      expect.stringContaining('CRITICAL: Stripe paused but DB update failed'),
+      expect.objectContaining({
+        familyReferenceId: 'family-1',
+        intendedStatus: 'paused',
+      })
+    )
+  })
 })
 
 describe('resumeFamilyBilling', () => {
@@ -690,6 +732,29 @@ describe('resumeFamilyBilling', () => {
 
     await expect(resumeFamilyBilling('family-1')).rejects.toThrow(
       'Cannot resume subscription with status "active"'
+    )
+  })
+
+  it('should log CRITICAL and re-throw when Stripe succeeds but DB fails', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment('paused')
+    )
+    mockSubscriptionUpdate.mockRejectedValueOnce(
+      new Error('DB connection lost')
+    )
+
+    await expect(resumeFamilyBilling('family-1')).rejects.toThrow(
+      'DB connection lost'
+    )
+    expect(mockStripe.subscriptions.update).toHaveBeenCalledTimes(1)
+    expect(logError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Error),
+      expect.stringContaining('CRITICAL: Stripe resumed but DB update failed'),
+      expect.objectContaining({
+        familyReferenceId: 'family-1',
+        intendedStatus: 'active',
+      })
     )
   })
 })

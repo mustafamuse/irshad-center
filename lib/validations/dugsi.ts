@@ -66,7 +66,7 @@ export const WithdrawChildSchema = z.object({
 })
 
 export const WithdrawFamilySchema = z.object({
-  familyReferenceId: z.string().min(1, 'Family reference ID is required'),
+  familyReferenceId: z.string().uuid('Invalid family reference ID format'),
   reason: WithdrawalReasonSchema,
   reasonNote: z.string().max(500).optional(),
 })
@@ -77,6 +77,10 @@ export const ReEnrollChildSchema = z.object({
 
 export const GetWithdrawPreviewSchema = z.object({
   studentId: z.string().min(1, 'Student ID is required'),
+})
+
+export const GetWithdrawFamilyPreviewSchema = z.object({
+  familyReferenceId: z.string().uuid('Invalid family reference ID format'),
 })
 
 export const PauseFamilyBillingSchema = z.object({

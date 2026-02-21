@@ -29,8 +29,10 @@ export function usePreviewDialog<T>({
             setError(result.error ?? 'Failed to load preview')
           }
         })
-        .catch((err: Error) => {
-          setError(err.message || 'Failed to load preview')
+        .catch((err: unknown) => {
+          setError(
+            err instanceof Error ? err.message : 'Failed to load preview'
+          )
         })
         .finally(() => setIsLoading(false))
     }

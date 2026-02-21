@@ -716,7 +716,10 @@ async function applyBillingAdjustment(params: {
           newAmount,
         }
       )
-      throw dbError
+      return {
+        updated: false,
+        error: `Stripe updated to ${newAmount} but DB failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
+      }
     }
 
     await logInfo(logger, 'Stripe subscription amount updated', {

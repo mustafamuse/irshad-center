@@ -76,6 +76,7 @@ import {
   WithdrawFamilySchema,
   ReEnrollChildSchema,
   GetWithdrawPreviewSchema,
+  GetWithdrawFamilyPreviewSchema,
   PauseFamilyBillingSchema,
   ResumeFamilyBillingSchema,
   type UpdateFamilyShiftInput,
@@ -1704,11 +1705,14 @@ export async function withdrawChildAction(
     const result = await withdrawChildService(parsed.data)
     revalidatePath('/admin/dugsi')
 
-    const message = result.billingError
-      ? `Child withdrawn but billing update failed: ${result.billingError}`
-      : 'Child withdrawn successfully'
-
-    return { success: true, data: result, message }
+    return {
+      success: true,
+      data: result,
+      message: 'Child withdrawn successfully',
+      warning: result.billingError
+        ? `Child withdrawn but billing update failed: ${result.billingError}`
+        : undefined,
+    }
   } catch (error) {
     if (error instanceof ActionError) {
       return { success: false, error: error.message }
@@ -1739,11 +1743,14 @@ export async function reEnrollChildAction(
     const result = await reEnrollChildService(parsed.data)
     revalidatePath('/admin/dugsi')
 
-    const message = result.billingError
-      ? `Child re-enrolled but billing update failed: ${result.billingError}`
-      : 'Child re-enrolled successfully'
-
-    return { success: true, data: result, message }
+    return {
+      success: true,
+      data: result,
+      message: 'Child re-enrolled successfully',
+      warning: result.billingError
+        ? `Child re-enrolled but billing update failed: ${result.billingError}`
+        : undefined,
+    }
   } catch (error) {
     if (error instanceof ActionError) {
       return { success: false, error: error.message }
@@ -1828,9 +1835,7 @@ export async function getWithdrawFamilyPreviewAction(
     students: Array<{ id: string; name: string }>
   }>
 > {
-  const parsed = z
-    .object({ familyReferenceId: z.string().min(1) })
-    .safeParse(rawInput)
+  const parsed = GetWithdrawFamilyPreviewSchema.safeParse(rawInput)
 
   if (!parsed.success) {
     return { success: false, error: 'Invalid input' }
@@ -1869,14 +1874,13 @@ export async function withdrawAllFamilyChildrenAction(
 
     revalidatePath('/admin/dugsi')
 
-    const message = result.billingError
-      ? `${result.withdrawnCount} child(ren) withdrawn but billing update failed: ${result.billingError}`
-      : `${result.withdrawnCount} child(ren) withdrawn`
-
     return {
       success: true,
       data: { withdrawnCount: result.withdrawnCount },
-      message,
+      message: `${result.withdrawnCount} child(ren) withdrawn`,
+      warning: result.billingError
+        ? `${result.withdrawnCount} child(ren) withdrawn but billing update failed: ${result.billingError}`
+        : undefined,
     }
   } catch (error) {
     if (error instanceof ActionError) {
