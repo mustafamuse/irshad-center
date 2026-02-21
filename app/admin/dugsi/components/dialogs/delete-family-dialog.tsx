@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 
-import { AlertTriangle, Trash2, CreditCard } from 'lucide-react'
-import { toast } from 'sonner'
+import { AlertTriangle, CreditCard } from 'lucide-react'
 
 import {
   AlertDialog,
@@ -16,9 +15,23 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Textarea } from '@/components/ui/textarea'
+import { WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 
-import { deleteDugsiFamily, getDeleteFamilyPreview } from '../../actions'
+import { useActionHandler } from '../../_hooks/use-action-handler'
+import {
+  getDeleteFamilyPreview,
+  withdrawAllChildrenAction,
+} from '../../actions'
 
 interface DeleteFamilyDialogProps {
   studentId: string
@@ -42,23 +55,36 @@ export function DeleteFamilyDialog({
   onOpenChange,
   onSuccess,
 }: DeleteFamilyDialogProps) {
-  const [isPending, startTransition] = useTransition()
   const [preview, setPreview] = useState<DeletePreview | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [reason, setReason] = useState<string>('')
+  const [reasonNote, setReasonNote] = useState('')
+
+  const { execute: executeWithdrawAll, isPending } = useActionHandler(
+    withdrawAllChildrenAction,
+    {
+      onSuccess: () => {
+        onOpenChange(false)
+        onSuccess?.()
+      },
+    }
+  )
 
   useEffect(() => {
     if (open && !preview) {
       setIsLoadingPreview(true)
+      setPreviewError(null)
       getDeleteFamilyPreview(studentId)
         .then((result) => {
           if (result.success && result.data) {
             setPreview(result.data)
           } else {
-            setPreview({ count: 1, students: [] })
+            setPreviewError(result.error ?? 'Failed to load preview')
           }
         })
-        .catch(() => {
-          setPreview({ count: 1, students: [] })
+        .catch((err: Error) => {
+          setPreviewError(err.message || 'Failed to load preview')
         })
         .finally(() => {
           setIsLoadingPreview(false)
@@ -69,19 +95,20 @@ export function DeleteFamilyDialog({
   useEffect(() => {
     if (!open) {
       setPreview(null)
+      setPreviewError(null)
+      setReason('')
+      setReasonNote('')
     }
   }, [open])
 
-  const handleDelete = async () => {
-    startTransition(async () => {
-      const result = await deleteDugsiFamily(studentId)
-      if (result.success) {
-        toast.success(result.message || 'Family deleted successfully')
-        onOpenChange(false)
-        onSuccess?.()
-      } else {
-        toast.error(result.error || 'Failed to delete family')
-      }
+  const handleSubmit = () => {
+    if (!reason) return
+
+    executeWithdrawAll({
+      studentId,
+      reason,
+      reasonNote: reasonNote || undefined,
+      billingAdjustment: { type: 'cancel_subscription' },
     })
   }
 
@@ -90,17 +117,18 @@ export function DeleteFamilyDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            <Trash2 className="h-5 w-5 text-red-500" />
-            Delete Family
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            Withdraw All Children
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3">
               <p>
-                Are you sure you want to delete the{' '}
-                <strong>{familyName}</strong> family?
+                This will withdraw all active children from the{' '}
+                <strong>{familyName}</strong> family. Their data will be
+                preserved.
               </p>
 
-              <div className="min-h-[80px]">
+              <div className="min-h-[60px]">
                 {isLoadingPreview && (
                   <div className="space-y-2">
                     <Skeleton className="h-4 w-3/4" />
@@ -108,15 +136,18 @@ export function DeleteFamilyDialog({
                   </div>
                 )}
 
+                {!isLoadingPreview && previewError && (
+                  <p className="text-sm text-red-600">{previewError}</p>
+                )}
+
                 {!isLoadingPreview && preview && (
                   <div className="space-y-2">
                     <p className="text-sm">
-                      This will delete{' '}
                       <strong>
                         {preview.count}{' '}
-                        {preview.count === 1 ? 'student' : 'students'}
+                        {preview.count === 1 ? 'child' : 'children'}
                       </strong>{' '}
-                      and all associated program data.
+                      will be withdrawn.
                     </p>
 
                     {preview.students.length > 0 && (
@@ -130,24 +161,50 @@ export function DeleteFamilyDialog({
                 )}
 
                 {hasActiveSubscription && (
-                  <div className="mt-3 space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-amber-800">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span className="font-medium">Warning:</span>
-                    </div>
+                  <div className="mt-3">
                     <Badge
                       variant="outline"
                       className="border-amber-500 text-amber-700"
                     >
                       <CreditCard className="mr-1 h-3 w-3" />
-                      Active subscription will be canceled
+                      Subscription will be canceled
                     </Badge>
                   </div>
                 )}
               </div>
 
-              <p className="text-sm font-medium text-red-600">
-                This action cannot be undone.
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Reason</Label>
+                  <Select value={reason} onValueChange={setReason}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WITHDRAWAL_REASONS.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {reason && (
+                  <div className="space-y-1.5">
+                    <Label>Note (optional)</Label>
+                    <Textarea
+                      value={reasonNote}
+                      onChange={(e) => setReasonNote(e.target.value)}
+                      placeholder="Additional details..."
+                      rows={2}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Children can be re-enrolled later.
               </p>
             </div>
           </AlertDialogDescription>
@@ -156,11 +213,13 @@ export function DeleteFamilyDialog({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            onClick={handleDelete}
-            disabled={isPending || isLoadingPreview}
+            onClick={handleSubmit}
+            disabled={
+              isPending || isLoadingPreview || !reason || !!previewError
+            }
             className="bg-red-600 hover:bg-red-700"
           >
-            {isPending ? 'Deleting...' : 'Delete Family'}
+            {isPending ? 'Withdrawing...' : 'Withdraw All'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

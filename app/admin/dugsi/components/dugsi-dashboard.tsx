@@ -15,7 +15,9 @@ import {
   AlertCircle,
   CheckCircle2,
   DollarSign,
+  Pause,
   RotateCcw,
+  UserX,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -129,7 +131,7 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
           onValueChange={(v) => setActiveTab(v as typeof activeTab)}
           aria-label="Family management tabs"
         >
-          <TabsList className="flex h-auto w-full justify-start overflow-x-auto sm:grid sm:grid-cols-5">
+          <TabsList className="flex h-auto w-full justify-start overflow-x-auto sm:grid sm:grid-cols-7">
             <TabsTrigger
               value="active"
               className="flex-shrink-0 gap-1.5 px-3 py-2 text-xs sm:flex-shrink sm:text-sm"
@@ -154,6 +156,32 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
                 className="ml-1 px-1.5 text-[10px] sm:text-xs"
               >
                 {tabStats.churned}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger
+              value="paused"
+              className="flex-shrink-0 gap-1.5 px-3 py-2 text-xs sm:flex-shrink sm:text-sm"
+            >
+              <Pause className="h-4 w-4" />
+              <span className="hidden sm:inline">Paused</span>
+              <Badge
+                variant="secondary"
+                className="ml-1 px-1.5 text-[10px] sm:text-xs"
+              >
+                {tabStats.paused}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger
+              value="inactive"
+              className="flex-shrink-0 gap-1.5 px-3 py-2 text-xs sm:flex-shrink sm:text-sm"
+            >
+              <UserX className="h-4 w-4" />
+              <span className="hidden sm:inline">Inactive</span>
+              <Badge
+                variant="secondary"
+                className="ml-1 px-1.5 text-[10px] sm:text-xs"
+              >
+                {tabStats.inactive}
               </Badge>
             </TabsTrigger>
             <TabsTrigger
@@ -203,6 +231,8 @@ export function DugsiDashboard({ registrations }: DugsiDashboardProps) {
             [
               'active',
               'churned',
+              'paused',
+              'inactive',
               'needs-attention',
               'billing-mismatch',
               'all',

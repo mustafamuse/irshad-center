@@ -54,6 +54,17 @@ import {
   consolidateStripeSubscription as consolidateStripeSubscriptionService,
   type StripeSubscriptionPreview,
   type ConsolidateSubscriptionResult,
+  // Withdrawal service
+  withdrawChild as withdrawChildService,
+  reEnrollChild as reEnrollChildService,
+  getWithdrawPreview as getWithdrawPreviewService,
+  withdrawAllChildren as withdrawAllChildrenService,
+  pauseFamilyBilling as pauseFamilyBillingService,
+  resumeFamilyBilling as resumeFamilyBillingService,
+  type WithdrawPreview,
+  type WithdrawResult,
+  type ReEnrollResult,
+  type WithdrawAllResult,
 } from '@/lib/services/dugsi'
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
@@ -61,6 +72,11 @@ import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import {
   UpdateFamilyShiftSchema,
+  WithdrawChildSchema,
+  ReEnrollChildSchema,
+  WithdrawAllChildrenSchema,
+  PauseFamilyBillingSchema,
+  ResumeFamilyBillingSchema,
   type UpdateFamilyShiftInput,
 } from '@/lib/validations/dugsi'
 import {
@@ -1635,6 +1651,228 @@ export async function consolidateDugsiSubscription(input: {
         error instanceof Error
           ? error.message
           : 'Failed to consolidate subscription',
+    }
+  }
+}
+
+// ============================================================================
+// Withdrawal / Re-enrollment / Pause / Resume Actions
+// ============================================================================
+
+export async function getWithdrawChildPreviewAction(
+  rawInput: unknown
+): Promise<ActionResult<WithdrawPreview>> {
+  const parsed = z.object({ studentId: z.string().min(1) }).safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  const { studentId } = parsed.data
+  try {
+    const preview = await getWithdrawPreviewService(studentId)
+    return { success: true, data: preview }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get withdraw preview', {
+      studentId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to get withdraw preview',
+    }
+  }
+}
+
+export async function withdrawChildAction(
+  rawInput: unknown
+): Promise<ActionResult<WithdrawResult>> {
+  const parsed = WithdrawChildSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  try {
+    const result = await withdrawChildService(parsed.data)
+    revalidatePath('/admin/dugsi')
+
+    await logInfo(logger, 'Child withdrawn', {
+      studentId: parsed.data.studentId,
+      reason: parsed.data.reason,
+      billingUpdated: result.billingUpdated,
+    })
+
+    const message = result.billingError
+      ? `Child withdrawn but billing update failed: ${result.billingError}`
+      : 'Child withdrawn successfully'
+
+    return { success: true, data: result, message }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to withdraw child', {
+      studentId: parsed.data.studentId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to withdraw child',
+    }
+  }
+}
+
+export async function reEnrollChildAction(
+  rawInput: unknown
+): Promise<ActionResult<ReEnrollResult>> {
+  const parsed = ReEnrollChildSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  try {
+    const result = await reEnrollChildService(parsed.data)
+    revalidatePath('/admin/dugsi')
+
+    await logInfo(logger, 'Child re-enrolled', {
+      studentId: parsed.data.studentId,
+      billingUpdated: result.billingUpdated,
+    })
+
+    const message = result.billingError
+      ? `Child re-enrolled but billing update failed: ${result.billingError}`
+      : 'Child re-enrolled successfully'
+
+    return { success: true, data: result, message }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to re-enroll child', {
+      studentId: parsed.data.studentId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to re-enroll child',
+    }
+  }
+}
+
+export async function pauseFamilyBillingAction(
+  rawInput: unknown
+): Promise<ActionResult> {
+  const parsed = PauseFamilyBillingSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  try {
+    await pauseFamilyBillingService(parsed.data.familyReferenceId)
+    revalidatePath('/admin/dugsi')
+
+    return { success: true, message: 'Billing paused successfully' }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to pause billing', {
+      familyReferenceId: parsed.data.familyReferenceId,
+    })
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to pause billing',
+    }
+  }
+}
+
+export async function resumeFamilyBillingAction(
+  rawInput: unknown
+): Promise<ActionResult> {
+  const parsed = ResumeFamilyBillingSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  try {
+    await resumeFamilyBillingService(parsed.data.familyReferenceId)
+    revalidatePath('/admin/dugsi')
+
+    return { success: true, message: 'Billing resumed successfully' }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to resume billing', {
+      familyReferenceId: parsed.data.familyReferenceId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : 'Failed to resume billing',
+    }
+  }
+}
+
+export async function withdrawAllChildrenAction(
+  rawInput: unknown
+): Promise<ActionResult<WithdrawAllResult>> {
+  const parsed = WithdrawAllChildrenSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+
+  try {
+    const result = await withdrawAllChildrenService(parsed.data)
+    revalidatePath('/admin/dugsi')
+
+    await logInfo(logger, 'All children withdrawn', {
+      studentId: parsed.data.studentId,
+      withdrawnCount: result.withdrawnCount,
+      failedCount: result.failedCount,
+    })
+
+    const parts = [`${result.withdrawnCount} child(ren) withdrawn`]
+    if (result.failedCount > 0) {
+      parts.push(`${result.failedCount} failed`)
+    }
+    if (result.billingError) {
+      parts.push(result.billingError)
+    }
+
+    return { success: true, data: result, message: parts.join('. ') }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to withdraw all children', {
+      studentId: parsed.data.studentId,
+    })
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to withdraw all children',
     }
   }
 }

@@ -13,6 +13,7 @@ import {
   SearchField,
 } from '../_types'
 import { hasBillingMismatch } from './billing'
+import { getActiveMemberCount } from './family'
 
 /**
  * Get date range from filter type
@@ -185,6 +186,12 @@ export function filterFamiliesByTab(
       return families.filter((f) => f.hasChurned && !f.hasSubscription)
     case 'needs-attention':
       return families.filter((f) => !f.hasPayment && !f.hasChurned)
+    case 'paused':
+      return families.filter((f) =>
+        f.members.some((m) => m.subscriptionStatus === 'paused')
+      )
+    case 'inactive':
+      return families.filter((f) => getActiveMemberCount(f) === 0)
     case 'billing-mismatch':
       return families.filter(
         (f) => f.hasSubscription && f.members.some((m) => hasBillingMismatch(m))

@@ -44,6 +44,68 @@ export const DugsiRegistrationFiltersSchema = z.object({
 })
 
 // ============================================================================
+// WITHDRAWAL / RE-ENROLLMENT VALIDATION
+// ============================================================================
+
+const BillingAdjustmentSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('auto_recalculate') }),
+  z.object({ type: z.literal('keep_current') }),
+  z.object({
+    type: z.literal('custom'),
+    amount: z.number().int().positive('Custom amount must be positive'),
+  }),
+  z.object({ type: z.literal('cancel_subscription') }),
+])
+
+export const WithdrawChildSchema = z.object({
+  studentId: z.string().min(1, 'Student ID is required'),
+  reason: z.enum([
+    'family_moved',
+    'financial',
+    'behavioral',
+    'seasonal_break',
+    'other',
+  ]),
+  reasonNote: z.string().max(500).optional(),
+  billingAdjustment: BillingAdjustmentSchema,
+})
+
+const ReEnrollBillingAdjustmentSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('auto_recalculate') }),
+  z.object({ type: z.literal('keep_current') }),
+  z.object({
+    type: z.literal('custom'),
+    amount: z.number().int().positive('Custom amount must be positive'),
+  }),
+])
+
+export const ReEnrollChildSchema = z.object({
+  studentId: z.string().min(1, 'Student ID is required'),
+  billingAdjustment: ReEnrollBillingAdjustmentSchema,
+})
+
+export const WithdrawAllChildrenSchema = z.object({
+  studentId: z.string().min(1, 'Student ID is required'),
+  reason: z.enum([
+    'family_moved',
+    'financial',
+    'behavioral',
+    'seasonal_break',
+    'other',
+  ]),
+  reasonNote: z.string().max(500).optional(),
+  billingAdjustment: BillingAdjustmentSchema,
+})
+
+export const PauseFamilyBillingSchema = z.object({
+  familyReferenceId: z.string().uuid('Invalid family reference ID format'),
+})
+
+export const ResumeFamilyBillingSchema = z.object({
+  familyReferenceId: z.string().uuid('Invalid family reference ID format'),
+})
+
+// ============================================================================
 // TYPE INFERENCE HELPERS
 // ============================================================================
 
@@ -51,3 +113,6 @@ export type UpdateFamilyShiftInput = z.infer<typeof UpdateFamilyShiftSchema>
 export type DugsiRegistrationFilters = z.infer<
   typeof DugsiRegistrationFiltersSchema
 >
+export type WithdrawChildInput = z.infer<typeof WithdrawChildSchema>
+export type ReEnrollChildInput = z.infer<typeof ReEnrollChildSchema>
+export type WithdrawAllChildrenInput = z.infer<typeof WithdrawAllChildrenSchema>
