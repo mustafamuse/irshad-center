@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { AlertTriangle } from 'lucide-react'
 
@@ -30,6 +30,7 @@ import type { WithdrawPreview } from '@/lib/services/dugsi/withdrawal-service'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
+import { usePreviewDialog } from '../../_hooks/use-preview-dialog'
 import {
   getWithdrawChildPreviewAction,
   withdrawChildAction,
@@ -48,12 +49,27 @@ export function WithdrawChildDialog({
   onOpenChange,
   onSuccess,
 }: WithdrawChildDialogProps) {
-  const [preview, setPreview] = useState<WithdrawPreview | null>(null)
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
-  const [previewError, setPreviewError] = useState<string | null>(null)
+  const fetchPreview = useCallback(
+    () => getWithdrawChildPreviewAction({ studentId }),
+    [studentId]
+  )
+  const {
+    preview,
+    isLoading: isLoadingPreview,
+    error: previewError,
+  } = usePreviewDialog<WithdrawPreview>({ open, fetchPreview })
+
   const [reason, setReason] = useState<string>('')
   const [reasonNote, setReasonNote] = useState('')
   const [billingType, setBillingType] = useState<string>('auto_recalculate')
+
+  useEffect(() => {
+    if (!open) {
+      setReason('')
+      setReasonNote('')
+      setBillingType('auto_recalculate')
+    }
+  }, [open])
 
   const { execute: executeWithdraw, isPending } = useActionHandler(
     withdrawChildAction,
@@ -64,35 +80,6 @@ export function WithdrawChildDialog({
       },
     }
   )
-
-  useEffect(() => {
-    if (open && !preview) {
-      setIsLoadingPreview(true)
-      setPreviewError(null)
-      getWithdrawChildPreviewAction({ studentId })
-        .then((result) => {
-          if (result.success && result.data) {
-            setPreview(result.data)
-          } else {
-            setPreviewError(result.error ?? 'Failed to load preview')
-          }
-        })
-        .catch((err: Error) => {
-          setPreviewError(err.message || 'Failed to load preview')
-        })
-        .finally(() => setIsLoadingPreview(false))
-    }
-  }, [open, studentId, preview])
-
-  useEffect(() => {
-    if (!open) {
-      setPreview(null)
-      setPreviewError(null)
-      setReason('')
-      setReasonNote('')
-      setBillingType('auto_recalculate')
-    }
-  }, [open])
 
   const handleSubmit = () => {
     if (!reason) return

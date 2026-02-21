@@ -65,6 +65,18 @@ export const WithdrawChildSchema = z.object({
   billingAdjustment: BillingAdjustmentSchema,
 })
 
+export const WithdrawFamilySchema = z.object({
+  familyReferenceId: z.string().min(1, 'Family reference ID is required'),
+  reason: z.enum([
+    'family_moved',
+    'financial',
+    'behavioral',
+    'seasonal_break',
+    'other',
+  ]),
+  reasonNote: z.string().max(500).optional(),
+})
+
 export const ReEnrollChildSchema = z.object({
   studentId: z.string().min(1, 'Student ID is required'),
 })
@@ -90,4 +102,5 @@ export type DugsiRegistrationFilters = z.infer<
   typeof DugsiRegistrationFiltersSchema
 >
 export type WithdrawChildInput = z.infer<typeof WithdrawChildSchema>
+export type WithdrawFamilyInput = z.infer<typeof WithdrawFamilySchema>
 export type ReEnrollChildInput = z.infer<typeof ReEnrollChildSchema>

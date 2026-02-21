@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { AlertTriangle, CreditCard } from 'lucide-react'
 
@@ -28,13 +28,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 
 import { useActionHandler } from '../../_hooks/use-action-handler'
+import { usePreviewDialog } from '../../_hooks/use-preview-dialog'
 import {
   getDeleteFamilyPreview,
   withdrawAllFamilyChildrenAction,
 } from '../../actions'
 
-interface DeleteFamilyDialogProps {
+interface WithdrawFamilyDialogProps {
   studentId: string
+  familyReferenceId: string
   familyName: string
   hasActiveSubscription: boolean
   open: boolean
@@ -42,24 +44,39 @@ interface DeleteFamilyDialogProps {
   onSuccess?: () => void
 }
 
-interface DeletePreview {
+interface WithdrawFamilyPreview {
   count: number
   students: Array<{ id: string; name: string; parentEmail: string | null }>
 }
 
-export function DeleteFamilyDialog({
+export function WithdrawFamilyDialog({
   studentId,
+  familyReferenceId,
   familyName,
   hasActiveSubscription,
   open,
   onOpenChange,
   onSuccess,
-}: DeleteFamilyDialogProps) {
-  const [preview, setPreview] = useState<DeletePreview | null>(null)
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
-  const [previewError, setPreviewError] = useState<string | null>(null)
+}: WithdrawFamilyDialogProps) {
+  const fetchPreview = useCallback(
+    () => getDeleteFamilyPreview(studentId),
+    [studentId]
+  )
+  const {
+    preview,
+    isLoading: isLoadingPreview,
+    error: previewError,
+  } = usePreviewDialog<WithdrawFamilyPreview>({ open, fetchPreview })
+
   const [reason, setReason] = useState<string>('')
   const [reasonNote, setReasonNote] = useState('')
+
+  useEffect(() => {
+    if (!open) {
+      setReason('')
+      setReasonNote('')
+    }
+  }, [open])
 
   const { execute: executeWithdrawAll, isPending } = useActionHandler(
     withdrawAllFamilyChildrenAction,
@@ -71,41 +88,11 @@ export function DeleteFamilyDialog({
     }
   )
 
-  useEffect(() => {
-    if (open && !preview) {
-      setIsLoadingPreview(true)
-      setPreviewError(null)
-      getDeleteFamilyPreview(studentId)
-        .then((result) => {
-          if (result.success && result.data) {
-            setPreview(result.data)
-          } else {
-            setPreviewError(result.error ?? 'Failed to load preview')
-          }
-        })
-        .catch((err: Error) => {
-          setPreviewError(err.message || 'Failed to load preview')
-        })
-        .finally(() => {
-          setIsLoadingPreview(false)
-        })
-    }
-  }, [open, studentId, preview])
-
-  useEffect(() => {
-    if (!open) {
-      setPreview(null)
-      setPreviewError(null)
-      setReason('')
-      setReasonNote('')
-    }
-  }, [open])
-
   const handleSubmit = () => {
     if (!reason) return
 
     executeWithdrawAll({
-      studentId,
+      familyReferenceId,
       reason,
       reasonNote: reasonNote || undefined,
     })

@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockProgramProfileFindUnique,
+  mockProgramProfileFindMany,
   mockProgramProfileCount,
   mockProgramProfileCountTx,
   mockProgramProfileUpdate,
@@ -10,12 +11,14 @@ const {
   mockBillingAssignmentFindFirst,
   mockBillingAssignmentUpdate,
   mockBillingAssignmentUpdateMany,
+  mockBillingAssignmentUpdateManyTx,
   mockBillingAssignmentCreate,
   mockDugsiClassEnrollmentUpdate,
   mockSubscriptionUpdate,
   mockTransaction,
 } = vi.hoisted(() => {
   const mockProgramProfileFindUnique = vi.fn()
+  const mockProgramProfileFindMany = vi.fn()
   const mockProgramProfileCount = vi.fn()
   const mockProgramProfileCountTx = vi.fn()
   const mockProgramProfileUpdate = vi.fn()
@@ -24,12 +27,14 @@ const {
   const mockBillingAssignmentFindFirst = vi.fn()
   const mockBillingAssignmentUpdate = vi.fn()
   const mockBillingAssignmentUpdateMany = vi.fn()
+  const mockBillingAssignmentUpdateManyTx = vi.fn()
   const mockBillingAssignmentCreate = vi.fn()
   const mockDugsiClassEnrollmentUpdate = vi.fn()
   const mockSubscriptionUpdate = vi.fn()
 
   const tx = {
     programProfile: {
+      findMany: (...args: unknown[]) => mockProgramProfileFindMany(...args),
       update: (...args: unknown[]) => mockProgramProfileUpdate(...args),
       count: (...args: unknown[]) => mockProgramProfileCountTx(...args),
     },
@@ -39,6 +44,8 @@ const {
     },
     billingAssignment: {
       update: (...args: unknown[]) => mockBillingAssignmentUpdate(...args),
+      updateMany: (...args: unknown[]) =>
+        mockBillingAssignmentUpdateManyTx(...args),
       create: (...args: unknown[]) => mockBillingAssignmentCreate(...args),
     },
     dugsiClassEnrollment: {
@@ -52,6 +59,7 @@ const {
 
   return {
     mockProgramProfileFindUnique,
+    mockProgramProfileFindMany,
     mockProgramProfileCount,
     mockProgramProfileCountTx,
     mockProgramProfileUpdate,
@@ -60,6 +68,7 @@ const {
     mockBillingAssignmentFindFirst,
     mockBillingAssignmentUpdate,
     mockBillingAssignmentUpdateMany,
+    mockBillingAssignmentUpdateManyTx,
     mockBillingAssignmentCreate,
     mockDugsiClassEnrollmentUpdate,
     mockSubscriptionUpdate,
@@ -71,6 +80,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     programProfile: {
       findUnique: (...args: unknown[]) => mockProgramProfileFindUnique(...args),
+      findMany: (...args: unknown[]) => mockProgramProfileFindMany(...args),
       count: (...args: unknown[]) => mockProgramProfileCount(...args),
     },
     enrollment: {
@@ -142,6 +152,7 @@ import { logError } from '@/lib/logger'
 
 import {
   withdrawChild,
+  withdrawFamily,
   reEnrollChild,
   getWithdrawPreview,
   pauseFamilyBilling,
@@ -745,5 +756,145 @@ describe('getWithdrawPreview', () => {
 
     expect(preview.hasActiveSubscription).toBe(false)
     expect(preview.currentAmount).toBeNull()
+  })
+})
+
+describe('withdrawFamily', () => {
+  const baseInput = {
+    familyReferenceId: 'family-1',
+    reason: 'family_moved' as const,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockStripe.subscriptions.cancel.mockResolvedValue({})
+  })
+
+  it('should atomically withdraw all active children in a single transaction', async () => {
+    const profiles = [
+      makeActiveProfile({
+        id: 'student-1',
+        person: { id: 'person-1', name: 'Ali Hassan' },
+      }),
+      makeActiveProfile({
+        id: 'student-2',
+        person: { id: 'person-2', name: 'Fatima Hassan' },
+      }),
+    ]
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+    mockProgramProfileFindMany.mockResolvedValue(profiles)
+
+    const result = await withdrawFamily(baseInput)
+
+    expect(result.withdrawnCount).toBe(2)
+    expect(mockTransaction).toHaveBeenCalledTimes(1)
+    expect(mockProgramProfileUpdate).toHaveBeenCalledTimes(2)
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'student-1' },
+        data: { status: 'WITHDRAWN' },
+      })
+    )
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'student-2' },
+        data: { status: 'WITHDRAWN' },
+      })
+    )
+    expect(mockEnrollmentUpdate).toHaveBeenCalledTimes(2)
+    expect(mockDugsiClassEnrollmentUpdate).toHaveBeenCalledTimes(2)
+  })
+
+  it('should cancel the subscription with a single Stripe call', async () => {
+    const profiles = [
+      makeActiveProfile({
+        id: 'student-1',
+        person: { id: 'person-1', name: 'Ali Hassan' },
+      }),
+    ]
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
+    mockProgramProfileFindMany.mockResolvedValue(profiles)
+
+    const result = await withdrawFamily(baseInput)
+
+    expect(result.billingCanceled).toBe(true)
+    expect(mockStripe.subscriptions.cancel).toHaveBeenCalledTimes(1)
+    expect(mockStripe.subscriptions.cancel).toHaveBeenCalledWith('sub_stripe_1')
+    expect(mockSubscriptionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'sub-1' },
+        data: { status: 'canceled' },
+      })
+    )
+  })
+
+  it('should throw when no active children exist', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+    mockProgramProfileFindMany.mockResolvedValue([])
+
+    await expect(withdrawFamily(baseInput)).rejects.toThrow(
+      'No active children to withdraw'
+    )
+  })
+
+  it('should return billingError when Stripe cancel fails', async () => {
+    const profiles = [
+      makeActiveProfile({
+        id: 'student-1',
+        person: { id: 'person-1', name: 'Ali Hassan' },
+      }),
+    ]
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
+    mockProgramProfileFindMany.mockResolvedValue(profiles)
+    mockStripe.subscriptions.cancel.mockRejectedValue(
+      new Error('Stripe API error')
+    )
+
+    const result = await withdrawFamily(baseInput)
+
+    expect(result.withdrawnCount).toBe(1)
+    expect(result.billingCanceled).toBe(false)
+    expect(result.billingError).toBe('Stripe API error')
+    expect(logError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Error),
+      expect.stringContaining('Billing cancellation failed'),
+      expect.objectContaining({ familyReferenceId: 'family-1' })
+    )
+  })
+
+  it('should deactivate all billing assignments in the transaction', async () => {
+    const profiles = [
+      makeActiveProfile({
+        id: 'student-1',
+        person: { id: 'person-1', name: 'Ali Hassan' },
+      }),
+      makeActiveProfile({
+        id: 'student-2',
+        person: { id: 'person-2', name: 'Fatima Hassan' },
+      }),
+    ]
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+    mockProgramProfileFindMany.mockResolvedValue(profiles)
+
+    await withdrawFamily(baseInput)
+
+    expect(mockBillingAssignmentUpdateManyTx).toHaveBeenCalledTimes(1)
+    expect(mockBillingAssignmentUpdateManyTx).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          isActive: true,
+          programProfile: {
+            familyReferenceId: 'family-1',
+            program: 'DUGSI_PROGRAM',
+          },
+        },
+        data: expect.objectContaining({ isActive: false }),
+      })
+    )
   })
 })

@@ -57,12 +57,12 @@ import {
 } from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { ConsolidateSubscriptionDialog } from '../dialogs/consolidate-subscription-dialog'
-import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 import { ReEnrollChildDialog } from '../dialogs/re-enroll-child-dialog'
 import { WithdrawChildDialog } from '../dialogs/withdraw-child-dialog'
+import { WithdrawFamilyDialog } from '../dialogs/withdraw-family-dialog'
 
 interface FamilyDetailSheetProps {
   family: Family | null
@@ -361,7 +361,7 @@ export function FamilyDetailSheet({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600"
-                onClick={() => actions.setDeleteFamilyDialog(true)}
+                onClick={() => actions.setWithdrawFamilyDialog(true)}
               >
                 <UserX className="mr-2 h-4 w-4" />
                 Withdraw All
@@ -426,16 +426,17 @@ export function FamilyDetailSheet({
         onOpenChange={actions.setPaymentLinkDialog}
       />
 
-      {state.deleteFamilyDialog && (
-        <DeleteFamilyDialog
+      {state.withdrawFamilyDialog && (
+        <WithdrawFamilyDialog
           studentId={firstMember.id}
+          familyReferenceId={firstMember.familyReferenceId!}
           familyName={getSheetTitle()}
           hasActiveSubscription={
             family.hasSubscription &&
             family.members[0]?.subscriptionStatus === 'active'
           }
-          open={state.deleteFamilyDialog}
-          onOpenChange={actions.setDeleteFamilyDialog}
+          open={state.withdrawFamilyDialog}
+          onOpenChange={actions.setWithdrawFamilyDialog}
           onSuccess={() => onOpenChange(false)}
         />
       )}

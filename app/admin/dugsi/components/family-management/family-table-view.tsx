@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 
-import { Users, MoreHorizontal, Eye, Trash2 } from 'lucide-react'
+import { Users, MoreHorizontal, Eye, UserX } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -32,8 +32,8 @@ import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { formatParentName, getOrderedParentNames } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
-import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
+import { WithdrawFamilyDialog } from '../dialogs/withdraw-family-dialog'
 import { ShiftBadge } from '../shared/shift-badge'
 
 function BillingCell({ family }: { family: Family }) {
@@ -83,9 +83,8 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
     () => families.find((f) => f.familyKey === selectedFamilyKey) ?? null,
     [families, selectedFamilyKey]
   )
-  const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
-    null
-  )
+  const [withdrawDialogFamily, setWithdrawDialogFamily] =
+    useState<Family | null>(null)
 
   // Zustand store selectors
   const isVerifyBankDialogOpen = useDugsiUIStore(
@@ -235,11 +234,11 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
                           className="text-red-600 focus:text-red-600"
                           onClick={(e) => {
                             e.stopPropagation()
-                            setDeleteDialogFamily(family)
+                            setWithdrawDialogFamily(family)
                           }}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete Family
+                          <UserX className="mr-2 h-4 w-4" />
+                          Withdraw All
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -277,21 +276,24 @@ export function FamilyTableView({ families }: FamilyTableViewProps) {
         />
       )}
 
-      {/* Delete Family Dialog */}
-      {deleteDialogFamily && (
-        <DeleteFamilyDialog
-          studentId={deleteDialogFamily.members[0]?.id || ''}
+      {/* Withdraw Family Dialog */}
+      {withdrawDialogFamily && (
+        <WithdrawFamilyDialog
+          studentId={withdrawDialogFamily.members[0]?.id || ''}
+          familyReferenceId={
+            withdrawDialogFamily.members[0]?.familyReferenceId || ''
+          }
           familyName={formatParentName(
-            deleteDialogFamily.members[0]?.parentFirstName,
-            deleteDialogFamily.members[0]?.parentLastName
+            withdrawDialogFamily.members[0]?.parentFirstName,
+            withdrawDialogFamily.members[0]?.parentLastName
           )}
           hasActiveSubscription={
-            deleteDialogFamily.hasSubscription &&
-            deleteDialogFamily.members[0]?.subscriptionStatus === 'active'
+            withdrawDialogFamily.hasSubscription &&
+            withdrawDialogFamily.members[0]?.subscriptionStatus === 'active'
           }
-          open={!!deleteDialogFamily}
+          open={!!withdrawDialogFamily}
           onOpenChange={(open) => {
-            if (!open) setDeleteDialogFamily(null)
+            if (!open) setWithdrawDialogFamily(null)
           }}
         />
       )}

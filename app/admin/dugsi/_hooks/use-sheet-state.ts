@@ -49,7 +49,7 @@ export function useSheetState() {
     })
   const [addChildDialog, setAddChildDialog] = useState(false)
   const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
-  const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
+  const [withdrawFamilyDialog, setWithdrawFamilyDialog] = useState(false)
   const [consolidateSubscriptionDialog, setConsolidateSubscriptionDialog] =
     useState(false)
   const [shiftPopover, setShiftPopover] = useState(false)
@@ -99,7 +99,7 @@ export function useSheetState() {
     setEditChildDialog({ open: false, studentId: null })
     setAddChildDialog(false)
     setPaymentLinkDialog(false)
-    setDeleteFamilyDialog(false)
+    setWithdrawFamilyDialog(false)
     setConsolidateSubscriptionDialog(false)
     setWithdrawChildDialog({ open: false, studentId: null })
     setReEnrollChildDialog({ open: false, studentId: null, childName: null })
@@ -116,7 +116,7 @@ export function useSheetState() {
       reEnrollChildDialog,
       addChildDialog,
       paymentLinkDialog,
-      deleteFamilyDialog,
+      withdrawFamilyDialog,
       consolidateSubscriptionDialog,
       shiftPopover,
       pendingShift,
@@ -133,7 +133,7 @@ export function useSheetState() {
       closeReEnrollChild,
       setAddChildDialog,
       setPaymentLinkDialog,
-      setDeleteFamilyDialog,
+      setWithdrawFamilyDialog,
       setConsolidateSubscriptionDialog,
       setShiftPopover,
       setPendingShift,

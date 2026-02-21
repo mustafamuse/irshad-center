@@ -10,6 +10,8 @@ import { DugsiRegistration } from '../../_types'
 import { Family } from '../../_types'
 import {
   getFamilyKey,
+  getActiveMembers,
+  getActiveMemberCount,
   groupRegistrationsByFamily,
   getFamilyStatus,
   getPrimaryPayerPhone,
@@ -757,5 +759,169 @@ describe('getPrimaryPayerName', () => {
       const result = getPrimaryPayerName(family)
       expect(result).toBe('Parent')
     })
+  })
+})
+
+describe('getActiveMembers', () => {
+  const makeMember = (
+    overrides: Partial<DugsiRegistration> = {}
+  ): DugsiRegistration =>
+    ({
+      id: 'id-1',
+      name: 'Child',
+      status: 'ENROLLED',
+      gender: null,
+      dateOfBirth: null,
+      gradeLevel: null,
+      shift: null,
+      schoolName: null,
+      healthInfo: null,
+      createdAt: new Date(),
+      parentFirstName: 'P',
+      parentLastName: 'L',
+      parentEmail: 'p@e.com',
+      parentPhone: '555',
+      parent2FirstName: null,
+      parent2LastName: null,
+      parent2Email: null,
+      parent2Phone: null,
+      primaryPayerParentNumber: 1,
+      paymentMethodCaptured: false,
+      paymentMethodCapturedAt: null,
+      stripeCustomerIdDugsi: null,
+      stripeSubscriptionIdDugsi: null,
+      paymentIntentIdDugsi: null,
+      subscriptionStatus: null,
+      subscriptionAmount: null,
+      paidUntil: null,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      familyReferenceId: 'family-1',
+      stripeAccountType: null,
+      teacherName: null,
+      teacherEmail: null,
+      teacherPhone: null,
+      morningTeacher: null,
+      afternoonTeacher: null,
+      hasTeacherAssigned: false,
+      familyChildCount: 1,
+      ...overrides,
+    }) as DugsiRegistration
+
+  const makeFamily = (members: DugsiRegistration[]): Family => ({
+    familyKey: 'family-1',
+    members,
+    hasPayment: false,
+    hasSubscription: false,
+    hasChurned: false,
+    parentEmail: 'p@e.com',
+    parentPhone: '555',
+  })
+
+  it('should return only ENROLLED and REGISTERED members', () => {
+    const family = makeFamily([
+      makeMember({ id: '1', status: 'ENROLLED' as const }),
+      makeMember({ id: '2', status: 'REGISTERED' as const }),
+      makeMember({ id: '3', status: 'WITHDRAWN' as const }),
+    ])
+    const active = getActiveMembers(family)
+    expect(active).toHaveLength(2)
+    expect(active.map((m) => m.id)).toEqual(['1', '2'])
+  })
+
+  it('should exclude WITHDRAWN members', () => {
+    const family = makeFamily([
+      makeMember({ id: '1', status: 'WITHDRAWN' as const }),
+      makeMember({ id: '2', status: 'WITHDRAWN' as const }),
+    ])
+    expect(getActiveMembers(family)).toHaveLength(0)
+  })
+
+  it('should return empty array when all members are WITHDRAWN', () => {
+    const family = makeFamily([makeMember({ status: 'WITHDRAWN' as const })])
+    expect(getActiveMembers(family)).toEqual([])
+  })
+
+  it('should return all members when all are active', () => {
+    const family = makeFamily([
+      makeMember({ id: '1', status: 'ENROLLED' as const }),
+      makeMember({ id: '2', status: 'REGISTERED' as const }),
+    ])
+    expect(getActiveMembers(family)).toHaveLength(2)
+  })
+})
+
+describe('getActiveMemberCount', () => {
+  const makeMember = (
+    overrides: Partial<DugsiRegistration> = {}
+  ): DugsiRegistration =>
+    ({
+      id: 'id-1',
+      name: 'Child',
+      status: 'ENROLLED',
+      gender: null,
+      dateOfBirth: null,
+      gradeLevel: null,
+      shift: null,
+      schoolName: null,
+      healthInfo: null,
+      createdAt: new Date(),
+      parentFirstName: 'P',
+      parentLastName: 'L',
+      parentEmail: 'p@e.com',
+      parentPhone: '555',
+      parent2FirstName: null,
+      parent2LastName: null,
+      parent2Email: null,
+      parent2Phone: null,
+      primaryPayerParentNumber: 1,
+      paymentMethodCaptured: false,
+      paymentMethodCapturedAt: null,
+      stripeCustomerIdDugsi: null,
+      stripeSubscriptionIdDugsi: null,
+      paymentIntentIdDugsi: null,
+      subscriptionStatus: null,
+      subscriptionAmount: null,
+      paidUntil: null,
+      currentPeriodStart: null,
+      currentPeriodEnd: null,
+      familyReferenceId: 'family-1',
+      stripeAccountType: null,
+      teacherName: null,
+      teacherEmail: null,
+      teacherPhone: null,
+      morningTeacher: null,
+      afternoonTeacher: null,
+      hasTeacherAssigned: false,
+      familyChildCount: 1,
+      ...overrides,
+    }) as DugsiRegistration
+
+  const makeFamily = (members: DugsiRegistration[]): Family => ({
+    familyKey: 'family-1',
+    members,
+    hasPayment: false,
+    hasSubscription: false,
+    hasChurned: false,
+    parentEmail: 'p@e.com',
+    parentPhone: '555',
+  })
+
+  it('should return count matching getActiveMembers length', () => {
+    const family = makeFamily([
+      makeMember({ id: '1', status: 'ENROLLED' as const }),
+      makeMember({ id: '2', status: 'WITHDRAWN' as const }),
+      makeMember({ id: '3', status: 'REGISTERED' as const }),
+    ])
+    expect(getActiveMemberCount(family)).toBe(2)
+    expect(getActiveMemberCount(family)).toBe(getActiveMembers(family).length)
+  })
+
+  it('should return 0 for all-withdrawn family', () => {
+    const family = makeFamily([
+      makeMember({ status: 'WITHDRAWN' as const }),
+      makeMember({ status: 'WITHDRAWN' as const }),
+    ])
+    expect(getActiveMemberCount(family)).toBe(0)
   })
 })

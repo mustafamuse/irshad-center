@@ -10,6 +10,7 @@ import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import type {
   WithdrawChildInput,
+  WithdrawFamilyInput,
   ReEnrollChildInput,
 } from '@/lib/validations/dugsi'
 
@@ -38,6 +39,12 @@ export interface WithdrawResult {
 export interface ReEnrollResult {
   reEnrolled: boolean
   billingUpdated: boolean
+  billingError?: string
+}
+
+export interface WithdrawFamilyResult {
+  withdrawnCount: number
+  billingCanceled: boolean
   billingError?: string
 }
 
@@ -144,6 +151,120 @@ export async function withdrawChild(
         billingUpdated: billingResult.updated,
         billingError: billingResult.error,
       }
+    }
+  )
+}
+
+// ============================================================================
+// WITHDRAW FAMILY (BATCH)
+// ============================================================================
+
+export async function withdrawFamily(
+  input: WithdrawFamilyInput
+): Promise<WithdrawFamilyResult> {
+  return Sentry.startSpan(
+    { name: 'withdrawal.withdrawFamily', op: 'function' },
+    async () => {
+      const { familyReferenceId, reason, reasonNote } = input
+      const reasonLabel = buildReasonString(reason, reasonNote)
+
+      const subscription = await findFamilySubscription(familyReferenceId)
+
+      const withdrawnCount = await prisma.$transaction(async (tx) => {
+        const activeProfiles = await tx.programProfile.findMany({
+          where: {
+            familyReferenceId,
+            program: DUGSI_PROGRAM,
+            status: { in: ['REGISTERED', 'ENROLLED'] },
+          },
+          include: {
+            person: true,
+            enrollments: {
+              where: { status: { in: ['REGISTERED', 'ENROLLED'] } },
+              take: 1,
+            },
+            dugsiClassEnrollment: { where: { isActive: true } },
+          },
+        })
+
+        if (activeProfiles.length === 0) {
+          throw new ActionError(
+            'No active children to withdraw',
+            ERROR_CODES.INVALID_INPUT
+          )
+        }
+
+        for (const profile of activeProfiles) {
+          await tx.programProfile.update({
+            where: { id: profile.id },
+            data: { status: 'WITHDRAWN' },
+          })
+
+          if (profile.enrollments[0]) {
+            await tx.enrollment.update({
+              where: { id: profile.enrollments[0].id },
+              data: {
+                status: 'WITHDRAWN',
+                endDate: new Date(),
+                reason: reasonLabel,
+              },
+            })
+          }
+
+          if (profile.dugsiClassEnrollment) {
+            await tx.dugsiClassEnrollment.update({
+              where: { id: profile.dugsiClassEnrollment.id },
+              data: { isActive: false, endDate: new Date() },
+            })
+          }
+        }
+
+        await tx.billingAssignment.updateMany({
+          where: {
+            isActive: true,
+            programProfile: {
+              familyReferenceId,
+              program: DUGSI_PROGRAM,
+            },
+          },
+          data: { isActive: false, endDate: new Date() },
+        })
+
+        return activeProfiles.length
+      })
+
+      await logInfo(logger, 'Family withdrawn from Dugsi', {
+        familyReferenceId,
+        withdrawnCount,
+        reason,
+      })
+
+      let billingCanceled = false
+      let billingError: string | undefined
+
+      if (subscription) {
+        try {
+          const result = await cancelAndDeactivateSubscription(
+            {
+              id: subscription.id,
+              stripeSubscriptionId: subscription.stripeSubscriptionId,
+            },
+            'withdraw_family'
+          )
+          billingCanceled = result.updated
+        } catch (error) {
+          billingError =
+            error instanceof Error ? error.message : 'Unknown Stripe error'
+          await logError(
+            logger,
+            error,
+            'Billing cancellation failed after family withdrawal',
+            { familyReferenceId }
+          )
+        }
+      }
+
+      return { withdrawnCount, billingCanceled, billingError }
     }
   )
 }
