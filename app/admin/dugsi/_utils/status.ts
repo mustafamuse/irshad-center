@@ -3,7 +3,13 @@
  * Centralized status badge configuration logic
  */
 
-import { CheckCircle2, AlertCircle, RotateCcw } from 'lucide-react'
+import {
+  CheckCircle2,
+  AlertCircle,
+  RotateCcw,
+  Pause,
+  UserX,
+} from 'lucide-react'
 
 import { FamilyStatus } from '../_types'
 
@@ -17,6 +23,18 @@ export function getStatusBadgeConfig(status: FamilyStatus) {
         label: 'Active',
         icon: CheckCircle2,
         className: 'bg-green-100 text-green-800 hover:bg-green-100',
+      }
+    case 'paused':
+      return {
+        label: 'Paused',
+        icon: Pause,
+        className: 'bg-blue-100 text-blue-800 hover:bg-blue-100',
+      }
+    case 'inactive':
+      return {
+        label: 'Inactive',
+        icon: UserX,
+        className: 'bg-slate-100 text-slate-600 hover:bg-slate-100',
       }
     case 'churned':
       return {

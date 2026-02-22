@@ -22,6 +22,13 @@ type EditChildState = {
   studentId: string | null
 }
 
+type WithdrawChildState = { open: boolean; studentId: string | null }
+type ReEnrollChildState = {
+  open: boolean
+  studentId: string | null
+  childName: string | null
+}
+
 export function useSheetState() {
   const [editParentDialog, setEditParentDialog] = useState<EditParentState>({
     open: false,
@@ -32,9 +39,17 @@ export function useSheetState() {
     open: false,
     studentId: null,
   })
+  const [withdrawChildDialog, setWithdrawChildDialog] =
+    useState<WithdrawChildState>({ open: false, studentId: null })
+  const [reEnrollChildDialog, setReEnrollChildDialog] =
+    useState<ReEnrollChildState>({
+      open: false,
+      studentId: null,
+      childName: null,
+    })
   const [addChildDialog, setAddChildDialog] = useState(false)
   const [paymentLinkDialog, setPaymentLinkDialog] = useState(false)
-  const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
+  const [withdrawFamilyDialog, setWithdrawFamilyDialog] = useState(false)
   const [consolidateSubscriptionDialog, setConsolidateSubscriptionDialog] =
     useState(false)
   const [shiftPopover, setShiftPopover] = useState(false)
@@ -60,13 +75,34 @@ export function useSheetState() {
     setEditChildDialog((prev) => ({ ...prev, open: false }))
   }, [])
 
+  const openWithdrawChild = useCallback((studentId: string) => {
+    setWithdrawChildDialog({ open: true, studentId })
+  }, [])
+
+  const closeWithdrawChild = useCallback(() => {
+    setWithdrawChildDialog({ open: false, studentId: null })
+  }, [])
+
+  const openReEnrollChild = useCallback(
+    (studentId: string, childName: string) => {
+      setReEnrollChildDialog({ open: true, studentId, childName })
+    },
+    []
+  )
+
+  const closeReEnrollChild = useCallback(() => {
+    setReEnrollChildDialog({ open: false, studentId: null, childName: null })
+  }, [])
+
   const reset = useCallback(() => {
     setEditParentDialog({ open: false, parentNumber: 1, isAdding: false })
     setEditChildDialog({ open: false, studentId: null })
     setAddChildDialog(false)
     setPaymentLinkDialog(false)
-    setDeleteFamilyDialog(false)
+    setWithdrawFamilyDialog(false)
     setConsolidateSubscriptionDialog(false)
+    setWithdrawChildDialog({ open: false, studentId: null })
+    setReEnrollChildDialog({ open: false, studentId: null, childName: null })
     setShiftPopover(false)
     setPendingShift(null)
     setActiveTab('overview')
@@ -76,9 +112,11 @@ export function useSheetState() {
     state: {
       editParentDialog,
       editChildDialog,
+      withdrawChildDialog,
+      reEnrollChildDialog,
       addChildDialog,
       paymentLinkDialog,
-      deleteFamilyDialog,
+      withdrawFamilyDialog,
       consolidateSubscriptionDialog,
       shiftPopover,
       pendingShift,
@@ -89,9 +127,13 @@ export function useSheetState() {
       closeEditParent,
       openEditChild,
       closeEditChild,
+      openWithdrawChild,
+      closeWithdrawChild,
+      openReEnrollChild,
+      closeReEnrollChild,
       setAddChildDialog,
       setPaymentLinkDialog,
-      setDeleteFamilyDialog,
+      setWithdrawFamilyDialog,
       setConsolidateSubscriptionDialog,
       setShiftPopover,
       setPendingShift,
