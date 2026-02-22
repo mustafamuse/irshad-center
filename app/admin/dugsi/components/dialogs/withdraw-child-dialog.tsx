@@ -17,7 +17,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { WithdrawPreview } from '@/lib/services/dugsi/withdrawal-service'
+import type { WithdrawPreview } from '@/lib/services/dugsi'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
 import { WithdrawalReasonForm } from './withdrawal-reason-form'

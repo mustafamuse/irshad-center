@@ -1,4 +1,3 @@
-import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -14,21 +13,13 @@ import type {
   ReEnrollChildInput,
 } from '@/lib/validations/dugsi'
 
+import { findFamilySubscription } from './billing-helpers'
+
 const logger = createServiceLogger('dugsi-withdrawal')
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-export interface WithdrawPreview {
-  childName: string
-  activeChildrenCount: number
-  currentAmount: number | null
-  recalculatedAmount: number
-  isLastActiveChild: boolean
-  hasActiveSubscription: boolean
-  isPaused: boolean
-}
 
 export interface WithdrawResult {
   withdrawn: boolean
@@ -158,29 +149,6 @@ export async function withdrawChild(
 // ============================================================================
 // WITHDRAW FAMILY (BATCH)
 // ============================================================================
-
-export interface WithdrawFamilyPreviewResult {
-  count: number
-  students: Array<{ id: string; name: string }>
-}
-
-export async function getWithdrawFamilyPreview(
-  familyReferenceId: string
-): Promise<WithdrawFamilyPreviewResult> {
-  const activeProfiles = await prisma.programProfile.findMany({
-    where: {
-      familyReferenceId,
-      program: DUGSI_PROGRAM,
-      status: { in: ['REGISTERED', 'ENROLLED'] },
-    },
-    include: { person: { select: { name: true } } },
-  })
-
-  return {
-    count: activeProfiles.length,
-    students: activeProfiles.map((p) => ({ id: p.id, name: p.person.name })),
-  }
-}
 
 export async function withdrawFamily(
   input: WithdrawFamilyInput
@@ -407,188 +375,8 @@ export async function reEnrollChild(
 }
 
 // ============================================================================
-// WITHDRAW PREVIEW
+// PRIVATE HELPERS
 // ============================================================================
-
-export async function getWithdrawPreview(
-  studentId: string
-): Promise<WithdrawPreview> {
-  return Sentry.startSpan(
-    { name: 'withdrawal.getWithdrawPreview', op: 'function' },
-    async () => {
-      const profile = await prisma.programProfile.findUnique({
-        where: { id: studentId },
-        include: { person: true },
-      })
-
-      if (!profile || profile.program !== DUGSI_PROGRAM) {
-        throw new ActionError(
-          'Student not found',
-          ERROR_CODES.STUDENT_NOT_FOUND,
-          undefined,
-          404
-        )
-      }
-
-      const activeCount = await prisma.programProfile.count({
-        where: {
-          program: DUGSI_PROGRAM,
-          familyReferenceId: profile.familyReferenceId,
-          status: { in: ['REGISTERED', 'ENROLLED'] },
-        },
-      })
-      const afterWithdrawalCount = activeCount - 1
-
-      const subscription = await findFamilySubscription(
-        profile.familyReferenceId
-      )
-
-      return {
-        childName: profile.person.name,
-        activeChildrenCount: activeCount,
-        currentAmount: subscription?.amount ?? null,
-        recalculatedAmount: calculateDugsiRate(afterWithdrawalCount),
-        isLastActiveChild: afterWithdrawalCount === 0,
-        hasActiveSubscription:
-          !!subscription &&
-          (subscription.status === 'active' ||
-            subscription.status === 'paused'),
-        isPaused: subscription?.status === 'paused',
-      }
-    }
-  )
-}
-
-// ============================================================================
-// PAUSE / RESUME BILLING
-// ============================================================================
-
-export interface BillingControlResult {
-  success: boolean
-  error?: string
-}
-
-const BILLING_TOGGLE_CONFIG = {
-  pause: {
-    requiredStatus: 'active' as const,
-    noSubError: 'No active subscription found for this family',
-    statusError: (s: string) => `Cannot pause subscription with status "${s}"`,
-    stripePayload: { pause_collection: { behavior: 'void' as const } },
-    dbStatus: 'paused' as const,
-    criticalMsg:
-      'CRITICAL: Stripe paused but DB update failed - states diverged',
-    successMsg: 'Family billing paused',
-    spanName: 'withdrawal.pauseFamilyBilling',
-  },
-  resume: {
-    requiredStatus: 'paused' as const,
-    noSubError: 'No subscription found for this family',
-    statusError: (s: string) => `Cannot resume subscription with status "${s}"`,
-    stripePayload: { pause_collection: null },
-    dbStatus: 'active' as const,
-    criticalMsg:
-      'CRITICAL: Stripe resumed but DB update failed - states diverged',
-    successMsg: 'Family billing resumed',
-    spanName: 'withdrawal.resumeFamilyBilling',
-  },
-} as const
-
-async function toggleFamilyBillingStatus(
-  familyReferenceId: string,
-  action: 'pause' | 'resume'
-): Promise<BillingControlResult> {
-  const config = BILLING_TOGGLE_CONFIG[action]
-
-  return Sentry.startSpan(
-    { name: config.spanName, op: 'function' },
-    async () => {
-      const subscription = await findFamilySubscription(familyReferenceId)
-
-      if (!subscription) {
-        throw new ActionError(
-          config.noSubError,
-          ERROR_CODES.NO_ACTIVE_SUBSCRIPTION
-        )
-      }
-
-      if (subscription.status !== config.requiredStatus) {
-        throw new ActionError(
-          config.statusError(subscription.status),
-          ERROR_CODES.INVALID_INPUT
-        )
-      }
-
-      const stripe = getDugsiStripeClient()
-
-      await stripe.subscriptions.update(
-        subscription.stripeSubscriptionId,
-        config.stripePayload
-      )
-
-      try {
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { status: config.dbStatus },
-        })
-      } catch (dbError) {
-        await logError(logger, dbError, config.criticalMsg, {
-          familyReferenceId,
-          stripeSubscriptionId: subscription.stripeSubscriptionId,
-          intendedStatus: config.dbStatus,
-        })
-        return {
-          success: false,
-          error: `Stripe ${action}d but DB update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
-        }
-      }
-
-      await logInfo(logger, config.successMsg, {
-        familyReferenceId,
-        subscriptionId: subscription.stripeSubscriptionId,
-      })
-
-      return { success: true }
-    }
-  )
-}
-
-export async function pauseFamilyBilling(
-  familyReferenceId: string
-): Promise<BillingControlResult> {
-  return toggleFamilyBillingStatus(familyReferenceId, 'pause')
-}
-
-export async function resumeFamilyBilling(
-  familyReferenceId: string
-): Promise<BillingControlResult> {
-  return toggleFamilyBillingStatus(familyReferenceId, 'resume')
-}
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-async function findFamilySubscription(familyReferenceId: string | null) {
-  if (!familyReferenceId) return null
-
-  const assignment = await prisma.billingAssignment.findFirst({
-    where: {
-      isActive: true,
-      programProfile: {
-        familyReferenceId,
-        program: DUGSI_PROGRAM,
-      },
-      subscription: {
-        stripeAccountType: StripeAccountType.DUGSI,
-        status: { in: ['active', 'paused'] },
-      },
-    },
-    include: { subscription: true },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  return assignment?.subscription ?? null
-}
 
 async function cancelAndDeactivateSubscription(
   subscription: { id: string; stripeSubscriptionId: string },
