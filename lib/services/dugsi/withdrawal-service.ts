@@ -463,114 +463,105 @@ export async function getWithdrawPreview(
 // PAUSE / RESUME BILLING
 // ============================================================================
 
-export async function pauseFamilyBilling(
-  familyReferenceId: string
-): Promise<void> {
+export interface BillingControlResult {
+  success: boolean
+  error?: string
+}
+
+const BILLING_TOGGLE_CONFIG = {
+  pause: {
+    requiredStatus: 'active' as const,
+    noSubError: 'No active subscription found for this family',
+    statusError: (s: string) => `Cannot pause subscription with status "${s}"`,
+    stripePayload: { pause_collection: { behavior: 'void' as const } },
+    dbStatus: 'paused' as const,
+    criticalMsg:
+      'CRITICAL: Stripe paused but DB update failed - states diverged',
+    successMsg: 'Family billing paused',
+    spanName: 'withdrawal.pauseFamilyBilling',
+  },
+  resume: {
+    requiredStatus: 'paused' as const,
+    noSubError: 'No subscription found for this family',
+    statusError: (s: string) => `Cannot resume subscription with status "${s}"`,
+    stripePayload: { pause_collection: null },
+    dbStatus: 'active' as const,
+    criticalMsg:
+      'CRITICAL: Stripe resumed but DB update failed - states diverged',
+    successMsg: 'Family billing resumed',
+    spanName: 'withdrawal.resumeFamilyBilling',
+  },
+} as const
+
+async function toggleFamilyBillingStatus(
+  familyReferenceId: string,
+  action: 'pause' | 'resume'
+): Promise<BillingControlResult> {
+  const config = BILLING_TOGGLE_CONFIG[action]
+
   return Sentry.startSpan(
-    { name: 'withdrawal.pauseFamilyBilling', op: 'function' },
+    { name: config.spanName, op: 'function' },
     async () => {
       const subscription = await findFamilySubscription(familyReferenceId)
 
       if (!subscription) {
         throw new ActionError(
-          'No active subscription found for this family',
+          config.noSubError,
           ERROR_CODES.NO_ACTIVE_SUBSCRIPTION
         )
       }
 
-      if (subscription.status !== 'active') {
+      if (subscription.status !== config.requiredStatus) {
         throw new ActionError(
-          `Cannot pause subscription with status "${subscription.status}"`,
+          config.statusError(subscription.status),
           ERROR_CODES.INVALID_INPUT
         )
       }
 
       const stripe = getDugsiStripeClient()
 
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        pause_collection: { behavior: 'void' },
-      })
+      await stripe.subscriptions.update(
+        subscription.stripeSubscriptionId,
+        config.stripePayload
+      )
 
       try {
         await prisma.subscription.update({
           where: { id: subscription.id },
-          data: { status: 'paused' },
+          data: { status: config.dbStatus },
         })
       } catch (dbError) {
-        await logError(
-          logger,
-          dbError,
-          'CRITICAL: Stripe paused but DB update failed - states diverged',
-          {
-            familyReferenceId,
-            stripeSubscriptionId: subscription.stripeSubscriptionId,
-            intendedStatus: 'paused',
-          }
-        )
-        throw dbError
+        await logError(logger, dbError, config.criticalMsg, {
+          familyReferenceId,
+          stripeSubscriptionId: subscription.stripeSubscriptionId,
+          intendedStatus: config.dbStatus,
+        })
+        return {
+          success: false,
+          error: `Stripe ${action}d but DB update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
+        }
       }
 
-      await logInfo(logger, 'Family billing paused', {
+      await logInfo(logger, config.successMsg, {
         familyReferenceId,
         subscriptionId: subscription.stripeSubscriptionId,
       })
+
+      return { success: true }
     }
   )
 }
 
+export async function pauseFamilyBilling(
+  familyReferenceId: string
+): Promise<BillingControlResult> {
+  return toggleFamilyBillingStatus(familyReferenceId, 'pause')
+}
+
 export async function resumeFamilyBilling(
   familyReferenceId: string
-): Promise<void> {
-  return Sentry.startSpan(
-    { name: 'withdrawal.resumeFamilyBilling', op: 'function' },
-    async () => {
-      const subscription = await findFamilySubscription(familyReferenceId)
-
-      if (!subscription) {
-        throw new ActionError(
-          'No subscription found for this family',
-          ERROR_CODES.NO_ACTIVE_SUBSCRIPTION
-        )
-      }
-
-      if (subscription.status !== 'paused') {
-        throw new ActionError(
-          `Cannot resume subscription with status "${subscription.status}"`,
-          ERROR_CODES.INVALID_INPUT
-        )
-      }
-
-      const stripe = getDugsiStripeClient()
-
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        pause_collection: null,
-      })
-
-      try {
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { status: 'active' },
-        })
-      } catch (dbError) {
-        await logError(
-          logger,
-          dbError,
-          'CRITICAL: Stripe resumed but DB update failed - states diverged',
-          {
-            familyReferenceId,
-            stripeSubscriptionId: subscription.stripeSubscriptionId,
-            intendedStatus: 'active',
-          }
-        )
-        throw dbError
-      }
-
-      await logInfo(logger, 'Family billing resumed', {
-        familyReferenceId,
-        subscriptionId: subscription.stripeSubscriptionId,
-      })
-    }
-  )
+): Promise<BillingControlResult> {
+  return toggleFamilyBillingStatus(familyReferenceId, 'resume')
 }
 
 // ============================================================================

@@ -1778,10 +1778,18 @@ export async function pauseFamilyBillingAction(
   }
 
   try {
-    await pauseFamilyBillingService(parsed.data.familyReferenceId)
+    const result = await pauseFamilyBillingService(
+      parsed.data.familyReferenceId
+    )
     revalidatePath('/admin/dugsi')
 
-    return { success: true, message: 'Billing paused successfully' }
+    return {
+      success: true,
+      message: 'Billing paused successfully',
+      warning: result.error
+        ? `Billing paused in Stripe but DB sync failed: ${result.error}`
+        : undefined,
+    }
   } catch (error) {
     if (error instanceof ActionError) {
       return { success: false, error: error.message }
@@ -1808,10 +1816,18 @@ export async function resumeFamilyBillingAction(
   }
 
   try {
-    await resumeFamilyBillingService(parsed.data.familyReferenceId)
+    const result = await resumeFamilyBillingService(
+      parsed.data.familyReferenceId
+    )
     revalidatePath('/admin/dugsi')
 
-    return { success: true, message: 'Billing resumed successfully' }
+    return {
+      success: true,
+      message: 'Billing resumed successfully',
+      warning: result.error
+        ? `Billing resumed in Stripe but DB sync failed: ${result.error}`
+        : undefined,
+    }
   } catch (error) {
     if (error instanceof ActionError) {
       return { success: false, error: error.message }

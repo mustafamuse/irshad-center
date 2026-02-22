@@ -638,8 +638,10 @@ describe('pauseFamilyBilling', () => {
       makeSubscriptionAssignment('active')
     )
 
-    await pauseFamilyBilling('family-1')
+    const result = await pauseFamilyBilling('family-1')
 
+    expect(result.success).toBe(true)
+    expect(result.error).toBeUndefined()
     expect(mockStripe.subscriptions.update).toHaveBeenCalledWith(
       'sub_stripe_1',
       { pause_collection: { behavior: 'void' } }
@@ -670,7 +672,7 @@ describe('pauseFamilyBilling', () => {
     )
   })
 
-  it('should log CRITICAL and re-throw when Stripe succeeds but DB fails', async () => {
+  it('should log CRITICAL and return error when Stripe succeeds but DB fails', async () => {
     mockBillingAssignmentFindFirst.mockResolvedValue(
       makeSubscriptionAssignment('active')
     )
@@ -678,9 +680,11 @@ describe('pauseFamilyBilling', () => {
       new Error('DB connection lost')
     )
 
-    await expect(pauseFamilyBilling('family-1')).rejects.toThrow(
-      'DB connection lost'
-    )
+    const result = await pauseFamilyBilling('family-1')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Stripe paused but DB update failed')
+    expect(result.error).toContain('DB connection lost')
     expect(mockStripe.subscriptions.update).toHaveBeenCalledTimes(1)
     expect(logError).toHaveBeenCalledWith(
       expect.anything(),
@@ -705,8 +709,10 @@ describe('resumeFamilyBilling', () => {
       makeSubscriptionAssignment('paused')
     )
 
-    await resumeFamilyBilling('family-1')
+    const result = await resumeFamilyBilling('family-1')
 
+    expect(result.success).toBe(true)
+    expect(result.error).toBeUndefined()
     expect(mockStripe.subscriptions.update).toHaveBeenCalledWith(
       'sub_stripe_1',
       { pause_collection: null }
@@ -737,7 +743,7 @@ describe('resumeFamilyBilling', () => {
     )
   })
 
-  it('should log CRITICAL and re-throw when Stripe succeeds but DB fails', async () => {
+  it('should log CRITICAL and return error when Stripe succeeds but DB fails', async () => {
     mockBillingAssignmentFindFirst.mockResolvedValue(
       makeSubscriptionAssignment('paused')
     )
@@ -745,9 +751,11 @@ describe('resumeFamilyBilling', () => {
       new Error('DB connection lost')
     )
 
-    await expect(resumeFamilyBilling('family-1')).rejects.toThrow(
-      'DB connection lost'
-    )
+    const result = await resumeFamilyBilling('family-1')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Stripe resumed but DB update failed')
+    expect(result.error).toContain('DB connection lost')
     expect(mockStripe.subscriptions.update).toHaveBeenCalledTimes(1)
     expect(logError).toHaveBeenCalledWith(
       expect.anything(),
