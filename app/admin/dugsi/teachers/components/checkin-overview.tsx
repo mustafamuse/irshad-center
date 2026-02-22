@@ -60,12 +60,11 @@ export function CheckinOverview({ onDataChanged }: Props) {
     totalPages: 0,
   })
 
-  const useSplitView =
-    viewMode === 'today' && filters.shiftFilter !== 'all' && !selectedEndDate
+  const useSplitView = viewMode === 'today' && filters.shiftFilter !== 'all'
 
   const loadTodayCheckins = useCallback(() => {
     startTransition(async () => {
-      if (filters.shiftFilter !== 'all' && !selectedEndDate) {
+      if (filters.shiftFilter !== 'all') {
         const result = await getTeachersWithCheckinStatusAction(selectedDate)
         if (result.success && result.data) {
           setTeacherStatuses(result.data)
