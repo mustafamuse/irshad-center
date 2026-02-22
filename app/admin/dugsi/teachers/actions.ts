@@ -20,6 +20,7 @@ import {
   PersonSearchResult,
 } from '@/lib/mappers/person-mapper'
 import {
+  adminClockIn,
   updateCheckin,
   deleteCheckin,
 } from '@/lib/services/dugsi/teacher-checkin-service'
@@ -37,6 +38,7 @@ import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
 import { extractContactInfo } from '@/lib/utils/contact-helpers'
 import {
+  AdminClockInSchema,
   UpdateCheckinSchema,
   DeleteCheckinSchema,
   CheckinHistoryFiltersSchema,
@@ -1001,6 +1003,80 @@ export async function searchPeopleAction(
       success: false,
       error: 'Failed to search people',
     }
+  }
+}
+
+// ============================================================================
+// Admin Check-in Status + Manual Clock-in
+// ============================================================================
+
+export interface TeacherCheckinStatusForClient {
+  id: string
+  name: string
+  shifts: Shift[]
+  morningCheckin: CheckinRecord | null
+  afternoonCheckin: CheckinRecord | null
+}
+
+export async function getTeachersWithCheckinStatusAction(
+  rawDate: unknown
+): Promise<ActionResult<TeacherCheckinStatusForClient[]>> {
+  const parsed = z.coerce.date().safeParse(rawDate)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid date' }
+  }
+
+  try {
+    const teachers = await getAllDugsiTeachersWithTodayStatus(parsed.data)
+
+    const result: TeacherCheckinStatusForClient[] = teachers.map((t) => ({
+      id: t.id,
+      name: t.name,
+      shifts: t.shifts,
+      morningCheckin: t.morningCheckin
+        ? mapCheckinToRecord(t.morningCheckin)
+        : null,
+      afternoonCheckin: t.afternoonCheckin
+        ? mapCheckinToRecord(t.afternoonCheckin)
+        : null,
+    }))
+
+    return { success: true, data: result }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get teachers with check-in status')
+    return { success: false, error: 'Failed to load teacher check-in status' }
+  }
+}
+
+export async function adminClockInAction(input: {
+  teacherId: string
+  shift: Shift
+  date: Date
+  clockInTime: Date
+}): Promise<ActionResult<CheckinRecord>> {
+  try {
+    const parsed = AdminClockInSchema.safeParse(input)
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]
+      return { success: false, error: firstError?.message || 'Invalid input' }
+    }
+
+    const { checkIn } = await adminClockIn(parsed.data)
+    const record = mapCheckinToRecord(checkIn)
+
+    revalidatePath('/admin/dugsi/teachers')
+
+    return { success: true, data: record }
+  } catch (error) {
+    await logError(logger, error, 'Failed to admin clock-in', {
+      teacherId: input.teacherId,
+    })
+
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+
+    return { success: false, error: 'Failed to check in teacher' }
   }
 }
 
