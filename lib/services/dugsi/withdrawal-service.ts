@@ -13,7 +13,10 @@ import type {
   ReEnrollChildInput,
 } from '@/lib/validations/dugsi'
 
-import { findFamilySubscription } from './billing-helpers'
+import {
+  findFamilySubscription,
+  handleBillingDivergence,
+} from './billing-helpers'
 
 const logger = createServiceLogger('dugsi-withdrawal')
 
@@ -243,6 +246,7 @@ export async function withdrawFamily(
             'withdraw_family'
           )
           billingCanceled = result.updated
+          billingError = result.error
         } catch (error) {
           billingError =
             error instanceof Error ? error.message : 'Unknown Stripe error'
@@ -397,16 +401,13 @@ async function cancelAndDeactivateSubscription(
       }),
     ])
   } catch (dbError) {
-    await logError(
+    const error = await handleBillingDivergence(
       logger,
       dbError,
-      'CRITICAL: Stripe subscription canceled but DB update failed - states diverged',
+      'Stripe subscription canceled',
       { stripeSubscriptionId: subscription.stripeSubscriptionId, operation }
     )
-    return {
-      updated: false,
-      error: `Stripe canceled but DB update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
-    }
+    return { updated: false, error }
   }
   return { updated: true }
 }
@@ -417,6 +418,10 @@ async function applyBillingAdjustment(params: {
   subscription: { id: string; stripeSubscriptionId: string } | null
 }): Promise<{ updated: boolean; error?: string }> {
   const { familyReferenceId, billingAdjustmentType, subscription } = params
+
+  if (!familyReferenceId) {
+    return { updated: true }
+  }
 
   if (!subscription) {
     if (billingAdjustmentType === 'cancel_subscription') {
@@ -484,20 +489,17 @@ async function applyBillingAdjustment(params: {
         data: { amount: newAmount },
       })
     } catch (dbError) {
-      await logError(
+      const error = await handleBillingDivergence(
         logger,
         dbError,
-        'CRITICAL: Stripe amount updated but DB update failed - states diverged',
+        `Stripe amount updated to ${newAmount}`,
         {
           stripeSubscriptionId: subscription.stripeSubscriptionId,
           operation: 'amount_update',
           newAmount,
         }
       )
-      return {
-        updated: false,
-        error: `Stripe updated to ${newAmount} but DB failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
-      }
+      return { updated: false, error }
     }
 
     await logInfo(logger, 'Stripe subscription amount updated', {

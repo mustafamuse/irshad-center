@@ -2,10 +2,13 @@ import * as Sentry from '@sentry/nextjs'
 
 import { prisma } from '@/lib/db'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger, logError, logInfo } from '@/lib/logger'
+import { createServiceLogger, logInfo } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 
-import { findFamilySubscription } from './billing-helpers'
+import {
+  findFamilySubscription,
+  handleBillingDivergence,
+} from './billing-helpers'
 
 const logger = createServiceLogger('dugsi-billing-control')
 
@@ -21,8 +24,7 @@ const BILLING_TOGGLE_CONFIG = {
     statusError: (s: string) => `Cannot pause subscription with status "${s}"`,
     stripePayload: { pause_collection: { behavior: 'void' as const } },
     dbStatus: 'paused' as const,
-    criticalMsg:
-      'CRITICAL: Stripe paused but DB update failed - states diverged',
+    stripeAction: 'Stripe paused',
     successMsg: 'Family billing paused',
     spanName: 'withdrawal.pauseFamilyBilling',
   },
@@ -32,8 +34,7 @@ const BILLING_TOGGLE_CONFIG = {
     statusError: (s: string) => `Cannot resume subscription with status "${s}"`,
     stripePayload: { pause_collection: null },
     dbStatus: 'active' as const,
-    criticalMsg:
-      'CRITICAL: Stripe resumed but DB update failed - states diverged',
+    stripeAction: 'Stripe resumed',
     successMsg: 'Family billing resumed',
     spanName: 'withdrawal.resumeFamilyBilling',
   },
@@ -77,15 +78,17 @@ async function toggleFamilyBillingStatus(
           data: { status: config.dbStatus },
         })
       } catch (dbError) {
-        await logError(logger, dbError, config.criticalMsg, {
-          familyReferenceId,
-          stripeSubscriptionId: subscription.stripeSubscriptionId,
-          intendedStatus: config.dbStatus,
-        })
-        return {
-          success: false,
-          error: `Stripe ${action}d but DB update failed: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`,
-        }
+        const error = await handleBillingDivergence(
+          logger,
+          dbError,
+          config.stripeAction,
+          {
+            familyReferenceId,
+            stripeSubscriptionId: subscription.stripeSubscriptionId,
+            intendedStatus: config.dbStatus,
+          }
+        )
+        return { success: false, error }
       }
 
       await logInfo(logger, config.successMsg, {

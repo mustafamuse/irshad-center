@@ -384,6 +384,34 @@ describe('withdrawChild', () => {
     )
   })
 
+  it.each([
+    ['family_moved', undefined, 'Family moved'],
+    ['family_moved', 'To another city', 'Family moved: To another city'],
+    ['financial', undefined, 'Financial reasons'],
+    ['behavioral', undefined, 'Behavioral'],
+    ['behavioral', 'Repeated disruptions', 'Behavioral: Repeated disruptions'],
+    ['seasonal_break', undefined, 'Seasonal break'],
+    ['other', 'Custom reason', 'Other: Custom reason'],
+  ] as const)(
+    'should format reason "%s" with note "%s" as "%s"',
+    async (reason, reasonNote, expectedLabel) => {
+      const profile = makeActiveProfile()
+      mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+
+      await withdrawChild({
+        ...baseWithdrawInput,
+        reason,
+        ...(reasonNote ? { reasonNote } : {}),
+      })
+
+      expect(mockEnrollmentUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ reason: expectedLabel }),
+        })
+      )
+    }
+  )
+
   it('should return billingUpdated: false when cancel_subscription and no subscription', async () => {
     const profile = makeActiveProfile({ assignments: [] })
     mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
@@ -396,6 +424,20 @@ describe('withdrawChild', () => {
     expect(result.withdrawn).toBe(true)
     expect(result.billingUpdated).toBe(false)
     expect(result.billingError).toContain('No active subscription')
+  })
+
+  it('should skip billing adjustment when familyReferenceId is null', async () => {
+    const profile = makeActiveProfile({ familyReferenceId: null })
+    mockProgramProfileFindUnique.mockResolvedValueOnce(profile)
+
+    const result = await withdrawChild(baseWithdrawInput)
+
+    expect(result.withdrawn).toBe(true)
+    expect(result.billingUpdated).toBe(true)
+    expect(result.billingError).toBeUndefined()
+    expect(mockStripe.subscriptions.update).not.toHaveBeenCalled()
+    expect(mockStripe.subscriptions.cancel).not.toHaveBeenCalled()
+    expect(mockProgramProfileCount).not.toHaveBeenCalled()
   })
 
   describe('applyBillingAdjustment Stripe/DB divergence', () => {
@@ -459,7 +501,7 @@ describe('withdrawChild', () => {
         })
       )
       expect(result.billingUpdated).toBe(false)
-      expect(result.billingError).toContain('Stripe updated to')
+      expect(result.billingError).toContain('Stripe amount updated to')
       expect(result.billingError).toContain('DB fail')
     })
   })
@@ -946,6 +988,38 @@ describe('withdrawFamily', () => {
       expect.any(Error),
       expect.stringContaining('Billing cancellation failed'),
       expect.objectContaining({ familyReferenceId: 'family-1' })
+    )
+  })
+
+  it('should return billingError when Stripe cancel succeeds but DB update fails', async () => {
+    const profiles = [
+      makeActiveProfile({
+        id: 'student-1',
+        person: { id: 'person-1', name: 'Ali Hassan' },
+      }),
+    ]
+    mockBillingAssignmentFindFirst.mockResolvedValue(
+      makeSubscriptionAssignment()
+    )
+    mockProgramProfileFindMany.mockResolvedValue(profiles)
+    mockSubscriptionUpdate.mockRejectedValueOnce(new Error('DB fail'))
+
+    const result = await withdrawFamily(baseInput)
+
+    expect(result.withdrawnCount).toBe(1)
+    expect(result.billingCanceled).toBe(false)
+    expect(result.billingError).toContain(
+      'Stripe subscription canceled but DB update failed'
+    )
+    expect(mockStripe.subscriptions.cancel).toHaveBeenCalledTimes(1)
+    expect(logError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.any(Error),
+      expect.stringContaining('CRITICAL'),
+      expect.objectContaining({
+        stripeSubscriptionId: 'sub_stripe_1',
+        operation: 'withdraw_family',
+      })
     )
   })
 
