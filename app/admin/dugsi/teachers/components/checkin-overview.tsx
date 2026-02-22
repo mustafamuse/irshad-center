@@ -16,10 +16,13 @@ import {
 
 import {
   CheckinRecord,
+  TeacherCheckinStatusForClient,
   getCheckinsForDateAction,
   getCheckinHistoryWithFiltersAction,
+  getTeachersWithCheckinStatusAction,
 } from '../actions'
 import { CheckinCard } from './checkin-card'
+import { CheckinSplitView } from './checkin-split-view'
 import { CheckinTable } from './checkin-table'
 import { generateWeekendDayOptions, getWeekendDates } from './date-utils'
 import { FilterControls, HistoryFilterSelect } from './filter-controls'
@@ -36,6 +39,9 @@ export function CheckinOverview({ onDataChanged }: Props) {
   const [isPending, startTransition] = useTransition()
   const [viewMode, setViewMode] = useState<ViewMode>('today')
   const [checkins, setCheckins] = useState<CheckinRecord[]>([])
+  const [teacherStatuses, setTeacherStatuses] = useState<
+    TeacherCheckinStatusForClient[]
+  >([])
   const [error, setError] = useState<string | null>(null)
 
   const weekendDayOptions = useMemo(() => generateWeekendDayOptions(4), [])
@@ -54,8 +60,22 @@ export function CheckinOverview({ onDataChanged }: Props) {
     totalPages: 0,
   })
 
+  const useSplitView = viewMode === 'today' && filters.shiftFilter !== 'all'
+
   const loadTodayCheckins = useCallback(() => {
     startTransition(async () => {
+      if (filters.shiftFilter !== 'all') {
+        const result = await getTeachersWithCheckinStatusAction(selectedDate)
+        if (result.success && result.data) {
+          setTeacherStatuses(result.data)
+          setCheckins([])
+          setError(null)
+        } else {
+          setError(result.error || 'Failed to load teacher status')
+        }
+        return
+      }
+
       const queryFilters: {
         date?: Date
         dateTo?: Date
@@ -77,6 +97,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
       const result = await getCheckinsForDateAction(queryFilters)
       if (result.success && result.data) {
         setCheckins(result.data)
+        setTeacherStatuses([])
         setError(null)
       } else {
         setError(result.error || 'Failed to load check-ins')
@@ -156,6 +177,9 @@ export function CheckinOverview({ onDataChanged }: Props) {
   }
 
   const isLoading = isPending || filters.isPending
+  const hasData = useSplitView
+    ? teacherStatuses.length > 0
+    : checkins.length > 0
 
   return (
     <div className="space-y-4">
@@ -219,10 +243,17 @@ export function CheckinOverview({ onDataChanged }: Props) {
         </div>
       )}
 
-      {isLoading && checkins.length === 0 ? (
+      {isLoading && !hasData ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : useSplitView ? (
+        <CheckinSplitView
+          teachers={teacherStatuses}
+          shift={filters.shiftFilter as Shift}
+          date={selectedDate}
+          onRefresh={handleRefresh}
+        />
       ) : checkins.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="text-muted-foreground">

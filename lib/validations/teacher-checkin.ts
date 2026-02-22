@@ -61,6 +61,21 @@ export const ClockOutSchema = z.object({
 })
 
 // ============================================================================
+// ADMIN CLOCK-IN VALIDATION
+// ============================================================================
+
+export const AdminClockInSchema = z.object({
+  teacherId: z.string().uuid('Invalid teacher ID format'),
+  shift: z.nativeEnum(Shift, {
+    errorMap: () => ({ message: 'Shift must be MORNING or AFTERNOON' }),
+  }),
+  date: z.coerce.date(),
+  clockInTime: z.coerce.date(),
+})
+
+export type AdminClockInInput = z.infer<typeof AdminClockInSchema>
+
+// ============================================================================
 // ADMIN UPDATE VALIDATION
 // ============================================================================
 
