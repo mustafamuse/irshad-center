@@ -16,19 +16,11 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Textarea } from '@/components/ui/textarea'
-import { WITHDRAWAL_REASONS } from '@/lib/constants/dugsi'
 import type { WithdrawPreview } from '@/lib/services/dugsi/withdrawal-service'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
+import { WithdrawalReasonForm } from './withdrawal-reason-form'
 import { useActionHandler } from '../../_hooks/use-action-handler'
 import { usePreviewDialog } from '../../_hooks/use-preview-dialog'
 import {
@@ -131,33 +123,12 @@ export function WithdrawChildDialog({
                   </p>
 
                   <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <Label>Reason</Label>
-                      <Select value={reason} onValueChange={setReason}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a reason" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {WITHDRAWAL_REASONS.map((r) => (
-                            <SelectItem key={r.value} value={r.value}>
-                              {r.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {reason && (
-                      <div className="space-y-1.5">
-                        <Label>Note (optional)</Label>
-                        <Textarea
-                          value={reasonNote}
-                          onChange={(e) => setReasonNote(e.target.value)}
-                          placeholder="Additional details..."
-                          rows={2}
-                        />
-                      </div>
-                    )}
+                    <WithdrawalReasonForm
+                      reason={reason}
+                      reasonNote={reasonNote}
+                      onReasonChange={setReason}
+                      onReasonNoteChange={setReasonNote}
+                    />
 
                     {preview.hasActiveSubscription &&
                       !preview.isLastActiveChild && (
