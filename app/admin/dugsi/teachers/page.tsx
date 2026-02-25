@@ -1,8 +1,26 @@
-import { getTeachers } from './actions'
+import {
+  getTeachers,
+  getTeachersForDropdownAction,
+  getTeachersWithCheckinStatusAction,
+} from './actions'
+import { getWeekendDates } from './components/date-utils'
 import { TeachersDashboard } from './components/teachers-dashboard'
 
 export default async function TeachersPage() {
-  const result = await getTeachers('DUGSI_PROGRAM')
+  const defaultDate = getWeekendDates(0).start
+
+  const [result, checkinResult, dropdownResult] = await Promise.all([
+    getTeachers('DUGSI_PROGRAM'),
+    getTeachersWithCheckinStatusAction(defaultDate),
+    getTeachersForDropdownAction(),
+  ])
+
+  if (!checkinResult.success) {
+    console.warn('Failed to prefetch checkin statuses:', checkinResult.error)
+  }
+  if (!dropdownResult.success) {
+    console.warn('Failed to prefetch teacher options:', dropdownResult.error)
+  }
 
   if (!result.success || !result.data) {
     return (
@@ -18,7 +36,15 @@ export default async function TeachersPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <TeachersDashboard teachers={result.data} />
+      <TeachersDashboard
+        teachers={result.data}
+        initialCheckinStatuses={
+          checkinResult.success ? checkinResult.data : undefined
+        }
+        initialTeacherOptions={
+          dropdownResult.success ? dropdownResult.data : undefined
+        }
+      />
     </div>
   )
 }

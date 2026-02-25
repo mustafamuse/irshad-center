@@ -5,7 +5,10 @@
  */
 
 import { Shift } from '@prisma/client'
+import { formatInTimeZone } from 'date-fns-tz'
 import { z } from 'zod'
+
+import { SCHOOL_TIMEZONE } from '@/lib/constants/teacher-checkin'
 
 // ============================================================================
 // CLOCK IN/OUT VALIDATION
@@ -59,6 +62,37 @@ export const ClockOutSchema = z.object({
     .min(-180, 'Longitude must be between -180 and 180')
     .max(180, 'Longitude must be between -180 and 180'),
 })
+
+// ============================================================================
+// ADMIN CLOCK-IN VALIDATION
+// ============================================================================
+
+export const AdminClockInSchema = z
+  .object({
+    teacherId: z.string().uuid('Invalid teacher ID format'),
+    shift: z.nativeEnum(Shift, {
+      errorMap: () => ({ message: 'Shift must be MORNING or AFTERNOON' }),
+    }),
+    date: z.coerce.date(),
+    clockInTime: z.coerce.date(),
+  })
+  .refine(
+    (data) => {
+      const dateStr = formatInTimeZone(data.date, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+      const clockInStr = formatInTimeZone(
+        data.clockInTime,
+        SCHOOL_TIMEZONE,
+        'yyyy-MM-dd'
+      )
+      return dateStr === clockInStr
+    },
+    {
+      message: 'Clock-in time must be on the selected date',
+      path: ['clockInTime'],
+    }
+  )
+
+export type AdminClockInInput = z.infer<typeof AdminClockInSchema>
 
 // ============================================================================
 // ADMIN UPDATE VALIDATION

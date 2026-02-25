@@ -1,15 +1,10 @@
 'use client'
 
-import { useCallback, useMemo, useState, useTransition, useEffect } from 'react'
+import { useCallback, useState, useTransition, useEffect } from 'react'
 
 import { Shift } from '@prisma/client'
 
 import { TeacherOption, getTeachersForDropdownAction } from '../actions'
-import {
-  FilterOption,
-  generateHistoryFilterOptions,
-  getThisMonthRange,
-} from './date-utils'
 
 export interface CheckinFiltersState {
   isPending: boolean
@@ -17,35 +12,24 @@ export interface CheckinFiltersState {
   teachersError: string | null
   shiftFilter: Shift | 'all'
   teacherFilter: string | 'all'
-  selectedHistoryFilter: string
-  dateRange: { start: Date; end: Date }
-  historyFilterOptions: { months: FilterOption[]; quarters: FilterOption[] }
-  allHistoryOptions: FilterOption[]
 }
 
 export interface CheckinFiltersActions {
   startTransition: (callback: () => void) => void
   setShiftFilter: (value: Shift | 'all') => void
   setTeacherFilter: (value: string | 'all') => void
-  handleHistoryFilterChange: (value: string) => void
 }
 
-export function useCheckinFilters(): CheckinFiltersState &
-  CheckinFiltersActions {
+export function useCheckinFilters(
+  initialTeachers?: TeacherOption[]
+): CheckinFiltersState & CheckinFiltersActions {
   const [isPending, startTransition] = useTransition()
-  const [teachers, setTeachers] = useState<TeacherOption[]>([])
+  const [teachers, setTeachers] = useState<TeacherOption[]>(
+    initialTeachers ?? []
+  )
   const [teachersError, setTeachersError] = useState<string | null>(null)
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
-  const [selectedHistoryFilter, setSelectedHistoryFilter] =
-    useState('this-month')
-  const [dateRange, setDateRange] = useState(() => getThisMonthRange())
-
-  const historyFilterOptions = useMemo(() => generateHistoryFilterOptions(), [])
-  const allHistoryOptions = useMemo(
-    () => [...historyFilterOptions.months, ...historyFilterOptions.quarters],
-    [historyFilterOptions]
-  )
 
   const loadTeachers = useCallback(() => {
     startTransition(async () => {
@@ -60,16 +44,10 @@ export function useCheckinFilters(): CheckinFiltersState &
   }, [])
 
   useEffect(() => {
+    if (initialTeachers && initialTeachers.length > 0) return
     loadTeachers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialTeachers is only checked on mount
   }, [loadTeachers])
-
-  function handleHistoryFilterChange(value: string) {
-    const option = allHistoryOptions.find((o) => o.value === value)
-    if (option) {
-      setSelectedHistoryFilter(value)
-      setDateRange({ start: option.start, end: option.end })
-    }
-  }
 
   return {
     isPending,
@@ -77,13 +55,8 @@ export function useCheckinFilters(): CheckinFiltersState &
     teachersError,
     shiftFilter,
     teacherFilter,
-    selectedHistoryFilter,
-    dateRange,
-    historyFilterOptions,
-    allHistoryOptions,
     startTransition,
     setShiftFilter,
     setTeacherFilter,
-    handleHistoryFilterChange,
   }
 }

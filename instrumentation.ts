@@ -7,7 +7,7 @@ export async function register() {
 
     if (process.env.NODE_ENV === 'production') {
       const { validateCenterLocationConfig } = await import(
-        '@/lib/constants/teacher-checkin'
+        '@/lib/constants/teacher-checkin-server'
       )
       validateCenterLocationConfig()
     }

@@ -8,17 +8,26 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
-import { TeacherWithDetails } from '../actions'
-import { CheckinOverview } from './checkin-overview'
+import {
+  TeacherCheckinStatusForClient,
+  TeacherOption,
+  TeacherWithDetails,
+} from '../actions'
+import { AttendanceView } from './attendance-view'
 import { CreateTeacherDialog } from './create-teacher-dialog'
-import { LateReport } from './late-report'
 import { TeacherList } from './teacher-list'
 
 interface Props {
   teachers: TeacherWithDetails[]
+  initialCheckinStatuses?: TeacherCheckinStatusForClient[]
+  initialTeacherOptions?: TeacherOption[]
 }
 
-export function TeachersDashboard({ teachers }: Props) {
+export function TeachersDashboard({
+  teachers,
+  initialCheckinStatuses,
+  initialTeacherOptions,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -45,8 +54,7 @@ export function TeachersDashboard({ teachers }: Props) {
       <Tabs defaultValue="teachers" className="space-y-4">
         <TabsList>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
-          <TabsTrigger value="checkins">Check-ins</TabsTrigger>
-          <TabsTrigger value="late-report">Late Report</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
         </TabsList>
 
         <TabsContent
@@ -56,12 +64,12 @@ export function TeachersDashboard({ teachers }: Props) {
           <TeacherList teachers={teachers} onTeacherUpdated={handleRefresh} />
         </TabsContent>
 
-        <TabsContent value="checkins">
-          <CheckinOverview onDataChanged={handleRefresh} />
-        </TabsContent>
-
-        <TabsContent value="late-report">
-          <LateReport />
+        <TabsContent value="attendance">
+          <AttendanceView
+            onDataChanged={handleRefresh}
+            initialCheckinStatuses={initialCheckinStatuses}
+            initialTeacherOptions={initialTeacherOptions}
+          />
         </TabsContent>
       </Tabs>
     </>

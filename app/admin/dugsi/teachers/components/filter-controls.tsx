@@ -7,16 +7,19 @@ import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 
 import { TeacherOption } from '../actions'
-import { FilterOption } from './date-utils'
+
+const SHIFT_OPTIONS: { value: Shift | 'all'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'MORNING', label: 'AM' },
+  { value: 'AFTERNOON', label: 'PM' },
+]
 
 interface FilterControlsProps {
   shiftFilter: Shift | 'all'
@@ -40,20 +43,23 @@ export function FilterControls({
   isPending,
 }: FilterControlsProps) {
   return (
-    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 sm:flex sm:items-center">
-      <Select
-        value={shiftFilter}
-        onValueChange={(value) => onShiftChange(value as Shift | 'all')}
+    <div className="grid grid-cols-[auto_1fr_auto] gap-2 sm:flex sm:items-center">
+      <div
+        role="group"
+        aria-label="Shift filter"
+        className="flex rounded-lg border p-1"
       >
-        <SelectTrigger className="w-full sm:w-[130px]">
-          <SelectValue placeholder="Shift" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Shifts</SelectItem>
-          <SelectItem value="MORNING">Morning</SelectItem>
-          <SelectItem value="AFTERNOON">Afternoon</SelectItem>
-        </SelectContent>
-      </Select>
+        {SHIFT_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            variant={shiftFilter === opt.value ? 'secondary' : 'ghost'}
+            size="sm"
+            onClick={() => onShiftChange(opt.value)}
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </div>
 
       <Select
         value={teacherFilter}
@@ -86,47 +92,10 @@ export function FilterControls({
         className="shrink-0"
         onClick={onRefresh}
         disabled={isPending}
+        aria-label="Refresh"
       >
         <RefreshCw className={cn('h-4 w-4', isPending && 'animate-spin')} />
       </Button>
     </div>
-  )
-}
-
-interface HistoryFilterSelectProps {
-  value: string
-  onChange: (value: string) => void
-  options: { months: FilterOption[]; quarters: FilterOption[] }
-}
-
-export function HistoryFilterSelect({
-  value,
-  onChange,
-  options,
-}: HistoryFilterSelectProps) {
-  return (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="flex-1 sm:w-[180px]">
-        <SelectValue placeholder="Select period" />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectGroup>
-          <SelectLabel>Months</SelectLabel>
-          {options.months.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-        <SelectGroup>
-          <SelectLabel>Quarters</SelectLabel>
-          {options.quarters.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectGroup>
-      </SelectContent>
-    </Select>
   )
 }
