@@ -698,3 +698,30 @@ enum WhatsAppMessageType {
   ANNOUNCEMENT // Class announcements, schedule changes
   NOTIFICATION // Status updates, alerts
 }
+
+// ============================================================================
+// DONATION TRACKING
+// ============================================================================
+
+model Donation {
+  id                    String    @id @default(uuid())
+  stripePaymentIntentId String    @unique
+  stripeCustomerId      String?
+  amount                Int // cents
+  currency              String    @default("usd")
+  status                String // "succeeded", "pending", "failed", "refunded"
+  donorName             String?
+  donorEmail            String?
+  isAnonymous           Boolean   @default(false)
+  isRecurring           Boolean   @default(false)
+  stripeSubscriptionId  String?
+  metadata              Json?
+  paidAt                DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([stripeCustomerId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([donorEmail])
+}

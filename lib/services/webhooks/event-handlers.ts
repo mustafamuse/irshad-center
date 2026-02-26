@@ -17,6 +17,12 @@ import { createServiceLogger } from '@/lib/logger'
 import { unifiedMatcher } from '@/lib/services/shared/unified-matcher'
 
 import {
+  handleOneTimeDonation,
+  handleRecurringDonationCheckout,
+  handleDonationPaymentIntentSucceeded,
+  handleDonationInvoicePaid,
+} from './donation-handler'
+import {
   handlePaymentMethodCapture,
   handleSubscriptionCreated,
   handleSubscriptionUpdated,
@@ -276,3 +282,44 @@ export function createEventHandlers(accountType: StripeAccountType) {
 // Pre-built handler sets for each program
 export const mahadEventHandlers = createEventHandlers('MAHAD')
 export const dugsiEventHandlers = createEventHandlers('DUGSI')
+
+async function handleDonationCheckoutCompleted(
+  event: Stripe.Event
+): Promise<void> {
+  const session = extractEventData<Stripe.Checkout.Session>(event)
+
+  logger.info(
+    { sessionId: session.id, mode: session.mode },
+    'Processing donation checkout.session.completed'
+  )
+
+  if (session.mode === 'payment') {
+    await handleOneTimeDonation(session)
+  } else if (session.mode === 'subscription') {
+    await handleRecurringDonationCheckout(session)
+  } else {
+    logger.warn({ mode: session.mode }, 'Unexpected checkout mode for donation')
+  }
+}
+
+export const donationEventHandlers: Record<
+  string,
+  (event: Stripe.Event) => Promise<void>
+> = {
+  'checkout.session.completed': handleDonationCheckoutCompleted,
+
+  'payment_intent.succeeded': handleDonationPaymentIntentSucceeded,
+
+  'invoice.payment_succeeded': handleDonationInvoicePaid,
+
+  'customer.subscription.created': (event: Stripe.Event) =>
+    handleSubscriptionCreatedEvent(event, 'GENERAL_DONATION'),
+
+  'customer.subscription.updated': handleSubscriptionUpdatedEvent,
+
+  'customer.subscription.deleted': handleSubscriptionDeletedEvent,
+
+  'invoice.finalized': handleInvoiceFinalizedEvent,
+
+  'invoice.payment_failed': handleInvoicePaymentFailedEvent,
+}

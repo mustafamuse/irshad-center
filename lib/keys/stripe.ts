@@ -40,12 +40,17 @@ interface DugsiConfig extends StripeProgramConfig {
   productId?: string
 }
 
+// Donation-specific config
+interface DonationConfig extends StripeProgramConfig {
+  productId?: string
+}
+
 // Full Stripe keys configuration
 export interface StripeKeysConfig {
   mahad: MahadConfig
   dugsi: DugsiConfig
   youth: MahadConfig | null
-  donation: MahadConfig | null
+  donation: DonationConfig | null
 }
 
 /**
@@ -99,12 +104,36 @@ export function keys(): StripeKeysConfig {
     productId: process.env.STRIPE_DUGSI_PRODUCT_ID,
   }
 
+  const donationSecretKey = isProduction
+    ? process.env.STRIPE_DONATION_SECRET_KEY_LIVE
+    : process.env.STRIPE_DONATION_SECRET_KEY_TEST ||
+      process.env.STRIPE_DONATION_SECRET_KEY_LIVE
+
+  const donationWebhookSecret = isProduction
+    ? process.env.STRIPE_DONATION_WEBHOOK_SECRET_LIVE
+    : process.env.STRIPE_DONATION_WEBHOOK_SECRET_TEST ||
+      process.env.STRIPE_DONATION_WEBHOOK_SECRET_LIVE
+
+  const donationPublishableKey = isProduction
+    ? process.env.NEXT_PUBLIC_STRIPE_DONATION_PUBLISHABLE_KEY_LIVE
+    : process.env.NEXT_PUBLIC_STRIPE_DONATION_PUBLISHABLE_KEY_TEST ||
+      process.env.NEXT_PUBLIC_STRIPE_DONATION_PUBLISHABLE_KEY_LIVE
+
+  const donationConfig: DonationConfig | null =
+    donationSecretKey && donationWebhookSecret
+      ? {
+          secretKey: donationSecretKey,
+          webhookSecret: donationWebhookSecret,
+          publishableKey: donationPublishableKey,
+          productId: process.env.STRIPE_DONATION_PRODUCT_ID,
+        }
+      : null
+
   return {
     mahad: mahadConfig,
     dugsi: dugsiConfig,
-    // Youth & Donation default to null - will use Mahad's keys as fallback
     youth: null,
-    donation: null,
+    donation: donationConfig,
   }
 }
 
@@ -189,20 +218,65 @@ export function getDugsiKeys(): DugsiConfig {
 }
 
 /**
+ * Get Donation Stripe configuration.
+ * Validates keys with Zod and throws if missing or malformed.
+ */
+export function getDonationKeys(): DonationConfig {
+  const config = keys().donation
+
+  if (!config) {
+    throw new Error(
+      'Donation Stripe keys not configured. ' +
+        'Please set STRIPE_DONATION_SECRET_KEY_TEST and STRIPE_DONATION_WEBHOOK_SECRET_TEST.'
+    )
+  }
+
+  const secretKeyResult = stripeSecretKeySchema.safeParse(config.secretKey)
+  if (!secretKeyResult.success) {
+    throw new Error(
+      'Donation Stripe secret key not configured or invalid format. ' +
+        'Please set STRIPE_DONATION_SECRET_KEY_TEST and STRIPE_DONATION_SECRET_KEY_LIVE (must start with sk_).'
+    )
+  }
+
+  const webhookSecretResult = stripeWebhookSecretSchema.safeParse(
+    config.webhookSecret
+  )
+  if (!webhookSecretResult.success) {
+    throw new Error(
+      'Donation Stripe webhook secret not configured or invalid format. ' +
+        'Please set STRIPE_DONATION_WEBHOOK_SECRET_TEST and STRIPE_DONATION_WEBHOOK_SECRET_LIVE (must start with whsec_).'
+    )
+  }
+
+  if (config.productId) {
+    const productIdResult = stripeProductIdSchema.safeParse(config.productId)
+    if (!productIdResult.success) {
+      throw new Error(
+        'Donation Stripe product ID has invalid format. ' +
+          'Please set STRIPE_DONATION_PRODUCT_ID (must start with prod_).'
+      )
+    }
+  }
+
+  return config
+}
+
+/**
  * Get Stripe configuration for a specific program.
- * Falls back to Mahad keys for Youth and Donation programs.
+ * Falls back to Mahad keys for Youth program.
  */
 export function getKeysForProgram(
   program: 'MAHAD' | 'DUGSI' | 'YOUTH_EVENTS' | 'GENERAL_DONATION'
-): MahadConfig | DugsiConfig {
+): MahadConfig | DugsiConfig | DonationConfig {
   switch (program) {
     case 'MAHAD':
       return getMahadKeys()
     case 'DUGSI':
       return getDugsiKeys()
-    case 'YOUTH_EVENTS':
     case 'GENERAL_DONATION':
-      // Default to Mahad keys until they get their own
+      return getDonationKeys()
+    case 'YOUTH_EVENTS':
       return getMahadKeys()
     default: {
       const _exhaustiveCheck: never = program

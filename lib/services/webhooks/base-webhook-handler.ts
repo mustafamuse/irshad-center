@@ -32,7 +32,7 @@ import { createWebhookLogger, logError, logInfo } from '@/lib/logger'
 /**
  * Webhook source identifier
  */
-export type WebhookSource = 'mahad' | 'dugsi'
+export type WebhookSource = 'mahad' | 'dugsi' | 'donation'
 
 /**
  * Event handler function signature
