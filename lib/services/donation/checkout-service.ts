@@ -3,26 +3,21 @@ import type Stripe from 'stripe'
 import { getDonationKeys } from '@/lib/keys/stripe'
 import { createServiceLogger } from '@/lib/logger'
 import { getDonationStripeClient } from '@/lib/stripe-donation'
-import {
-  DonationCheckoutSchema,
-  type DonationCheckoutInput,
-} from '@/lib/validations/donation'
+import { type DonationCheckoutInput } from '@/lib/validations/donation'
 
 const logger = createServiceLogger('donation-checkout')
 
 export async function createDonationCheckoutSession(
   input: DonationCheckoutInput
 ): Promise<Stripe.Checkout.Session> {
-  const validated = DonationCheckoutSchema.parse(input)
-
   const stripe = getDonationStripeClient()
   const donationKeys = getDonationKeys()
 
   const metadata: Record<string, string> = {
     source: 'donation_page',
-    isAnonymous: String(validated.isAnonymous),
+    isAnonymous: String(input.isAnonymous),
   }
-  if (validated.donorName) metadata.donorName = validated.donorName
+  if (input.donorName) metadata.donorName = input.donorName
 
   const baseParams: Stripe.Checkout.SessionCreateParams = {
     payment_method_types: ['card'],
@@ -31,13 +26,13 @@ export async function createDonationCheckoutSession(
     metadata,
   }
 
-  if (validated.donorEmail) {
-    baseParams.customer_email = validated.donorEmail
+  if (input.donorEmail) {
+    baseParams.customer_email = input.donorEmail
   }
 
   let sessionParams: Stripe.Checkout.SessionCreateParams
 
-  if (validated.mode === 'payment') {
+  if (input.mode === 'payment') {
     sessionParams = {
       ...baseParams,
       mode: 'payment',
@@ -45,7 +40,7 @@ export async function createDonationCheckoutSession(
         {
           price_data: {
             currency: 'usd',
-            unit_amount: validated.amount,
+            unit_amount: input.amount,
             product: donationKeys.productId || undefined,
             ...(!donationKeys.productId && {
               product_data: { name: 'Donation to Irshad Center' },
@@ -63,7 +58,7 @@ export async function createDonationCheckoutSession(
         {
           price_data: {
             currency: 'usd',
-            unit_amount: validated.amount,
+            unit_amount: input.amount,
             recurring: { interval: 'month' },
             product: donationKeys.productId || undefined,
             ...(!donationKeys.productId && {
@@ -81,8 +76,8 @@ export async function createDonationCheckoutSession(
   logger.info(
     {
       sessionId: session.id,
-      mode: validated.mode,
-      amount: validated.amount,
+      mode: input.mode,
+      amount: input.amount,
     },
     'Donation checkout session created'
   )

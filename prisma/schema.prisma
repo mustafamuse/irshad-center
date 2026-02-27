@@ -516,7 +516,7 @@ model WebhookEvent {
   id          String   @id @default(uuid())
   eventId     String
   eventType   String
-  source      String // 'mahad' or 'dugsi'
+  source      String // 'mahad', 'dugsi', or 'donation'
   processedAt DateTime @default(now())
   payload     Json?
 

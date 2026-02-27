@@ -22,6 +22,8 @@ import {
   handleDonationPaymentIntentSucceeded,
   handleDonationInvoicePaid,
   handleDonationSubscriptionCreated,
+  handleDonationSubscriptionUpdated,
+  handleDonationSubscriptionDeleted,
 } from './donation-handler'
 import {
   handlePaymentMethodCapture,
@@ -315,9 +317,9 @@ export const donationEventHandlers: Record<
 
   'customer.subscription.created': handleDonationSubscriptionCreated,
 
-  'customer.subscription.updated': handleSubscriptionUpdatedEvent,
+  'customer.subscription.updated': handleDonationSubscriptionUpdated,
 
-  'customer.subscription.deleted': handleSubscriptionDeletedEvent,
+  'customer.subscription.deleted': handleDonationSubscriptionDeleted,
 
   'invoice.finalized': handleInvoiceFinalizedEvent,
 

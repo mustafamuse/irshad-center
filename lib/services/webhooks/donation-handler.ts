@@ -217,6 +217,14 @@ export async function handleDonationInvoicePaid(
     },
   })
 
+  // Clean up the checkout placeholder (sub_setup_*) now that a real payment exists
+  const placeholderId = `sub_setup_${subscriptionId}`
+  if (paymentIntentId !== placeholderId) {
+    await prisma.donation.deleteMany({
+      where: { stripePaymentIntentId: placeholderId },
+    })
+  }
+
   logger.info(
     { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
     'Recurring donation invoice paid'
@@ -242,7 +250,7 @@ export async function handleDonationSubscriptionCreated(
   const customerId =
     typeof subscription.customer === 'string'
       ? subscription.customer
-      : (subscription.customer as { id?: string })?.id ?? null
+      : ((subscription.customer as { id?: string })?.id ?? null)
 
   logger.info(
     {
@@ -251,5 +259,53 @@ export async function handleDonationSubscriptionCreated(
       status: subscription.status,
     },
     'Donation subscription created — tracking via Donation records only'
+  )
+}
+
+export async function handleDonationSubscriptionUpdated(
+  event: Stripe.Event
+): Promise<void> {
+  const subscription = event.data.object as Stripe.Subscription
+
+  logger.info(
+    {
+      subscriptionId: subscription.id,
+      status: subscription.status,
+    },
+    'Donation subscription updated'
+  )
+}
+
+export async function handleDonationSubscriptionDeleted(
+  event: Stripe.Event
+): Promise<void> {
+  const subscription = event.data.object as Stripe.Subscription
+
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : ((subscription.customer as { id?: string })?.id ?? null)
+
+  // Record a cancellation marker so the MRR query can exclude this subscription
+  await prisma.donation.upsert({
+    where: {
+      stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
+    },
+    create: {
+      stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: customerId,
+      amount: 0,
+      status: 'cancelled',
+      isRecurring: true,
+    },
+    update: {
+      status: 'cancelled',
+    },
+  })
+
+  logger.info(
+    { subscriptionId: subscription.id, customerId },
+    'Donation subscription cancelled'
   )
 }

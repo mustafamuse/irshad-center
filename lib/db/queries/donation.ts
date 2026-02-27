@@ -29,39 +29,53 @@ export async function getDonations(options: DonationListOptions = {}) {
 }
 
 export async function getDonationStats() {
-  const [oneTimeStats, recurringCount, recurringForMrr, donorCount] =
-    await Promise.all([
-      prisma.donation.aggregate({
-        where: { status: 'succeeded', isRecurring: false },
-        _sum: { amount: true },
-        _count: true,
-      }),
-      prisma.donation.count({
-        where: { isRecurring: true, status: 'succeeded' },
-      }),
-      // Fetch all succeeded recurring donations to compute MRR per subscription.
-      // Donation subscriptions cannot be stored in the Subscription table
-      // (requires billingAccountId → Person), so MRR is derived here instead.
-      prisma.donation.findMany({
-        where: {
-          isRecurring: true,
-          status: 'succeeded',
-          stripeSubscriptionId: { not: null },
-        },
-        select: { stripeSubscriptionId: true, amount: true },
-        orderBy: { paidAt: 'desc' },
-      }),
-      prisma.donation.findMany({
-        where: { status: 'succeeded', donorEmail: { not: null } },
-        select: { donorEmail: true },
-        distinct: ['donorEmail'],
-      }),
-    ])
+  const [
+    oneTimeStats,
+    recurringCount,
+    recurringForMrr,
+    cancelledSubs,
+    donorCount,
+  ] = await Promise.all([
+    prisma.donation.aggregate({
+      where: { status: 'succeeded', isRecurring: false },
+      _sum: { amount: true },
+      _count: true,
+    }),
+    prisma.donation.count({
+      where: { isRecurring: true, status: 'succeeded' },
+    }),
+    prisma.donation.findMany({
+      where: {
+        isRecurring: true,
+        status: 'succeeded',
+        stripeSubscriptionId: { not: null },
+      },
+      select: { stripeSubscriptionId: true, amount: true },
+      orderBy: { paidAt: 'desc' },
+    }),
+    prisma.donation.findMany({
+      where: { status: 'cancelled', stripeSubscriptionId: { not: null } },
+      select: { stripeSubscriptionId: true },
+    }),
+    prisma.donation.findMany({
+      where: { status: 'succeeded', donorEmail: { not: null } },
+      select: { donorEmail: true },
+      distinct: ['donorEmail'],
+    }),
+  ])
+
+  const cancelledSubIds = new Set(
+    cancelledSubs.map((d) => d.stripeSubscriptionId)
+  )
 
   // MRR = sum of the latest payment amount per unique active subscription
   const latestPerSub = new Map<string, number>()
   for (const d of recurringForMrr) {
-    if (d.stripeSubscriptionId && !latestPerSub.has(d.stripeSubscriptionId)) {
+    if (
+      d.stripeSubscriptionId &&
+      !latestPerSub.has(d.stripeSubscriptionId) &&
+      !cancelledSubIds.has(d.stripeSubscriptionId)
+    ) {
       latestPerSub.set(d.stripeSubscriptionId, d.amount)
     }
   }
