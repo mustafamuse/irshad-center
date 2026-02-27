@@ -29,7 +29,7 @@ export async function getDonations(options: DonationListOptions = {}) {
 }
 
 export async function getDonationStats() {
-  const [oneTimeStats, recurringCount, mrrResult, donorCount] =
+  const [oneTimeStats, recurringCount, recurringForMrr, donorCount] =
     await Promise.all([
       prisma.donation.aggregate({
         where: { status: 'succeeded', isRecurring: false },
@@ -39,13 +39,17 @@ export async function getDonationStats() {
       prisma.donation.count({
         where: { isRecurring: true, status: 'succeeded' },
       }),
-      prisma.subscription.aggregate({
+      // Fetch all succeeded recurring donations to compute MRR per subscription.
+      // Donation subscriptions cannot be stored in the Subscription table
+      // (requires billingAccountId → Person), so MRR is derived here instead.
+      prisma.donation.findMany({
         where: {
-          stripeAccountType: 'GENERAL_DONATION',
-          status: 'active',
+          isRecurring: true,
+          status: 'succeeded',
+          stripeSubscriptionId: { not: null },
         },
-        _sum: { amount: true },
-        _count: true,
+        select: { stripeSubscriptionId: true, amount: true },
+        orderBy: { paidAt: 'desc' },
       }),
       prisma.donation.findMany({
         where: { status: 'succeeded', donorEmail: { not: null } },
@@ -54,22 +58,35 @@ export async function getDonationStats() {
       }),
     ])
 
+  // MRR = sum of the latest payment amount per unique active subscription
+  const latestPerSub = new Map<string, number>()
+  for (const d of recurringForMrr) {
+    if (d.stripeSubscriptionId && !latestPerSub.has(d.stripeSubscriptionId)) {
+      latestPerSub.set(d.stripeSubscriptionId, d.amount)
+    }
+  }
+  const mrrCents = Array.from(latestPerSub.values()).reduce(
+    (sum, amt) => sum + amt,
+    0
+  )
+
   return {
     oneTimeTotalCents: oneTimeStats._sum.amount ?? 0,
     oneTimeCount: oneTimeStats._count,
-    activeRecurringCount: mrrResult._count,
-    mrrCents: mrrResult._sum.amount ?? 0,
+    activeRecurringCount: latestPerSub.size,
+    mrrCents,
     totalDonorCount: donorCount.length,
     recurringPaymentCount: recurringCount,
   }
 }
 
 export async function getRecurringDonations() {
-  return prisma.subscription.findMany({
+  return prisma.donation.findMany({
     where: {
-      stripeAccountType: 'GENERAL_DONATION',
-      status: { in: ['active', 'trialing', 'past_due'] },
+      isRecurring: true,
+      status: 'succeeded',
+      stripeSubscriptionId: { not: null },
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: { paidAt: 'desc' },
   })
 }

@@ -21,6 +21,7 @@ import {
   handleRecurringDonationCheckout,
   handleDonationPaymentIntentSucceeded,
   handleDonationInvoicePaid,
+  handleDonationSubscriptionCreated,
 } from './donation-handler'
 import {
   handlePaymentMethodCapture,
@@ -312,8 +313,7 @@ export const donationEventHandlers: Record<
 
   'invoice.payment_succeeded': handleDonationInvoicePaid,
 
-  'customer.subscription.created': (event: Stripe.Event) =>
-    handleSubscriptionCreatedEvent(event, 'GENERAL_DONATION'),
+  'customer.subscription.created': handleDonationSubscriptionCreated,
 
   'customer.subscription.updated': handleSubscriptionUpdatedEvent,
 

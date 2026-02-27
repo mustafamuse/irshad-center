@@ -181,6 +181,17 @@ export async function handleDonationInvoicePaid(
       ? invoice.payment_intent
       : invoice.payment_intent.id
 
+  // Look up the checkout-created placeholder to inherit donor metadata
+  // (isAnonymous, donorName) that is only available at checkout time
+  const checkoutDonation = await prisma.donation.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+    orderBy: { createdAt: 'asc' },
+    select: { isAnonymous: true, donorName: true },
+  })
+
+  const isAnonymous = checkoutDonation?.isAnonymous ?? false
+  const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
+
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: paymentIntentId },
     create: {
@@ -193,6 +204,8 @@ export async function handleDonationInvoicePaid(
       currency: invoice.currency ?? 'usd',
       status: 'succeeded',
       donorEmail: invoice.customer_email ?? null,
+      isAnonymous,
+      donorName,
       isRecurring: true,
       stripeSubscriptionId: subscriptionId,
       paidAt: new Date(),
@@ -207,5 +220,36 @@ export async function handleDonationInvoicePaid(
   logger.info(
     { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
     'Recurring donation invoice paid'
+  )
+}
+
+/**
+ * Handle customer.subscription.created for donation subscriptions.
+ *
+ * Donation subscriptions cannot be stored in the Subscription table because
+ * that model requires a billingAccountId linked to a Person record. Donations
+ * are anonymous/standalone and have no associated billing account.
+ *
+ * Recurring donation tracking is done entirely via Donation records:
+ * - checkout.session.completed creates the pending placeholder
+ * - invoice.payment_succeeded creates the real succeeded record per charge
+ */
+export async function handleDonationSubscriptionCreated(
+  event: Stripe.Event
+): Promise<void> {
+  const subscription = event.data.object as Stripe.Subscription
+
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : (subscription.customer as { id?: string })?.id ?? null
+
+  logger.info(
+    {
+      subscriptionId: subscription.id,
+      customerId,
+      status: subscription.status,
+    },
+    'Donation subscription created — tracking via Donation records only'
   )
 }
