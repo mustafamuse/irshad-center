@@ -12,9 +12,6 @@ import { createWebhookHandler } from '@/lib/services/webhooks/base-webhook-handl
 import { donationEventHandlers } from '@/lib/services/webhooks/event-handlers'
 import { verifyDonationWebhook } from '@/lib/stripe-donation'
 
-/**
- * POST handler for Donation webhooks
- */
 export const POST = createWebhookHandler({
   source: 'donation',
   verifyWebhook: verifyDonationWebhook,

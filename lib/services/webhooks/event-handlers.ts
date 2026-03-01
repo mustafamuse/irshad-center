@@ -283,7 +283,6 @@ export function createEventHandlers(accountType: StripeAccountType) {
   }
 }
 
-// Pre-built handler sets for each program
 export const mahadEventHandlers = createEventHandlers('MAHAD')
 export const dugsiEventHandlers = createEventHandlers('DUGSI')
 
@@ -311,18 +310,11 @@ export const donationEventHandlers: Record<
   (event: Stripe.Event) => Promise<void>
 > = {
   'checkout.session.completed': handleDonationCheckoutCompleted,
-
   'payment_intent.succeeded': handleDonationPaymentIntentSucceeded,
-
   'invoice.payment_succeeded': handleDonationInvoicePaid,
-
   'customer.subscription.created': handleDonationSubscriptionCreated,
-
   'customer.subscription.updated': handleDonationSubscriptionUpdated,
-
   'customer.subscription.deleted': handleDonationSubscriptionDeleted,
-
   'invoice.payment_failed': handleInvoicePaymentFailedEvent,
-
   'invoice.finalized': handleDonationInvoiceFinalized,
 }

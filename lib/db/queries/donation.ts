@@ -88,8 +88,7 @@ export async function getDonationStats(): Promise<DonationStats> {
     cancelledSubs.map((d) => d.stripeSubscriptionId)
   )
 
-  // MRR: sum of the latest payment per unique active subscription.
-  // Ordered by paidAt desc, so first occurrence per sub is the latest.
+  // MRR: latest payment amount per unique active subscription
   const latestPerSub = new Map<string, number>()
   for (const d of recurringPayments) {
     const subId = d.stripeSubscriptionId

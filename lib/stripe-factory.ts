@@ -3,18 +3,10 @@ import Stripe from 'stripe'
 import type { StripeProgramConfig } from '@/lib/keys/stripe'
 import { createServiceLogger } from '@/lib/logger'
 
-const STRIPE_API_VERSION = '2025-08-27.basil'
-
-interface StripeService {
-  getClient: () => Stripe
-  getWebhookSecret: () => string
-  verifyWebhook: (body: string, signature: string) => Stripe.Event
-}
-
 export function createStripeService(
   name: string,
   getKeys: () => StripeProgramConfig
-): StripeService {
+) {
   const logger = createServiceLogger(`stripe-${name}`)
   let client: Stripe | null = null
 
@@ -23,8 +15,7 @@ export function createStripeService(
       const { secretKey } = getKeys()
       logger.info(`Initializing ${name} Stripe client`)
       client = new Stripe(secretKey, {
-        apiVersion: STRIPE_API_VERSION,
-        typescript: true,
+        apiVersion: '2025-08-27.basil',
       })
     }
     return client
@@ -43,12 +34,11 @@ export function createStripeService(
         getWebhookSecret()
       )
     } catch (err) {
-      const error = err as Error
       logger.error(
-        { err: error, signaturePreview: signature.substring(0, 20) + '...' },
+        { err, signaturePreview: signature.substring(0, 20) + '...' },
         `${name} webhook verification failed`
       )
-      throw new Error(`Webhook verification failed: ${error.message}`)
+      throw err
     }
   }
 
