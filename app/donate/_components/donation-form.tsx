@@ -105,9 +105,11 @@ export function DonationForm() {
   const isCustomActive = !selectedPreset && customAmount
 
   return (
-    <Card className="mx-auto w-full max-w-md">
+    <Card className="mx-auto w-full max-w-md rounded-2xl border-[#007078]/20 bg-white shadow-lg dark:border-[#007078]/40 dark:bg-gray-900">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Support Irshad Center</CardTitle>
+        <CardTitle className="text-2xl text-[#007078] dark:text-[#00a0a8]">
+          Support Irshad Center
+        </CardTitle>
         <CardDescription>
           Your donation helps our community programs thrive
         </CardDescription>
@@ -122,8 +124,8 @@ export function DonationForm() {
               className={cn(
                 'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors',
                 mode === option.value
-                  ? 'bg-primary text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-[#007078] text-white'
+                  : 'text-gray-500 hover:text-[#007078]'
               )}
             >
               {option.label}
@@ -140,8 +142,8 @@ export function DonationForm() {
               className={cn(
                 'rounded-lg border px-3 py-3 text-sm font-medium transition-colors',
                 selectedPreset === amount
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border hover:border-primary/50'
+                  ? 'border-[#007078] bg-[#007078]/10 text-[#007078]'
+                  : 'border-gray-200 hover:border-[#007078]/50 dark:border-gray-700'
               )}
             >
               {formatCents(amount)}
@@ -159,7 +161,7 @@ export function DonationForm() {
               onChange={(e) => handleCustomAmountChange(e.target.value)}
               className={cn(
                 'h-full pl-7',
-                isCustomActive && 'border-primary ring-1 ring-primary'
+                isCustomActive && 'border-[#007078] ring-1 ring-[#007078]'
               )}
             />
           </div>
@@ -194,7 +196,7 @@ export function DonationForm() {
         <Button
           onClick={handleSubmit}
           disabled={isPending || amountInCents < 100}
-          className="w-full"
+          className="w-full rounded-xl bg-[#deb43e] text-white hover:bg-[#c9a438]"
           size="lg"
         >
           {getButtonLabel(isPending, amountInCents, mode)}

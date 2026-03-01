@@ -24,8 +24,6 @@ export const IRSHAD_CENTER = {
 
 export const IRSHAD_TIMEZONE = IRSHAD_CENTER.timezone
 
-export const SCROLL_THRESHOLD = 100
-
 export const PROGRAMS = {
   mahad: {
     name: 'Irshād Māhad',
