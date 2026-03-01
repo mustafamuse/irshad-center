@@ -13,16 +13,11 @@
 
 import { z } from 'zod'
 
-const stripeSecretKeySchema = z.string().startsWith('sk_')
-const stripeWebhookSecretSchema = z.string().startsWith('whsec_')
-const stripePublishableKeySchema = z.string().startsWith('pk_')
-const stripeProductIdSchema = z.string().startsWith('prod_')
-
 const stripeProgramConfigSchema = z.object({
-  secretKey: stripeSecretKeySchema,
-  webhookSecret: stripeWebhookSecretSchema,
-  publishableKey: stripePublishableKeySchema.optional(),
-  productId: z.string().optional(),
+  secretKey: z.string().startsWith('sk_'),
+  webhookSecret: z.string().startsWith('whsec_'),
+  publishableKey: z.string().startsWith('pk_').optional(),
+  productId: z.string().startsWith('prod_').optional(),
 })
 
 export type StripeProgramConfig = z.infer<typeof stripeProgramConfigSchema>
@@ -43,11 +38,6 @@ export interface StripeKeysConfig {
   donation: StripeProgramConfig | null
 }
 
-/**
- * Resolve an env var with test/live fallback.
- * In production: returns the live value.
- * In development: returns the test value, falling back to live.
- */
 function resolveEnvKey(
   isProduction: boolean,
   testKey: string,
@@ -59,35 +49,16 @@ function resolveEnvKey(
   return process.env[testKey] || process.env[liveKey]
 }
 
-/**
- * Validate a StripeProgramConfig and throw descriptive errors if invalid.
- */
 function validateProgramConfig(
   config: StripeProgramConfig,
   programName: string
 ): void {
-  if (!stripeSecretKeySchema.safeParse(config.secretKey).success) {
-    throw new Error(
-      `${programName} Stripe secret key not configured or invalid format. ` +
-        `Must start with sk_.`
-    )
-  }
-
-  if (!stripeWebhookSecretSchema.safeParse(config.webhookSecret).success) {
-    throw new Error(
-      `${programName} Stripe webhook secret not configured or invalid format. ` +
-        `Must start with whsec_.`
-    )
-  }
-
-  if (
-    config.productId &&
-    !stripeProductIdSchema.safeParse(config.productId).success
-  ) {
-    throw new Error(
-      `${programName} Stripe product ID has invalid format. ` +
-        `Must start with prod_.`
-    )
+  const result = stripeProgramConfigSchema.safeParse(config)
+  if (!result.success) {
+    const details = result.error.issues
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join('; ')
+    throw new Error(`${programName} Stripe config invalid: ${details}`)
   }
 }
 
@@ -169,60 +140,40 @@ export function keys(): StripeKeysConfig {
   }
 }
 
-/**
- * Get Mahad Stripe configuration.
- * Validates keys with Zod and throws if missing or malformed.
- */
 export function getMahadKeys(): MahadConfig {
   const config = keys().mahad
   validateProgramConfig(config, 'Mahad')
   return config
 }
 
-/**
- * Get Dugsi Stripe configuration.
- * Validates keys with Zod and throws if missing or malformed.
- */
 export function getDugsiKeys(): DugsiConfig {
   const config = keys().dugsi
   validateProgramConfig(config, 'Dugsi')
   return config
 }
 
-/**
- * Get Donation Stripe configuration.
- * Validates keys with Zod and throws if missing or malformed.
- */
 export function getDonationKeys(): StripeProgramConfig {
   const config = keys().donation
 
   if (!config) {
-    throw new Error(
-      'Donation Stripe keys not configured. ' +
-        'Please set STRIPE_DONATION_SECRET_KEY_TEST and STRIPE_DONATION_WEBHOOK_SECRET_TEST.'
-    )
+    throw new Error('Donation Stripe keys not configured')
   }
 
   validateProgramConfig(config, 'Donation')
   return config
 }
 
-/**
- * Get Stripe configuration for a specific program.
- * Falls back to Mahad keys for Youth program.
- */
 export function getKeysForProgram(
   program: 'MAHAD' | 'DUGSI' | 'YOUTH_EVENTS' | 'GENERAL_DONATION'
 ): StripeProgramConfig {
   switch (program) {
     case 'MAHAD':
+    case 'YOUTH_EVENTS':
       return getMahadKeys()
     case 'DUGSI':
       return getDugsiKeys()
     case 'GENERAL_DONATION':
       return getDonationKeys()
-    case 'YOUTH_EVENTS':
-      return getMahadKeys()
     default: {
       const _exhaustiveCheck: never = program
       throw new Error(`Unknown program: ${_exhaustiveCheck}`)

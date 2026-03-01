@@ -52,9 +52,9 @@ export async function getDonationStats(): Promise<DonationStats> {
   const [
     oneTimeStats,
     recurringCount,
-    recurringForMrr,
+    recurringPayments,
     cancelledSubs,
-    donorCount,
+    uniqueDonors,
   ] = await Promise.all([
     prisma.donation.aggregate({
       where: { status: 'succeeded', isRecurring: false },
@@ -88,10 +88,10 @@ export async function getDonationStats(): Promise<DonationStats> {
     cancelledSubs.map((d) => d.stripeSubscriptionId)
   )
 
-  // MRR: sum of the latest payment amount per unique active subscription.
-  // Results are ordered by paidAt desc, so the first occurrence per sub is the latest.
+  // MRR: sum of the latest payment per unique active subscription.
+  // Ordered by paidAt desc, so first occurrence per sub is the latest.
   const latestPerSub = new Map<string, number>()
-  for (const d of recurringForMrr) {
+  for (const d of recurringPayments) {
     const subId = d.stripeSubscriptionId
     if (subId && !latestPerSub.has(subId) && !cancelledSubIds.has(subId)) {
       latestPerSub.set(subId, d.amount)
@@ -108,18 +108,7 @@ export async function getDonationStats(): Promise<DonationStats> {
     oneTimeCount: oneTimeStats._count,
     activeRecurringCount: latestPerSub.size,
     mrrCents,
-    totalDonorCount: donorCount.length,
+    totalDonorCount: uniqueDonors.length,
     recurringPaymentCount: recurringCount,
   }
-}
-
-export async function getRecurringDonations(): Promise<Donation[]> {
-  return prisma.donation.findMany({
-    where: {
-      isRecurring: true,
-      status: 'succeeded',
-      stripeSubscriptionId: { not: null },
-    },
-    orderBy: { paidAt: 'desc' },
-  })
 }
