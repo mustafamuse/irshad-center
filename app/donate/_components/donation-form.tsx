@@ -31,9 +31,10 @@ export function DonationForm() {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  const parsedCustom = customAmount ? parseFloat(customAmount) : 0
   const amountInCents =
     selectedPreset ??
-    (customAmount ? Math.round(parseFloat(customAmount) * 100) : 0)
+    (Number.isFinite(parsedCustom) ? Math.round(parsedCustom * 100) : 0)
 
   function handlePresetClick(amount: number) {
     setSelectedPreset(amount)
@@ -75,6 +76,8 @@ export function DonationForm() {
 
       if (result.data?.url) {
         window.location.href = result.data.url
+      } else {
+        setError('Unable to start checkout. Please try again.')
       }
     })
   }

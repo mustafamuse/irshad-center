@@ -692,6 +692,14 @@ enum WhatsAppRecipientType {
   ADMIN // Administrative contact
 }
 
+enum DonationStatus {
+  succeeded
+  pending
+  failed
+  refunded
+  cancelled
+}
+
 enum WhatsAppMessageType {
   TRANSACTIONAL // Payment links, confirmations, verifications
   REMINDER // Payment reminders, class reminders
@@ -709,7 +717,7 @@ model Donation {
   stripeCustomerId      String?
   amount                Int // cents
   currency              String    @default("usd")
-  status                String // "succeeded", "pending", "failed", "refunded"
+  status                DonationStatus
   donorName             String?
   donorEmail            String?
   isAnonymous           Boolean   @default(false)
@@ -721,6 +729,7 @@ model Donation {
   updatedAt             DateTime  @updatedAt
 
   @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
   @@index([status])
   @@index([createdAt])
   @@index([donorEmail])

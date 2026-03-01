@@ -1,11 +1,11 @@
 /**
  * Webhook Event Handlers
  *
- * Shared event handlers for Stripe webhooks.
- * Works for both Mahad and Dugsi programs.
+ * Event handlers for Stripe webhooks across all accounts (Mahad, Dugsi, Donation).
  *
  * Uses:
- * - webhook-service.ts for subscription lifecycle operations
+ * - webhook-service.ts for subscription lifecycle operations (Mahad/Dugsi)
+ * - donation-handler.ts for donation-specific operations
  * - unified-matcher.ts for matching checkout sessions to profiles
  */
 
@@ -32,6 +32,10 @@ import {
   handleSubscriptionDeleted,
   handleInvoiceFinalized,
 } from './webhook-service'
+
+// Synthetic stripePaymentIntentId conventions for donation records:
+// - sub_setup_{subscriptionId}:   placeholder created at recurring checkout, cleaned up on first invoice
+// - sub_cancelled_{subscriptionId}: cancellation marker to exclude from MRR calculations
 
 const logger = createServiceLogger('webhook-handlers')
 
@@ -320,8 +324,6 @@ export const donationEventHandlers: Record<
   'customer.subscription.updated': handleDonationSubscriptionUpdated,
 
   'customer.subscription.deleted': handleDonationSubscriptionDeleted,
-
-  'invoice.finalized': handleInvoiceFinalizedEvent,
 
   'invoice.payment_failed': handleInvoicePaymentFailedEvent,
 }

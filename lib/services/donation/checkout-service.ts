@@ -10,6 +10,11 @@ const logger = createServiceLogger('donation-checkout')
 export async function createDonationCheckoutSession(
   input: DonationCheckoutInput
 ): Promise<Stripe.Checkout.Session> {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!appUrl) {
+    throw new Error('NEXT_PUBLIC_APP_URL is not configured')
+  }
+
   const stripe = getDonationStripeClient()
   const donationKeys = getDonationKeys()
 
@@ -21,8 +26,8 @@ export async function createDonationCheckoutSession(
 
   const baseParams: Stripe.Checkout.SessionCreateParams = {
     payment_method_types: ['card'],
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/donate/thank-you?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/donate?canceled=true`,
+    success_url: `${appUrl}/donate/thank-you?session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${appUrl}/donate?canceled=true`,
     metadata,
   }
 

@@ -1,9 +1,11 @@
+import { type DonationStatus } from '@prisma/client'
+
 import { prisma } from '@/lib/db'
 
 interface DonationListOptions {
   page?: number
   pageSize?: number
-  status?: string
+  status?: DonationStatus
   isRecurring?: boolean
 }
 

@@ -36,11 +36,10 @@ export function verifyDonationWebhook(
   try {
     return client.webhooks.constructEvent(body, signature, webhookSecret)
   } catch (err) {
-    const error = err as Error
     logger.error(
-      { err: error, signaturePreview: signature.substring(0, 20) + '...' },
+      { err, signaturePreview: signature.substring(0, 20) + '...' },
       'Donation webhook verification failed'
     )
-    throw new Error(`Webhook verification failed: ${error.message}`)
+    throw err
   }
 }

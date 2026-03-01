@@ -1,3 +1,8 @@
+// Donation webhook handlers use synthetic stripePaymentIntentId values for records
+// that don't correspond to real Stripe PaymentIntents:
+//   sub_setup_{subscriptionId}    — placeholder created at recurring checkout, cleaned up on first invoice
+//   sub_cancelled_{subscriptionId} — cancellation marker to exclude subscription from MRR
+
 import { Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
@@ -174,61 +179,91 @@ export async function handleDonationInvoicePaid(
       ? invoice.subscription
       : (invoice.subscription?.id ?? null)
 
-  if (!subscriptionId || !invoice.payment_intent) return
+  if (!subscriptionId || !invoice.payment_intent) {
+    logger.info(
+      { invoiceId: invoice.id },
+      'Invoice has no subscription or payment_intent — skipping'
+    )
+    return
+  }
 
   const paymentIntentId =
     typeof invoice.payment_intent === 'string'
       ? invoice.payment_intent
       : invoice.payment_intent.id
 
-  // Look up the checkout-created placeholder to inherit donor metadata
-  // (isAnonymous, donorName) that is only available at checkout time
-  const checkoutDonation = await prisma.donation.findFirst({
-    where: { stripeSubscriptionId: subscriptionId },
-    orderBy: { createdAt: 'asc' },
-    select: { isAnonymous: true, donorName: true },
-  })
-
-  const isAnonymous = checkoutDonation?.isAnonymous ?? false
-  const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
-
-  await prisma.donation.upsert({
-    where: { stripePaymentIntentId: paymentIntentId },
-    create: {
-      stripePaymentIntentId: paymentIntentId,
-      stripeCustomerId:
-        typeof invoice.customer === 'string'
-          ? invoice.customer
-          : (invoice.customer?.id ?? null),
-      amount: invoice.amount_paid,
-      currency: invoice.currency ?? 'usd',
-      status: 'succeeded',
-      donorEmail: invoice.customer_email ?? null,
-      isAnonymous,
-      donorName,
-      isRecurring: true,
-      stripeSubscriptionId: subscriptionId,
-      paidAt: new Date(),
-    },
-    update: {
-      status: 'succeeded',
-      paidAt: new Date(),
-      amount: invoice.amount_paid,
-    },
-  })
-
-  // Clean up the checkout placeholder (sub_setup_*) now that a real payment exists
-  const placeholderId = `sub_setup_${subscriptionId}`
-  if (paymentIntentId !== placeholderId) {
-    await prisma.donation.deleteMany({
-      where: { stripePaymentIntentId: placeholderId },
+  try {
+    const checkoutDonation = await prisma.donation.findFirst({
+      where: { stripeSubscriptionId: subscriptionId },
+      orderBy: { createdAt: 'asc' },
+      select: { isAnonymous: true, donorName: true },
     })
-  }
 
-  logger.info(
-    { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
-    'Recurring donation invoice paid'
-  )
+    const isAnonymous = checkoutDonation?.isAnonymous ?? false
+    const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
+
+    await prisma.donation.upsert({
+      where: { stripePaymentIntentId: paymentIntentId },
+      create: {
+        stripePaymentIntentId: paymentIntentId,
+        stripeCustomerId:
+          typeof invoice.customer === 'string'
+            ? invoice.customer
+            : (invoice.customer?.id ?? null),
+        amount: invoice.amount_paid,
+        currency: invoice.currency ?? 'usd',
+        status: 'succeeded',
+        donorEmail: invoice.customer_email ?? null,
+        isAnonymous,
+        donorName,
+        isRecurring: true,
+        stripeSubscriptionId: subscriptionId,
+        paidAt: new Date(),
+      },
+      update: {
+        status: 'succeeded',
+        paidAt: new Date(),
+        amount: invoice.amount_paid,
+      },
+    })
+
+    // Clean up the checkout placeholder (sub_setup_*) now that a real payment exists
+    const placeholderId = `sub_setup_${subscriptionId}`
+    if (paymentIntentId !== placeholderId) {
+      try {
+        await prisma.donation.deleteMany({
+          where: { stripePaymentIntentId: placeholderId },
+        })
+      } catch (cleanupErr) {
+        await logError(
+          logger,
+          cleanupErr,
+          'Failed to clean up donation placeholder',
+          {
+            placeholderId,
+            subscriptionId,
+          }
+        )
+      }
+    }
+
+    logger.info(
+      { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
+      'Recurring donation invoice paid'
+    )
+  } catch (err) {
+    await logError(
+      logger,
+      err,
+      'Failed to handle donation invoice.payment_succeeded',
+      {
+        invoiceId: invoice.id,
+        subscriptionId,
+        paymentIntentId,
+      }
+    )
+    throw err
+  }
 }
 
 /**
@@ -286,26 +321,35 @@ export async function handleDonationSubscriptionDeleted(
       ? subscription.customer
       : ((subscription.customer as { id?: string })?.id ?? null)
 
-  // Record a cancellation marker so the MRR query can exclude this subscription
-  await prisma.donation.upsert({
-    where: {
-      stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
-    },
-    create: {
-      stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
-      stripeSubscriptionId: subscription.id,
-      stripeCustomerId: customerId,
-      amount: 0,
-      status: 'cancelled',
-      isRecurring: true,
-    },
-    update: {
-      status: 'cancelled',
-    },
-  })
+  try {
+    await prisma.donation.upsert({
+      where: {
+        stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
+      },
+      create: {
+        stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
+        stripeSubscriptionId: subscription.id,
+        stripeCustomerId: customerId,
+        amount: 0,
+        status: 'cancelled',
+        isRecurring: true,
+      },
+      update: {
+        status: 'cancelled',
+      },
+    })
 
-  logger.info(
-    { subscriptionId: subscription.id, customerId },
-    'Donation subscription cancelled'
-  )
+    logger.info(
+      { subscriptionId: subscription.id, customerId },
+      'Donation subscription cancelled'
+    )
+  } catch (err) {
+    await logError(
+      logger,
+      err,
+      'Failed to record donation subscription cancellation',
+      { subscriptionId: subscription.id, customerId }
+    )
+    throw err
+  }
 }
