@@ -13,13 +13,33 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
 
 import { createDonationAction } from '../actions'
 
 const PRESET_AMOUNTS = [1000, 2500, 5000, 10000, 25000] as const
 
+const MODE_OPTIONS = [
+  { value: 'payment', label: 'One-time' },
+  { value: 'subscription', label: 'Monthly' },
+] as const
+
 function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString()}`
+}
+
+function getButtonLabel(
+  isPending: boolean,
+  amountInCents: number,
+  mode: 'payment' | 'subscription'
+): string {
+  if (isPending) return 'Redirecting...'
+  if (amountInCents < 100) return 'Donate'
+
+  const amount = formatCents(amountInCents)
+  return mode === 'subscription'
+    ? `Donate ${amount} / month`
+    : `Donate ${amount}`
 }
 
 export function DonationForm() {
@@ -82,6 +102,8 @@ export function DonationForm() {
     })
   }
 
+  const isCustomActive = !selectedPreset && customAmount
+
   return (
     <Card className="mx-auto w-full max-w-md">
       <CardHeader className="text-center">
@@ -92,28 +114,21 @@ export function DonationForm() {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex rounded-lg border p-1">
-          <button
-            type="button"
-            onClick={() => setMode('payment')}
-            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              mode === 'payment'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            One-time
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('subscription')}
-            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              mode === 'subscription'
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Monthly
-          </button>
+          {MODE_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setMode(option.value)}
+              className={cn(
+                'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors',
+                mode === option.value
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -122,11 +137,12 @@ export function DonationForm() {
               key={amount}
               type="button"
               onClick={() => handlePresetClick(amount)}
-              className={`rounded-lg border px-3 py-3 text-sm font-medium transition-colors ${
+              className={cn(
+                'rounded-lg border px-3 py-3 text-sm font-medium transition-colors',
                 selectedPreset === amount
                   ? 'border-primary bg-primary/10 text-primary'
                   : 'border-border hover:border-primary/50'
-              }`}
+              )}
             >
               {formatCents(amount)}
             </button>
@@ -141,11 +157,10 @@ export function DonationForm() {
               placeholder="Other"
               value={customAmount}
               onChange={(e) => handleCustomAmountChange(e.target.value)}
-              className={`h-full pl-7 ${
-                !selectedPreset && customAmount
-                  ? 'border-primary ring-1 ring-primary'
-                  : ''
-              }`}
+              className={cn(
+                'h-full pl-7',
+                isCustomActive && 'border-primary ring-1 ring-primary'
+              )}
             />
           </div>
         </div>
@@ -182,11 +197,7 @@ export function DonationForm() {
           className="w-full"
           size="lg"
         >
-          {isPending
-            ? 'Redirecting...'
-            : `Donate ${amountInCents >= 100 ? formatCents(amountInCents) : ''} ${
-                mode === 'subscription' ? '/ month' : ''
-              }`}
+          {getButtonLabel(isPending, amountInCents, mode)}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">

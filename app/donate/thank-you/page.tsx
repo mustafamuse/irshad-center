@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 export default function ThankYouPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
-      <Card className="mx-auto w-full max-w-md text-center">
+      <Card className="w-full max-w-md text-center">
         <CardHeader>
           <CardTitle className="text-2xl">Thank You!</CardTitle>
           <CardDescription>

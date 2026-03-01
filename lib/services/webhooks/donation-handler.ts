@@ -1,13 +1,14 @@
 // Donation webhook handlers use synthetic stripePaymentIntentId values for records
 // that don't correspond to real Stripe PaymentIntents:
-//   sub_setup_{subscriptionId}    — placeholder created at recurring checkout, cleaned up on first invoice
-//   sub_cancelled_{subscriptionId} — cancellation marker to exclude subscription from MRR
+//   sub_setup_{subscriptionId}    -- placeholder created at recurring checkout, cleaned up on first invoice
+//   sub_cancelled_{subscriptionId} -- cancellation marker to exclude subscription from MRR
 
 import { Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { extractCustomerId } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('donation-webhook')
 
@@ -16,6 +17,9 @@ type InvoiceWithRelations = Stripe.Invoice & {
   payment_intent?: string | Stripe.PaymentIntent | null
 }
 
+const SETUP_PREFIX = 'sub_setup_'
+const CANCELLED_PREFIX = 'sub_cancelled_'
+
 function toJsonOrUndefined(
   value: Record<string, string> | null | undefined
 ): Prisma.InputJsonValue | undefined {
@@ -23,13 +27,26 @@ function toJsonOrUndefined(
   return value as Prisma.InputJsonValue
 }
 
+function resolveStripeId(
+  field: string | { id: string } | null | undefined
+): string | null {
+  if (!field) return null
+  if (typeof field === 'string') return field
+  return field.id ?? null
+}
+
+function resolveDonorName(
+  session: Stripe.Checkout.Session,
+  isAnonymous: boolean
+): string | null {
+  if (isAnonymous) return null
+  return session.customer_details?.name ?? session.metadata?.donorName ?? null
+}
+
 export async function handleOneTimeDonation(
   session: Stripe.Checkout.Session
 ): Promise<void> {
-  const paymentIntentId =
-    typeof session.payment_intent === 'string'
-      ? session.payment_intent
-      : session.payment_intent?.id
+  const paymentIntentId = resolveStripeId(session.payment_intent)
 
   if (!paymentIntentId) {
     logger.error({ sessionId: session.id }, 'No payment intent on session')
@@ -42,18 +59,11 @@ export async function handleOneTimeDonation(
     where: { stripePaymentIntentId: paymentIntentId },
     create: {
       stripePaymentIntentId: paymentIntentId,
-      stripeCustomerId:
-        typeof session.customer === 'string'
-          ? session.customer
-          : (session.customer?.id ?? null),
+      stripeCustomerId: extractCustomerId(session.customer),
       amount: session.amount_total ?? 0,
       currency: session.currency ?? 'usd',
       status: 'succeeded',
-      donorName: isAnonymous
-        ? null
-        : (session.customer_details?.name ??
-          session.metadata?.donorName ??
-          null),
+      donorName: resolveDonorName(session, isAnonymous),
       donorEmail: session.customer_details?.email ?? null,
       isAnonymous,
       isRecurring: false,
@@ -77,10 +87,7 @@ export async function handleOneTimeDonation(
 export async function handleRecurringDonationCheckout(
   session: Stripe.Checkout.Session
 ): Promise<void> {
-  const subscriptionId =
-    typeof session.subscription === 'string'
-      ? session.subscription
-      : session.subscription?.id
+  const subscriptionId = resolveStripeId(session.subscription)
 
   if (!subscriptionId) {
     logger.error({ sessionId: session.id }, 'No subscription on session')
@@ -88,25 +95,17 @@ export async function handleRecurringDonationCheckout(
   }
 
   const isAnonymous = session.metadata?.isAnonymous === 'true'
-
-  const placeholderPiId = `sub_setup_${subscriptionId}`
+  const placeholderPiId = `${SETUP_PREFIX}${subscriptionId}`
 
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: placeholderPiId },
     create: {
       stripePaymentIntentId: placeholderPiId,
-      stripeCustomerId:
-        typeof session.customer === 'string'
-          ? session.customer
-          : (session.customer?.id ?? null),
+      stripeCustomerId: extractCustomerId(session.customer),
       amount: session.amount_total ?? 0,
       currency: session.currency ?? 'usd',
       status: 'pending',
-      donorName: isAnonymous
-        ? null
-        : (session.customer_details?.name ??
-          session.metadata?.donorName ??
-          null),
+      donorName: resolveDonorName(session, isAnonymous),
       donorEmail: session.customer_details?.email ?? null,
       isAnonymous,
       isRecurring: true,
@@ -132,41 +131,31 @@ export async function handleDonationPaymentIntentSucceeded(
 ): Promise<void> {
   const paymentIntent = event.data.object as Stripe.PaymentIntent
 
-  try {
-    const existing = await prisma.donation.findUnique({
-      where: { stripePaymentIntentId: paymentIntent.id },
-    })
+  const existing = await prisma.donation.findUnique({
+    where: { stripePaymentIntentId: paymentIntent.id },
+  })
 
-    if (existing) {
-      await prisma.donation.update({
-        where: { stripePaymentIntentId: paymentIntent.id },
-        data: {
-          status: 'succeeded',
-          paidAt: new Date(),
-          amount: paymentIntent.amount,
-        },
-      })
-      logger.info(
-        { paymentIntentId: paymentIntent.id },
-        'Donation payment confirmed'
-      )
-    } else {
-      logger.info(
-        { paymentIntentId: paymentIntent.id },
-        'Payment intent not found in donations - may be handled by checkout.session.completed'
-      )
-    }
-  } catch (err) {
-    await logError(
-      logger,
-      err,
-      'Failed to handle donation payment_intent.succeeded',
-      {
-        paymentIntentId: paymentIntent.id,
-      }
+  if (!existing) {
+    logger.info(
+      { paymentIntentId: paymentIntent.id },
+      'Payment intent not found in donations - may be handled by checkout.session.completed'
     )
-    throw err
+    return
   }
+
+  await prisma.donation.update({
+    where: { stripePaymentIntentId: paymentIntent.id },
+    data: {
+      status: 'succeeded',
+      paidAt: new Date(),
+      amount: paymentIntent.amount,
+    },
+  })
+
+  logger.info(
+    { paymentIntentId: paymentIntent.id },
+    'Donation payment confirmed'
+  )
 }
 
 export async function handleDonationInvoicePaid(
@@ -174,101 +163,71 @@ export async function handleDonationInvoicePaid(
 ): Promise<void> {
   const invoice = event.data.object as InvoiceWithRelations
 
-  const subscriptionId =
-    typeof invoice.subscription === 'string'
-      ? invoice.subscription
-      : (invoice.subscription?.id ?? null)
+  const subscriptionId = resolveStripeId(invoice.subscription)
+  const paymentIntentId = resolveStripeId(invoice.payment_intent)
 
-  if (!subscriptionId || !invoice.payment_intent) {
+  if (!subscriptionId || !paymentIntentId) {
     logger.info(
       { invoiceId: invoice.id },
-      'Invoice has no subscription or payment_intent — skipping'
+      'Invoice has no subscription or payment_intent -- skipping'
     )
     return
   }
 
-  const paymentIntentId =
-    typeof invoice.payment_intent === 'string'
-      ? invoice.payment_intent
-      : invoice.payment_intent.id
+  const checkoutDonation = await prisma.donation.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+    orderBy: { createdAt: 'asc' },
+    select: { isAnonymous: true, donorName: true },
+  })
 
-  try {
-    const checkoutDonation = await prisma.donation.findFirst({
-      where: { stripeSubscriptionId: subscriptionId },
-      orderBy: { createdAt: 'asc' },
-      select: { isAnonymous: true, donorName: true },
-    })
+  const isAnonymous = checkoutDonation?.isAnonymous ?? false
+  const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
 
-    const isAnonymous = checkoutDonation?.isAnonymous ?? false
-    const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
+  await prisma.donation.upsert({
+    where: { stripePaymentIntentId: paymentIntentId },
+    create: {
+      stripePaymentIntentId: paymentIntentId,
+      stripeCustomerId: extractCustomerId(invoice.customer),
+      amount: invoice.amount_paid,
+      currency: invoice.currency ?? 'usd',
+      status: 'succeeded',
+      donorEmail: invoice.customer_email ?? null,
+      isAnonymous,
+      donorName,
+      isRecurring: true,
+      stripeSubscriptionId: subscriptionId,
+      paidAt: new Date(),
+    },
+    update: {
+      status: 'succeeded',
+      paidAt: new Date(),
+      amount: invoice.amount_paid,
+    },
+  })
 
-    await prisma.donation.upsert({
-      where: { stripePaymentIntentId: paymentIntentId },
-      create: {
-        stripePaymentIntentId: paymentIntentId,
-        stripeCustomerId:
-          typeof invoice.customer === 'string'
-            ? invoice.customer
-            : (invoice.customer?.id ?? null),
-        amount: invoice.amount_paid,
-        currency: invoice.currency ?? 'usd',
-        status: 'succeeded',
-        donorEmail: invoice.customer_email ?? null,
-        isAnonymous,
-        donorName,
-        isRecurring: true,
-        stripeSubscriptionId: subscriptionId,
-        paidAt: new Date(),
-      },
-      update: {
-        status: 'succeeded',
-        paidAt: new Date(),
-        amount: invoice.amount_paid,
-      },
-    })
-
-    // Clean up the checkout placeholder (sub_setup_*) now that a real payment exists
-    const placeholderId = `sub_setup_${subscriptionId}`
-    if (paymentIntentId !== placeholderId) {
-      try {
-        await prisma.donation.deleteMany({
-          where: { stripePaymentIntentId: placeholderId },
-        })
-      } catch (cleanupErr) {
+  const placeholderId = `${SETUP_PREFIX}${subscriptionId}`
+  if (paymentIntentId !== placeholderId) {
+    await prisma.donation
+      .deleteMany({
+        where: { stripePaymentIntentId: placeholderId },
+      })
+      .catch(async (cleanupErr) => {
         await logError(
           logger,
           cleanupErr,
           'Failed to clean up donation placeholder',
-          {
-            placeholderId,
-            subscriptionId,
-          }
+          { placeholderId, subscriptionId }
         )
-      }
-    }
-
-    logger.info(
-      { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
-      'Recurring donation invoice paid'
-    )
-  } catch (err) {
-    await logError(
-      logger,
-      err,
-      'Failed to handle donation invoice.payment_succeeded',
-      {
-        invoiceId: invoice.id,
-        subscriptionId,
-        paymentIntentId,
-      }
-    )
-    throw err
+      })
   }
+
+  logger.info(
+    { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
+    'Recurring donation invoice paid'
+  )
 }
 
 /**
- * Handle customer.subscription.created for donation subscriptions.
- *
  * Donation subscriptions cannot be stored in the Subscription table because
  * that model requires a billingAccountId linked to a Person record. Donations
  * are anonymous/standalone and have no associated billing account.
@@ -282,18 +241,13 @@ export async function handleDonationSubscriptionCreated(
 ): Promise<void> {
   const subscription = event.data.object as Stripe.Subscription
 
-  const customerId =
-    typeof subscription.customer === 'string'
-      ? subscription.customer
-      : ((subscription.customer as { id?: string })?.id ?? null)
-
   logger.info(
     {
       subscriptionId: subscription.id,
-      customerId,
+      customerId: extractCustomerId(subscription.customer),
       status: subscription.status,
     },
-    'Donation subscription created — tracking via Donation records only'
+    'Donation subscription created -- tracking via Donation records only'
   )
 }
 
@@ -311,45 +265,40 @@ export async function handleDonationSubscriptionUpdated(
   )
 }
 
+export async function handleDonationInvoiceFinalized(
+  event: Stripe.Event
+): Promise<void> {
+  const invoice = event.data.object as Stripe.Invoice
+  logger.info(
+    { invoiceId: invoice.id },
+    'Donation invoice finalized -- no action needed'
+  )
+}
+
 export async function handleDonationSubscriptionDeleted(
   event: Stripe.Event
 ): Promise<void> {
   const subscription = event.data.object as Stripe.Subscription
+  const customerId = extractCustomerId(subscription.customer)
+  const cancelledId = `${CANCELLED_PREFIX}${subscription.id}`
 
-  const customerId =
-    typeof subscription.customer === 'string'
-      ? subscription.customer
-      : ((subscription.customer as { id?: string })?.id ?? null)
+  await prisma.donation.upsert({
+    where: { stripePaymentIntentId: cancelledId },
+    create: {
+      stripePaymentIntentId: cancelledId,
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId: customerId,
+      amount: 0,
+      status: 'cancelled',
+      isRecurring: true,
+    },
+    update: {
+      status: 'cancelled',
+    },
+  })
 
-  try {
-    await prisma.donation.upsert({
-      where: {
-        stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
-      },
-      create: {
-        stripePaymentIntentId: `sub_cancelled_${subscription.id}`,
-        stripeSubscriptionId: subscription.id,
-        stripeCustomerId: customerId,
-        amount: 0,
-        status: 'cancelled',
-        isRecurring: true,
-      },
-      update: {
-        status: 'cancelled',
-      },
-    })
-
-    logger.info(
-      { subscriptionId: subscription.id, customerId },
-      'Donation subscription cancelled'
-    )
-  } catch (err) {
-    await logError(
-      logger,
-      err,
-      'Failed to record donation subscription cancellation',
-      { subscriptionId: subscription.id, customerId }
-    )
-    throw err
-  }
+  logger.info(
+    { subscriptionId: subscription.id, customerId },
+    'Donation subscription cancelled'
+  )
 }

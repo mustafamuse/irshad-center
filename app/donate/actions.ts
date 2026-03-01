@@ -2,18 +2,16 @@
 
 import { createDonationCheckoutSession } from '@/lib/services/donation/checkout-service'
 import { type ActionResult, withActionError } from '@/lib/utils/action-helpers'
-import { DonationCheckoutSchema } from '@/lib/validations/donation'
+import {
+  DonationCheckoutSchema,
+  type DonationCheckoutInput,
+} from '@/lib/validations/donation'
 
-export async function createDonationAction(formData: {
-  amount: number
-  mode: 'payment' | 'subscription'
-  donorName?: string
-  donorEmail?: string
-  isAnonymous?: boolean
-}): Promise<ActionResult<{ url: string }>> {
+export async function createDonationAction(
+  formData: DonationCheckoutInput
+): Promise<ActionResult<{ url: string }>> {
   return withActionError(async () => {
     const validated = DonationCheckoutSchema.parse(formData)
-
     const session = await createDonationCheckoutSession(validated)
 
     if (!session.url) {

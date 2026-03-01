@@ -1,8 +1,20 @@
+/**
+ * Donation Webhook Handler
+ *
+ * Handles Stripe webhook events for the Donation program.
+ * Uses the shared base handler for DRY implementation.
+ *
+ * Note: Donations use a separate Stripe account from Mahad and Dugsi.
+ */
+
 import { STRIPE_WEBHOOK_EVENTS } from '@/lib/constants/stripe'
 import { createWebhookHandler } from '@/lib/services/webhooks/base-webhook-handler'
 import { donationEventHandlers } from '@/lib/services/webhooks/event-handlers'
 import { verifyDonationWebhook } from '@/lib/stripe-donation'
 
+/**
+ * POST handler for Donation webhooks
+ */
 export const POST = createWebhookHandler({
   source: 'donation',
   verifyWebhook: verifyDonationWebhook,
@@ -21,8 +33,6 @@ export const POST = createWebhookHandler({
       donationEventHandlers['invoice.payment_succeeded'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_FAILED]:
       donationEventHandlers['invoice.payment_failed'],
-    [STRIPE_WEBHOOK_EVENTS.INVOICE_FINALIZED]:
-      donationEventHandlers['invoice.finalized'],
   },
 })
 

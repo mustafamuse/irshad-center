@@ -17,6 +17,7 @@ export async function createDonationCheckoutSession(
 
   const stripe = getDonationStripeClient()
   const donationKeys = getDonationKeys()
+  const isRecurring = input.mode === 'subscription'
 
   const metadata: Record<string, string> = {
     source: 'donation_page',
@@ -24,66 +25,31 @@ export async function createDonationCheckoutSession(
   }
   if (input.donorName) metadata.donorName = input.donorName
 
-  const baseParams: Stripe.Checkout.SessionCreateParams = {
+  const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
+    currency: 'usd',
+    unit_amount: input.amount,
+    ...(isRecurring && { recurring: { interval: 'month' as const } }),
+  }
+
+  if (donationKeys.productId) {
+    priceData.product = donationKeys.productId
+  } else {
+    const label = isRecurring ? 'Monthly Donation' : 'Donation'
+    priceData.product_data = { name: `${label} to Irshad Center` }
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: input.mode,
     payment_method_types: ['card'],
     success_url: `${appUrl}/donate/thank-you?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/donate?canceled=true`,
+    customer_email: input.donorEmail,
     metadata,
-  }
-
-  if (input.donorEmail) {
-    baseParams.customer_email = input.donorEmail
-  }
-
-  let sessionParams: Stripe.Checkout.SessionCreateParams
-
-  if (input.mode === 'payment') {
-    sessionParams = {
-      ...baseParams,
-      mode: 'payment',
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            unit_amount: input.amount,
-            product: donationKeys.productId || undefined,
-            ...(!donationKeys.productId && {
-              product_data: { name: 'Donation to Irshad Center' },
-            }),
-          },
-          quantity: 1,
-        },
-      ],
-    }
-  } else {
-    sessionParams = {
-      ...baseParams,
-      mode: 'subscription',
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            unit_amount: input.amount,
-            recurring: { interval: 'month' },
-            product: donationKeys.productId || undefined,
-            ...(!donationKeys.productId && {
-              product_data: { name: 'Monthly Donation to Irshad Center' },
-            }),
-          },
-          quantity: 1,
-        },
-      ],
-    }
-  }
-
-  const session = await stripe.checkout.sessions.create(sessionParams)
+    line_items: [{ price_data: priceData, quantity: 1 }],
+  })
 
   logger.info(
-    {
-      sessionId: session.id,
-      mode: input.mode,
-      amount: input.amount,
-    },
+    { sessionId: session.id, mode: input.mode, amount: input.amount },
     'Donation checkout session created'
   )
 

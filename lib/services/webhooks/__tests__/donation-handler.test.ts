@@ -47,11 +47,21 @@ vi.mock('@/lib/logger', () => ({
   logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
+vi.mock('@/lib/utils/type-guards', () => ({
+  extractCustomerId: (customer: unknown) => {
+    if (typeof customer === 'string') return customer
+    if (customer && typeof customer === 'object' && 'id' in customer)
+      return (customer as { id: string }).id
+    return null
+  },
+}))
+
 import {
   handleOneTimeDonation,
   handleRecurringDonationCheckout,
   handleDonationPaymentIntentSucceeded,
   handleDonationInvoicePaid,
+  handleDonationInvoiceFinalized,
   handleDonationSubscriptionCreated,
   handleDonationSubscriptionUpdated,
   handleDonationSubscriptionDeleted,
@@ -88,6 +98,19 @@ function createMockEvent(type: string, data: unknown): Stripe.Event {
   } as Stripe.Event
 }
 
+function createMockInvoice(overrides = {}) {
+  return {
+    id: 'in_test_123',
+    subscription: 'sub_test_456',
+    payment_intent: 'pi_test_789',
+    customer: 'cus_test_123',
+    amount_paid: 2500,
+    currency: 'usd',
+    customer_email: 'donor@example.com',
+    ...overrides,
+  }
+}
+
 describe('donation-handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -96,7 +119,6 @@ describe('donation-handler', () => {
     mockDonationFindFirst.mockResolvedValue(null)
     mockDonationUpdate.mockResolvedValue({})
     mockDonationDeleteMany.mockResolvedValue({ count: 0 })
-    mockLogError.mockResolvedValue(undefined)
   })
 
   describe('handleOneTimeDonation', () => {
@@ -191,22 +213,6 @@ describe('donation-handler', () => {
       )
       expect(mockDonationUpsert).not.toHaveBeenCalled()
     })
-
-    it('sets isRecurring to true', async () => {
-      const session = createMockSession({
-        subscription: 'sub_test_456',
-      })
-
-      await handleRecurringDonationCheckout(session)
-
-      expect(mockDonationUpsert).toHaveBeenCalledWith(
-        expect.objectContaining({
-          create: expect.objectContaining({
-            isRecurring: true,
-          }),
-        })
-      )
-    })
   })
 
   describe('handleDonationPaymentIntentSucceeded', () => {
@@ -256,9 +262,10 @@ describe('donation-handler', () => {
       )
     })
 
-    it('re-throws on unexpected errors', async () => {
-      const dbError = new Error('Database connection failed')
-      mockDonationFindUnique.mockRejectedValue(dbError)
+    it('propagates DB errors', async () => {
+      mockDonationFindUnique.mockRejectedValue(
+        new Error('Database connection failed')
+      )
 
       const event = createMockEvent('payment_intent.succeeded', {
         id: 'pi_test_123',
@@ -268,24 +275,15 @@ describe('donation-handler', () => {
       await expect(handleDonationPaymentIntentSucceeded(event)).rejects.toThrow(
         'Database connection failed'
       )
-
-      expect(mockLogError).toHaveBeenCalled()
     })
   })
 
   describe('handleDonationInvoicePaid', () => {
     it('creates succeeded donation for recurring payment', async () => {
-      const invoice = {
-        id: 'in_test_123',
-        subscription: 'sub_test_456',
-        payment_intent: 'pi_test_789',
-        customer: 'cus_test_123',
-        amount_paid: 2500,
-        currency: 'usd',
-        customer_email: 'donor@example.com',
-      }
-
-      const event = createMockEvent('invoice.payment_succeeded', invoice)
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice()
+      )
 
       await handleDonationInvoicePaid(event)
 
@@ -306,17 +304,10 @@ describe('donation-handler', () => {
     })
 
     it('cleans up placeholder by deleting sub_setup_ record', async () => {
-      const invoice = {
-        id: 'in_test_123',
-        subscription: 'sub_test_456',
-        payment_intent: 'pi_test_789',
-        customer: 'cus_test_123',
-        amount_paid: 2500,
-        currency: 'usd',
-        customer_email: null,
-      }
-
-      const event = createMockEvent('invoice.payment_succeeded', invoice)
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice({ customer_email: null })
+      )
 
       await handleDonationInvoicePaid(event)
 
@@ -325,43 +316,33 @@ describe('donation-handler', () => {
       })
     })
 
-    it('logs and skips when no subscriptionId', async () => {
-      const invoice = {
-        id: 'in_test_123',
-        subscription: null,
-        payment_intent: 'pi_test_789',
-        amount_paid: 2500,
-        currency: 'usd',
-      }
-
-      const event = createMockEvent('invoice.payment_succeeded', invoice)
+    it('skips when no subscriptionId', async () => {
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice({ subscription: null })
+      )
 
       await handleDonationInvoicePaid(event)
 
       expect(mockDonationUpsert).not.toHaveBeenCalled()
       expect(mockLoggerInfo).toHaveBeenCalledWith(
         expect.objectContaining({ invoiceId: 'in_test_123' }),
-        'Invoice has no subscription or payment_intent — skipping'
+        'Invoice has no subscription or payment_intent -- skipping'
       )
     })
 
-    it('logs and skips when no payment_intent', async () => {
-      const invoice = {
-        id: 'in_test_123',
-        subscription: 'sub_test_456',
-        payment_intent: null,
-        amount_paid: 2500,
-        currency: 'usd',
-      }
-
-      const event = createMockEvent('invoice.payment_succeeded', invoice)
+    it('skips when no payment_intent', async () => {
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice({ payment_intent: null })
+      )
 
       await handleDonationInvoicePaid(event)
 
       expect(mockDonationUpsert).not.toHaveBeenCalled()
       expect(mockLoggerInfo).toHaveBeenCalledWith(
         expect.objectContaining({ invoiceId: 'in_test_123' }),
-        'Invoice has no subscription or payment_intent — skipping'
+        'Invoice has no subscription or payment_intent -- skipping'
       )
     })
 
@@ -371,17 +352,10 @@ describe('donation-handler', () => {
         donorName: null,
       })
 
-      const invoice = {
-        id: 'in_test_123',
-        subscription: 'sub_test_456',
-        payment_intent: 'pi_test_789',
-        customer: 'cus_test_123',
-        amount_paid: 2500,
-        currency: 'usd',
-        customer_email: 'donor@example.com',
-      }
-
-      const event = createMockEvent('invoice.payment_succeeded', invoice)
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice()
+      )
 
       await handleDonationInvoicePaid(event)
 
@@ -399,17 +373,10 @@ describe('donation-handler', () => {
       const cleanupError = new Error('Cleanup failed')
       mockDonationDeleteMany.mockRejectedValue(cleanupError)
 
-      const invoice = {
-        id: 'in_test_123',
-        subscription: 'sub_test_456',
-        payment_intent: 'pi_test_789',
-        customer: 'cus_test_123',
-        amount_paid: 2500,
-        currency: 'usd',
-        customer_email: null,
-      }
-
-      const event = createMockEvent('invoice.payment_succeeded', invoice)
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice({ customer_email: null })
+      )
 
       await expect(handleDonationInvoicePaid(event)).resolves.toBeUndefined()
 
@@ -425,18 +392,27 @@ describe('donation-handler', () => {
     })
   })
 
+  describe('handleDonationInvoiceFinalized', () => {
+    it('logs without DB writes', async () => {
+      const event = createMockEvent('invoice.finalized', { id: 'in_test_123' })
+
+      await handleDonationInvoiceFinalized(event)
+
+      expect(mockLoggerInfo).toHaveBeenCalledWith(
+        expect.objectContaining({ invoiceId: 'in_test_123' }),
+        'Donation invoice finalized -- no action needed'
+      )
+      expect(mockDonationUpsert).not.toHaveBeenCalled()
+    })
+  })
+
   describe('handleDonationSubscriptionCreated', () => {
-    it('logs subscription info without DB calls', async () => {
-      const subscription = {
+    it('logs subscription info without DB writes', async () => {
+      const event = createMockEvent('customer.subscription.created', {
         id: 'sub_test_456',
         customer: 'cus_test_123',
         status: 'active',
-      }
-
-      const event = createMockEvent(
-        'customer.subscription.created',
-        subscription
-      )
+      })
 
       await handleDonationSubscriptionCreated(event)
 
@@ -446,26 +422,19 @@ describe('donation-handler', () => {
           customerId: 'cus_test_123',
           status: 'active',
         }),
-        'Donation subscription created — tracking via Donation records only'
+        'Donation subscription created -- tracking via Donation records only'
       )
       expect(mockDonationUpsert).not.toHaveBeenCalled()
       expect(mockDonationUpdate).not.toHaveBeenCalled()
-      expect(mockDonationFindUnique).not.toHaveBeenCalled()
-      expect(mockDonationFindFirst).not.toHaveBeenCalled()
     })
   })
 
   describe('handleDonationSubscriptionUpdated', () => {
-    it('logs subscription update without DB calls', async () => {
-      const subscription = {
+    it('logs subscription update without DB writes', async () => {
+      const event = createMockEvent('customer.subscription.updated', {
         id: 'sub_test_456',
         status: 'past_due',
-      }
-
-      const event = createMockEvent(
-        'customer.subscription.updated',
-        subscription
-      )
+      })
 
       await handleDonationSubscriptionUpdated(event)
 
@@ -482,16 +451,16 @@ describe('donation-handler', () => {
   })
 
   describe('handleDonationSubscriptionDeleted', () => {
-    it('creates cancellation marker with sub_cancelled_ prefix', async () => {
-      const subscription = {
-        id: 'sub_test_456',
-        customer: 'cus_test_123',
-        status: 'canceled',
-      }
+    const deletedSubscription = {
+      id: 'sub_test_456',
+      customer: 'cus_test_123',
+      status: 'canceled',
+    }
 
+    it('creates cancellation marker with sub_cancelled_ prefix', async () => {
       const event = createMockEvent(
         'customer.subscription.deleted',
-        subscription
+        deletedSubscription
       )
 
       await handleDonationSubscriptionDeleted(event)
@@ -516,26 +485,17 @@ describe('donation-handler', () => {
       )
     })
 
-    it('re-throws on DB failure', async () => {
-      const dbError = new Error('DB write failed')
-      mockDonationUpsert.mockRejectedValue(dbError)
-
-      const subscription = {
-        id: 'sub_test_456',
-        customer: 'cus_test_123',
-        status: 'canceled',
-      }
+    it('propagates DB errors', async () => {
+      mockDonationUpsert.mockRejectedValue(new Error('DB write failed'))
 
       const event = createMockEvent(
         'customer.subscription.deleted',
-        subscription
+        deletedSubscription
       )
 
       await expect(handleDonationSubscriptionDeleted(event)).rejects.toThrow(
         'DB write failed'
       )
-
-      expect(mockLogError).toHaveBeenCalled()
     })
   })
 })

@@ -22,11 +22,19 @@ import {
   getRecurringDonations,
 } from '../donation'
 
-describe('getDonations', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+const EMPTY_AGGREGATE = { _sum: { amount: 0 }, _count: 0 }
 
+function mockStatsDefaults() {
+  mockAggregate.mockResolvedValue(EMPTY_AGGREGATE)
+  mockCount.mockResolvedValue(0)
+  mockFindMany.mockResolvedValue([])
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+describe('getDonations', () => {
   it('returns paginated results with defaults (page 1, pageSize 25)', async () => {
     const mockDonations = [
       { id: 'don-1', amount: 5000, donorEmail: 'a@test.com' },
@@ -86,29 +94,17 @@ describe('getDonations', () => {
 
     const result = await getDonations({ page: 3, pageSize: 10 })
 
-    expect(result.page).toBe(3)
-    expect(result.pageSize).toBe(10)
+    expect(result).toEqual(expect.objectContaining({ page: 3, pageSize: 10 }))
     expect(mockFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        take: 10,
-        skip: 20,
-      })
+      expect.objectContaining({ take: 10, skip: 20 })
     )
   })
 })
 
 describe('getDonationStats', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('calculates correct one-time totals', async () => {
-    mockAggregate.mockResolvedValue({
-      _sum: { amount: 50000 },
-      _count: 5,
-    })
-    mockCount.mockResolvedValue(0)
-    mockFindMany.mockResolvedValue([])
+    mockStatsDefaults()
+    mockAggregate.mockResolvedValue({ _sum: { amount: 50000 }, _count: 5 })
 
     const result = await getDonationStats()
 
@@ -122,56 +118,33 @@ describe('getDonationStats', () => {
   })
 
   it('calculates MRR from latest payment per active subscription', async () => {
-    mockAggregate.mockResolvedValue({
-      _sum: { amount: 0 },
-      _count: 0,
-    })
+    mockAggregate.mockResolvedValue(EMPTY_AGGREGATE)
     mockCount.mockResolvedValue(3)
-
-    let findManyCallCount = 0
-    mockFindMany.mockImplementation(() => {
-      findManyCallCount++
-      if (findManyCallCount === 1) {
-        return Promise.resolve([
-          { stripeSubscriptionId: 'sub_1', amount: 2000 },
-          { stripeSubscriptionId: 'sub_1', amount: 1500 },
-          { stripeSubscriptionId: 'sub_2', amount: 3000 },
-        ])
-      }
-      if (findManyCallCount === 2) {
-        return Promise.resolve([])
-      }
-      return Promise.resolve([])
-    })
+    mockFindMany
+      .mockResolvedValueOnce([
+        { stripeSubscriptionId: 'sub_1', amount: 2000 },
+        { stripeSubscriptionId: 'sub_1', amount: 1500 },
+        { stripeSubscriptionId: 'sub_2', amount: 3000 },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
 
     const result = await getDonationStats()
 
-    // MRR = 2000 (sub_1 latest) + 3000 (sub_2 latest) = 5000
     expect(result.mrrCents).toBe(5000)
     expect(result.activeRecurringCount).toBe(2)
   })
 
   it('excludes cancelled subscriptions from MRR', async () => {
-    mockAggregate.mockResolvedValue({
-      _sum: { amount: 0 },
-      _count: 0,
-    })
+    mockAggregate.mockResolvedValue(EMPTY_AGGREGATE)
     mockCount.mockResolvedValue(2)
-
-    let findManyCallCount = 0
-    mockFindMany.mockImplementation(() => {
-      findManyCallCount++
-      if (findManyCallCount === 1) {
-        return Promise.resolve([
-          { stripeSubscriptionId: 'sub_active', amount: 2000 },
-          { stripeSubscriptionId: 'sub_cancelled', amount: 5000 },
-        ])
-      }
-      if (findManyCallCount === 2) {
-        return Promise.resolve([{ stripeSubscriptionId: 'sub_cancelled' }])
-      }
-      return Promise.resolve([])
-    })
+    mockFindMany
+      .mockResolvedValueOnce([
+        { stripeSubscriptionId: 'sub_active', amount: 2000 },
+        { stripeSubscriptionId: 'sub_cancelled', amount: 5000 },
+      ])
+      .mockResolvedValueOnce([{ stripeSubscriptionId: 'sub_cancelled' }])
+      .mockResolvedValueOnce([])
 
     const result = await getDonationStats()
 
@@ -180,27 +153,16 @@ describe('getDonationStats', () => {
   })
 
   it('counts unique donor emails', async () => {
-    mockAggregate.mockResolvedValue({
-      _sum: { amount: 0 },
-      _count: 0,
-    })
+    mockAggregate.mockResolvedValue(EMPTY_AGGREGATE)
     mockCount.mockResolvedValue(0)
-
-    let findManyCallCount = 0
-    mockFindMany.mockImplementation(() => {
-      findManyCallCount++
-      if (findManyCallCount === 1) {
-        return Promise.resolve([])
-      }
-      if (findManyCallCount === 2) {
-        return Promise.resolve([])
-      }
-      return Promise.resolve([
+    mockFindMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
         { donorEmail: 'a@test.com' },
         { donorEmail: 'b@test.com' },
         { donorEmail: 'c@test.com' },
       ])
-    })
 
     const result = await getDonationStats()
 
@@ -208,10 +170,7 @@ describe('getDonationStats', () => {
   })
 
   it('returns zeros when no donations exist', async () => {
-    mockAggregate.mockResolvedValue({
-      _sum: { amount: null },
-      _count: 0,
-    })
+    mockAggregate.mockResolvedValue({ _sum: { amount: null }, _count: 0 })
     mockCount.mockResolvedValue(0)
     mockFindMany.mockResolvedValue([])
 
@@ -229,10 +188,6 @@ describe('getDonationStats', () => {
 })
 
 describe('getRecurringDonations', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
   it('returns only succeeded recurring donations with subscriptionId', async () => {
     const mockRecurring = [
       {

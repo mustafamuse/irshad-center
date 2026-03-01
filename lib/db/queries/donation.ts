@@ -1,4 +1,4 @@
-import { type DonationStatus } from '@prisma/client'
+import { type Donation, type DonationStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
@@ -9,7 +9,25 @@ interface DonationListOptions {
   isRecurring?: boolean
 }
 
-export async function getDonations(options: DonationListOptions = {}) {
+interface DonationListResult {
+  donations: Donation[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+interface DonationStats {
+  oneTimeTotalCents: number
+  oneTimeCount: number
+  activeRecurringCount: number
+  mrrCents: number
+  totalDonorCount: number
+  recurringPaymentCount: number
+}
+
+export async function getDonations(
+  options: DonationListOptions = {}
+): Promise<DonationListResult> {
   const { page = 1, pageSize = 25, status, isRecurring } = options
 
   const where = {
@@ -30,7 +48,7 @@ export async function getDonations(options: DonationListOptions = {}) {
   return { donations, total, page, pageSize }
 }
 
-export async function getDonationStats() {
+export async function getDonationStats(): Promise<DonationStats> {
   const [
     oneTimeStats,
     recurringCount,
@@ -70,21 +88,20 @@ export async function getDonationStats() {
     cancelledSubs.map((d) => d.stripeSubscriptionId)
   )
 
-  // MRR = sum of the latest payment amount per unique active subscription
+  // MRR: sum of the latest payment amount per unique active subscription.
+  // Results are ordered by paidAt desc, so the first occurrence per sub is the latest.
   const latestPerSub = new Map<string, number>()
   for (const d of recurringForMrr) {
-    if (
-      d.stripeSubscriptionId &&
-      !latestPerSub.has(d.stripeSubscriptionId) &&
-      !cancelledSubIds.has(d.stripeSubscriptionId)
-    ) {
-      latestPerSub.set(d.stripeSubscriptionId, d.amount)
+    const subId = d.stripeSubscriptionId
+    if (subId && !latestPerSub.has(subId) && !cancelledSubIds.has(subId)) {
+      latestPerSub.set(subId, d.amount)
     }
   }
-  const mrrCents = Array.from(latestPerSub.values()).reduce(
-    (sum, amt) => sum + amt,
-    0
-  )
+
+  let mrrCents = 0
+  latestPerSub.forEach((amount) => {
+    mrrCents += amount
+  })
 
   return {
     oneTimeTotalCents: oneTimeStats._sum.amount ?? 0,
@@ -96,7 +113,7 @@ export async function getDonationStats() {
   }
 }
 
-export async function getRecurringDonations() {
+export async function getRecurringDonations(): Promise<Donation[]> {
   return prisma.donation.findMany({
     where: {
       isRecurring: true,

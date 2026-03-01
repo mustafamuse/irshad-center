@@ -21,6 +21,7 @@ import {
   handleRecurringDonationCheckout,
   handleDonationPaymentIntentSucceeded,
   handleDonationInvoicePaid,
+  handleDonationInvoiceFinalized,
   handleDonationSubscriptionCreated,
   handleDonationSubscriptionUpdated,
   handleDonationSubscriptionDeleted,
@@ -32,10 +33,6 @@ import {
   handleSubscriptionDeleted,
   handleInvoiceFinalized,
 } from './webhook-service'
-
-// Synthetic stripePaymentIntentId conventions for donation records:
-// - sub_setup_{subscriptionId}:   placeholder created at recurring checkout, cleaned up on first invoice
-// - sub_cancelled_{subscriptionId}: cancellation marker to exclude from MRR calculations
 
 const logger = createServiceLogger('webhook-handlers')
 
@@ -326,4 +323,6 @@ export const donationEventHandlers: Record<
   'customer.subscription.deleted': handleDonationSubscriptionDeleted,
 
   'invoice.payment_failed': handleInvoicePaymentFailedEvent,
+
+  'invoice.finalized': handleDonationInvoiceFinalized,
 }

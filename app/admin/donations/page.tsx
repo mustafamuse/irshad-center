@@ -1,26 +1,38 @@
+import { type Metadata } from 'next'
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { getDonations, getDonationStats } from '@/lib/db/queries/donation'
+import { formatCurrency, formatDate } from '@/lib/utils/formatters'
 
 export const dynamic = 'force-dynamic'
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Donations | Admin Dashboard',
   description: 'View and manage donations.',
 }
 
-function formatCents(cents: number): string {
-  return `$${(cents / 100).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+const BADGE_BASE =
+  'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium'
+
+function getTypeBadgeClass(isRecurring: boolean): string {
+  if (isRecurring) {
+    return `${BADGE_BASE} bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400`
+  }
+  return `${BADGE_BASE} bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400`
 }
 
-function formatDate(date: Date): string {
-  return new Date(date).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
+function getStatusBadgeClass(status: string): string {
+  if (status === 'succeeded') {
+    return `${BADGE_BASE} bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400`
+  }
+  if (status === 'pending') {
+    return `${BADGE_BASE} bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400`
+  }
+  return `${BADGE_BASE} bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400`
+}
+
+function pluralize(count: number, singular: string): string {
+  return `${count} ${singular}${count !== 1 ? 's' : ''}`
 }
 
 export default async function DonationsPage() {
@@ -29,8 +41,31 @@ export default async function DonationsPage() {
     getDonations({ pageSize: 50 }),
   ])
 
+  const statCards = [
+    {
+      title: 'One-time Total',
+      value: formatCurrency(stats.oneTimeTotalCents),
+      subtitle: pluralize(stats.oneTimeCount, 'donation'),
+    },
+    {
+      title: 'Monthly Recurring (MRR)',
+      value: formatCurrency(stats.mrrCents),
+      subtitle: pluralize(stats.activeRecurringCount, 'active subscription'),
+    },
+    {
+      title: 'Total Donors',
+      value: stats.totalDonorCount,
+      subtitle: 'unique email addresses',
+    },
+    {
+      title: 'Recurring Payments',
+      value: stats.recurringPaymentCount,
+      subtitle: 'successful charges',
+    },
+  ]
+
   return (
-    <div className="min-h-screen flex-1 space-y-6 bg-background p-4 sm:p-6 lg:p-8">
+    <main className="container mx-auto space-y-6 p-4 sm:p-6 lg:p-8">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Donations
@@ -41,66 +76,19 @@ export default async function DonationsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              One-time Total
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCents(stats.oneTimeTotalCents)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.oneTimeCount} donation{stats.oneTimeCount !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Monthly Recurring (MRR)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCents(stats.mrrCents)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.activeRecurringCount} active subscription
-              {stats.activeRecurringCount !== 1 ? 's' : ''}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Donors
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalDonorCount}</div>
-            <p className="text-xs text-muted-foreground">
-              unique email addresses
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Recurring Payments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.recurringPaymentCount}
-            </div>
-            <p className="text-xs text-muted-foreground">successful charges</p>
-          </CardContent>
-        </Card>
+        {statCards.map((card) => (
+          <Card key={card.title}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {card.title}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{card.value}</div>
+              <p className="text-xs text-muted-foreground">{card.subtitle}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <Card>
@@ -131,52 +119,24 @@ export default async function DonationsPage() {
                         {formatDate(donation.createdAt)}
                       </td>
                       <td className="py-3 pr-4">
-                        {donation.isAnonymous ? (
-                          <span className="italic text-muted-foreground">
-                            Anonymous
-                          </span>
-                        ) : (
-                          <div>
-                            {donation.donorName && (
-                              <div className="font-medium">
-                                {donation.donorName}
-                              </div>
-                            )}
-                            {donation.donorEmail && (
-                              <div className="text-xs text-muted-foreground">
-                                {donation.donorEmail}
-                              </div>
-                            )}
-                            {!donation.donorName && !donation.donorEmail && (
-                              <span className="text-muted-foreground">--</span>
-                            )}
-                          </div>
-                        )}
+                        <DonorCell
+                          isAnonymous={donation.isAnonymous}
+                          name={donation.donorName}
+                          email={donation.donorEmail}
+                        />
                       </td>
                       <td className="py-3 pr-4 font-medium">
-                        {formatCents(donation.amount)}
+                        {formatCurrency(donation.amount)}
                       </td>
                       <td className="py-3 pr-4">
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                            donation.isRecurring
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
-                              : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                          }`}
+                          className={getTypeBadgeClass(donation.isRecurring)}
                         >
                           {donation.isRecurring ? 'Monthly' : 'One-time'}
                         </span>
                       </td>
                       <td className="py-3">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                            donation.status === 'succeeded'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-                              : donation.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
-                          }`}
-                        >
+                        <span className={getStatusBadgeClass(donation.status)}>
                           {donation.status}
                         </span>
                       </td>
@@ -188,6 +148,29 @@ export default async function DonationsPage() {
           )}
         </CardContent>
       </Card>
+    </main>
+  )
+}
+
+interface DonorCellProps {
+  isAnonymous: boolean
+  name: string | null
+  email: string | null
+}
+
+function DonorCell({ isAnonymous, name, email }: DonorCellProps) {
+  if (isAnonymous) {
+    return <span className="italic text-muted-foreground">Anonymous</span>
+  }
+
+  if (!name && !email) {
+    return <span className="text-muted-foreground">--</span>
+  }
+
+  return (
+    <div>
+      {name && <div className="font-medium">{name}</div>}
+      {email && <div className="text-xs text-muted-foreground">{email}</div>}
     </div>
   )
 }
