@@ -21,9 +21,7 @@ export async function createDonationCheckoutSession(
 
   const metadata: Record<string, string> = {
     source: 'donation_page',
-    isAnonymous: String(input.isAnonymous),
   }
-  if (input.donorName) metadata.donorName = input.donorName
 
   const priceData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData = {
     currency: 'usd',

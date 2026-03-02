@@ -10,9 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
 import { createDonationAction } from '../actions'
@@ -46,8 +44,6 @@ export function DonationForm() {
   const [mode, setMode] = useState<'payment' | 'subscription'>('payment')
   const [selectedPreset, setSelectedPreset] = useState<number | null>(5000)
   const [customAmount, setCustomAmount] = useState('')
-  const [donorName, setDonorName] = useState('')
-  const [isAnonymous, setIsAnonymous] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -85,8 +81,6 @@ export function DonationForm() {
       const result = await createDonationAction({
         amount: amountInCents,
         mode,
-        donorName: isAnonymous ? undefined : donorName || undefined,
-        isAnonymous,
       })
 
       if (!result.success) {
@@ -164,30 +158,6 @@ export function DonationForm() {
                 isCustomActive && 'border-[#007078] ring-1 ring-[#007078]'
               )}
             />
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="donorName">Name (optional)</Label>
-            <Input
-              id="donorName"
-              placeholder="Your name"
-              value={donorName}
-              onChange={(e) => setDonorName(e.target.value)}
-              disabled={isAnonymous}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="anonymous"
-              checked={isAnonymous}
-              onCheckedChange={(checked) => setIsAnonymous(checked === true)}
-            />
-            <Label htmlFor="anonymous" className="text-sm font-normal">
-              Make my donation anonymous
-            </Label>
           </div>
         </div>
 

@@ -13,8 +13,6 @@ export const DonationCheckoutSchema = z.object({
     errorMap: () => ({ message: 'Mode must be "payment" or "subscription"' }),
   }),
   donorEmail: z.string().email('Invalid email').optional(),
-  donorName: z.string().min(1).max(200).optional(),
-  isAnonymous: z.boolean().optional().default(false),
 })
 
 export type DonationCheckoutInput = z.infer<typeof DonationCheckoutSchema>
