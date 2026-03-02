@@ -39,6 +39,7 @@ export async function createDonationCheckoutSession(
   const session = await stripe.checkout.sessions.create({
     mode: input.mode,
     payment_method_types: ['card'],
+    phone_number_collection: { enabled: true },
     success_url: `${appUrl}/donate/thank-you?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/donate?canceled=true`,
     customer_email: input.donorEmail,

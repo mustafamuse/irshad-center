@@ -720,6 +720,7 @@ model Donation {
   status                DonationStatus
   donorName             String?
   donorEmail            String?
+  donorPhone            String?
   isAnonymous           Boolean        @default(false)
   isRecurring           Boolean        @default(false)
   stripeSubscriptionId  String?

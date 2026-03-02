@@ -65,6 +65,7 @@ export async function handleOneTimeDonation(
       status: 'succeeded',
       donorName: resolveDonorName(session, isAnonymous),
       donorEmail: session.customer_details?.email ?? null,
+      donorPhone: session.customer_details?.phone ?? null,
       isAnonymous,
       isRecurring: false,
       metadata: toJsonOrUndefined(
@@ -107,6 +108,7 @@ export async function handleRecurringDonationCheckout(
       status: 'pending',
       donorName: resolveDonorName(session, isAnonymous),
       donorEmail: session.customer_details?.email ?? null,
+      donorPhone: session.customer_details?.phone ?? null,
       isAnonymous,
       isRecurring: true,
       stripeSubscriptionId: subscriptionId,
@@ -177,11 +179,12 @@ export async function handleDonationInvoicePaid(
   const checkoutDonation = await prisma.donation.findFirst({
     where: { stripeSubscriptionId: subscriptionId },
     orderBy: { createdAt: 'asc' },
-    select: { isAnonymous: true, donorName: true },
+    select: { isAnonymous: true, donorName: true, donorPhone: true },
   })
 
   const isAnonymous = checkoutDonation?.isAnonymous ?? false
   const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
+  const donorPhone = checkoutDonation?.donorPhone ?? null
 
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: paymentIntentId },
@@ -192,6 +195,7 @@ export async function handleDonationInvoicePaid(
       currency: invoice.currency ?? 'usd',
       status: 'succeeded',
       donorEmail: invoice.customer_email ?? null,
+      donorPhone,
       isAnonymous,
       donorName,
       isRecurring: true,
