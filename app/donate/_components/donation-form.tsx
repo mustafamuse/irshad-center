@@ -60,7 +60,10 @@ export function DonationForm() {
 
   function handleCustomAmountChange(value: string) {
     const cleaned = value.replace(/[^0-9.]/g, '')
-    setCustomAmount(cleaned)
+    const parts = cleaned.split('.')
+    const sanitized =
+      parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned
+    setCustomAmount(sanitized)
     setSelectedPreset(null)
     setError(null)
   }

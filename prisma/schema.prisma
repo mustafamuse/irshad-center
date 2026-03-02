@@ -733,4 +733,5 @@ model Donation {
   @@index([stripeSubscriptionId])
   @@index([status])
   @@index([createdAt])
+  @@index([donorEmail])
 }

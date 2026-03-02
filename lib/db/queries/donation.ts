@@ -33,6 +33,10 @@ export async function getDonations(
   const where = {
     ...(status ? { status } : {}),
     ...(isRecurring !== undefined ? { isRecurring } : {}),
+    NOT: [
+      { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
+      { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
+    ],
   }
 
   const [donations, total] = await Promise.all([

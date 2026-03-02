@@ -53,6 +53,13 @@ export async function handleOneTimeDonation(
     throw new Error('Missing payment_intent on checkout session')
   }
 
+  if (!session.amount_total) {
+    logger.warn(
+      { sessionId: session.id, paymentIntentId },
+      'One-time donation checkout has null/zero amount_total'
+    )
+  }
+
   const isAnonymous = session.metadata?.isAnonymous === 'true'
 
   await prisma.donation.upsert({
@@ -93,6 +100,13 @@ export async function handleRecurringDonationCheckout(
   if (!subscriptionId) {
     logger.error({ sessionId: session.id }, 'No subscription on session')
     throw new Error('Missing subscription on checkout session')
+  }
+
+  if (!session.amount_total) {
+    logger.warn(
+      { sessionId: session.id, subscriptionId },
+      'Recurring donation checkout has null/zero amount_total'
+    )
   }
 
   const isAnonymous = session.metadata?.isAnonymous === 'true'

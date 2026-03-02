@@ -301,7 +301,7 @@ async function handleDonationCheckoutCompleted(
   } else if (session.mode === 'subscription') {
     await handleRecurringDonationCheckout(session)
   } else {
-    logger.warn({ mode: session.mode }, 'Unexpected checkout mode for donation')
+    throw new Error(`Unexpected donation checkout mode: ${session.mode}`)
   }
 }
 

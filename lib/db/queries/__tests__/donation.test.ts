@@ -18,6 +18,13 @@ vi.mock('@/lib/db', () => ({
 
 import { getDonations, getDonationStats } from '../donation'
 
+const SYNTHETIC_FILTER = {
+  NOT: [
+    { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
+    { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
+  ],
+}
+
 const EMPTY_AGGREGATE = { _sum: { amount: 0 }, _count: 0 }
 
 beforeEach(() => {
@@ -42,12 +49,12 @@ describe('getDonations', () => {
       pageSize: 25,
     })
     expect(mockFindMany).toHaveBeenCalledWith({
-      where: {},
+      where: { ...SYNTHETIC_FILTER },
       orderBy: { createdAt: 'desc' },
       take: 25,
       skip: 0,
     })
-    expect(mockCount).toHaveBeenCalledWith({ where: {} })
+    expect(mockCount).toHaveBeenCalledWith({ where: { ...SYNTHETIC_FILTER } })
   })
 
   it('filters by status when provided', async () => {
@@ -58,10 +65,12 @@ describe('getDonations', () => {
 
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: 'succeeded' },
+        where: { status: 'succeeded', ...SYNTHETIC_FILTER },
       })
     )
-    expect(mockCount).toHaveBeenCalledWith({ where: { status: 'succeeded' } })
+    expect(mockCount).toHaveBeenCalledWith({
+      where: { status: 'succeeded', ...SYNTHETIC_FILTER },
+    })
   })
 
   it('filters by isRecurring when provided', async () => {
@@ -72,10 +81,12 @@ describe('getDonations', () => {
 
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { isRecurring: true },
+        where: { isRecurring: true, ...SYNTHETIC_FILTER },
       })
     )
-    expect(mockCount).toHaveBeenCalledWith({ where: { isRecurring: true } })
+    expect(mockCount).toHaveBeenCalledWith({
+      where: { isRecurring: true, ...SYNTHETIC_FILTER },
+    })
   })
 
   it('applies correct skip/take for pagination', async () => {

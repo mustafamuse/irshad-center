@@ -30,6 +30,8 @@ export const POST = createWebhookHandler({
       donationEventHandlers['invoice.payment_succeeded'],
     [STRIPE_WEBHOOK_EVENTS.INVOICE_PAYMENT_FAILED]:
       donationEventHandlers['invoice.payment_failed'],
+    [STRIPE_WEBHOOK_EVENTS.INVOICE_FINALIZED]:
+      donationEventHandlers['invoice.finalized'],
   },
 })
 
