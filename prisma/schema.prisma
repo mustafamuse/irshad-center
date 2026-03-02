@@ -516,7 +516,7 @@ model WebhookEvent {
   id          String   @id @default(uuid())
   eventId     String
   eventType   String
-  source      String // 'mahad' or 'dugsi'
+  source      String // 'mahad', 'dugsi', or 'donation'
   processedAt DateTime @default(now())
   payload     Json?
 
@@ -655,8 +655,8 @@ model DugsiTeacherCheckIn {
 // Tracks outbound WhatsApp messages for delivery status and failure logging
 // Supports multiple programs (Dugsi, Mahad) and recipient types (parents, students, teachers)
 model WhatsAppMessage {
-  id            String                   @id @default(uuid())
-  waMessageId   String?                  @unique // Meta's message ID (for deduplication and status updates)
+  id            String                 @id @default(uuid())
+  waMessageId   String?                @unique // Meta's message ID (for deduplication and status updates)
   phoneNumber   String // Recipient phone number (E.164 format without +)
   templateName  String? // Template name used (e.g., "dugsi_payment_link", "mahad_reminder")
   program       Program? // Which program this message relates to (DUGSI_PROGRAM, MAHAD_PROGRAM)
@@ -664,12 +664,12 @@ model WhatsAppMessage {
   personId      String? // Link to Person (parent, student, or teacher)
   familyId      String? // familyReferenceId for family context (Dugsi)
   batchId       String? // Batch ID for cohort context (Mahad)
-  messageType   WhatsAppMessageType      @default(TRANSACTIONAL) // Category for analytics
-  status        String                   @default("sent") // "sent" | "delivered" | "read" | "failed"
+  messageType   WhatsAppMessageType    @default(TRANSACTIONAL) // Category for analytics
+  status        String                 @default("sent") // "sent" | "delivered" | "read" | "failed"
   failedAt      DateTime?
   failureReason String? // Error message if failed
   metadata      Json? // Additional context (payment link ID, invoice ID, etc.)
-  createdAt     DateTime                 @default(now())
+  createdAt     DateTime               @default(now())
 
   // Relations
   person Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
@@ -697,4 +697,41 @@ enum WhatsAppMessageType {
   REMINDER // Payment reminders, class reminders
   ANNOUNCEMENT // Class announcements, schedule changes
   NOTIFICATION // Status updates, alerts
+}
+
+// ============================================================================
+// DONATION TRACKING
+// ============================================================================
+
+enum DonationStatus {
+  succeeded
+  pending
+  failed
+  refunded
+  cancelled
+}
+
+model Donation {
+  id                    String         @id @default(uuid())
+  stripePaymentIntentId String         @unique
+  stripeCustomerId      String?
+  amount                Int // cents
+  currency              String         @default("usd")
+  status                DonationStatus
+  donorName             String?
+  donorEmail            String?
+  donorPhone            String?
+  isAnonymous           Boolean        @default(false)
+  isRecurring           Boolean        @default(false)
+  stripeSubscriptionId  String?
+  metadata              Json?
+  paidAt                DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([donorEmail])
 }

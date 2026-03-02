@@ -16,7 +16,6 @@
 
 ## Git Operations
 
-- After committing, list `git push` as a manual step for the user instead of running it directly
 - If git push fails with auth errors, stop immediately and tell the user to run `gh auth setup-git` or check SSH keys
 - Never retry a failed git push
 
@@ -66,7 +65,7 @@ When asked to implement a feature end-to-end, follow this sequence without stopp
 2. Run `tsc --noEmit` and fix type errors
 3. Run relevant tests and fix failures
 4. Commit with a descriptive message
-5. Report back with a summary and `git push` as manual next step
+5. Push and report back with a summary
 
 Do not pause for confirmation between steps unless a step fails more than twice.
 

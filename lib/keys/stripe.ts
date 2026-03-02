@@ -13,46 +13,58 @@
 
 import { z } from 'zod'
 
-// Validation schemas for Stripe key formats
-const stripeSecretKeySchema = z.string().startsWith('sk_')
-const stripeWebhookSecretSchema = z.string().startsWith('whsec_')
-const stripePublishableKeySchema = z.string().startsWith('pk_')
-const stripeProductIdSchema = z.string().startsWith('prod_')
-
-// Schema for a program's Stripe configuration
 const stripeProgramConfigSchema = z.object({
-  secretKey: stripeSecretKeySchema,
-  webhookSecret: stripeWebhookSecretSchema,
-  publishableKey: stripePublishableKeySchema.optional(),
-  productId: z.string().optional(),
+  secretKey: z.string().startsWith('sk_'),
+  webhookSecret: z.string().startsWith('whsec_'),
+  publishableKey: z.string().startsWith('pk_').optional(),
+  productId: z.string().startsWith('prod_').optional(),
 })
 
 export type StripeProgramConfig = z.infer<typeof stripeProgramConfigSchema>
 
-// Mahad-specific config (includes pricing table)
 interface MahadConfig extends StripeProgramConfig {
   pricingTableId?: string
 }
 
-// Dugsi-specific config (includes payment link and product ID)
 interface DugsiConfig extends StripeProgramConfig {
   paymentLink?: string
   productId?: string
 }
 
-// Full Stripe keys configuration
 export interface StripeKeysConfig {
   mahad: MahadConfig
   dugsi: DugsiConfig
   youth: MahadConfig | null
-  donation: MahadConfig | null
+  donation: StripeProgramConfig | null
+}
+
+function resolveEnvKey(
+  isProduction: boolean,
+  testKey: string,
+  liveKey: string
+): string | undefined {
+  if (isProduction) {
+    return process.env[liveKey]
+  }
+  return process.env[testKey] || process.env[liveKey]
+}
+
+function validateProgramConfig(
+  config: StripeProgramConfig,
+  programName: string
+): void {
+  const result = stripeProgramConfigSchema.safeParse(config)
+  if (!result.success) {
+    const details = result.error.issues
+      .map((i) => `${i.path.join('.')}: ${i.message}`)
+      .join('; ')
+    throw new Error(`${programName} Stripe config invalid: ${details}`)
+  }
 }
 
 /**
  * Get Stripe keys for all programs.
  * Automatically selects test or live keys based on NODE_ENV.
- *
- * @returns Stripe configuration for all programs
  */
 export function keys(): StripeKeysConfig {
   const isProduction = process.env.NODE_ENV === 'production'
@@ -75,135 +87,93 @@ export function keys(): StripeKeysConfig {
     pricingTableId: process.env.NEXT_PUBLIC_STRIPE_MAHAD_PRICING_TABLE_ID,
   }
 
-  // Dugsi: Fall back to live keys if test keys aren't configured yet
-  const dugsiSecretKey = isProduction
-    ? process.env.STRIPE_DUGSI_SECRET_KEY_LIVE!
-    : process.env.STRIPE_DUGSI_SECRET_KEY_TEST ||
-      process.env.STRIPE_DUGSI_SECRET_KEY_LIVE!
-
-  const dugsiWebhookSecret = isProduction
-    ? process.env.STRIPE_DUGSI_WEBHOOK_SECRET_LIVE!
-    : process.env.STRIPE_DUGSI_WEBHOOK_SECRET_TEST ||
-      process.env.STRIPE_DUGSI_WEBHOOK_SECRET_LIVE!
-
-  const dugsiPublishableKey = isProduction
-    ? process.env.NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE
-    : process.env.NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_TEST ||
-      process.env.NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE
-
   const dugsiConfig: DugsiConfig = {
-    secretKey: dugsiSecretKey,
-    webhookSecret: dugsiWebhookSecret,
-    publishableKey: dugsiPublishableKey,
+    secretKey: resolveEnvKey(
+      isProduction,
+      'STRIPE_DUGSI_SECRET_KEY_TEST',
+      'STRIPE_DUGSI_SECRET_KEY_LIVE'
+    )!,
+    webhookSecret: resolveEnvKey(
+      isProduction,
+      'STRIPE_DUGSI_WEBHOOK_SECRET_TEST',
+      'STRIPE_DUGSI_WEBHOOK_SECRET_LIVE'
+    )!,
+    publishableKey: resolveEnvKey(
+      isProduction,
+      'NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_TEST',
+      'NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE'
+    ),
     paymentLink: process.env.NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK,
     productId: process.env.STRIPE_DUGSI_PRODUCT_ID,
   }
 
+  const donationSecretKey = resolveEnvKey(
+    isProduction,
+    'STRIPE_DONATION_SECRET_KEY_TEST',
+    'STRIPE_DONATION_SECRET_KEY_LIVE'
+  )
+  const donationWebhookSecret = resolveEnvKey(
+    isProduction,
+    'STRIPE_DONATION_WEBHOOK_SECRET_TEST',
+    'STRIPE_DONATION_WEBHOOK_SECRET_LIVE'
+  )
+
+  const donationConfig: StripeProgramConfig | null =
+    donationSecretKey && donationWebhookSecret
+      ? {
+          secretKey: donationSecretKey,
+          webhookSecret: donationWebhookSecret,
+          publishableKey: resolveEnvKey(
+            isProduction,
+            'NEXT_PUBLIC_STRIPE_DONATION_PUBLISHABLE_KEY_TEST',
+            'NEXT_PUBLIC_STRIPE_DONATION_PUBLISHABLE_KEY_LIVE'
+          ),
+          productId: process.env.STRIPE_DONATION_PRODUCT_ID,
+        }
+      : null
+
   return {
     mahad: mahadConfig,
     dugsi: dugsiConfig,
-    // Youth & Donation default to null - will use Mahad's keys as fallback
     youth: null,
-    donation: null,
+    donation: donationConfig,
   }
 }
 
-/**
- * Get Mahad Stripe configuration.
- * Validates keys with Zod and throws if missing or malformed.
- */
 export function getMahadKeys(): MahadConfig {
   const config = keys().mahad
-
-  // Validate required keys with Zod schemas
-  const secretKeyResult = stripeSecretKeySchema.safeParse(config.secretKey)
-  if (!secretKeyResult.success) {
-    throw new Error(
-      'Mahad Stripe secret key not configured or invalid format. ' +
-        'Please set STRIPE_MAHAD_SECRET_KEY_TEST and STRIPE_MAHAD_SECRET_KEY_LIVE (must start with sk_).'
-    )
-  }
-
-  const webhookSecretResult = stripeWebhookSecretSchema.safeParse(
-    config.webhookSecret
-  )
-  if (!webhookSecretResult.success) {
-    throw new Error(
-      'Mahad Stripe webhook secret not configured or invalid format. ' +
-        'Please set STRIPE_MAHAD_WEBHOOK_SECRET_TEST and STRIPE_MAHAD_WEBHOOK_SECRET_LIVE (must start with whsec_).'
-    )
-  }
-
-  // Validate product ID if provided
-  if (config.productId) {
-    const productIdResult = stripeProductIdSchema.safeParse(config.productId)
-    if (!productIdResult.success) {
-      throw new Error(
-        'Mahad Stripe product ID has invalid format. ' +
-          'Please set STRIPE_MAHAD_PRODUCT_ID (must start with prod_).'
-      )
-    }
-  }
-
+  validateProgramConfig(config, 'Mahad')
   return config
 }
 
-/**
- * Get Dugsi Stripe configuration.
- * Validates keys with Zod and throws if missing or malformed.
- */
 export function getDugsiKeys(): DugsiConfig {
   const config = keys().dugsi
-
-  // Validate required keys with Zod schemas
-  const secretKeyResult = stripeSecretKeySchema.safeParse(config.secretKey)
-  if (!secretKeyResult.success) {
-    throw new Error(
-      'Dugsi Stripe secret key not configured or invalid format. ' +
-        'Please set STRIPE_DUGSI_SECRET_KEY_TEST and STRIPE_DUGSI_SECRET_KEY_LIVE (must start with sk_).'
-    )
-  }
-
-  const webhookSecretResult = stripeWebhookSecretSchema.safeParse(
-    config.webhookSecret
-  )
-  if (!webhookSecretResult.success) {
-    throw new Error(
-      'Dugsi Stripe webhook secret not configured or invalid format. ' +
-        'Please set STRIPE_DUGSI_WEBHOOK_SECRET_TEST and STRIPE_DUGSI_WEBHOOK_SECRET_LIVE (must start with whsec_).'
-    )
-  }
-
-  // Validate product ID if provided
-  if (config.productId) {
-    const productIdResult = stripeProductIdSchema.safeParse(config.productId)
-    if (!productIdResult.success) {
-      throw new Error(
-        'Dugsi Stripe product ID has invalid format. ' +
-          'Please set STRIPE_DUGSI_PRODUCT_ID (must start with prod_).'
-      )
-    }
-  }
-
+  validateProgramConfig(config, 'Dugsi')
   return config
 }
 
-/**
- * Get Stripe configuration for a specific program.
- * Falls back to Mahad keys for Youth and Donation programs.
- */
+export function getDonationKeys(): StripeProgramConfig {
+  const config = keys().donation
+
+  if (!config) {
+    throw new Error('Donation Stripe keys not configured')
+  }
+
+  validateProgramConfig(config, 'Donation')
+  return config
+}
+
 export function getKeysForProgram(
   program: 'MAHAD' | 'DUGSI' | 'YOUTH_EVENTS' | 'GENERAL_DONATION'
-): MahadConfig | DugsiConfig {
+): StripeProgramConfig {
   switch (program) {
     case 'MAHAD':
+    case 'YOUTH_EVENTS':
       return getMahadKeys()
     case 'DUGSI':
       return getDugsiKeys()
-    case 'YOUTH_EVENTS':
     case 'GENERAL_DONATION':
-      // Default to Mahad keys until they get their own
-      return getMahadKeys()
+      return getDonationKeys()
     default: {
       const _exhaustiveCheck: never = program
       throw new Error(`Unknown program: ${_exhaustiveCheck}`)

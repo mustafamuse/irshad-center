@@ -166,7 +166,7 @@ export const dbLogger = createLogger({ source: 'database' })
  * const logger = createWebhookLogger('mahad')
  * logger.info({ eventType: 'customer.subscription.created', eventId }, 'Webhook received')
  */
-export function createWebhookLogger(program: 'mahad' | 'dugsi') {
+export function createWebhookLogger(program: 'mahad' | 'dugsi' | 'donation') {
   return createLogger({ source: 'webhook', program })
 }
 

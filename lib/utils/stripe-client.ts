@@ -1,6 +1,7 @@
 import { StripeAccountType } from '@prisma/client'
 import Stripe from 'stripe'
 
+import { getDonationStripeClient } from '@/lib/stripe-donation'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 
@@ -76,10 +77,9 @@ export function getStripeClient(accountType: StripeAccountType): Stripe {
       return getMahadStripeClient()
     case 'DUGSI':
       return getDugsiStripeClient()
-    case 'YOUTH_EVENTS':
     case 'GENERAL_DONATION':
-      // Default to Mahad Stripe for now
-      // Can be extended when these programs get separate accounts
+      return getDonationStripeClient()
+    case 'YOUTH_EVENTS':
       return getMahadStripeClient()
     default: {
       // Exhaustive check - if new StripeAccountType is added, TypeScript will error here

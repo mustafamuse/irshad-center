@@ -1,11 +1,11 @@
 /**
  * Webhook Event Handlers
  *
- * Shared event handlers for Stripe webhooks.
- * Works for both Mahad and Dugsi programs.
+ * Event handlers for Stripe webhooks across all accounts (Mahad, Dugsi, Donation).
  *
  * Uses:
- * - webhook-service.ts for subscription lifecycle operations
+ * - webhook-service.ts for subscription lifecycle operations (Mahad/Dugsi)
+ * - donation-handler.ts for donation-specific operations
  * - unified-matcher.ts for matching checkout sessions to profiles
  */
 
@@ -16,6 +16,16 @@ import type Stripe from 'stripe'
 import { createServiceLogger } from '@/lib/logger'
 import { unifiedMatcher } from '@/lib/services/shared/unified-matcher'
 
+import {
+  handleOneTimeDonation,
+  handleRecurringDonationCheckout,
+  handleDonationPaymentIntentSucceeded,
+  handleDonationInvoicePaid,
+  handleDonationInvoiceFinalized,
+  handleDonationSubscriptionCreated,
+  handleDonationSubscriptionUpdated,
+  handleDonationSubscriptionDeleted,
+} from './donation-handler'
 import {
   handlePaymentMethodCapture,
   handleSubscriptionCreated,
@@ -273,6 +283,38 @@ export function createEventHandlers(accountType: StripeAccountType) {
   }
 }
 
-// Pre-built handler sets for each program
 export const mahadEventHandlers = createEventHandlers('MAHAD')
 export const dugsiEventHandlers = createEventHandlers('DUGSI')
+
+async function handleDonationCheckoutCompleted(
+  event: Stripe.Event
+): Promise<void> {
+  const session = extractEventData<Stripe.Checkout.Session>(event)
+
+  logger.info(
+    { sessionId: session.id, mode: session.mode },
+    'Processing donation checkout.session.completed'
+  )
+
+  if (session.mode === 'payment') {
+    await handleOneTimeDonation(session)
+  } else if (session.mode === 'subscription') {
+    await handleRecurringDonationCheckout(session)
+  } else {
+    throw new Error(`Unexpected donation checkout mode: ${session.mode}`)
+  }
+}
+
+export const donationEventHandlers: Record<
+  string,
+  (event: Stripe.Event) => Promise<void>
+> = {
+  'checkout.session.completed': handleDonationCheckoutCompleted,
+  'payment_intent.succeeded': handleDonationPaymentIntentSucceeded,
+  'invoice.payment_succeeded': handleDonationInvoicePaid,
+  'customer.subscription.created': handleDonationSubscriptionCreated,
+  'customer.subscription.updated': handleDonationSubscriptionUpdated,
+  'customer.subscription.deleted': handleDonationSubscriptionDeleted,
+  'invoice.payment_failed': handleInvoicePaymentFailedEvent,
+  'invoice.finalized': handleDonationInvoiceFinalized,
+}

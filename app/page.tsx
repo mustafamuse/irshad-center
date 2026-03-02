@@ -24,7 +24,7 @@ const statIcons = {
 
 export default function Page() {
   return (
-    <div className="relative min-h-screen bg-white dark:bg-gray-950">
+    <div className="relative min-h-screen bg-white pt-14 dark:bg-gray-950">
       <StickyHeader />
 
       <div className="absolute inset-0 -z-10">
@@ -45,18 +45,10 @@ export default function Page() {
               />
             </div>
 
-            <div className="mt-2 space-y-2 text-center">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl md:text-4xl">
-                Welcome to{' '}
-                <span className="text-[#007078] dark:text-[#00a0a8]">
-                  Irshād
-                </span>{' '}
-                Islamic Center
-              </h1>
-              <p className="mx-auto max-w-xl text-sm text-gray-600 dark:text-gray-300 sm:text-base">
-                {IRSHAD_CENTER.tagline}
-              </p>
-            </div>
+            <h1 className="sr-only">Irshād Islamic Center</h1>
+            <p className="-mt-2 text-center text-sm text-gray-600 dark:text-gray-300 sm:text-base">
+              {IRSHAD_CENTER.tagline}
+            </p>
           </div>
 
           <div className="mx-auto max-w-3xl rounded-2xl border border-[#007078]/10 bg-[#007078]/5 p-4 text-center dark:border-[#007078]/20 dark:bg-[#007078]/10">

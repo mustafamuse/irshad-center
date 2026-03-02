@@ -1,0 +1,2 @@
+-- Migration stub: this change was applied directly to the database.
+-- Empty file created to reconcile Prisma migration history.
