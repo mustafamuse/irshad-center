@@ -27,6 +27,10 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
     ],
   },
   {
+    title: 'Donations',
+    items: [{ title: 'Dashboard', url: '/admin/donations' }],
+  },
+  {
     title: 'Utilities',
     items: [
       { title: 'People Lookup', url: '/admin/people/lookup' },
