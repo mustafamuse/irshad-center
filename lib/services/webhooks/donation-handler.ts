@@ -3,7 +3,7 @@
 //   sub_setup_{subscriptionId}    -- placeholder created at recurring checkout, cleaned up on first invoice
 //   sub_cancelled_{subscriptionId} -- cancellation marker to exclude subscription from MRR
 
-import { Prisma } from '@prisma/client'
+import { DonationStatus, Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
@@ -53,10 +53,9 @@ export async function handleOneTimeDonation(
     throw new Error('Missing payment_intent on checkout session')
   }
 
-  if (!session.amount_total) {
-    logger.warn(
-      { sessionId: session.id, paymentIntentId },
-      'One-time donation checkout has null/zero amount_total'
+  if (!session.amount_total || session.amount_total <= 0) {
+    throw new Error(
+      `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
     )
   }
 
@@ -67,9 +66,9 @@ export async function handleOneTimeDonation(
     create: {
       stripePaymentIntentId: paymentIntentId,
       stripeCustomerId: extractCustomerId(session.customer),
-      amount: session.amount_total ?? 0,
+      amount: session.amount_total,
       currency: session.currency ?? 'usd',
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       donorName: resolveDonorName(session, isAnonymous),
       donorEmail: session.customer_details?.email ?? null,
       donorPhone: session.customer_details?.phone ?? null,
@@ -81,7 +80,7 @@ export async function handleOneTimeDonation(
       paidAt: new Date(),
     },
     update: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
     },
   })
@@ -102,10 +101,9 @@ export async function handleRecurringDonationCheckout(
     throw new Error('Missing subscription on checkout session')
   }
 
-  if (!session.amount_total) {
-    logger.warn(
-      { sessionId: session.id, subscriptionId },
-      'Recurring donation checkout has null/zero amount_total'
+  if (!session.amount_total || session.amount_total <= 0) {
+    throw new Error(
+      `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
     )
   }
 
@@ -117,9 +115,9 @@ export async function handleRecurringDonationCheckout(
     create: {
       stripePaymentIntentId: placeholderPiId,
       stripeCustomerId: extractCustomerId(session.customer),
-      amount: session.amount_total ?? 0,
+      amount: session.amount_total,
       currency: session.currency ?? 'usd',
-      status: 'pending',
+      status: DonationStatus.pending,
       donorName: resolveDonorName(session, isAnonymous),
       donorEmail: session.customer_details?.email ?? null,
       donorPhone: session.customer_details?.phone ?? null,
@@ -131,7 +129,7 @@ export async function handleRecurringDonationCheckout(
       ),
     },
     update: {
-      status: 'pending',
+      status: DonationStatus.pending,
       stripeSubscriptionId: subscriptionId,
     },
   })
@@ -162,7 +160,7 @@ export async function handleDonationPaymentIntentSucceeded(
   await prisma.donation.update({
     where: { stripePaymentIntentId: paymentIntent.id },
     data: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
       amount: paymentIntent.amount,
     },
@@ -207,7 +205,7 @@ export async function handleDonationInvoicePaid(
       stripeCustomerId: extractCustomerId(invoice.customer),
       amount: invoice.amount_paid,
       currency: invoice.currency ?? 'usd',
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       donorEmail: invoice.customer_email ?? null,
       donorPhone,
       isAnonymous,
@@ -217,7 +215,7 @@ export async function handleDonationInvoicePaid(
       paidAt: new Date(),
     },
     update: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
       amount: invoice.amount_paid,
     },
@@ -307,11 +305,11 @@ export async function handleDonationSubscriptionDeleted(
       stripeSubscriptionId: subscription.id,
       stripeCustomerId: customerId,
       amount: 0,
-      status: 'cancelled',
+      status: DonationStatus.cancelled,
       isRecurring: true,
     },
     update: {
-      status: 'cancelled',
+      status: DonationStatus.cancelled,
     },
   })
 
