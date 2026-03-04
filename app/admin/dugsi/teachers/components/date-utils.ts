@@ -158,6 +158,15 @@ export function getAvailableQuarters(): {
   return quarters
 }
 
+export function generateWeekendDateList(weekendCount: number): Date[] {
+  const dates: Date[] = []
+  for (let i = 0; i < weekendCount; i++) {
+    const { start, end } = getWeekendDates(i)
+    dates.push(start, end)
+  }
+  return dates
+}
+
 export function generateHistoryFilterOptions(): {
   months: FilterOption[]
   quarters: FilterOption[]

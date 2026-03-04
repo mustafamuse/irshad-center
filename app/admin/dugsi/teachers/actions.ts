@@ -9,10 +9,10 @@ import { prisma } from '@/lib/db'
 import {
   getAllDugsiTeachersWithTodayStatus,
   getCheckinHistory,
-  getCheckinsForDate,
-  getLateArrivals,
+  getCheckinsForDateRange,
   getDugsiTeachersForDropdown,
-  TeacherCheckinWithRelations,
+  getDugsiTeachersLightweight,
+  type CheckinSnapshot,
 } from '@/lib/db/queries/teacher-checkin'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -20,6 +20,7 @@ import {
   PersonSearchResult,
 } from '@/lib/mappers/person-mapper'
 import {
+  adminClockIn,
   updateCheckin,
   deleteCheckin,
 } from '@/lib/services/dugsi/teacher-checkin-service'
@@ -37,12 +38,12 @@ import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
 import { extractContactInfo } from '@/lib/utils/contact-helpers'
 import {
+  AdminClockInSchema,
   UpdateCheckinSchema,
   DeleteCheckinSchema,
-  CheckinHistoryFiltersSchema,
-  LateReportFiltersSchema,
-  DateCheckinFiltersSchema,
 } from '@/lib/validations/teacher-checkin'
+
+import { generateWeekendDateList } from './components/date-utils'
 
 const logger = createServiceLogger('teacher-admin-actions')
 
@@ -152,12 +153,13 @@ export async function getTeachers(
 ): Promise<ActionResult<TeacherWithDetails[]>> {
   try {
     if (program === 'DUGSI_PROGRAM') {
-      // Get ALL teachers enrolled in Dugsi (not just those with class assignments)
-      const teachers = await getAllTeachers('DUGSI_PROGRAM')
+      const [teachers, teachersWithStatus] = await Promise.all([
+        getAllTeachers('DUGSI_PROGRAM'),
+        getAllDugsiTeachersWithTodayStatus(),
+      ])
+
       const teacherIds = teachers.map((t) => t.id)
 
-      // Get check-in status for teachers with class assignments
-      const teachersWithStatus = await getAllDugsiTeachersWithTodayStatus()
       const statusMap = new Map(
         teachersWithStatus.map((t) => [
           t.id,
@@ -169,7 +171,6 @@ export async function getTeachers(
         ])
       )
 
-      // Get class counts
       const classCounts = await prisma.dugsiClassTeacher.groupBy({
         by: ['teacherId'],
         where: {
@@ -462,7 +463,7 @@ export async function deleteTeacherAction(
   try {
     await deleteTeacher(teacherId)
 
-    revalidatePath('/admin/teachers')
+    revalidatePath('/admin/dugsi/teachers')
 
     logger.info({ teacherId }, 'Teacher deleted')
 
@@ -569,15 +570,42 @@ export async function updateTeacherDetailsAction(
 
     logger.info({ teacherId, name }, 'Teacher details updated')
 
-    const result = await getTeachers('DUGSI_PROGRAM')
-    if (result.success && result.data) {
-      const updated = result.data.find((t) => t.id === teacherId)
-      if (updated) {
-        return { success: true, data: updated }
-      }
+    const updatedTeacher = await prisma.teacher.findUnique({
+      where: { id: teacherId },
+      include: {
+        person: { include: { contactPoints: { where: { isActive: true } } } },
+        programs: { where: { isActive: true } },
+        dugsiClasses: { where: { isActive: true }, select: { id: true } },
+      },
+    })
+
+    if (!updatedTeacher) {
+      return { success: false, error: 'Failed to fetch updated teacher' }
     }
 
-    return { success: false, error: 'Failed to fetch updated teacher' }
+    const { email: updatedEmail, phone: updatedPhone } = extractContactInfo(
+      updatedTeacher.person.contactPoints || []
+    )
+    const dugsiProg = updatedTeacher.programs.find(
+      (p) => p.program === 'DUGSI_PROGRAM' && p.isActive
+    )
+
+    return {
+      success: true,
+      data: {
+        id: updatedTeacher.id,
+        personId: updatedTeacher.personId,
+        name: updatedTeacher.person.name,
+        email: updatedEmail,
+        phone: updatedPhone,
+        programs: updatedTeacher.programs.map((p) => p.program),
+        classCount: updatedTeacher.dugsiClasses.length,
+        shifts: dugsiProg?.shifts ?? [],
+        morningCheckin: null,
+        afternoonCheckin: null,
+        createdAt: updatedTeacher.createdAt,
+      },
+    }
   } catch (error) {
     await logError(logger, error, 'Failed to update teacher details', {
       teacherId,
@@ -750,6 +778,7 @@ export async function assignTeacherToProgramAction(
     await assignTeacherToProgram(input)
 
     revalidatePath('/admin/teachers')
+    revalidatePath('/admin/dugsi/teachers')
     revalidatePath(
       `/admin/${input.program.toLowerCase().replace('_program', '')}`
     )
@@ -809,6 +838,7 @@ export async function removeTeacherFromProgramAction(
     await removeTeacherFromProgram(input)
 
     revalidatePath('/admin/teachers')
+    revalidatePath('/admin/dugsi/teachers')
     revalidatePath(
       `/admin/${input.program.toLowerCase().replace('_program', '')}`
     )
@@ -840,6 +870,7 @@ export async function bulkAssignProgramsAction(
     await bulkAssignPrograms(input.teacherId, input.programs)
 
     revalidatePath('/admin/teachers')
+    revalidatePath('/admin/dugsi/teachers')
     input.programs.forEach((program) => {
       revalidatePath(`/admin/${program.toLowerCase().replace('_program', '')}`)
     })
@@ -1005,6 +1036,153 @@ export async function searchPeopleAction(
 }
 
 // ============================================================================
+// Admin Check-in Status + Manual Clock-in
+// ============================================================================
+
+export interface TeacherCheckinStatusForClient {
+  id: string
+  name: string
+  shifts: Shift[]
+  morningCheckin: CheckinRecord | null
+  afternoonCheckin: CheckinRecord | null
+}
+
+export async function getTeachersWithCheckinStatusAction(
+  rawDate: unknown
+): Promise<ActionResult<TeacherCheckinStatusForClient[]>> {
+  const parsed = z.coerce.date().safeParse(rawDate)
+  if (!parsed.success) {
+    return { success: false, error: 'Invalid date' }
+  }
+
+  try {
+    const teachers = await getAllDugsiTeachersWithTodayStatus(parsed.data)
+
+    const result: TeacherCheckinStatusForClient[] = teachers.map((t) => ({
+      id: t.id,
+      name: t.name,
+      shifts: t.shifts,
+      morningCheckin: t.morningCheckin
+        ? mapCheckinToRecord(t.morningCheckin)
+        : null,
+      afternoonCheckin: t.afternoonCheckin
+        ? mapCheckinToRecord(t.afternoonCheckin)
+        : null,
+    }))
+
+    return { success: true, data: result }
+  } catch (error) {
+    await logError(
+      logger,
+      error,
+      'Failed to get teachers with check-in status',
+      { rawDate }
+    )
+    return { success: false, error: 'Failed to load teacher check-in status' }
+  }
+}
+
+// ============================================================================
+// Attendance Grid
+// ============================================================================
+
+export interface AttendanceGridTeacher {
+  id: string
+  name: string
+  shifts: Shift[]
+  createdAt: Date
+}
+
+export interface AttendanceGridRecord {
+  teacherId: string
+  date: string
+  shift: Shift
+  isLate: boolean
+  clockInTime: Date
+}
+
+export interface AttendanceGridData {
+  teachers: AttendanceGridTeacher[]
+  dates: string[]
+  records: AttendanceGridRecord[]
+}
+
+export async function getAttendanceGridAction(
+  weekendCount = 8
+): Promise<ActionResult<AttendanceGridData>> {
+  const countResult = z.number().int().min(1).max(52).safeParse(weekendCount)
+  if (!countResult.success) {
+    return { success: false, error: 'Invalid weekend count' }
+  }
+
+  try {
+    const dates = generateWeekendDateList(countResult.data)
+
+    const teachers = await getDugsiTeachersLightweight()
+
+    const teacherIds = teachers.map((t) => t.id)
+    const records = await getCheckinsForDateRange(dates, teacherIds)
+
+    const gridTeachers: AttendanceGridTeacher[] = teachers
+
+    const dateStrings = dates.map((d) => d.toISOString().split('T')[0])
+
+    const gridRecords: AttendanceGridRecord[] = records.map((r) => ({
+      teacherId: r.teacherId,
+      date: r.date.toISOString().split('T')[0],
+      shift: r.shift,
+      isLate: r.isLate,
+      clockInTime: r.clockInTime,
+    }))
+
+    return {
+      success: true,
+      data: {
+        teachers: gridTeachers,
+        dates: dateStrings,
+        records: gridRecords,
+      },
+    }
+  } catch (error) {
+    await logError(logger, error, 'Failed to get attendance grid data', {
+      weekendCount,
+    })
+    return { success: false, error: 'Failed to load attendance grid' }
+  }
+}
+
+export async function adminClockInAction(input: {
+  teacherId: string
+  shift: Shift
+  date: Date
+  clockInTime: Date
+}): Promise<ActionResult<CheckinRecord>> {
+  try {
+    const parsed = AdminClockInSchema.safeParse(input)
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]
+      return { success: false, error: firstError?.message || 'Invalid input' }
+    }
+
+    const { checkIn } = await adminClockIn(parsed.data)
+    const record = mapCheckinToRecord(checkIn)
+
+    revalidatePath('/admin/dugsi/teachers')
+
+    return { success: true, data: record }
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return { success: false, error: error.message }
+    }
+
+    await logError(logger, error, 'Failed to admin clock-in', {
+      teacherId: input.teacherId,
+    })
+    return { success: false, error: 'Failed to check in teacher' }
+  }
+}
+
+// ============================================================================
 // Check-in History Actions
 // ============================================================================
 
@@ -1096,9 +1274,7 @@ export interface TeacherOption {
   name: string
 }
 
-function mapCheckinToRecord(
-  checkin: TeacherCheckinWithRelations
-): CheckinRecord {
+function mapCheckinToRecord(checkin: CheckinSnapshot): CheckinRecord {
   return {
     id: checkin.id,
     teacherId: checkin.teacherId,
@@ -1110,109 +1286,6 @@ function mapCheckinToRecord(
     isLate: checkin.isLate,
     clockInValid: checkin.clockInValid,
     notes: checkin.notes,
-  }
-}
-
-/**
- * Get check-ins for a specific date with optional filters.
- */
-export async function getCheckinsForDateAction(filters: {
-  date?: Date
-  shift?: Shift
-  teacherId?: string
-}): Promise<ActionResult<CheckinRecord[]>> {
-  try {
-    const parsed = DateCheckinFiltersSchema.safeParse(filters)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid filters',
-      }
-    }
-
-    const checkins = await getCheckinsForDate(parsed.data)
-    const records = checkins.map(mapCheckinToRecord)
-
-    return { success: true, data: records }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get check-ins for date')
-    return { success: false, error: 'Failed to load check-ins' }
-  }
-}
-
-/**
- * Get check-in history with filters and pagination.
- */
-export async function getCheckinHistoryWithFiltersAction(filters: {
-  dateFrom?: Date
-  dateTo?: Date
-  shift?: Shift
-  teacherId?: string
-  isLate?: boolean
-  clockInValid?: boolean
-  page?: number
-  limit?: number
-}): Promise<
-  ActionResult<{
-    data: CheckinRecord[]
-    total: number
-    page: number
-    totalPages: number
-  }>
-> {
-  try {
-    const parsed = CheckinHistoryFiltersSchema.safeParse(filters)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid filters',
-      }
-    }
-
-    const { page, limit, ...queryFilters } = parsed.data
-    const result = await getCheckinHistory(queryFilters, { page, limit })
-    const records = result.data.map(mapCheckinToRecord)
-
-    return {
-      success: true,
-      data: {
-        data: records,
-        total: result.total,
-        page: result.page,
-        totalPages: result.totalPages,
-      },
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get check-in history')
-    return { success: false, error: 'Failed to load check-in history' }
-  }
-}
-
-/**
- * Get late arrivals report.
- */
-export async function getLateArrivalsAction(filters: {
-  dateFrom: Date
-  dateTo: Date
-  shift?: Shift
-  teacherId?: string
-}): Promise<ActionResult<CheckinRecord[]>> {
-  try {
-    const parsed = LateReportFiltersSchema.safeParse(filters)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid filters',
-      }
-    }
-
-    const checkins = await getLateArrivals(parsed.data)
-    const records = checkins.map(mapCheckinToRecord)
-
-    return { success: true, data: records }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get late arrivals')
-    return { success: false, error: 'Failed to load late arrivals report' }
   }
 }
 
@@ -1263,14 +1336,13 @@ export async function updateCheckinAction(input: {
 
     return { success: true, data: record }
   } catch (error) {
-    await logError(logger, error, 'Failed to update check-in', {
-      checkInId: input.checkInId,
-    })
-
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
 
+    await logError(logger, error, 'Failed to update check-in', {
+      checkInId: input.checkInId,
+    })
     return { success: false, error: 'Failed to update check-in' }
   }
 }
@@ -1295,12 +1367,11 @@ export async function deleteCheckinAction(
 
     return { success: true, data: undefined }
   } catch (error) {
-    await logError(logger, error, 'Failed to delete check-in', { checkInId })
-
     if (error instanceof ValidationError) {
       return { success: false, error: error.message }
     }
 
+    await logError(logger, error, 'Failed to delete check-in', { checkInId })
     return { success: false, error: 'Failed to delete check-in' }
   }
 }

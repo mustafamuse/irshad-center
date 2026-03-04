@@ -9,12 +9,17 @@ import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import {
-  isWithinGeofence,
-  isLateForShift,
-  isGeofenceConfigured,
   CHECKIN_ERROR_CODES,
   SCHOOL_TIMEZONE,
 } from '@/lib/constants/teacher-checkin'
+import {
+  isWithinGeofence,
+  isGeofenceConfigured,
+} from '@/lib/constants/teacher-checkin-server'
+import {
+  isLateForShift,
+  isCheckinWindowOpen,
+} from '@/lib/constants/teacher-checkin-tz'
 import { prisma } from '@/lib/db'
 import {
   getCheckinById,
@@ -27,6 +32,7 @@ import { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
 import type {
+  AdminClockInInput,
   ClockInInput,
   ClockOutInput,
   UpdateCheckinInput,
@@ -48,7 +54,11 @@ export async function clockIn(
 ): Promise<ClockInResult> {
   const { teacherId, shift, latitude, longitude } = input
 
-  const isEnrolled = await isTeacherEnrolledInDugsi(teacherId, client)
+  const [isEnrolled, teacherShifts] = await Promise.all([
+    isTeacherEnrolledInDugsi(teacherId, client),
+    getTeacherShifts(teacherId, client),
+  ])
+
   if (!isEnrolled) {
     throw new ValidationError(
       'Teacher is not enrolled in the Dugsi program',
@@ -57,12 +67,19 @@ export async function clockIn(
     )
   }
 
-  const teacherShifts = await getTeacherShifts(teacherId, client)
   if (!teacherShifts.includes(shift)) {
     throw new ValidationError(
       `Teacher is not assigned to the ${shift} shift`,
       CHECKIN_ERROR_CODES.INVALID_SHIFT,
       { teacherId, shift, assignedShifts: teacherShifts }
+    )
+  }
+
+  if (!isCheckinWindowOpen(shift)) {
+    throw new ValidationError(
+      'Check-in window has closed for this shift. Contact your administrator.',
+      CHECKIN_ERROR_CODES.CHECKIN_WINDOW_CLOSED,
+      { teacherId, shift }
     )
   }
 
@@ -132,6 +149,86 @@ export async function clockIn(
       timestamp: now.toISOString(),
     },
     `Teacher clocked in${isLate ? ' (LATE)' : ''}`
+  )
+
+  return { checkIn }
+}
+
+export async function adminClockIn(
+  input: AdminClockInInput,
+  client: DatabaseClient = prisma
+): Promise<ClockInResult> {
+  const { teacherId, shift, clockInTime } = input
+
+  const [isEnrolled, teacherShifts] = await Promise.all([
+    isTeacherEnrolledInDugsi(teacherId, client),
+    getTeacherShifts(teacherId, client),
+  ])
+
+  if (!isEnrolled) {
+    throw new ValidationError(
+      'Teacher is not enrolled in the Dugsi program',
+      CHECKIN_ERROR_CODES.NOT_ENROLLED_IN_DUGSI,
+      { teacherId }
+    )
+  }
+
+  if (!teacherShifts.includes(shift)) {
+    throw new ValidationError(
+      `Teacher is not assigned to the ${shift} shift`,
+      CHECKIN_ERROR_CODES.INVALID_SHIFT,
+      { teacherId, shift, assignedShifts: teacherShifts }
+    )
+  }
+
+  const dateOnly = new Date(
+    formatInTimeZone(clockInTime, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+  )
+
+  const isLate = isLateForShift(clockInTime, shift)
+
+  let checkIn: TeacherCheckinWithRelations
+
+  try {
+    checkIn = await client.dugsiTeacherCheckIn.create({
+      data: {
+        teacherId,
+        date: dateOnly,
+        shift,
+        clockInTime,
+        clockInLat: null,
+        clockInLng: null,
+        clockInValid: true,
+        isLate,
+      },
+      include: teacherCheckinInclude,
+    })
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new ValidationError(
+        'Teacher has already checked in for this shift on this date',
+        CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+        { teacherId, shift, date: dateOnly.toISOString() }
+      )
+    }
+    throw error
+  }
+
+  logger.info(
+    {
+      event: 'ADMIN_CLOCK_IN',
+      checkInId: checkIn.id,
+      teacherId,
+      teacherName: checkIn.teacher.person.name,
+      shift,
+      isLate,
+      clockInTime: clockInTime.toISOString(),
+      date: dateOnly.toISOString(),
+    },
+    `Admin clocked in teacher${isLate ? ' (LATE)' : ''}`
   )
 
   return { checkIn }

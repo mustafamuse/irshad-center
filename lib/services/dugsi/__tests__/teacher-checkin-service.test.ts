@@ -52,17 +52,18 @@ const { mockIsWithinGeofence, mockIsGeofenceConfigured } = vi.hoisted(() => ({
   mockIsGeofenceConfigured: vi.fn(() => true),
 }))
 
-vi.mock('@/lib/constants/teacher-checkin', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/lib/constants/teacher-checkin')>()
-  return {
-    ...actual,
-    isWithinGeofence: (lat: number, lng: number) =>
-      mockIsWithinGeofence(lat, lng),
-    isGeofenceConfigured: () => mockIsGeofenceConfigured(),
-    isLateForShift: vi.fn(() => false),
-  }
-})
+vi.mock('@/lib/constants/teacher-checkin-server', () => ({
+  isWithinGeofence: (lat: number, lng: number) =>
+    mockIsWithinGeofence(lat, lng),
+  isGeofenceConfigured: () => mockIsGeofenceConfigured(),
+}))
+
+vi.mock('@/lib/constants/teacher-checkin-tz', () => ({
+  isLateForShift: vi.fn(() => false),
+  isCheckinWindowOpen: vi.fn(() => true),
+  getCheckinWindowStatus: vi.fn(() => 'open'),
+  isShiftPastCutoff: vi.fn(() => false),
+}))
 
 vi.mock('@/lib/logger', () => ({
   createServiceLogger: vi.fn(() => ({

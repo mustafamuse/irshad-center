@@ -5,12 +5,12 @@ import { revalidatePath } from 'next/cache'
 import { Shift } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
+import { SCHOOL_TIMEZONE } from '@/lib/constants/teacher-checkin'
 import {
   GEOFENCE_RADIUS_METERS,
   isWithinGeofence,
-  SCHOOL_TIMEZONE,
   IRSHAD_CENTER_LOCATION,
-} from '@/lib/constants/teacher-checkin'
+} from '@/lib/constants/teacher-checkin-server'
 import {
   getCheckinHistory,
   getDugsiTeachersForDropdown,
@@ -74,7 +74,7 @@ export async function teacherClockInAction(
     const validated = ClockInSchema.parse(input)
     const result = await clockIn(validated)
     revalidatePath('/teacher/checkin')
-    revalidatePath('/admin/dugsi/teacher-checkins')
+    revalidatePath('/admin/dugsi/teachers')
 
     const status = await getTeacherCurrentStatus(validated.teacherId)
 
@@ -108,7 +108,7 @@ export async function teacherClockOutAction(
     const validated = ClockOutSchema.parse(input)
     await clockOut(validated)
     revalidatePath('/teacher/checkin')
-    revalidatePath('/admin/dugsi/teacher-checkins')
+    revalidatePath('/admin/dugsi/teachers')
 
     const status = await getTeacherCurrentStatus(validated.teacherId)
 

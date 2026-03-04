@@ -3,27 +3,27 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { calculateDistance } from '@/lib/services/geolocation-service'
 
+import { SHIFT_START_TIMES } from '../teacher-checkin'
 import {
-  isLateForShift,
   isWithinGeofence,
-  SHIFT_START_TIMES,
   GEOFENCE_RADIUS_METERS,
-} from '../teacher-checkin'
+} from '../teacher-checkin-server'
+import { isLateForShift } from '../teacher-checkin-tz'
 
 describe('isLateForShift', () => {
-  describe('MORNING shift (8:30 AM)', () => {
-    it('should return false when clock-in is before 8:30', () => {
+  describe('MORNING shift (8:45 AM)', () => {
+    it('should return false when clock-in is before 8:45', () => {
       const clockIn = new Date('2024-01-15T08:00:00')
       expect(isLateForShift(clockIn, Shift.MORNING)).toBe(false)
     })
 
-    it('should return false when clock-in is exactly at 8:30', () => {
-      const clockIn = new Date('2024-01-15T08:30:00')
+    it('should return false when clock-in is exactly at 8:45', () => {
+      const clockIn = new Date('2024-01-15T08:45:00')
       expect(isLateForShift(clockIn, Shift.MORNING)).toBe(false)
     })
 
-    it('should return true when clock-in is at 8:31', () => {
-      const clockIn = new Date('2024-01-15T08:31:00')
+    it('should return true when clock-in is at 8:46', () => {
+      const clockIn = new Date('2024-01-15T08:46:00')
       expect(isLateForShift(clockIn, Shift.MORNING)).toBe(true)
     })
 
@@ -124,7 +124,7 @@ describe('isWithinGeofence', () => {
   })
 
   it('should validate shift start times are correct', () => {
-    expect(SHIFT_START_TIMES.MORNING).toEqual({ hour: 8, minute: 30 })
+    expect(SHIFT_START_TIMES.MORNING).toEqual({ hour: 8, minute: 45 })
     expect(SHIFT_START_TIMES.AFTERNOON).toEqual({ hour: 14, minute: 15 })
   })
 })

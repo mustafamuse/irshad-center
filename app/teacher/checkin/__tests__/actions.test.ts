@@ -37,16 +37,13 @@ vi.mock('@/lib/services/dugsi/teacher-checkin-service', () => ({
   clockOut: (...args: unknown[]) => mockClockOut(...args),
 }))
 
-vi.mock('@/lib/constants/teacher-checkin', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/lib/constants/teacher-checkin')>()
-  return {
-    ...actual,
-    isWithinGeofence: (lat: number, lng: number) =>
-      mockIsWithinGeofence(lat, lng),
-    IRSHAD_CENTER_LOCATION: { lat: 44.9778, lng: -93.265 },
-  }
-})
+vi.mock('@/lib/constants/teacher-checkin-server', () => ({
+  isWithinGeofence: (lat: number, lng: number) =>
+    mockIsWithinGeofence(lat, lng),
+  isGeofenceConfigured: vi.fn(() => true),
+  IRSHAD_CENTER_LOCATION: { lat: 44.9778, lng: -93.265 },
+  GEOFENCE_RADIUS_METERS: 15,
+}))
 
 vi.mock('@/lib/services/geolocation-service', () => ({
   calculateDistance: (...args: unknown[]) => mockCalculateDistance(...args),
@@ -201,9 +198,7 @@ describe('teacherClockInAction', () => {
     await teacherClockInAction(input)
 
     expect(mockRevalidatePath).toHaveBeenCalledWith('/teacher/checkin')
-    expect(mockRevalidatePath).toHaveBeenCalledWith(
-      '/admin/dugsi/teacher-checkins'
-    )
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/teachers')
   })
 
   it('should return success message with late indicator when late', async () => {
@@ -345,9 +340,7 @@ describe('teacherClockOutAction', () => {
     await teacherClockOutAction(input)
 
     expect(mockRevalidatePath).toHaveBeenCalledWith('/teacher/checkin')
-    expect(mockRevalidatePath).toHaveBeenCalledWith(
-      '/admin/dugsi/teacher-checkins'
-    )
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi/teachers')
   })
 
   it('should return error for invalid checkInId UUID format', async () => {

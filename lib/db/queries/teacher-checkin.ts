@@ -5,6 +5,8 @@
  * Supports teacher clock-in/out operations and admin reporting.
  */
 
+import { cache } from 'react'
+
 import { Prisma, Shift } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
@@ -14,8 +16,8 @@ export const teacherCheckinInclude = {
   teacher: {
     include: {
       person: {
-        include: {
-          contactPoints: true,
+        select: {
+          name: true,
         },
       },
     },
@@ -25,6 +27,29 @@ export const teacherCheckinInclude = {
 export type TeacherCheckinWithRelations = Prisma.DugsiTeacherCheckInGetPayload<{
   include: typeof teacherCheckinInclude
 }>
+
+export interface CheckinSnapshot {
+  id: string
+  teacherId: string
+  date: Date
+  shift: Shift
+  clockInTime: Date
+  clockOutTime: Date | null
+  isLate: boolean
+  clockInValid: boolean
+  notes: string | null
+  clockInLat: number | null
+  clockInLng: number | null
+  clockOutLat: number | null
+  clockOutLng: number | null
+  createdAt: Date
+  updatedAt: Date
+  teacher: {
+    person: {
+      name: string
+    }
+  }
+}
 
 export async function getCheckinById(
   id: string,
@@ -213,25 +238,51 @@ export async function getLateArrivals(
   })
 }
 
+export async function getCheckinsForDateRange(
+  dates: Date[],
+  teacherIds: string[],
+  client: DatabaseClient = prisma
+) {
+  if (dates.length === 0 || teacherIds.length === 0) {
+    return []
+  }
+
+  const normalizedDates = dates.map(
+    (d) => new Date(d.toISOString().split('T')[0])
+  )
+
+  return client.dugsiTeacherCheckIn.findMany({
+    where: {
+      date: { in: normalizedDates },
+      teacherId: { in: teacherIds },
+    },
+    select: {
+      teacherId: true,
+      date: true,
+      shift: true,
+      isLate: true,
+      clockInTime: true,
+    },
+  })
+}
+
 export interface TeacherWithCheckinStatus {
   id: string
   personId: string
   name: string
-  email: string | null
-  phone: string | null
   shifts: Shift[]
-  morningCheckin: TeacherCheckinWithRelations | null
-  afternoonCheckin: TeacherCheckinWithRelations | null
+  createdAt: Date
+  morningCheckin: CheckinSnapshot | null
+  afternoonCheckin: CheckinSnapshot | null
 }
 
-export async function getAllDugsiTeachersWithTodayStatus(
-  date?: Date,
-  client: DatabaseClient = prisma
+async function _getAllDugsiTeachersWithTodayStatus(
+  date?: Date
 ): Promise<TeacherWithCheckinStatus[]> {
   const targetDate = date || new Date()
   const dateOnly = new Date(targetDate.toISOString().split('T')[0])
 
-  const teachers = await client.teacher.findMany({
+  const teachers = await prisma.teacher.findMany({
     where: {
       dugsiClasses: {
         some: {
@@ -244,8 +295,8 @@ export async function getAllDugsiTeachersWithTodayStatus(
     },
     include: {
       person: {
-        include: {
-          contactPoints: true,
+        select: {
+          name: true,
         },
       },
       dugsiClasses: {
@@ -267,7 +318,23 @@ export async function getAllDugsiTeachersWithTodayStatus(
         where: {
           date: dateOnly,
         },
-        include: teacherCheckinInclude,
+        select: {
+          id: true,
+          teacherId: true,
+          date: true,
+          shift: true,
+          clockInTime: true,
+          clockOutTime: true,
+          isLate: true,
+          clockInValid: true,
+          notes: true,
+          clockInLat: true,
+          clockInLng: true,
+          clockOutLat: true,
+          clockOutLng: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       },
     },
     orderBy: {
@@ -278,32 +345,37 @@ export async function getAllDugsiTeachersWithTodayStatus(
   })
 
   return teachers.map((teacher) => {
-    const email = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL'
-    )?.value
-    const phone = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'PHONE'
-    )?.value
-
     const shiftValues = teacher.dugsiClasses.map((dc) => dc.class.shift)
     const shifts = Array.from(new Set(shiftValues))
-    const morningCheckin =
-      teacher.checkIns.find((c) => c.shift === 'MORNING') || null
-    const afternoonCheckin =
-      teacher.checkIns.find((c) => c.shift === 'AFTERNOON') || null
+
+    const morningRaw = teacher.checkIns.find((c) => c.shift === 'MORNING')
+    const afternoonRaw = teacher.checkIns.find((c) => c.shift === 'AFTERNOON')
+
+    const wrapCheckin = (
+      raw: (typeof teacher.checkIns)[number] | undefined
+    ): CheckinSnapshot | null => {
+      if (!raw) return null
+      return {
+        ...raw,
+        teacher: { person: { name: teacher.person.name } },
+      }
+    }
 
     return {
       id: teacher.id,
       personId: teacher.personId,
       name: teacher.person.name,
-      email: email || null,
-      phone: phone || null,
       shifts,
-      morningCheckin,
-      afternoonCheckin,
+      createdAt: teacher.createdAt,
+      morningCheckin: wrapCheckin(morningRaw),
+      afternoonCheckin: wrapCheckin(afternoonRaw),
     }
   })
 }
+
+export const getAllDugsiTeachersWithTodayStatus = cache(
+  _getAllDugsiTeachersWithTodayStatus
+)
 
 export type TodayStatus = 'not_checked_in' | 'checked_in' | 'completed'
 
@@ -313,8 +385,6 @@ export async function getDugsiTeachersForDropdown(
   Array<{
     id: string
     name: string
-    email: string | null
-    phone: string | null
     shifts: Shift[]
     todayStatus: TodayStatus
   }>
@@ -335,8 +405,8 @@ export async function getDugsiTeachersForDropdown(
     },
     include: {
       person: {
-        include: {
-          contactPoints: true,
+        select: {
+          name: true,
         },
       },
       dugsiClasses: {
@@ -372,13 +442,6 @@ export async function getDugsiTeachersForDropdown(
   })
 
   return teachers.map((teacher) => {
-    const email = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL'
-    )?.value
-    const phone = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'PHONE'
-    )?.value
-
     const shiftValues = teacher.dugsiClasses.map((dc) => dc.class.shift)
     const shifts = Array.from(new Set(shiftValues)) as Shift[]
 
@@ -400,12 +463,47 @@ export async function getDugsiTeachersForDropdown(
     return {
       id: teacher.id,
       name: teacher.person.name,
-      email: email || null,
-      phone: phone || null,
       shifts,
       todayStatus,
     }
   })
+}
+
+export async function getDugsiTeachersLightweight(
+  client: DatabaseClient = prisma
+): Promise<
+  Array<{
+    id: string
+    name: string
+    shifts: Shift[]
+    createdAt: Date
+  }>
+> {
+  const teachers = await client.teacher.findMany({
+    where: {
+      dugsiClasses: {
+        some: {
+          isActive: true,
+          class: { isActive: true },
+        },
+      },
+    },
+    include: {
+      person: { select: { name: true } },
+      dugsiClasses: {
+        where: { isActive: true, class: { isActive: true } },
+        include: { class: { select: { shift: true } } },
+      },
+    },
+    orderBy: { person: { name: 'asc' } },
+  })
+
+  return teachers.map((t) => ({
+    id: t.id,
+    name: t.person.name,
+    shifts: Array.from(new Set(t.dugsiClasses.map((dc) => dc.class.shift))),
+    createdAt: t.createdAt,
+  }))
 }
 
 export async function isTeacherEnrolledInDugsi(

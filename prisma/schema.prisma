@@ -645,6 +645,9 @@ model DugsiTeacherCheckIn {
   @@index([teacherId])
   @@index([date])
   @@index([shift])
+  @@index([date, shift])
+  @@index([teacherId, date])
+  @@index([isLate, date])
 }
 
 // ============================================================================

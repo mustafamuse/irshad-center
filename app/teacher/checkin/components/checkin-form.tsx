@@ -30,7 +30,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { SHIFT_TIME_LABELS } from '@/lib/constants/teacher-checkin'
+import {
+  SHIFT_TIME_LABELS,
+  getCheckinWindowTimes,
+  type CheckinWindowStatus,
+} from '@/lib/constants/teacher-checkin'
+import { getCheckinWindowStatus } from '@/lib/constants/teacher-checkin-tz'
 import { METERS_TO_FEET } from '@/lib/services/geolocation-service'
 
 import {
@@ -174,6 +179,27 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
         }
       : null
   }, [status, selectedShift])
+  const [windowTick, setWindowTick] = useState(0)
+  useEffect(() => {
+    if (!selectedShift) return
+    const id = setInterval(() => setWindowTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [selectedShift])
+
+  const windowStatus: CheckinWindowStatus | null = useMemo(() => {
+    if (!selectedShift) return null
+    return getCheckinWindowStatus(selectedShift)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- windowTick forces re-evaluation
+  }, [selectedShift, windowTick])
+
+  const windowTimes = useMemo(() => {
+    if (!selectedShift) return null
+    return getCheckinWindowTimes(selectedShift)
+  }, [selectedShift])
+
+  const isWindowClosed = windowStatus === 'closed'
+  const isWindowBefore = windowStatus === 'before'
+
   const isClockedIn = currentCheckin !== null
   const isClockedOut = isClockedIn && currentCheckin.clockOutTime !== null
 
@@ -552,6 +578,25 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                   </Alert>
                 ))}
 
+              {!isClockedIn &&
+                (isWindowClosed || isWindowBefore) &&
+                windowTimes && (
+                  <Alert
+                    className={
+                      isWindowClosed
+                        ? 'border-red-200 bg-red-50 text-red-800 [&>svg]:text-red-600'
+                        : 'border-blue-200 bg-blue-50 text-blue-800 [&>svg]:text-blue-600'
+                    }
+                  >
+                    <Clock className="h-4 w-4" />
+                    <AlertDescription>
+                      {isWindowClosed
+                        ? `Check-in window closed at ${windowTimes.close}. Contact admin.`
+                        : `Check-in opens at ${windowTimes.open}.`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
               <div className="space-y-3">
                 {!isClockedIn ? (
                   <Button
@@ -561,6 +606,8 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
                     disabled={
                       !hasLocation ||
                       isPending ||
+                      isWindowClosed ||
+                      isWindowBefore ||
                       geofenceStatus?.isWithinGeofence !== true
                     }
                   >
