@@ -35,14 +35,6 @@ function resolveStripeId(
   return field.id ?? null
 }
 
-function resolveDonorName(
-  session: Stripe.Checkout.Session,
-  isAnonymous: boolean
-): string | null {
-  if (isAnonymous) return null
-  return session.customer_details?.name ?? session.metadata?.donorName ?? null
-}
-
 export async function handleOneTimeDonation(
   session: Stripe.Checkout.Session
 ): Promise<void> {
@@ -59,8 +51,6 @@ export async function handleOneTimeDonation(
     )
   }
 
-  const isAnonymous = session.metadata?.isAnonymous === 'true'
-
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: paymentIntentId },
     create: {
@@ -69,10 +59,9 @@ export async function handleOneTimeDonation(
       amount: session.amount_total,
       currency: session.currency ?? 'usd',
       status: DonationStatus.succeeded,
-      donorName: resolveDonorName(session, isAnonymous),
+      donorName: session.customer_details?.name ?? null,
       donorEmail: session.customer_details?.email ?? null,
       donorPhone: session.customer_details?.phone ?? null,
-      isAnonymous,
       isRecurring: false,
       metadata: toJsonOrUndefined(
         session.metadata as Record<string, string> | null
@@ -107,7 +96,6 @@ export async function handleRecurringDonationCheckout(
     )
   }
 
-  const isAnonymous = session.metadata?.isAnonymous === 'true'
   const placeholderPiId = `${SETUP_PREFIX}${subscriptionId}`
 
   await prisma.donation.upsert({
@@ -118,10 +106,9 @@ export async function handleRecurringDonationCheckout(
       amount: session.amount_total,
       currency: session.currency ?? 'usd',
       status: DonationStatus.pending,
-      donorName: resolveDonorName(session, isAnonymous),
+      donorName: session.customer_details?.name ?? null,
       donorEmail: session.customer_details?.email ?? null,
       donorPhone: session.customer_details?.phone ?? null,
-      isAnonymous,
       isRecurring: true,
       stripeSubscriptionId: subscriptionId,
       metadata: toJsonOrUndefined(
