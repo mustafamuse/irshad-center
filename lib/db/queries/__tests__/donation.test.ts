@@ -1,3 +1,4 @@
+import { DonationStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const { mockFindMany, mockCount, mockAggregate } = vi.hoisted(() => ({
@@ -61,15 +62,15 @@ describe('getDonations', () => {
     mockFindMany.mockResolvedValue([])
     mockCount.mockResolvedValue(0)
 
-    await getDonations({ status: 'succeeded' })
+    await getDonations({ status: DonationStatus.succeeded })
 
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: 'succeeded', ...SYNTHETIC_FILTER },
+        where: { status: DonationStatus.succeeded, ...SYNTHETIC_FILTER },
       })
     )
     expect(mockCount).toHaveBeenCalledWith({
-      where: { status: 'succeeded', ...SYNTHETIC_FILTER },
+      where: { status: DonationStatus.succeeded, ...SYNTHETIC_FILTER },
     })
   })
 
@@ -117,7 +118,7 @@ describe('getDonationStats', () => {
     expect(result.oneTimeTotalCents).toBe(50000)
     expect(result.oneTimeCount).toBe(5)
     expect(mockAggregate).toHaveBeenCalledWith({
-      where: { status: 'succeeded', isRecurring: false },
+      where: { status: DonationStatus.succeeded, isRecurring: false },
       _sum: { amount: true },
       _count: true,
     })

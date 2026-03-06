@@ -3,7 +3,7 @@
 //   sub_setup_{subscriptionId}    -- placeholder created at recurring checkout, cleaned up on first invoice
 //   sub_cancelled_{subscriptionId} -- cancellation marker to exclude subscription from MRR
 
-import { Prisma } from '@prisma/client'
+import { DonationStatus, Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
@@ -35,14 +35,6 @@ function resolveStripeId(
   return field.id ?? null
 }
 
-function resolveDonorName(
-  session: Stripe.Checkout.Session,
-  isAnonymous: boolean
-): string | null {
-  if (isAnonymous) return null
-  return session.customer_details?.name ?? session.metadata?.donorName ?? null
-}
-
 export async function handleOneTimeDonation(
   session: Stripe.Checkout.Session
 ): Promise<void> {
@@ -53,27 +45,31 @@ export async function handleOneTimeDonation(
     throw new Error('Missing payment_intent on checkout session')
   }
 
-  if (!session.amount_total) {
-    logger.warn(
-      { sessionId: session.id, paymentIntentId },
-      'One-time donation checkout has null/zero amount_total'
+  if (!session.amount_total || session.amount_total <= 0) {
+    logger.error(
+      {
+        sessionId: session.id,
+        paymentIntentId,
+        amount_total: session.amount_total,
+      },
+      'Invalid donation amount'
+    )
+    throw new Error(
+      `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
     )
   }
-
-  const isAnonymous = session.metadata?.isAnonymous === 'true'
 
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: paymentIntentId },
     create: {
       stripePaymentIntentId: paymentIntentId,
       stripeCustomerId: extractCustomerId(session.customer),
-      amount: session.amount_total ?? 0,
+      amount: session.amount_total,
       currency: session.currency ?? 'usd',
-      status: 'succeeded',
-      donorName: resolveDonorName(session, isAnonymous),
+      status: DonationStatus.succeeded,
+      donorName: session.customer_details?.name ?? null,
       donorEmail: session.customer_details?.email ?? null,
       donorPhone: session.customer_details?.phone ?? null,
-      isAnonymous,
       isRecurring: false,
       metadata: toJsonOrUndefined(
         session.metadata as Record<string, string> | null
@@ -81,7 +77,7 @@ export async function handleOneTimeDonation(
       paidAt: new Date(),
     },
     update: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
     },
   })
@@ -102,14 +98,20 @@ export async function handleRecurringDonationCheckout(
     throw new Error('Missing subscription on checkout session')
   }
 
-  if (!session.amount_total) {
-    logger.warn(
-      { sessionId: session.id, subscriptionId },
-      'Recurring donation checkout has null/zero amount_total'
+  if (!session.amount_total || session.amount_total <= 0) {
+    logger.error(
+      {
+        sessionId: session.id,
+        subscriptionId,
+        amount_total: session.amount_total,
+      },
+      'Invalid donation amount'
+    )
+    throw new Error(
+      `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
     )
   }
 
-  const isAnonymous = session.metadata?.isAnonymous === 'true'
   const placeholderPiId = `${SETUP_PREFIX}${subscriptionId}`
 
   await prisma.donation.upsert({
@@ -117,13 +119,12 @@ export async function handleRecurringDonationCheckout(
     create: {
       stripePaymentIntentId: placeholderPiId,
       stripeCustomerId: extractCustomerId(session.customer),
-      amount: session.amount_total ?? 0,
+      amount: session.amount_total,
       currency: session.currency ?? 'usd',
-      status: 'pending',
-      donorName: resolveDonorName(session, isAnonymous),
+      status: DonationStatus.pending,
+      donorName: session.customer_details?.name ?? null,
       donorEmail: session.customer_details?.email ?? null,
       donorPhone: session.customer_details?.phone ?? null,
-      isAnonymous,
       isRecurring: true,
       stripeSubscriptionId: subscriptionId,
       metadata: toJsonOrUndefined(
@@ -131,7 +132,7 @@ export async function handleRecurringDonationCheckout(
       ),
     },
     update: {
-      status: 'pending',
+      status: DonationStatus.pending,
       stripeSubscriptionId: subscriptionId,
     },
   })
@@ -162,7 +163,7 @@ export async function handleDonationPaymentIntentSucceeded(
   await prisma.donation.update({
     where: { stripePaymentIntentId: paymentIntent.id },
     data: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
       amount: paymentIntent.amount,
     },
@@ -207,7 +208,7 @@ export async function handleDonationInvoicePaid(
       stripeCustomerId: extractCustomerId(invoice.customer),
       amount: invoice.amount_paid,
       currency: invoice.currency ?? 'usd',
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       donorEmail: invoice.customer_email ?? null,
       donorPhone,
       isAnonymous,
@@ -217,7 +218,7 @@ export async function handleDonationInvoicePaid(
       paidAt: new Date(),
     },
     update: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
       amount: invoice.amount_paid,
     },
@@ -307,11 +308,11 @@ export async function handleDonationSubscriptionDeleted(
       stripeSubscriptionId: subscription.id,
       stripeCustomerId: customerId,
       amount: 0,
-      status: 'cancelled',
+      status: DonationStatus.cancelled,
       isRecurring: true,
     },
     update: {
-      status: 'cancelled',
+      status: DonationStatus.cancelled,
     },
   })
 
