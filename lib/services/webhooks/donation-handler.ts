@@ -46,6 +46,14 @@ export async function handleOneTimeDonation(
   }
 
   if (!session.amount_total || session.amount_total <= 0) {
+    logger.error(
+      {
+        sessionId: session.id,
+        paymentIntentId,
+        amount_total: session.amount_total,
+      },
+      'Invalid donation amount'
+    )
     throw new Error(
       `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
     )
@@ -91,6 +99,14 @@ export async function handleRecurringDonationCheckout(
   }
 
   if (!session.amount_total || session.amount_total <= 0) {
+    logger.error(
+      {
+        sessionId: session.id,
+        subscriptionId,
+        amount_total: session.amount_total,
+      },
+      'Invalid donation amount'
+    )
     throw new Error(
       `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
     )
