@@ -1,17 +1,17 @@
 'use client'
 
-import { useRef } from 'react'
-
 import { Shift } from '@prisma/client'
 import {
   CreditCard,
   ExternalLink,
   Send,
   Mail,
+  Pause,
+  Play,
   ShieldCheck,
   Loader2,
   Link,
-  Trash2,
+  UserX,
   User,
   Receipt,
   Clock,
@@ -50,13 +50,19 @@ import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
 import { getOrderedParentNames, hasSecondParent } from '../../_utils/format'
-import { updateFamilyShift } from '../../actions'
+import {
+  pauseFamilyBillingAction,
+  resumeFamilyBillingAction,
+  updateFamilyShift,
+} from '../../actions'
 import { AddChildDialog } from '../dialogs/add-child-dialog'
 import { ConsolidateSubscriptionDialog } from '../dialogs/consolidate-subscription-dialog'
-import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { EditChildDialog } from '../dialogs/edit-child-dialog'
 import { EditParentDialog } from '../dialogs/edit-parent-dialog'
 import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
+import { ReEnrollChildDialog } from '../dialogs/re-enroll-child-dialog'
+import { WithdrawChildDialog } from '../dialogs/withdraw-child-dialog'
+import { WithdrawFamilyDialog } from '../dialogs/withdraw-family-dialog'
 
 interface FamilyDetailSheetProps {
   family: Family | null
@@ -72,10 +78,6 @@ export function FamilyDetailSheet({
   onVerifyBankAccount,
 }: FamilyDetailSheetProps) {
   const { state, actions } = useSheetState()
-  const pendingShiftRef = useRef<{
-    newShift: Shift
-    previousShift: Shift | null
-  } | null>(null)
 
   const { execute: executeUpdateFamilyShift, isPending: isUpdatingShift } =
     useActionHandler(updateFamilyShift, {
@@ -83,13 +85,17 @@ export function FamilyDetailSheet({
       onSuccess: () => {
         actions.setShiftPopover(false)
         actions.setPendingShift(null)
-        pendingShiftRef.current = null
       },
       onError: () => {
         actions.setPendingShift(null)
-        pendingShiftRef.current = null
       },
     })
+
+  const { execute: executePauseBilling, isPending: isPausingBilling } =
+    useActionHandler(pauseFamilyBillingAction)
+
+  const { execute: executeResumeBilling, isPending: isResumingBilling } =
+    useActionHandler(resumeFamilyBillingAction)
 
   if (!family) return null
 
@@ -119,9 +125,7 @@ export function FamilyDetailSheet({
     }
 
     const previousShift = firstMember.shift
-    const shiftData = { newShift: shift, previousShift }
-    pendingShiftRef.current = shiftData
-    actions.setPendingShift(shiftData)
+    actions.setPendingShift({ newShift: shift, previousShift })
 
     await executeUpdateFamilyShift({
       familyReferenceId: firstMember.familyReferenceId,
@@ -256,6 +260,8 @@ export function FamilyDetailSheet({
                 onEditParent={actions.openEditParent}
                 onEditChild={actions.openEditChild}
                 onAddChild={() => actions.setAddChildDialog(true)}
+                onWithdraw={actions.openWithdrawChild}
+                onReEnroll={actions.openReEnrollChild}
               />
             </TabsContent>
 
@@ -324,13 +330,42 @@ export function FamilyDetailSheet({
                   View in Stripe
                 </DropdownMenuItem>
               )}
+              {firstMember.subscriptionStatus === 'active' &&
+                firstMember.familyReferenceId && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      executePauseBilling({
+                        familyReferenceId: firstMember.familyReferenceId!,
+                      })
+                    }
+                    disabled={isPausingBilling}
+                  >
+                    <Pause className="mr-2 h-4 w-4" />
+                    Pause Billing
+                  </DropdownMenuItem>
+                )}
+              {firstMember.subscriptionStatus === 'paused' &&
+                firstMember.familyReferenceId && (
+                  <DropdownMenuItem
+                    onClick={() =>
+                      executeResumeBilling({
+                        familyReferenceId: firstMember.familyReferenceId!,
+                      })
+                    }
+                    disabled={isResumingBilling}
+                  >
+                    <Play className="mr-2 h-4 w-4" />
+                    Resume Billing
+                  </DropdownMenuItem>
+                )}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-600"
-                onClick={() => actions.setDeleteFamilyDialog(true)}
+                disabled={!firstMember.familyReferenceId}
+                onClick={() => actions.setWithdrawFamilyDialog(true)}
               >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Delete Family
+                <UserX className="mr-2 h-4 w-4" />
+                Withdraw All
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -392,16 +427,16 @@ export function FamilyDetailSheet({
         onOpenChange={actions.setPaymentLinkDialog}
       />
 
-      {state.deleteFamilyDialog && (
-        <DeleteFamilyDialog
-          studentId={firstMember.id}
+      {state.withdrawFamilyDialog && firstMember.familyReferenceId && (
+        <WithdrawFamilyDialog
+          familyReferenceId={firstMember.familyReferenceId}
           familyName={getSheetTitle()}
           hasActiveSubscription={
             family.hasSubscription &&
             family.members[0]?.subscriptionStatus === 'active'
           }
-          open={state.deleteFamilyDialog}
-          onOpenChange={actions.setDeleteFamilyDialog}
+          open={state.withdrawFamilyDialog}
+          onOpenChange={actions.setWithdrawFamilyDialog}
           onSuccess={() => onOpenChange(false)}
         />
       )}
@@ -414,6 +449,29 @@ export function FamilyDetailSheet({
           familyName={getSheetTitle()}
         />
       )}
+
+      {state.withdrawChildDialog.open &&
+        state.withdrawChildDialog.studentId && (
+          <WithdrawChildDialog
+            studentId={state.withdrawChildDialog.studentId}
+            open={state.withdrawChildDialog.open}
+            onOpenChange={(open) => {
+              if (!open) actions.closeWithdrawChild()
+            }}
+          />
+        )}
+
+      {state.reEnrollChildDialog.open &&
+        state.reEnrollChildDialog.studentId && (
+          <ReEnrollChildDialog
+            studentId={state.reEnrollChildDialog.studentId}
+            childName={state.reEnrollChildDialog.childName || ''}
+            open={state.reEnrollChildDialog.open}
+            onOpenChange={(open) => {
+              if (!open) actions.closeReEnrollChild()
+            }}
+          />
+        )}
     </Sheet>
   )
 }

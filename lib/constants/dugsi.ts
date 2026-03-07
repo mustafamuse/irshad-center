@@ -131,6 +131,17 @@ export const SHIFT_OPTIONS = [
   { value: 'AFTERNOON', label: 'Afternoon' },
 ] as const
 
+// Withdrawal Reasons
+export const WITHDRAWAL_REASONS = [
+  { value: 'family_moved', label: 'Family moved' },
+  { value: 'financial', label: 'Financial reasons' },
+  { value: 'behavioral', label: 'Behavioral' },
+  { value: 'seasonal_break', label: 'Seasonal break' },
+  { value: 'other', label: 'Other' },
+] as const
+
+export type WithdrawalReasonValue = (typeof WITHDRAWAL_REASONS)[number]['value']
+
 // Error Messages
 export const ERROR_MESSAGES = {
   STUDENT_NOT_FOUND: 'Student not found',

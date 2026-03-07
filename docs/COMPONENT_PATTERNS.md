@@ -200,20 +200,20 @@ export function DashboardFilters() {
 ### Client Component with Server Action
 
 ```typescript
-// app/admin/dugsi/components/dialogs/delete-family-dialog.tsx
+// app/admin/dugsi/components/dialogs/withdraw-family-dialog.tsx
 'use client'
 
 import { useTransition } from 'react'
-import { deleteDugsiFamily } from '../../actions'
+import { withdrawAllFamilyChildrenAction } from '../../actions'
 
-export function DeleteFamilyDialog({ familyId }: { familyId: string }) {
+export function WithdrawFamilyDialog({ familyReferenceId }: { familyReferenceId: string }) {
   const [isPending, startTransition] = useTransition()
 
-  const handleDelete = () => {
+  const handleWithdraw = () => {
     startTransition(async () => {
-      const result = await deleteDugsiFamily(familyId)
+      const result = await withdrawAllFamilyChildrenAction({ familyReferenceId, reason: 'other' })
       if (result.success) {
-        toast.success('Family deleted')
+        toast.success('Family withdrawn')
       } else {
         toast.error(result.error)
       }
@@ -221,8 +221,8 @@ export function DeleteFamilyDialog({ familyId }: { familyId: string }) {
   }
 
   return (
-    <Button onClick={handleDelete} disabled={isPending}>
-      {isPending ? 'Deleting...' : 'Delete'}
+    <Button onClick={handleWithdraw} disabled={isPending}>
+      {isPending ? 'Withdrawing...' : 'Withdraw All'}
     </Button>
   )
 }
@@ -252,7 +252,7 @@ app/admin/dugsi/
 │   │   ├── registrations-table.tsx
 │   │   └── index.tsx
 │   ├── dialogs/            # All dialogs
-│   │   ├── delete-family-dialog.tsx
+│   │   ├── withdraw-family-dialog.tsx
 │   │   ├── link-subscription-dialog.tsx
 │   │   └── index.tsx
 │   └── ui/                 # Shared UI components

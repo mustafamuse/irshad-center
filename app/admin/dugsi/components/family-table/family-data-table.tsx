@@ -29,8 +29,8 @@ import { MobileFamilyCard } from './mobile-family-card'
 import { Family } from '../../_types'
 import { formatParentName } from '../../_utils/format'
 import { useDugsiUIStore } from '../../store'
-import { DeleteFamilyDialog } from '../dialogs/delete-family-dialog'
 import { VerifyBankDialog } from '../dialogs/verify-bank-dialog'
+import { WithdrawFamilyDialog } from '../dialogs/withdraw-family-dialog'
 import { FamilyDetailSheet } from '../family-management/family-detail-sheet'
 
 interface FamilyDataTableProps {
@@ -47,9 +47,8 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
     [families, selectedFamilyKey]
   )
   const [isSheetOpen, setIsSheetOpen] = useState(false)
-  const [deleteDialogFamily, setDeleteDialogFamily] = useState<Family | null>(
-    null
-  )
+  const [withdrawDialogFamily, setWithdrawDialogFamily] =
+    useState<Family | null>(null)
 
   const selectedFamilyIds = useDugsiUIStore((state) => state.selectedFamilyIds)
   const setSelectedFamilyIds = useDugsiUIStore(
@@ -76,7 +75,7 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
   }, [])
 
   const handleDelete = useCallback((family: Family) => {
-    setDeleteDialogFamily(family)
+    setWithdrawDialogFamily(family)
   }, [])
 
   const columns = useMemo(
@@ -245,21 +244,23 @@ export function FamilyDataTable({ families }: FamilyDataTableProps) {
         />
       )}
 
-      {/* Delete Family Dialog */}
-      {deleteDialogFamily && (
-        <DeleteFamilyDialog
-          studentId={deleteDialogFamily.members[0]?.id || ''}
+      {/* Withdraw Family Dialog */}
+      {withdrawDialogFamily && (
+        <WithdrawFamilyDialog
+          familyReferenceId={
+            withdrawDialogFamily.members[0]?.familyReferenceId || ''
+          }
           familyName={formatParentName(
-            deleteDialogFamily.members[0]?.parentFirstName,
-            deleteDialogFamily.members[0]?.parentLastName
+            withdrawDialogFamily.members[0]?.parentFirstName,
+            withdrawDialogFamily.members[0]?.parentLastName
           )}
           hasActiveSubscription={
-            deleteDialogFamily.hasSubscription &&
-            deleteDialogFamily.members[0]?.subscriptionStatus === 'active'
+            withdrawDialogFamily.hasSubscription &&
+            withdrawDialogFamily.members[0]?.subscriptionStatus === 'active'
           }
-          open={!!deleteDialogFamily}
+          open={!!withdrawDialogFamily}
           onOpenChange={(open) => {
-            if (!open) setDeleteDialogFamily(null)
+            if (!open) setWithdrawDialogFamily(null)
           }}
         />
       )}

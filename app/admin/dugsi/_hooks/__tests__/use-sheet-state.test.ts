@@ -25,7 +25,7 @@ describe('useSheetState', () => {
       })
       expect(result.current.state.addChildDialog).toBe(false)
       expect(result.current.state.paymentLinkDialog).toBe(false)
-      expect(result.current.state.deleteFamilyDialog).toBe(false)
+      expect(result.current.state.withdrawFamilyDialog).toBe(false)
       expect(result.current.state.consolidateSubscriptionDialog).toBe(false)
       expect(result.current.state.shiftPopover).toBe(false)
       expect(result.current.state.pendingShift).toBe(null)
@@ -179,7 +179,7 @@ describe('useSheetState', () => {
         result.current.actions.openEditChild('student-789')
         result.current.actions.setAddChildDialog(true)
         result.current.actions.setPaymentLinkDialog(true)
-        result.current.actions.setDeleteFamilyDialog(true)
+        result.current.actions.setWithdrawFamilyDialog(true)
         result.current.actions.setConsolidateSubscriptionDialog(true)
         result.current.actions.setShiftPopover(true)
         result.current.actions.setPendingShift({
@@ -204,7 +204,7 @@ describe('useSheetState', () => {
       })
       expect(result.current.state.addChildDialog).toBe(false)
       expect(result.current.state.paymentLinkDialog).toBe(false)
-      expect(result.current.state.deleteFamilyDialog).toBe(false)
+      expect(result.current.state.withdrawFamilyDialog).toBe(false)
       expect(result.current.state.consolidateSubscriptionDialog).toBe(false)
       expect(result.current.state.shiftPopover).toBe(false)
       expect(result.current.state.pendingShift).toBe(null)
@@ -236,13 +236,13 @@ describe('useSheetState', () => {
       expect(result.current.state.paymentLinkDialog).toBe(true)
     })
 
-    it('should toggle deleteFamilyDialog', () => {
+    it('should toggle withdrawFamilyDialog', () => {
       const { result } = renderHook(() => useSheetState())
 
       act(() => {
-        result.current.actions.setDeleteFamilyDialog(true)
+        result.current.actions.setWithdrawFamilyDialog(true)
       })
-      expect(result.current.state.deleteFamilyDialog).toBe(true)
+      expect(result.current.state.withdrawFamilyDialog).toBe(true)
     })
 
     it('should toggle consolidateSubscriptionDialog', () => {
