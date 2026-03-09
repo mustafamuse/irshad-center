@@ -17,6 +17,11 @@ const envSchema = z.object({
     .min(1, 'ADMIN_EMAIL is required'),
   REPLY_TO_EMAIL: z.string().email().optional(),
 
+  // Linear Issue Tracking (optional)
+  LINEAR_API_KEY: z.string().min(1).optional(),
+  LINEAR_TEAM_ID: z.string().min(1).optional(),
+  LINEAR_PAYMENT_LABEL_ID: z.string().min(1).optional(),
+
   // Node Environment
   NODE_ENV: z
     .enum(['development', 'production', 'test'])
@@ -30,6 +35,9 @@ const result = envSchema.safeParse({
   EMAIL_FROM: process.env.EMAIL_FROM,
   ADMIN_EMAIL: process.env.ADMIN_EMAIL,
   REPLY_TO_EMAIL: process.env.REPLY_TO_EMAIL,
+  LINEAR_API_KEY: process.env.LINEAR_API_KEY,
+  LINEAR_TEAM_ID: process.env.LINEAR_TEAM_ID,
+  LINEAR_PAYMENT_LABEL_ID: process.env.LINEAR_PAYMENT_LABEL_ID,
   NODE_ENV: process.env.NODE_ENV,
 })
 

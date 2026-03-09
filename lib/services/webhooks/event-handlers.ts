@@ -14,6 +14,10 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { createServiceLogger } from '@/lib/logger'
+import {
+  createPaymentFailureIssue,
+  resolvePaymentIssue,
+} from '@/lib/services/linear/payment-issue'
 import { unifiedMatcher } from '@/lib/services/shared/unified-matcher'
 
 import {
@@ -201,6 +205,18 @@ async function handleInvoicePaymentSucceededEvent(
   )
 
   await handleInvoiceFinalized(invoice)
+
+  const invoiceData = invoice as Stripe.Invoice & {
+    subscription?: string | Stripe.Subscription
+  }
+  const subscriptionId =
+    typeof invoiceData.subscription === 'string'
+      ? invoiceData.subscription
+      : (invoiceData.subscription?.id ?? null)
+
+  if (subscriptionId) {
+    await resolvePaymentIssue(subscriptionId)
+  }
 }
 
 /**
@@ -209,11 +225,11 @@ async function handleInvoicePaymentSucceededEvent(
  * Logs failure for monitoring - subscription status handled by subscription.updated
  */
 async function handleInvoicePaymentFailedEvent(
-  event: Stripe.Event
+  event: Stripe.Event,
+  accountType: StripeAccountType
 ): Promise<void> {
   const invoice = extractEventData<Stripe.Invoice>(event)
 
-  // Extract subscription ID (may be expanded object or string)
   const invoiceData = invoice as Stripe.Invoice & {
     subscription?: string | Stripe.Subscription
   }
@@ -232,8 +248,6 @@ async function handleInvoicePaymentFailedEvent(
     'Invoice payment failed'
   )
 
-  // Subscription status update will come via customer.subscription.updated event
-  // Just log for alerting/monitoring purposes
   Sentry.captureMessage('Invoice payment failed', {
     level: 'warning',
     extra: {
@@ -242,6 +256,8 @@ async function handleInvoicePaymentFailedEvent(
       attemptCount: invoice.attempt_count,
     },
   })
+
+  await createPaymentFailureIssue(invoice, accountType)
 }
 
 /**
@@ -277,7 +293,8 @@ export function createEventHandlers(accountType: StripeAccountType) {
 
     'invoice.payment_succeeded': handleInvoicePaymentSucceededEvent,
 
-    'invoice.payment_failed': handleInvoicePaymentFailedEvent,
+    'invoice.payment_failed': (event: Stripe.Event) =>
+      handleInvoicePaymentFailedEvent(event, accountType),
 
     'invoice.finalized': handleInvoiceFinalizedEvent,
   }
@@ -315,6 +332,7 @@ export const donationEventHandlers: Record<
   'customer.subscription.created': handleDonationSubscriptionCreated,
   'customer.subscription.updated': handleDonationSubscriptionUpdated,
   'customer.subscription.deleted': handleDonationSubscriptionDeleted,
-  'invoice.payment_failed': handleInvoicePaymentFailedEvent,
+  'invoice.payment_failed': (event: Stripe.Event) =>
+    handleInvoicePaymentFailedEvent(event, 'GENERAL_DONATION'),
   'invoice.finalized': handleDonationInvoiceFinalized,
 }
