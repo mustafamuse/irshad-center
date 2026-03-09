@@ -215,7 +215,7 @@ async function handleInvoicePaymentSucceededEvent(
       : (invoiceData.subscription?.id ?? null)
 
   if (subscriptionId) {
-    await resolvePaymentIssue(subscriptionId)
+    resolvePaymentIssue(subscriptionId).catch(() => {})
   }
 }
 
@@ -257,7 +257,7 @@ async function handleInvoicePaymentFailedEvent(
     },
   })
 
-  await createPaymentFailureIssue(invoice, accountType)
+  createPaymentFailureIssue(invoice, accountType).catch(() => {})
 }
 
 /**

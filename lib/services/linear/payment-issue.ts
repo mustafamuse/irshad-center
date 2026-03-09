@@ -9,6 +9,26 @@ import { getLinearClient, isLinearConfigured } from './linear-client'
 
 const logger = createServiceLogger('linear-payment-issues')
 
+let cachedDoneStateId: string | null = null
+let cacheExpiry = 0
+
+async function getDoneStateId(
+  linear: ReturnType<typeof getLinearClient>,
+  teamId: string
+): Promise<string | null> {
+  if (cachedDoneStateId && Date.now() < cacheExpiry) return cachedDoneStateId
+  const team = await linear.team(teamId)
+  const states = await team.states()
+  cachedDoneStateId =
+    states.nodes.find((s) => s.type === 'completed')?.id ?? null
+  cacheExpiry = Date.now() + 3_600_000
+  return cachedDoneStateId
+}
+
+function sanitizeName(name: string): string {
+  return name.replace(/[*_`[\]]/g, '')
+}
+
 const PROGRAM_LABELS: Record<StripeAccountType, string> = {
   MAHAD: 'Mahad',
   DUGSI: 'Dugsi',
@@ -95,8 +115,10 @@ export async function createPaymentFailureIssue(
       ? `${lastError.code || 'error'} -- ${lastError.message || 'No details'}`
       : 'See Stripe dashboard for details'
 
-    const title = `Payment Failed: ${parentName} -- ${amount} (${program})`
-    const priority = (invoice.attempt_count ?? 0) >= 3 ? 1 : 2
+    const safeName = sanitizeName(parentName)
+    const title = `Payment Failed: ${safeName} -- ${amount} (${program})`
+    const attemptCount = invoice.attempt_count ?? 1
+    const priority = attemptCount >= 3 ? 1 : 2
 
     const contactLines = [
       parentEmail ? `| **Email** | ${parentEmail} |` : null,
@@ -108,16 +130,22 @@ export async function createPaymentFailureIssue(
     const hostedUrl = invoice.hosted_invoice_url
     const dashboardUrl = `https://dashboard.stripe.com/invoices/${invoice.id}`
 
+    const messageTemplate = hostedUrl
+      ? `### Message to Send Parent
+> As-Salamu Alaikum ${safeName}, your ${program} payment of ${amount} was unsuccessful. Please complete your payment here: ${hostedUrl}
+> If you have questions, please reply to this message.`
+      : ''
+
     const description = `## Payment Failure Details
 
 | Field | Value |
 |-------|-------|
-| **Parent** | ${parentName} |
+| **Parent** | ${safeName} |
 ${contactLines}
 | **Program** | ${program} |
 | **Amount** | ${amount} |
 | **Error** | ${errorDisplay} |
-| **Attempt** | ${invoice.attempt_count ?? 1} |
+| **Attempt** | ${attemptCount} |
 
 ${childrenLines.length > 0 ? `### Children on this subscription\n${childrenLines.join('\n')}` : ''}
 
@@ -125,9 +153,15 @@ ${childrenLines.length > 0 ? `### Children on this subscription\n${childrenLines
 ${hostedUrl ? `- [Retry payment (send to parent)](${hostedUrl})` : ''}
 - [View in Stripe Dashboard](${dashboardUrl})
 
+${messageTemplate}
+
 ---
 *Subscription ID: ${stripeSubId || 'N/A'}*
 *Auto-created by payment monitoring system*`
+
+    const dueDate = new Date()
+    dueDate.setDate(dueDate.getDate() + (attemptCount >= 3 ? 0 : 2))
+    const dueDateStr = dueDate.toISOString().split('T')[0]
 
     await linear.createIssue({
       teamId,
@@ -135,6 +169,7 @@ ${hostedUrl ? `- [Retry payment (send to parent)](${hostedUrl})` : ''}
       description,
       priority,
       labelIds: [labelId],
+      dueDate: dueDateStr,
     })
 
     logger.info(
@@ -173,13 +208,11 @@ export async function resolvePaymentIssue(
 
     if (openIssues.nodes.length === 0) return
 
-    const team = await linear.team(teamId)
-    const states = await team.states()
-    const doneState = states.nodes.find((s) => s.type === 'completed')
+    const doneStateId = await getDoneStateId(linear, teamId)
 
     for (const issue of openIssues.nodes) {
-      if (doneState) {
-        await issue.update({ stateId: doneState.id })
+      if (doneStateId) {
+        await issue.update({ stateId: doneStateId })
       }
       await linear.createComment({
         issueId: issue.id,

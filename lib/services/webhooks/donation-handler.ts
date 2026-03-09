@@ -8,6 +8,7 @@ import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { resolvePaymentIssue } from '@/lib/services/linear/payment-issue'
 import { extractCustomerId } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('donation-webhook')
@@ -238,6 +239,8 @@ export async function handleDonationInvoicePaid(
         )
       })
   }
+
+  resolvePaymentIssue(subscriptionId).catch(() => {})
 
   logger.info(
     { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
