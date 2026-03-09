@@ -120,9 +120,14 @@ export async function createPaymentFailureIssue(
     const attemptCount = invoice.attempt_count ?? 1
     const priority = attemptCount >= 3 ? 1 : 2
 
-    const contactLines = [
+    const tableRows = [
+      `| **Parent** | ${safeName} |`,
       parentEmail ? `| **Email** | ${parentEmail} |` : null,
       parentPhone ? `| **Phone** | ${parentPhone} |` : null,
+      `| **Program** | ${program} |`,
+      `| **Amount** | ${amount} |`,
+      `| **Error** | ${errorDisplay} |`,
+      `| **Attempt** | ${attemptCount} |`,
     ]
       .filter(Boolean)
       .join('\n')
@@ -140,12 +145,7 @@ export async function createPaymentFailureIssue(
 
 | Field | Value |
 |-------|-------|
-| **Parent** | ${safeName} |
-${contactLines}
-| **Program** | ${program} |
-| **Amount** | ${amount} |
-| **Error** | ${errorDisplay} |
-| **Attempt** | ${attemptCount} |
+${tableRows}
 
 ${childrenLines.length > 0 ? `### Children on this subscription\n${childrenLines.join('\n')}` : ''}
 
