@@ -2,7 +2,6 @@ import { StripeAccountType } from '@prisma/client'
 import type Stripe from 'stripe'
 
 import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
-import { env } from '@/lib/env'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 
@@ -117,8 +116,8 @@ export async function createPaymentFailureIssue(
 
   try {
     const linear = getLinearClient()
-    const teamId = env.LINEAR_TEAM_ID!
-    const labelId = env.LINEAR_PAYMENT_LABEL_ID!
+    const teamId = process.env.LINEAR_TEAM_ID!
+    const labelId = process.env.LINEAR_PAYMENT_LABEL_ID!
 
     const stripeSubId = extractSubscriptionId(invoice)
     const program = PROGRAM_LABELS[accountType]
@@ -257,8 +256,8 @@ export async function resolvePaymentIssue(
 
   try {
     const linear = getLinearClient()
-    const teamId = env.LINEAR_TEAM_ID!
-    const labelId = env.LINEAR_PAYMENT_LABEL_ID!
+    const teamId = process.env.LINEAR_TEAM_ID!
+    const labelId = process.env.LINEAR_PAYMENT_LABEL_ID!
 
     const openIssues = await linear.issues({
       filter: {
