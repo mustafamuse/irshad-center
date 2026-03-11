@@ -1,16 +1,16 @@
 import { StripeAccountType } from '@prisma/client'
-import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
-import { createServiceLogger } from '@/lib/logger'
+import { env } from '@/lib/env'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 
 import { getLinearClient, isLinearConfigured } from './linear-client'
 
 const logger = createServiceLogger('linear-payment-issues')
 
-interface CachedLinearIds {
+interface LinearIds {
   needsContactStateId: string | null
   unverifiedPaymentStateId: string | null
   paidInFullStateId: string | null
@@ -20,19 +20,14 @@ interface CachedLinearIds {
   threeMonthLabelId: string | null
 }
 
-let cachedIds: CachedLinearIds | null = null
-let cacheExpiry = 0
-
 async function getLinearIds(
   linear: ReturnType<typeof getLinearClient>,
   teamId: string
-): Promise<CachedLinearIds> {
-  if (cachedIds && Date.now() < cacheExpiry) return cachedIds
-
+): Promise<LinearIds> {
   const team = await linear.team(teamId)
   const [states, labels] = await Promise.all([team.states(), team.labels()])
 
-  cachedIds = {
+  return {
     needsContactStateId:
       states.nodes.find((s) => s.name === 'Needs Contact')?.id ?? null,
     unverifiedPaymentStateId:
@@ -45,10 +40,6 @@ async function getLinearIds(
     twoMonthLabelId: labels.nodes.find((l) => l.name === '2 mo')?.id ?? null,
     threeMonthLabelId: labels.nodes.find((l) => l.name === '3 mo')?.id ?? null,
   }
-
-  cacheExpiry = Date.now() + 3_600_000
-  logger.debug({ cachedIds }, 'Cached Linear state and label IDs')
-  return cachedIds
 }
 
 function sanitizeName(name: string): string {
@@ -77,7 +68,7 @@ function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
 }
 
 function getMonthsOwedLabelIds(
-  ids: CachedLinearIds,
+  ids: LinearIds,
   openInvoiceCount: number
 ): string[] {
   const labelIds: string[] = []
@@ -126,8 +117,8 @@ export async function createPaymentFailureIssue(
 
   try {
     const linear = getLinearClient()
-    const teamId = process.env.LINEAR_TEAM_ID!
-    const labelId = process.env.LINEAR_PAYMENT_LABEL_ID!
+    const teamId = env.LINEAR_TEAM_ID!
+    const labelId = env.LINEAR_PAYMENT_LABEL_ID!
 
     const stripeSubId = extractSubscriptionId(invoice)
     const program = PROGRAM_LABELS[accountType]
@@ -252,12 +243,9 @@ ${messageTemplate}
       'Created Linear issue for payment failure'
     )
   } catch (error) {
-    logger.error(
-      { error, invoiceId: invoice.id },
-      'Failed to create Linear issue'
-    )
-    Sentry.captureException(error, {
-      extra: { invoiceId: invoice.id, accountType },
+    await logError(logger, error, 'Failed to create Linear issue', {
+      invoiceId: invoice.id,
+      accountType,
     })
   }
 }
@@ -269,8 +257,8 @@ export async function resolvePaymentIssue(
 
   try {
     const linear = getLinearClient()
-    const teamId = process.env.LINEAR_TEAM_ID!
-    const labelId = process.env.LINEAR_PAYMENT_LABEL_ID!
+    const teamId = env.LINEAR_TEAM_ID!
+    const labelId = env.LINEAR_PAYMENT_LABEL_ID!
 
     const openIssues = await linear.issues({
       filter: {
@@ -313,12 +301,8 @@ export async function resolvePaymentIssue(
       }
     }
   } catch (error) {
-    logger.error(
-      { error, stripeSubscriptionId },
-      'Failed to resolve Linear issue'
-    )
-    Sentry.captureException(error, {
-      extra: { stripeSubscriptionId },
+    await logError(logger, error, 'Failed to resolve Linear issue', {
+      stripeSubscriptionId,
     })
   }
 }
