@@ -165,8 +165,12 @@ export async function createPaymentFailureIssue(
     }
 
     const lastError = invoice.last_finalization_error
+    const safeErrorMsg = (lastError?.message ?? 'No details').replace(
+      /\|/g,
+      '/'
+    )
     const errorDisplay = lastError
-      ? `${lastError.code || 'error'} -- ${lastError.message || 'No details'}`
+      ? `${lastError.code || 'error'} -- ${safeErrorMsg}`
       : 'See Stripe dashboard for details'
 
     const safeName = sanitizeName(parentName)
