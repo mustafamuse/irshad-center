@@ -4,25 +4,51 @@ import type Stripe from 'stripe'
 
 import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
 import { createServiceLogger } from '@/lib/logger'
+import { getStripeClient } from '@/lib/utils/stripe-client'
 
 import { getLinearClient, isLinearConfigured } from './linear-client'
 
 const logger = createServiceLogger('linear-payment-issues')
 
-let cachedDoneStateId: string | null = null
+interface CachedLinearIds {
+  needsContactStateId: string | null
+  unverifiedPaymentStateId: string | null
+  paidInFullStateId: string | null
+  monthsOwedLabelId: string | null
+  oneMonthLabelId: string | null
+  twoMonthLabelId: string | null
+  threeMonthLabelId: string | null
+}
+
+let cachedIds: CachedLinearIds | null = null
 let cacheExpiry = 0
 
-async function getDoneStateId(
+async function getLinearIds(
   linear: ReturnType<typeof getLinearClient>,
   teamId: string
-): Promise<string | null> {
-  if (cachedDoneStateId && Date.now() < cacheExpiry) return cachedDoneStateId
+): Promise<CachedLinearIds> {
+  if (cachedIds && Date.now() < cacheExpiry) return cachedIds
+
   const team = await linear.team(teamId)
-  const states = await team.states()
-  cachedDoneStateId =
-    states.nodes.find((s) => s.type === 'completed')?.id ?? null
+  const [states, labels] = await Promise.all([team.states(), team.labels()])
+
+  cachedIds = {
+    needsContactStateId:
+      states.nodes.find((s) => s.name === 'Needs Contact')?.id ?? null,
+    unverifiedPaymentStateId:
+      states.nodes.find((s) => s.name === 'Unverified Payment')?.id ?? null,
+    paidInFullStateId:
+      states.nodes.find((s) => s.name === 'Paid In Full')?.id ?? null,
+    monthsOwedLabelId:
+      labels.nodes.find((l) => l.name === 'months owed')?.id ?? null,
+    oneMonthLabelId: labels.nodes.find((l) => l.name === '1 mo')?.id ?? null,
+    twoMonthLabelId: labels.nodes.find((l) => l.name === '2 mo')?.id ?? null,
+    threeMonthLabelId: labels.nodes.find((l) => l.name === '3 mo')?.id ?? null,
+  }
+
   cacheExpiry = Date.now() + 3_600_000
-  return cachedDoneStateId
+  logger.debug({ cachedIds }, 'Cached Linear state and label IDs')
+  return cachedIds
 }
 
 function sanitizeName(name: string): string {
@@ -50,6 +76,45 @@ function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
   return typeof sub === 'string' ? sub : sub.id
 }
 
+function getMonthsOwedLabelIds(
+  ids: CachedLinearIds,
+  openInvoiceCount: number
+): string[] {
+  const labelIds: string[] = []
+  if (ids.monthsOwedLabelId) labelIds.push(ids.monthsOwedLabelId)
+
+  if (openInvoiceCount >= 3 && ids.threeMonthLabelId) {
+    labelIds.push(ids.threeMonthLabelId)
+  } else if (openInvoiceCount === 2 && ids.twoMonthLabelId) {
+    labelIds.push(ids.twoMonthLabelId)
+  } else if (openInvoiceCount === 1 && ids.oneMonthLabelId) {
+    labelIds.push(ids.oneMonthLabelId)
+  }
+
+  return labelIds
+}
+
+async function countOpenInvoices(
+  stripeSubId: string,
+  accountType: StripeAccountType
+): Promise<number> {
+  try {
+    const stripe = getStripeClient(accountType)
+    const invoices = await stripe.invoices.list({
+      subscription: stripeSubId,
+      status: 'open',
+      limit: 10,
+    })
+    return invoices.data.length
+  } catch (error) {
+    logger.warn(
+      { error, stripeSubId },
+      'Failed to count open invoices for months owed label'
+    )
+    return 0
+  }
+}
+
 export async function createPaymentFailureIssue(
   invoice: Stripe.Invoice,
   accountType: StripeAccountType
@@ -74,7 +139,6 @@ export async function createPaymentFailureIssue(
     let childrenLines: string[] = []
 
     if (stripeSubId) {
-      // Check for existing open issue to avoid duplicates
       const existing = await linear.issues({
         filter: {
           team: { id: { eq: teamId } },
@@ -163,13 +227,24 @@ ${messageTemplate}
     dueDate.setDate(dueDate.getDate() + (attemptCount >= 3 ? 0 : 2))
     const dueDateStr = dueDate.toISOString().split('T')[0]
 
+    const ids = await getLinearIds(linear, teamId)
+
+    const labelIds = [labelId]
+    if (stripeSubId) {
+      const openCount = await countOpenInvoices(stripeSubId, accountType)
+      if (openCount > 0) {
+        labelIds.push(...getMonthsOwedLabelIds(ids, openCount))
+      }
+    }
+
     await linear.createIssue({
       teamId,
       title,
       description,
       priority,
-      labelIds: [labelId],
+      labelIds,
       dueDate: dueDateStr,
+      ...(ids.needsContactStateId && { stateId: ids.needsContactStateId }),
     })
 
     logger.info(
@@ -208,20 +283,34 @@ export async function resolvePaymentIssue(
 
     if (openIssues.nodes.length === 0) return
 
-    const doneStateId = await getDoneStateId(linear, teamId)
+    const ids = await getLinearIds(linear, teamId)
 
-    for (const issue of openIssues.nodes) {
-      if (doneStateId) {
-        await issue.update({ stateId: doneStateId })
+    const [firstIssue, ...remainingIssues] = openIssues.nodes
+
+    if (ids.paidInFullStateId) {
+      await firstIssue.update({ stateId: ids.paidInFullStateId })
+    }
+    await linear.createComment({
+      issueId: firstIssue.id,
+      body: 'Payment received -- auto-resolved',
+    })
+    logger.info(
+      { issueId: firstIssue.id, stripeSubscriptionId },
+      'Auto-resolved Linear payment issue'
+    )
+
+    if (remainingIssues.length > 0 && ids.unverifiedPaymentStateId) {
+      for (const issue of remainingIssues) {
+        await issue.update({ stateId: ids.unverifiedPaymentStateId })
+        await linear.createComment({
+          issueId: issue.id,
+          body: 'Related payment received -- parent may be catching up',
+        })
+        logger.info(
+          { issueId: issue.id, stripeSubscriptionId },
+          'Moved Linear issue to Unverified Payment'
+        )
       }
-      await linear.createComment({
-        issueId: issue.id,
-        body: 'Payment received -- auto-resolved',
-      })
-      logger.info(
-        { issueId: issue.id, stripeSubscriptionId },
-        'Auto-resolved Linear payment issue'
-      )
     }
   } catch (error) {
     logger.error(
