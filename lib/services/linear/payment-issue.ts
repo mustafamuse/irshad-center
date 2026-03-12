@@ -56,6 +56,10 @@ function formatCurrency(amountInCents: number): string {
   return `$${(amountInCents / 100).toFixed(2)}`
 }
 
+function escapeTableCell(value: string): string {
+  return value.replace(/\|/g, '/')
+}
+
 function extractSubscriptionId(invoice: Stripe.Invoice): string | null {
   const sub = (
     invoice as Stripe.Invoice & {
@@ -93,7 +97,7 @@ async function countOpenInvoices(
     const invoices = await stripe.invoices.list({
       subscription: stripeSubId,
       status: 'open',
-      limit: 10,
+      limit: 10, // Cap at 10; we only need 1/2/3+ for label selection
     })
     return invoices.data.length
   } catch (error) {
@@ -165,12 +169,8 @@ export async function createPaymentFailureIssue(
     }
 
     const lastError = invoice.last_finalization_error
-    const safeErrorMsg = (lastError?.message ?? 'No details').replace(
-      /\|/g,
-      '/'
-    )
     const errorDisplay = lastError
-      ? `${lastError.code || 'error'} -- ${safeErrorMsg}`
+      ? `${lastError.code || 'error'} -- ${escapeTableCell(lastError.message || 'No details')}`
       : 'See Stripe dashboard for details'
 
     const safeName = sanitizeName(parentName)
@@ -180,8 +180,8 @@ export async function createPaymentFailureIssue(
 
     const tableRows = [
       `| **Parent** | ${safeName} |`,
-      parentEmail ? `| **Email** | ${parentEmail} |` : null,
-      parentPhone ? `| **Phone** | ${parentPhone} |` : null,
+      parentEmail ? `| **Email** | ${escapeTableCell(parentEmail)} |` : null,
+      parentPhone ? `| **Phone** | ${escapeTableCell(parentPhone)} |` : null,
       `| **Program** | ${program} |`,
       `| **Amount** | ${amount} |`,
       `| **Error** | ${errorDisplay} |`,
