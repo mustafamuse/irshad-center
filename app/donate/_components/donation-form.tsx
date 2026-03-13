@@ -15,34 +15,20 @@ import { cn } from '@/lib/utils'
 
 import { createDonationAction } from '../actions'
 
-const PRESET_AMOUNTS = [1000, 2500, 5000, 10000, 25000] as const
-
-const MODE_OPTIONS = [
-  { value: 'payment', label: 'One-time' },
-  { value: 'subscription', label: 'Monthly' },
-] as const
+const PRESET_AMOUNTS = [25000, 20000, 15000, 10000, 7500] as const
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toLocaleString()}`
 }
 
-function getButtonLabel(
-  isPending: boolean,
-  amountInCents: number,
-  mode: 'payment' | 'subscription'
-): string {
+function getButtonLabel(isPending: boolean, amountInCents: number): string {
   if (isPending) return 'Redirecting...'
-  if (amountInCents < 100) return 'Donate'
-
-  const amount = formatCents(amountInCents)
-  return mode === 'subscription'
-    ? `Donate ${amount} / month`
-    : `Donate ${amount}`
+  if (amountInCents < 100) return 'Donate Monthly'
+  return `Donate ${formatCents(amountInCents)} / month`
 }
 
 export function DonationForm() {
-  const [mode, setMode] = useState<'payment' | 'subscription'>('payment')
-  const [selectedPreset, setSelectedPreset] = useState<number | null>(5000)
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(15000)
   const [customAmount, setCustomAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -83,7 +69,7 @@ export function DonationForm() {
     startTransition(async () => {
       const result = await createDonationAction({
         amount: amountInCents,
-        mode,
+        mode: 'subscription',
       })
 
       if (!result.success) {
@@ -105,31 +91,13 @@ export function DonationForm() {
     <Card className="mx-auto w-full max-w-md rounded-2xl border-[#007078]/20 bg-white shadow-lg dark:border-[#007078]/40 dark:bg-gray-900">
       <CardHeader className="text-center">
         <CardTitle className="text-2xl text-[#007078] dark:text-[#00a0a8]">
-          Support Irshad Center
+          Support Irshad Islamic Center
         </CardTitle>
         <CardDescription>
-          Your donation helps our community programs thrive
+          Become a monthly supporter and help our community programs thrive
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="flex rounded-lg border p-1">
-          {MODE_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => setMode(option.value)}
-              className={cn(
-                'flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors',
-                mode === option.value
-                  ? 'bg-[#007078] text-white'
-                  : 'text-gray-500 hover:text-[#007078]'
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-
         <div className="grid grid-cols-3 gap-2">
           {PRESET_AMOUNTS.map((amount) => (
             <button
@@ -172,11 +140,11 @@ export function DonationForm() {
           className="w-full rounded-xl bg-[#deb43e] text-white hover:bg-[#c9a438]"
           size="lg"
         >
-          {getButtonLabel(isPending, amountInCents, mode)}
+          {getButtonLabel(isPending, amountInCents)}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          Secure payment processed by Stripe
+          Secure monthly subscription processed by Stripe. Cancel anytime.
         </p>
       </CardContent>
     </Card>

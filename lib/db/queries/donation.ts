@@ -7,6 +7,8 @@ interface DonationListOptions {
   pageSize?: number
   status?: DonationStatus
   isRecurring?: boolean
+  dateFrom?: Date
+  dateTo?: Date
 }
 
 interface DonationListResult {
@@ -28,11 +30,26 @@ interface DonationStats {
 export async function getDonations(
   options: DonationListOptions = {}
 ): Promise<DonationListResult> {
-  const { page = 1, pageSize = 25, status, isRecurring } = options
+  const {
+    page = 1,
+    pageSize = 25,
+    status,
+    isRecurring,
+    dateFrom,
+    dateTo,
+  } = options
 
   const where = {
     ...(status ? { status } : {}),
     ...(isRecurring !== undefined ? { isRecurring } : {}),
+    ...(dateFrom || dateTo
+      ? {
+          createdAt: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lt: dateTo } : {}),
+          },
+        }
+      : {}),
     NOT: [
       { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
       { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
@@ -52,7 +69,25 @@ export async function getDonations(
   return { donations, total, page, pageSize }
 }
 
-export async function getDonationStats(): Promise<DonationStats> {
+interface DonationStatsOptions {
+  dateFrom?: Date
+  dateTo?: Date
+}
+
+export async function getDonationStats(
+  options: DonationStatsOptions = {}
+): Promise<DonationStats> {
+  const { dateFrom, dateTo } = options
+  const dateFilter =
+    dateFrom || dateTo
+      ? {
+          createdAt: {
+            ...(dateFrom ? { gte: dateFrom } : {}),
+            ...(dateTo ? { lt: dateTo } : {}),
+          },
+        }
+      : {}
+
   const [
     oneTimeStats,
     recurringCount,
@@ -61,18 +96,19 @@ export async function getDonationStats(): Promise<DonationStats> {
     uniqueDonors,
   ] = await Promise.all([
     prisma.donation.aggregate({
-      where: { status: 'succeeded', isRecurring: false },
+      where: { status: 'succeeded', isRecurring: false, ...dateFilter },
       _sum: { amount: true },
       _count: true,
     }),
     prisma.donation.count({
-      where: { isRecurring: true, status: 'succeeded' },
+      where: { isRecurring: true, status: 'succeeded', ...dateFilter },
     }),
     prisma.donation.findMany({
       where: {
         isRecurring: true,
         status: 'succeeded',
         stripeSubscriptionId: { not: null },
+        ...dateFilter,
       },
       select: { stripeSubscriptionId: true, amount: true },
       orderBy: { paidAt: 'desc' },
