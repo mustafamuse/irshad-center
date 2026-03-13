@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { animate } from 'framer-motion'
 
@@ -25,7 +25,6 @@ export function AnimatedStat({
   duration = 1.5,
 }: AnimatedStatProps) {
   const [display, setDisplay] = useState(format === 'dollars' ? '$0' : '0')
-  const ref = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     const controls = animate(0, value, {
@@ -43,5 +42,5 @@ export function AnimatedStat({
     return () => controls.stop()
   }, [value, format, duration])
 
-  return <span ref={ref}>{display}</span>
+  return <span>{display}</span>
 }

@@ -5,7 +5,7 @@ import Image from 'next/image'
 import { type Metadata } from 'next'
 
 import { Card, CardContent } from '@/components/ui/card'
-import { getDonations, getDonationStats } from '@/lib/db/queries/donation'
+import { getDonations } from '@/lib/db/queries/donation'
 import { formatCurrency, formatDate } from '@/lib/utils/formatters'
 
 import { AnimatedStat } from './_components/animated-stat'
@@ -70,15 +70,15 @@ export default async function DonationsPage({ searchParams }: PageProps) {
   const period: DonationPeriod = isValidPeriod(rawPeriod) ? rawPeriod : 'today'
   const { start, end } = getDonationDateRange(period)
 
-  const [periodStats, { donations }] = await Promise.all([
-    getDonationStats({ dateFrom: start, dateTo: end }),
-    getDonations({
-      pageSize: 50,
-      isRecurring: true,
-      dateFrom: start,
-      dateTo: end,
-    }),
-  ])
+  const { donations } = await getDonations({
+    pageSize: 50,
+    isRecurring: true,
+    dateFrom: start,
+    dateTo: end,
+  })
+
+  const donatorCount = donations.length
+  const totalAmountCents = donations.reduce((sum, d) => sum + d.amount, 0)
 
   return (
     <main className="min-h-screen bg-white">
@@ -109,14 +109,14 @@ export default async function DonationsPage({ searchParams }: PageProps) {
         </div>
 
         {/* Stats */}
-        <div className="mb-8 grid grid-cols-1 gap-3 sm:mb-12 sm:grid-cols-3 sm:gap-4">
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:mb-12 sm:gap-4">
           <Card className="border-[#007078]/20">
             <CardContent className="p-4 text-center sm:p-6">
               <p className="text-sm font-medium text-muted-foreground">
                 New Donators
               </p>
               <p className="mt-1 text-3xl font-bold text-[#007078] sm:text-4xl">
-                <AnimatedStat value={periodStats.activeRecurringCount} />
+                <AnimatedStat value={donatorCount} />
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {periodLabels[period].toLowerCase()}
@@ -129,20 +129,7 @@ export default async function DonationsPage({ searchParams }: PageProps) {
                 Amount Donated
               </p>
               <p className="mt-1 text-3xl font-bold text-[#007078] sm:text-4xl">
-                <AnimatedStat value={periodStats.mrrCents} format="dollars" />
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {periodLabels[period].toLowerCase()}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-[#007078]/20">
-            <CardContent className="p-4 text-center sm:p-6">
-              <p className="text-sm font-medium text-muted-foreground">
-                Active Donators
-              </p>
-              <p className="mt-1 text-3xl font-bold text-[#007078] sm:text-4xl">
-                <AnimatedStat value={periodStats.activeRecurringCount} />
+                <AnimatedStat value={totalAmountCents} format="dollars" />
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {periodLabels[period].toLowerCase()}
