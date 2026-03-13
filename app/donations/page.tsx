@@ -2,9 +2,13 @@ import { Suspense } from 'react'
 
 import Image from 'next/image'
 
+import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { type Metadata } from 'next'
 
+
 import { Card, CardContent } from '@/components/ui/card'
+import { SCHOOL_TIMEZONE } from '@/lib/constants/teacher-checkin'
+import { prisma } from '@/lib/db'
 import { getDonations } from '@/lib/db/queries/donation'
 import { formatCurrency, formatDate } from '@/lib/utils/formatters'
 
@@ -29,29 +33,37 @@ function getDonationDateRange(period: DonationPeriod): {
   start: Date
   end: Date
 } {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const zonedNow = toZonedTime(new Date(), SCHOOL_TIMEZONE)
+  const todayLocal = new Date(
+    zonedNow.getFullYear(),
+    zonedNow.getMonth(),
+    zonedNow.getDate()
+  )
+  const DAY_MS = 24 * 60 * 60 * 1000
+
+  let localStart: Date
+  let localEnd: Date
 
   switch (period) {
     case 'today':
-      return {
-        start: today,
-        end: new Date(today.getTime() + 24 * 60 * 60 * 1000),
-      }
-    case 'yesterday': {
-      const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000)
-      return { start: yesterday, end: today }
-    }
+      localStart = todayLocal
+      localEnd = new Date(todayLocal.getTime() + DAY_MS)
+      break
+    case 'yesterday':
+      localStart = new Date(todayLocal.getTime() - DAY_MS)
+      localEnd = todayLocal
+      break
     case 'thisWeek': {
-      const dayOfWeek = today.getDay()
-      const startOfWeek = new Date(
-        today.getTime() - dayOfWeek * 24 * 60 * 60 * 1000
-      )
-      return {
-        start: startOfWeek,
-        end: new Date(today.getTime() + 24 * 60 * 60 * 1000),
-      }
+      const dayOfWeek = todayLocal.getDay()
+      localStart = new Date(todayLocal.getTime() - dayOfWeek * DAY_MS)
+      localEnd = new Date(todayLocal.getTime() + DAY_MS)
+      break
     }
+  }
+
+  return {
+    start: fromZonedTime(localStart, SCHOOL_TIMEZONE),
+    end: fromZonedTime(localEnd, SCHOOL_TIMEZONE),
   }
 }
 
@@ -70,15 +82,32 @@ export default async function DonationsPage({ searchParams }: PageProps) {
   const period: DonationPeriod = isValidPeriod(rawPeriod) ? rawPeriod : 'today'
   const { start, end } = getDonationDateRange(period)
 
-  const { donations } = await getDonations({
-    pageSize: 50,
+  const periodWhere = {
     isRecurring: true,
-    dateFrom: start,
-    dateTo: end,
-  })
+    status: 'succeeded' as const,
+    createdAt: { gte: start, lt: end },
+    NOT: [
+      { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
+      { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
+    ],
+  }
 
-  const donatorCount = donations.length
-  const totalAmountCents = donations.reduce((sum, d) => sum + d.amount, 0)
+  const [{ donations }, stats] = await Promise.all([
+    getDonations({
+      pageSize: 50,
+      isRecurring: true,
+      dateFrom: start,
+      dateTo: end,
+    }),
+    prisma.donation.aggregate({
+      where: periodWhere,
+      _count: true,
+      _sum: { amount: true },
+    }),
+  ])
+
+  const donatorCount = stats._count
+  const totalAmountCents = stats._sum.amount ?? 0
 
   return (
     <main className="min-h-screen bg-white">
