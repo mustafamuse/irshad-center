@@ -28,7 +28,7 @@ describe('calculateStripeFee', () => {
   it('returns correct values for 3 people', () => {
     const { baseCents, totalCents } = calculateStripeFee(3 * 1300)
     expect(baseCents).toBe(3900)
-    // Math.ceil((3900 + 30) / (1 - 0.029)) = Math.ceil(4048.40...) = 4048
+    // Math.ceil((3900 + 30) / (1 - 0.029)) = Math.ceil(3930 / 0.971) = Math.ceil(4047.37) = 4048
     expect(totalCents).toBe(4048)
   })
 

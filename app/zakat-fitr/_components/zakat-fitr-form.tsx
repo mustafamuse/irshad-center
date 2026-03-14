@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { useShare } from '@/hooks/use-share'
 import {
   MAX_FAMILY_SIZE,
   ZAKAT_FITR_PER_PERSON_CENTS,
@@ -25,31 +26,11 @@ function formatDollars(cents: number): string {
 export function ZakatFitrForm() {
   const [selectedCount, setSelectedCount] = useState<number>(1)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const [isPending, startTransition] = useTransition()
-
-  const handleShare = useCallback(async () => {
-    try {
-      const url = window.location.origin + '/zakat-fitr'
-      const shareData = {
-        title: 'Zakat al-Fitr — Irshad Center',
-        text: 'Pay your Zakat al-Fitr — $13 per person.',
-        url,
-      }
-
-      if (navigator.share) {
-        await navigator.share(shareData)
-      } else {
-        await navigator.clipboard.writeText(url)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('Share failed', err)
-      }
-    }
-  }, [])
+  const { copied, handleShare } = useShare('/zakat-fitr', {
+    title: 'Zakat al-Fitr — Irshad Center',
+    text: 'Pay your Zakat al-Fitr — $13 per person.',
+  })
 
   const baseCents = selectedCount * ZAKAT_FITR_PER_PERSON_CENTS
   const { totalCents } = calculateStripeFee(baseCents)

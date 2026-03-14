@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { getDonationStripeClient } from '@/lib/stripe-donation'
 
 export const metadata: Metadata = {
   title: 'Thank You | Irshad Center',
@@ -25,6 +26,15 @@ export default async function ZakatFitrThankYouPage({
   const { session_id } = await searchParams
 
   if (!session_id) {
+    redirect('/zakat-fitr')
+  }
+
+  const stripe = getDonationStripeClient()
+  const session = await stripe.checkout.sessions
+    .retrieve(session_id)
+    .catch(() => null)
+
+  if (!session || session.payment_status !== 'paid') {
     redirect('/zakat-fitr')
   }
 

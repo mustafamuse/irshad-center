@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useShare } from '@/hooks/use-share'
 import { cn } from '@/lib/utils'
 
 import { createDonationAction } from '../actions'
@@ -31,31 +32,11 @@ export function DonationForm() {
   const [selectedPreset, setSelectedPreset] = useState<number | null>(15000)
   const [customAmount, setCustomAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
   const [isPending, startTransition] = useTransition()
-
-  const handleShare = useCallback(async () => {
-    try {
-      const url = window.location.origin + '/donate'
-      const shareData = {
-        title: 'Donate to Irshad Center',
-        text: 'Support Irshad Islamic Center with a monthly donation.',
-        url,
-      }
-
-      if (navigator.share) {
-        await navigator.share(shareData)
-      } else {
-        await navigator.clipboard.writeText(url)
-        setCopied(true)
-        setTimeout(() => setCopied(false), 2000)
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name !== 'AbortError') {
-        console.error('Share failed', err)
-      }
-    }
-  }, [])
+  const { copied, handleShare } = useShare('/donate', {
+    title: 'Donate to Irshad Center',
+    text: 'Support Irshad Islamic Center with a monthly donation.',
+  })
 
   const parsedCustom = customAmount ? parseFloat(customAmount) : 0
   const amountInCents =
