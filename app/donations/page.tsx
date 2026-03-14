@@ -5,7 +5,6 @@ import Image from 'next/image'
 import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { type Metadata } from 'next'
 
-
 import { Card, CardContent } from '@/components/ui/card'
 import { SCHOOL_TIMEZONE } from '@/lib/constants/teacher-checkin'
 import { prisma } from '@/lib/db'
@@ -82,6 +81,8 @@ export default async function DonationsPage({ searchParams }: PageProps) {
   const period: DonationPeriod = isValidPeriod(rawPeriod) ? rawPeriod : 'today'
   const { start, end } = getDonationDateRange(period)
 
+  const hiddenDonors = ['mustafamuse']
+
   const periodWhere = {
     isRecurring: true,
     status: 'succeeded' as const,
@@ -89,10 +90,13 @@ export default async function DonationsPage({ searchParams }: PageProps) {
     NOT: [
       { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
       { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
+      ...hiddenDonors.map((name) => ({
+        donorName: { equals: name, mode: 'insensitive' as const },
+      })),
     ],
   }
 
-  const [{ donations }, stats] = await Promise.all([
+  const [{ donations: allDonations }, stats] = await Promise.all([
     getDonations({
       pageSize: 50,
       isRecurring: true,
@@ -105,6 +109,13 @@ export default async function DonationsPage({ searchParams }: PageProps) {
       _sum: { amount: true },
     }),
   ])
+
+  const donations = allDonations.filter(
+    (d) =>
+      !hiddenDonors.some(
+        (name) => d.donorName?.toLowerCase() === name.toLowerCase()
+      )
+  )
 
   const donatorCount = stats._count
   const totalAmountCents = stats._sum.amount ?? 0
