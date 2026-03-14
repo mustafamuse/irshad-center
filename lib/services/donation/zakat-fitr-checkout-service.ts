@@ -10,30 +10,14 @@ import {
 
 const logger = createServiceLogger('zakat-fitr-checkout')
 
-let cachedProductId: string | null = null
-
-async function getOrCreateProduct(stripe: Stripe): Promise<string> {
-  if (cachedProductId) return cachedProductId
-
-  const existing = await stripe.products.search({
-    query: 'name:"Zakat al-Fitr" AND active:"true"',
-    limit: 1,
-  })
-
-  if (existing.data[0]) {
-    cachedProductId = existing.data[0].id
-    return existing.data[0].id
+function getProductId(): string {
+  const productId = process.env.STRIPE_ZAKAT_FITR_PRODUCT_ID
+  if (!productId) {
+    throw new Error(
+      'STRIPE_ZAKAT_FITR_PRODUCT_ID is not configured. Run: npx tsx scripts/create-zakat-fitr-product.ts'
+    )
   }
-
-  const product = await stripe.products.create({
-    name: 'Zakat al-Fitr',
-    description: 'Annual Zakat al-Fitr obligation — $13 per person',
-  })
-
-  cachedProductId = product.id
-  logger.info({ productId: product.id }, 'Created Zakat al-Fitr Stripe product')
-
-  return product.id
+  return productId
 }
 
 export async function createZakatFitrCheckoutSession(
@@ -45,7 +29,7 @@ export async function createZakatFitrCheckoutSession(
   }
 
   const stripe = getDonationStripeClient()
-  const productId = await getOrCreateProduct(stripe)
+  const productId = getProductId()
 
   const baseCents = input.numberOfPeople * ZAKAT_FITR_PER_PERSON_CENTS
   const { totalCents } = calculateStripeFee(baseCents)
