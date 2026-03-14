@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { useShare } from '@/hooks/use-share'
 import { cn } from '@/lib/utils'
 
 import { createDonationAction } from '../actions'
@@ -32,6 +33,10 @@ export function DonationForm() {
   const [customAmount, setCustomAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const { copied, handleShare } = useShare('/donate', {
+    title: 'Donate to Irshad Center',
+    text: 'Support Irshad Islamic Center with a monthly donation.',
+  })
 
   const parsedCustom = customAmount ? parseFloat(customAmount) : 0
   const amountInCents =
@@ -141,6 +146,16 @@ export function DonationForm() {
           size="lg"
         >
           {getButtonLabel(isPending, amountInCents)}
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleShare}
+          className="w-full rounded-xl border-[#007078]/30 text-[#007078] hover:bg-[#007078]/5"
+          size="lg"
+        >
+          {copied ? 'Link copied!' : 'Share with family & friends'}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
