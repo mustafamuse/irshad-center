@@ -34,7 +34,11 @@ export default async function ZakatFitrThankYouPage({
     .retrieve(session_id)
     .catch(() => null)
 
-  if (!session || session.payment_status !== 'paid') {
+  if (
+    !session ||
+    session.payment_status !== 'paid' ||
+    session.metadata?.source !== 'zakat_fitr'
+  ) {
     redirect('/zakat-fitr')
   }
 
