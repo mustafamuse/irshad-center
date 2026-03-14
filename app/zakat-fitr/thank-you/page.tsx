@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
 import type { Metadata } from 'next'
 
@@ -16,9 +17,19 @@ export const metadata: Metadata = {
   description: 'Thank you for paying your Zakat al-Fitr.',
 }
 
-export default function ZakatFitrThankYouPage() {
+export default async function ZakatFitrThankYouPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ session_id?: string }>
+}) {
+  const { session_id } = await searchParams
+
+  if (!session_id) {
+    redirect('/zakat-fitr')
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+    <div className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
       <Card className="w-full max-w-md text-center">
         <CardHeader>
           <CardTitle className="text-2xl">Jazakallahu Khairan!</CardTitle>
@@ -28,9 +39,6 @@ export default function ZakatFitrThankYouPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            A confirmation will be sent to your email address.
-          </p>
           <Button asChild variant="outline">
             <Link href="/zakat-fitr">Back to Zakat al-Fitr</Link>
           </Button>

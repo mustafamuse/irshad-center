@@ -29,19 +29,25 @@ export function ZakatFitrForm() {
   const [isPending, startTransition] = useTransition()
 
   const handleShare = useCallback(async () => {
-    const url = window.location.origin + '/zakat-fitr'
-    const shareData = {
-      title: 'Zakat al-Fitr — Irshad Center',
-      text: 'Pay your Zakat al-Fitr — $13 per person.',
-      url,
-    }
+    try {
+      const url = window.location.origin + '/zakat-fitr'
+      const shareData = {
+        title: 'Zakat al-Fitr — Irshad Center',
+        text: 'Pay your Zakat al-Fitr — $13 per person.',
+        url,
+      }
 
-    if (navigator.share) {
-      await navigator.share(shareData)
-    } else {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        await navigator.clipboard.writeText(url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('Share failed', err)
+      }
     }
   }, [])
 
@@ -88,6 +94,7 @@ export function ZakatFitrForm() {
               setError(null)
             }}
             disabled={selectedCount <= 1}
+            aria-label="Decrease household size"
             className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#007078] text-2xl font-bold text-[#007078] transition-colors hover:bg-[#007078]/10 disabled:border-gray-300 disabled:text-gray-300"
           >
             -
@@ -105,6 +112,7 @@ export function ZakatFitrForm() {
               setError(null)
             }}
             disabled={selectedCount >= MAX_FAMILY_SIZE}
+            aria-label="Increase household size"
             className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-[#007078] text-2xl font-bold text-[#007078] transition-colors hover:bg-[#007078]/10 disabled:border-gray-300 disabled:text-gray-300"
           >
             +

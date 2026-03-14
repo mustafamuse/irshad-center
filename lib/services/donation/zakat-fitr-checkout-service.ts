@@ -15,6 +15,16 @@ let cachedProductId: string | null = null
 async function getOrCreateProduct(stripe: Stripe): Promise<string> {
   if (cachedProductId) return cachedProductId
 
+  const existing = await stripe.products.search({
+    query: 'name:"Zakat al-Fitr" AND active:"true"',
+    limit: 1,
+  })
+
+  if (existing.data[0]) {
+    cachedProductId = existing.data[0].id
+    return existing.data[0].id
+  }
+
   const product = await stripe.products.create({
     name: 'Zakat al-Fitr',
     description: 'Annual Zakat al-Fitr obligation — $13 per person',

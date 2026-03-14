@@ -35,19 +35,25 @@ export function DonationForm() {
   const [isPending, startTransition] = useTransition()
 
   const handleShare = useCallback(async () => {
-    const url = window.location.origin + '/donate'
-    const shareData = {
-      title: 'Donate to Irshad Center',
-      text: 'Support Irshad Islamic Center with a monthly donation.',
-      url,
-    }
+    try {
+      const url = window.location.origin + '/donate'
+      const shareData = {
+        title: 'Donate to Irshad Center',
+        text: 'Support Irshad Islamic Center with a monthly donation.',
+        url,
+      }
 
-    if (navigator.share) {
-      await navigator.share(shareData)
-    } else {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      if (navigator.share) {
+        await navigator.share(shareData)
+      } else {
+        await navigator.clipboard.writeText(url)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name !== 'AbortError') {
+        console.error('Share failed', err)
+      }
     }
   }, [])
 
