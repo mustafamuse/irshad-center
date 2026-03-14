@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useCallback, useState, useTransition } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -31,7 +31,25 @@ export function DonationForm() {
   const [selectedPreset, setSelectedPreset] = useState<number | null>(15000)
   const [customAmount, setCustomAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  const handleShare = useCallback(async () => {
+    const url = window.location.origin + '/donate'
+    const shareData = {
+      title: 'Donate to Irshad Center',
+      text: 'Support Irshad Islamic Center with a monthly donation.',
+      url,
+    }
+
+    if (navigator.share) {
+      await navigator.share(shareData)
+    } else {
+      await navigator.clipboard.writeText(url)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }, [])
 
   const parsedCustom = customAmount ? parseFloat(customAmount) : 0
   const amountInCents =
@@ -141,6 +159,16 @@ export function DonationForm() {
           size="lg"
         >
           {getButtonLabel(isPending, amountInCents)}
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleShare}
+          className="w-full rounded-xl border-[#007078]/30 text-[#007078] hover:bg-[#007078]/5"
+          size="lg"
+        >
+          {copied ? 'Link copied!' : 'Share with family & friends'}
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
