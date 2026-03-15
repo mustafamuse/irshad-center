@@ -242,7 +242,7 @@ git checkout -b migration/add-attendance-model
 # Edit prisma/schema.prisma
 
 # Create migration
-npx prisma migrate dev --name add_attendance_model
+bunx prisma migrate dev --name add_attendance_model
 
 # Commit
 git commit -m "Add Attendance model to schema"

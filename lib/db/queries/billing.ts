@@ -570,30 +570,3 @@ export async function getBillingAssignmentsBySubscription(
     },
   })
 }
-
-/**
- * Update billing assignment status (activate/deactivate)
- * @param client - Optional database client (for transaction support)
- */
-export async function updateBillingAssignmentStatus(
-  assignmentId: string,
-  isActive: boolean,
-  endDate?: Date | null,
-  client: DatabaseClient = prisma
-) {
-  return client.billingAssignment.update({
-    where: { id: assignmentId },
-    data: {
-      isActive,
-      endDate: endDate !== undefined ? endDate : isActive ? null : new Date(),
-    },
-    include: {
-      subscription: true,
-      programProfile: {
-        include: {
-          person: true,
-        },
-      },
-    },
-  })
-}

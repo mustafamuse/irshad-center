@@ -7,7 +7,8 @@
 - TypeScript 5.9.0 (strict mode)
 - Stripe (dual accounts: Mahad + Dugsi)
 - Vitest + React Testing Library
-- Pino logging + Sentry error tracking
+- Bun (package manager)
+- Pino logging + Axiom log aggregation + Sentry error tracking
 - shadcn/ui + Tailwind CSS
 - Zod + react-hook-form
 - Zustand state management

@@ -42,6 +42,22 @@ Sentry.init({
       return null
     }
 
+    // Drop known-noisy errors on Vercel preview deployments
+    if (process.env.VERCEL_ENV === 'preview') {
+      const msg =
+        hint.originalException instanceof Error
+          ? hint.originalException.message
+          : event.message || ''
+      if (
+        // Stripe SDK: thrown when STRIPE_SECRET_KEY is not set in preview env
+        msg.includes('Stripe keys not configured') ||
+        // Prisma: connection pool timeout during cold-start preview deploys
+        msg.includes('retried 2 times')
+      ) {
+        return null
+      }
+    }
+
     // Add server-specific context
     const error = hint.originalException
     if (error && typeof error === 'object' && 'code' in error) {
@@ -73,7 +89,7 @@ Sentry.init({
     return event
   },
 
-  environment: process.env.NODE_ENV || 'development',
+  environment: process.env.VERCEL_ENV || process.env.NODE_ENV || 'development',
 
   // Release tracking (set by CI/CD)
   release: process.env.SENTRY_RELEASE,

@@ -42,7 +42,7 @@ A modern Next.js application for managing student attendance, payments, and admi
 2. Install dependencies:
 
    ```bash
-   npm install
+   bun install
    ```
 
 3. Set up environment variables:
@@ -56,25 +56,25 @@ A modern Next.js application for managing student attendance, payments, and admi
 4. Set up the database:
 
    ```bash
-   npx prisma migrate dev
-   npx prisma generate
+   bunx prisma migrate dev
+   bunx prisma generate
    ```
 
 5. Start the development server:
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 ### Development Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run start` - Start production server
-- `npm run lint` - Run ESLint
-- `npm run lint:fix` - Fix linting issues
-- `npm run format:write` - Format code with Prettier
-- `npm run typecheck` - Run TypeScript type checking
-- `npm run cleanup` - Run format, lint, and type check
+- `bun run dev` - Start development server
+- `bun run build` - Build for production
+- `bun run start` - Start production server
+- `bun run lint` - Run ESLint
+- `bun run lint:fix` - Fix linting issues
+- `bun run format:write` - Format code with Prettier
+- `bun run typecheck` - Run TypeScript type checking
+- `bun run cleanup` - Run format, lint, and type check
 
 ## Project Structure
 
@@ -171,10 +171,10 @@ For detailed architecture information, see:
 4. Run checks:
 
    ```bash
-   npm run lint:fix
-   npm run format:write
-   npm run typecheck
-   npm run build
+   bun run lint:fix
+   bun run format:write
+   bun run typecheck
+   bun run build
    ```
 
 5. Create a pull request

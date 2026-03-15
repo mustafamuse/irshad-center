@@ -74,7 +74,7 @@ await sendEmail({
 
    ```bash
    # Add Resend API key to .env.local
-   npm run dev
+   bun run dev
    # Navigate to /mahad/scholarship-application
    # Fill and submit form
    # Check email inbox
