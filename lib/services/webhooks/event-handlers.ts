@@ -13,7 +13,7 @@ import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logWarning } from '@/lib/logger'
 import { unifiedMatcher } from '@/lib/services/shared/unified-matcher'
 
 import {
@@ -222,25 +222,11 @@ async function handleInvoicePaymentFailedEvent(
       ? invoiceData.subscription
       : (invoiceData.subscription?.id ?? null)
 
-  logger.warn(
-    {
-      invoiceId: invoice.id,
-      subscriptionId,
-      attemptCount: invoice.attempt_count,
-      amountDue: invoice.amount_due,
-    },
-    'Invoice payment failed'
-  )
-
-  // Subscription status update will come via customer.subscription.updated event
-  // Just log for alerting/monitoring purposes
-  Sentry.captureMessage('Invoice payment failed', {
-    level: 'warning',
-    extra: {
-      invoiceId: invoice.id,
-      subscriptionId,
-      attemptCount: invoice.attempt_count,
-    },
+  await logWarning(logger, 'Invoice payment failed', {
+    invoiceId: invoice.id,
+    subscriptionId,
+    attemptCount: invoice.attempt_count,
+    amountDue: invoice.amount_due,
   })
 }
 

@@ -23,8 +23,6 @@ import {
   getBillingAccountByStripeCustomerId as getBillingAccountByCustomerIdQuery,
   upsertBillingAccount as upsertBillingAccountQuery,
   createBillingAssignment as createBillingAssignmentQuery,
-  updateBillingAssignmentStatus,
-  getBillingAssignmentsBySubscription,
 } from '@/lib/db/queries/billing'
 import { DatabaseClient } from '@/lib/db/types'
 import { isPrismaError } from '@/lib/utils/type-guards'
@@ -309,37 +307,12 @@ export async function unlinkSubscription(
   subscriptionId: string,
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const assignments = await getBillingAssignmentsBySubscription(
-    subscriptionId,
-    client
-  )
+  const result = await client.billingAssignment.updateMany({
+    where: { subscriptionId, isActive: true },
+    data: { isActive: false, endDate: new Date() },
+  })
 
-  // Helper to deactivate assignments
-  const deactivateAssignments = async (tx: DatabaseClient): Promise<number> => {
-    let count = 0
-
-    for (const assignment of assignments) {
-      if (assignment.isActive) {
-        await updateBillingAssignmentStatus(
-          assignment.id,
-          false,
-          new Date(),
-          tx
-        )
-        count++
-      }
-    }
-
-    return count
-  }
-
-  // If client is already a transaction, use it directly; otherwise wrap in new transaction
-  if (client !== prisma) {
-    return deactivateAssignments(client)
-  }
-
-  // Use transaction to ensure all assignments are deactivated atomically
-  return prisma.$transaction(deactivateAssignments)
+  return result.count
 }
 
 /**

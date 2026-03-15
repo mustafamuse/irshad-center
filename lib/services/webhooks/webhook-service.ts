@@ -413,9 +413,15 @@ export async function handleSubscriptionUpdated(
   const dbSubscription = await getSubscriptionByStripeId(stripeSubscriptionId)
 
   if (!dbSubscription) {
-    throw new Error(
-      `Subscription ${stripeSubscriptionId} not found in database. It may need to be created first.`
+    logger.warn(
+      { stripeSubscriptionId },
+      'Subscription not found in database - student may need to re-register'
     )
+    return {
+      subscriptionId: '',
+      status: subscription.status as SubscriptionStatus,
+      created: false,
+    }
   }
 
   // Validate status
