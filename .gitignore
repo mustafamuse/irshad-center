@@ -60,6 +60,10 @@ prisma/*.bak
 /*.bak
 
 # IDE-specific settings
-.claude/
 .cursor/
 firebase-debug.log
+
+# Claude Code - keep shared settings, ignore local/generated
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scripts/

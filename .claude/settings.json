@@ -1,0 +1,14 @@
+{
+  "enabledPlugins": {
+    "security-guidance@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "serena@claude-plugins-official": true,
+    "learning-output-style@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true,
+    "stripe@claude-plugins-official": true,
+    "sentry@claude-plugins-official": true,
+    "analyze-codebase@claude-code-marketplace": true,
+    "feature-dev@claude-plugins-official": true
+  }
+}
