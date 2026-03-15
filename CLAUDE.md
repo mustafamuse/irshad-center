@@ -89,4 +89,4 @@ When tests fail after implementation, automatically fix and re-run:
 
 ---
 
-See `CLAUDE_REFERENCE.md` for architecture patterns, DRY catalog, and file organization.
+Architecture patterns and DRY catalog are in `.claude/rules/` and load automatically when working in relevant files.
