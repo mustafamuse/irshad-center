@@ -49,7 +49,9 @@ Sentry.init({
           ? hint.originalException.message
           : event.message || ''
       if (
+        // Stripe SDK: thrown when STRIPE_SECRET_KEY is not set in preview env
         msg.includes('Stripe keys not configured') ||
+        // Prisma: connection pool timeout during cold-start preview deploys
         msg.includes('retried 2 times')
       ) {
         return null
