@@ -606,10 +606,10 @@ WHERE subscriptionStatus IS NOT NULL
 
 ```bash
 # Audit mode (read-only)
-npx tsx scripts/fix-status-mismatches.ts
+bunx tsx scripts/fix-status-mismatches.ts
 
 # Apply fixes
-npx tsx scripts/fix-status-mismatches.ts --fix
+bunx tsx scripts/fix-status-mismatches.ts --fix
 ```
 
 ---

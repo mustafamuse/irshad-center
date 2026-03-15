@@ -89,8 +89,8 @@ echo "Analyzing hooks usage..."
 grep -rn "use[A-Z]" "$FOLDER_PATH" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" 2>/dev/null > "$TEMP_DIR/hooks.txt" || true
 
 echo "Checking for TypeScript errors..."
-if command -v npx >/dev/null 2>&1; then
-    npx tsc --noEmit --skipLibCheck 2>&1 | grep "$FOLDER_PATH" > "$TEMP_DIR/ts_errors.txt" || true
+if command -v bunx >/dev/null 2>&1; then
+    bunx tsc --noEmit --skipLibCheck 2>&1 | grep "$FOLDER_PATH" > "$TEMP_DIR/ts_errors.txt" || true
 fi
 
 # Create the review prompt

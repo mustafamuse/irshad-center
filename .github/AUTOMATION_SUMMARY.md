@@ -60,7 +60,7 @@ Click "Create Pull Request" on GitHub
 ### Check which template will be selected:
 
 ```bash
-npm run pr-template
+bun run pr-template
 # or
 node .github/scripts/suggest-pr-template.js
 ```
@@ -68,7 +68,7 @@ node .github/scripts/suggest-pr-template.js
 ### Install git hooks (optional, one-time):
 
 ```bash
-npm run setup-hooks
+bun run setup-hooks
 # or
 bash .github/scripts/setup-hooks.sh
 ```
@@ -128,7 +128,7 @@ $ git push origin fix/stripe-webhook
 ```bash
 $ git checkout -b migration/add-attendance
 $ # Edit prisma/schema.prisma
-$ npx prisma migrate dev --name add_attendance
+$ bunx prisma migrate dev --name add_attendance
 $ git push origin migration/add-attendance
 # Create PR → 🚨 Database Migration template auto-applied
 #            → Extra safety warnings shown!
@@ -243,7 +243,7 @@ AI thinks:
 AI does:
 1. git checkout -b migration/add-attendance-tracking
 2. Create Prisma model
-3. npx prisma migrate dev --name add_attendance
+3. bunx prisma migrate dev --name add_attendance
 4. Implement feature
 5. git push
 
@@ -268,7 +268,7 @@ Result:
 - [x] 5 PR templates (default + 4 specialized)
 - [x] Local suggester script
 - [x] Git hooks for pre-push suggestions
-- [x] NPM scripts for easy access
+- [x] Bun scripts for easy access
 - [x] Prisma schema change detection
 - [x] Branch naming conventions
 - [x] Comprehensive documentation
@@ -298,7 +298,7 @@ Potential additions you could make:
 
 - Check the Quick Start: `.github/QUICK_START.md`
 - Read full docs: `.github/README.md`
-- Test locally: `npm run pr-template`
+- Test locally: `bun run pr-template`
 - Review database rules: `/docs/CRITICAL_RULES.md`
 
 ---

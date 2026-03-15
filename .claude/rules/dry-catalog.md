@@ -1,7 +1,7 @@
 ---
 paths:
-  - "lib/**"
-  - "app/**/actions.ts"
+  - 'lib/**'
+  - 'app/**/actions.ts'
 ---
 
 ## DRY Catalog (Check Before Writing New Code)
@@ -19,11 +19,11 @@ paths:
 
 ### Webhook Services (`lib/services/webhooks/`)
 
-| Service                   | Functions                                                                                |
-| ------------------------- | ---------------------------------------------------------------------------------------- |
-| `webhook-service.ts`      | `handleSubscriptionCreated()`, `handleInvoiceFinalized()`, `handleSubscriptionDeleted()` |
-| `base-webhook-handler.ts` | `createWebhookHandler()` (factory)                                                       |
-| `event-handlers.ts`       | `createEventHandlers()`, `mahadEventHandlers`, `dugsiEventHandlers`                      |
+| Service                   | Functions                                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `webhook-service.ts`      | `handleSubscriptionCreated()`, `handleSubscriptionUpdated()`, `handleInvoiceFinalized()`, `handleSubscriptionDeleted()` |
+| `base-webhook-handler.ts` | `createWebhookHandler()` (factory)                                                                                      |
+| `event-handlers.ts`       | `createEventHandlers()`, `mahadEventHandlers`, `dugsiEventHandlers`                                                     |
 
 ### Dugsi Services (`lib/services/dugsi/`)
 
@@ -43,12 +43,12 @@ paths:
 
 ### Mappers, Utilities, Constants, Validations
 
-| Location                         | Key exports                                                    |
-| -------------------------------- | -------------------------------------------------------------- |
-| `lib/mappers/mahad-mapper.ts`    | `mahadEnrollmentInclude`, `extractStudentEmail/Phone()`        |
-| `lib/mappers/dugsi-mapper.ts`    | `mapToFamilyDTO()`                                             |
-| `lib/utils/action-helpers.ts`    | `ActionResult<T>`, `withActionError()`                         |
-| `lib/utils/type-guards.ts`       | `isPrismaError()`, `isStripeError()`, `isValidEmail()`         |
-| `lib/utils/contact-normalization.ts` | `normalizePhone()`, `normalizeEmail()`                     |
-| `lib/constants/`                 | `MAHAD_PROGRAM`, `DUGSI_PROGRAM`, `STRIPE_WEBHOOK_EVENTS`      |
-| `lib/validations/`              | `CreateBatchSchema`, `webhookStudentNameSchema`                 |
+| Location                             | Key exports                                               |
+| ------------------------------------ | --------------------------------------------------------- |
+| `lib/mappers/mahad-mapper.ts`        | `mahadEnrollmentInclude`, `extractStudentEmail/Phone()`   |
+| `lib/mappers/dugsi-mapper.ts`        | `mapToFamilyDTO()`                                        |
+| `lib/utils/action-helpers.ts`        | `ActionResult<T>`, `withActionError()`                    |
+| `lib/utils/type-guards.ts`           | `isPrismaError()`, `isStripeError()`, `isValidEmail()`    |
+| `lib/utils/contact-normalization.ts` | `normalizePhone()`, `normalizeEmail()`                    |
+| `lib/constants/`                     | `MAHAD_PROGRAM`, `DUGSI_PROGRAM`, `STRIPE_WEBHOOK_EVENTS` |
+| `lib/validations/`                   | `CreateBatchSchema`, `webhookStudentNameSchema`           |

@@ -31,7 +31,7 @@ The unified identity schema migration (`unified_identity_schema`) creates:
 
 ```bash
 # 1. Drop and recreate the database
-npx prisma migrate reset --force --skip-seed
+bunx prisma migrate reset --force --skip-seed
 
 # 2. This will:
 #    - Drop all tables
@@ -71,7 +71,7 @@ psql -d your_database_name << EOF
 EOF
 
 # 3. Re-apply migrations up to desired point
-npx prisma migrate deploy
+bunx prisma migrate deploy
 ```
 
 ### Option 3: Using Prisma's Shadow Database
@@ -80,7 +80,7 @@ For development environments:
 
 ```bash
 # Reset the shadow database and re-apply
-npx prisma migrate dev --name rollback_unified_schema
+bunx prisma migrate dev --name rollback_unified_schema
 ```
 
 ## Emergency Recovery

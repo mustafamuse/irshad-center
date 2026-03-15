@@ -165,7 +165,7 @@ grep -rn "console\.\|debugger\|alert(" --include="*.ts" --include="*.tsx"
 grep -rn "^export.*function\|^export.*const.*=" --include="*.tsx"
 
 # Check for type issues
-npx tsc --noEmit --skipLibCheck
+bunx tsc --noEmit --skipLibCheck
 ```
 
 Remember: Focus on providing **specific, actionable feedback** with **clear examples** and **prioritized recommendations**.
