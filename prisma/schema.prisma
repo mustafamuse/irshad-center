@@ -734,4 +734,6 @@ model Donation {
   @@index([status])
   @@index([createdAt])
   @@index([donorEmail])
+  @@index([status, isRecurring, stripeSubscriptionId])
+  @@index([status, donorEmail])
 }

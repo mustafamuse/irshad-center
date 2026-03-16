@@ -1,3 +1,4 @@
+import { DonationStatus } from '@prisma/client'
 import type Stripe from 'stripe'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
@@ -149,14 +150,14 @@ describe('donation-handler', () => {
             stripeCustomerId: 'cus_test_123',
             amount: 5000,
             currency: 'usd',
-            status: 'succeeded',
+            status: DonationStatus.succeeded,
             donorName: 'John Doe',
             donorEmail: 'donor@example.com',
             isAnonymous: false,
             isRecurring: false,
           }),
           update: expect.objectContaining({
-            status: 'succeeded',
+            status: DonationStatus.succeeded,
           }),
         })
       )
@@ -169,6 +170,24 @@ describe('donation-handler', () => {
 
       await expect(handleOneTimeDonation(session)).rejects.toThrow(
         'Missing payment_intent on checkout session'
+      )
+      expect(mockDonationUpsert).not.toHaveBeenCalled()
+    })
+
+    it('throws on null amount_total', async () => {
+      const session = createMockSession({ amount_total: null })
+
+      await expect(handleOneTimeDonation(session)).rejects.toThrow(
+        'Invalid donation amount_total'
+      )
+      expect(mockDonationUpsert).not.toHaveBeenCalled()
+    })
+
+    it('throws on zero amount_total', async () => {
+      const session = createMockSession({ amount_total: 0 })
+
+      await expect(handleOneTimeDonation(session)).rejects.toThrow(
+        'Invalid donation amount_total'
       )
       expect(mockDonationUpsert).not.toHaveBeenCalled()
     })
@@ -209,12 +228,25 @@ describe('donation-handler', () => {
           where: { stripePaymentIntentId: 'sub_setup_sub_test_456' },
           create: expect.objectContaining({
             stripePaymentIntentId: 'sub_setup_sub_test_456',
-            status: 'pending',
+            status: DonationStatus.pending,
             isRecurring: true,
             stripeSubscriptionId: 'sub_test_456',
           }),
         })
       )
+    })
+
+    it('throws on null amount_total', async () => {
+      const session = createMockSession({
+        subscription: 'sub_test_456',
+        mode: 'subscription',
+        amount_total: null,
+      })
+
+      await expect(handleRecurringDonationCheckout(session)).rejects.toThrow(
+        'Invalid donation amount_total'
+      )
+      expect(mockDonationUpsert).not.toHaveBeenCalled()
     })
 
     it('throws if subscription is missing', async () => {
@@ -234,7 +266,7 @@ describe('donation-handler', () => {
       mockDonationFindUnique.mockResolvedValue({
         id: 'don_1',
         stripePaymentIntentId: 'pi_test_123',
-        status: 'pending',
+        status: DonationStatus.pending,
       })
 
       const event = createMockEvent('payment_intent.succeeded', {
@@ -248,7 +280,7 @@ describe('donation-handler', () => {
         expect.objectContaining({
           where: { stripePaymentIntentId: 'pi_test_123' },
           data: expect.objectContaining({
-            status: 'succeeded',
+            status: DonationStatus.succeeded,
             amount: 5000,
           }),
         })
@@ -309,7 +341,7 @@ describe('donation-handler', () => {
             stripeCustomerId: 'cus_test_123',
             amount: 2500,
             currency: 'usd',
-            status: 'succeeded',
+            status: DonationStatus.succeeded,
             isRecurring: true,
             stripeSubscriptionId: 'sub_test_456',
           }),
@@ -489,11 +521,11 @@ describe('donation-handler', () => {
             stripeSubscriptionId: 'sub_test_456',
             stripeCustomerId: 'cus_test_123',
             amount: 0,
-            status: 'cancelled',
+            status: DonationStatus.cancelled,
             isRecurring: true,
           }),
           update: {
-            status: 'cancelled',
+            status: DonationStatus.cancelled,
           },
         })
       )

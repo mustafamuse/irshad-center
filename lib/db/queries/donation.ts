@@ -1,4 +1,4 @@
-import { type Donation, type DonationStatus } from '@prisma/client'
+import { DonationStatus, type Donation } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 
@@ -104,31 +104,48 @@ export async function getDonationStats(
     uniqueDonors,
   ] = await Promise.all([
     prisma.donation.aggregate({
-      where: { status: 'succeeded', isRecurring: false, ...dateFilter },
+      where: {
+        status: DonationStatus.succeeded,
+        isRecurring: false,
+        ...dateFilter,
+      },
       _sum: { amount: true },
       _count: true,
     }),
     prisma.donation.count({
-      where: { isRecurring: true, status: 'succeeded', ...dateFilter },
+      where: {
+        isRecurring: true,
+        status: DonationStatus.succeeded,
+        ...dateFilter,
+      },
     }),
     prisma.donation.findMany({
       where: {
         isRecurring: true,
-        status: 'succeeded',
+        status: DonationStatus.succeeded,
         stripeSubscriptionId: { not: null },
         ...dateFilter,
       },
       select: { stripeSubscriptionId: true, amount: true },
       orderBy: { paidAt: 'desc' },
+      take: 5000,
     }),
     prisma.donation.findMany({
-      where: { status: 'cancelled', stripeSubscriptionId: { not: null } },
+      where: {
+        status: DonationStatus.cancelled,
+        stripeSubscriptionId: { not: null },
+      },
       select: { stripeSubscriptionId: true },
+      take: 5000,
     }),
     prisma.donation.findMany({
-      where: { status: 'succeeded', donorEmail: { not: null } },
+      where: {
+        status: DonationStatus.succeeded,
+        donorEmail: { not: null },
+      },
       select: { donorEmail: true },
       distinct: ['donorEmail'],
+      take: 5000,
     }),
   ])
 
