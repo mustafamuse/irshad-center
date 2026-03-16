@@ -112,6 +112,36 @@ export async function handleRecurringDonationCheckout(
   const isAnonymous = session.metadata?.isAnonymous === 'true'
   const placeholderPiId = `${SETUP_PREFIX}${subscriptionId}`
 
+  const donorName = resolveDonorName(session, isAnonymous)
+  const donorEmail = session.customer_details?.email ?? null
+  const donorPhone = session.customer_details?.phone ?? null
+
+  const existingPayment = await prisma.donation.findFirst({
+    where: {
+      stripeSubscriptionId: subscriptionId,
+      status: 'succeeded',
+      NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
+    },
+  })
+
+  if (existingPayment) {
+    await prisma.donation.updateMany({
+      where: {
+        stripeSubscriptionId: subscriptionId,
+        donorName: null,
+        isAnonymous: false,
+        NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
+      },
+      data: { donorName, donorPhone },
+    })
+
+    logger.info(
+      { subscriptionId },
+      'Invoice arrived before checkout -- backfilled donor info, skipping placeholder'
+    )
+    return
+  }
+
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: placeholderPiId },
     create: {
@@ -120,9 +150,9 @@ export async function handleRecurringDonationCheckout(
       amount: session.amount_total ?? 0,
       currency: session.currency ?? 'usd',
       status: 'pending',
-      donorName: resolveDonorName(session, isAnonymous),
-      donorEmail: session.customer_details?.email ?? null,
-      donorPhone: session.customer_details?.phone ?? null,
+      donorName,
+      donorEmail,
+      donorPhone,
       isAnonymous,
       isRecurring: true,
       stripeSubscriptionId: subscriptionId,
@@ -197,8 +227,11 @@ export async function handleDonationInvoicePaid(
   })
 
   const isAnonymous = checkoutDonation?.isAnonymous ?? false
-  const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
-  const donorPhone = checkoutDonation?.donorPhone ?? null
+  const donorName = isAnonymous
+    ? null
+    : (checkoutDonation?.donorName ?? invoice.customer_name ?? null)
+  const donorPhone =
+    checkoutDonation?.donorPhone ?? invoice.customer_phone ?? null
 
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: paymentIntentId },

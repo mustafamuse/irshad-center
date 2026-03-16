@@ -23,12 +23,13 @@ export const metadata: Metadata = {
 }
 
 const periodLabels: Record<DonationPeriod, string> = {
+  all: 'All',
   today: 'Today',
-  yesterday: 'Yesterday',
   thisWeek: 'This Week',
+  thisMonth: 'This Month',
 }
 
-function getDonationDateRange(period: DonationPeriod): {
+function getDonationDateRange(period: Exclude<DonationPeriod, 'all'>): {
   start: Date
   end: Date
 } {
@@ -48,16 +49,16 @@ function getDonationDateRange(period: DonationPeriod): {
       localStart = todayLocal
       localEnd = new Date(todayLocal.getTime() + DAY_MS)
       break
-    case 'yesterday':
-      localStart = new Date(todayLocal.getTime() - DAY_MS)
-      localEnd = todayLocal
-      break
     case 'thisWeek': {
       const dayOfWeek = todayLocal.getDay()
       localStart = new Date(todayLocal.getTime() - dayOfWeek * DAY_MS)
       localEnd = new Date(todayLocal.getTime() + DAY_MS)
       break
     }
+    case 'thisMonth':
+      localStart = new Date(zonedNow.getFullYear(), zonedNow.getMonth(), 1)
+      localEnd = new Date(todayLocal.getTime() + DAY_MS)
+      break
   }
 
   return {
@@ -67,7 +68,12 @@ function getDonationDateRange(period: DonationPeriod): {
 }
 
 function isValidPeriod(value: string | undefined): value is DonationPeriod {
-  return value === 'today' || value === 'yesterday' || value === 'thisWeek'
+  return (
+    value === 'all' ||
+    value === 'today' ||
+    value === 'thisWeek' ||
+    value === 'thisMonth'
+  )
 }
 
 interface PageProps {
@@ -78,15 +84,17 @@ export default async function DonationsPage({ searchParams }: PageProps) {
   const params = await searchParams
   const rawPeriod =
     typeof params.period === 'string' ? params.period : undefined
-  const period: DonationPeriod = isValidPeriod(rawPeriod) ? rawPeriod : 'today'
-  const { start, end } = getDonationDateRange(period)
+  const period: DonationPeriod = isValidPeriod(rawPeriod) ? rawPeriod : 'all'
+  const dateRange = period === 'all' ? undefined : getDonationDateRange(period)
 
   const hiddenDonors = ['mustafamuse']
 
   const periodWhere = {
     isRecurring: true,
     status: 'succeeded' as const,
-    createdAt: { gte: start, lt: end },
+    ...(dateRange
+      ? { createdAt: { gte: dateRange.start, lt: dateRange.end } }
+      : {}),
     NOT: [
       { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
       { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
@@ -100,8 +108,8 @@ export default async function DonationsPage({ searchParams }: PageProps) {
     getDonations({
       pageSize: 50,
       isRecurring: true,
-      dateFrom: start,
-      dateTo: end,
+      dateFrom: dateRange?.start,
+      dateTo: dateRange?.end,
     }),
     prisma.donation.aggregate({
       where: periodWhere,
@@ -153,14 +161,16 @@ export default async function DonationsPage({ searchParams }: PageProps) {
           <Card className="border-[#007078]/20">
             <CardContent className="p-4 text-center sm:p-6">
               <p className="text-sm font-medium text-muted-foreground">
-                New Donators
+                {period === 'all' ? 'Donators' : 'New Donators'}
               </p>
               <p className="mt-1 text-3xl font-bold text-[#007078] sm:text-4xl">
                 <AnimatedStat value={donatorCount} />
               </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {periodLabels[period].toLowerCase()}
-              </p>
+              {period !== 'all' && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {periodLabels[period].toLowerCase()}
+                </p>
+              )}
             </CardContent>
           </Card>
           <Card className="border-[#007078]/20">
@@ -171,9 +181,11 @@ export default async function DonationsPage({ searchParams }: PageProps) {
               <p className="mt-1 text-3xl font-bold text-[#007078] sm:text-4xl">
                 <AnimatedStat value={totalAmountCents} format="dollars" />
               </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {periodLabels[period].toLowerCase()}
-              </p>
+              {period !== 'all' && (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {periodLabels[period].toLowerCase()}
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -198,14 +210,17 @@ export default async function DonationsPage({ searchParams }: PageProps) {
         {/* Donation List */}
         <div>
           <h2 className="mb-4 text-lg font-semibold text-foreground sm:text-xl">
-            {periodLabels[period]}&apos;s Monthly Donations
+            {period === 'all'
+              ? 'Monthly Donations'
+              : `${periodLabels[period]}'s Monthly Donations`}
           </h2>
 
           {donations.length === 0 ? (
             <Card className="border-[#007078]/20">
               <CardContent className="py-12 text-center text-muted-foreground">
-                No monthly donations {periodLabels[period].toLowerCase()}. Be
-                the first!
+                {period === 'all'
+                  ? 'No monthly donations yet. Be the first!'
+                  : `No monthly donations ${periodLabels[period].toLowerCase()}. Be the first!`}
               </CardContent>
             </Card>
           ) : (
