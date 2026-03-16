@@ -1,11 +1,14 @@
 import { DonationStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-const { mockFindMany, mockCount, mockAggregate } = vi.hoisted(() => ({
-  mockFindMany: vi.fn(),
-  mockCount: vi.fn(),
-  mockAggregate: vi.fn(),
-}))
+const { mockFindMany, mockCount, mockAggregate, mockLoggerWarn } = vi.hoisted(
+  () => ({
+    mockFindMany: vi.fn(),
+    mockCount: vi.fn(),
+    mockAggregate: vi.fn(),
+    mockLoggerWarn: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -20,7 +23,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/logger', () => ({
   createServiceLogger: vi.fn(() => ({
     info: vi.fn(),
-    warn: vi.fn(),
+    warn: mockLoggerWarn,
     error: vi.fn(),
     debug: vi.fn(),
   })),
@@ -179,6 +182,24 @@ describe('getDonationStats', () => {
     const result = await getDonationStats()
 
     expect(result.totalDonorCount).toBe(3)
+  })
+
+  it('warns when a query hits the row limit', async () => {
+    const atLimit = Array.from({ length: 5000 }, (_, i) => ({
+      stripeSubscriptionId: `sub_${i}`,
+      amount: 1000,
+    }))
+    mockFindMany
+      .mockResolvedValueOnce(atLimit)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+
+    await getDonationStats()
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 5000, recurringPayments: 5000 }),
+      'getDonationStats query hit row limit -- stats may be incomplete'
+    )
   })
 
   it('returns zeros when no donations exist', async () => {
