@@ -56,7 +56,7 @@ function getDonationDateRange(period: Exclude<DonationPeriod, 'all'>): {
       break
     }
     case 'thisMonth':
-      localStart = new Date(zonedNow.getFullYear(), zonedNow.getMonth(), 1)
+      localStart = new Date(todayLocal.getFullYear(), todayLocal.getMonth(), 1)
       localEnd = new Date(todayLocal.getTime() + DAY_MS)
       break
   }
@@ -89,14 +89,15 @@ export default async function DonationsPage({ searchParams }: PageProps) {
 
   const hiddenDonors = ['mustafamuse']
 
+  const activeStatuses: ('succeeded' | 'pending')[] = ['succeeded', 'pending']
+
   const periodWhere = {
     isRecurring: true,
-    status: 'succeeded' as const,
+    status: { in: activeStatuses },
     ...(dateRange
       ? { createdAt: { gte: dateRange.start, lt: dateRange.end } }
       : {}),
     NOT: [
-      { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
       { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
       ...hiddenDonors.map((name) => ({
         donorName: { equals: name, mode: 'insensitive' as const },
@@ -104,19 +105,22 @@ export default async function DonationsPage({ searchParams }: PageProps) {
     ],
   }
 
-  const [{ donations: allDonations }, stats] = await Promise.all([
-    getDonations({
-      pageSize: 50,
-      isRecurring: true,
-      dateFrom: dateRange?.start,
-      dateTo: dateRange?.end,
-    }),
-    prisma.donation.aggregate({
-      where: periodWhere,
-      _count: true,
-      _sum: { amount: true },
-    }),
-  ])
+  const [{ donations: allDonations }, donationCount, amountStats] =
+    await Promise.all([
+      getDonations({
+        pageSize: 50,
+        isRecurring: true,
+        status: ['succeeded', 'pending'],
+        includePendingSetup: true,
+        dateFrom: dateRange?.start,
+        dateTo: dateRange?.end,
+      }),
+      prisma.donation.count({ where: periodWhere }),
+      prisma.donation.aggregate({
+        where: periodWhere,
+        _sum: { amount: true },
+      }),
+    ])
 
   const donations = allDonations.filter(
     (d) =>
@@ -125,8 +129,8 @@ export default async function DonationsPage({ searchParams }: PageProps) {
       )
   )
 
-  const donatorCount = stats._count
-  const totalAmountCents = stats._sum.amount ?? 0
+  const donatorCount = donationCount
+  const totalAmountCents = amountStats._sum.amount ?? 0
 
   return (
     <main className="min-h-screen bg-white">

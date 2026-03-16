@@ -116,54 +116,59 @@ export async function handleRecurringDonationCheckout(
   const donorEmail = session.customer_details?.email ?? null
   const donorPhone = session.customer_details?.phone ?? null
 
-  const existingPayment = await prisma.donation.findFirst({
-    where: {
-      stripeSubscriptionId: subscriptionId,
-      status: 'succeeded',
-      NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
-    },
-  })
-
-  if (existingPayment) {
-    await prisma.donation.updateMany({
+  await prisma.$transaction(async (tx) => {
+    const existingPayment = await tx.donation.findFirst({
       where: {
         stripeSubscriptionId: subscriptionId,
-        donorName: null,
-        isAnonymous: false,
+        status: 'succeeded',
         NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
       },
-      data: { donorName, donorPhone },
     })
 
-    logger.info(
-      { subscriptionId },
-      'Invoice arrived before checkout -- backfilled donor info, skipping placeholder'
-    )
-    return
-  }
+    if (existingPayment) {
+      await tx.donation.updateMany({
+        where: {
+          stripeSubscriptionId: subscriptionId,
+          NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
+        },
+        data: {
+          isAnonymous,
+          donorName: isAnonymous ? null : donorName,
+          donorEmail,
+          donorPhone,
+        },
+      })
 
-  await prisma.donation.upsert({
-    where: { stripePaymentIntentId: placeholderPiId },
-    create: {
-      stripePaymentIntentId: placeholderPiId,
-      stripeCustomerId: extractCustomerId(session.customer),
-      amount: session.amount_total ?? 0,
-      currency: session.currency ?? 'usd',
-      status: 'pending',
-      donorName,
-      donorEmail,
-      donorPhone,
-      isAnonymous,
-      isRecurring: true,
-      stripeSubscriptionId: subscriptionId,
-      metadata: toJsonOrUndefined(
-        session.metadata as Record<string, string> | null
-      ),
-    },
-    update: {
-      status: 'pending',
-      stripeSubscriptionId: subscriptionId,
-    },
+      logger.info(
+        { subscriptionId },
+        'Invoice arrived before checkout -- backfilled donor info, skipping placeholder'
+      )
+      return
+    }
+
+    await tx.donation.upsert({
+      where: { stripePaymentIntentId: placeholderPiId },
+      create: {
+        stripePaymentIntentId: placeholderPiId,
+        stripeCustomerId: extractCustomerId(session.customer),
+        amount: session.amount_total ?? 0,
+        currency: session.currency ?? 'usd',
+        status: 'pending',
+        donorName,
+        donorEmail,
+        donorPhone,
+        isAnonymous,
+        isRecurring: true,
+        stripeSubscriptionId: subscriptionId,
+        metadata: toJsonOrUndefined(
+          session.metadata as Record<string, string> | null
+        ),
+      },
+      update: {
+        status: 'pending',
+        stripeSubscriptionId: subscriptionId,
+      },
+    })
   })
 
   logger.info(

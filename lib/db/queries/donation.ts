@@ -5,10 +5,11 @@ import { prisma } from '@/lib/db'
 interface DonationListOptions {
   page?: number
   pageSize?: number
-  status?: DonationStatus
+  status?: DonationStatus | DonationStatus[]
   isRecurring?: boolean
   dateFrom?: Date
   dateTo?: Date
+  includePendingSetup?: boolean
 }
 
 interface DonationListResult {
@@ -37,10 +38,15 @@ export async function getDonations(
     isRecurring,
     dateFrom,
     dateTo,
+    includePendingSetup = false,
   } = options
 
+  const statusFilter = status
+    ? { status: Array.isArray(status) ? { in: status } : status }
+    : {}
+
   const where = {
-    ...(status ? { status } : {}),
+    ...statusFilter,
     ...(isRecurring !== undefined ? { isRecurring } : {}),
     ...(dateFrom || dateTo
       ? {
@@ -51,7 +57,9 @@ export async function getDonations(
         }
       : {}),
     NOT: [
-      { stripePaymentIntentId: { startsWith: 'sub_setup_' } },
+      ...(includePendingSetup
+        ? []
+        : [{ stripePaymentIntentId: { startsWith: 'sub_setup_' } }]),
       { stripePaymentIntentId: { startsWith: 'sub_cancelled_' } },
     ],
   }
