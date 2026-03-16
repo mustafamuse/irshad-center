@@ -188,22 +188,24 @@ describe('student queries use relationLoadStrategy: join', () => {
       const txMockEnrollmentUpdateMany = vi.fn().mockResolvedValue({ count: 0 })
       const txMockProfileDeleteMany = vi.fn().mockResolvedValue({ count: 0 })
 
-      mockTransaction.mockImplementation(async (fn: Function) => {
-        return fn({
-          programProfile: {
-            findUniqueOrThrow: txMockFindUniqueOrThrow,
-            findMany: txMockFindMany,
-            deleteMany: txMockProfileDeleteMany,
-            count: vi.fn().mockResolvedValue(0),
-          },
-          enrollment: {
-            updateMany: txMockEnrollmentUpdateMany,
-          },
-          person: {
-            delete: vi.fn(),
-          },
-        })
-      })
+      mockTransaction.mockImplementation(
+        async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => {
+          return fn({
+            programProfile: {
+              findUniqueOrThrow: txMockFindUniqueOrThrow,
+              findMany: txMockFindMany,
+              deleteMany: txMockProfileDeleteMany,
+              count: vi.fn().mockResolvedValue(0),
+            },
+            enrollment: {
+              updateMany: txMockEnrollmentUpdateMany,
+            },
+            person: {
+              delete: vi.fn(),
+            },
+          })
+        }
+      )
 
       const { resolveDuplicateStudents } = await import('../student')
       await resolveDuplicateStudents('keep-1', ['del-1'])

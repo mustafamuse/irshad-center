@@ -46,11 +46,14 @@ export async function handleSubscriptionCancellationEnrollments(
   reason: string = 'Subscription canceled',
   client: DatabaseClient = prisma
 ): Promise<EnrollmentUpdateResult> {
-  const assignments = await getSubscriptionAssignments(stripeSubscriptionId)
-
   async function withdrawEnrollments(
     tx: DatabaseClient
   ): Promise<EnrollmentUpdateResult> {
+    const assignments = await getSubscriptionAssignments(
+      stripeSubscriptionId,
+      tx
+    )
+
     const results: EnrollmentUpdateResult = {
       withdrawn: 0,
       errors: [],
