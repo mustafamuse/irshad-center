@@ -104,8 +104,8 @@ export function BillingTab({ family }: BillingTabProps) {
 
   const subscriptionStatus = firstMember?.subscriptionStatus
   const familyReferenceId = firstMember?.familyReferenceId
-  const canPause = subscriptionStatus === 'active'
-  const canResume = subscriptionStatus === 'paused'
+  const canPause = subscriptionStatus === 'active' && !!familyReferenceId
+  const canResume = subscriptionStatus === 'paused' && !!familyReferenceId
 
   const { execute: executePause, isPending: isPausing } = useActionHandler(
     pauseFamilyBillingAction

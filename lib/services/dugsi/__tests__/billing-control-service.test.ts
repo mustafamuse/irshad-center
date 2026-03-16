@@ -83,7 +83,7 @@ const MOCK_PAUSED_SUBSCRIPTION = {
 
 describe('pauseFamilyBilling', () => {
   it('should throw ActionError when no subscription found', async () => {
-    mockFindFamilySubscription.mockResolvedValue(null)
+    mockFindFamilySubscription.mockResolvedValueOnce(null)
 
     const promise = pauseFamilyBilling('fam-123')
     await expect(promise).rejects.toThrow(ActionError)
@@ -92,7 +92,7 @@ describe('pauseFamilyBilling', () => {
   })
 
   it('should throw ActionError when subscription is not active', async () => {
-    mockFindFamilySubscription.mockResolvedValue({
+    mockFindFamilySubscription.mockResolvedValueOnce({
       ...MOCK_SUBSCRIPTION,
       status: 'paused',
     })
@@ -100,8 +100,6 @@ describe('pauseFamilyBilling', () => {
     const promise = pauseFamilyBilling('fam-123')
     await expect(promise).rejects.toThrow(ActionError)
     await expect(promise).rejects.toThrow(/cannot pause/i)
-
-    mockFindFamilySubscription.mockReset()
   })
 
   it('should pause Stripe subscription with void behavior', async () => {
@@ -177,13 +175,11 @@ describe('resumeFamilyBilling', () => {
   })
 
   it('should throw ActionError when subscription is not paused', async () => {
-    mockFindFamilySubscription.mockResolvedValue(MOCK_SUBSCRIPTION)
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
 
     const promise = resumeFamilyBilling('fam-123')
     await expect(promise).rejects.toThrow(ActionError)
     await expect(promise).rejects.toThrow(/cannot resume/i)
-
-    mockFindFamilySubscription.mockReset()
   })
 
   it('should resume Stripe subscription by clearing pause_collection', async () => {
