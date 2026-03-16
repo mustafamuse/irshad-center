@@ -60,10 +60,10 @@ export async function handleOneTimeDonation(
         paymentIntentId,
         amount_total: session.amount_total,
       },
-      'Invalid donation amount'
+      'Donation checkout has unexpected null/zero amount_total'
     )
     throw new Error(
-      `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
+      `Donation amount_total is ${session.amount_total} for session ${session.id}`
     )
   }
 
@@ -116,10 +116,10 @@ export async function handleRecurringDonationCheckout(
         subscriptionId,
         amount_total: session.amount_total,
       },
-      'Invalid donation amount'
+      'Donation checkout has unexpected null/zero amount_total'
     )
     throw new Error(
-      `Invalid donation amount_total: ${session.amount_total} for session ${session.id}`
+      `Donation amount_total is ${session.amount_total} for session ${session.id}`
     )
   }
 

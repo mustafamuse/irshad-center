@@ -178,7 +178,7 @@ describe('donation-handler', () => {
       const session = createMockSession({ amount_total: null })
 
       await expect(handleOneTimeDonation(session)).rejects.toThrow(
-        'Invalid donation amount_total'
+        'Donation amount_total is'
       )
       expect(mockDonationUpsert).not.toHaveBeenCalled()
     })
@@ -187,7 +187,7 @@ describe('donation-handler', () => {
       const session = createMockSession({ amount_total: 0 })
 
       await expect(handleOneTimeDonation(session)).rejects.toThrow(
-        'Invalid donation amount_total'
+        'Donation amount_total is'
       )
       expect(mockDonationUpsert).not.toHaveBeenCalled()
     })
@@ -244,7 +244,20 @@ describe('donation-handler', () => {
       })
 
       await expect(handleRecurringDonationCheckout(session)).rejects.toThrow(
-        'Invalid donation amount_total'
+        'Donation amount_total is'
+      )
+      expect(mockDonationUpsert).not.toHaveBeenCalled()
+    })
+
+    it('throws on zero amount_total', async () => {
+      const session = createMockSession({
+        subscription: 'sub_test_456',
+        mode: 'subscription',
+        amount_total: 0,
+      })
+
+      await expect(handleRecurringDonationCheckout(session)).rejects.toThrow(
+        'Donation amount_total is'
       )
       expect(mockDonationUpsert).not.toHaveBeenCalled()
     })
