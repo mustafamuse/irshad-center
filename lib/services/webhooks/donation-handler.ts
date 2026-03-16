@@ -228,13 +228,20 @@ export async function handleDonationInvoicePaid(
   const checkoutDonation = await prisma.donation.findFirst({
     where: { stripeSubscriptionId: subscriptionId },
     orderBy: { createdAt: 'asc' },
-    select: { isAnonymous: true, donorName: true, donorPhone: true },
+    select: {
+      isAnonymous: true,
+      donorName: true,
+      donorEmail: true,
+      donorPhone: true,
+    },
   })
 
   const isAnonymous = checkoutDonation?.isAnonymous ?? false
   const donorName = isAnonymous
     ? null
     : (checkoutDonation?.donorName ?? invoice.customer_name ?? null)
+  const donorEmail =
+    checkoutDonation?.donorEmail ?? invoice.customer_email ?? null
   const donorPhone =
     checkoutDonation?.donorPhone ?? invoice.customer_phone ?? null
 
@@ -246,7 +253,7 @@ export async function handleDonationInvoicePaid(
       amount: invoice.amount_paid,
       currency: invoice.currency ?? 'usd',
       status: 'succeeded',
-      donorEmail: invoice.customer_email ?? null,
+      donorEmail,
       donorPhone,
       isAnonymous,
       donorName,

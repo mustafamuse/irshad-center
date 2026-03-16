@@ -216,7 +216,7 @@ export default async function DonationsPage({ searchParams }: PageProps) {
           <h2 className="mb-4 text-lg font-semibold text-foreground sm:text-xl">
             {period === 'all'
               ? 'Monthly Donations'
-              : `${periodLabels[period]}'s Monthly Donations`}
+              : `${periodLabels[period]}'s Donations`}
           </h2>
 
           {donations.length === 0 ? (

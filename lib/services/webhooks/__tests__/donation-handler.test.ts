@@ -6,6 +6,7 @@ const {
   mockDonationFindUnique,
   mockDonationFindFirst,
   mockDonationUpdate,
+  mockDonationUpdateMany,
   mockDonationDeleteMany,
   mockLoggerInfo,
   mockLoggerWarn,
@@ -17,6 +18,7 @@ const {
   mockDonationFindUnique: vi.fn(),
   mockDonationFindFirst: vi.fn(),
   mockDonationUpdate: vi.fn(),
+  mockDonationUpdateMany: vi.fn(),
   mockDonationDeleteMany: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLoggerWarn: vi.fn(),
@@ -27,11 +29,22 @@ const {
 
 vi.mock('@/lib/db', () => ({
   prisma: {
+    $transaction: vi.fn(
+      async (fn: (tx: { donation: Record<string, unknown> }) => unknown) =>
+        fn({
+          donation: {
+            findFirst: (...args: unknown[]) => mockDonationFindFirst(...args),
+            upsert: (...args: unknown[]) => mockDonationUpsert(...args),
+            updateMany: (...args: unknown[]) => mockDonationUpdateMany(...args),
+          },
+        })
+    ),
     donation: {
       upsert: (...args: unknown[]) => mockDonationUpsert(...args),
       findUnique: (...args: unknown[]) => mockDonationFindUnique(...args),
       findFirst: (...args: unknown[]) => mockDonationFindFirst(...args),
       update: (...args: unknown[]) => mockDonationUpdate(...args),
+      updateMany: (...args: unknown[]) => mockDonationUpdateMany(...args),
       deleteMany: (...args: unknown[]) => mockDonationDeleteMany(...args),
     },
   },
@@ -118,6 +131,7 @@ describe('donation-handler', () => {
     mockDonationFindUnique.mockResolvedValue(null)
     mockDonationFindFirst.mockResolvedValue(null)
     mockDonationUpdate.mockResolvedValue({})
+    mockDonationUpdateMany.mockResolvedValue({ count: 0 })
     mockDonationDeleteMany.mockResolvedValue({ count: 0 })
   })
 
