@@ -83,7 +83,7 @@ const MOCK_PAUSED_SUBSCRIPTION = {
 
 describe('pauseFamilyBilling', () => {
   it('should throw ActionError when no subscription found', async () => {
-    mockFindFamilySubscription.mockResolvedValueOnce(null)
+    mockFindFamilySubscription.mockResolvedValue(null)
 
     await expect(pauseFamilyBilling('fam-123')).rejects.toThrow(ActionError)
     await expect(pauseFamilyBilling('fam-123')).rejects.toThrow(

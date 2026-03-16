@@ -21,6 +21,7 @@ const BILLING_TOGGLE_CONFIG = {
   pause: {
     requiredStatus: 'active' as const,
     noSubError: 'No active subscription found for this family',
+    noSubErrorCode: ERROR_CODES.NO_ACTIVE_SUBSCRIPTION,
     statusError: (s: string) => `Cannot pause subscription with status "${s}"`,
     stripePayload: { pause_collection: { behavior: 'void' as const } },
     dbStatus: 'paused' as const,
@@ -31,6 +32,7 @@ const BILLING_TOGGLE_CONFIG = {
   resume: {
     requiredStatus: 'paused' as const,
     noSubError: 'No subscription found for this family',
+    noSubErrorCode: ERROR_CODES.SUBSCRIPTION_NOT_FOUND,
     statusError: (s: string) => `Cannot resume subscription with status "${s}"`,
     stripePayload: { pause_collection: null },
     dbStatus: 'active' as const,
@@ -52,10 +54,7 @@ async function toggleFamilyBillingStatus(
       const subscription = await findFamilySubscription(familyReferenceId)
 
       if (!subscription) {
-        throw new ActionError(
-          config.noSubError,
-          ERROR_CODES.NO_ACTIVE_SUBSCRIPTION
-        )
+        throw new ActionError(config.noSubError, config.noSubErrorCode)
       }
 
       if (subscription.status !== config.requiredStatus) {

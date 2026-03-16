@@ -107,13 +107,11 @@ export function BillingTab({ family }: BillingTabProps) {
   const canResume = subscriptionStatus === 'paused'
 
   const { execute: executePause, isPending: isPausing } = useActionHandler(
-    pauseFamilyBillingAction,
-    { successMessage: 'Billing paused successfully' }
+    pauseFamilyBillingAction
   )
 
   const { execute: executeResume, isPending: isResuming } = useActionHandler(
-    resumeFamilyBillingAction,
-    { successMessage: 'Billing resumed successfully' }
+    resumeFamilyBillingAction
   )
 
   const handlePause = async () => {
