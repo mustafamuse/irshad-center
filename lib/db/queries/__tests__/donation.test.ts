@@ -17,6 +17,15 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
+vi.mock('@/lib/logger', () => ({
+  createServiceLogger: vi.fn(() => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  })),
+}))
+
 import { getDonations, getDonationStats } from '../donation'
 
 const SYNTHETIC_FILTER = {

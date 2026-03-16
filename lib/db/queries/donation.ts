@@ -1,6 +1,10 @@
 import { DonationStatus, type Donation } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { createServiceLogger } from '@/lib/logger'
+
+const logger = createServiceLogger('donation-queries')
+const STATS_QUERY_LIMIT = 5000
 
 interface DonationListOptions {
   page?: number
@@ -128,7 +132,7 @@ export async function getDonationStats(
       },
       select: { stripeSubscriptionId: true, amount: true },
       orderBy: { paidAt: 'desc' },
-      take: 5000,
+      take: STATS_QUERY_LIMIT,
     }),
     prisma.donation.findMany({
       where: {
@@ -136,7 +140,7 @@ export async function getDonationStats(
         stripeSubscriptionId: { not: null },
       },
       select: { stripeSubscriptionId: true },
-      take: 5000,
+      take: STATS_QUERY_LIMIT,
     }),
     prisma.donation.findMany({
       where: {
@@ -145,9 +149,25 @@ export async function getDonationStats(
       },
       select: { donorEmail: true },
       distinct: ['donorEmail'],
-      take: 5000,
+      take: STATS_QUERY_LIMIT,
     }),
   ])
+
+  if (
+    recurringPayments.length === STATS_QUERY_LIMIT ||
+    cancelledSubs.length === STATS_QUERY_LIMIT ||
+    uniqueDonors.length === STATS_QUERY_LIMIT
+  ) {
+    logger.warn(
+      {
+        recurringPayments: recurringPayments.length,
+        cancelledSubs: cancelledSubs.length,
+        uniqueDonors: uniqueDonors.length,
+        limit: STATS_QUERY_LIMIT,
+      },
+      'getDonationStats query hit row limit -- stats may be incomplete'
+    )
+  }
 
   const cancelledSubIds = new Set(
     cancelledSubs.map((d) => d.stripeSubscriptionId)
