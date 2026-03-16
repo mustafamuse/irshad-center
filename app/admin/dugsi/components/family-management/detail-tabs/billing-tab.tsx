@@ -25,6 +25,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -116,7 +117,6 @@ export function BillingTab({ family }: BillingTabProps) {
 
   const handlePause = async () => {
     if (!familyReferenceId) return
-    setShowPauseConfirm(false)
     await executePause({ familyReferenceId })
   }
 
@@ -201,20 +201,21 @@ export function BillingTab({ family }: BillingTabProps) {
                   open={showPauseConfirm}
                   onOpenChange={setShowPauseConfirm}
                 >
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
-                    disabled={isPausing}
-                    onClick={() => setShowPauseConfirm(true)}
-                  >
-                    {isPausing ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Pause className="mr-2 h-4 w-4" />
-                    )}
-                    {isPausing ? 'Pausing...' : 'Pause Billing'}
-                  </Button>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
+                      disabled={isPausing}
+                    >
+                      {isPausing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Pause className="mr-2 h-4 w-4" />
+                      )}
+                      {isPausing ? 'Pausing...' : 'Pause Billing'}
+                    </Button>
+                  </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
                       <AlertDialogTitle>Pause billing?</AlertDialogTitle>

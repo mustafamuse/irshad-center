@@ -32,8 +32,11 @@ export async function pauseFamilyBillingAction(
     const result = await pauseFamilyBillingService(
       parsed.data.familyReferenceId
     )
+    // Revalidate even on DB sync failure — Stripe is already updated
     revalidatePath('/admin/dugsi')
 
+    // Stripe is source of truth: success+warning tells admin billing changed
+    // but DB needs reconciliation
     return {
       success: true,
       message: 'Billing paused successfully',
@@ -70,8 +73,11 @@ export async function resumeFamilyBillingAction(
     const result = await resumeFamilyBillingService(
       parsed.data.familyReferenceId
     )
+    // Revalidate even on DB sync failure — Stripe is already updated
     revalidatePath('/admin/dugsi')
 
+    // Stripe is source of truth: success+warning tells admin billing changed
+    // but DB needs reconciliation
     return {
       success: true,
       message: 'Billing resumed successfully',

@@ -85,10 +85,9 @@ describe('pauseFamilyBilling', () => {
   it('should throw ActionError when no subscription found', async () => {
     mockFindFamilySubscription.mockResolvedValue(null)
 
-    await expect(pauseFamilyBilling('fam-123')).rejects.toThrow(ActionError)
-    await expect(pauseFamilyBilling('fam-123')).rejects.toThrow(
-      /no active subscription/i
-    )
+    const promise = pauseFamilyBilling('fam-123')
+    await expect(promise).rejects.toThrow(ActionError)
+    await expect(promise).rejects.toThrow(/no active subscription/i)
     expect(mockStripeSubscriptionUpdate).not.toHaveBeenCalled()
   })
 
@@ -98,8 +97,9 @@ describe('pauseFamilyBilling', () => {
       status: 'paused',
     })
 
-    await expect(pauseFamilyBilling('fam-123')).rejects.toThrow(ActionError)
-    await expect(pauseFamilyBilling('fam-123')).rejects.toThrow(/cannot pause/i)
+    const promise = pauseFamilyBilling('fam-123')
+    await expect(promise).rejects.toThrow(ActionError)
+    await expect(promise).rejects.toThrow(/cannot pause/i)
 
     mockFindFamilySubscription.mockReset()
   })
@@ -179,10 +179,9 @@ describe('resumeFamilyBilling', () => {
   it('should throw ActionError when subscription is not paused', async () => {
     mockFindFamilySubscription.mockResolvedValue(MOCK_SUBSCRIPTION)
 
-    await expect(resumeFamilyBilling('fam-123')).rejects.toThrow(ActionError)
-    await expect(resumeFamilyBilling('fam-123')).rejects.toThrow(
-      /cannot resume/i
-    )
+    const promise = resumeFamilyBilling('fam-123')
+    await expect(promise).rejects.toThrow(ActionError)
+    await expect(promise).rejects.toThrow(/cannot resume/i)
 
     mockFindFamilySubscription.mockReset()
   })
