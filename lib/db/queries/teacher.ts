@@ -23,6 +23,7 @@ export async function getTeacherById(
 ): Promise<TeacherWithPerson | null> {
   return client.teacher.findUnique({
     where: { id: teacherId },
+    relationLoadStrategy: 'join',
     include: {
       person: true,
     },
@@ -39,6 +40,7 @@ export async function getTeacherByPersonId(
 ): Promise<TeacherWithPerson | null> {
   return client.teacher.findUnique({
     where: { personId },
+    relationLoadStrategy: 'join',
     include: {
       person: true,
     },
@@ -55,6 +57,7 @@ export async function getTeacherWithPersonRelations(
 ): Promise<TeacherWithPersonRelations | null> {
   return client.teacher.findUnique({
     where: { id: teacherId },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -96,6 +99,7 @@ export async function getAllTeachers(
 
   return client.teacher.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: {
       person: true,
     },

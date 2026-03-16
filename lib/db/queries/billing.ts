@@ -23,6 +23,7 @@ export async function getBillingAccountByPerson(
       personId,
       accountType,
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -79,6 +80,7 @@ export async function getBillingAccountByStripeCustomerId(
 
   return client.billingAccount.findFirst({
     where,
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -113,6 +115,7 @@ export async function getSubscriptionByStripeId(
 ) {
   return client.subscription.findUnique({
     where: { stripeSubscriptionId },
+    relationLoadStrategy: 'join',
     include: {
       billingAccount: {
         include: {
@@ -169,6 +172,7 @@ export async function getOrphanedSubscriptions(
         in: ['active', 'trialing', 'past_due'],
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       billingAccount: {
         include: {
@@ -502,6 +506,7 @@ export async function getBillingAssignmentsByProfile(
       programProfileId: profileId,
       isActive: true,
     },
+    relationLoadStrategy: 'join',
     include: {
       subscription: {
         include: {
@@ -540,6 +545,7 @@ export async function getBillingAssignmentsBySubscription(
     where: {
       subscriptionId,
     },
+    relationLoadStrategy: 'join',
     include: {
       programProfile: {
         include: {
@@ -567,6 +573,30 @@ export async function getBillingAssignmentsBySubscription(
     },
     orderBy: {
       startDate: 'desc',
+    },
+  })
+}
+
+export async function updateBillingAssignmentStatus(
+  assignmentId: string,
+  isActive: boolean,
+  endDate?: Date | null,
+  client: DatabaseClient = prisma
+) {
+  return client.billingAssignment.update({
+    where: { id: assignmentId },
+    data: {
+      isActive,
+      endDate: endDate !== undefined ? endDate : isActive ? null : new Date(),
+    },
+    relationLoadStrategy: 'join',
+    include: {
+      subscription: true,
+      programProfile: {
+        include: {
+          person: true,
+        },
+      },
     },
   })
 }

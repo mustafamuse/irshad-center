@@ -32,6 +32,7 @@ export async function getCheckinById(
 ): Promise<TeacherCheckinWithRelations | null> {
   return client.dugsiTeacherCheckIn.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: teacherCheckinInclude,
   })
 }
@@ -52,6 +53,7 @@ export async function getTeacherCheckin(
         shift,
       },
     },
+    relationLoadStrategy: 'join',
     include: teacherCheckinInclude,
   })
 }
@@ -93,6 +95,7 @@ export async function getCheckinsForDate(
 
   return client.dugsiTeacherCheckIn.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: teacherCheckinInclude,
     orderBy: [{ date: 'asc' }, { shift: 'asc' }, { clockInTime: 'asc' }],
   })
@@ -160,6 +163,7 @@ export async function getCheckinHistory(
   const [data, total] = await Promise.all([
     client.dugsiTeacherCheckIn.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: teacherCheckinInclude,
       skip,
       take: limit,
@@ -208,6 +212,7 @@ export async function getLateArrivals(
 
   return client.dugsiTeacherCheckIn.findMany({
     where,
+    relationLoadStrategy: 'join',
     include: teacherCheckinInclude,
     orderBy: [{ date: 'desc' }, { clockInTime: 'asc' }],
   })
@@ -242,6 +247,7 @@ export async function getAllDugsiTeachersWithTodayStatus(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -333,6 +339,7 @@ export async function getDugsiTeachersForDropdown(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {

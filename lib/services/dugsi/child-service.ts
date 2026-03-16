@@ -29,6 +29,7 @@ const _logger = createServiceLogger('dugsi-child')
  */
 export async function getDugsiStudent(studentId: string) {
   const person = await prisma.person.findUnique({
+    relationLoadStrategy: 'join',
     where: { id: studentId },
     include: {
       contactPoints: true,
@@ -86,6 +87,7 @@ export async function getDugsiStudent(studentId: string) {
  */
 export async function getDugsiFamilyStudents(familyReferenceId: string) {
   return await prisma.programProfile.findMany({
+    relationLoadStrategy: 'join',
     where: {
       program: DUGSI_PROGRAM,
       familyReferenceId,
@@ -136,6 +138,7 @@ export async function getDugsiFamilyStudents(familyReferenceId: string) {
  */
 export async function getDugsiStudentBillingStatus(studentId: string) {
   const profile = await prisma.programProfile.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       personId: studentId,
       program: DUGSI_PROGRAM,
@@ -193,6 +196,7 @@ export async function getDugsiStudentBillingStatus(studentId: string) {
  */
 export async function getDugsiEnrollmentStatus(studentId: string) {
   const profile = await prisma.programProfile.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       personId: studentId,
       program: DUGSI_PROGRAM,
