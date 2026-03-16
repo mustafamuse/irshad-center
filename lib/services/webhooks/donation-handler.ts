@@ -53,6 +53,7 @@ export async function handleOneTimeDonation(
     throw new Error('Missing payment_intent on checkout session')
   }
 
+  // covers null, undefined, 0, and negative amounts
   if (!session.amount_total || session.amount_total <= 0) {
     logger.error(
       {
@@ -109,6 +110,7 @@ export async function handleRecurringDonationCheckout(
     throw new Error('Missing subscription on checkout session')
   }
 
+  // covers null, undefined, 0, and negative amounts
   if (!session.amount_total || session.amount_total <= 0) {
     logger.error(
       {
@@ -123,6 +125,7 @@ export async function handleRecurringDonationCheckout(
     )
   }
 
+  const amount = session.amount_total
   const isAnonymous = session.metadata?.isAnonymous === 'true'
   const placeholderPiId = `${SETUP_PREFIX}${subscriptionId}`
 
@@ -165,7 +168,7 @@ export async function handleRecurringDonationCheckout(
       create: {
         stripePaymentIntentId: placeholderPiId,
         stripeCustomerId: extractCustomerId(session.customer),
-        amount: session.amount_total,
+        amount,
         currency: session.currency ?? 'usd',
         status: DonationStatus.pending,
         donorName,
@@ -365,7 +368,7 @@ export async function handleDonationSubscriptionDeleted(
       stripePaymentIntentId: cancelledId,
       stripeSubscriptionId: subscription.id,
       stripeCustomerId: customerId,
-      amount: 0,
+      amount: 0, // synthetic marker — no real payment
       status: DonationStatus.cancelled,
       isRecurring: true,
     },

@@ -138,6 +138,8 @@ export async function getDonationStats(
       where: {
         status: DonationStatus.cancelled,
         stripeSubscriptionId: { not: null },
+        // No dateFilter: subs cancelled before the window must still be
+        // excluded from MRR calculated within it.
       },
       select: { stripeSubscriptionId: true },
       take: STATS_QUERY_LIMIT,
@@ -153,18 +155,17 @@ export async function getDonationStats(
     }),
   ])
 
-  if (
-    recurringPayments.length === STATS_QUERY_LIMIT ||
-    cancelledSubs.length === STATS_QUERY_LIMIT ||
-    uniqueDonors.length === STATS_QUERY_LIMIT
-  ) {
+  const hitLimit: Record<string, number> = {}
+  if (recurringPayments.length === STATS_QUERY_LIMIT)
+    hitLimit.recurringPayments = recurringPayments.length
+  if (cancelledSubs.length === STATS_QUERY_LIMIT)
+    hitLimit.cancelledSubs = cancelledSubs.length
+  if (uniqueDonors.length === STATS_QUERY_LIMIT)
+    hitLimit.uniqueDonors = uniqueDonors.length
+
+  if (Object.keys(hitLimit).length > 0) {
     logger.warn(
-      {
-        recurringPayments: recurringPayments.length,
-        cancelledSubs: cancelledSubs.length,
-        uniqueDonors: uniqueDonors.length,
-        limit: STATS_QUERY_LIMIT,
-      },
+      { ...hitLimit, limit: STATS_QUERY_LIMIT },
       'getDonationStats query hit row limit -- stats may be incomplete'
     )
   }
