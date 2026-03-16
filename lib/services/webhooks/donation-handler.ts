@@ -112,28 +112,63 @@ export async function handleRecurringDonationCheckout(
   const isAnonymous = session.metadata?.isAnonymous === 'true'
   const placeholderPiId = `${SETUP_PREFIX}${subscriptionId}`
 
-  await prisma.donation.upsert({
-    where: { stripePaymentIntentId: placeholderPiId },
-    create: {
-      stripePaymentIntentId: placeholderPiId,
-      stripeCustomerId: extractCustomerId(session.customer),
-      amount: session.amount_total ?? 0,
-      currency: session.currency ?? 'usd',
-      status: 'pending',
-      donorName: resolveDonorName(session, isAnonymous),
-      donorEmail: session.customer_details?.email ?? null,
-      donorPhone: session.customer_details?.phone ?? null,
-      isAnonymous,
-      isRecurring: true,
-      stripeSubscriptionId: subscriptionId,
-      metadata: toJsonOrUndefined(
-        session.metadata as Record<string, string> | null
-      ),
-    },
-    update: {
-      status: 'pending',
-      stripeSubscriptionId: subscriptionId,
-    },
+  const donorName = resolveDonorName(session, isAnonymous)
+  const donorEmail = session.customer_details?.email ?? null
+  const donorPhone = session.customer_details?.phone ?? null
+
+  await prisma.$transaction(async (tx) => {
+    const existingPayment = await tx.donation.findFirst({
+      where: {
+        stripeSubscriptionId: subscriptionId,
+        status: 'succeeded',
+        NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
+      },
+    })
+
+    if (existingPayment) {
+      await tx.donation.updateMany({
+        where: {
+          stripeSubscriptionId: subscriptionId,
+          NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
+        },
+        data: {
+          isAnonymous,
+          donorName: isAnonymous ? null : donorName,
+          donorEmail,
+          donorPhone,
+        },
+      })
+
+      logger.info(
+        { subscriptionId },
+        'Invoice arrived before checkout -- backfilled donor info, skipping placeholder'
+      )
+      return
+    }
+
+    await tx.donation.upsert({
+      where: { stripePaymentIntentId: placeholderPiId },
+      create: {
+        stripePaymentIntentId: placeholderPiId,
+        stripeCustomerId: extractCustomerId(session.customer),
+        amount: session.amount_total ?? 0,
+        currency: session.currency ?? 'usd',
+        status: 'pending',
+        donorName,
+        donorEmail,
+        donorPhone,
+        isAnonymous,
+        isRecurring: true,
+        stripeSubscriptionId: subscriptionId,
+        metadata: toJsonOrUndefined(
+          session.metadata as Record<string, string> | null
+        ),
+      },
+      update: {
+        status: 'pending',
+        stripeSubscriptionId: subscriptionId,
+      },
+    })
   })
 
   logger.info(
@@ -193,12 +228,22 @@ export async function handleDonationInvoicePaid(
   const checkoutDonation = await prisma.donation.findFirst({
     where: { stripeSubscriptionId: subscriptionId },
     orderBy: { createdAt: 'asc' },
-    select: { isAnonymous: true, donorName: true, donorPhone: true },
+    select: {
+      isAnonymous: true,
+      donorName: true,
+      donorEmail: true,
+      donorPhone: true,
+    },
   })
 
   const isAnonymous = checkoutDonation?.isAnonymous ?? false
-  const donorName = isAnonymous ? null : (checkoutDonation?.donorName ?? null)
-  const donorPhone = checkoutDonation?.donorPhone ?? null
+  const donorName = isAnonymous
+    ? null
+    : (checkoutDonation?.donorName ?? invoice.customer_name ?? null)
+  const donorEmail =
+    checkoutDonation?.donorEmail ?? invoice.customer_email ?? null
+  const donorPhone =
+    checkoutDonation?.donorPhone ?? invoice.customer_phone ?? null
 
   await prisma.donation.upsert({
     where: { stripePaymentIntentId: paymentIntentId },
@@ -208,7 +253,7 @@ export async function handleDonationInvoicePaid(
       amount: invoice.amount_paid,
       currency: invoice.currency ?? 'usd',
       status: 'succeeded',
-      donorEmail: invoice.customer_email ?? null,
+      donorEmail,
       donorPhone,
       isAnonymous,
       donorName,

@@ -2,18 +2,19 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export type DonationPeriod = 'today' | 'yesterday' | 'thisWeek'
+export type DonationPeriod = 'all' | 'today' | 'thisWeek' | 'thisMonth'
 
 const periods: { value: DonationPeriod; label: string }[] = [
-  { value: 'today', label: 'Today' },
-  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'all', label: 'All' },
+  { value: 'thisMonth', label: 'This Month' },
   { value: 'thisWeek', label: 'This Week' },
+  { value: 'today', label: 'Today' },
 ]
 
 export function PeriodFilter() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const current = (searchParams.get('period') as DonationPeriod) || 'today'
+  const current = (searchParams.get('period') as DonationPeriod) || 'all'
 
   function handleSelect(period: DonationPeriod) {
     const params = new URLSearchParams(searchParams.toString())
