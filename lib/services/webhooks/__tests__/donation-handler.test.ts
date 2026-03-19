@@ -405,6 +405,37 @@ describe('donation-handler', () => {
       )
     })
 
+    it('skips $0 invoice with warn log', async () => {
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice({ amount_paid: 0 })
+      )
+
+      await handleDonationInvoicePaid(event)
+
+      expect(mockDonationUpsert).not.toHaveBeenCalled()
+      expect(mockLoggerWarn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          invoiceId: 'in_test_123',
+          subscriptionId: 'sub_test_456',
+          amount_paid: 0,
+        }),
+        'Skipping $0 invoice -- coupon, credit, or trial end'
+      )
+    })
+
+    it('skips null amount_paid invoice', async () => {
+      const event = createMockEvent(
+        'invoice.payment_succeeded',
+        createMockInvoice({ amount_paid: null })
+      )
+
+      await handleDonationInvoicePaid(event)
+
+      expect(mockDonationUpsert).not.toHaveBeenCalled()
+      expect(mockLoggerWarn).toHaveBeenCalled()
+    })
+
     it('inherits isAnonymous and donorName from checkout placeholder', async () => {
       mockDonationFindFirst.mockResolvedValue({
         isAnonymous: true,

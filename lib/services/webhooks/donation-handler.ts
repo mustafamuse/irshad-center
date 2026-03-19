@@ -242,6 +242,18 @@ export async function handleDonationInvoicePaid(
     return
   }
 
+  if (!invoice.amount_paid || invoice.amount_paid <= 0) {
+    logger.warn(
+      {
+        invoiceId: invoice.id,
+        subscriptionId,
+        amount_paid: invoice.amount_paid,
+      },
+      'Skipping $0 invoice -- coupon, credit, or trial end'
+    )
+    return
+  }
+
   const checkoutDonation = await prisma.donation.findFirst({
     where: { stripeSubscriptionId: subscriptionId },
     orderBy: { createdAt: 'asc' },

@@ -145,8 +145,8 @@ export async function getDonationStats(
         FROM "Donation" d
         WHERE d.status = ${DonationStatus.succeeded}
           AND d."donorEmail" IS NOT NULL
-          ${dateFrom ? Prisma.sql`AND d."createdAt" >= ${dateFrom}` : Prisma.empty}
-          ${dateTo ? Prisma.sql`AND d."createdAt" < ${dateTo}` : Prisma.empty}
+          ${dateFrom ? Prisma.sql`AND d."paidAt" >= ${dateFrom}` : Prisma.empty}
+          ${dateTo ? Prisma.sql`AND d."paidAt" < ${dateTo}` : Prisma.empty}
       `,
     ])
 
