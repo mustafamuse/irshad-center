@@ -129,21 +129,21 @@ export async function getDonationStats(
           d.amount
         FROM "Donation" d
         WHERE d."isRecurring" = true
-          AND d.status = 'succeeded'
+          AND d.status = ${DonationStatus.succeeded}
           AND d."stripeSubscriptionId" IS NOT NULL
           ${dateFrom ? Prisma.sql`AND d."paidAt" >= ${dateFrom}` : Prisma.empty}
           ${dateTo ? Prisma.sql`AND d."paidAt" < ${dateTo}` : Prisma.empty}
           AND NOT EXISTS (
             SELECT 1 FROM "Donation" c
             WHERE c."stripeSubscriptionId" = d."stripeSubscriptionId"
-              AND c.status = 'cancelled'
+              AND c.status = ${DonationStatus.cancelled}
           )
         ORDER BY d."stripeSubscriptionId", d."paidAt" DESC NULLS LAST
       `,
       prisma.$queryRaw<CountRow[]>`
         SELECT COUNT(DISTINCT d."donorEmail") AS count
         FROM "Donation" d
-        WHERE d.status = 'succeeded'
+        WHERE d.status = ${DonationStatus.succeeded}
           AND d."donorEmail" IS NOT NULL
           ${dateFrom ? Prisma.sql`AND d."createdAt" >= ${dateFrom}` : Prisma.empty}
           ${dateTo ? Prisma.sql`AND d."createdAt" < ${dateTo}` : Prisma.empty}
