@@ -178,6 +178,7 @@ export async function getStudents(client: DatabaseClient = prisma) {
     where: {
       program: 'MAHAD_PROGRAM',
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -227,6 +228,7 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -411,6 +413,7 @@ export async function getStudentsWithBatchFiltered(
   const [profiles, totalCount] = await Promise.all([
     client.programProfile.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {
@@ -467,6 +470,7 @@ export async function getStudentById(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -534,6 +538,7 @@ export async function getStudentByEmail(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -586,6 +591,7 @@ export async function getStudentsByBatch(
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -632,13 +638,11 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
     where: {
       program: 'MAHAD_PROGRAM',
       OR: [
-        // No enrollments at all
         {
           enrollments: {
             none: {},
           },
         },
-        // Has enrollments but none with batchId
         {
           enrollments: {
             every: {
@@ -648,6 +652,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       ],
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -762,6 +767,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
         },
       },
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -857,6 +863,7 @@ export async function resolveDuplicateStudents(
   await prisma.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({
       where: { id: keepId },
+      relationLoadStrategy: 'join',
       include: {
         person: { include: { contactPoints: true } },
         assignments: true,
@@ -865,6 +872,7 @@ export async function resolveDuplicateStudents(
 
     const deleteProfiles = await tx.programProfile.findMany({
       where: { id: { in: deleteIds } },
+      relationLoadStrategy: 'join',
       include: {
         person: { include: { contactPoints: true } },
         assignments: true,
@@ -1000,6 +1008,7 @@ export async function getStudentCompleteness(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {
@@ -1071,6 +1080,7 @@ export async function getStudentDeleteWarnings(
 ) {
   const profile = await client.programProfile.findUnique({
     where: { id },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {

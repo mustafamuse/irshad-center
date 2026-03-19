@@ -496,6 +496,7 @@ export async function updateTeacherDetailsAction(
   try {
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
+      relationLoadStrategy: 'join',
       include: { person: { include: { contactPoints: true } } },
     })
 
@@ -690,6 +691,7 @@ export async function deactivateTeacherAction(
         teacherId,
         isActive: true,
       },
+      relationLoadStrategy: 'join',
       include: {
         class: {
           select: { name: true, shift: true },
@@ -940,6 +942,7 @@ export async function searchPeopleAction(
           },
         ],
       },
+      relationLoadStrategy: 'join',
       include: {
         contactPoints: {
           where: { isActive: true },

@@ -59,7 +59,6 @@ export async function getBatches(
     },
   })
 
-  // Map to BatchWithCount interface
   return batches.map((batch) => ({
     id: batch.id,
     name: batch.name,
@@ -247,6 +246,7 @@ export async function getBatchStudents(
       batchId,
       ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
+    relationLoadStrategy: 'join',
     include: {
       programProfile: {
         include: {
@@ -576,7 +576,6 @@ export async function getBatchesWithFilters(
     },
   })
 
-  // Map to BatchWithCount interface
   return batches.map((batch) => ({
     id: batch.id,
     name: batch.name,
@@ -598,6 +597,7 @@ export async function getBatchWithEnrollments(
 ) {
   const batch = await client.batch.findUnique({
     where: { id: batchId },
+    relationLoadStrategy: 'join',
     include: {
       Enrollment: {
         where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
@@ -642,13 +642,11 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
     where: {
       program: 'MAHAD_PROGRAM',
       OR: [
-        // No enrollments at all
         {
           enrollments: {
             none: {},
           },
         },
-        // Has enrollments but none with batchId
         {
           enrollments: {
             every: {
@@ -658,6 +656,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       ],
     },
+    relationLoadStrategy: 'join',
     include: {
       person: {
         include: {

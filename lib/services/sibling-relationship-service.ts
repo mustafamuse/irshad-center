@@ -218,6 +218,7 @@ export class SiblingRelationshipService {
 
     // Get relationships where this person is person1
     const relationshipsAsPerson1 = await client.siblingRelationship.findMany({
+      relationLoadStrategy: 'join',
       where: { person1Id: personId, isActive: true },
       include: {
         person2: {
@@ -240,6 +241,7 @@ export class SiblingRelationshipService {
 
     // Get relationships where this person is person2
     const relationshipsAsPerson2 = await client.siblingRelationship.findMany({
+      relationLoadStrategy: 'join',
       where: { person2Id: personId, isActive: true },
       include: {
         person1: {

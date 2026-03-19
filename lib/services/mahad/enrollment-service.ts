@@ -244,6 +244,7 @@ export async function getEnrollmentDetails(enrollmentId: string) {
  */
 export async function getActiveEnrollment(studentId: string) {
   return await prisma.enrollment.findFirst({
+    relationLoadStrategy: 'join',
     where: {
       programProfileId: studentId,
       status: { not: 'WITHDRAWN' },

@@ -90,6 +90,7 @@ export async function backupData(): Promise<BackupResult> {
       where: {
         program: MAHAD_PROGRAM,
       },
+      relationLoadStrategy: 'join',
       include: {
         person: {
           include: {
@@ -147,6 +148,7 @@ export async function backupData(): Promise<BackupResult> {
           },
         ],
       },
+      relationLoadStrategy: 'join',
       include: {
         person1: {
           include: {

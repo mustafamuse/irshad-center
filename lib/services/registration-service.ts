@@ -450,6 +450,7 @@ export async function createProgramProfileWithEnrollment(
     // Check for existing profile with active enrollments to prevent duplicates
     // Allows re-registration if all previous enrollments were withdrawn
     const existingProfile = await client.programProfile.findFirst({
+      relationLoadStrategy: 'join',
       where: { personId, program },
       include: {
         enrollments: {
@@ -1294,6 +1295,7 @@ export async function findOrCreatePersonWithContact(
 
       // Return updated person with contact points
       const updatedPerson = await client.person.findUnique({
+        relationLoadStrategy: 'join',
         where: { id: existingPerson.id },
         include: { contactPoints: true },
       })

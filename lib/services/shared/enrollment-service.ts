@@ -12,10 +12,12 @@
  * - Provide consistent enrollment status management
  */
 
+import { prisma } from '@/lib/db'
 import {
   getActiveEnrollment,
   updateEnrollmentStatus,
 } from '@/lib/db/queries/enrollment'
+import type { DatabaseClient } from '@/lib/db/types'
 import { getSubscriptionAssignments } from '@/lib/services/webhooks/webhook-service'
 
 /**
@@ -41,42 +43,55 @@ export interface EnrollmentUpdateResult {
  */
 export async function handleSubscriptionCancellationEnrollments(
   stripeSubscriptionId: string,
-  reason: string = 'Subscription canceled'
+  reason: string = 'Subscription canceled',
+  client: DatabaseClient = prisma
 ): Promise<EnrollmentUpdateResult> {
-  const results: EnrollmentUpdateResult = {
-    withdrawn: 0,
-    errors: [],
-  }
+  async function withdrawEnrollments(
+    tx: DatabaseClient
+  ): Promise<EnrollmentUpdateResult> {
+    const assignments = await getSubscriptionAssignments(
+      stripeSubscriptionId,
+      tx
+    )
 
-  // Get all billing assignments for this subscription
-  const assignments = await getSubscriptionAssignments(stripeSubscriptionId)
+    const results: EnrollmentUpdateResult = {
+      withdrawn: 0,
+      errors: [],
+    }
 
-  // Update enrollment status for each active assignment
-  for (const assignment of assignments) {
-    if (assignment.isActive) {
-      try {
-        // Find active enrollment for this profile using existing query
-        const activeEnrollment = await getActiveEnrollment(
-          assignment.programProfileId
-        )
-
-        if (activeEnrollment) {
-          await updateEnrollmentStatus(
-            activeEnrollment.id,
-            'WITHDRAWN',
-            reason,
-            new Date()
+    for (const assignment of assignments) {
+      if (assignment.isActive) {
+        try {
+          const activeEnrollment = await getActiveEnrollment(
+            assignment.programProfileId,
+            tx
           )
-          results.withdrawn++
+
+          if (activeEnrollment) {
+            await updateEnrollmentStatus(
+              activeEnrollment.id,
+              'WITHDRAWN',
+              reason,
+              new Date(),
+              tx
+            )
+            results.withdrawn++
+          }
+        } catch (error) {
+          results.errors.push({
+            profileId: assignment.programProfileId,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
-      } catch (error) {
-        results.errors.push({
-          profileId: assignment.programProfileId,
-          error: error instanceof Error ? error.message : String(error),
-        })
       }
     }
+
+    return results
   }
 
-  return results
+  if (client !== prisma) {
+    return withdrawEnrollments(client)
+  }
+
+  return prisma.$transaction(withdrawEnrollments)
 }

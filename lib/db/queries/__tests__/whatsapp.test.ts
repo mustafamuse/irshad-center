@@ -56,6 +56,7 @@ describe('getWhatsAppMessages', () => {
       orderBy: { createdAt: 'desc' },
       take: 50,
       skip: 0,
+      relationLoadStrategy: 'join',
       include: {
         person: {
           select: { id: true, name: true },
@@ -190,6 +191,7 @@ describe('getWhatsAppMessageById', () => {
     expect(result).toEqual(mockMessage)
     expect(mockFindUnique).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
+      relationLoadStrategy: 'join',
       include: {
         person: {
           select: { id: true, name: true },

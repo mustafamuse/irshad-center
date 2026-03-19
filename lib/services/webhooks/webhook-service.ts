@@ -23,6 +23,7 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
+import type { DatabaseClient } from '@/lib/db/types'
 import {
   getBillingAccountByStripeCustomerId,
   getSubscriptionByStripeId,
@@ -560,12 +561,18 @@ export async function handleInvoiceFinalized(
  * @param stripeSubscriptionId - Stripe subscription ID
  * @returns Array of billing assignments
  */
-export async function getSubscriptionAssignments(stripeSubscriptionId: string) {
-  const subscription = await getSubscriptionByStripeId(stripeSubscriptionId)
+export async function getSubscriptionAssignments(
+  stripeSubscriptionId: string,
+  client: DatabaseClient = prisma
+) {
+  const subscription = await getSubscriptionByStripeId(
+    stripeSubscriptionId,
+    client
+  )
 
   if (!subscription) {
     return []
   }
 
-  return await getBillingAssignmentsBySubscription(subscription.id)
+  return await getBillingAssignmentsBySubscription(subscription.id, client)
 }
