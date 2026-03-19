@@ -1,10 +1,6 @@
-import { DonationStatus, type Donation } from '@prisma/client'
+import { DonationStatus, Prisma, type Donation } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { createServiceLogger } from '@/lib/logger'
-
-const logger = createServiceLogger('donation-queries')
-const STATS_QUERY_LIMIT = 5000
 
 interface DonationListOptions {
   page?: number
@@ -86,6 +82,15 @@ interface DonationStatsOptions {
   dateTo?: Date
 }
 
+interface MrrRow {
+  stripeSubscriptionId: string
+  amount: number
+}
+
+interface CountRow {
+  count: bigint
+}
+
 export async function getDonationStats(
   options: DonationStatsOptions = {}
 ): Promise<DonationStats> {
@@ -100,100 +105,59 @@ export async function getDonationStats(
         }
       : {}
 
-  const [
-    oneTimeStats,
-    recurringCount,
-    recurringPayments,
-    cancelledSubs,
-    uniqueDonors,
-  ] = await Promise.all([
-    prisma.donation.aggregate({
-      where: {
-        status: DonationStatus.succeeded,
-        isRecurring: false,
-        ...dateFilter,
-      },
-      _sum: { amount: true },
-      _count: true,
-    }),
-    prisma.donation.count({
-      where: {
-        isRecurring: true,
-        status: DonationStatus.succeeded,
-        ...dateFilter,
-      },
-    }),
-    prisma.donation.findMany({
-      where: {
-        isRecurring: true,
-        status: DonationStatus.succeeded,
-        stripeSubscriptionId: { not: null },
-        ...dateFilter,
-      },
-      select: { stripeSubscriptionId: true, amount: true },
-      orderBy: { paidAt: 'desc' },
-      take: STATS_QUERY_LIMIT,
-    }),
-    prisma.donation.findMany({
-      where: {
-        status: DonationStatus.cancelled,
-        stripeSubscriptionId: { not: null },
-        // No dateFilter: subs cancelled before the window must still be
-        // excluded from MRR calculated within it.
-      },
-      select: { stripeSubscriptionId: true },
-      take: STATS_QUERY_LIMIT,
-    }),
-    prisma.donation.findMany({
-      where: {
-        status: DonationStatus.succeeded,
-        donorEmail: { not: null },
-      },
-      select: { donorEmail: true },
-      distinct: ['donorEmail'],
-      take: STATS_QUERY_LIMIT,
-    }),
-  ])
+  const [oneTimeStats, recurringCount, mrrRows, donorCountRows] =
+    await Promise.all([
+      prisma.donation.aggregate({
+        where: {
+          status: DonationStatus.succeeded,
+          isRecurring: false,
+          ...dateFilter,
+        },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.donation.count({
+        where: {
+          isRecurring: true,
+          status: DonationStatus.succeeded,
+          ...dateFilter,
+        },
+      }),
+      prisma.$queryRaw<MrrRow[]>`
+        SELECT DISTINCT ON (d."stripeSubscriptionId")
+          d."stripeSubscriptionId",
+          d.amount
+        FROM "Donation" d
+        WHERE d."isRecurring" = true
+          AND d.status = 'succeeded'
+          AND d."stripeSubscriptionId" IS NOT NULL
+          ${dateFrom ? Prisma.sql`AND d."paidAt" >= ${dateFrom}` : Prisma.empty}
+          ${dateTo ? Prisma.sql`AND d."paidAt" < ${dateTo}` : Prisma.empty}
+          AND NOT EXISTS (
+            SELECT 1 FROM "Donation" c
+            WHERE c."stripeSubscriptionId" = d."stripeSubscriptionId"
+              AND c.status = 'cancelled'
+          )
+        ORDER BY d."stripeSubscriptionId", d."paidAt" DESC NULLS LAST
+      `,
+      prisma.$queryRaw<CountRow[]>`
+        SELECT COUNT(DISTINCT d."donorEmail") AS count
+        FROM "Donation" d
+        WHERE d.status = 'succeeded'
+          AND d."donorEmail" IS NOT NULL
+          ${dateFrom ? Prisma.sql`AND d."createdAt" >= ${dateFrom}` : Prisma.empty}
+          ${dateTo ? Prisma.sql`AND d."createdAt" < ${dateTo}` : Prisma.empty}
+      `,
+    ])
 
-  const hitLimit: Record<string, number> = {}
-  if (recurringPayments.length === STATS_QUERY_LIMIT)
-    hitLimit.recurringPayments = recurringPayments.length
-  if (cancelledSubs.length === STATS_QUERY_LIMIT)
-    hitLimit.cancelledSubs = cancelledSubs.length
-  if (uniqueDonors.length === STATS_QUERY_LIMIT)
-    hitLimit.uniqueDonors = uniqueDonors.length
-
-  if (Object.keys(hitLimit).length > 0) {
-    logger.warn(
-      { ...hitLimit, limit: STATS_QUERY_LIMIT },
-      'getDonationStats query hit row limit -- stats may be incomplete'
-    )
-  }
-
-  const cancelledSubIds = new Set(
-    cancelledSubs.map((d) => d.stripeSubscriptionId)
-  )
-
-  // MRR: latest payment amount per unique active subscription
-  const latestPerSub = new Map<string, number>()
-  for (const d of recurringPayments) {
-    const subId = d.stripeSubscriptionId
-    if (subId && !latestPerSub.has(subId) && !cancelledSubIds.has(subId)) {
-      latestPerSub.set(subId, d.amount)
-    }
-  }
-
-  let mrrCents = 0
-  latestPerSub.forEach((amount) => {
-    mrrCents += amount
-  })
+  const mrrCents = mrrRows.reduce((sum, row) => sum + row.amount, 0)
 
   return {
     oneTimeTotalCents: oneTimeStats._sum.amount ?? 0,
     oneTimeCount: oneTimeStats._count,
-    activeRecurringCount: latestPerSub.size,
+    activeRecurringCount: mrrRows.length,
     mrrCents,
-    totalDonorCount: uniqueDonors.length,
+    totalDonorCount: Number(donorCountRows[0]?.count ?? 0),
     recurringPaymentCount: recurringCount,
   }
 }

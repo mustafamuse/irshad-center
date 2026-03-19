@@ -1,12 +1,12 @@
 import { DonationStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-const { mockFindMany, mockCount, mockAggregate, mockLoggerWarn } = vi.hoisted(
+const { mockFindMany, mockCount, mockAggregate, mockQueryRaw } = vi.hoisted(
   () => ({
     mockFindMany: vi.fn(),
     mockCount: vi.fn(),
     mockAggregate: vi.fn(),
-    mockLoggerWarn: vi.fn(),
+    mockQueryRaw: vi.fn(),
   })
 )
 
@@ -17,16 +17,8 @@ vi.mock('@/lib/db', () => ({
       count: mockCount,
       aggregate: mockAggregate,
     },
+    $queryRaw: mockQueryRaw,
   },
-}))
-
-vi.mock('@/lib/logger', () => ({
-  createServiceLogger: vi.fn(() => ({
-    info: vi.fn(),
-    warn: mockLoggerWarn,
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
 }))
 
 import { getDonations, getDonationStats } from '../donation'
@@ -119,11 +111,12 @@ describe('getDonationStats', () => {
   beforeEach(() => {
     mockAggregate.mockResolvedValue(EMPTY_AGGREGATE)
     mockCount.mockResolvedValue(0)
-    mockFindMany.mockResolvedValue([])
+    mockQueryRaw.mockResolvedValue([])
   })
 
   it('calculates correct one-time totals', async () => {
     mockAggregate.mockResolvedValue({ _sum: { amount: 50000 }, _count: 5 })
+    mockQueryRaw.mockResolvedValue([])
 
     const result = await getDonationStats()
 
@@ -138,14 +131,12 @@ describe('getDonationStats', () => {
 
   it('calculates MRR from latest payment per active subscription', async () => {
     mockCount.mockResolvedValue(3)
-    mockFindMany
+    mockQueryRaw
       .mockResolvedValueOnce([
         { stripeSubscriptionId: 'sub_1', amount: 2000 },
-        { stripeSubscriptionId: 'sub_1', amount: 1500 },
         { stripeSubscriptionId: 'sub_2', amount: 3000 },
       ])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: BigInt(5) }])
 
     const result = await getDonationStats()
 
@@ -153,15 +144,13 @@ describe('getDonationStats', () => {
     expect(result.activeRecurringCount).toBe(2)
   })
 
-  it('excludes cancelled subscriptions from MRR', async () => {
+  it('excludes cancelled subscriptions from MRR via NOT EXISTS', async () => {
     mockCount.mockResolvedValue(2)
-    mockFindMany
+    mockQueryRaw
       .mockResolvedValueOnce([
         { stripeSubscriptionId: 'sub_active', amount: 2000 },
-        { stripeSubscriptionId: 'sub_cancelled', amount: 5000 },
       ])
-      .mockResolvedValueOnce([{ stripeSubscriptionId: 'sub_cancelled' }])
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: BigInt(0) }])
 
     const result = await getDonationStats()
 
@@ -169,41 +158,21 @@ describe('getDonationStats', () => {
     expect(result.activeRecurringCount).toBe(1)
   })
 
-  it('counts unique donor emails', async () => {
-    mockFindMany
+  it('counts unique donor emails via COUNT(DISTINCT)', async () => {
+    mockQueryRaw
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { donorEmail: 'a@test.com' },
-        { donorEmail: 'b@test.com' },
-        { donorEmail: 'c@test.com' },
-      ])
+      .mockResolvedValueOnce([{ count: BigInt(42) }])
 
     const result = await getDonationStats()
 
-    expect(result.totalDonorCount).toBe(3)
-  })
-
-  it('warns when a query hits the row limit', async () => {
-    const atLimit = Array.from({ length: 5000 }, (_, i) => ({
-      stripeSubscriptionId: `sub_${i}`,
-      amount: 1000,
-    }))
-    mockFindMany
-      .mockResolvedValueOnce(atLimit)
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-
-    await getDonationStats()
-
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 5000, recurringPayments: 5000 }),
-      'getDonationStats query hit row limit -- stats may be incomplete'
-    )
+    expect(result.totalDonorCount).toBe(42)
   })
 
   it('returns zeros when no donations exist', async () => {
     mockAggregate.mockResolvedValue({ _sum: { amount: null }, _count: 0 })
+    mockQueryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: BigInt(0) }])
 
     const result = await getDonationStats()
 
