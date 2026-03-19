@@ -55,6 +55,24 @@ export const PauseFamilyBillingSchema = FamilyBillingControlSchema
 export const ResumeFamilyBillingSchema = FamilyBillingControlSchema
 
 // ============================================================================
+// WITHDRAWAL VALIDATION
+// ============================================================================
+
+export const WithdrawChildrenSchema = z.object({
+  familyReferenceId: z.string().uuid('Invalid family reference ID format'),
+  profileIds: z
+    .array(z.string().min(1, 'Profile ID cannot be empty'))
+    .min(1, 'At least one child must be selected for withdrawal'),
+})
+
+export const WithdrawalPreviewSchema = z.object({
+  familyReferenceId: z.string().uuid('Invalid family reference ID format'),
+  profileIds: z
+    .array(z.string().min(1, 'Profile ID cannot be empty'))
+    .min(1, 'At least one child must be selected'),
+})
+
+// ============================================================================
 // TYPE INFERENCE HELPERS
 // ============================================================================
 
@@ -62,3 +80,5 @@ export type UpdateFamilyShiftInput = z.infer<typeof UpdateFamilyShiftSchema>
 export type DugsiRegistrationFilters = z.infer<
   typeof DugsiRegistrationFiltersSchema
 >
+export type WithdrawChildrenInput = z.infer<typeof WithdrawChildrenSchema>
+export type WithdrawalPreviewInput = z.infer<typeof WithdrawalPreviewSchema>
