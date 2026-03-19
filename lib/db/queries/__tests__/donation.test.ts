@@ -1,10 +1,14 @@
+import { DonationStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-const { mockFindMany, mockCount, mockAggregate } = vi.hoisted(() => ({
-  mockFindMany: vi.fn(),
-  mockCount: vi.fn(),
-  mockAggregate: vi.fn(),
-}))
+const { mockFindMany, mockCount, mockAggregate, mockQueryRaw } = vi.hoisted(
+  () => ({
+    mockFindMany: vi.fn(),
+    mockCount: vi.fn(),
+    mockAggregate: vi.fn(),
+    mockQueryRaw: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -13,6 +17,7 @@ vi.mock('@/lib/db', () => ({
       count: mockCount,
       aggregate: mockAggregate,
     },
+    $queryRaw: mockQueryRaw,
   },
 }))
 
@@ -61,15 +66,15 @@ describe('getDonations', () => {
     mockFindMany.mockResolvedValue([])
     mockCount.mockResolvedValue(0)
 
-    await getDonations({ status: 'succeeded' })
+    await getDonations({ status: DonationStatus.succeeded })
 
     expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: 'succeeded', ...SYNTHETIC_FILTER },
+        where: { status: DonationStatus.succeeded, ...SYNTHETIC_FILTER },
       })
     )
     expect(mockCount).toHaveBeenCalledWith({
-      where: { status: 'succeeded', ...SYNTHETIC_FILTER },
+      where: { status: DonationStatus.succeeded, ...SYNTHETIC_FILTER },
     })
   })
 
@@ -106,18 +111,19 @@ describe('getDonationStats', () => {
   beforeEach(() => {
     mockAggregate.mockResolvedValue(EMPTY_AGGREGATE)
     mockCount.mockResolvedValue(0)
-    mockFindMany.mockResolvedValue([])
+    mockQueryRaw.mockResolvedValue([])
   })
 
   it('calculates correct one-time totals', async () => {
     mockAggregate.mockResolvedValue({ _sum: { amount: 50000 }, _count: 5 })
+    mockQueryRaw.mockResolvedValue([])
 
     const result = await getDonationStats()
 
     expect(result.oneTimeTotalCents).toBe(50000)
     expect(result.oneTimeCount).toBe(5)
     expect(mockAggregate).toHaveBeenCalledWith({
-      where: { status: 'succeeded', isRecurring: false },
+      where: { status: DonationStatus.succeeded, isRecurring: false },
       _sum: { amount: true },
       _count: true,
     })
@@ -125,14 +131,12 @@ describe('getDonationStats', () => {
 
   it('calculates MRR from latest payment per active subscription', async () => {
     mockCount.mockResolvedValue(3)
-    mockFindMany
+    mockQueryRaw
       .mockResolvedValueOnce([
         { stripeSubscriptionId: 'sub_1', amount: 2000 },
-        { stripeSubscriptionId: 'sub_1', amount: 1500 },
         { stripeSubscriptionId: 'sub_2', amount: 3000 },
       ])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: BigInt(5) }])
 
     const result = await getDonationStats()
 
@@ -140,15 +144,13 @@ describe('getDonationStats', () => {
     expect(result.activeRecurringCount).toBe(2)
   })
 
-  it('excludes cancelled subscriptions from MRR', async () => {
+  it('excludes cancelled subscriptions from MRR via NOT EXISTS', async () => {
     mockCount.mockResolvedValue(2)
-    mockFindMany
+    mockQueryRaw
       .mockResolvedValueOnce([
         { stripeSubscriptionId: 'sub_active', amount: 2000 },
-        { stripeSubscriptionId: 'sub_cancelled', amount: 5000 },
       ])
-      .mockResolvedValueOnce([{ stripeSubscriptionId: 'sub_cancelled' }])
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: BigInt(0) }])
 
     const result = await getDonationStats()
 
@@ -156,23 +158,21 @@ describe('getDonationStats', () => {
     expect(result.activeRecurringCount).toBe(1)
   })
 
-  it('counts unique donor emails', async () => {
-    mockFindMany
+  it('counts unique donor emails via COUNT(DISTINCT)', async () => {
+    mockQueryRaw
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        { donorEmail: 'a@test.com' },
-        { donorEmail: 'b@test.com' },
-        { donorEmail: 'c@test.com' },
-      ])
+      .mockResolvedValueOnce([{ count: BigInt(42) }])
 
     const result = await getDonationStats()
 
-    expect(result.totalDonorCount).toBe(3)
+    expect(result.totalDonorCount).toBe(42)
   })
 
   it('returns zeros when no donations exist', async () => {
     mockAggregate.mockResolvedValue({ _sum: { amount: null }, _count: 0 })
+    mockQueryRaw
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ count: BigInt(0) }])
 
     const result = await getDonationStats()
 
