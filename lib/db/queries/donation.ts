@@ -179,22 +179,22 @@ export async function getZakatFitrStats(): Promise<ZakatFitrStats> {
       },
     },
     select: {
-      amount: true,
       metadata: true,
     },
   })
 
-  let totalCollectedCents = 0
   let totalPeopleCovered = 0
 
   for (const d of donations) {
-    totalCollectedCents += d.amount
     const meta = d.metadata as Prisma.JsonObject | null
     const numberOfPeople = meta?.numberOfPeople
     if (typeof numberOfPeople === 'string') {
       totalPeopleCovered += parseInt(numberOfPeople, 10) || 0
     }
   }
+
+  const perPersonCents = 1300
+  const totalCollectedCents = totalPeopleCovered * perPersonCents
 
   return {
     totalCollectedCents,
