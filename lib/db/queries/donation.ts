@@ -161,3 +161,44 @@ export async function getDonationStats(
     recurringPaymentCount: recurringCount,
   }
 }
+
+export interface ZakatFitrStats {
+  totalCollectedCents: number
+  paymentCount: number
+  totalPeopleCovered: number
+}
+
+export async function getZakatFitrStats(): Promise<ZakatFitrStats> {
+  const donations = await prisma.donation.findMany({
+    where: {
+      status: DonationStatus.succeeded,
+      isRecurring: false,
+      metadata: {
+        path: ['source'],
+        equals: 'zakat_fitr',
+      },
+    },
+    select: {
+      metadata: true,
+    },
+  })
+
+  let totalPeopleCovered = 0
+
+  for (const d of donations) {
+    const meta = d.metadata as Prisma.JsonObject | null
+    const numberOfPeople = meta?.numberOfPeople
+    if (typeof numberOfPeople === 'string') {
+      totalPeopleCovered += parseInt(numberOfPeople, 10) || 0
+    }
+  }
+
+  const perPersonCents = 1300
+  const totalCollectedCents = totalPeopleCovered * perPersonCents
+
+  return {
+    totalCollectedCents,
+    paymentCount: donations.length,
+    totalPeopleCovered,
+  }
+}
