@@ -48,6 +48,10 @@ export function useActionHandler<T = void, TArgs extends unknown[] = never[]>(
             result.message || successMessage || 'Action completed successfully'
           toast.success(message)
 
+          if (result.warning) {
+            toast.warning(result.warning)
+          }
+
           if (refreshOnSuccess) {
             router.refresh()
           }

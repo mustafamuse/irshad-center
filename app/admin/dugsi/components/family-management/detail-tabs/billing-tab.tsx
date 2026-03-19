@@ -10,17 +10,36 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock,
+  Loader2,
+  Pause,
+  Play,
   XCircle,
 } from 'lucide-react'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
+import { useActionHandler } from '../../../_hooks/use-action-handler'
 import { Family, StripePaymentHistoryItem } from '../../../_types'
 import { getBillingStatus } from '../../../_utils/billing'
+import {
+  pauseFamilyBillingAction,
+  resumeFamilyBillingAction,
+} from '../../../actions/billing-actions'
 import { getFamilyPaymentHistory } from '../../../actions'
 
 interface BillingTabProps {
@@ -33,6 +52,7 @@ export function BillingTab({ family }: BillingTabProps) {
   >([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showPauseConfirm, setShowPauseConfirm] = useState(false)
 
   const firstMember = family.members[0]
   const customerId = firstMember?.stripeCustomerIdDugsi
@@ -81,6 +101,29 @@ export function BillingTab({ family }: BillingTabProps) {
       cancelled = true
     }
   }, [customerId])
+
+  const subscriptionStatus = firstMember?.subscriptionStatus
+  const familyReferenceId = firstMember?.familyReferenceId
+  const canPause = subscriptionStatus === 'active' && !!familyReferenceId
+  const canResume = subscriptionStatus === 'paused' && !!familyReferenceId
+
+  const { execute: executePause, isPending: isPausing } = useActionHandler(
+    pauseFamilyBillingAction
+  )
+
+  const { execute: executeResume, isPending: isResuming } = useActionHandler(
+    resumeFamilyBillingAction
+  )
+
+  const handlePause = async () => {
+    if (!familyReferenceId) return
+    await executePause({ familyReferenceId })
+  }
+
+  const handleResume = async () => {
+    if (!familyReferenceId) return
+    await executeResume({ familyReferenceId })
+  }
 
   const billing = firstMember ? getBillingStatus(firstMember) : null
 
@@ -140,14 +183,81 @@ export function BillingTab({ family }: BillingTabProps) {
               <Badge
                 variant="outline"
                 className={cn(
-                  firstMember?.subscriptionStatus === 'active'
+                  subscriptionStatus === 'active'
                     ? 'bg-green-50 text-green-700'
-                    : 'bg-amber-50 text-amber-700'
+                    : subscriptionStatus === 'paused'
+                      ? 'bg-gray-100 text-gray-800'
+                      : 'bg-amber-50 text-amber-700'
                 )}
               >
-                {firstMember?.subscriptionStatus || 'Unknown'}
+                {subscriptionStatus || 'Unknown'}
               </Badge>
             </div>
+
+            {canPause && (
+              <>
+                <Separator />
+                <AlertDialog
+                  open={showPauseConfirm}
+                  onOpenChange={setShowPauseConfirm}
+                >
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
+                      disabled={isPausing}
+                    >
+                      {isPausing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Pause className="mr-2 h-4 w-4" />
+                      )}
+                      {isPausing ? 'Pausing...' : 'Pause Billing'}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Pause billing?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will stop billing for this family. Any unpaid
+                        invoices will be voided and cannot be retroactively
+                        collected.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-amber-600 hover:bg-amber-700"
+                        onClick={handlePause}
+                      >
+                        Pause Billing
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+
+            {canResume && (
+              <>
+                <Separator />
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="w-full bg-green-600 text-white hover:bg-green-700"
+                  disabled={isResuming}
+                  onClick={handleResume}
+                >
+                  {isResuming ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Play className="mr-2 h-4 w-4" />
+                  )}
+                  {isResuming ? 'Resuming...' : 'Resume Billing'}
+                </Button>
+              </>
+            )}
 
             {billing && (
               <>

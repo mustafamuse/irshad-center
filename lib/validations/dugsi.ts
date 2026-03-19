@@ -44,6 +44,17 @@ export const DugsiRegistrationFiltersSchema = z.object({
 })
 
 // ============================================================================
+// BILLING CONTROL VALIDATION
+// ============================================================================
+
+export const FamilyBillingControlSchema = z.object({
+  familyReferenceId: z.string().uuid('Invalid family reference ID format'),
+})
+
+export const PauseFamilyBillingSchema = FamilyBillingControlSchema
+export const ResumeFamilyBillingSchema = FamilyBillingControlSchema
+
+// ============================================================================
 // TYPE INFERENCE HELPERS
 // ============================================================================
 
