@@ -3,23 +3,36 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 const {
   mockPersonFindFirst,
   mockPersonCreate,
+  mockPersonUpdate,
   mockProgramProfileFindFirst,
   mockProgramProfileUpdate,
   mockEnrollmentCreate,
   mockCreateProgramProfile,
+  mockContactPointFindFirst,
+  mockContactPointUpdate,
+  mockContactPointCreate,
+  mockTransaction,
+  mockGetProgramProfileById,
 } = vi.hoisted(() => ({
   mockPersonFindFirst: vi.fn(),
   mockPersonCreate: vi.fn(),
+  mockPersonUpdate: vi.fn(),
   mockProgramProfileFindFirst: vi.fn(),
   mockProgramProfileUpdate: vi.fn(),
   mockEnrollmentCreate: vi.fn(),
   mockCreateProgramProfile: vi.fn(),
+  mockContactPointFindFirst: vi.fn(),
+  mockContactPointUpdate: vi.fn(),
+  mockContactPointCreate: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockGetProgramProfileById: vi.fn(),
 }))
 
 const mockTx = {
   person: {
     findFirst: (...args: unknown[]) => mockPersonFindFirst(...args),
     create: (...args: unknown[]) => mockPersonCreate(...args),
+    update: (...args: unknown[]) => mockPersonUpdate(...args),
   },
   programProfile: {
     findFirst: (...args: unknown[]) => mockProgramProfileFindFirst(...args),
@@ -28,16 +41,26 @@ const mockTx = {
   enrollment: {
     create: (...args: unknown[]) => mockEnrollmentCreate(...args),
   },
+  contactPoint: {
+    findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
+    update: (...args: unknown[]) => mockContactPointUpdate(...args),
+    create: (...args: unknown[]) => mockContactPointCreate(...args),
+  },
 }
+
+mockTransaction.mockImplementation(
+  (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(mockTx)
+)
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    $transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(mockTx),
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
 }))
 
 vi.mock('@/lib/db/queries/program-profile', () => ({
-  getProgramProfileById: vi.fn(),
+  getProgramProfileById: (...args: unknown[]) =>
+    mockGetProgramProfileById(...args),
   createProgramProfile: (...args: unknown[]) =>
     mockCreateProgramProfile(...args),
 }))
@@ -48,7 +71,7 @@ vi.mock('@/lib/db/queries/siblings', () => ({
 
 import { ActionError } from '@/lib/errors/action-error'
 
-import { createMahadStudent } from '../student-service'
+import { createMahadStudent, updateMahadStudent } from '../student-service'
 
 const baseInput = {
   name: 'Ahmed Mohamed',
@@ -194,5 +217,99 @@ describe('createMahadStudent', () => {
         },
       }),
     })
+  })
+})
+
+describe('updateMahadStudent', () => {
+  const mockProfile = {
+    id: 'profile-1',
+    personId: 'person-1',
+    program: 'MAHAD_PROGRAM',
+    person: { contactPoints: [] },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetProgramProfileById.mockResolvedValue(mockProfile)
+    mockPersonUpdate.mockResolvedValue({ id: 'person-1' })
+    mockProgramProfileUpdate.mockResolvedValue({ id: 'profile-1' })
+    mockContactPointFindFirst.mockResolvedValue(null)
+    mockContactPointCreate.mockResolvedValue({ id: 'cp-1' })
+    mockTransaction.mockImplementation(
+      (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(mockTx)
+    )
+  })
+
+  it('should wrap updates in $transaction when no client is passed', async () => {
+    await updateMahadStudent('profile-1', { name: 'New Name' })
+
+    expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function))
+  })
+
+  it('should use tx client for person.update, not module-level prisma', async () => {
+    await updateMahadStudent('profile-1', { name: 'New Name' })
+
+    expect(mockPersonUpdate).toHaveBeenCalledWith({
+      where: { id: 'person-1' },
+      data: { name: 'New Name', dateOfBirth: undefined },
+    })
+  })
+
+  it('should use tx client for contactPoint operations', async () => {
+    mockContactPointFindFirst.mockResolvedValue({
+      id: 'cp-email',
+      type: 'EMAIL',
+      value: 'old@test.com',
+    })
+
+    await updateMahadStudent('profile-1', { email: 'new@test.com' })
+
+    expect(mockContactPointFindFirst).toHaveBeenCalledWith({
+      where: { personId: 'person-1', type: 'EMAIL' },
+    })
+    expect(mockContactPointUpdate).toHaveBeenCalledWith({
+      where: { id: 'cp-email' },
+      data: { value: 'new@test.com' },
+    })
+  })
+
+  it('should pass tx to getProgramProfileById', async () => {
+    await updateMahadStudent('profile-1', { name: 'Test' })
+
+    expect(mockGetProgramProfileById).toHaveBeenCalledWith('profile-1', mockTx)
+  })
+
+  it('should use tx for programProfile.update at the end', async () => {
+    await updateMahadStudent('profile-1', {
+      gradeLevel: 'GRADE_1',
+      billingType: 'FULL_PAYING',
+    })
+
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith({
+      where: { id: 'profile-1' },
+      data: expect.objectContaining({
+        gradeLevel: 'GRADE_1',
+        billingType: 'FULL_PAYING',
+      }),
+    })
+  })
+
+  it('should throw ActionError when profile not found', async () => {
+    mockGetProgramProfileById.mockResolvedValue(null)
+
+    await expect(
+      updateMahadStudent('nonexistent', { name: 'Test' })
+    ).rejects.toThrow(ActionError)
+  })
+
+  it('should roll back all writes when programProfile.update fails', async () => {
+    mockProgramProfileUpdate.mockRejectedValue(new Error('DB error'))
+
+    await expect(
+      updateMahadStudent('profile-1', { name: 'New Name' })
+    ).rejects.toThrow('DB error')
+
+    expect(mockPersonUpdate).toHaveBeenCalled()
+    expect(mockProgramProfileUpdate).toHaveBeenCalled()
   })
 })
