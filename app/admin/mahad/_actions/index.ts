@@ -35,6 +35,7 @@ import {
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
@@ -496,12 +497,17 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
-    if (student.subscription) {
-      return {
-        success: false,
-        error:
-          'Cannot delete student with active billing subscription. Cancel the subscription first.',
-      }
+    const LIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due']
+    if (
+      student.subscription &&
+      LIVE_SUBSCRIPTION_STATUSES.includes(student.subscription.status)
+    ) {
+      throw new ActionError(
+        'Cannot delete student with active billing subscription. Cancel the subscription first.',
+        ERROR_CODES.ACTIVE_SUBSCRIPTION,
+        undefined,
+        403
+      )
     }
 
     await prisma.programProfile.delete({ where: { id } })
