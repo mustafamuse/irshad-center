@@ -10,7 +10,7 @@ WHERE cp."type" IN ('PHONE', 'WHATSAPP')
   AND EXISTS (
     SELECT 1 FROM "ContactPoint" other
     WHERE other."type" = cp."type"
-      AND other."isActive" = cp."isActive"
+      AND other."isActive" = true
       AND other.id != cp.id
       AND regexp_replace(other."value", '\D', '', 'g') = regexp_replace(cp."value", '\D', '', 'g')
       AND other."updatedAt" > cp."updatedAt"

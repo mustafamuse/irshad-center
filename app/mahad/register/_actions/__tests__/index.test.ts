@@ -155,6 +155,38 @@ describe('registerStudent', () => {
     expect(result.error).toContain('already exists')
   })
 
+  it('should handle ActionError with field-level errors', async () => {
+    const { ActionError } = await import('@/lib/errors/action-error')
+    mockCreateMahadStudent.mockRejectedValue(
+      new ActionError(
+        'Student already registered for Mahad',
+        'DUPLICATE_EMAIL',
+        undefined,
+        409
+      )
+    )
+
+    const result = await registerStudent(validInput)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Student already registered for Mahad')
+    expect(result.errors?.email).toEqual([
+      'Student already registered for Mahad',
+    ])
+    expect(mockLogError).not.toHaveBeenCalled()
+  })
+
+  it('should not log ActionError as server error', async () => {
+    const { ActionError } = await import('@/lib/errors/action-error')
+    mockCreateMahadStudent.mockRejectedValue(
+      new ActionError('Duplicate', 'DUPLICATE_EMAIL')
+    )
+
+    await registerStudent(validInput)
+
+    expect(mockLogError).not.toHaveBeenCalled()
+  })
+
   it('should handle unexpected errors', async () => {
     mockCreateMahadStudent.mockRejectedValue(
       new Error('Database connection lost')
@@ -205,6 +237,28 @@ describe('checkEmailExists', () => {
     await checkEmailExists('test@example.com')
 
     expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:1.2.3.4', 10)
+  })
+
+  it('should pass email through to isEmailRegistered for normalization', async () => {
+    mockIsEmailRegistered.mockResolvedValue(true)
+
+    await checkEmailExists('Test@Example.COM')
+
+    expect(mockIsEmailRegistered).toHaveBeenCalledWith(
+      'Test@Example.COM',
+      'MAHAD_PROGRAM'
+    )
+  })
+
+  it('should skip rate limiting when IP is unavailable', async () => {
+    mockHeaders.mockResolvedValue(new Headers())
+    mockIsEmailRegistered.mockResolvedValue(false)
+
+    const result = await checkEmailExists('test@example.com')
+
+    expect(result).toBe(false)
+    expect(mockCheckRateLimit).not.toHaveBeenCalled()
+    expect(mockIsEmailRegistered).toHaveBeenCalled()
   })
 
   it('should return false (fail open) when rate limited', async () => {

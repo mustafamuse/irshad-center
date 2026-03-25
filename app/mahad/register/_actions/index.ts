@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client'
 
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
 import {
   mahadRegistrationSchema,
@@ -66,15 +67,22 @@ export async function registerStudent(
       },
     }
   } catch (error) {
+    if (error instanceof ActionError) {
+      return {
+        success: false,
+        error: error.message,
+        errors: error.field
+          ? { [error.field]: [error.message] }
+          : { email: [error.message] },
+      }
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      const message = 'A student with this contact information already exists'
       return {
         success: false,
-        error: message,
-        errors: { email: [message] },
+        error: 'A student with this contact information already exists',
       }
     }
     await logError(logger, error, 'Mahad registration failed')
@@ -91,11 +99,12 @@ export async function registerStudent(
 export async function checkEmailExists(email: string): Promise<boolean> {
   try {
     const headerStore = await headers()
-    const ip =
-      headerStore.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
-    const rateResult = await checkRateLimit(`email-check:${ip}`, 10)
-    if (!rateResult.success) {
-      return false
+    const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
+    if (ip) {
+      const rateResult = await checkRateLimit(`email-check:${ip}`, 10)
+      if (!rateResult.success) {
+        return false
+      }
     }
   } catch {
     // Fail open if headers/rate-limit unavailable

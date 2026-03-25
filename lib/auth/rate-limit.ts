@@ -1,3 +1,5 @@
+// In-memory store: resets on cold start. Effective for single-instance,
+// best-effort in serverless. Use Redis/Upstash for strict enforcement.
 const attempts = new Map<string, { count: number; resetAt: number }>()
 
 const MAX_ATTEMPTS = 5
