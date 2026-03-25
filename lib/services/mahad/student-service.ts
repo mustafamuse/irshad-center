@@ -21,13 +21,12 @@ import {
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
-import {
-  getProgramProfileById,
-  createProgramProfile,
-} from '@/lib/db/queries/program-profile'
+import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import type { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 /**
  * Student creation input
@@ -78,39 +77,51 @@ export interface StudentUpdateInput {
  */
 export async function createMahadStudent(input: StudentCreateInput) {
   const normalizedEmail = input.email?.toLowerCase().trim() ?? null
-  const normalizedPhone = input.phone?.trim() ?? null
+  const normalizedPhone = input.phone
+    ? (normalizePhone(input.phone) ?? null)
+    : null
 
   return prisma.$transaction(async (tx) => {
-    let person
-    if (normalizedEmail) {
-      person = await tx.person.findFirst({
-        where: {
-          contactPoints: {
-            some: {
-              type: 'EMAIL',
-              value: normalizedEmail,
-            },
-          },
-        },
-      })
+    const dupResult = await DuplicateDetectionService.checkDuplicate(
+      {
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        program: MAHAD_PROGRAM,
+      },
+      tx
+    )
+
+    if (dupResult.isDuplicate && dupResult.hasActiveProfile) {
+      throw new ActionError(
+        'Student already registered for Mahad',
+        ERROR_CODES.DUPLICATE_EMAIL,
+        undefined,
+        409
+      )
     }
 
-    if (person) {
-      const existingProfile = await tx.programProfile.findFirst({
-        where: { personId: person.id, program: MAHAD_PROGRAM },
-      })
-      if (existingProfile) {
-        throw new ActionError(
-          'Student already registered for Mahad',
-          ERROR_CODES.DUPLICATE_EMAIL,
-          undefined,
-          409
+    let personId: string
+
+    if (dupResult.existingPerson) {
+      personId = dupResult.existingPerson.id
+
+      if (normalizedEmail) {
+        const emailContact = dupResult.existingPerson.contactPoints.find(
+          (cp) => cp.type === 'EMAIL' && cp.value === normalizedEmail
         )
+        if (emailContact && !emailContact.isActive) {
+          await tx.contactPoint.update({
+            where: { id: emailContact.id },
+            data: { isActive: true, deactivatedAt: null },
+          })
+        }
       }
-    }
-
-    if (!person) {
-      const contactPoints = []
+    } else {
+      const contactPoints: {
+        type: 'EMAIL' | 'PHONE'
+        value: string
+        isPrimary?: boolean
+      }[] = []
 
       if (normalizedEmail) {
         contactPoints.push({
@@ -127,7 +138,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
         })
       }
 
-      person = await tx.person.create({
+      const newPerson = await tx.person.create({
         data: {
           name: input.name,
           dateOfBirth: input.dateOfBirth ?? null,
@@ -136,34 +147,21 @@ export async function createMahadStudent(input: StudentCreateInput) {
           },
         },
       })
+      personId = newPerson.id
     }
 
-    const profile = await createProgramProfile(
-      {
-        personId: person.id,
+    const profile = await tx.programProfile.create({
+      data: {
+        personId,
         program: MAHAD_PROGRAM,
         gradeLevel: input.gradeLevel ?? null,
         schoolName: input.schoolName ?? null,
+        graduationStatus: input.graduationStatus ?? null,
+        paymentFrequency: input.paymentFrequency ?? null,
+        billingType: input.billingType ?? null,
+        paymentNotes: input.paymentNotes ?? null,
       },
-      tx
-    )
-
-    if (
-      input.graduationStatus !== undefined ||
-      input.paymentFrequency !== undefined ||
-      input.billingType !== undefined ||
-      input.paymentNotes !== undefined
-    ) {
-      await tx.programProfile.update({
-        where: { id: profile.id },
-        data: {
-          graduationStatus: input.graduationStatus ?? null,
-          paymentFrequency: input.paymentFrequency ?? null,
-          billingType: input.billingType ?? null,
-          paymentNotes: input.paymentNotes ?? null,
-        },
-      })
-    }
+    })
 
     await tx.enrollment.create({
       data: {
@@ -268,7 +266,9 @@ export async function updateMahadStudent(
     }
 
     if (input.phone !== undefined) {
-      const normalizedPhone = input.phone?.trim() ?? null
+      const normalizedPhone = input.phone
+        ? (normalizePhone(input.phone) ?? null)
+        : null
 
       if (normalizedPhone) {
         const existingPhone = await tx.contactPoint.findFirst({
