@@ -45,6 +45,10 @@ vi.mock('@/lib/services/duplicate-detection-service', () => ({
   },
 }))
 
+vi.mock('@/lib/constants/mahad', () => ({
+  MAHAD_PROGRAM: 'MAHAD_PROGRAM',
+}))
+
 vi.mock('@/lib/services/mahad/student-service', () => ({
   createMahadStudent: (...args: unknown[]) => mockCreateMahadStudent(...args),
 }))

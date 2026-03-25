@@ -65,6 +65,10 @@ vi.mock('@/lib/db/queries/siblings', () => ({
 }))
 
 vi.mock('@/lib/utils/contact-normalization', () => ({
+  normalizeEmail: (email: string | null | undefined) => {
+    if (!email) return null
+    return email.toLowerCase().trim()
+  },
   normalizePhone: (phone: string | null | undefined) => {
     if (!phone) return null
     const normalized = phone.replace(/\D/g, '')
@@ -230,6 +234,42 @@ describe('createMahadStudent', () => {
 
     expect(mockContactPointUpdate).toHaveBeenCalledWith({
       where: { id: 'cp-email' },
+      data: { isActive: true, deactivatedAt: null },
+    })
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+  })
+
+  it('should reactivate deactivated phone contact for returnee', async () => {
+    const existingPerson = {
+      id: 'returnee-person',
+      name: 'Ahmed',
+      contactPoints: [
+        {
+          id: 'cp-email',
+          type: 'EMAIL',
+          value: 'ahmed@example.com',
+          isActive: true,
+        },
+        {
+          id: 'cp-phone',
+          type: 'PHONE',
+          value: '6125551234',
+          isActive: false,
+          deactivatedAt: new Date(),
+        },
+      ],
+    }
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'phone',
+      existingPerson,
+      hasActiveProfile: false,
+    })
+
+    await createMahadStudent(baseInput)
+
+    expect(mockContactPointUpdate).toHaveBeenCalledWith({
+      where: { id: 'cp-phone' },
       data: { isActive: true, deactivatedAt: null },
     })
     expect(mockPersonCreate).not.toHaveBeenCalled()

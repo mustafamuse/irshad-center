@@ -7,6 +7,7 @@ import { after } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { checkRateLimit } from '@/lib/auth/rate-limit'
+import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { createActionLogger, logError } from '@/lib/logger'
 import {
   mahadRegistrationSchema,
@@ -108,5 +109,5 @@ export async function checkEmailExists(email: string): Promise<boolean> {
     // Fail open if headers/rate-limit unavailable
   }
 
-  return DuplicateDetectionService.isEmailRegistered(email, 'MAHAD_PROGRAM')
+  return DuplicateDetectionService.isEmailRegistered(email, MAHAD_PROGRAM)
 }

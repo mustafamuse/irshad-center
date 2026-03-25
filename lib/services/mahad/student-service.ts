@@ -1,16 +1,3 @@
-/**
- * Mahad Student Service
- *
- * Business logic for Mahad student management operations.
- * Handles student profile creation, updates, and retrieval.
- *
- * Responsibilities:
- * - Create student program profiles
- * - Update student information
- * - Get student details
- * - Manage student contact information
- */
-
 import {
   GradeLevel,
   GraduationStatus,
@@ -26,7 +13,10 @@ import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import type { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 /**
  * Student creation input
@@ -76,7 +66,7 @@ export interface StudentUpdateInput {
  * @returns Created program profile
  */
 export async function createMahadStudent(input: StudentCreateInput) {
-  const normalizedEmail = input.email?.toLowerCase().trim() ?? null
+  const normalizedEmail = normalizeEmail(input.email)
   const normalizedPhone = input.phone
     ? (normalizePhone(input.phone) ?? null)
     : null
@@ -112,6 +102,18 @@ export async function createMahadStudent(input: StudentCreateInput) {
         if (emailContact && !emailContact.isActive) {
           await tx.contactPoint.update({
             where: { id: emailContact.id },
+            data: { isActive: true, deactivatedAt: null },
+          })
+        }
+      }
+
+      if (normalizedPhone) {
+        const phoneContact = dupResult.existingPerson.contactPoints.find(
+          (cp) => cp.type === 'PHONE' && cp.value === normalizedPhone
+        )
+        if (phoneContact && !phoneContact.isActive) {
+          await tx.contactPoint.update({
+            where: { id: phoneContact.id },
             data: { isActive: true, deactivatedAt: null },
           })
         }
@@ -218,7 +220,7 @@ export async function updateMahadStudent(
     }
 
     if (input.email !== undefined) {
-      const normalizedEmail = input.email?.toLowerCase().trim() ?? null
+      const normalizedEmail = normalizeEmail(input.email)
 
       if (normalizedEmail) {
         const existingEmail = await tx.contactPoint.findFirst({

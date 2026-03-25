@@ -2,6 +2,15 @@ const attempts = new Map<string, { count: number; resetAt: number }>()
 
 const MAX_ATTEMPTS = 5
 const WINDOW_MS = 15 * 60 * 1000
+const MAX_MAP_SIZE = 10_000
+
+function pruneExpired(now: number) {
+  attempts.forEach((value, key) => {
+    if (now > value.resetAt) {
+      attempts.delete(key)
+    }
+  })
+}
 
 export async function checkRateLimit(
   identifier: string,
@@ -11,6 +20,9 @@ export async function checkRateLimit(
   const record = attempts.get(identifier)
 
   if (!record || now > record.resetAt) {
+    if (attempts.size >= MAX_MAP_SIZE) {
+      pruneExpired(now)
+    }
     attempts.set(identifier, { count: 1, resetAt: now + WINDOW_MS })
     return {
       success: true,
