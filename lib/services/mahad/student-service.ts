@@ -104,6 +104,15 @@ export async function createMahadStudent(input: StudentCreateInput) {
             where: { id: emailContact.id },
             data: { isActive: true, deactivatedAt: null },
           })
+        } else if (!emailContact) {
+          await tx.contactPoint.create({
+            data: {
+              personId,
+              type: 'EMAIL',
+              value: normalizedEmail,
+              isPrimary: true,
+            },
+          })
         }
       }
 
@@ -115,6 +124,14 @@ export async function createMahadStudent(input: StudentCreateInput) {
           await tx.contactPoint.update({
             where: { id: phoneContact.id },
             data: { isActive: true, deactivatedAt: null },
+          })
+        } else if (!phoneContact) {
+          await tx.contactPoint.create({
+            data: {
+              personId,
+              type: 'PHONE',
+              value: normalizedPhone,
+            },
           })
         }
       }

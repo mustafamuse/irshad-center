@@ -70,19 +70,11 @@ export async function registerStudent(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      const meta = error.meta as { target?: string[] } | undefined
-      const constraintFields = meta?.target ?? []
-      const isPhoneConstraint = constraintFields.some((f) =>
-        f.toLowerCase().includes('phone')
-      )
-      const field = isPhoneConstraint ? 'phone' : 'email'
-      const message = isPhoneConstraint
-        ? 'A student with this phone number already exists'
-        : 'A student with this email already exists'
+      const message = 'A student with this contact information already exists'
       return {
         success: false,
         error: message,
-        errors: { [field]: [message] },
+        errors: { email: [message] },
       }
     }
     await logError(logger, error, 'Mahad registration failed')

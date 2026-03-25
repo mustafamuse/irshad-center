@@ -155,26 +155,6 @@ describe('registerStudent', () => {
     expect(result.error).toContain('already exists')
   })
 
-  it('should map P2002 phone constraint to phone field', async () => {
-    const { Prisma } = await import('@prisma/client')
-    const prismaError = new Prisma.PrismaClientKnownRequestError(
-      'Unique constraint failed',
-      {
-        code: 'P2002',
-        clientVersion: '5.0.0',
-        meta: { target: ['type', 'value_phone'] },
-      }
-    )
-    Object.assign(prismaError, { meta: { target: ['type', 'value_phone'] } })
-    mockCreateMahadStudent.mockRejectedValue(prismaError)
-
-    const result = await registerStudent(validInput)
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('phone')
-    expect(result.errors?.phone).toBeDefined()
-  })
-
   it('should handle unexpected errors', async () => {
     mockCreateMahadStudent.mockRejectedValue(
       new Error('Database connection lost')

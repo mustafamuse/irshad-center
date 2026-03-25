@@ -275,6 +275,71 @@ describe('createMahadStudent', () => {
     expect(mockPersonCreate).not.toHaveBeenCalled()
   })
 
+  it('should create email contact when person found by phone only', async () => {
+    const existingPerson = {
+      id: 'phone-only-person',
+      name: 'Ahmed',
+      contactPoints: [
+        {
+          id: 'cp-phone',
+          type: 'PHONE',
+          value: '6125551234',
+          isActive: true,
+        },
+      ],
+    }
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'phone',
+      existingPerson,
+      hasActiveProfile: false,
+    })
+
+    await createMahadStudent(baseInput)
+
+    expect(mockContactPointCreate).toHaveBeenCalledWith({
+      data: {
+        personId: 'phone-only-person',
+        type: 'EMAIL',
+        value: 'ahmed@example.com',
+        isPrimary: true,
+      },
+    })
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+  })
+
+  it('should create phone contact when person found by email only', async () => {
+    const existingPerson = {
+      id: 'email-only-person',
+      name: 'Ahmed',
+      contactPoints: [
+        {
+          id: 'cp-email',
+          type: 'EMAIL',
+          value: 'ahmed@example.com',
+          isActive: true,
+        },
+      ],
+    }
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson,
+      hasActiveProfile: false,
+    })
+
+    await createMahadStudent(baseInput)
+
+    expect(mockContactPointCreate).toHaveBeenCalledWith({
+      data: {
+        personId: 'email-only-person',
+        type: 'PHONE',
+        value: '6125551234',
+      },
+    })
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+  })
+
   it('should allow cross-program Person reuse (Dugsi parent registering for Mahad)', async () => {
     const existingPerson = {
       id: 'dugsi-parent',
