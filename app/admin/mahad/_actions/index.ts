@@ -495,6 +495,15 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
+    const warnings = await getStudentDeleteWarnings(id)
+    if (warnings.hasActiveSubscription) {
+      return {
+        success: false,
+        error:
+          'Cannot delete student with active billing subscription. Cancel the subscription first.',
+      }
+    }
+
     await prisma.programProfile.delete({ where: { id } })
 
     revalidateTag('mahad-stats')
@@ -517,32 +526,49 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 /**
  * Bulk delete students
  */
-export async function bulkDeleteStudentsAction(
-  studentIds: string[]
-): Promise<ActionResult<{ deletedCount: number; failedDeletes: string[] }>> {
+export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
+  ActionResult<{
+    deletedCount: number
+    failedDeletes: string[]
+    blockedIds: string[]
+  }>
+> {
   try {
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: false, error: 'No students selected for deletion' }
     }
 
+    const activeAssignments = await prisma.billingAssignment.findMany({
+      where: {
+        programProfileId: { in: studentIds },
+        isActive: true,
+      },
+      select: { programProfileId: true },
+    })
+
+    const blockedIdSet = new Set(
+      activeAssignments.map((a) => a.programProfileId)
+    )
+    const safeIds = studentIds.filter((id) => !blockedIdSet.has(id))
+    const blockedIds = studentIds.filter((id) => blockedIdSet.has(id))
+
     let deletedCount = 0
     const failedDeletes: string[] = []
-    const batchIdsToRevalidate = new Set<string>()
 
-    for (const id of studentIds) {
+    if (safeIds.length > 0) {
       try {
-        const student = await getStudentById(id)
-        if (student?.batchId) {
-          batchIdsToRevalidate.add(student.batchId)
-        }
-        await prisma.programProfile.delete({ where: { id } })
-        deletedCount++
+        await prisma.$transaction(async (tx) => {
+          for (const id of safeIds) {
+            await tx.programProfile.delete({ where: { id } })
+          }
+        })
+        deletedCount = safeIds.length
       } catch (error) {
         logger.error(
-          { err: error, studentId: id },
-          'Failed to delete student in bulk operation'
+          { err: error, studentIds: safeIds },
+          'Failed to bulk delete students'
         )
-        failedDeletes.push(id)
+        failedDeletes.push(...safeIds)
       }
     }
 
@@ -551,7 +577,7 @@ export async function bulkDeleteStudentsAction(
 
     return {
       success: true,
-      data: { deletedCount, failedDeletes },
+      data: { deletedCount, failedDeletes, blockedIds },
     }
   } catch (error) {
     return handleActionError(error, 'bulkDeleteStudentsAction')

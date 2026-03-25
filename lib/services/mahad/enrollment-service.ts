@@ -15,7 +15,6 @@ import { EnrollmentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import {
-  createEnrollment,
   updateEnrollmentStatus,
   getEnrollmentById,
 } from '@/lib/db/queries/enrollment'
@@ -59,62 +58,54 @@ export async function assignStudentsToBatch(
     failedAssignments: [],
   }
 
-  for (const studentId of studentIds) {
-    try {
-      // Wrap each student's assignment in a transaction for atomicity
-      await prisma.$transaction(async (tx) => {
-        // Check if student already enrolled in this batch
-        const existingEnrollment = await tx.enrollment.findFirst({
-          where: {
-            programProfileId: studentId,
-            batchId,
-            status: { not: 'WITHDRAWN' },
-            endDate: null,
-          },
-        })
-
-        if (existingEnrollment) {
-          // Skip if already enrolled
-          return
-        }
-
-        // Check if student has active enrollment in another batch
-        const activeEnrollment = await tx.enrollment.findFirst({
-          where: {
-            programProfileId: studentId,
-            status: { not: 'WITHDRAWN' },
-            endDate: null,
-          },
-        })
-
-        if (activeEnrollment) {
-          // Withdraw from current batch first
-          await updateEnrollmentStatus(
-            activeEnrollment.id,
-            'WITHDRAWN',
-            null,
-            new Date(),
-            tx
-          )
-        }
-
-        // Create new enrollment
-        await createEnrollment(
-          {
-            programProfileId: studentId,
-            batchId,
-            status: 'REGISTERED',
-            startDate: new Date(),
-          },
-          tx
-        )
+  try {
+    await prisma.$transaction(async (tx) => {
+      const activeEnrollments = await tx.enrollment.findMany({
+        where: {
+          programProfileId: { in: studentIds },
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
       })
 
-      result.assignedCount++
-    } catch (error) {
-      result.failedAssignments.push(studentId)
-      await logError(logger, error, 'Failed to assign student', { studentId })
-    }
+      const alreadyInBatch = new Set(
+        activeEnrollments
+          .filter((e) => e.batchId === batchId)
+          .map((e) => e.programProfileId)
+      )
+
+      const toWithdraw = activeEnrollments.filter((e) => e.batchId !== batchId)
+
+      const now = new Date()
+
+      if (toWithdraw.length > 0) {
+        await tx.enrollment.updateMany({
+          where: { id: { in: toWithdraw.map((e) => e.id) } },
+          data: { status: 'WITHDRAWN', endDate: now },
+        })
+      }
+
+      const toEnroll = studentIds.filter((id) => !alreadyInBatch.has(id))
+
+      if (toEnroll.length > 0) {
+        await tx.enrollment.createMany({
+          data: toEnroll.map((studentId) => ({
+            programProfileId: studentId,
+            batchId,
+            status: 'REGISTERED' as EnrollmentStatus,
+            startDate: now,
+          })),
+        })
+      }
+
+      result.assignedCount = toEnroll.length
+    })
+  } catch (error) {
+    result.failedAssignments.push(...studentIds)
+    await logError(logger, error, 'Failed to assign students to batch', {
+      batchId,
+      studentIds,
+    })
   }
 
   return result
@@ -138,54 +129,56 @@ export async function transferStudentsToBatch(
     failedTransfers: [],
   }
 
-  for (const studentId of studentIds) {
-    try {
-      // Wrap each student's transfer in a transaction for atomicity
-      await prisma.$transaction(async (tx) => {
-        // Get current active enrollment
-        const currentEnrollment = await tx.enrollment.findFirst({
-          where: {
-            programProfileId: studentId,
-            status: { not: 'WITHDRAWN' },
-            endDate: null,
-          },
-        })
-
-        if (!currentEnrollment) {
-          throw new ActionError(
-            'No active enrollment found',
-            ERROR_CODES.ENROLLMENT_NOT_FOUND,
-            undefined,
-            404
-          )
-        }
-
-        // Withdraw from current batch
-        await updateEnrollmentStatus(
-          currentEnrollment.id,
-          'WITHDRAWN',
-          null,
-          new Date(),
-          tx
-        )
-
-        // Enroll in new batch
-        await createEnrollment(
-          {
-            programProfileId: studentId,
-            batchId: targetBatchId,
-            status: 'REGISTERED',
-            startDate: new Date(),
-          },
-          tx
-        )
+  try {
+    await prisma.$transaction(async (tx) => {
+      const activeEnrollments = await tx.enrollment.findMany({
+        where: {
+          programProfileId: { in: studentIds },
+          status: { not: 'WITHDRAWN' },
+          endDate: null,
+        },
       })
 
-      result.transferredCount++
-    } catch (error) {
-      result.failedTransfers.push(studentId)
-      await logError(logger, error, 'Failed to transfer student', { studentId })
-    }
+      const enrolledStudentIds = new Set(
+        activeEnrollments.map((e) => e.programProfileId)
+      )
+      const missingStudents = studentIds.filter(
+        (id) => !enrolledStudentIds.has(id)
+      )
+
+      if (missingStudents.length > 0) {
+        throw new ActionError(
+          `No active enrollment found for ${missingStudents.length} student(s)`,
+          ERROR_CODES.ENROLLMENT_NOT_FOUND,
+          undefined,
+          404
+        )
+      }
+
+      const now = new Date()
+
+      await tx.enrollment.updateMany({
+        where: { id: { in: activeEnrollments.map((e) => e.id) } },
+        data: { status: 'WITHDRAWN', endDate: now },
+      })
+
+      await tx.enrollment.createMany({
+        data: studentIds.map((studentId) => ({
+          programProfileId: studentId,
+          batchId: targetBatchId,
+          status: 'REGISTERED' as EnrollmentStatus,
+          startDate: now,
+        })),
+      })
+
+      result.transferredCount = studentIds.length
+    })
+  } catch (error) {
+    result.failedTransfers.push(...studentIds)
+    await logError(logger, error, 'Failed to transfer students', {
+      studentIds,
+      targetBatchId,
+    })
   }
 
   return result
