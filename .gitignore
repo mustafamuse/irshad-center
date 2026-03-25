@@ -67,6 +67,7 @@ firebase-debug.log
 .claude/settings.local.json
 .claude/worktrees/
 .claude/scripts/
+.claude/metadata-updater.sh
 
 # Agent Orchestrator - contains model preferences and may contain secrets
 agent-orchestrator.yaml
