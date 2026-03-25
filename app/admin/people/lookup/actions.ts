@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 import { Program } from '@prisma/client'
 import { z } from 'zod'
@@ -139,6 +139,7 @@ export async function deletePersonAction(
     revalidatePath('/admin/people')
     revalidatePath('/admin/teachers')
     revalidatePath('/admin/dugsi')
+    revalidateTag('mahad-stats')
     revalidatePath('/admin/mahad')
 
     return { success: true, data: undefined }

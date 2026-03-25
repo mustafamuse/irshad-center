@@ -14,6 +14,7 @@ const {
   mockPrismaTransaction,
   mockPrismaFindUnique,
   mockRevalidatePath,
+  mockRevalidateTag,
   mockLoggerError,
   mockLoggerWarn,
   mockStripeSessionCreate,
@@ -31,6 +32,7 @@ const {
   mockPrismaTransaction: vi.fn(),
   mockPrismaFindUnique: vi.fn(),
   mockRevalidatePath: vi.fn(),
+  mockRevalidateTag: vi.fn(),
   mockLoggerError: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockStripeSessionCreate: vi.fn(),
@@ -38,6 +40,7 @@ const {
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
+  revalidateTag: (...args: unknown[]) => mockRevalidateTag(...args),
 }))
 
 vi.mock('@/lib/db', () => ({

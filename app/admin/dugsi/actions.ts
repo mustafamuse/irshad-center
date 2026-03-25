@@ -507,7 +507,7 @@ export async function updateFamilyShift(
       shift: validated.shift,
     })
 
-    revalidatePath('/admin/dugsi', 'layout')
+    revalidatePath('/admin/dugsi')
 
     return {
       success: true,

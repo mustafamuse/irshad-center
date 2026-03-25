@@ -2,13 +2,14 @@ import { AlertTriangle } from 'lucide-react'
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
-import { getOrphanedSubscriptions } from '../actions'
+import type { OrphanedSubscriptionsResult } from '../actions'
 import { StatsCardsClient } from './stats-cards-client'
 
-export async function StatsCards() {
-  const result = await getOrphanedSubscriptions()
+interface StatsCardsProps {
+  result: OrphanedSubscriptionsResult
+}
 
-  // Show error alert if Stripe is not configured
+export function StatsCards({ result }: StatsCardsProps) {
   if (result.error) {
     return (
       <Alert variant="destructive">
@@ -35,7 +36,7 @@ export async function StatsCards() {
   ).length
 
   const totalRevenue =
-    orphanedSubs.reduce((sum, sub) => sum + sub.amount, 0) / 100 // Convert cents to dollars
+    orphanedSubs.reduce((sum, sub) => sum + sub.amount, 0) / 100
 
   return (
     <StatsCardsClient
