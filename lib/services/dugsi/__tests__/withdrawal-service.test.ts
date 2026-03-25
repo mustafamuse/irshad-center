@@ -11,6 +11,7 @@ const {
   mockPrismaProfileFindMany,
   mockLogInfo,
   mockLogWarning,
+  mockLogError,
 } = vi.hoisted(() => ({
   mockFindFamilySubscription: vi.fn(),
   mockHandleBillingDivergence: vi.fn(),
@@ -22,6 +23,7 @@ const {
   mockPrismaProfileFindMany: vi.fn(),
   mockLogInfo: vi.fn(),
   mockLogWarning: vi.fn(),
+  mockLogError: vi.fn(),
 }))
 
 vi.mock('../billing-helpers', () => ({
@@ -76,7 +78,7 @@ vi.mock('@/lib/logger', () => ({
   })),
   logInfo: (...args: unknown[]) => mockLogInfo(...args),
   logWarning: (...args: unknown[]) => mockLogWarning(...args),
-  logError: vi.fn(),
+  logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
 vi.mock('@/lib/errors/action-error', async () => {
@@ -306,5 +308,125 @@ describe('withdrawChildren', () => {
     expect(result.success).toBe(true)
     expect(result.withdrawnCount).toBe(1)
     expect(mockStripeSubscriptionUpdate).not.toHaveBeenCalled()
+  })
+
+  it('should rollback DB when Stripe rate update fails', async () => {
+    const profiles = createMockProfiles(2)
+    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionRetrieve.mockResolvedValueOnce({
+      items: { data: [{ id: 'si_item1' }] },
+    })
+    mockStripeSubscriptionUpdate.mockRejectedValueOnce(
+      new Error('Stripe rate update failed')
+    )
+
+    await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
+      'Stripe billing update failed'
+    )
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ message: 'Stripe rate update failed' }),
+      expect.stringContaining('Stripe call failed'),
+      expect.objectContaining({ familyReferenceId: FAMILY_ID })
+    )
+
+    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'profile-1' },
+        data: { status: 'ENROLLED' },
+      })
+    )
+
+    expect(mockPrismaAssignmentUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          programProfileId: { in: ['profile-1'] },
+          isActive: false,
+        }),
+        data: { isActive: true, endDate: null },
+      })
+    )
+  })
+
+  it('should rollback DB when Stripe cancel_at_period_end fails', async () => {
+    const profiles = createMockProfiles(2)
+    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionUpdate.mockRejectedValueOnce(
+      new Error('Stripe cancel failed')
+    )
+
+    await expect(
+      withdrawChildren(FAMILY_ID, ['profile-1', 'profile-2'])
+    ).rejects.toThrow('Stripe billing update failed')
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ message: 'Stripe cancel failed' }),
+      expect.stringContaining('Stripe call failed'),
+      expect.objectContaining({ familyReferenceId: FAMILY_ID })
+    )
+
+    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'profile-1' },
+        data: { status: 'ENROLLED' },
+      })
+    )
+    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'profile-2' },
+        data: { status: 'ENROLLED' },
+      })
+    )
+
+    expect(mockPrismaAssignmentUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          programProfileId: { in: ['profile-1', 'profile-2'] },
+          isActive: false,
+        }),
+        data: { isActive: true, endDate: null },
+      })
+    )
+  })
+
+  it('should rollback DB when Stripe retrieve fails (no subscription items)', async () => {
+    const profiles = createMockProfiles(2)
+    mockPrismaProfileFindMany.mockResolvedValueOnce(profiles)
+    mockFindFamilySubscription.mockResolvedValueOnce(MOCK_SUBSCRIPTION)
+    mockStripeSubscriptionRetrieve.mockRejectedValueOnce(
+      new Error('Stripe retrieve failed')
+    )
+
+    await expect(withdrawChildren(FAMILY_ID, ['profile-1'])).rejects.toThrow(
+      'Stripe billing update failed'
+    )
+
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ message: 'Stripe retrieve failed' }),
+      expect.stringContaining('Stripe call failed'),
+      expect.objectContaining({ familyReferenceId: FAMILY_ID })
+    )
+
+    expect(mockPrismaProfileUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'profile-1' },
+        data: { status: 'ENROLLED' },
+      })
+    )
+
+    expect(mockPrismaAssignmentUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          programProfileId: { in: ['profile-1'] },
+          isActive: false,
+        }),
+        data: { isActive: true, endDate: null },
+      })
+    )
   })
 })

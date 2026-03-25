@@ -17,22 +17,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { WithdrawalPreview } from '@/lib/services/dugsi/withdrawal-preview-service'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
 import {
   getWithdrawalPreviewAction,
   withdrawChildrenAction,
 } from '../../withdrawal-actions'
-
-interface WithdrawalPreviewData {
-  childrenToWithdraw: Array<{ id: string; name: string }>
-  currentRate: number
-  newRate: number
-  remainingCount: number
-  removesAllChildren: boolean
-  subscriptionStatus: string | null
-  hasOverride: boolean
-}
 
 interface WithdrawDialogProps {
   familyReferenceId: string
@@ -50,7 +41,7 @@ export function WithdrawDialog({
   onSuccess,
 }: WithdrawDialogProps) {
   const [isPending, startTransition] = useTransition()
-  const [preview, setPreview] = useState<WithdrawalPreviewData | null>(null)
+  const [preview, setPreview] = useState<WithdrawalPreview | null>(null)
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
 
   useEffect(() => {
@@ -73,7 +64,8 @@ export function WithdrawDialog({
           setIsLoadingPreview(false)
         })
     }
-  }, [open, familyReferenceId, profileIds, onOpenChange])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, familyReferenceId, profileIds])
 
   useEffect(() => {
     if (!open) {
@@ -159,7 +151,7 @@ export function WithdrawDialog({
                       </div>
                     )}
 
-                    {preview.removesAllChildren && (
+                    {preview.removesAllChildren && !isPaused && (
                       <div className="flex items-center gap-2 text-sm text-amber-700">
                         <AlertTriangle className="h-4 w-4 shrink-0" />
                         Subscription will be canceled at end of billing period

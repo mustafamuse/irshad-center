@@ -425,6 +425,7 @@ export function FamilyDetailSheet({
           onOpenChange={(open) => {
             if (!open) actions.closeWithdrawDialog()
           }}
+          onSuccess={actions.closeWithdrawDialog}
         />
       )}
     </Sheet>

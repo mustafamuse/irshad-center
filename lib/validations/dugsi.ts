@@ -61,14 +61,14 @@ export const ResumeFamilyBillingSchema = FamilyBillingControlSchema
 export const WithdrawChildrenSchema = z.object({
   familyReferenceId: z.string().uuid('Invalid family reference ID format'),
   profileIds: z
-    .array(z.string().min(1, 'Profile ID cannot be empty'))
+    .array(z.string().uuid('Invalid profile ID format'))
     .min(1, 'At least one child must be selected for withdrawal'),
 })
 
 export const WithdrawalPreviewSchema = z.object({
   familyReferenceId: z.string().uuid('Invalid family reference ID format'),
   profileIds: z
-    .array(z.string().min(1, 'Profile ID cannot be empty'))
+    .array(z.string().uuid('Invalid profile ID format'))
     .min(1, 'At least one child must be selected'),
 })
 

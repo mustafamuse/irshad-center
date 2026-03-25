@@ -86,10 +86,16 @@ export async function withdrawChildren(
       const allWithdrawn = remainingCount === 0
 
       const newRate = calculateDugsiRate(remainingCount)
-      const previousRate = calculateDugsiRate(currentActiveCount)
 
       const subscription = await findFamilySubscription(familyReferenceId)
+      const previousRate =
+        subscription?.amount ?? calculateDugsiRate(currentActiveCount)
       const isPaused = subscription?.status === 'paused'
+
+      const originalStatuses = profilesToWithdraw.map((p) => ({
+        id: p.id,
+        status: p.status as EnrollmentStatus,
+      }))
 
       const now = new Date()
 
@@ -158,8 +164,9 @@ export async function withdrawChildren(
         }
       }
 
+      const calculatedPreviousRate = calculateDugsiRate(currentActiveCount)
       let warning: string | undefined
-      if (subscription.amount !== previousRate) {
+      if (subscription.amount !== calculatedPreviousRate) {
         warning = `Admin override amount was reset from $${(subscription.amount / 100).toFixed(2)} to calculated rate $${(newRate / 100).toFixed(2)}`
         await logWarning(logger, 'Admin override reset during withdrawal', {
           familyReferenceId,
@@ -170,40 +177,123 @@ export async function withdrawChildren(
 
       const stripe = getDugsiStripeClient()
 
-      if (allWithdrawn) {
-        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-          cancel_at_period_end: true,
-        })
-
-        try {
-          await prisma.subscription.update({
-            where: { id: subscription.id },
-            data: { amount: 0 },
+      try {
+        if (allWithdrawn) {
+          await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+            cancel_at_period_end: true,
           })
-        } catch (dbError) {
-          const error = await handleBillingDivergence(
-            logger,
-            dbError,
-            'Stripe cancel_at_period_end set',
-            {
-              familyReferenceId,
-              stripeSubscriptionId: subscription.stripeSubscriptionId,
+
+          try {
+            await prisma.subscription.update({
+              where: { id: subscription.id },
+              data: { amount: 0 },
+            })
+          } catch (dbError) {
+            const error = await handleBillingDivergence(
+              logger,
+              dbError,
+              'Stripe cancel_at_period_end set',
+              {
+                familyReferenceId,
+                stripeSubscriptionId: subscription.stripeSubscriptionId,
+              }
+            )
+            return {
+              success: false,
+              error,
+              withdrawnCount: withdrawCount,
+              remainingCount,
+              newRate,
+              previousRate,
+              subscriptionCanceled: true,
             }
-          )
+          }
+
+          await logInfo(logger, 'Subscription set to cancel at period end', {
+            familyReferenceId,
+            subscriptionId: subscription.stripeSubscriptionId,
+          })
+
           return {
-            success: false,
-            error,
+            success: true,
+            warning,
             withdrawnCount: withdrawCount,
             remainingCount,
-            newRate,
+            newRate: 0,
             previousRate,
             subscriptionCanceled: true,
           }
         }
 
-        await logInfo(logger, 'Subscription set to cancel at period end', {
+        const stripeSubscription = await stripe.subscriptions.retrieve(
+          subscription.stripeSubscriptionId
+        )
+        const subscriptionItemId = stripeSubscription.items.data[0]?.id
+
+        if (!subscriptionItemId) {
+          throw new ActionError(
+            'Subscription has no line items to update',
+            ERROR_CODES.STRIPE_ERROR
+          )
+        }
+
+        const { productId } = getDugsiKeys()
+        if (!productId) {
+          throw new ActionError(
+            'Stripe product not configured for Dugsi',
+            ERROR_CODES.STRIPE_ERROR
+          )
+        }
+        const intervalConfig = getStripeInterval()
+
+        await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+          items: [
+            {
+              id: subscriptionItemId,
+              price_data: {
+                product: productId,
+                unit_amount: newRate,
+                currency: 'usd',
+                recurring: intervalConfig,
+              },
+            },
+          ],
+          proration_behavior: 'none',
+        })
+
+        try {
+          await prisma.subscription.update({
+            where: { id: subscription.id },
+            data: { amount: newRate },
+          })
+        } catch (dbError) {
+          const error = await handleBillingDivergence(
+            logger,
+            dbError,
+            `Stripe updated to ${newRate} cents`,
+            {
+              familyReferenceId,
+              stripeSubscriptionId: subscription.stripeSubscriptionId,
+              intendedAmount: newRate,
+            }
+          )
+          return {
+            success: false,
+            error,
+            warning,
+            withdrawnCount: withdrawCount,
+            remainingCount,
+            newRate,
+            previousRate,
+            subscriptionCanceled: false,
+          }
+        }
+
+        await logInfo(logger, 'Subscription rate updated after withdrawal', {
           familyReferenceId,
           subscriptionId: subscription.stripeSubscriptionId,
+          previousRate,
+          newRate,
         })
 
         return {
@@ -211,91 +301,58 @@ export async function withdrawChildren(
           warning,
           withdrawnCount: withdrawCount,
           remainingCount,
-          newRate: 0,
-          previousRate,
-          subscriptionCanceled: true,
-        }
-      }
-
-      const stripeSubscription = await stripe.subscriptions.retrieve(
-        subscription.stripeSubscriptionId
-      )
-      const subscriptionItemId = stripeSubscription.items.data[0]?.id
-
-      if (!subscriptionItemId) {
-        throw new ActionError(
-          'Subscription has no line items to update',
-          ERROR_CODES.STRIPE_ERROR
-        )
-      }
-
-      const { productId } = getDugsiKeys()
-      if (!productId) {
-        throw new ActionError(
-          'Stripe product not configured for Dugsi',
-          ERROR_CODES.STRIPE_ERROR
-        )
-      }
-      const intervalConfig = getStripeInterval()
-
-      await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
-        items: [
-          {
-            id: subscriptionItemId,
-            price_data: {
-              product: productId,
-              unit_amount: newRate,
-              currency: 'usd',
-              recurring: intervalConfig,
-            },
-          },
-        ],
-        proration_behavior: 'none',
-      })
-
-      try {
-        await prisma.subscription.update({
-          where: { id: subscription.id },
-          data: { amount: newRate },
-        })
-      } catch (dbError) {
-        const error = await handleBillingDivergence(
-          logger,
-          dbError,
-          `Stripe updated to ${newRate} cents`,
-          {
-            familyReferenceId,
-            stripeSubscriptionId: subscription.stripeSubscriptionId,
-            intendedAmount: newRate,
-          }
-        )
-        return {
-          success: false,
-          error,
-          warning,
-          withdrawnCount: withdrawCount,
-          remainingCount,
           newRate,
           previousRate,
           subscriptionCanceled: false,
         }
-      }
+      } catch (stripeError) {
+        await logError(
+          logger,
+          stripeError,
+          'Stripe call failed after DB commit, rolling back withdrawal',
+          { familyReferenceId, profileIds }
+        )
 
-      await logInfo(logger, 'Subscription rate updated after withdrawal', {
-        familyReferenceId,
-        subscriptionId: subscription.stripeSubscriptionId,
-        previousRate,
-        newRate,
-      })
+        try {
+          await prisma.$transaction(async (tx) => {
+            for (const { id, status } of originalStatuses) {
+              await tx.programProfile.updateMany({
+                where: { id },
+                data: { status },
+              })
+            }
 
-      return {
-        success: true,
-        warning,
-        withdrawnCount: withdrawCount,
-        remainingCount,
-        newRate,
-        previousRate,
-        subscriptionCanceled: false,
+            await tx.billingAssignment.updateMany({
+              where: {
+                programProfileId: { in: profileIds },
+                isActive: false,
+                endDate: now,
+              },
+              data: {
+                isActive: true,
+                endDate: null,
+              },
+            })
+          })
+
+          await logInfo(
+            logger,
+            'Successfully rolled back withdrawal after Stripe failure',
+            { familyReferenceId, profileIds }
+          )
+        } catch (rollbackError) {
+          await logError(
+            logger,
+            rollbackError,
+            'Failed to rollback withdrawal after Stripe failure - MANUAL INTERVENTION REQUIRED',
+            { familyReferenceId, profileIds }
+          )
+        }
+
+        throw new ActionError(
+          'Stripe billing update failed. Withdrawal has been rolled back.',
+          ERROR_CODES.STRIPE_ERROR
+        )
       }
     }
   )
