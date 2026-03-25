@@ -18,6 +18,7 @@ const {
   mockLoggerError,
   mockLoggerWarn,
   mockStripeSessionCreate,
+  mockBillingAssignmentFindMany,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
   mockUpdateBatch: vi.fn(),
@@ -36,6 +37,7 @@ const {
   mockLoggerError: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockStripeSessionCreate: vi.fn(),
+  mockBillingAssignmentFindMany: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -48,6 +50,9 @@ vi.mock('@/lib/db', () => ({
     programProfile: {
       delete: (...args: unknown[]) => mockPrismaDelete(...args),
       findUnique: (...args: unknown[]) => mockPrismaFindUnique(...args),
+    },
+    billingAssignment: {
+      findMany: (...args: unknown[]) => mockBillingAssignmentFindMany(...args),
     },
     $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
       mockPrismaTransaction(fn),
@@ -390,6 +395,12 @@ describe('Student Actions', () => {
   describe('deleteStudentAction', () => {
     it('should delete an existing student', async () => {
       mockGetStudentById.mockResolvedValue({ id: 'student-1', batchId: null })
+      mockGetStudentDeleteWarnings.mockResolvedValue({
+        hasSiblings: false,
+        hasAttendanceRecords: false,
+        hasActiveSubscription: false,
+        hasPaymentHistory: false,
+      })
       mockPrismaDelete.mockResolvedValue(undefined)
 
       const result = await deleteStudentAction('student-1')
@@ -404,6 +415,12 @@ describe('Student Actions', () => {
       mockGetStudentById.mockResolvedValue({
         id: 'student-1',
         batchId: 'batch-1',
+      })
+      mockGetStudentDeleteWarnings.mockResolvedValue({
+        hasSiblings: false,
+        hasAttendanceRecords: false,
+        hasActiveSubscription: false,
+        hasPaymentHistory: false,
       })
       mockPrismaDelete.mockResolvedValue(undefined)
 
@@ -420,12 +437,40 @@ describe('Student Actions', () => {
       expect(result.success).toBe(false)
       expect(result.error).toBe('Student not found')
     })
+
+    it('should block deletion when active subscription exists', async () => {
+      mockGetStudentById.mockResolvedValue({
+        id: 'student-1',
+        batchId: null,
+      })
+      mockGetStudentDeleteWarnings.mockResolvedValue({
+        hasSiblings: false,
+        hasAttendanceRecords: false,
+        hasActiveSubscription: true,
+        hasPaymentHistory: true,
+      })
+
+      const result = await deleteStudentAction('student-1')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('active billing subscription')
+      expect(mockPrismaDelete).not.toHaveBeenCalled()
+    })
   })
 
   describe('bulkDeleteStudentsAction', () => {
     it('should delete multiple students', async () => {
-      mockGetStudentById.mockResolvedValue({ id: 'test', batchId: null })
-      mockPrismaDelete.mockResolvedValue(undefined)
+      mockBillingAssignmentFindMany.mockResolvedValue([])
+      mockPrismaTransaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            programProfile: {
+              delete: mockPrismaDelete.mockResolvedValue(undefined),
+            },
+          }
+          return fn(tx)
+        }
+      )
 
       const result = await bulkDeleteStudentsAction([
         'student-1',
@@ -436,6 +481,7 @@ describe('Student Actions', () => {
       expect(result.success).toBe(true)
       expect(result.data?.deletedCount).toBe(3)
       expect(result.data?.failedDeletes).toEqual([])
+      expect(result.data?.blockedIds).toEqual([])
     })
 
     it('should return error for empty student list', async () => {
@@ -445,12 +491,20 @@ describe('Student Actions', () => {
       expect(result.error).toBe('No students selected for deletion')
     })
 
-    it('should track failed deletions', async () => {
-      mockGetStudentById.mockResolvedValue({ id: 'test', batchId: null })
-      mockPrismaDelete
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('DB error'))
-        .mockResolvedValueOnce(undefined)
+    it('should skip students with active subscriptions', async () => {
+      mockBillingAssignmentFindMany.mockResolvedValue([
+        { programProfileId: 'student-2' },
+      ])
+      mockPrismaTransaction.mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          const tx = {
+            programProfile: {
+              delete: mockPrismaDelete.mockResolvedValue(undefined),
+            },
+          }
+          return fn(tx)
+        }
+      )
 
       const result = await bulkDeleteStudentsAction([
         'student-1',
@@ -460,7 +514,18 @@ describe('Student Actions', () => {
 
       expect(result.success).toBe(true)
       expect(result.data?.deletedCount).toBe(2)
-      expect(result.data?.failedDeletes).toContain('student-2')
+      expect(result.data?.blockedIds).toEqual(['student-2'])
+    })
+
+    it('should track failed deletions when transaction fails', async () => {
+      mockBillingAssignmentFindMany.mockResolvedValue([])
+      mockPrismaTransaction.mockRejectedValue(new Error('DB error'))
+
+      const result = await bulkDeleteStudentsAction(['student-1', 'student-2'])
+
+      expect(result.success).toBe(true)
+      expect(result.data?.deletedCount).toBe(0)
+      expect(result.data?.failedDeletes).toEqual(['student-1', 'student-2'])
     })
   })
 
