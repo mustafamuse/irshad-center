@@ -460,6 +460,23 @@ describe('linkSubscriptionToProfiles', () => {
     expect(mockCreateBillingAssignment).not.toHaveBeenCalled()
   })
 
+  it('should return 0 when all profiles hit P2002', async () => {
+    mockBillingAssignmentFindMany.mockResolvedValue([])
+    const p2002Error = Object.assign(new Error('Unique constraint'), {
+      code: 'P2002',
+    })
+    mockCreateBillingAssignment.mockRejectedValue(p2002Error)
+
+    const count = await linkSubscriptionToProfiles(
+      'sub_123',
+      [validUuid1, validUuid2],
+      1000
+    )
+
+    expect(count).toBe(0)
+    expect(mockCreateBillingAssignment).toHaveBeenCalledTimes(2)
+  })
+
   it('should include notes in assignments', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
     mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
@@ -670,8 +687,13 @@ describe('getBillingStatusByEmail', () => {
       StripeAccountType.DUGSI
     )
 
-    expect(result.stripeCustomerId).toBe('cus_dugsi_456')
-    expect(result.hasActiveSubscription).toBe(false)
+    expect(result).toEqual(
+      expect.objectContaining({
+        stripeCustomerId: 'cus_dugsi_456',
+        hasPaymentMethod: false,
+        hasActiveSubscription: false,
+      })
+    )
   })
 
   it('should return YOUTH_EVENTS customer ID', async () => {
@@ -691,7 +713,13 @@ describe('getBillingStatusByEmail', () => {
       StripeAccountType.YOUTH_EVENTS
     )
 
-    expect(result.stripeCustomerId).toBe('cus_youth_789')
+    expect(result).toEqual(
+      expect.objectContaining({
+        stripeCustomerId: 'cus_youth_789',
+        hasPaymentMethod: false,
+        hasActiveSubscription: false,
+      })
+    )
   })
 
   it('should return GENERAL_DONATION customer ID', async () => {
@@ -711,7 +739,13 @@ describe('getBillingStatusByEmail', () => {
       StripeAccountType.GENERAL_DONATION
     )
 
-    expect(result.stripeCustomerId).toBe('cus_don_abc')
+    expect(result).toEqual(
+      expect.objectContaining({
+        stripeCustomerId: 'cus_don_abc',
+        hasPaymentMethod: false,
+        hasActiveSubscription: false,
+      })
+    )
   })
 
   it('should exclude non-active subscriptions from status', async () => {
@@ -829,6 +863,21 @@ describe('getBillingStatusForProfiles', () => {
       hasSubscription: true,
       amount: 500,
     })
+  })
+
+  it('should return all profiles as unsubscribed when none have assignments', async () => {
+    mockBillingAssignmentFindMany.mockResolvedValue([])
+
+    const result = await getBillingStatusForProfiles([
+      'profile-1',
+      'profile-2',
+      'profile-3',
+    ])
+
+    expect(result.size).toBe(3)
+    for (const [, status] of result) {
+      expect(status).toEqual({ hasSubscription: false, amount: null })
+    }
   })
 
   it('should return empty map for empty input', async () => {
