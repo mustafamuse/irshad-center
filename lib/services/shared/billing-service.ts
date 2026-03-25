@@ -22,10 +22,8 @@ import { prisma } from '@/lib/db'
 import {
   getBillingAccountByStripeCustomerId as getBillingAccountByCustomerIdQuery,
   upsertBillingAccount as upsertBillingAccountQuery,
-  createBillingAssignment as createBillingAssignmentQuery,
 } from '@/lib/db/queries/billing'
 import { DatabaseClient } from '@/lib/db/types'
-import { isPrismaError } from '@/lib/utils/type-guards'
 
 /**
  * Billing account data for creation/update
@@ -224,43 +222,28 @@ export async function linkSubscriptionToProfiles(
       allExistingAssignments.map((a) => a.programProfileId)
     )
 
-    let count = 0
+    const newAssignments = validated.programProfileIds
+      .map((profileId, i) => ({ profileId, amount: amounts[i] }))
+      .filter(({ profileId }) => !existingProfileIds.has(profileId))
 
-    for (let i = 0; i < validated.programProfileIds.length; i++) {
-      const profileId = validated.programProfileIds[i]
-      const amount = amounts[i]
+    if (newAssignments.length === 0) return 0
 
-      // Check if assignment already exists using the Set
-      if (!existingProfileIds.has(profileId)) {
-        // Calculate percentage
-        const percentage =
+    const result = await tx.billingAssignment.createMany({
+      data: newAssignments.map(({ profileId, amount }) => ({
+        subscriptionId: validated.subscriptionId,
+        programProfileId: profileId,
+        amount,
+        percentage:
           validated.programProfileIds.length > 1
             ? (amount / validated.totalAmount) * 100
-            : null
+            : null,
+        notes,
+        isActive: true,
+      })),
+      skipDuplicates: true,
+    })
 
-        try {
-          await createBillingAssignmentQuery(
-            {
-              subscriptionId: validated.subscriptionId,
-              programProfileId: profileId,
-              amount,
-              percentage,
-              notes,
-            },
-            tx
-          )
-          count++
-        } catch (error) {
-          if (isPrismaError(error) && error.code === 'P2002') {
-            // Assignment already exists (concurrent request created it), skip
-            continue
-          }
-          throw error
-        }
-      }
-    }
-
-    return count
+    return result.count
   }
 
   // If client is already a transaction, use it directly; otherwise wrap in new transaction

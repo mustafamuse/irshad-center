@@ -6,8 +6,8 @@ import { STRIPE_SUBSCRIPTION_STATUS } from '@/lib/constants/stripe'
 const {
   mockGetBillingAccountByCustomerId,
   mockUpsertBillingAccount,
-  mockCreateBillingAssignment,
   mockBillingAssignmentFindMany,
+  mockBillingAssignmentCreateMany,
   mockBillingAssignmentUpdateMany,
   mockPersonFindFirst,
   mockTransaction,
@@ -15,8 +15,8 @@ const {
 } = vi.hoisted(() => ({
   mockGetBillingAccountByCustomerId: vi.fn(),
   mockUpsertBillingAccount: vi.fn(),
-  mockCreateBillingAssignment: vi.fn(),
   mockBillingAssignmentFindMany: vi.fn(),
+  mockBillingAssignmentCreateMany: vi.fn(),
   mockBillingAssignmentUpdateMany: vi.fn(),
   mockPersonFindFirst: vi.fn(),
   mockTransaction: vi.fn(),
@@ -27,6 +27,8 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     billingAssignment: {
       findMany: (...args: unknown[]) => mockBillingAssignmentFindMany(...args),
+      createMany: (...args: unknown[]) =>
+        mockBillingAssignmentCreateMany(...args),
       updateMany: (...args: unknown[]) =>
         mockBillingAssignmentUpdateMany(...args),
     },
@@ -42,19 +44,10 @@ vi.mock('@/lib/db/queries/billing', () => ({
     mockGetBillingAccountByCustomerId(...args),
   upsertBillingAccount: (...args: unknown[]) =>
     mockUpsertBillingAccount(...args),
-  createBillingAssignment: (...args: unknown[]) =>
-    mockCreateBillingAssignment(...args),
 }))
 
 vi.mock('@sentry/nextjs', () => ({
   startSpan: (...args: unknown[]) => mockSentryStartSpan(...args),
-}))
-
-vi.mock('@/lib/utils/type-guards', () => ({
-  isPrismaError: (error: unknown) =>
-    error instanceof Error &&
-    'code' in error &&
-    typeof (error as Error & { code: string }).code === 'string',
 }))
 
 import {
@@ -310,6 +303,7 @@ describe('linkSubscriptionToProfiles', () => {
         const tx = {
           billingAssignment: {
             findMany: mockBillingAssignmentFindMany,
+            createMany: mockBillingAssignmentCreateMany,
           },
         }
         return callback(tx)
@@ -317,9 +311,9 @@ describe('linkSubscriptionToProfiles', () => {
     )
   })
 
-  it('should create assignments for all profiles', async () => {
+  it('should use createMany with skipDuplicates for batch insert', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 2 })
 
     const count = await linkSubscriptionToProfiles(
       'sub_123',
@@ -328,28 +322,39 @@ describe('linkSubscriptionToProfiles', () => {
     )
 
     expect(count).toBe(2)
-    expect(mockCreateBillingAssignment).toHaveBeenCalledTimes(2)
+    expect(mockBillingAssignmentCreateMany).toHaveBeenCalledWith({
+      data: expect.arrayContaining([
+        expect.objectContaining({
+          subscriptionId: 'sub_123',
+          programProfileId: validUuid1,
+          amount: 500,
+          isActive: true,
+        }),
+        expect.objectContaining({
+          subscriptionId: 'sub_123',
+          programProfileId: validUuid2,
+          amount: 500,
+          isActive: true,
+        }),
+      ]),
+      skipDuplicates: true,
+    })
   })
 
   it('should split amounts evenly across profiles', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 2 })
 
     await linkSubscriptionToProfiles('sub_123', [validUuid1, validUuid2], 1000)
 
-    expect(mockCreateBillingAssignment).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 500, programProfileId: validUuid1 }),
-      expect.anything()
-    )
-    expect(mockCreateBillingAssignment).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 500, programProfileId: validUuid2 }),
-      expect.anything()
-    )
+    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyCall.data[0].amount).toBe(500)
+    expect(createManyCall.data[1].amount).toBe(500)
   })
 
   it('should assign remainder to last profile', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 3 })
 
     await linkSubscriptionToProfiles(
       'sub_123',
@@ -357,26 +362,26 @@ describe('linkSubscriptionToProfiles', () => {
       1000
     )
 
-    const calls = mockCreateBillingAssignment.mock.calls
-    expect(calls[0][0].amount).toBe(333)
-    expect(calls[1][0].amount).toBe(333)
-    expect(calls[2][0].amount).toBe(334)
+    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyCall.data[0].amount).toBe(333)
+    expect(createManyCall.data[1].amount).toBe(333)
+    expect(createManyCall.data[2].amount).toBe(334)
   })
 
   it('should calculate percentage for multi-profile subscriptions', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 2 })
 
     await linkSubscriptionToProfiles('sub_123', [validUuid1, validUuid2], 1000)
 
-    const calls = mockCreateBillingAssignment.mock.calls
-    expect(calls[0][0].percentage).toBe(50)
-    expect(calls[1][0].percentage).toBe(50)
+    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyCall.data[0].percentage).toBe(50)
+    expect(createManyCall.data[1].percentage).toBe(50)
   })
 
   it('should calculate float percentages for uneven splits', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 3 })
 
     await linkSubscriptionToProfiles(
       'sub_123',
@@ -384,31 +389,27 @@ describe('linkSubscriptionToProfiles', () => {
       1000
     )
 
-    const calls = mockCreateBillingAssignment.mock.calls
-    // 333/1000 = 33.3, 333/1000 = 33.3, 334/1000 = 33.4
-    // DB column is Float? (DOUBLE PRECISION) so floats are valid
-    expect(calls[0][0].percentage).toBeCloseTo(33.3, 1)
-    expect(calls[1][0].percentage).toBeCloseTo(33.3, 1)
-    expect(calls[2][0].percentage).toBeCloseTo(33.4, 1)
+    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyCall.data[0].percentage).toBeCloseTo(33.3, 1)
+    expect(createManyCall.data[1].percentage).toBeCloseTo(33.3, 1)
+    expect(createManyCall.data[2].percentage).toBeCloseTo(33.4, 1)
   })
 
   it('should set percentage to null for single profile', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 1 })
 
     await linkSubscriptionToProfiles('sub_123', [validUuid1], 500)
 
-    expect(mockCreateBillingAssignment).toHaveBeenCalledWith(
-      expect.objectContaining({ percentage: null }),
-      expect.anything()
-    )
+    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyCall.data[0].percentage).toBeNull()
   })
 
   it('should skip profiles that already have active assignments', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([
       { programProfileId: validUuid1 },
     ])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-2' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 1 })
 
     const count = await linkSubscriptionToProfiles(
       'sub_123',
@@ -424,51 +425,15 @@ describe('linkSubscriptionToProfiles', () => {
         }),
       })
     )
-    expect(mockCreateBillingAssignment).toHaveBeenCalledTimes(1)
-    expect(mockCreateBillingAssignment).toHaveBeenCalledWith(
-      expect.objectContaining({ programProfileId: validUuid2 }),
-      expect.anything()
-    )
-  })
-
-  it('should handle P2002 duplicate key error gracefully', async () => {
-    mockBillingAssignmentFindMany.mockResolvedValue([])
-
-    const p2002Error = Object.assign(new Error('Unique constraint'), {
-      code: 'P2002',
+    expect(mockBillingAssignmentCreateMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          programProfileId: validUuid2,
+          amount: 500,
+        }),
+      ],
+      skipDuplicates: true,
     })
-    mockCreateBillingAssignment
-      .mockRejectedValueOnce(p2002Error)
-      .mockResolvedValueOnce({ id: 'assign-2' })
-
-    const count = await linkSubscriptionToProfiles(
-      'sub_123',
-      [validUuid1, validUuid2],
-      1000
-    )
-
-    expect(count).toBe(1)
-  })
-
-  it('should re-throw non-P2002 errors', async () => {
-    mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockRejectedValue(new Error('Connection lost'))
-
-    await expect(
-      linkSubscriptionToProfiles('sub_123', [validUuid1], 500)
-    ).rejects.toThrow('Connection lost')
-  })
-
-  it('should re-throw non-P2002 Prisma errors', async () => {
-    mockBillingAssignmentFindMany.mockResolvedValue([])
-    const p2025Error = Object.assign(new Error('Record not found'), {
-      code: 'P2025',
-    })
-    mockCreateBillingAssignment.mockRejectedValue(p2025Error)
-
-    await expect(
-      linkSubscriptionToProfiles('sub_123', [validUuid1], 500)
-    ).rejects.toThrow('Record not found')
   })
 
   it('should return 0 when all profiles already have assignments', async () => {
@@ -484,29 +449,12 @@ describe('linkSubscriptionToProfiles', () => {
     )
 
     expect(count).toBe(0)
-    expect(mockCreateBillingAssignment).not.toHaveBeenCalled()
-  })
-
-  it('should return 0 when all profiles hit P2002', async () => {
-    mockBillingAssignmentFindMany.mockResolvedValue([])
-    const p2002Error = Object.assign(new Error('Unique constraint'), {
-      code: 'P2002',
-    })
-    mockCreateBillingAssignment.mockRejectedValue(p2002Error)
-
-    const count = await linkSubscriptionToProfiles(
-      'sub_123',
-      [validUuid1, validUuid2],
-      1000
-    )
-
-    expect(count).toBe(0)
-    expect(mockCreateBillingAssignment).toHaveBeenCalledTimes(2)
+    expect(mockBillingAssignmentCreateMany).not.toHaveBeenCalled()
   })
 
   it('should include notes in assignments', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 1 })
 
     await linkSubscriptionToProfiles(
       'sub_123',
@@ -515,20 +463,19 @@ describe('linkSubscriptionToProfiles', () => {
       'Family billing'
     )
 
-    expect(mockCreateBillingAssignment).toHaveBeenCalledWith(
-      expect.objectContaining({ notes: 'Family billing' }),
-      expect.anything()
-    )
+    const createManyCall = mockBillingAssignmentCreateMany.mock.calls[0][0]
+    expect(createManyCall.data[0].notes).toBe('Family billing')
   })
 
   it('should use existing client when provided (transaction path)', async () => {
     const txClient = {
       billingAssignment: {
         findMany: mockBillingAssignmentFindMany,
+        createMany: mockBillingAssignmentCreateMany,
       },
     }
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 1 })
 
     await linkSubscriptionToProfiles(
       'sub_123',
@@ -547,7 +494,7 @@ describe('linkSubscriptionToProfiles', () => {
 
   it('should wrap in transaction when using default client', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
-    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+    mockBillingAssignmentCreateMany.mockResolvedValue({ count: 1 })
 
     await linkSubscriptionToProfiles('sub_123', [validUuid1], 500)
 
