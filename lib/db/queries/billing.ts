@@ -40,7 +40,7 @@ export async function getBillingAccountByPerson(
             include: {
               programProfile: {
                 include: {
-                  person: true,
+                  person: { select: { id: true, name: true } },
                 },
               },
             },
@@ -94,7 +94,7 @@ export async function getBillingAccountByStripeCustomerId(
             include: {
               programProfile: {
                 include: {
-                  person: true,
+                  person: { select: { id: true, name: true } },
                 },
               },
             },
@@ -131,7 +131,7 @@ export async function getSubscriptionByStripeId(
         include: {
           programProfile: {
             include: {
-              person: true,
+              person: { select: { id: true, name: true } },
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -223,7 +223,7 @@ export async function upsertBillingAccount(
           include: {
             programProfile: {
               include: {
-                person: true,
+                person: { select: { id: true, name: true } },
               },
             },
           },
@@ -235,7 +235,7 @@ export async function upsertBillingAccount(
   // Try to find existing account
   const existing = await client.billingAccount.findFirst({
     where: {
-      personId: data.personId || undefined,
+      ...(data.personId ? { personId: data.personId } : {}),
       accountType: data.accountType,
     },
   })
@@ -335,7 +335,7 @@ export async function createSubscription(
         include: {
           programProfile: {
             include: {
-              person: true,
+              person: { select: { id: true, name: true } },
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -392,7 +392,7 @@ export async function updateSubscriptionStatus(
         include: {
           programProfile: {
             include: {
-              person: true,
+              person: { select: { id: true, name: true } },
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -440,7 +440,7 @@ export async function createBillingAssignment(
       subscription: true,
       programProfile: {
         include: {
-          person: true,
+          person: { select: { id: true, name: true } },
         },
       },
     },
@@ -511,19 +511,17 @@ export async function getBillingAssignmentsByProfile(
       subscription: {
         include: {
           billingAccount: {
-            include: {
-              person: {
-                include: {
-                  contactPoints: true,
-                },
-              },
+            select: {
+              id: true,
+              paymentMethodCaptured: true,
+              stripeCustomerIdDugsi: true,
             },
           },
         },
       },
       programProfile: {
         include: {
-          person: true,
+          person: { select: { id: true, name: true } },
         },
       },
     },

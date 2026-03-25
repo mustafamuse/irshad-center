@@ -22,11 +22,15 @@ import { Prisma } from '@prisma/client'
  * ProgramProfile with Person and ContactPoints
  * Common type for student/registration displays
  */
+const contactPointsSelect = {
+  select: { id: true, type: true, value: true },
+} satisfies Prisma.ContactPointDefaultArgs
+
 export const programProfileWithPersonInclude =
   Prisma.validator<Prisma.ProgramProfileInclude>()({
     person: {
       include: {
-        contactPoints: true,
+        contactPoints: contactPointsSelect,
       },
     },
   })
@@ -43,21 +47,16 @@ export const programProfileFullInclude =
   Prisma.validator<Prisma.ProgramProfileInclude>()({
     person: {
       include: {
-        contactPoints: true,
+        contactPoints: contactPointsSelect,
         dependentRelationships: {
           include: {
             guardian: {
               include: {
-                contactPoints: true,
+                contactPoints: contactPointsSelect,
               },
             },
           },
         },
-      },
-    },
-    enrollments: {
-      include: {
-        batch: true,
       },
     },
     assignments: {
@@ -80,7 +79,7 @@ export const programProfileFullInclude =
                   include: {
                     person: {
                       include: {
-                        contactPoints: true,
+                        contactPoints: contactPointsSelect,
                       },
                     },
                   },
@@ -104,13 +103,13 @@ export const programProfileWithGuardiansInclude =
   Prisma.validator<Prisma.ProgramProfileInclude>()({
     person: {
       include: {
-        contactPoints: true,
+        contactPoints: contactPointsSelect,
         dependentRelationships: {
           where: { isActive: true },
           include: {
             guardian: {
               include: {
-                contactPoints: true,
+                contactPoints: contactPointsSelect,
               },
             },
           },
@@ -137,7 +136,7 @@ export const enrollmentWithRelationsInclude =
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: contactPointsSelect,
           },
         },
       },
@@ -159,7 +158,7 @@ export const billingAccountWithRelationsInclude =
   Prisma.validator<Prisma.BillingAccountInclude>()({
     person: {
       include: {
-        contactPoints: true,
+        contactPoints: contactPointsSelect,
       },
     },
     subscriptions: {
@@ -186,7 +185,7 @@ export const subscriptionWithRelationsInclude =
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: contactPointsSelect,
           },
         },
       },
@@ -215,7 +214,7 @@ export type SubscriptionWithRelations = Prisma.SubscriptionGetPayload<{
  */
 export const personWithContactsInclude =
   Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: true,
+    contactPoints: contactPointsSelect,
   })
 
 export type PersonWithContacts = Prisma.PersonGetPayload<{
@@ -227,13 +226,13 @@ export type PersonWithContacts = Prisma.PersonGetPayload<{
  */
 export const personWithDependentsInclude =
   Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: true,
+    contactPoints: contactPointsSelect,
     dependentRelationships: {
       where: { isActive: true },
       include: {
         dependent: {
           include: {
-            contactPoints: true,
+            contactPoints: contactPointsSelect,
             programProfiles: true,
           },
         },
@@ -260,7 +259,7 @@ export const batchWithEnrollmentsInclude =
           include: {
             person: {
               include: {
-                contactPoints: true,
+                contactPoints: contactPointsSelect,
               },
             },
           },
@@ -284,7 +283,7 @@ export const teacherWithRelationsInclude =
   Prisma.validator<Prisma.TeacherInclude>()({
     person: {
       include: {
-        contactPoints: true,
+        contactPoints: contactPointsSelect,
       },
     },
     programs: {

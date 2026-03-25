@@ -376,12 +376,16 @@ export async function getProgramProfilesByFamilyId(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: {
+            select: { id: true, type: true, value: true },
+          },
           dependentRelationships: {
             include: {
               guardian: {
                 include: {
-                  contactPoints: true,
+                  contactPoints: {
+                    select: { id: true, type: true, value: true },
+                  },
                 },
               },
             },
@@ -405,8 +409,10 @@ export async function getProgramProfilesByFamilyId(
         where: { isActive: true },
         include: {
           subscription: {
-            include: {
-              billingAccount: true,
+            select: {
+              id: true,
+              stripeSubscriptionId: true,
+              status: true,
             },
           },
         },
@@ -422,7 +428,9 @@ export async function getProgramProfilesByFamilyId(
                     include: {
                       person: {
                         include: {
-                          contactPoints: true,
+                          contactPoints: {
+                            select: { id: true, type: true, value: true },
+                          },
                         },
                       },
                     },
