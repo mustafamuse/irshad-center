@@ -431,6 +431,7 @@ model BillingAccount {
   @@index([accountType]) // Filter by account type
   @@index([stripeCustomerIdMahad]) // Find by Mahad Stripe customer ID
   @@index([stripeCustomerIdDugsi]) // Find by Dugsi Stripe customer ID
+  @@index([personId, accountType]) // Composite: getBillingAccountByPerson + upsertBillingAccount
 }
 
 model Subscription {
@@ -466,6 +467,7 @@ model Subscription {
   @@index([stripeCustomerId])
   @@index([status])
   @@index([stripeAccountType, status])
+  @@index([billingAccountId, status]) // Composite: nested subscription filtering by account + status
 }
 
 model BillingAssignment {
@@ -511,6 +513,7 @@ model SubscriptionHistory {
   @@index([subscriptionId])
   @@index([eventType])
   @@index([processedAt])
+  @@index([subscriptionId, processedAt]) // Composite: history lookup with processedAt ordering
 }
 
 model WebhookEvent {
