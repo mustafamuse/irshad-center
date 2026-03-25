@@ -1,15 +1,16 @@
--- Step 1: Deactivate duplicate contacts that would collide after normalization.
--- When multiple active contacts of the same type normalize to the same digits,
--- keep the most recently updated one and deactivate the rest.
+-- Step 1: Deactivate older duplicate contacts that would collide after normalization.
+-- Scoped to the same person to avoid cross-person false matches.
+-- No cp."value" ~ '\D' filter so we also catch digits-only older rows
+-- when the newer duplicate is the formatted one.
 UPDATE "ContactPoint" cp
 SET "isActive" = false,
     "deactivatedAt" = NOW()
 WHERE cp."type" IN ('PHONE', 'WHATSAPP')
   AND cp."isActive" = true
-  AND cp."value" ~ '\D'
   AND EXISTS (
     SELECT 1 FROM "ContactPoint" other
-    WHERE other."type" = cp."type"
+    WHERE other."personId" = cp."personId"
+      AND other."type" = cp."type"
       AND other."isActive" = true
       AND other.id != cp.id
       AND regexp_replace(other."value", '\D', '', 'g') = regexp_replace(cp."value", '\D', '', 'g')

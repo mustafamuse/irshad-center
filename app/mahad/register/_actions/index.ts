@@ -24,6 +24,22 @@ export async function registerStudent(
   studentData: MahadRegistrationValues
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
+    try {
+      const headerStore = await headers()
+      const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
+      if (ip) {
+        const rateResult = await checkRateLimit(`register:${ip}`)
+        if (!rateResult.success) {
+          return {
+            success: false,
+            error: 'Too many registration attempts. Please try again later.',
+          }
+        }
+      }
+    } catch {
+      // Fail open if headers/rate-limit unavailable
+    }
+
     const validationResult = mahadRegistrationSchema.safeParse(studentData)
     if (!validationResult.success) {
       const firstError = validationResult.error.errors[0]

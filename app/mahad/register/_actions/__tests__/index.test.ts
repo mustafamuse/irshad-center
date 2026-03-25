@@ -155,13 +155,13 @@ describe('registerStudent', () => {
     expect(result.error).toContain('already exists')
   })
 
-  it('should handle ActionError with field-level errors', async () => {
+  it('should handle ActionError with field-level errors defaulting to email', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
     mockCreateMahadStudent.mockRejectedValue(
       new ActionError(
         'Student already registered for Mahad',
         'DUPLICATE_EMAIL',
-        undefined,
+        'email',
         409
       )
     )
@@ -174,6 +174,40 @@ describe('registerStudent', () => {
       'Student already registered for Mahad',
     ])
     expect(mockLogError).not.toHaveBeenCalled()
+  })
+
+  it('should map ActionError field to correct form field for phone duplicates', async () => {
+    const { ActionError } = await import('@/lib/errors/action-error')
+    mockCreateMahadStudent.mockRejectedValue(
+      new ActionError(
+        'Student already registered for Mahad',
+        'DUPLICATE_EMAIL',
+        'phone',
+        409
+      )
+    )
+
+    const result = await registerStudent(validInput)
+
+    expect(result.success).toBe(false)
+    expect(result.errors?.phone).toEqual([
+      'Student already registered for Mahad',
+    ])
+    expect(result.errors?.email).toBeUndefined()
+  })
+
+  it('should rate limit registerStudent', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      success: false,
+      remaining: 0,
+      reset: 0,
+    })
+
+    const result = await registerStudent(validInput)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Too many registration attempts')
+    expect(mockCreateMahadStudent).not.toHaveBeenCalled()
   })
 
   it('should not log ActionError as server error', async () => {
