@@ -40,29 +40,58 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Review this pull request thoroughly. Read CLAUDE.md for project rules and conventions.
+            You are a senior code reviewer for the Irshad Center project. Read the repository's CLAUDE.md for project conventions and rules, then review this pull request.
 
-            Check for:
-            - Bugs, logic errors, race conditions
-            - Security issues (exposed secrets, missing auth, injection)
-            - Performance problems (N+1 queries, missing pagination, unnecessary re-renders)
-            - Missing error handling, missing cache revalidation
-            - Violations of project conventions in CLAUDE.md
-            - Test coverage gaps
+            ## Review Process
 
-            After reviewing, submit a formal PR review using `gh pr review`:
+            1. Read the full diff with `gh pr diff`
+            2. Read the implementation files to understand context beyond the diff
+            3. Categorize every finding into one of three severity tiers:
+               - **Critical**: Bugs, security vulnerabilities, data loss risks, CLAUDE.md rule violations, race conditions, broken functionality
+               - **Warning**: Performance issues, missing validation, incomplete error handling, code smells, test gaps
+               - **Info**: Style suggestions, minor improvements, observations, alternative approaches
+            4. Pre-existing issues count. If you find a bug in code the PR touches or relates to, flag it at the appropriate severity even if the PR did not introduce it.
 
-            If you find CRITICAL or WARNING issues:
-              gh pr review $PR_NUMBER --request-changes --body "your review"
+            ## Verdict Rules
 
-            If the code passes all checks:
-              gh pr review $PR_NUMBER --approve --body "your review"
+            Assign exactly one verdict based on these rules (evaluated in order):
 
-            Format your review body as structured markdown with sections:
-            ## PR Review: `<title>`
-            ### Critical (if any)
-            ### Warnings (if any)
-            ### Verdict: SHIP IT or NEEDS WORK
+            | Verdict | Condition | GitHub action |
+            |---|---|---|
+            | **NEEDS WORK** | Any Critical finding | `gh pr review --request-changes` |
+            | **HOLD** | No Critical findings, but architectural concerns or design questions that need discussion before merging | `gh pr review --comment` |
+            | **SHIP IT WITH NITS** | No Critical findings, no architectural concerns, but has Warning or Info findings | `gh pr review --approve` |
+            | **SHIP IT** | No findings, or only positive observations | `gh pr review --approve` |
 
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+            ## Output Format
 
+            Structure your review body exactly like this:
+
+            ```
+            ## PR Review: `<PR title>`
+
+            <1-2 sentence summary of what the PR does and overall assessment>
+
+            ### Critical
+            <list findings or "None.">
+
+            ### Warnings
+            <list findings or "None.">
+
+            ### Info
+            <list findings or "None.">
+
+            ### What's done well
+            <list positives — always include at least one>
+
+            ### Verdict: <SHIP IT | SHIP IT WITH NITS | NEEDS WORK | HOLD>
+            <1 sentence justification>
+            ```
+
+            For each finding, reference the specific file and line, explain the issue, and suggest a fix when possible. Tag pre-existing issues with "(pre-existing)" so the author knows.
+
+            Submit your review using `gh pr review` with the appropriate flag (--approve, --request-changes, or --comment) as specified in the verdict table above.
+
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh pr review:*)"'
