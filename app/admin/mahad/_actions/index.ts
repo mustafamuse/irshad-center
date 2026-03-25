@@ -34,6 +34,7 @@ import {
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
+import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
@@ -495,8 +496,7 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
-    const warnings = await getStudentDeleteWarnings(id)
-    if (warnings.hasActiveSubscription) {
+    if (student.subscription) {
       return {
         success: false,
         error:
@@ -541,7 +541,7 @@ export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
     const activeAssignments = await prisma.billingAssignment.findMany({
       where: {
         programProfileId: { in: studentIds },
-        isActive: true,
+        ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
       },
       select: { programProfileId: true },
     })
@@ -557,12 +557,10 @@ export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
 
     if (safeIds.length > 0) {
       try {
-        await prisma.$transaction(async (tx) => {
-          for (const id of safeIds) {
-            await tx.programProfile.delete({ where: { id } })
-          }
+        const result = await prisma.programProfile.deleteMany({
+          where: { id: { in: safeIds } },
         })
-        deletedCount = safeIds.length
+        deletedCount = result.count
       } catch (error) {
         logger.error(
           { err: error, studentIds: safeIds },

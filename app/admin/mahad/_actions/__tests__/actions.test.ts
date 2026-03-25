@@ -19,6 +19,7 @@ const {
   mockLoggerWarn,
   mockStripeSessionCreate,
   mockBillingAssignmentFindMany,
+  mockPrismaDeleteMany,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
   mockUpdateBatch: vi.fn(),
@@ -30,6 +31,7 @@ const {
   mockResolveDuplicateStudents: vi.fn(),
   mockGetStudentDeleteWarnings: vi.fn(),
   mockPrismaDelete: vi.fn(),
+  mockPrismaDeleteMany: vi.fn(),
   mockPrismaTransaction: vi.fn(),
   mockPrismaFindUnique: vi.fn(),
   mockRevalidatePath: vi.fn(),
@@ -49,6 +51,7 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     programProfile: {
       delete: (...args: unknown[]) => mockPrismaDelete(...args),
+      deleteMany: (...args: unknown[]) => mockPrismaDeleteMany(...args),
       findUnique: (...args: unknown[]) => mockPrismaFindUnique(...args),
     },
     billingAssignment: {
@@ -394,12 +397,10 @@ describe('Student Actions', () => {
 
   describe('deleteStudentAction', () => {
     it('should delete an existing student', async () => {
-      mockGetStudentById.mockResolvedValue({ id: 'student-1', batchId: null })
-      mockGetStudentDeleteWarnings.mockResolvedValue({
-        hasSiblings: false,
-        hasAttendanceRecords: false,
-        hasActiveSubscription: false,
-        hasPaymentHistory: false,
+      mockGetStudentById.mockResolvedValue({
+        id: 'student-1',
+        batchId: null,
+        subscription: null,
       })
       mockPrismaDelete.mockResolvedValue(undefined)
 
@@ -415,12 +416,7 @@ describe('Student Actions', () => {
       mockGetStudentById.mockResolvedValue({
         id: 'student-1',
         batchId: 'batch-1',
-      })
-      mockGetStudentDeleteWarnings.mockResolvedValue({
-        hasSiblings: false,
-        hasAttendanceRecords: false,
-        hasActiveSubscription: false,
-        hasPaymentHistory: false,
+        subscription: null,
       })
       mockPrismaDelete.mockResolvedValue(undefined)
 
@@ -442,12 +438,7 @@ describe('Student Actions', () => {
       mockGetStudentById.mockResolvedValue({
         id: 'student-1',
         batchId: null,
-      })
-      mockGetStudentDeleteWarnings.mockResolvedValue({
-        hasSiblings: false,
-        hasAttendanceRecords: false,
-        hasActiveSubscription: true,
-        hasPaymentHistory: true,
+        subscription: { id: 'sub-1', status: 'active' },
       })
 
       const result = await deleteStudentAction('student-1')
@@ -461,16 +452,7 @@ describe('Student Actions', () => {
   describe('bulkDeleteStudentsAction', () => {
     it('should delete multiple students', async () => {
       mockBillingAssignmentFindMany.mockResolvedValue([])
-      mockPrismaTransaction.mockImplementation(
-        async (fn: (tx: unknown) => Promise<unknown>) => {
-          const tx = {
-            programProfile: {
-              delete: mockPrismaDelete.mockResolvedValue(undefined),
-            },
-          }
-          return fn(tx)
-        }
-      )
+      mockPrismaDeleteMany.mockResolvedValue({ count: 3 })
 
       const result = await bulkDeleteStudentsAction([
         'student-1',
@@ -495,16 +477,7 @@ describe('Student Actions', () => {
       mockBillingAssignmentFindMany.mockResolvedValue([
         { programProfileId: 'student-2' },
       ])
-      mockPrismaTransaction.mockImplementation(
-        async (fn: (tx: unknown) => Promise<unknown>) => {
-          const tx = {
-            programProfile: {
-              delete: mockPrismaDelete.mockResolvedValue(undefined),
-            },
-          }
-          return fn(tx)
-        }
-      )
+      mockPrismaDeleteMany.mockResolvedValue({ count: 2 })
 
       const result = await bulkDeleteStudentsAction([
         'student-1',
@@ -517,9 +490,9 @@ describe('Student Actions', () => {
       expect(result.data?.blockedIds).toEqual(['student-2'])
     })
 
-    it('should track failed deletions when transaction fails', async () => {
+    it('should track failed deletions when deleteMany fails', async () => {
       mockBillingAssignmentFindMany.mockResolvedValue([])
-      mockPrismaTransaction.mockRejectedValue(new Error('DB error'))
+      mockPrismaDeleteMany.mockRejectedValue(new Error('DB error'))
 
       const result = await bulkDeleteStudentsAction(['student-1', 'student-2'])
 

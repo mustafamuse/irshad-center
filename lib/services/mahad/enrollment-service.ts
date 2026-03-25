@@ -18,6 +18,7 @@ import {
   updateEnrollmentStatus,
   getEnrollmentById,
 } from '@/lib/db/queries/enrollment'
+import { ACTIVE_ENROLLMENT_WHERE } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 
@@ -63,8 +64,7 @@ export async function assignStudentsToBatch(
       const activeEnrollments = await tx.enrollment.findMany({
         where: {
           programProfileId: { in: studentIds },
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
+          ...ACTIVE_ENROLLMENT_WHERE,
         },
       })
 
@@ -134,8 +134,7 @@ export async function transferStudentsToBatch(
       const activeEnrollments = await tx.enrollment.findMany({
         where: {
           programProfileId: { in: studentIds },
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
+          ...ACTIVE_ENROLLMENT_WHERE,
         },
       })
 
