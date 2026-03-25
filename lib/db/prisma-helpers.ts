@@ -22,9 +22,13 @@ import { Prisma } from '@prisma/client'
  * ProgramProfile with Person and ContactPoints
  * Common type for student/registration displays
  */
-const contactPointsSelect = {
+export const contactPointsSelect = {
   select: { id: true, type: true, value: true },
 } satisfies Prisma.ContactPointDefaultArgs
+
+export const personMinimalSelect = {
+  select: { id: true, name: true },
+} satisfies Prisma.PersonDefaultArgs
 
 export const programProfileWithPersonInclude =
   Prisma.validator<Prisma.ProgramProfileInclude>()({

@@ -7,11 +7,11 @@
 import { Prisma, StripeAccountType, SubscriptionStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import {
+  contactPointsSelect,
+  personMinimalSelect,
+} from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
-
-const contactPointsSelect = {
-  select: { id: true, type: true, value: true },
-} satisfies Prisma.ContactPointDefaultArgs
 
 /**
  * Get billing account by person ID and account type
@@ -44,7 +44,7 @@ export async function getBillingAccountByPerson(
             include: {
               programProfile: {
                 include: {
-                  person: { select: { id: true, name: true } },
+                  person: personMinimalSelect,
                 },
               },
             },
@@ -98,7 +98,7 @@ export async function getBillingAccountByStripeCustomerId(
             include: {
               programProfile: {
                 include: {
-                  person: { select: { id: true, name: true } },
+                  person: personMinimalSelect,
                 },
               },
             },
@@ -135,7 +135,7 @@ export async function getSubscriptionByStripeId(
         include: {
           programProfile: {
             include: {
-              person: { select: { id: true, name: true } },
+              person: personMinimalSelect,
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -227,7 +227,7 @@ export async function upsertBillingAccount(
           include: {
             programProfile: {
               include: {
-                person: { select: { id: true, name: true } },
+                person: personMinimalSelect,
               },
             },
           },
@@ -339,7 +339,7 @@ export async function createSubscription(
         include: {
           programProfile: {
             include: {
-              person: { select: { id: true, name: true } },
+              person: personMinimalSelect,
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -396,7 +396,7 @@ export async function updateSubscriptionStatus(
         include: {
           programProfile: {
             include: {
-              person: { select: { id: true, name: true } },
+              person: personMinimalSelect,
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -444,7 +444,7 @@ export async function createBillingAssignment(
       subscription: true,
       programProfile: {
         include: {
-          person: { select: { id: true, name: true } },
+          person: personMinimalSelect,
         },
       },
     },
@@ -525,7 +525,7 @@ export async function getBillingAssignmentsByProfile(
       },
       programProfile: {
         include: {
-          person: { select: { id: true, name: true } },
+          person: personMinimalSelect,
         },
       },
     },
