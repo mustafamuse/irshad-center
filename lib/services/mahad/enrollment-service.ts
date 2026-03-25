@@ -41,9 +41,10 @@ export interface EnrollmentTransferResult {
 }
 
 /**
- * Assign multiple students to a batch.
+ * Assign multiple students to a batch (all-or-nothing).
  *
- * Creates new enrollments for students not already in the batch.
+ * Runs in a single transaction: if any DB error occurs, all assignments
+ * roll back and every studentId is reported in failedAssignments.
  * Skips students already enrolled in the target batch.
  *
  * @param batchId - Batch ID to assign students to
@@ -112,9 +113,11 @@ export async function assignStudentsToBatch(
 }
 
 /**
- * Transfer multiple students from one batch to another.
+ * Transfer multiple students from one batch to another (all-or-nothing).
  *
- * Withdraws students from current batch and enrolls in target batch.
+ * Runs in a single transaction: withdraws from current batch and enrolls
+ * in target batch. If any student lacks an active enrollment, the entire
+ * transfer rolls back and all IDs are reported in failedTransfers.
  *
  * @param studentIds - Array of program profile IDs
  * @param targetBatchId - Target batch ID

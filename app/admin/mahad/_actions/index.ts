@@ -130,7 +130,10 @@ function handleActionError<T = void>(
     }
   }
 
-  // Log error with structured context
+  if (error instanceof ActionError) {
+    return { success: false, error: error.message }
+  }
+
   logger.error({ err: error, action, context }, `Action failed: ${action}`)
 
   // Handle Prisma-specific errors with custom messages
