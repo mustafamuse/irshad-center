@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 
+import { getOrphanedSubscriptions } from './actions'
 import {
   StatsCardsSkeleton,
   SubscriptionsListSkeleton,
@@ -12,6 +13,17 @@ export const dynamic = 'force-dynamic'
 export const metadata = {
   title: 'Link Subscriptions | Admin',
   description: 'Link orphaned Stripe subscriptions to students',
+}
+
+async function LinkSubscriptionsContent() {
+  const result = await getOrphanedSubscriptions()
+
+  return (
+    <>
+      <StatsCards result={result} />
+      <SubscriptionsListShell result={result} />
+    </>
+  )
 }
 
 export default function LinkSubscriptionsPage() {
@@ -28,12 +40,15 @@ export default function LinkSubscriptionsPage() {
         </div>
       </div>
 
-      <Suspense fallback={<StatsCardsSkeleton />}>
-        <StatsCards />
-      </Suspense>
-
-      <Suspense fallback={<SubscriptionsListSkeleton />}>
-        <SubscriptionsListShell />
+      <Suspense
+        fallback={
+          <>
+            <StatsCardsSkeleton />
+            <SubscriptionsListSkeleton />
+          </>
+        }
+      >
+        <LinkSubscriptionsContent />
       </Suspense>
     </div>
   )

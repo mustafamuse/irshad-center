@@ -4,18 +4,21 @@ const {
   mockCreateMahadStudent,
   mockContactPointFindFirst,
   mockRevalidatePath,
+  mockRevalidateTag,
   mockLoggerInfo,
   mockLogError,
 } = vi.hoisted(() => ({
   mockCreateMahadStudent: vi.fn(),
   mockContactPointFindFirst: vi.fn(),
   mockRevalidatePath: vi.fn(),
+  mockRevalidateTag: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLogError: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
+  revalidateTag: (...args: unknown[]) => mockRevalidateTag(...args),
 }))
 
 vi.mock('@/lib/db', () => ({

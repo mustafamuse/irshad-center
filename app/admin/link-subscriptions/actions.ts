@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 
 import { createActionLogger, logError, logInfo } from '@/lib/logger'
 import {
@@ -26,14 +26,25 @@ export interface OrphanedSubscriptionsResult {
   error?: string
 }
 
-/**
- * Get all orphaned subscriptions (subscriptions in Stripe not linked to any student).
- * Combines results from both Mahad and Dugsi programs.
- * Returns an error message if Stripe is not configured.
- */
+const getCachedOrphanedSubscriptions = unstable_cache(
+  async () => getAllOrphanedSubscriptions(),
+  ['orphaned-subscriptions'],
+  { revalidate: 300, tags: ['link-subscriptions'] }
+)
+
 export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsResult> {
   try {
-    const data = await getAllOrphanedSubscriptions()
+    const raw = await getCachedOrphanedSubscriptions()
+    const data = raw.map((sub) => ({
+      ...sub,
+      created: new Date(sub.created),
+      currentPeriodStart: sub.currentPeriodStart
+        ? new Date(sub.currentPeriodStart)
+        : null,
+      currentPeriodEnd: sub.currentPeriodEnd
+        ? new Date(sub.currentPeriodEnd)
+        : null,
+    }))
     return { data }
   } catch (error) {
     await logError(logger, error, 'Failed to fetch orphaned subscriptions')
@@ -82,6 +93,7 @@ export async function linkSubscriptionToStudent(
       studentId,
       program,
     })
+    revalidateTag('link-subscriptions')
     revalidatePath('/admin/link-subscriptions')
   }
 
@@ -109,6 +121,7 @@ export async function ignoreSubscription(
       program,
       reason,
     })
+    revalidateTag('link-subscriptions')
     revalidatePath('/admin/link-subscriptions')
   }
 
@@ -129,6 +142,7 @@ export async function unignoreSubscription(
       subscriptionId,
       program,
     })
+    revalidateTag('link-subscriptions')
     revalidatePath('/admin/link-subscriptions')
   }
 

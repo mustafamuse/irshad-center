@@ -5,16 +5,19 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import {
-  getOrphanedSubscriptions,
   getPotentialMatches,
   type OrphanedSubscription,
+  type OrphanedSubscriptionsResult,
 } from '../actions'
 import { SubscriptionsListClient } from './subscriptions-list-client'
 
-export async function SubscriptionsListShell() {
-  const result = await getOrphanedSubscriptions()
+interface SubscriptionsListShellProps {
+  result: OrphanedSubscriptionsResult
+}
 
-  // Show error alert if Stripe is not configured
+export async function SubscriptionsListShell({
+  result,
+}: SubscriptionsListShellProps) {
   if (result.error) {
     return (
       <Alert variant="destructive">
@@ -104,7 +107,8 @@ export async function SubscriptionsListShell() {
         </AlertTitle>
         <AlertDescription className="text-blue-800 dark:text-blue-200">
           Review each subscription below and select the corresponding student
-          from the dropdown. Click "Link Subscription" to connect them.
+          from the dropdown. Click &quot;Link Subscription&quot; to connect
+          them.
         </AlertDescription>
       </Alert>
 

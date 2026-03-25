@@ -1,3 +1,5 @@
+import { unstable_cache } from 'next/cache'
+
 import {
   Users,
   CreditCard,
@@ -10,10 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 
-/**
- * Get payment stats from ProgramProfile/Enrollment model
- * TODO: Add revenue stats when StudentPayment migration is complete
- */
+const getCachedStats = unstable_cache(
+  async () => getStats(),
+  ['mahad-payment-stats'],
+  { revalidate: 60, tags: ['mahad-stats'] }
+)
+
 async function getStats() {
   // Count Mahad program profiles (excluding Test batch)
   const [
@@ -98,7 +102,7 @@ export async function StatsCards() {
     registeredStudents,
     totalRevenue,
     enrolledStudents,
-  } = await getStats()
+  } = await getCachedStats()
 
   const enrollmentRate =
     totalStudents > 0 ? (enrolledStudents / totalStudents) * 100 : 0

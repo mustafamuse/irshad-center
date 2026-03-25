@@ -3,6 +3,8 @@
 //   sub_setup_{subscriptionId}    -- placeholder created at recurring checkout, cleaned up on first invoice
 //   sub_cancelled_{subscriptionId} -- cancellation marker to exclude subscription from MRR
 
+import { revalidateTag } from 'next/cache'
+
 import { DonationStatus, Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
@@ -94,6 +96,7 @@ export async function handleOneTimeDonation(
     },
   })
 
+  revalidateTag('donations')
   logger.info(
     { paymentIntentId, amount: session.amount_total },
     'One-time donation recorded'
@@ -188,6 +191,7 @@ export async function handleRecurringDonationCheckout(
     })
   })
 
+  revalidateTag('donations')
   logger.info(
     { subscriptionId, amount: session.amount_total },
     'Recurring donation checkout recorded'
@@ -220,6 +224,7 @@ export async function handleDonationPaymentIntentSucceeded(
     },
   })
 
+  revalidateTag('donations')
   logger.info(
     { paymentIntentId: paymentIntent.id },
     'Donation payment confirmed'
@@ -313,6 +318,7 @@ export async function handleDonationInvoicePaid(
       })
   }
 
+  revalidateTag('donations')
   logger.info(
     { invoiceId: invoice.id, subscriptionId, amount: invoice.amount_paid },
     'Recurring donation invoice paid'
@@ -389,6 +395,7 @@ export async function handleDonationSubscriptionDeleted(
     },
   })
 
+  revalidateTag('donations')
   logger.info(
     { subscriptionId: subscription.id, customerId },
     'Donation subscription cancelled'
