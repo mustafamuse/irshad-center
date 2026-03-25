@@ -14,6 +14,7 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { contactPointsSelect } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 
@@ -376,12 +377,12 @@ export async function getProgramProfilesByFamilyId(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: contactPointsSelect,
           dependentRelationships: {
             include: {
               guardian: {
                 include: {
-                  contactPoints: true,
+                  contactPoints: contactPointsSelect,
                 },
               },
             },
@@ -405,8 +406,10 @@ export async function getProgramProfilesByFamilyId(
         where: { isActive: true },
         include: {
           subscription: {
-            include: {
-              billingAccount: true,
+            select: {
+              id: true,
+              stripeSubscriptionId: true,
+              status: true,
             },
           },
         },
@@ -422,7 +425,7 @@ export async function getProgramProfilesByFamilyId(
                     include: {
                       person: {
                         include: {
-                          contactPoints: true,
+                          contactPoints: contactPointsSelect,
                         },
                       },
                     },

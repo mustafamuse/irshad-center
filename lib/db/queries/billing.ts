@@ -7,6 +7,10 @@
 import { Prisma, StripeAccountType, SubscriptionStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import {
+  contactPointsSelect,
+  personMinimalSelect,
+} from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
 
 /**
@@ -27,7 +31,7 @@ export async function getBillingAccountByPerson(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: contactPointsSelect,
         },
       },
       subscriptions: {
@@ -40,7 +44,7 @@ export async function getBillingAccountByPerson(
             include: {
               programProfile: {
                 include: {
-                  person: true,
+                  person: personMinimalSelect,
                 },
               },
             },
@@ -84,7 +88,7 @@ export async function getBillingAccountByStripeCustomerId(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: contactPointsSelect,
         },
       },
       subscriptions: {
@@ -94,7 +98,7 @@ export async function getBillingAccountByStripeCustomerId(
             include: {
               programProfile: {
                 include: {
-                  person: true,
+                  person: personMinimalSelect,
                 },
               },
             },
@@ -121,7 +125,7 @@ export async function getSubscriptionByStripeId(
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: contactPointsSelect,
             },
           },
         },
@@ -131,7 +135,7 @@ export async function getSubscriptionByStripeId(
         include: {
           programProfile: {
             include: {
-              person: true,
+              person: personMinimalSelect,
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -178,7 +182,7 @@ export async function getOrphanedSubscriptions(
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: contactPointsSelect,
             },
           },
         },
@@ -213,7 +217,7 @@ export async function upsertBillingAccount(
   const includeRelations = {
     person: {
       include: {
-        contactPoints: true,
+        contactPoints: contactPointsSelect,
       },
     },
     subscriptions: {
@@ -223,7 +227,7 @@ export async function upsertBillingAccount(
           include: {
             programProfile: {
               include: {
-                person: true,
+                person: personMinimalSelect,
               },
             },
           },
@@ -235,7 +239,7 @@ export async function upsertBillingAccount(
   // Try to find existing account
   const existing = await client.billingAccount.findFirst({
     where: {
-      personId: data.personId || undefined,
+      ...(data.personId ? { personId: data.personId } : {}),
       accountType: data.accountType,
     },
   })
@@ -325,7 +329,7 @@ export async function createSubscription(
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: contactPointsSelect,
             },
           },
         },
@@ -335,7 +339,7 @@ export async function createSubscription(
         include: {
           programProfile: {
             include: {
-              person: true,
+              person: personMinimalSelect,
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -382,7 +386,7 @@ export async function updateSubscriptionStatus(
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: contactPointsSelect,
             },
           },
         },
@@ -392,7 +396,7 @@ export async function updateSubscriptionStatus(
         include: {
           programProfile: {
             include: {
-              person: true,
+              person: personMinimalSelect,
               enrollments: {
                 where: {
                   status: { not: 'WITHDRAWN' },
@@ -440,7 +444,7 @@ export async function createBillingAssignment(
       subscription: true,
       programProfile: {
         include: {
-          person: true,
+          person: personMinimalSelect,
         },
       },
     },
@@ -495,6 +499,10 @@ export async function addSubscriptionHistory(
 
 /**
  * Get billing assignments by program profile
+ *
+ * Note: billingAccount select is scoped to Dugsi fields (stripeCustomerIdDugsi).
+ * If reused for Mahad, expand the select to include stripeCustomerIdMahad.
+ *
  * @param client - Optional database client (for transaction support)
  */
 export async function getBillingAssignmentsByProfile(
@@ -511,19 +519,17 @@ export async function getBillingAssignmentsByProfile(
       subscription: {
         include: {
           billingAccount: {
-            include: {
-              person: {
-                include: {
-                  contactPoints: true,
-                },
-              },
+            select: {
+              id: true,
+              paymentMethodCaptured: true,
+              stripeCustomerIdDugsi: true,
             },
           },
         },
       },
       programProfile: {
         include: {
-          person: true,
+          person: personMinimalSelect,
         },
       },
     },
@@ -551,7 +557,7 @@ export async function getBillingAssignmentsBySubscription(
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: contactPointsSelect,
             },
           },
           enrollments: {

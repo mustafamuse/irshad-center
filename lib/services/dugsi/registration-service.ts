@@ -198,12 +198,13 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
   }
 
   const familyId = profile.familyReferenceId
-  let profilesToDelete = [profile]
+  let profilesToDelete: Array<{ id: string; person: { name: string } }> = [
+    profile,
+  ]
 
   // If familyReferenceId exists, get all family members
   if (familyId) {
-    const familyProfiles = await getProgramProfilesByFamilyId(familyId)
-    profilesToDelete = familyProfiles
+    profilesToDelete = await getProgramProfilesByFamilyId(familyId)
   }
 
   // Extract parent email from guardian relationships (child is dependent, parents are guardians)
