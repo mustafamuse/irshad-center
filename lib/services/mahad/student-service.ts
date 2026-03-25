@@ -335,52 +335,6 @@ export async function updateMahadStudent(
 }
 
 /**
- * Get Mahad student by ID.
- *
- * @param studentId - Program profile ID
- * @returns Student with enrollment and contact information
- */
-export async function getMahadStudent(studentId: string) {
-  const profile = await prisma.programProfile.findUnique({
-    relationLoadStrategy: 'join',
-    where: { id: studentId },
-    include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
-      enrollments: {
-        where: {
-          status: { not: 'WITHDRAWN' },
-          endDate: null,
-        },
-        include: {
-          batch: true,
-        },
-      },
-      assignments: {
-        where: { isActive: true },
-        include: {
-          subscription: true,
-        },
-      },
-    },
-  })
-
-  if (!profile || profile.program !== MAHAD_PROGRAM) {
-    throw new ActionError(
-      'Mahad student not found',
-      ERROR_CODES.STUDENT_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
-  return profile
-}
-
-/**
  * Get siblings for a Mahad student.
  *
  * Returns other students who share a parent with this student.

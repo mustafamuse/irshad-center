@@ -133,8 +133,7 @@ describe('getDonationStats', () => {
     mockCount.mockResolvedValue(3)
     mockQueryRaw
       .mockResolvedValueOnce([
-        { stripeSubscriptionId: 'sub_1', amount: 2000 },
-        { stripeSubscriptionId: 'sub_2', amount: 3000 },
+        { mrrcents: BigInt(5000), activerecurringcount: BigInt(2) },
       ])
       .mockResolvedValueOnce([{ count: BigInt(5) }])
 
@@ -148,7 +147,7 @@ describe('getDonationStats', () => {
     mockCount.mockResolvedValue(2)
     mockQueryRaw
       .mockResolvedValueOnce([
-        { stripeSubscriptionId: 'sub_active', amount: 2000 },
+        { mrrcents: BigInt(2000), activerecurringcount: BigInt(1) },
       ])
       .mockResolvedValueOnce([{ count: BigInt(0) }])
 
@@ -160,7 +159,9 @@ describe('getDonationStats', () => {
 
   it('counts unique donor emails via COUNT(DISTINCT)', async () => {
     mockQueryRaw
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { mrrcents: BigInt(0), activerecurringcount: BigInt(0) },
+      ])
       .mockResolvedValueOnce([{ count: BigInt(42) }])
 
     const result = await getDonationStats()
@@ -171,7 +172,9 @@ describe('getDonationStats', () => {
   it('returns zeros when no donations exist', async () => {
     mockAggregate.mockResolvedValue({ _sum: { amount: null }, _count: 0 })
     mockQueryRaw
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { mrrcents: BigInt(0), activerecurringcount: BigInt(0) },
+      ])
       .mockResolvedValueOnce([{ count: BigInt(0) }])
 
     const result = await getDonationStats()

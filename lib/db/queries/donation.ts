@@ -82,9 +82,9 @@ interface DonationStatsOptions {
   dateTo?: Date
 }
 
-interface MrrRow {
-  stripeSubscriptionId: string
-  amount: number
+interface MrrAggregateRow {
+  mrrcents: bigint
+  activerecurringcount: bigint
 }
 
 interface CountRow {
@@ -105,7 +105,7 @@ export async function getDonationStats(
         }
       : {}
 
-  const [oneTimeStats, recurringCount, mrrRows, donorCountRows] =
+  const [oneTimeStats, recurringCount, mrrResult, donorCountRows] =
     await Promise.all([
       prisma.donation.aggregate({
         where: {
@@ -123,22 +123,25 @@ export async function getDonationStats(
           ...dateFilter,
         },
       }),
-      prisma.$queryRaw<MrrRow[]>`
-        SELECT DISTINCT ON (d."stripeSubscriptionId")
-          d."stripeSubscriptionId",
-          d.amount
-        FROM "Donation" d
-        WHERE d."isRecurring" = true
-          AND d.status = ${DonationStatus.succeeded}
-          AND d."stripeSubscriptionId" IS NOT NULL
-          ${dateFrom ? Prisma.sql`AND d."paidAt" >= ${dateFrom}` : Prisma.empty}
-          ${dateTo ? Prisma.sql`AND d."paidAt" < ${dateTo}` : Prisma.empty}
-          AND NOT EXISTS (
-            SELECT 1 FROM "Donation" c
-            WHERE c."stripeSubscriptionId" = d."stripeSubscriptionId"
-              AND c.status = ${DonationStatus.cancelled}
-          )
-        ORDER BY d."stripeSubscriptionId", d."paidAt" DESC NULLS LAST
+      prisma.$queryRaw<MrrAggregateRow[]>`
+        SELECT
+          COALESCE(SUM(lps.amount), 0) AS "mrrcents",
+          COUNT(*) AS "activerecurringcount"
+        FROM (
+          SELECT DISTINCT ON (d."stripeSubscriptionId") d.amount
+          FROM "Donation" d
+          WHERE d."isRecurring" = true
+            AND d.status = ${DonationStatus.succeeded}
+            AND d."stripeSubscriptionId" IS NOT NULL
+            ${dateFrom ? Prisma.sql`AND d."paidAt" >= ${dateFrom}` : Prisma.empty}
+            ${dateTo ? Prisma.sql`AND d."paidAt" < ${dateTo}` : Prisma.empty}
+            AND NOT EXISTS (
+              SELECT 1 FROM "Donation" c
+              WHERE c."stripeSubscriptionId" = d."stripeSubscriptionId"
+                AND c.status = ${DonationStatus.cancelled}
+            )
+          ORDER BY d."stripeSubscriptionId", d."paidAt" DESC NULLS LAST
+        ) lps
       `,
       prisma.$queryRaw<CountRow[]>`
         SELECT COUNT(DISTINCT d."donorEmail") AS count
@@ -150,13 +153,13 @@ export async function getDonationStats(
       `,
     ])
 
-  const mrrCents = mrrRows.reduce((sum, row) => sum + row.amount, 0)
+  const mrrRow = mrrResult[0]
 
   return {
     oneTimeTotalCents: oneTimeStats._sum.amount ?? 0,
     oneTimeCount: oneTimeStats._count,
-    activeRecurringCount: mrrRows.length,
-    mrrCents,
+    activeRecurringCount: Number(mrrRow?.activerecurringcount ?? 0),
+    mrrCents: Number(mrrRow?.mrrcents ?? 0),
     totalDonorCount: Number(donorCountRows[0]?.count ?? 0),
     recurringPaymentCount: recurringCount,
   }
