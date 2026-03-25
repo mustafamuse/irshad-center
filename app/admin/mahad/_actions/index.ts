@@ -497,22 +497,24 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
-    const liveAssignment = await prisma.billingAssignment.findFirst({
-      where: {
-        programProfileId: id,
-        ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
-      },
-    })
-    if (liveAssignment) {
-      throw new ActionError(
-        'Cannot delete student with active billing subscription. Cancel the subscription first.',
-        ERROR_CODES.ACTIVE_SUBSCRIPTION,
-        undefined,
-        403
-      )
-    }
+    await prisma.$transaction(async (tx) => {
+      const liveAssignment = await tx.billingAssignment.findFirst({
+        where: {
+          programProfileId: id,
+          ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
+        },
+      })
+      if (liveAssignment) {
+        throw new ActionError(
+          'Cannot delete student with active billing subscription. Cancel the subscription first.',
+          ERROR_CODES.ACTIVE_SUBSCRIPTION,
+          undefined,
+          403
+        )
+      }
 
-    await prisma.programProfile.delete({ where: { id } })
+      await tx.programProfile.delete({ where: { id } })
+    })
 
     revalidateTag('mahad-stats')
     revalidatePath('/admin/mahad')
@@ -546,40 +548,51 @@ export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
       return { success: false, error: 'No students selected for deletion' }
     }
 
-    const activeAssignments = await prisma.billingAssignment.findMany({
-      where: {
-        programProfileId: { in: studentIds },
-        ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
-      },
-      select: { programProfileId: true },
-    })
-
-    const blockedIdSet = new Set(
-      activeAssignments.map((a) => a.programProfileId)
-    )
-    const safeIds = studentIds.filter((id) => !blockedIdSet.has(id))
-    const blockedIds = studentIds.filter((id) => blockedIdSet.has(id))
-
-    let deletedCount = 0
-    const failedDeletes: string[] = []
-
-    if (safeIds.length > 0) {
-      try {
-        const result = await prisma.programProfile.deleteMany({
-          where: { id: { in: safeIds } },
+    const { deletedCount, failedDeletes, blockedIds } =
+      await prisma.$transaction(async (tx) => {
+        const activeAssignments = await tx.billingAssignment.findMany({
+          where: {
+            programProfileId: { in: studentIds },
+            ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
+          },
+          select: { programProfileId: true },
         })
-        deletedCount = result.count
-      } catch (error) {
-        logger.error(
-          { err: error, studentIds: safeIds },
-          'Failed to bulk delete students'
-        )
-        failedDeletes.push(...safeIds)
-      }
-    }
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+        const blockedIdSet = new Set(
+          activeAssignments.map((a) => a.programProfileId)
+        )
+        const safe = studentIds.filter((id) => !blockedIdSet.has(id))
+        const blocked = studentIds.filter((id) => blockedIdSet.has(id))
+
+        let deleted = 0
+        const failed: string[] = []
+
+        if (safe.length > 0) {
+          try {
+            const result = await tx.programProfile.deleteMany({
+              where: { id: { in: safe } },
+            })
+            deleted = result.count
+          } catch (error) {
+            logger.error(
+              { err: error, studentIds: safe },
+              'Failed to bulk delete students'
+            )
+            failed.push(...safe)
+          }
+        }
+
+        return {
+          deletedCount: deleted,
+          failedDeletes: failed,
+          blockedIds: blocked,
+        }
+      })
+
+    if (deletedCount > 0) {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    }
 
     return {
       success: true,

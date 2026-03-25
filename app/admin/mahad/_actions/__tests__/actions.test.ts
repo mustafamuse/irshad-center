@@ -50,20 +50,25 @@ vi.mock('next/cache', () => ({
 }))
 
 vi.mock('@/lib/db', () => ({
-  prisma: {
-    programProfile: {
-      delete: (...args: unknown[]) => mockPrismaDelete(...args),
-      deleteMany: (...args: unknown[]) => mockPrismaDeleteMany(...args),
-      findUnique: (...args: unknown[]) => mockPrismaFindUnique(...args),
-    },
-    billingAssignment: {
-      findMany: (...args: unknown[]) => mockBillingAssignmentFindMany(...args),
-      findFirst: (...args: unknown[]) =>
-        mockBillingAssignmentFindFirst(...args),
-    },
-    $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
-      mockPrismaTransaction(fn),
-  },
+  prisma: (() => {
+    const client = {
+      programProfile: {
+        delete: (...args: unknown[]) => mockPrismaDelete(...args),
+        deleteMany: (...args: unknown[]) => mockPrismaDeleteMany(...args),
+        findUnique: (...args: unknown[]) => mockPrismaFindUnique(...args),
+      },
+      billingAssignment: {
+        findMany: (...args: unknown[]) =>
+          mockBillingAssignmentFindMany(...args),
+        findFirst: (...args: unknown[]) =>
+          mockBillingAssignmentFindFirst(...args),
+      },
+      $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
+        mockPrismaTransaction(fn),
+    }
+    client.$transaction = (fn: (tx: unknown) => Promise<unknown>) => fn(client)
+    return client
+  })(),
 }))
 
 vi.mock('@/lib/db/queries/batch', () => ({
