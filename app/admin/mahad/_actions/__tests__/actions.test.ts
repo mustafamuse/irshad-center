@@ -11,7 +11,6 @@ const {
   mockResolveDuplicateStudents,
   mockGetStudentDeleteWarnings,
   mockPrismaDelete,
-  mockPrismaTransaction,
   mockPrismaFindUnique,
   mockRevalidatePath,
   mockRevalidateTag,
@@ -33,7 +32,6 @@ const {
   mockGetStudentDeleteWarnings: vi.fn(),
   mockPrismaDelete: vi.fn(),
   mockPrismaDeleteMany: vi.fn(),
-  mockPrismaTransaction: vi.fn(),
   mockPrismaFindUnique: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockRevalidateTag: vi.fn(),
@@ -51,7 +49,7 @@ vi.mock('next/cache', () => ({
 
 vi.mock('@/lib/db', () => ({
   prisma: (() => {
-    const client = {
+    const client: Record<string, unknown> = {
       programProfile: {
         delete: (...args: unknown[]) => mockPrismaDelete(...args),
         deleteMany: (...args: unknown[]) => mockPrismaDeleteMany(...args),
@@ -63,8 +61,6 @@ vi.mock('@/lib/db', () => ({
         findFirst: (...args: unknown[]) =>
           mockBillingAssignmentFindFirst(...args),
       },
-      $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
-        mockPrismaTransaction(fn),
     }
     client.$transaction = (fn: (tx: unknown) => Promise<unknown>) => fn(client)
     return client
