@@ -497,11 +497,13 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
-    const LIVE_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due']
-    if (
-      student.subscription &&
-      LIVE_SUBSCRIPTION_STATUSES.includes(student.subscription.status)
-    ) {
+    const liveAssignment = await prisma.billingAssignment.findFirst({
+      where: {
+        programProfileId: id,
+        ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
+      },
+    })
+    if (liveAssignment) {
       throw new ActionError(
         'Cannot delete student with active billing subscription. Cancel the subscription first.',
         ERROR_CODES.ACTIVE_SUBSCRIPTION,

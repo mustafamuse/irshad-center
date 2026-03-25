@@ -147,7 +147,7 @@ export async function transferStudentsToBatch(
 
       if (missingStudents.length > 0) {
         throw new ActionError(
-          `No active enrollment found for ${missingStudents.length} student(s)`,
+          `No active enrollment found for student(s): ${missingStudents.join(', ')}`,
           ERROR_CODES.ENROLLMENT_NOT_FOUND,
           undefined,
           404

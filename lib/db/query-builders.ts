@@ -11,7 +11,7 @@
  * - Easy to update when schema changes
  */
 
-import { Prisma } from '@prisma/client'
+import { Prisma, SubscriptionStatus } from '@prisma/client'
 
 // ============================================================================
 // Common Where Clause Patterns
@@ -59,6 +59,12 @@ export const ACTIVE_DUGSI_ENROLLMENT_WHERE = {
   },
 } satisfies Prisma.EnrollmentWhereInput
 
+export const LIVE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
+  'active',
+  'trialing',
+  'past_due',
+]
+
 /**
  * Filter for active billing assignments with a live subscription.
  * Excludes assignments tied to canceled/expired subscriptions whose
@@ -67,7 +73,7 @@ export const ACTIVE_DUGSI_ENROLLMENT_WHERE = {
 export const ACTIVE_BILLING_ASSIGNMENT_WHERE = {
   isActive: true,
   subscription: {
-    status: { in: ['active', 'trialing', 'past_due'] },
+    status: { in: LIVE_SUBSCRIPTION_STATUSES },
   },
 } satisfies Prisma.BillingAssignmentWhereInput
 
