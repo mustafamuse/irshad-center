@@ -1,6 +1,8 @@
 import { StripeAccountType } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
+import { STRIPE_SUBSCRIPTION_STATUS } from '@/lib/constants/stripe'
+
 const {
   mockGetBillingAccountByCustomerId,
   mockUpsertBillingAccount,
@@ -372,6 +374,24 @@ describe('linkSubscriptionToProfiles', () => {
     expect(calls[1][0].percentage).toBe(50)
   })
 
+  it('should calculate float percentages for uneven splits', async () => {
+    mockBillingAssignmentFindMany.mockResolvedValue([])
+    mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
+
+    await linkSubscriptionToProfiles(
+      'sub_123',
+      [validUuid1, validUuid2, validUuid3],
+      1000
+    )
+
+    const calls = mockCreateBillingAssignment.mock.calls
+    // 333/1000 = 33.3, 333/1000 = 33.3, 334/1000 = 33.4
+    // DB column is Float? (DOUBLE PRECISION) so floats are valid
+    expect(calls[0][0].percentage).toBeCloseTo(33.3, 1)
+    expect(calls[1][0].percentage).toBeCloseTo(33.3, 1)
+    expect(calls[2][0].percentage).toBeCloseTo(33.4, 1)
+  })
+
   it('should set percentage to null for single profile', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
     mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
@@ -397,6 +417,13 @@ describe('linkSubscriptionToProfiles', () => {
     )
 
     expect(count).toBe(1)
+    expect(mockBillingAssignmentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          subscriptionId: 'sub_123',
+        }),
+      })
+    )
     expect(mockCreateBillingAssignment).toHaveBeenCalledTimes(1)
     expect(mockCreateBillingAssignment).toHaveBeenCalledWith(
       expect.objectContaining({ programProfileId: validUuid2 }),
@@ -774,7 +801,12 @@ describe('getBillingStatusByEmail', () => {
             include: expect.objectContaining({
               subscriptions: expect.objectContaining({
                 where: {
-                  status: { in: ['active', 'trialing'] },
+                  status: {
+                    in: [
+                      STRIPE_SUBSCRIPTION_STATUS.ACTIVE,
+                      STRIPE_SUBSCRIPTION_STATUS.TRIALING,
+                    ],
+                  },
                 },
               }),
             }),
