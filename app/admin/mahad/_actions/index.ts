@@ -542,7 +542,6 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
   ActionResult<{
     deletedCount: number
-    failedDeletes: string[]
     blockedIds: string[]
   }>
 > {
@@ -551,8 +550,8 @@ export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
       return { success: false, error: 'No students selected for deletion' }
     }
 
-    const { deletedCount, failedDeletes, blockedIds } =
-      await prisma.$transaction(async (tx) => {
+    const { deletedCount, blockedIds } = await prisma.$transaction(
+      async (tx) => {
         const activeAssignments = await tx.billingAssignment.findMany({
           where: {
             programProfileId: { in: studentIds },
@@ -568,29 +567,20 @@ export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
         const blocked = studentIds.filter((id) => blockedIdSet.has(id))
 
         let deleted = 0
-        const failed: string[] = []
 
         if (safe.length > 0) {
-          try {
-            const result = await tx.programProfile.deleteMany({
-              where: { id: { in: safe } },
-            })
-            deleted = result.count
-          } catch (error) {
-            logger.error(
-              { err: error, studentIds: safe },
-              'Failed to bulk delete students'
-            )
-            failed.push(...safe)
-          }
+          const result = await tx.programProfile.deleteMany({
+            where: { id: { in: safe } },
+          })
+          deleted = result.count
         }
 
         return {
           deletedCount: deleted,
-          failedDeletes: failed,
           blockedIds: blocked,
         }
-      })
+      }
+    )
 
     if (deletedCount > 0) {
       revalidateTag('mahad-stats')
@@ -599,7 +589,7 @@ export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
 
     return {
       success: true,
-      data: { deletedCount, failedDeletes, blockedIds },
+      data: { deletedCount, blockedIds },
     }
   } catch (error) {
     return handleActionError(error, 'bulkDeleteStudentsAction')

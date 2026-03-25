@@ -63,6 +63,7 @@ export const LIVE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
   'active',
   'trialing',
   'past_due',
+  'unpaid',
 ]
 
 /**
