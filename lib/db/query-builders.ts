@@ -60,10 +60,15 @@ export const ACTIVE_DUGSI_ENROLLMENT_WHERE = {
 } satisfies Prisma.EnrollmentWhereInput
 
 /**
- * Filter for active billing assignments
+ * Filter for active billing assignments with a live subscription.
+ * Excludes assignments tied to canceled/expired subscriptions whose
+ * isActive flag was never flipped.
  */
 export const ACTIVE_BILLING_ASSIGNMENT_WHERE = {
   isActive: true,
+  subscription: {
+    status: { in: ['active', 'trialing', 'past_due'] },
+  },
 } satisfies Prisma.BillingAssignmentWhereInput
 
 /**

@@ -447,6 +447,20 @@ describe('Student Actions', () => {
       expect(result.error).toContain('active billing subscription')
       expect(mockPrismaDelete).not.toHaveBeenCalled()
     })
+
+    it('should allow deletion when subscription is canceled', async () => {
+      mockGetStudentById.mockResolvedValue({
+        id: 'student-1',
+        batchId: null,
+        subscription: { id: 'sub-1', status: 'canceled' },
+      })
+      mockPrismaDelete.mockResolvedValue(undefined)
+
+      const result = await deleteStudentAction('student-1')
+
+      expect(result.success).toBe(true)
+      expect(mockPrismaDelete).toHaveBeenCalled()
+    })
   })
 
   describe('bulkDeleteStudentsAction', () => {
