@@ -499,6 +499,10 @@ export async function addSubscriptionHistory(
 
 /**
  * Get billing assignments by program profile
+ *
+ * Note: billingAccount select is scoped to Dugsi fields (stripeCustomerIdDugsi).
+ * If reused for Mahad, expand the select to include stripeCustomerIdMahad.
+ *
  * @param client - Optional database client (for transaction support)
  */
 export async function getBillingAssignmentsByProfile(
