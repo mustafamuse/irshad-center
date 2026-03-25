@@ -485,7 +485,6 @@ describe('Student Actions', () => {
 
       expect(result.success).toBe(true)
       expect(result.data?.deletedCount).toBe(3)
-      expect(result.data?.failedDeletes).toEqual([])
       expect(result.data?.blockedIds).toEqual([])
     })
 
@@ -513,15 +512,14 @@ describe('Student Actions', () => {
       expect(result.data?.blockedIds).toEqual(['student-2'])
     })
 
-    it('should track failed deletions when deleteMany fails', async () => {
+    it('should return error when deleteMany fails', async () => {
       mockBillingAssignmentFindMany.mockResolvedValue([])
       mockPrismaDeleteMany.mockRejectedValue(new Error('DB error'))
 
       const result = await bulkDeleteStudentsAction(['student-1', 'student-2'])
 
-      expect(result.success).toBe(true)
-      expect(result.data?.deletedCount).toBe(0)
-      expect(result.data?.failedDeletes).toEqual(['student-1', 'student-2'])
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('DB error')
     })
   })
 
