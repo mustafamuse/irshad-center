@@ -84,7 +84,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
     if (dupResult.isDuplicate && dupResult.hasActiveProfile) {
       throw new ActionError(
         'Student already registered for Mahad',
-        ERROR_CODES.DUPLICATE_EMAIL,
+        ERROR_CODES.DUPLICATE_CONTACT,
         dupResult.duplicateField ?? 'email',
         409
       )
@@ -118,7 +118,9 @@ export async function createMahadStudent(input: StudentCreateInput) {
 
       if (normalizedPhone) {
         const phoneContact = dupResult.existingPerson.contactPoints.find(
-          (cp) => cp.type === 'PHONE' && cp.value === normalizedPhone
+          (cp) =>
+            (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
+            cp.value === normalizedPhone
         )
         if (phoneContact && !phoneContact.isActive) {
           await tx.contactPoint.update({

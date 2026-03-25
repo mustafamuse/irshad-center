@@ -24,6 +24,17 @@ export async function registerStudent(
   studentData: MahadRegistrationValues
 ): Promise<ActionResult<{ id: string; name: string }>> {
   try {
+    const validationResult = mahadRegistrationSchema.safeParse(studentData)
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0]
+      const field = firstError.path[0] as string
+      return {
+        success: false,
+        error: firstError.message,
+        errors: field ? { [field]: [firstError.message] } : undefined,
+      }
+    }
+
     try {
       const headerStore = await headers()
       const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -38,17 +49,6 @@ export async function registerStudent(
       }
     } catch {
       // Fail open if headers/rate-limit unavailable
-    }
-
-    const validationResult = mahadRegistrationSchema.safeParse(studentData)
-    if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0]
-      const field = firstError.path[0] as string
-      return {
-        success: false,
-        error: firstError.message,
-        errors: field ? { [field]: [firstError.message] } : undefined,
-      }
     }
 
     const data = validationResult.data

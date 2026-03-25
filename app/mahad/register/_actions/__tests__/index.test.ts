@@ -160,7 +160,7 @@ describe('registerStudent', () => {
     mockCreateMahadStudent.mockRejectedValue(
       new ActionError(
         'Student already registered for Mahad',
-        'DUPLICATE_EMAIL',
+        'DUPLICATE_CONTACT',
         'email',
         409
       )
@@ -181,7 +181,7 @@ describe('registerStudent', () => {
     mockCreateMahadStudent.mockRejectedValue(
       new ActionError(
         'Student already registered for Mahad',
-        'DUPLICATE_EMAIL',
+        'DUPLICATE_CONTACT',
         'phone',
         409
       )
@@ -213,7 +213,7 @@ describe('registerStudent', () => {
   it('should not log ActionError as server error', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
     mockCreateMahadStudent.mockRejectedValue(
-      new ActionError('Duplicate', 'DUPLICATE_EMAIL')
+      new ActionError('Duplicate', 'DUPLICATE_CONTACT')
     )
 
     await registerStudent(validInput)
