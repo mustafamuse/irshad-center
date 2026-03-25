@@ -104,10 +104,7 @@ export async function registerStudent(
     await logError(logger, error, 'Mahad registration failed')
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Registration failed. Please try again.',
+      error: 'Registration failed. Please try again.',
     }
   }
 }

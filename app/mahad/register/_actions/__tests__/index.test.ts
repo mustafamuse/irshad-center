@@ -229,7 +229,7 @@ describe('registerStudent', () => {
     const result = await registerStudent(validInput)
 
     expect(result.success).toBe(false)
-    expect(result.error).toBe('Database connection lost')
+    expect(result.error).toBe('Registration failed. Please try again.')
     expect(mockLogError).toHaveBeenCalled()
   })
 })
