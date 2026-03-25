@@ -427,10 +427,10 @@ model BillingAccount {
   primaryContactPoint ContactPoint?  @relation(fields: [primaryContactPointId], references: [id], onDelete: SetNull)
   subscriptions       Subscription[] // All subscriptions for this billing account
 
-  @@index([personId]) // Find accounts for a person
   @@index([accountType]) // Filter by account type
   @@index([stripeCustomerIdMahad]) // Find by Mahad Stripe customer ID
   @@index([stripeCustomerIdDugsi]) // Find by Dugsi Stripe customer ID
+  @@index([personId, accountType]) // Composite: getBillingAccountByPerson + upsertBillingAccount (subsumes personId-only index)
 }
 
 model Subscription {
@@ -461,11 +461,11 @@ model Subscription {
   assignments    BillingAssignment[]
   history        SubscriptionHistory[]
 
-  @@index([billingAccountId])
   @@index([stripeSubscriptionId])
   @@index([stripeCustomerId])
   @@index([status])
   @@index([stripeAccountType, status])
+  @@index([billingAccountId, status]) // Composite: nested subscription filtering by account + status (subsumes billingAccountId-only index)
 }
 
 model BillingAssignment {
@@ -508,9 +508,9 @@ model SubscriptionHistory {
   // Relations
   subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
 
-  @@index([subscriptionId])
   @@index([eventType])
   @@index([processedAt])
+  @@index([subscriptionId, processedAt]) // Composite: history lookup with processedAt ordering (subsumes subscriptionId-only index)
 }
 
 model WebhookEvent {
@@ -735,4 +735,7 @@ model Donation {
   @@index([status])
   @@index([createdAt])
   @@index([donorEmail])
+  @@index([status, isRecurring, stripeSubscriptionId])
+  @@index([status, stripeSubscriptionId, paidAt])
+  @@index([status, donorEmail])
 }

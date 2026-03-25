@@ -3,7 +3,7 @@
 //   sub_setup_{subscriptionId}    -- placeholder created at recurring checkout, cleaned up on first invoice
 //   sub_cancelled_{subscriptionId} -- cancellation marker to exclude subscription from MRR
 
-import { Prisma } from '@prisma/client'
+import { DonationStatus, Prisma } from '@prisma/client'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
@@ -53,10 +53,18 @@ export async function handleOneTimeDonation(
     throw new Error('Missing payment_intent on checkout session')
   }
 
-  if (!session.amount_total) {
-    logger.warn(
-      { sessionId: session.id, paymentIntentId },
-      'One-time donation checkout has null/zero amount_total'
+  // covers null, undefined, 0, and negative amounts
+  if (!session.amount_total || session.amount_total <= 0) {
+    logger.error(
+      {
+        sessionId: session.id,
+        paymentIntentId,
+        amount_total: session.amount_total,
+      },
+      'Donation checkout has unexpected null/zero amount_total'
+    )
+    throw new Error(
+      `Donation amount_total is ${session.amount_total} for session ${session.id}`
     )
   }
 
@@ -67,9 +75,9 @@ export async function handleOneTimeDonation(
     create: {
       stripePaymentIntentId: paymentIntentId,
       stripeCustomerId: extractCustomerId(session.customer),
-      amount: session.amount_total ?? 0,
+      amount: session.amount_total,
       currency: session.currency ?? 'usd',
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       donorName: resolveDonorName(session, isAnonymous),
       donorEmail: session.customer_details?.email ?? null,
       donorPhone: session.customer_details?.phone ?? null,
@@ -81,7 +89,7 @@ export async function handleOneTimeDonation(
       paidAt: new Date(),
     },
     update: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
     },
   })
@@ -102,13 +110,22 @@ export async function handleRecurringDonationCheckout(
     throw new Error('Missing subscription on checkout session')
   }
 
-  if (!session.amount_total) {
-    logger.warn(
-      { sessionId: session.id, subscriptionId },
-      'Recurring donation checkout has null/zero amount_total'
+  // covers null, undefined, 0, and negative amounts
+  if (!session.amount_total || session.amount_total <= 0) {
+    logger.error(
+      {
+        sessionId: session.id,
+        subscriptionId,
+        amount_total: session.amount_total,
+      },
+      'Donation checkout has unexpected null/zero amount_total'
+    )
+    throw new Error(
+      `Donation amount_total is ${session.amount_total} for session ${session.id}`
     )
   }
 
+  const amount = session.amount_total
   const isAnonymous = session.metadata?.isAnonymous === 'true'
   const placeholderPiId = `${SETUP_PREFIX}${subscriptionId}`
 
@@ -120,7 +137,7 @@ export async function handleRecurringDonationCheckout(
     const existingPayment = await tx.donation.findFirst({
       where: {
         stripeSubscriptionId: subscriptionId,
-        status: 'succeeded',
+        status: DonationStatus.succeeded,
         NOT: { stripePaymentIntentId: { startsWith: SETUP_PREFIX } },
       },
     })
@@ -151,9 +168,9 @@ export async function handleRecurringDonationCheckout(
       create: {
         stripePaymentIntentId: placeholderPiId,
         stripeCustomerId: extractCustomerId(session.customer),
-        amount: session.amount_total ?? 0,
+        amount,
         currency: session.currency ?? 'usd',
-        status: 'pending',
+        status: DonationStatus.pending,
         donorName,
         donorEmail,
         donorPhone,
@@ -165,7 +182,7 @@ export async function handleRecurringDonationCheckout(
         ),
       },
       update: {
-        status: 'pending',
+        status: DonationStatus.pending,
         stripeSubscriptionId: subscriptionId,
       },
     })
@@ -197,7 +214,7 @@ export async function handleDonationPaymentIntentSucceeded(
   await prisma.donation.update({
     where: { stripePaymentIntentId: paymentIntent.id },
     data: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
       amount: paymentIntent.amount,
     },
@@ -221,6 +238,18 @@ export async function handleDonationInvoicePaid(
     logger.info(
       { invoiceId: invoice.id },
       'Invoice has no subscription or payment_intent -- skipping'
+    )
+    return
+  }
+
+  if (!invoice.amount_paid || invoice.amount_paid <= 0) {
+    logger.warn(
+      {
+        invoiceId: invoice.id,
+        subscriptionId,
+        amount_paid: invoice.amount_paid,
+      },
+      'Skipping $0 invoice -- coupon, credit, or trial end'
     )
     return
   }
@@ -252,7 +281,7 @@ export async function handleDonationInvoicePaid(
       stripeCustomerId: extractCustomerId(invoice.customer),
       amount: invoice.amount_paid,
       currency: invoice.currency ?? 'usd',
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       donorEmail,
       donorPhone,
       isAnonymous,
@@ -262,7 +291,7 @@ export async function handleDonationInvoicePaid(
       paidAt: new Date(),
     },
     update: {
-      status: 'succeeded',
+      status: DonationStatus.succeeded,
       paidAt: new Date(),
       amount: invoice.amount_paid,
     },
@@ -351,12 +380,12 @@ export async function handleDonationSubscriptionDeleted(
       stripePaymentIntentId: cancelledId,
       stripeSubscriptionId: subscription.id,
       stripeCustomerId: customerId,
-      amount: 0,
-      status: 'cancelled',
+      amount: 0, // synthetic marker — no real payment
+      status: DonationStatus.cancelled,
       isRecurring: true,
     },
     update: {
-      status: 'cancelled',
+      status: DonationStatus.cancelled,
     },
   })
 
