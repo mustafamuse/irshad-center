@@ -19,6 +19,7 @@ const {
   mockLoggerWarn,
   mockStripeSessionCreate,
   mockBillingAssignmentFindMany,
+  mockBillingAssignmentFindFirst,
   mockPrismaDeleteMany,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
@@ -40,6 +41,7 @@ const {
   mockLoggerWarn: vi.fn(),
   mockStripeSessionCreate: vi.fn(),
   mockBillingAssignmentFindMany: vi.fn(),
+  mockBillingAssignmentFindFirst: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -56,6 +58,8 @@ vi.mock('@/lib/db', () => ({
     },
     billingAssignment: {
       findMany: (...args: unknown[]) => mockBillingAssignmentFindMany(...args),
+      findFirst: (...args: unknown[]) =>
+        mockBillingAssignmentFindFirst(...args),
     },
     $transaction: (fn: (tx: unknown) => Promise<unknown>) =>
       mockPrismaTransaction(fn),
@@ -400,8 +404,8 @@ describe('Student Actions', () => {
       mockGetStudentById.mockResolvedValue({
         id: 'student-1',
         batchId: null,
-        subscription: null,
       })
+      mockBillingAssignmentFindFirst.mockResolvedValue(null)
       mockPrismaDelete.mockResolvedValue(undefined)
 
       const result = await deleteStudentAction('student-1')
@@ -416,8 +420,8 @@ describe('Student Actions', () => {
       mockGetStudentById.mockResolvedValue({
         id: 'student-1',
         batchId: 'batch-1',
-        subscription: null,
       })
+      mockBillingAssignmentFindFirst.mockResolvedValue(null)
       mockPrismaDelete.mockResolvedValue(undefined)
 
       await deleteStudentAction('student-1')
@@ -438,7 +442,11 @@ describe('Student Actions', () => {
       mockGetStudentById.mockResolvedValue({
         id: 'student-1',
         batchId: null,
-        subscription: { id: 'sub-1', status: 'active' },
+      })
+      mockBillingAssignmentFindFirst.mockResolvedValue({
+        id: 'ba-1',
+        programProfileId: 'student-1',
+        isActive: true,
       })
 
       const result = await deleteStudentAction('student-1')
@@ -452,8 +460,8 @@ describe('Student Actions', () => {
       mockGetStudentById.mockResolvedValue({
         id: 'student-1',
         batchId: null,
-        subscription: { id: 'sub-1', status: 'canceled' },
       })
+      mockBillingAssignmentFindFirst.mockResolvedValue(null)
       mockPrismaDelete.mockResolvedValue(undefined)
 
       const result = await deleteStudentAction('student-1')
