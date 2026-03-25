@@ -121,6 +121,9 @@ describe('calculateSplitAmounts', () => {
     expect(amounts.every((a) => a === 100)).toBe(true)
   })
 
+  // Zero-valued splits are valid at this utility level. The caller
+  // (linkSubscriptionToProfiles) has a hasInvalidAmount guard that
+  // rejects these before creating billing assignments.
   it('should handle amount smaller than count', () => {
     const amounts = calculateSplitAmounts(2, 5)
     expect(amounts.reduce((a, b) => a + b, 0)).toBe(2)
@@ -429,6 +432,34 @@ describe('linkSubscriptionToProfiles', () => {
     ).rejects.toThrow('Connection lost')
   })
 
+  it('should re-throw non-P2002 Prisma errors', async () => {
+    mockBillingAssignmentFindMany.mockResolvedValue([])
+    const p2025Error = Object.assign(new Error('Record not found'), {
+      code: 'P2025',
+    })
+    mockCreateBillingAssignment.mockRejectedValue(p2025Error)
+
+    await expect(
+      linkSubscriptionToProfiles('sub_123', [validUuid1], 500)
+    ).rejects.toThrow('Record not found')
+  })
+
+  it('should return 0 when all profiles already have assignments', async () => {
+    mockBillingAssignmentFindMany.mockResolvedValue([
+      { programProfileId: validUuid1 },
+      { programProfileId: validUuid2 },
+    ])
+
+    const count = await linkSubscriptionToProfiles(
+      'sub_123',
+      [validUuid1, validUuid2],
+      1000
+    )
+
+    expect(count).toBe(0)
+    expect(mockCreateBillingAssignment).not.toHaveBeenCalled()
+  })
+
   it('should include notes in assignments', async () => {
     mockBillingAssignmentFindMany.mockResolvedValue([])
     mockCreateBillingAssignment.mockResolvedValue({ id: 'assign-1' })
@@ -681,6 +712,42 @@ describe('getBillingStatusByEmail', () => {
     )
 
     expect(result.stripeCustomerId).toBe('cus_don_abc')
+  })
+
+  it('should exclude non-active subscriptions from status', async () => {
+    mockPersonFindFirst.mockResolvedValue({
+      id: 'person-1',
+      billingAccounts: [
+        {
+          stripeCustomerIdMahad: 'cus_mahad_123',
+          paymentMethodCaptured: true,
+          subscriptions: [],
+        },
+      ],
+    })
+
+    const result = await getBillingStatusByEmail(
+      'test@example.com',
+      StripeAccountType.MAHAD
+    )
+
+    expect(result.hasActiveSubscription).toBe(false)
+    expect(result.subscriptionStatus).toBeNull()
+    expect(mockPersonFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          billingAccounts: expect.objectContaining({
+            include: expect.objectContaining({
+              subscriptions: expect.objectContaining({
+                where: {
+                  status: { in: ['active', 'trialing'] },
+                },
+              }),
+            }),
+          }),
+        }),
+      })
+    )
   })
 
   it('should return defaults when no billing account exists', async () => {
