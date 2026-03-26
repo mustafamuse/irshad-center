@@ -276,6 +276,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonCreate).not.toHaveBeenCalled()
   })
 
+  // Person matched by email; WHATSAPP contact has same phone and needs reactivation
   it('should reactivate deactivated WHATSAPP contact matching submitted phone', async () => {
     const existingPerson = {
       id: 'returnee-person',
