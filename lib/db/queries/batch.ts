@@ -320,7 +320,7 @@ export async function getBatchStudentCount(
 /**
  * Assign students to a batch using batch operations (single transaction).
  *
- * Updates existing enrollments in-place or creates new ones.
+ * Withdraws existing enrollments (preserving history) then creates new ones.
  * Students already in the target batch are skipped.
  */
 export async function assignStudentsToBatch(
@@ -356,30 +356,35 @@ export async function assignStudentsToBatch(
       },
     })
 
-    const toUpdate = activeEnrollments.filter((e) => e.batchId !== batchId)
-    if (toUpdate.length > 0) {
+    const alreadyInBatch = new Set(
+      activeEnrollments
+        .filter((e) => e.batchId === batchId)
+        .map((e) => e.programProfileId)
+    )
+
+    const toWithdraw = activeEnrollments.filter((e) => e.batchId !== batchId)
+    const now = new Date()
+
+    if (toWithdraw.length > 0) {
       await tx.enrollment.updateMany({
-        where: { id: { in: toUpdate.map((e) => e.id) } },
-        data: { batchId },
+        where: { id: { in: toWithdraw.map((e) => e.id) } },
+        data: { status: 'WITHDRAWN' as EnrollmentStatus, endDate: now },
       })
     }
 
-    const enrolledIds = new Set(
-      activeEnrollments.map((e) => e.programProfileId)
-    )
-    const toCreate = studentIds.filter((id) => !enrolledIds.has(id))
-    if (toCreate.length > 0) {
+    const toEnroll = studentIds.filter((id) => !alreadyInBatch.has(id))
+    if (toEnroll.length > 0) {
       await tx.enrollment.createMany({
-        data: toCreate.map((id) => ({
+        data: toEnroll.map((id) => ({
           programProfileId: id,
           batchId,
           status: 'REGISTERED' as EnrollmentStatus,
-          startDate: new Date(),
+          startDate: now,
         })),
       })
     }
 
-    return toUpdate.length + toCreate.length
+    return toEnroll.length
   }
 
   try {
@@ -452,9 +457,18 @@ export async function transferStudents(
 
     let transferred = 0
     if (activeEnrollments.length > 0) {
+      const now = new Date()
       await tx.enrollment.updateMany({
         where: { id: { in: activeEnrollments.map((e) => e.id) } },
-        data: { batchId: toBatchId },
+        data: { status: 'WITHDRAWN' as EnrollmentStatus, endDate: now },
+      })
+      await tx.enrollment.createMany({
+        data: activeEnrollments.map((e) => ({
+          programProfileId: e.programProfileId,
+          batchId: toBatchId,
+          status: 'REGISTERED' as EnrollmentStatus,
+          startDate: now,
+        })),
       })
       transferred = activeEnrollments.length
     }
