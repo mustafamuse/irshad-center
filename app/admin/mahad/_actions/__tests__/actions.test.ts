@@ -512,6 +512,19 @@ describe('Student Actions', () => {
       expect(result.data?.blockedIds).toEqual(['student-2'])
     })
 
+    it('should return error when all students are blocked', async () => {
+      mockBillingAssignmentFindMany.mockResolvedValue([
+        { programProfileId: 'student-1' },
+        { programProfileId: 'student-2' },
+      ])
+
+      const result = await bulkDeleteStudentsAction(['student-1', 'student-2'])
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('active subscriptions')
+      expect(result.data?.blockedIds).toEqual(['student-1', 'student-2'])
+    })
+
     it('should return error when deleteMany fails', async () => {
       mockBillingAssignmentFindMany.mockResolvedValue([])
       mockPrismaDeleteMany.mockRejectedValue(new Error('DB error'))
