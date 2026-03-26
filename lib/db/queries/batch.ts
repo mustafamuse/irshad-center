@@ -11,7 +11,7 @@
  * - Maintains backward-compatible return types for UI components
  */
 
-import { Prisma } from '@prisma/client'
+import { EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import {
@@ -318,12 +318,14 @@ export async function getBatchStudentCount(
 }
 
 /**
- * Assign students to a batch (bulk update enrollments)
- * This updates existing enrollments or creates new ones
+ * Assign students to a batch using batch operations (single transaction).
+ *
+ * Updates existing enrollments in-place or creates new ones.
+ * Students already in the target batch are skipped.
  */
 export async function assignStudentsToBatch(
   batchId: string,
-  studentIds: string[], // These are ProgramProfile IDs
+  studentIds: string[],
   client: DatabaseClient = prisma
 ) {
   const results = {
@@ -333,7 +335,6 @@ export async function assignStudentsToBatch(
     errors: [] as string[],
   }
 
-  // Verify batch exists
   const batch = await client.batch.findUnique({
     where: { id: batchId },
   })
@@ -347,60 +348,70 @@ export async function assignStudentsToBatch(
     }
   }
 
-  // Process each student
-  for (const studentId of studentIds) {
-    try {
-      // Get or create active enrollment for this profile
-      let enrollment = await client.enrollment.findFirst({
+  try {
+    await prisma.$transaction(async (tx) => {
+      const activeEnrollments = await tx.enrollment.findMany({
         where: {
-          programProfileId: studentId,
+          programProfileId: { in: studentIds },
           ...ACTIVE_ENROLLMENT_WHERE,
         },
       })
 
-      if (enrollment) {
-        // Update existing enrollment with new batch
-        await client.enrollment.update({
-          where: { id: enrollment.id },
+      const toUpdate = activeEnrollments.filter(
+        (e: { batchId: string | null }) => e.batchId !== batchId
+      )
+      if (toUpdate.length > 0) {
+        await tx.enrollment.updateMany({
+          where: { id: { in: toUpdate.map((e: { id: string }) => e.id) } },
           data: { batchId },
-        })
-      } else {
-        // Create new enrollment with batch
-        await client.enrollment.create({
-          data: {
-            programProfileId: studentId,
-            batchId,
-            status: 'REGISTERED',
-            startDate: new Date(),
-          },
         })
       }
 
-      results.assignedCount++
-    } catch (error) {
-      await logError(logger, error, 'Failed to assign student to batch', {
-        studentId,
-        batchId,
-      })
-      results.failedAssignments.push(studentId)
-      results.errors.push(
-        `Failed to assign student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      const enrolledIds = new Set(
+        activeEnrollments.map(
+          (e: { programProfileId: string }) => e.programProfileId
+        )
       )
-    }
-  }
+      const toCreate = studentIds.filter((id) => !enrolledIds.has(id))
+      if (toCreate.length > 0) {
+        await tx.enrollment.createMany({
+          data: toCreate.map((id) => ({
+            programProfileId: id,
+            batchId,
+            status: 'REGISTERED' as EnrollmentStatus,
+            startDate: new Date(),
+          })),
+        })
+      }
 
-  results.success = results.failedAssignments.length === 0
+      results.assignedCount = toUpdate.length + toCreate.length
+    })
+  } catch (error) {
+    await logError(logger, error, 'Failed to assign students to batch', {
+      batchId,
+      studentIds,
+    })
+    results.failedAssignments.push(...studentIds)
+    results.errors.push(
+      `Failed to assign students: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+    results.success = false
+  }
 
   return results
 }
 
 /**
- * Transfer students from one batch to another (bulk update)
+ * Transfer students from one batch to another using batch operations
+ * (single transaction).
+ *
+ * Students not found in the source batch are reported in failedTransfers
+ * but do not abort the entire operation.
  */
 export async function transferStudents(
   fromBatchId: string,
   toBatchId: string,
-  studentIds: string[], // These are ProgramProfile IDs
+  studentIds: string[],
   client: DatabaseClient = prisma
 ) {
   const results = {
@@ -410,7 +421,6 @@ export async function transferStudents(
     errors: [] as string[],
   }
 
-  // Verify both batches exist
   const [fromBatch, toBatch] = await Promise.all([
     client.batch.findUnique({ where: { id: fromBatchId } }),
     client.batch.findUnique({ where: { id: toBatchId } }),
@@ -425,45 +435,50 @@ export async function transferStudents(
     }
   }
 
-  // Transfer each student
-  for (const studentId of studentIds) {
-    try {
-      // Find active enrollment in source batch
-      const enrollment = await client.enrollment.findFirst({
+  try {
+    await prisma.$transaction(async (tx) => {
+      const activeEnrollments = await tx.enrollment.findMany({
         where: {
-          programProfileId: studentId,
+          programProfileId: { in: studentIds },
           batchId: fromBatchId,
           ...ACTIVE_ENROLLMENT_WHERE,
         },
       })
 
-      if (enrollment) {
-        // Update enrollment to new batch
-        await client.enrollment.update({
-          where: { id: enrollment.id },
+      const enrolledIds = new Set(
+        activeEnrollments.map(
+          (e: { programProfileId: string }) => e.programProfileId
+        )
+      )
+      const missing = studentIds.filter((id) => !enrolledIds.has(id))
+      if (missing.length > 0) {
+        results.failedTransfers.push(...missing)
+        results.errors.push(
+          ...missing.map((id) => `Student ${id} not found in source batch`)
+        )
+      }
+
+      if (activeEnrollments.length > 0) {
+        await tx.enrollment.updateMany({
+          where: {
+            id: { in: activeEnrollments.map((e: { id: string }) => e.id) },
+          },
           data: { batchId: toBatchId },
         })
-        results.transferredCount++
-      } else {
-        results.failedTransfers.push(studentId)
-        results.errors.push(`Student ${studentId} not found in source batch`)
+        results.transferredCount = activeEnrollments.length
       }
-    } catch (error) {
-      await logError(
-        logger,
-        error,
-        'Failed to transfer student between batches',
-        {
-          studentId,
-          fromBatchId,
-          toBatchId,
-        }
-      )
-      results.failedTransfers.push(studentId)
-      results.errors.push(
-        `Failed to transfer student ${studentId}: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
-    }
+    })
+  } catch (error) {
+    await logError(
+      logger,
+      error,
+      'Failed to transfer students between batches',
+      { fromBatchId, toBatchId, studentIds }
+    )
+    results.failedTransfers.push(...studentIds)
+    results.errors.push(
+      `Failed to transfer students: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 
   results.success = results.failedTransfers.length === 0
