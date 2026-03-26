@@ -23,6 +23,7 @@ import {
   getProgramProfiles,
   searchProgramProfilesByNameOrContact,
 } from '@/lib/db/queries/program-profile'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -77,17 +78,11 @@ export interface SubscriptionLinkResult {
   error?: string
 }
 
-/**
- * Filter subscriptions to only active, trialing, or past_due statuses.
- */
 function filterActiveSubscriptions(
   subscriptions: Stripe.Subscription[]
 ): Stripe.Subscription[] {
-  return subscriptions.filter(
-    (sub) =>
-      sub.status === 'active' ||
-      sub.status === 'trialing' ||
-      sub.status === 'past_due'
+  return subscriptions.filter((sub) =>
+    (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(sub.status)
   )
 }
 
@@ -311,11 +306,8 @@ export async function searchStudentsForLinking(
   const matches: StudentMatch[] = []
   for (const profile of profiles) {
     const assignments = assignmentsByProfile.get(profile.id) || []
-    const hasSubscription = assignments.some(
-      (a) =>
-        a.subscription.status === 'active' ||
-        a.subscription.status === 'trialing' ||
-        a.subscription.status === 'past_due'
+    const hasSubscription = assignments.some((a) =>
+      LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
     const email =
@@ -385,11 +377,8 @@ export async function getPotentialStudentMatches(
   const matches: StudentMatch[] = []
   for (const profile of profiles) {
     const assignments = assignmentsByProfile.get(profile.id) || []
-    const hasSubscription = assignments.some(
-      (a) =>
-        a.subscription.status === 'active' ||
-        a.subscription.status === 'trialing' ||
-        a.subscription.status === 'past_due'
+    const hasSubscription = assignments.some((a) =>
+      LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
     const profileEmail =

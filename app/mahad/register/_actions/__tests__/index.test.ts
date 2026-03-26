@@ -113,11 +113,16 @@ describe('registerStudent', () => {
   })
 
   it('should use after() for non-blocking revalidation', async () => {
+    mockAfter.mockImplementation(() => {})
     mockCreateMahadStudent.mockResolvedValue({ id: 'profile-123' })
 
     await registerStudent(validInput)
 
     expect(mockAfter).toHaveBeenCalledWith(expect.any(Function))
+    const afterCallback = mockAfter.mock.calls[0][0] as () => void
+    afterCallback()
+    expect(mockRevalidateTag).toHaveBeenCalledWith('mahad-stats')
+    expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/mahad')
   })
 
   it('should return validation error for invalid data', async () => {
@@ -153,6 +158,7 @@ describe('registerStudent', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('already exists')
+    expect(result.errors).toBeUndefined()
   })
 
   it('should handle ActionError with field-level errors defaulting to email', async () => {

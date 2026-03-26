@@ -16,6 +16,7 @@ import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 
@@ -118,7 +119,7 @@ export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
           none: {
             isActive: true,
             subscription: {
-              status: 'active',
+              status: { in: LIVE_SUBSCRIPTION_STATUSES },
             },
           },
         },
@@ -231,7 +232,11 @@ function mapEnrollmentToStudentDTO(enrollment: {
   )
 
   // Determine subscription status
-  const hasActiveSubscription = subscription?.status === 'active'
+  const hasActiveSubscription =
+    !!subscription?.status &&
+    (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(
+      subscription.status
+    )
   const isEligibleForAutopay = !hasActiveSubscription
 
   // Calculate rate using the formula-based rate system

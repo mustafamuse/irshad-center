@@ -24,6 +24,21 @@ export async function checkRateLimit(
   if (!record || now > record.resetAt) {
     if (attempts.size >= MAX_MAP_SIZE) {
       pruneExpired(now)
+      if (attempts.size >= MAX_MAP_SIZE) {
+        // Prefer evicting a non-blocked entry to preserve rate-limited identifiers.
+        // Only fall back to oldest if every entry is at the limit.
+        let evictKey: string | undefined
+        attempts.forEach((value, key) => {
+          if (evictKey === undefined && value.count < MAX_ATTEMPTS) {
+            evictKey = key
+          }
+        })
+        if (evictKey === undefined) {
+          const first = attempts.keys().next()
+          if (!first.done) evictKey = first.value
+        }
+        if (evictKey !== undefined) attempts.delete(evictKey)
+      }
     }
     attempts.set(identifier, { count: 1, resetAt: now + WINDOW_MS })
     return {

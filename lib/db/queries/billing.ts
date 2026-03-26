@@ -11,6 +11,7 @@ import {
   contactPointsSelect,
   personMinimalSelect,
 } from '@/lib/db/prisma-helpers'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 
 /**
@@ -36,7 +37,7 @@ export async function getBillingAccountByPerson(
       },
       subscriptions: {
         where: {
-          status: { in: ['active', 'trialing', 'past_due'] },
+          status: { in: LIVE_SUBSCRIPTION_STATUSES },
         },
         include: {
           assignments: {
@@ -172,9 +173,7 @@ export async function getOrphanedSubscriptions(
           isActive: true,
         },
       },
-      status: {
-        in: ['active', 'trialing', 'past_due'],
-      },
+      status: { in: LIVE_SUBSCRIPTION_STATUSES },
     },
     relationLoadStrategy: 'join',
     include: {
