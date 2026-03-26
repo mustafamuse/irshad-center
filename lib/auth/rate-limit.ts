@@ -24,6 +24,17 @@ export async function checkRateLimit(
   if (!record || now > record.resetAt) {
     if (attempts.size >= MAX_MAP_SIZE) {
       pruneExpired(now)
+      if (attempts.size >= MAX_MAP_SIZE) {
+        let oldestKey: string | null = null
+        let oldestReset = Infinity
+        attempts.forEach((value, key) => {
+          if (value.resetAt < oldestReset) {
+            oldestReset = value.resetAt
+            oldestKey = key
+          }
+        })
+        if (oldestKey) attempts.delete(oldestKey)
+      }
     }
     attempts.set(identifier, { count: 1, resetAt: now + WINDOW_MS })
     return {
