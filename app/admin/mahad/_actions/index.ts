@@ -195,7 +195,7 @@ export async function createBatchAction(
       data: batch,
     }
   } catch (error) {
-    return handleActionError(error, 'createBatchAction', {
+    return await handleActionError(error, 'createBatchAction', {
       handlers: {
         [PRISMA_ERRORS.UNIQUE_CONSTRAINT]: `A cohort with the name "${String(rawData.name)}" already exists`,
       },
@@ -234,7 +234,7 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
       success: true,
     }
   } catch (error) {
-    return handleActionError(error, 'deleteBatchAction', {
+    return await handleActionError(error, 'deleteBatchAction', {
       handlers: {
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Cohort not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
@@ -278,7 +278,7 @@ export async function updateBatchAction(
       data: batch,
     }
   } catch (error) {
-    return handleActionError(error, 'updateBatchAction', {
+    return await handleActionError(error, 'updateBatchAction', {
       handlers: {
         [PRISMA_ERRORS.UNIQUE_CONSTRAINT]: `A cohort with the name "${String(data.name)}" already exists`,
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Cohort not found',
@@ -327,7 +327,7 @@ export async function assignStudentsAction(
       },
     }
   } catch (error) {
-    return handleActionError(error, 'assignStudentsAction', {
+    return await handleActionError(error, 'assignStudentsAction', {
       handlers: {
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Invalid cohort or student reference',
@@ -404,7 +404,7 @@ export async function transferStudentsAction(
       },
     }
   } catch (error) {
-    return handleActionError(error, 'transferStudentsAction', {
+    return await handleActionError(error, 'transferStudentsAction', {
       handlers: {
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Invalid cohort or student reference',
@@ -436,13 +436,6 @@ export async function resolveDuplicatesAction(
   }
 
   try {
-    if (!Array.isArray(deleteIds) || deleteIds.length === 0) {
-      return {
-        success: false,
-        error: 'No duplicate records selected for deletion',
-      }
-    }
-
     if (deleteIds.includes(keepId)) {
       return {
         success: false,
@@ -484,7 +477,7 @@ export async function resolveDuplicatesAction(
       success: true,
     }
   } catch (error) {
-    return handleActionError(error, 'resolveDuplicatesAction', {
+    return await handleActionError(error, 'resolveDuplicatesAction', {
       handlers: {
         [PRISMA_ERRORS.RECORD_NOT_FOUND]:
           'One or more student records not found',
@@ -573,7 +566,7 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       success: true,
     }
   } catch (error) {
-    return handleActionError(error, 'deleteStudentAction', {
+    return await handleActionError(error, 'deleteStudentAction', {
       handlers: {
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Student not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
@@ -591,7 +584,7 @@ export async function bulkDeleteStudentsAction(
 ): Promise<ActionResult<BulkDeleteResult>> {
   const validIds = z.array(z.string().uuid()).min(1).safeParse(studentIds)
   if (!validIds.success) {
-    return { success: false, error: 'No students selected for deletion' }
+    return { success: false, error: 'Invalid student IDs' }
   }
 
   try {
@@ -647,7 +640,7 @@ export async function bulkDeleteStudentsAction(
       data: { deletedCount, blockedIds },
     }
   } catch (error) {
-    return handleActionError(error, 'bulkDeleteStudentsAction')
+    return await handleActionError(error, 'bulkDeleteStudentsAction')
   }
 }
 
@@ -810,7 +803,7 @@ export async function updateStudentAction(
       success: true,
     }
   } catch (error) {
-    return handleActionError(error, 'updateStudentAction', {
+    return await handleActionError(error, 'updateStudentAction', {
       handlers: {
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Student not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:

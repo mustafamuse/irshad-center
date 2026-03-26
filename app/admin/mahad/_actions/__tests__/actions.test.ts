@@ -510,14 +510,14 @@ describe('Student Actions', () => {
       const result = await bulkDeleteStudentsAction([])
 
       expect(result.success).toBe(false)
-      expect(result.error).toBe('No students selected for deletion')
+      expect(result.error).toBe('Invalid student IDs')
     })
 
     it('should reject invalid UUIDs', async () => {
       const result = await bulkDeleteStudentsAction(['not-a-uuid', 'also-bad'])
 
       expect(result.success).toBe(false)
-      expect(result.error).toBe('No students selected for deletion')
+      expect(result.error).toBe('Invalid student IDs')
     })
 
     it('should skip students with active subscriptions', async () => {
