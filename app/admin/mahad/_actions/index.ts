@@ -59,6 +59,11 @@ import { MAX_EXPECTED_RATE_CENTS } from '@/lib/validations/checkout'
 
 import type { UpdateStudentPayload } from '../_types/student-form'
 
+export interface BulkDeleteResult {
+  deletedCount: number
+  blockedIds: string[]
+}
+
 const logger = createActionLogger('mahad')
 
 // ============================================================================
@@ -542,12 +547,9 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 /**
  * Bulk delete students
  */
-export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
-  ActionResult<{
-    deletedCount: number
-    blockedIds: string[]
-  }>
-> {
+export async function bulkDeleteStudentsAction(
+  studentIds: string[]
+): Promise<ActionResult<BulkDeleteResult>> {
   try {
     if (!Array.isArray(studentIds) || studentIds.length === 0) {
       return { success: false, error: 'No students selected for deletion' }
