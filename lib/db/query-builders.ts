@@ -59,7 +59,10 @@ export const ACTIVE_DUGSI_ENROLLMENT_WHERE = {
   },
 } satisfies Prisma.EnrollmentWhereInput
 
+// Statuses where Stripe may still collect payment. Excludes canceled,
+// paused (no billing), and incomplete_expired (terminal — never activated).
 export const LIVE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
+  'incomplete',
   'active',
   'trialing',
   'past_due',

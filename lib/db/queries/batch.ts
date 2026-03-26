@@ -19,7 +19,7 @@ import {
   ACTIVE_ENROLLMENT_WHERE,
   extractContactInfo,
 } from '@/lib/db/query-builders'
-import { DatabaseClient } from '@/lib/db/types'
+import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 
 const logger = createServiceLogger('batch-queries')
@@ -348,44 +348,45 @@ export async function assignStudentsToBatch(
     }
   }
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      const activeEnrollments = await tx.enrollment.findMany({
-        where: {
-          programProfileId: { in: studentIds },
-          ...ACTIVE_ENROLLMENT_WHERE,
-        },
-      })
-
-      const toUpdate = activeEnrollments.filter(
-        (e: { batchId: string | null }) => e.batchId !== batchId
-      )
-      if (toUpdate.length > 0) {
-        await tx.enrollment.updateMany({
-          where: { id: { in: toUpdate.map((e: { id: string }) => e.id) } },
-          data: { batchId },
-        })
-      }
-
-      const enrolledIds = new Set(
-        activeEnrollments.map(
-          (e: { programProfileId: string }) => e.programProfileId
-        )
-      )
-      const toCreate = studentIds.filter((id) => !enrolledIds.has(id))
-      if (toCreate.length > 0) {
-        await tx.enrollment.createMany({
-          data: toCreate.map((id) => ({
-            programProfileId: id,
-            batchId,
-            status: 'REGISTERED' as EnrollmentStatus,
-            startDate: new Date(),
-          })),
-        })
-      }
-
-      results.assignedCount = toUpdate.length + toCreate.length
+  async function runAssign(tx: DatabaseClient) {
+    const activeEnrollments = await tx.enrollment.findMany({
+      where: {
+        programProfileId: { in: studentIds },
+        ...ACTIVE_ENROLLMENT_WHERE,
+      },
     })
+
+    const toUpdate = activeEnrollments.filter((e) => e.batchId !== batchId)
+    if (toUpdate.length > 0) {
+      await tx.enrollment.updateMany({
+        where: { id: { in: toUpdate.map((e) => e.id) } },
+        data: { batchId },
+      })
+    }
+
+    const enrolledIds = new Set(
+      activeEnrollments.map((e) => e.programProfileId)
+    )
+    const toCreate = studentIds.filter((id) => !enrolledIds.has(id))
+    if (toCreate.length > 0) {
+      await tx.enrollment.createMany({
+        data: toCreate.map((id) => ({
+          programProfileId: id,
+          batchId,
+          status: 'REGISTERED' as EnrollmentStatus,
+          startDate: new Date(),
+        })),
+      })
+    }
+
+    return toUpdate.length + toCreate.length
+  }
+
+  try {
+    const count = isPrismaClient(client)
+      ? await client.$transaction((tx) => runAssign(tx))
+      : await runAssign(client)
+    results.assignedCount = count
   } catch (error) {
     await logError(logger, error, 'Failed to assign students to batch', {
       batchId,
@@ -435,39 +436,44 @@ export async function transferStudents(
     }
   }
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      const activeEnrollments = await tx.enrollment.findMany({
-        where: {
-          programProfileId: { in: studentIds },
-          batchId: fromBatchId,
-          ...ACTIVE_ENROLLMENT_WHERE,
-        },
-      })
-
-      const enrolledIds = new Set(
-        activeEnrollments.map(
-          (e: { programProfileId: string }) => e.programProfileId
-        )
-      )
-      const missing = studentIds.filter((id) => !enrolledIds.has(id))
-      if (missing.length > 0) {
-        results.failedTransfers.push(...missing)
-        results.errors.push(
-          ...missing.map((id) => `Student ${id} not found in source batch`)
-        )
-      }
-
-      if (activeEnrollments.length > 0) {
-        await tx.enrollment.updateMany({
-          where: {
-            id: { in: activeEnrollments.map((e: { id: string }) => e.id) },
-          },
-          data: { batchId: toBatchId },
-        })
-        results.transferredCount = activeEnrollments.length
-      }
+  async function runTransfer(tx: DatabaseClient) {
+    const activeEnrollments = await tx.enrollment.findMany({
+      where: {
+        programProfileId: { in: studentIds },
+        batchId: fromBatchId,
+        ...ACTIVE_ENROLLMENT_WHERE,
+      },
     })
+
+    const enrolledIds = new Set(
+      activeEnrollments.map((e) => e.programProfileId)
+    )
+    const missing = studentIds.filter((id) => !enrolledIds.has(id))
+
+    let transferred = 0
+    if (activeEnrollments.length > 0) {
+      await tx.enrollment.updateMany({
+        where: { id: { in: activeEnrollments.map((e) => e.id) } },
+        data: { batchId: toBatchId },
+      })
+      transferred = activeEnrollments.length
+    }
+
+    return { transferred, missing }
+  }
+
+  try {
+    const { transferred, missing } = isPrismaClient(client)
+      ? await client.$transaction((tx) => runTransfer(tx))
+      : await runTransfer(client)
+
+    results.transferredCount = transferred
+    if (missing.length > 0) {
+      results.failedTransfers.push(...missing)
+      results.errors.push(
+        ...missing.map((id) => `Student ${id} not found in source batch`)
+      )
+    }
   } catch (error) {
     await logError(
       logger,

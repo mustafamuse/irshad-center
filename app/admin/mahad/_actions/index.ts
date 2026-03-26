@@ -500,6 +500,9 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       }
     }
 
+    // Best-effort guard under READ COMMITTED — not serializable, but
+    // sufficient for admin-only tooling where concurrent subscription
+    // creation targeting the same profile is operationally negligible.
     await prisma.$transaction(async (tx) => {
       const liveAssignment = await tx.billingAssignment.findFirst({
         where: {
@@ -585,6 +588,14 @@ export async function bulkDeleteStudentsAction(studentIds: string[]): Promise<
     if (deletedCount > 0) {
       revalidateTag('mahad-stats')
       revalidatePath('/admin/mahad')
+    }
+
+    if (deletedCount === 0 && blockedIds.length > 0) {
+      return {
+        success: false,
+        error: `All ${blockedIds.length} student(s) have active subscriptions and cannot be deleted`,
+        data: { deletedCount: 0, blockedIds },
+      }
     }
 
     return {

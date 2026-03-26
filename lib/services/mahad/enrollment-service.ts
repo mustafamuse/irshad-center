@@ -102,13 +102,12 @@ export async function assignStudentsToBatch(
       result.assignedCount = toEnroll.length
     })
   } catch (error) {
+    if (error instanceof ActionError) throw error
     result.failedAssignments.push(...studentIds)
-    if (!(error instanceof ActionError)) {
-      await logError(logger, error, 'Failed to assign students to batch', {
-        batchId,
-        studentIds,
-      })
-    }
+    await logError(logger, error, 'Failed to assign students to batch', {
+      batchId,
+      studentIds,
+    })
   }
 
   return result
@@ -178,13 +177,12 @@ export async function transferStudentsToBatch(
       result.transferredCount = studentIds.length
     })
   } catch (error) {
+    if (error instanceof ActionError) throw error
     result.failedTransfers.push(...studentIds)
-    if (!(error instanceof ActionError)) {
-      await logError(logger, error, 'Failed to transfer students', {
-        studentIds,
-        targetBatchId,
-      })
-    }
+    await logError(logger, error, 'Failed to transfer students', {
+      studentIds,
+      targetBatchId,
+    })
   }
 
   return result
