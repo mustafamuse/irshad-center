@@ -510,7 +510,7 @@ describe('Student Actions', () => {
       const result = await bulkDeleteStudentsAction([])
 
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Invalid student IDs')
+      expect(result.error).toBe('No students selected for deletion')
     })
 
     it('should reject invalid UUIDs', async () => {
@@ -649,7 +649,7 @@ describe('Duplicate Resolution Actions', () => {
       const result = await resolveDuplicatesAction(VALID_STUDENT_ID, [])
 
       expect(result.success).toBe(false)
-      expect(result.error).toBe('Invalid or empty duplicate IDs')
+      expect(result.error).toBe('No duplicate records selected for deletion')
     })
 
     it('should reject invalid UUIDs', async () => {
@@ -657,6 +657,15 @@ describe('Duplicate Resolution Actions', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Invalid student ID')
+    })
+
+    it('should reject invalid delete IDs', async () => {
+      const result = await resolveDuplicatesAction(VALID_STUDENT_ID, [
+        'not-a-uuid',
+      ])
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid duplicate IDs')
     })
 
     it('should reject when keep record not found', async () => {

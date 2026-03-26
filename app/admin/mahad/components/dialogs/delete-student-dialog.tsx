@@ -106,7 +106,10 @@ export function DeleteStudentDialog({
                   </p>
                 )}
                 {warnings?.hasActiveSubscription && (
-                  <p>This student has an active billing subscription.</p>
+                  <p>
+                    This student has an active billing subscription. Cancel the
+                    subscription before deleting.
+                  </p>
                 )}
                 {warnings?.hasPaymentHistory && (
                   <p>This student has payment history that will be removed.</p>
@@ -132,7 +135,7 @@ export function DeleteStudentDialog({
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={isPending}
+            disabled={isPending || !!warnings?.hasActiveSubscription}
           >
             {isPending ? (
               <>

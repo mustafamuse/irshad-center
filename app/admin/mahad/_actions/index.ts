@@ -430,9 +430,15 @@ export async function resolveDuplicatesAction(
   if (!validKeepId.success) {
     return { success: false, error: 'Invalid student ID' }
   }
-  const validDeleteIds = z.array(z.string().uuid()).min(1).safeParse(deleteIds)
+  if (!Array.isArray(deleteIds) || deleteIds.length === 0) {
+    return {
+      success: false,
+      error: 'No duplicate records selected for deletion',
+    }
+  }
+  const validDeleteIds = z.array(z.string().uuid()).safeParse(deleteIds)
   if (!validDeleteIds.success) {
-    return { success: false, error: 'Invalid or empty duplicate IDs' }
+    return { success: false, error: 'Invalid duplicate IDs' }
   }
 
   try {
@@ -582,7 +588,10 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 export async function bulkDeleteStudentsAction(
   studentIds: string[]
 ): Promise<ActionResult<BulkDeleteResult>> {
-  const validIds = z.array(z.string().uuid()).min(1).safeParse(studentIds)
+  if (!Array.isArray(studentIds) || studentIds.length === 0) {
+    return { success: false, error: 'No students selected for deletion' }
+  }
+  const validIds = z.array(z.string().uuid()).safeParse(studentIds)
   if (!validIds.success) {
     return { success: false, error: 'Invalid student IDs' }
   }
