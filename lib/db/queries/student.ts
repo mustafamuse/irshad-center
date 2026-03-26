@@ -23,6 +23,7 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
@@ -1093,7 +1094,7 @@ export async function getStudentDeleteWarnings(
         },
       },
       assignments: {
-        where: { isActive: true },
+        where: ACTIVE_BILLING_ASSIGNMENT_WHERE,
       },
       payments: true,
     },
@@ -1103,6 +1104,8 @@ export async function getStudentDeleteWarnings(
     return {
       hasSiblings: false,
       hasAttendanceRecords: false,
+      hasActiveSubscription: false,
+      hasPaymentHistory: false,
     }
   }
 

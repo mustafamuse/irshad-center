@@ -22,6 +22,7 @@ import {
   deleteStudentAction,
   getStudentDeleteWarningsAction,
 } from '../../_actions'
+import type { DeleteWarnings } from '../../_types'
 
 interface DeleteStudentDialogProps {
   studentId: string
@@ -40,10 +41,7 @@ export function DeleteStudentDialog({
 }: DeleteStudentDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [warnings, setWarnings] = useState<{
-    hasSiblings: boolean
-    hasAttendanceRecords: boolean
-  } | null>(null)
+  const [warnings, setWarnings] = useState<DeleteWarnings | null>(null)
 
   useEffect(() => {
     if (open && studentId) {
@@ -72,7 +70,11 @@ export function DeleteStudentDialog({
     })
   }
 
-  const hasWarnings = warnings?.hasSiblings || warnings?.hasAttendanceRecords
+  const hasWarnings =
+    warnings?.hasSiblings ||
+    warnings?.hasAttendanceRecords ||
+    warnings?.hasActiveSubscription ||
+    warnings?.hasPaymentHistory
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,6 +105,15 @@ export function DeleteStudentDialog({
                     This student has attendance records that will be deleted.
                   </p>
                 )}
+                {warnings?.hasActiveSubscription && (
+                  <p>
+                    This student has an active billing subscription. Cancel the
+                    subscription before deleting.
+                  </p>
+                )}
+                {warnings?.hasPaymentHistory && (
+                  <p>This student has payment history that will be removed.</p>
+                )}
               </AlertDescription>
             </Alert>
           )}
@@ -124,7 +135,7 @@ export function DeleteStudentDialog({
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={isPending}
+            disabled={isPending || !!warnings?.hasActiveSubscription}
           >
             {isPending ? (
               <>

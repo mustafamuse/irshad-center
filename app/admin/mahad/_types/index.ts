@@ -59,6 +59,13 @@ export interface BulkDeleteResult {
   blockedIds: string[]
 }
 
+export interface DeleteWarnings {
+  hasSiblings: boolean
+  hasAttendanceRecords: boolean
+  hasActiveSubscription: boolean
+  hasPaymentHistory: boolean
+}
+
 /**
  * Duplicate group for duplicate detection
  * Contains both the record to keep and records to delete

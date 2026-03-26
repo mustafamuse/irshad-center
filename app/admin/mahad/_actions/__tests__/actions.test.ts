@@ -16,10 +16,12 @@ const {
   mockRevalidateTag,
   mockLoggerError,
   mockLoggerWarn,
+  mockLogError,
   mockStripeSessionCreate,
   mockBillingAssignmentFindMany,
   mockBillingAssignmentFindFirst,
   mockPrismaDeleteMany,
+  mockAfter,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
   mockUpdateBatch: vi.fn(),
@@ -37,14 +39,20 @@ const {
   mockRevalidateTag: vi.fn(),
   mockLoggerError: vi.fn(),
   mockLoggerWarn: vi.fn(),
+  mockLogError: vi.fn(),
   mockStripeSessionCreate: vi.fn(),
   mockBillingAssignmentFindMany: vi.fn(),
   mockBillingAssignmentFindFirst: vi.fn(),
+  mockAfter: vi.fn((fn: () => void) => fn()),
 }))
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
   revalidateTag: (...args: unknown[]) => mockRevalidateTag(...args),
+}))
+
+vi.mock('next/server', () => ({
+  after: (fn: () => void) => mockAfter(fn),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -92,6 +100,7 @@ vi.mock('@/lib/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
   })),
+  logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
 vi.mock('@/lib/stripe-mahad', () => ({
@@ -403,29 +412,29 @@ describe('Student Actions', () => {
   describe('deleteStudentAction', () => {
     it('should delete an existing student', async () => {
       mockGetStudentById.mockResolvedValue({
-        id: 'student-1',
+        id: VALID_STUDENT_ID,
         batchId: null,
       })
       mockBillingAssignmentFindFirst.mockResolvedValue(null)
       mockPrismaDelete.mockResolvedValue(undefined)
 
-      const result = await deleteStudentAction('student-1')
+      const result = await deleteStudentAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(true)
       expect(mockPrismaDelete).toHaveBeenCalledWith({
-        where: { id: 'student-1' },
+        where: { id: VALID_STUDENT_ID },
       })
     })
 
     it('should revalidate batch path if student has batch', async () => {
       mockGetStudentById.mockResolvedValue({
-        id: 'student-1',
-        batchId: 'batch-1',
+        id: VALID_STUDENT_ID,
+        batchId: VALID_BATCH_ID,
       })
       mockBillingAssignmentFindFirst.mockResolvedValue(null)
       mockPrismaDelete.mockResolvedValue(undefined)
 
-      await deleteStudentAction('student-1')
+      await deleteStudentAction(VALID_STUDENT_ID)
 
       expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/mahad')
     })
@@ -433,24 +442,33 @@ describe('Student Actions', () => {
     it('should return error for non-existent student', async () => {
       mockGetStudentById.mockResolvedValue(null)
 
-      const result = await deleteStudentAction('non-existent')
+      const result = await deleteStudentAction(
+        '550e8400-e29b-41d4-a716-446655449999'
+      )
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Student not found')
     })
 
+    it('should reject invalid UUID', async () => {
+      const result = await deleteStudentAction('not-a-uuid')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid student ID')
+    })
+
     it('should block deletion when active subscription exists', async () => {
       mockGetStudentById.mockResolvedValue({
-        id: 'student-1',
+        id: VALID_STUDENT_ID,
         batchId: null,
       })
       mockBillingAssignmentFindFirst.mockResolvedValue({
         id: 'ba-1',
-        programProfileId: 'student-1',
+        programProfileId: VALID_STUDENT_ID,
         isActive: true,
       })
 
-      const result = await deleteStudentAction('student-1')
+      const result = await deleteStudentAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('active billing subscription')
@@ -458,7 +476,7 @@ describe('Student Actions', () => {
       expect(mockBillingAssignmentFindFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            programProfileId: 'student-1',
+            programProfileId: VALID_STUDENT_ID,
             isActive: true,
             subscription: expect.objectContaining({
               status: expect.objectContaining({
@@ -472,13 +490,13 @@ describe('Student Actions', () => {
 
     it('should allow deletion when subscription is canceled', async () => {
       mockGetStudentById.mockResolvedValue({
-        id: 'student-1',
+        id: VALID_STUDENT_ID,
         batchId: null,
       })
       mockBillingAssignmentFindFirst.mockResolvedValue(null)
       mockPrismaDelete.mockResolvedValue(undefined)
 
-      const result = await deleteStudentAction('student-1')
+      const result = await deleteStudentAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(true)
       expect(mockPrismaDelete).toHaveBeenCalled()
@@ -491,9 +509,9 @@ describe('Student Actions', () => {
       mockPrismaDeleteMany.mockResolvedValue({ count: 3 })
 
       const result = await bulkDeleteStudentsAction([
-        'student-1',
-        'student-2',
-        'student-3',
+        VALID_STUDENT_ID,
+        VALID_STUDENT_ID_2,
+        VALID_STUDENT_ID_3,
       ])
 
       expect(result.success).toBe(true)
@@ -508,34 +526,47 @@ describe('Student Actions', () => {
       expect(result.error).toBe('No students selected for deletion')
     })
 
+    it('should reject invalid UUIDs', async () => {
+      const result = await bulkDeleteStudentsAction(['not-a-uuid', 'also-bad'])
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid student IDs')
+    })
+
     it('should skip students with active subscriptions', async () => {
       mockBillingAssignmentFindMany.mockResolvedValue([
-        { programProfileId: 'student-2' },
+        { programProfileId: VALID_STUDENT_ID_2 },
       ])
       mockPrismaDeleteMany.mockResolvedValue({ count: 2 })
 
       const result = await bulkDeleteStudentsAction([
-        'student-1',
-        'student-2',
-        'student-3',
+        VALID_STUDENT_ID,
+        VALID_STUDENT_ID_2,
+        VALID_STUDENT_ID_3,
       ])
 
       expect(result.success).toBe(true)
       expect(result.data?.deletedCount).toBe(2)
-      expect(result.data?.blockedIds).toEqual(['student-2'])
+      expect(result.data?.blockedIds).toEqual([VALID_STUDENT_ID_2])
     })
 
     it('should return error when all students are blocked', async () => {
       mockBillingAssignmentFindMany.mockResolvedValue([
-        { programProfileId: 'student-1' },
-        { programProfileId: 'student-2' },
+        { programProfileId: VALID_STUDENT_ID },
+        { programProfileId: VALID_STUDENT_ID_2 },
       ])
 
-      const result = await bulkDeleteStudentsAction(['student-1', 'student-2'])
+      const result = await bulkDeleteStudentsAction([
+        VALID_STUDENT_ID,
+        VALID_STUDENT_ID_2,
+      ])
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('active subscriptions')
-      expect(result.data?.blockedIds).toEqual(['student-1', 'student-2'])
+      expect(result.data?.blockedIds).toEqual([
+        VALID_STUDENT_ID,
+        VALID_STUDENT_ID_2,
+      ])
       expect(mockRevalidateTag).not.toHaveBeenCalled()
       expect(mockRevalidatePath).not.toHaveBeenCalled()
     })
@@ -544,10 +575,13 @@ describe('Student Actions', () => {
       mockBillingAssignmentFindMany.mockResolvedValue([])
       mockPrismaDeleteMany.mockRejectedValue(new Error('DB error'))
 
-      const result = await bulkDeleteStudentsAction(['student-1', 'student-2'])
+      const result = await bulkDeleteStudentsAction([
+        VALID_STUDENT_ID,
+        VALID_STUDENT_ID_2,
+      ])
 
       expect(result.success).toBe(false)
-      expect(result.error).toBe('DB error')
+      expect(result.error).toBe('Failed to bulkDeleteStudentsAction')
     })
   })
 
@@ -556,22 +590,30 @@ describe('Student Actions', () => {
       mockGetStudentDeleteWarnings.mockResolvedValue({
         hasSiblings: true,
         hasAttendanceRecords: false,
+        hasActiveSubscription: false,
+        hasPaymentHistory: false,
       })
 
-      const result = await getStudentDeleteWarningsAction('student-1')
+      const result = await getStudentDeleteWarningsAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(true)
-      expect(result.data.hasSiblings).toBe(true)
+      expect(result.data?.hasSiblings).toBe(true)
     })
 
-    it('should return default warnings on error', async () => {
+    it('should return error on failure', async () => {
       mockGetStudentDeleteWarnings.mockRejectedValue(new Error('DB error'))
 
-      const result = await getStudentDeleteWarningsAction('student-1')
+      const result = await getStudentDeleteWarningsAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(false)
-      expect(result.data.hasSiblings).toBe(false)
-      expect(result.data.hasAttendanceRecords).toBe(false)
+      expect(result.error).toBe('Failed to fetch delete warnings')
+    })
+
+    it('should reject invalid UUID', async () => {
+      const result = await getStudentDeleteWarningsAction('not-a-uuid')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid student ID')
     })
   })
 })
@@ -584,28 +626,34 @@ describe('Duplicate Resolution Actions', () => {
   describe('resolveDuplicatesAction', () => {
     it('should resolve duplicates successfully', async () => {
       mockGetStudentById
-        .mockResolvedValueOnce({ id: 'keep-id', batchId: 'batch-1' })
-        .mockResolvedValueOnce({ id: 'delete-1', batchId: 'batch-1' })
-        .mockResolvedValueOnce({ id: 'delete-2', batchId: null })
+        .mockResolvedValueOnce({
+          id: VALID_STUDENT_ID,
+          batchId: VALID_BATCH_ID,
+        })
+        .mockResolvedValueOnce({
+          id: VALID_STUDENT_ID_2,
+          batchId: VALID_BATCH_ID,
+        })
+        .mockResolvedValueOnce({ id: VALID_STUDENT_ID_3, batchId: null })
       mockResolveDuplicateStudents.mockResolvedValue(undefined)
 
-      const result = await resolveDuplicatesAction('keep-id', [
-        'delete-1',
-        'delete-2',
+      const result = await resolveDuplicatesAction(VALID_STUDENT_ID, [
+        VALID_STUDENT_ID_2,
+        VALID_STUDENT_ID_3,
       ])
 
       expect(result.success).toBe(true)
       expect(mockResolveDuplicateStudents).toHaveBeenCalledWith(
-        'keep-id',
-        ['delete-1', 'delete-2'],
+        VALID_STUDENT_ID,
+        [VALID_STUDENT_ID_2, VALID_STUDENT_ID_3],
         false
       )
     })
 
     it('should reject when trying to delete the keep record', async () => {
-      const result = await resolveDuplicatesAction('keep-id', [
-        'keep-id',
-        'other-id',
+      const result = await resolveDuplicatesAction(VALID_STUDENT_ID, [
+        VALID_STUDENT_ID,
+        VALID_STUDENT_ID_2,
       ])
 
       expect(result.success).toBe(false)
@@ -613,16 +661,34 @@ describe('Duplicate Resolution Actions', () => {
     })
 
     it('should reject empty delete list', async () => {
-      const result = await resolveDuplicatesAction('keep-id', [])
+      const result = await resolveDuplicatesAction(VALID_STUDENT_ID, [])
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('No duplicate records selected for deletion')
     })
 
+    it('should reject invalid UUIDs', async () => {
+      const result = await resolveDuplicatesAction('not-a-uuid', ['also-bad'])
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid student ID')
+    })
+
+    it('should reject invalid delete IDs', async () => {
+      const result = await resolveDuplicatesAction(VALID_STUDENT_ID, [
+        'not-a-uuid',
+      ])
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid duplicate IDs')
+    })
+
     it('should reject when keep record not found', async () => {
       mockGetStudentById.mockResolvedValue(null)
+      const nonExistentId = '550e8400-e29b-41d4-a716-446655449999'
+      const deleteId = '550e8400-e29b-41d4-a716-446655449998'
 
-      const result = await resolveDuplicatesAction('non-existent', ['delete-1'])
+      const result = await resolveDuplicatesAction(nonExistentId, [deleteId])
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Student record to keep not found')
@@ -654,11 +720,11 @@ describe('Payment Link Actions', () => {
         url: 'https://checkout.stripe.com/test',
       })
 
-      const result = await generatePaymentLinkAction('profile-1')
+      const result = await generatePaymentLinkAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(true)
-      expect(result.url).toBe('https://checkout.stripe.com/test')
-      expect(result.amount).toBe(15000)
+      expect(result.data?.url).toBe('https://checkout.stripe.com/test')
+      expect(result.data?.amount).toBe(15000)
     })
 
     it('should reject profile without billing config', async () => {
@@ -674,7 +740,7 @@ describe('Payment Link Actions', () => {
         },
       })
 
-      const result = await generatePaymentLinkAction('profile-1')
+      const result = await generatePaymentLinkAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('Billing configuration incomplete')
@@ -693,7 +759,7 @@ describe('Payment Link Actions', () => {
         },
       })
 
-      const result = await generatePaymentLinkAction('profile-1')
+      const result = await generatePaymentLinkAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('Exempt students do not need payment')
@@ -712,7 +778,7 @@ describe('Payment Link Actions', () => {
         },
       })
 
-      const result = await generatePaymentLinkAction('profile-1')
+      const result = await generatePaymentLinkAction(VALID_STUDENT_ID)
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('email address is required')
@@ -720,11 +786,19 @@ describe('Payment Link Actions', () => {
 
     it('should return error for non-existent profile', async () => {
       mockPrismaFindUnique.mockResolvedValue(null)
+      const nonExistentId = '550e8400-e29b-41d4-a716-446655449999'
 
-      const result = await generatePaymentLinkAction('non-existent')
+      const result = await generatePaymentLinkAction(nonExistentId)
 
       expect(result.success).toBe(false)
       expect(result.error).toBe('Student profile not found')
+    })
+
+    it('should reject invalid UUID', async () => {
+      const result = await generatePaymentLinkAction('not-a-uuid')
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Invalid student ID')
     })
 
     describe('payment method types', () => {
@@ -751,7 +825,7 @@ describe('Payment Link Actions', () => {
       it('should include card and ACH when feature flag is enabled', async () => {
         vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', 'true')
 
-        await generatePaymentLinkAction('profile-1')
+        await generatePaymentLinkAction(VALID_STUDENT_ID)
 
         expect(mockStripeSessionCreate).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -763,7 +837,7 @@ describe('Payment Link Actions', () => {
       it('should only include ACH when feature flag is disabled', async () => {
         vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', 'false')
 
-        await generatePaymentLinkAction('profile-1')
+        await generatePaymentLinkAction(VALID_STUDENT_ID)
 
         expect(mockStripeSessionCreate).toHaveBeenCalledWith(
           expect.objectContaining({
@@ -775,7 +849,7 @@ describe('Payment Link Actions', () => {
       it('should only include ACH when feature flag is not set', async () => {
         vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', '')
 
-        await generatePaymentLinkAction('profile-1')
+        await generatePaymentLinkAction(VALID_STUDENT_ID)
 
         expect(mockStripeSessionCreate).toHaveBeenCalledWith(
           expect.objectContaining({
