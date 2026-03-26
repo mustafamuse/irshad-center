@@ -18,7 +18,7 @@ export async function findFamilySubscription(familyReferenceId: string | null) {
       },
       subscription: {
         stripeAccountType: StripeAccountType.DUGSI,
-        status: { in: LIVE_SUBSCRIPTION_STATUSES },
+        status: { in: [...LIVE_SUBSCRIPTION_STATUSES, 'paused'] },
       },
     },
     include: { subscription: true },
