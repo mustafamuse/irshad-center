@@ -109,6 +109,8 @@ export async function registerStudent(
   }
 }
 
+// Returns boolean (not ActionResult<boolean>) because the client-side
+// useEmailValidation hook expects a plain boolean for inline field validation.
 export async function checkEmailExists(email: string): Promise<boolean> {
   try {
     const headerStore = await headers()

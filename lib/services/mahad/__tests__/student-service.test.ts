@@ -64,17 +64,18 @@ vi.mock('@/lib/db/queries/siblings', () => ({
   getPersonSiblings: vi.fn(),
 }))
 
-vi.mock('@/lib/utils/contact-normalization', () => ({
-  normalizeEmail: (email: string | null | undefined) => {
-    if (!email) return null
-    return email.toLowerCase().trim()
-  },
-  normalizePhone: (phone: string | null | undefined) => {
-    if (!phone) return null
-    const normalized = phone.replace(/\D/g, '')
-    return normalized.length >= 10 ? normalized : null
-  },
-}))
+vi.mock('@/lib/utils/contact-normalization', async () => {
+  const actual = await vi.importActual<
+    typeof import('@/lib/utils/contact-normalization')
+  >('@/lib/utils/contact-normalization')
+  return {
+    normalizeEmail: (email: string | null | undefined) => {
+      if (!email) return null
+      return email.toLowerCase().trim()
+    },
+    normalizePhone: actual.normalizePhone,
+  }
+})
 
 vi.mock('@/lib/services/duplicate-detection-service', () => ({
   DuplicateDetectionService: {
@@ -275,6 +276,42 @@ describe('createMahadStudent', () => {
     expect(mockPersonCreate).not.toHaveBeenCalled()
   })
 
+  it('should reactivate deactivated WHATSAPP contact matching submitted phone', async () => {
+    const existingPerson = {
+      id: 'returnee-person',
+      name: 'Ahmed',
+      contactPoints: [
+        {
+          id: 'cp-email',
+          type: 'EMAIL',
+          value: 'ahmed@example.com',
+          isActive: true,
+        },
+        {
+          id: 'cp-whatsapp',
+          type: 'WHATSAPP',
+          value: '6125551234',
+          isActive: false,
+          deactivatedAt: new Date(),
+        },
+      ],
+    }
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson,
+      hasActiveProfile: false,
+    })
+
+    await createMahadStudent(baseInput)
+
+    expect(mockContactPointUpdate).toHaveBeenCalledWith({
+      where: { id: 'cp-whatsapp' },
+      data: { isActive: true, deactivatedAt: null },
+    })
+    expect(mockContactPointCreate).not.toHaveBeenCalled()
+  })
+
   it('should create email contact when person found by phone only', async () => {
     const existingPerson = {
       id: 'phone-only-person',
@@ -436,6 +473,76 @@ describe('createMahadStudent', () => {
           create: [
             { type: 'EMAIL', value: 'ahmed@example.com', isPrimary: true },
           ],
+        },
+      }),
+    })
+  })
+
+  it('should map duplicateField "both" to email field in ActionError', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'both',
+      existingPerson: {
+        id: 'existing-person',
+        name: 'Ahmed',
+        contactPoints: [],
+      },
+      hasActiveProfile: true,
+      activeProfile: {
+        id: 'existing-profile',
+        program: 'MAHAD_PROGRAM',
+        enrollmentCount: 1,
+        createdAt: new Date(),
+      },
+    })
+
+    try {
+      await createMahadStudent(baseInput)
+      expect.unreachable('Should have thrown')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ActionError)
+      expect((error as ActionError).field).toBe('email')
+    }
+  })
+
+  it('should map duplicateField "phone" to phone field in ActionError', async () => {
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'phone',
+      existingPerson: {
+        id: 'existing-person',
+        name: 'Ahmed',
+        contactPoints: [],
+      },
+      hasActiveProfile: true,
+      activeProfile: {
+        id: 'existing-profile',
+        program: 'MAHAD_PROGRAM',
+        enrollmentCount: 1,
+        createdAt: new Date(),
+      },
+    })
+
+    try {
+      await createMahadStudent(baseInput)
+      expect.unreachable('Should have thrown')
+    } catch (error) {
+      expect(error).toBeInstanceOf(ActionError)
+      expect((error as ActionError).field).toBe('phone')
+    }
+  })
+
+  it('should handle registration with no email and no phone', async () => {
+    await createMahadStudent({
+      ...baseInput,
+      email: undefined,
+      phone: undefined,
+    })
+
+    expect(mockPersonCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        contactPoints: {
+          create: [],
         },
       }),
     })

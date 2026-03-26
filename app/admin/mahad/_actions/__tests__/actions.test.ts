@@ -455,6 +455,19 @@ describe('Student Actions', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('active billing subscription')
       expect(mockPrismaDelete).not.toHaveBeenCalled()
+      expect(mockBillingAssignmentFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            programProfileId: 'student-1',
+            isActive: true,
+            subscription: expect.objectContaining({
+              status: expect.objectContaining({
+                in: expect.any(Array),
+              }),
+            }),
+          }),
+        })
+      )
     })
 
     it('should allow deletion when subscription is canceled', async () => {
@@ -523,6 +536,8 @@ describe('Student Actions', () => {
       expect(result.success).toBe(false)
       expect(result.error).toContain('active subscriptions')
       expect(result.data?.blockedIds).toEqual(['student-1', 'student-2'])
+      expect(mockRevalidateTag).not.toHaveBeenCalled()
+      expect(mockRevalidatePath).not.toHaveBeenCalled()
     })
 
     it('should return error when deleteMany fails', async () => {
