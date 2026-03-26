@@ -57,12 +57,8 @@ import {
 } from '@/lib/validations/billing'
 import { MAX_EXPECTED_RATE_CENTS } from '@/lib/validations/checkout'
 
+import type { BulkDeleteResult } from '../_types'
 import type { UpdateStudentPayload } from '../_types/student-form'
-
-export interface BulkDeleteResult {
-  deletedCount: number
-  blockedIds: string[]
-}
 
 const logger = createActionLogger('mahad')
 
@@ -376,6 +372,13 @@ export async function transferStudentsAction(
       validated.toBatchId,
       validated.studentIds
     )
+
+    if (result.transferredCount === 0) {
+      return {
+        success: false,
+        error: result.errors[0] || 'No students were transferred',
+      }
+    }
 
     revalidateTag('mahad-stats')
     revalidatePath('/admin/mahad')
