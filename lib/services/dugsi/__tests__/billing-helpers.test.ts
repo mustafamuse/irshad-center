@@ -17,6 +17,8 @@ vi.mock('@/lib/logger', () => ({
   logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+
 import {
   findFamilySubscription,
   handleBillingDivergence,
@@ -62,7 +64,7 @@ describe('findFamilySubscription', () => {
           }),
           subscription: expect.objectContaining({
             status: {
-              in: ['incomplete', 'active', 'trialing', 'past_due', 'unpaid'],
+              in: [...LIVE_SUBSCRIPTION_STATUSES, 'paused'],
             },
           }),
         }),
