@@ -136,10 +136,14 @@ async function handleActionError<T = void>(
     return { success: false, error: error.message }
   }
 
-  await logError(logger, error, `Action failed: ${action}`, {
-    action,
-    ...context,
-  })
+  try {
+    await logError(logger, error, `Action failed: ${action}`, {
+      action,
+      ...context,
+    })
+  } catch {
+    // Prevent Sentry/logging failures from converting a handled error into unhandled
+  }
 
   // Handle Prisma-specific errors with custom messages
   if (isPrismaError(error) && context?.handlers?.[error.code]) {

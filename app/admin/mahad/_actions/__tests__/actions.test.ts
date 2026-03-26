@@ -478,6 +478,11 @@ describe('Student Actions', () => {
           where: expect.objectContaining({
             programProfileId: VALID_STUDENT_ID,
             isActive: true,
+            subscription: expect.objectContaining({
+              status: expect.objectContaining({
+                in: expect.any(Array),
+              }),
+            }),
           }),
         })
       )
