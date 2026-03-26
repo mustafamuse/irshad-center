@@ -25,11 +25,19 @@ export async function checkRateLimit(
     if (attempts.size >= MAX_MAP_SIZE) {
       pruneExpired(now)
       if (attempts.size >= MAX_MAP_SIZE) {
-        // Evict the first (oldest-inserted) entry. Map preserves insertion order
-        // and entries are never re-inserted, so the first key has the lowest resetAt.
-        // Trade-off: if that entry was rate-limited, the identifier can start fresh.
-        const first = attempts.keys().next()
-        if (!first.done) attempts.delete(first.value)
+        // Prefer evicting a non-blocked entry to preserve rate-limited identifiers.
+        // Only fall back to oldest if every entry is at the limit.
+        let evictKey: string | undefined
+        attempts.forEach((value, key) => {
+          if (evictKey === undefined && value.count < MAX_ATTEMPTS) {
+            evictKey = key
+          }
+        })
+        if (evictKey === undefined) {
+          const first = attempts.keys().next()
+          if (!first.done) evictKey = first.value
+        }
+        if (evictKey !== undefined) attempts.delete(evictKey)
       }
     }
     attempts.set(identifier, { count: 1, resetAt: now + WINDOW_MS })
