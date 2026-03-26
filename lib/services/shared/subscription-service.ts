@@ -20,6 +20,7 @@ import {
   createSubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
@@ -324,12 +325,6 @@ export async function cancelSubscription(
   }
 }
 
-/**
- * Check if subscription is active.
- *
- * @param subscriptionId - Stripe subscription ID
- * @returns True if subscription is active or trialing
- */
 export async function isSubscriptionActive(
   subscriptionId: string
 ): Promise<boolean> {
@@ -339,5 +334,5 @@ export async function isSubscriptionActive(
     return false
   }
 
-  return subscription.status === 'active' || subscription.status === 'trialing'
+  return LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status)
 }

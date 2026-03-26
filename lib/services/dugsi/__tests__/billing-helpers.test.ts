@@ -61,7 +61,9 @@ describe('findFamilySubscription', () => {
             familyReferenceId: 'family-uuid-123',
           }),
           subscription: expect.objectContaining({
-            status: { in: ['active', 'paused'] },
+            status: {
+              in: ['incomplete', 'active', 'trialing', 'past_due', 'unpaid'],
+            },
           }),
         }),
         include: { subscription: true },
