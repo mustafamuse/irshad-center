@@ -85,7 +85,9 @@ export async function createMahadStudent(input: StudentCreateInput) {
       throw new ActionError(
         'Student already registered for Mahad',
         ERROR_CODES.DUPLICATE_CONTACT,
-        dupResult.duplicateField ?? 'email',
+        dupResult.duplicateField === 'both'
+          ? 'email'
+          : (dupResult.duplicateField ?? 'email'),
         409
       )
     }
