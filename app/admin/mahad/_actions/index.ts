@@ -10,6 +10,7 @@
  */
 
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import {
   Prisma,
@@ -37,7 +38,7 @@ import {
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
-import { createActionLogger } from '@/lib/logger'
+import { createActionLogger, logError } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
 import {
@@ -57,7 +58,7 @@ import {
 } from '@/lib/validations/billing'
 import { MAX_EXPECTED_RATE_CENTS } from '@/lib/validations/checkout'
 
-import type { BulkDeleteResult } from '../_types'
+import type { BulkDeleteResult, DeleteWarnings } from '../_types'
 import type { UpdateStudentPayload } from '../_types/student-form'
 
 const logger = createActionLogger('mahad')
@@ -118,11 +119,11 @@ function isPrismaError(
 /**
  * Centralized error handler for all actions
  */
-function handleActionError<T = void>(
+async function handleActionError<T = void>(
   error: unknown,
   action: string,
   context?: { name?: string; handlers?: Record<string, string> }
-): ActionResult<T> {
+): Promise<ActionResult<T>> {
   // Handle Zod validation errors
   if (error instanceof z.ZodError) {
     return {
@@ -135,7 +136,10 @@ function handleActionError<T = void>(
     return { success: false, error: error.message }
   }
 
-  logger.error({ err: error, action, context }, `Action failed: ${action}`)
+  await logError(logger, error, `Action failed: ${action}`, {
+    action,
+    ...context,
+  })
 
   // Handle Prisma-specific errors with custom messages
   if (isPrismaError(error) && context?.handlers?.[error.code]) {
@@ -145,10 +149,9 @@ function handleActionError<T = void>(
     }
   }
 
-  // Default generic error message
   return {
     success: false,
-    error: error instanceof Error ? error.message : `Failed to ${action}`,
+    error: `Failed to ${action}`,
   }
 }
 
@@ -182,8 +185,10 @@ export async function createBatchAction(
       endDate: validated.endDate ?? null,
     })
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -220,8 +225,10 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
     }
 
     await deleteBatch(id)
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -261,8 +268,10 @@ export async function updateBatchAction(
       endDate: validated.endDate,
     })
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -305,8 +314,10 @@ export async function assignStudentsAction(
       validated.studentIds
     )
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -380,8 +391,10 @@ export async function transferStudentsAction(
       }
     }
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -413,8 +426,16 @@ export async function resolveDuplicatesAction(
   deleteIds: string[],
   mergeData: boolean = false
 ): Promise<ActionResult> {
+  const validKeepId = z.string().uuid().safeParse(keepId)
+  if (!validKeepId.success) {
+    return { success: false, error: 'Invalid student ID' }
+  }
+  const validDeleteIds = z.array(z.string().uuid()).min(1).safeParse(deleteIds)
+  if (!validDeleteIds.success) {
+    return { success: false, error: 'Invalid or empty duplicate IDs' }
+  }
+
   try {
-    // Business logic validation only - Prisma handles UUID format
     if (!Array.isArray(deleteIds) || deleteIds.length === 0) {
       return {
         success: false,
@@ -454,8 +475,10 @@ export async function resolveDuplicatesAction(
 
     await resolveDuplicateStudents(keepId, deleteIds, mergeData)
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -479,19 +502,25 @@ export async function resolveDuplicatesAction(
 /**
  * Get delete warnings for a student
  */
-export async function getStudentDeleteWarningsAction(id: string) {
+export async function getStudentDeleteWarningsAction(
+  id: string
+): Promise<ActionResult<DeleteWarnings>> {
+  const validId = z.string().uuid().safeParse(id)
+  if (!validId.success) {
+    return { success: false, error: 'Invalid student ID' }
+  }
+
   try {
     const warnings = await getStudentDeleteWarnings(id)
-    return { success: true, data: warnings } as const
+    return { success: true, data: warnings }
   } catch (error) {
-    logger.error(
-      { err: error, studentId: id },
-      'Failed to fetch delete warnings'
-    )
+    await logError(logger, error, 'Failed to fetch delete warnings', {
+      studentId: id,
+    })
     return {
       success: false,
-      data: { hasSiblings: false, hasAttendanceRecords: false },
-    } as const
+      error: 'Failed to fetch delete warnings',
+    }
   }
 }
 
@@ -499,6 +528,11 @@ export async function getStudentDeleteWarningsAction(id: string) {
  * Delete a single student
  */
 export async function deleteStudentAction(id: string): Promise<ActionResult> {
+  const validId = z.string().uuid().safeParse(id)
+  if (!validId.success) {
+    return { success: false, error: 'Invalid student ID' }
+  }
+
   try {
     const student = await getStudentById(id)
     if (!student) {
@@ -530,8 +564,10 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
       await tx.programProfile.delete({ where: { id } })
     })
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -553,11 +589,12 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 export async function bulkDeleteStudentsAction(
   studentIds: string[]
 ): Promise<ActionResult<BulkDeleteResult>> {
-  try {
-    if (!Array.isArray(studentIds) || studentIds.length === 0) {
-      return { success: false, error: 'No students selected for deletion' }
-    }
+  const validIds = z.array(z.string().uuid()).min(1).safeParse(studentIds)
+  if (!validIds.success) {
+    return { success: false, error: 'No students selected for deletion' }
+  }
 
+  try {
     const { deletedCount, blockedIds } = await prisma.$transaction(
       async (tx) => {
         const activeAssignments = await tx.billingAssignment.findMany({
@@ -591,8 +628,10 @@ export async function bulkDeleteStudentsAction(
     )
 
     if (deletedCount > 0) {
-      revalidateTag('mahad-stats')
-      revalidatePath('/admin/mahad')
+      after(() => {
+        revalidateTag('mahad-stats')
+        revalidatePath('/admin/mahad')
+      })
     }
 
     if (deletedCount === 0 && blockedIds.length > 0) {
@@ -762,8 +801,10 @@ export async function updateStudentAction(
       }
     })
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     return {
       success: true,
@@ -784,14 +825,12 @@ export async function updateStudentAction(
 // ============================================================================
 
 /**
- * Result type for payment link generation
+ * Data type for payment link generation
  */
-export type PaymentLinkResult = {
-  success: boolean
-  url?: string
-  amount?: number
-  billingPeriod?: string
-  error?: string
+export interface PaymentLinkData {
+  url: string
+  amount: number
+  billingPeriod: string
 }
 
 /**
@@ -807,7 +846,12 @@ export type PaymentLinkResult = {
  */
 export async function generatePaymentLinkAction(
   profileId: string
-): Promise<PaymentLinkResult> {
+): Promise<ActionResult<PaymentLinkData>> {
+  const validId = z.string().uuid().safeParse(profileId)
+  if (!validId.success) {
+    return { success: false, error: 'Invalid student ID' }
+  }
+
   try {
     // 1. Fetch profile with billing config and contact info
     const profile = await prisma.programProfile.findUnique({
@@ -962,15 +1006,17 @@ export async function generatePaymentLinkAction(
 
     return {
       success: true,
-      url: session.url,
-      amount,
-      billingPeriod,
+      data: {
+        url: session.url,
+        amount,
+        billingPeriod,
+      },
     }
   } catch (error) {
-    logger.error({ err: error, profileId }, 'Error generating payment link')
-    const message =
-      error instanceof Error ? error.message : 'Failed to generate payment link'
-    return { success: false, error: message }
+    await logError(logger, error, 'Error generating payment link', {
+      profileId,
+    })
+    return { success: false, error: 'Failed to generate payment link' }
   }
 }
 
@@ -986,7 +1032,12 @@ const DEFAULT_BILLING_CONFIG: {
 
 export async function generatePaymentLinkWithDefaultsAction(
   profileId: string
-): Promise<PaymentLinkResult> {
+): Promise<ActionResult<PaymentLinkData>> {
+  const validId = z.string().uuid().safeParse(profileId)
+  if (!validId.success) {
+    return { success: false, error: 'Invalid student ID' }
+  }
+
   try {
     // Use transaction to ensure check + update are atomic
     const result = await prisma.$transaction(async (tx) => {
@@ -1028,25 +1079,26 @@ export async function generatePaymentLinkWithDefaultsAction(
       return result
     }
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     // Generate payment link (outside transaction since it's an external API call)
     return generatePaymentLinkAction(profileId)
   } catch (error) {
-    logger.error(
-      { err: error, profileId },
-      'Error generating payment link with default billing configuration'
+    await logError(
+      logger,
+      error,
+      'Error generating payment link with default billing configuration',
+      { profileId }
     )
 
     if (isPrismaError(error) && error.code === PRISMA_ERRORS.RECORD_NOT_FOUND) {
       return { success: false, error: 'Student profile not found' }
     }
 
-    const message =
-      error instanceof Error ? error.message : 'Failed to generate payment link'
-
-    return { success: false, error: message }
+    return { success: false, error: 'Failed to generate payment link' }
   }
 }
 
@@ -1064,23 +1116,21 @@ export interface GeneratePaymentLinkInput {
 }
 
 /**
- * Extended result type for payment link with override info
+ * Data type for payment link with override info
  */
-export interface PaymentLinkWithOverrideResult {
-  success: boolean
-  url?: string
-  calculatedAmount?: number
-  finalAmount?: number
-  isOverride?: boolean
-  billingPeriod?: string
-  billingConfig?: {
+export interface PaymentLinkWithOverrideData {
+  url: string
+  calculatedAmount: number
+  finalAmount: number
+  isOverride: boolean
+  billingPeriod: string
+  billingConfig: {
     graduationStatus: GraduationStatus | null
     paymentFrequency: PaymentFrequency | null
     billingType: StudentBillingType | null
   }
-  studentName?: string
-  studentPhone?: string | null
-  error?: string
+  studentName: string
+  studentPhone: string | null
 }
 
 /**
@@ -1100,8 +1150,13 @@ export interface PaymentLinkWithOverrideResult {
  */
 export async function generatePaymentLinkWithOverrideAction(
   input: GeneratePaymentLinkInput
-): Promise<PaymentLinkWithOverrideResult> {
+): Promise<ActionResult<PaymentLinkWithOverrideData>> {
   const { profileId, overrideAmount, billingStartDate } = input
+
+  const validId = z.string().uuid().safeParse(profileId)
+  if (!validId.success) {
+    return { success: false, error: 'Invalid student ID' }
+  }
 
   // Validate billingStartDate if provided (Zod validation per CLAUDE.md Rule 8)
   if (billingStartDate) {
@@ -1158,11 +1213,6 @@ export async function generatePaymentLinkWithOverrideAction(
         success: false,
         error:
           'Billing configuration incomplete. Please set Graduation Status, Payment Frequency, and Billing Type first.',
-        billingConfig: {
-          graduationStatus: profile.graduationStatus,
-          paymentFrequency: profile.paymentFrequency,
-          billingType: profile.billingType,
-        },
       }
     }
 
@@ -1255,13 +1305,10 @@ export async function generatePaymentLinkWithOverrideAction(
       billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
       try {
         validateBillingCycleAnchor(billingCycleAnchor)
-      } catch (error) {
+      } catch {
         return {
           success: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : 'Invalid billing start date',
+          error: 'Invalid billing start date',
         }
       }
     }
@@ -1341,26 +1388,28 @@ export async function generatePaymentLinkWithOverrideAction(
 
     return {
       success: true,
-      url: session.url,
-      calculatedAmount,
-      finalAmount,
-      isOverride,
-      billingPeriod,
-      billingConfig: {
-        graduationStatus: profile.graduationStatus,
-        paymentFrequency: profile.paymentFrequency,
-        billingType: profile.billingType,
+      data: {
+        url: session.url,
+        calculatedAmount,
+        finalAmount,
+        isOverride,
+        billingPeriod,
+        billingConfig: {
+          graduationStatus: profile.graduationStatus,
+          paymentFrequency: profile.paymentFrequency,
+          billingType: profile.billingType,
+        },
+        studentName: profile.person.name,
+        studentPhone: phoneContact?.value ?? null,
       },
-      studentName: profile.person.name,
-      studentPhone: phoneContact?.value ?? null,
     }
   } catch (error) {
-    logger.error(
-      { err: error, profileId, overrideAmount },
-      'Error generating payment link with override'
+    await logError(
+      logger,
+      error,
+      'Error generating payment link with override',
+      { profileId, overrideAmount }
     )
-    const message =
-      error instanceof Error ? error.message : 'Failed to generate payment link'
-    return { success: false, error: message }
+    return { success: false, error: 'Failed to generate payment link' }
   }
 }

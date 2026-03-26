@@ -22,6 +22,7 @@ import {
   deleteStudentAction,
   getStudentDeleteWarningsAction,
 } from '../../_actions'
+import type { DeleteWarnings } from '../../_types'
 
 interface DeleteStudentDialogProps {
   studentId: string
@@ -40,10 +41,7 @@ export function DeleteStudentDialog({
 }: DeleteStudentDialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [warnings, setWarnings] = useState<{
-    hasSiblings: boolean
-    hasAttendanceRecords: boolean
-  } | null>(null)
+  const [warnings, setWarnings] = useState<DeleteWarnings | null>(null)
 
   useEffect(() => {
     if (open && studentId) {

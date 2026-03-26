@@ -1103,6 +1103,8 @@ export async function getStudentDeleteWarnings(
     return {
       hasSiblings: false,
       hasAttendanceRecords: false,
+      hasActiveSubscription: false,
+      hasPaymentHistory: false,
     }
   }
 
