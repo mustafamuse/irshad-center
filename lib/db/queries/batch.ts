@@ -218,7 +218,7 @@ export async function deleteBatch(id: string, client: DatabaseClient = prisma) {
   const studentCount = await client.enrollment.count({
     where: {
       batchId: id,
-      ...ACTIVE_ENROLLMENT_WHERE,
+      ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
     },
   })
 
@@ -352,7 +352,7 @@ export async function assignStudentsToBatch(
     const activeEnrollments = await tx.enrollment.findMany({
       where: {
         programProfileId: { in: studentIds },
-        ...ACTIVE_ENROLLMENT_WHERE,
+        ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
       },
     })
 
@@ -446,7 +446,7 @@ export async function transferStudents(
       where: {
         programProfileId: { in: studentIds },
         batchId: fromBatchId,
-        ...ACTIVE_ENROLLMENT_WHERE,
+        ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
       },
     })
 
