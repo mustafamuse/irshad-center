@@ -3,6 +3,7 @@ import type { Logger } from 'pino'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { logError } from '@/lib/logger'
 
 export async function findFamilySubscription(familyReferenceId: string | null) {
@@ -17,7 +18,7 @@ export async function findFamilySubscription(familyReferenceId: string | null) {
       },
       subscription: {
         stripeAccountType: StripeAccountType.DUGSI,
-        status: { in: ['active', 'paused'] },
+        status: { in: LIVE_SUBSCRIPTION_STATUSES },
       },
     },
     include: { subscription: true },
