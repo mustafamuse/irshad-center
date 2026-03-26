@@ -1,3 +1,18 @@
+-- Step 0: Delete older inactive contacts that would collide after normalization.
+-- The @@unique([type, value, isActive]) constraint applies to inactive rows too.
+-- Inactive contacts cannot be deactivated further, so duplicates must be deleted.
+DELETE FROM "ContactPoint" cp
+WHERE cp."type" IN ('PHONE', 'WHATSAPP')
+  AND cp."isActive" = false
+  AND EXISTS (
+    SELECT 1 FROM "ContactPoint" other
+    WHERE other."type" = cp."type"
+      AND other."isActive" = false
+      AND other.id != cp.id
+      AND regexp_replace(other."value", '\D', '', 'g') = regexp_replace(cp."value", '\D', '', 'g')
+      AND (other."updatedAt", other.id) > (cp."updatedAt", cp.id)
+  );
+
 -- Step 1: Deactivate older same-person duplicate contacts that would collide
 -- after normalization. Tuple comparison (updatedAt, id) breaks ties when
 -- timestamps are identical (bulk inserts, same transaction).
