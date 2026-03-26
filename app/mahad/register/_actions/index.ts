@@ -1,15 +1,20 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { headers } from 'next/headers'
+import { after } from 'next/server'
 
 import { Prisma } from '@prisma/client'
 
-import { prisma } from '@/lib/db'
+import { checkRateLimit } from '@/lib/auth/rate-limit'
+import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
 import {
   mahadRegistrationSchema,
   type MahadRegistrationValues,
 } from '@/lib/registration/schemas/registration'
+import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import { createMahadStudent } from '@/lib/services/mahad/student-service'
 import type { ActionResult } from '@/lib/utils/action-helpers'
 
@@ -30,17 +35,24 @@ export async function registerStudent(
       }
     }
 
+    try {
+      const headerStore = await headers()
+      const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
+      if (ip) {
+        const rateResult = await checkRateLimit(`register:${ip}`)
+        if (!rateResult.success) {
+          return {
+            success: false,
+            error: 'Too many registration attempts. Please try again later.',
+          }
+        }
+      }
+    } catch {
+      // Fail open if headers/rate-limit unavailable
+    }
+
     const data = validationResult.data
     const fullName = `${data.firstName} ${data.lastName}`.trim()
-
-    const emailExists = await checkEmailExists(data.email)
-    if (emailExists) {
-      return {
-        success: false,
-        error: 'A student with this email already exists',
-        errors: { email: ['A student with this email already exists'] },
-      }
-    }
 
     const profile = await createMahadStudent({
       name: fullName,
@@ -53,8 +65,10 @@ export async function registerStudent(
       paymentFrequency: data.paymentFrequency,
     })
 
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
 
     logger.info(
       { profileId: profile.id, name: fullName },
@@ -69,36 +83,45 @@ export async function registerStudent(
       },
     }
   } catch (error) {
+    if (error instanceof ActionError) {
+      return {
+        success: false,
+        error: error.message,
+        errors: error.field
+          ? { [error.field]: [error.message] }
+          : { email: [error.message] },
+      }
+    }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
       return {
         success: false,
-        error: 'A student with this email already exists',
-        errors: { email: ['A student with this email already exists'] },
+        error: 'A student with this contact information already exists',
       }
     }
     await logError(logger, error, 'Mahad registration failed')
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Registration failed. Please try again.',
+      error: 'Registration failed. Please try again.',
     }
   }
 }
 
 export async function checkEmailExists(email: string): Promise<boolean> {
-  const normalizedEmail = email.toLowerCase().trim()
+  try {
+    const headerStore = await headers()
+    const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
+    if (ip) {
+      const rateResult = await checkRateLimit(`email-check:${ip}`, 10)
+      if (!rateResult.success) {
+        return false
+      }
+    }
+  } catch {
+    // Fail open if headers/rate-limit unavailable
+  }
 
-  const existingContact = await prisma.contactPoint.findFirst({
-    where: {
-      type: 'EMAIL',
-      value: normalizedEmail,
-    },
-  })
-
-  return existingContact !== null
+  return DuplicateDetectionService.isEmailRegistered(email, MAHAD_PROGRAM)
 }

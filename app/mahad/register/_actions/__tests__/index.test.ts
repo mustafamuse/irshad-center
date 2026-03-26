@@ -2,18 +2,24 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockCreateMahadStudent,
-  mockContactPointFindFirst,
+  mockIsEmailRegistered,
   mockRevalidatePath,
   mockRevalidateTag,
   mockLoggerInfo,
   mockLogError,
+  mockCheckRateLimit,
+  mockHeaders,
+  mockAfter,
 } = vi.hoisted(() => ({
   mockCreateMahadStudent: vi.fn(),
-  mockContactPointFindFirst: vi.fn(),
+  mockIsEmailRegistered: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockRevalidateTag: vi.fn(),
   mockLoggerInfo: vi.fn(),
   mockLogError: vi.fn(),
+  mockCheckRateLimit: vi.fn(),
+  mockHeaders: vi.fn(),
+  mockAfter: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -21,12 +27,26 @@ vi.mock('next/cache', () => ({
   revalidateTag: (...args: unknown[]) => mockRevalidateTag(...args),
 }))
 
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    contactPoint: {
-      findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
-    },
+vi.mock('next/headers', () => ({
+  headers: () => mockHeaders(),
+}))
+
+vi.mock('next/server', () => ({
+  after: (fn: () => void) => mockAfter(fn),
+}))
+
+vi.mock('@/lib/auth/rate-limit', () => ({
+  checkRateLimit: (...args: unknown[]) => mockCheckRateLimit(...args),
+}))
+
+vi.mock('@/lib/services/duplicate-detection-service', () => ({
+  DuplicateDetectionService: {
+    isEmailRegistered: (...args: unknown[]) => mockIsEmailRegistered(...args),
   },
+}))
+
+vi.mock('@/lib/constants/mahad', () => ({
+  MAHAD_PROGRAM: 'MAHAD_PROGRAM',
 }))
 
 vi.mock('@/lib/services/mahad/student-service', () => ({
@@ -58,7 +78,14 @@ const validInput = {
 describe('registerStudent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockContactPointFindFirst.mockResolvedValue(null)
+    mockAfter.mockImplementation((fn: () => void) => fn())
+    mockHeaders.mockResolvedValue(new Headers({ 'x-forwarded-for': '1.2.3.4' }))
+    mockCheckRateLimit.mockResolvedValue({
+      success: true,
+      remaining: 9,
+      reset: 0,
+    })
+    mockIsEmailRegistered.mockResolvedValue(false)
   })
 
   it('should register a student and return success with id and name', async () => {
@@ -82,23 +109,15 @@ describe('registerStudent', () => {
       graduationStatus: 'NON_GRADUATE',
       paymentFrequency: 'MONTHLY',
     })
-    expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/mahad')
     expect(mockLoggerInfo).toHaveBeenCalled()
   })
 
-  it('should return field error when email already exists', async () => {
-    mockContactPointFindFirst.mockResolvedValue({
-      id: 'cp-1',
-      type: 'EMAIL',
-      value: 'ahmed@example.com',
-    })
+  it('should use after() for non-blocking revalidation', async () => {
+    mockCreateMahadStudent.mockResolvedValue({ id: 'profile-123' })
 
-    const result = await registerStudent(validInput)
+    await registerStudent(validInput)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('already exists')
-    expect(result.errors?.email).toBeDefined()
-    expect(mockCreateMahadStudent).not.toHaveBeenCalled()
+    expect(mockAfter).toHaveBeenCalledWith(expect.any(Function))
   })
 
   it('should return validation error for invalid data', async () => {
@@ -134,7 +153,72 @@ describe('registerStudent', () => {
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('already exists')
-    expect(result.errors?.email).toBeDefined()
+  })
+
+  it('should handle ActionError with field-level errors defaulting to email', async () => {
+    const { ActionError } = await import('@/lib/errors/action-error')
+    mockCreateMahadStudent.mockRejectedValue(
+      new ActionError(
+        'Student already registered for Mahad',
+        'DUPLICATE_CONTACT',
+        'email',
+        409
+      )
+    )
+
+    const result = await registerStudent(validInput)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toBe('Student already registered for Mahad')
+    expect(result.errors?.email).toEqual([
+      'Student already registered for Mahad',
+    ])
+    expect(mockLogError).not.toHaveBeenCalled()
+  })
+
+  it('should map ActionError field to correct form field for phone duplicates', async () => {
+    const { ActionError } = await import('@/lib/errors/action-error')
+    mockCreateMahadStudent.mockRejectedValue(
+      new ActionError(
+        'Student already registered for Mahad',
+        'DUPLICATE_CONTACT',
+        'phone',
+        409
+      )
+    )
+
+    const result = await registerStudent(validInput)
+
+    expect(result.success).toBe(false)
+    expect(result.errors?.phone).toEqual([
+      'Student already registered for Mahad',
+    ])
+    expect(result.errors?.email).toBeUndefined()
+  })
+
+  it('should rate limit registerStudent', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      success: false,
+      remaining: 0,
+      reset: 0,
+    })
+
+    const result = await registerStudent(validInput)
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Too many registration attempts')
+    expect(mockCreateMahadStudent).not.toHaveBeenCalled()
+  })
+
+  it('should not log ActionError as server error', async () => {
+    const { ActionError } = await import('@/lib/errors/action-error')
+    mockCreateMahadStudent.mockRejectedValue(
+      new ActionError('Duplicate', 'DUPLICATE_CONTACT')
+    )
+
+    await registerStudent(validInput)
+
+    expect(mockLogError).not.toHaveBeenCalled()
   })
 
   it('should handle unexpected errors', async () => {
@@ -145,7 +229,7 @@ describe('registerStudent', () => {
     const result = await registerStudent(validInput)
 
     expect(result.success).toBe(false)
-    expect(result.error).toBe('Database connection lost')
+    expect(result.error).toBe('Registration failed. Please try again.')
     expect(mockLogError).toHaveBeenCalled()
   })
 })
@@ -153,44 +237,74 @@ describe('registerStudent', () => {
 describe('checkEmailExists', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockHeaders.mockResolvedValue(new Headers({ 'x-forwarded-for': '1.2.3.4' }))
+    mockCheckRateLimit.mockResolvedValue({
+      success: true,
+      remaining: 9,
+      reset: 0,
+    })
   })
 
-  it('should return true when email exists', async () => {
-    mockContactPointFindFirst.mockResolvedValue({
-      id: 'cp-1',
-      type: 'EMAIL',
-      value: 'test@example.com',
-    })
+  it('should return true when email is registered', async () => {
+    mockIsEmailRegistered.mockResolvedValue(true)
 
     const result = await checkEmailExists('test@example.com')
 
     expect(result).toBe(true)
-    expect(mockContactPointFindFirst).toHaveBeenCalledWith({
-      where: {
-        type: 'EMAIL',
-        value: 'test@example.com',
-      },
-    })
+    expect(mockIsEmailRegistered).toHaveBeenCalledWith(
+      'test@example.com',
+      'MAHAD_PROGRAM'
+    )
   })
 
   it('should return false when email does not exist', async () => {
-    mockContactPointFindFirst.mockResolvedValue(null)
+    mockIsEmailRegistered.mockResolvedValue(false)
 
     const result = await checkEmailExists('new@example.com')
 
     expect(result).toBe(false)
   })
 
-  it('should normalize email to lowercase', async () => {
-    mockContactPointFindFirst.mockResolvedValue(null)
+  it('should rate limit with 10 attempts', async () => {
+    mockIsEmailRegistered.mockResolvedValue(false)
 
-    await checkEmailExists('  Test@Example.COM  ')
+    await checkEmailExists('test@example.com')
 
-    expect(mockContactPointFindFirst).toHaveBeenCalledWith({
-      where: {
-        type: 'EMAIL',
-        value: 'test@example.com',
-      },
+    expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:1.2.3.4', 10)
+  })
+
+  it('should pass email through to isEmailRegistered for normalization', async () => {
+    mockIsEmailRegistered.mockResolvedValue(true)
+
+    await checkEmailExists('Test@Example.COM')
+
+    expect(mockIsEmailRegistered).toHaveBeenCalledWith(
+      'Test@Example.COM',
+      'MAHAD_PROGRAM'
+    )
+  })
+
+  it('should skip rate limiting when IP is unavailable', async () => {
+    mockHeaders.mockResolvedValue(new Headers())
+    mockIsEmailRegistered.mockResolvedValue(false)
+
+    const result = await checkEmailExists('test@example.com')
+
+    expect(result).toBe(false)
+    expect(mockCheckRateLimit).not.toHaveBeenCalled()
+    expect(mockIsEmailRegistered).toHaveBeenCalled()
+  })
+
+  it('should return false (fail open) when rate limited', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      success: false,
+      remaining: 0,
+      reset: 0,
     })
+
+    const result = await checkEmailExists('test@example.com')
+
+    expect(result).toBe(false)
+    expect(mockIsEmailRegistered).not.toHaveBeenCalled()
   })
 })

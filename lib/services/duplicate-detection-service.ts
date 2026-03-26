@@ -126,10 +126,7 @@ export class DuplicateDetectionService {
       }
     }
 
-    logger.info(
-      { email, phone, program },
-      'Checking for duplicate registration'
-    )
+    logger.info({ program }, 'Checking for duplicate registration')
 
     try {
       // Find person by email or phone
@@ -137,7 +134,7 @@ export class DuplicateDetectionService {
 
       // No person found - not a duplicate
       if (!existingPerson) {
-        logger.info({ email, phone }, 'No existing person found')
+        logger.info('No existing person found')
         return {
           isDuplicate: false,
           duplicateField: null,
@@ -146,10 +143,7 @@ export class DuplicateDetectionService {
         }
       }
 
-      logger.info(
-        { personId: existingPerson.id, email, phone },
-        'Found existing person'
-      )
+      logger.info({ personId: existingPerson.id }, 'Found existing person')
 
       // Check if person has an active profile for the specified program
       const activeProfile = existingPerson.programProfiles.find(
@@ -192,8 +186,6 @@ export class DuplicateDetectionService {
       }
     } catch (error) {
       await logError(logger, error, 'Duplicate check failed', {
-        email,
-        phone,
         program,
       })
       throw error
