@@ -462,7 +462,7 @@ export async function resolveDuplicatesAction(
     if (missingRecords.length > 0) {
       return {
         success: false,
-        error: `Some duplicate records not found: ${missingRecords.join(', ')}`,
+        error: 'Some duplicate records could not be found',
       }
     }
 

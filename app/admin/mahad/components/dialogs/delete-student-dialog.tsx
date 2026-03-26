@@ -70,7 +70,11 @@ export function DeleteStudentDialog({
     })
   }
 
-  const hasWarnings = warnings?.hasSiblings || warnings?.hasAttendanceRecords
+  const hasWarnings =
+    warnings?.hasSiblings ||
+    warnings?.hasAttendanceRecords ||
+    warnings?.hasActiveSubscription ||
+    warnings?.hasPaymentHistory
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,6 +104,12 @@ export function DeleteStudentDialog({
                   <p>
                     This student has attendance records that will be deleted.
                   </p>
+                )}
+                {warnings?.hasActiveSubscription && (
+                  <p>This student has an active billing subscription.</p>
+                )}
+                {warnings?.hasPaymentHistory && (
+                  <p>This student has payment history that will be removed.</p>
                 )}
               </AlertDescription>
             </Alert>
