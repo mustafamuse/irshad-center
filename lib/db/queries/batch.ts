@@ -16,7 +16,6 @@ import { EnrollmentStatus, Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import {
   ACTIVE_MAHAD_ENROLLMENT_WHERE,
-  ACTIVE_ENROLLMENT_WHERE,
   extractContactInfo,
 } from '@/lib/db/query-builders'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
@@ -519,7 +518,7 @@ export async function getBatchSummary(client: DatabaseClient = prisma) {
         program: 'MAHAD_PROGRAM',
         enrollments: {
           some: {
-            ...ACTIVE_ENROLLMENT_WHERE,
+            ...ACTIVE_MAHAD_ENROLLMENT_WHERE,
             batchId: { not: null }, // Only count students assigned to batches
           },
         },
@@ -589,7 +588,7 @@ export async function getBatchesWithFilters(
     } else {
       // Only batches with no active enrollments
       where.Enrollment = {
-        none: ACTIVE_ENROLLMENT_WHERE,
+        none: ACTIVE_MAHAD_ENROLLMENT_WHERE,
       }
     }
   }
@@ -699,7 +698,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
         },
       },
       enrollments: {
-        where: ACTIVE_ENROLLMENT_WHERE,
+        where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
         orderBy: {
           startDate: 'desc',
         },
