@@ -177,12 +177,13 @@ export async function transferStudentsToBatch(
       result.transferredCount = studentIds.length
     })
   } catch (error) {
-    if (error instanceof ActionError) throw error
     result.failedTransfers.push(...studentIds)
-    await logError(logger, error, 'Failed to transfer students', {
-      studentIds,
-      targetBatchId,
-    })
+    if (!(error instanceof ActionError)) {
+      await logError(logger, error, 'Failed to transfer students', {
+        studentIds,
+        targetBatchId,
+      })
+    }
   }
 
   return result
