@@ -4,9 +4,6 @@ import type {
   GuardianRole,
 } from '@prisma/client'
 
-/**
- * Person - Canonical identity record for students, guardians, donors, youth participants
- */
 export interface Person {
   id: string
   name: string
@@ -15,9 +12,6 @@ export interface Person {
   updatedAt: Date
 }
 
-/**
- * ContactPoint - Email, phone, or other contact methods for a person
- */
 export interface ContactPoint {
   id: string
   personId: string
@@ -32,9 +26,6 @@ export interface ContactPoint {
   updatedAt: Date
 }
 
-/**
- * GuardianRelationship - Links guardians/donors to dependents
- */
 export interface GuardianRelationship {
   id: string
   guardianId: string
@@ -48,18 +39,12 @@ export interface GuardianRelationship {
   updatedAt: Date
 }
 
-/**
- * Person with related data
- */
 export interface PersonWithRelations extends Person {
   contactPoints: ContactPoint[]
   guardianRelationships: GuardianRelationship[]
   dependentRelationships: GuardianRelationship[]
 }
 
-/**
- * Helper to get primary email from contact points
- */
 export function getPrimaryEmail(contactPoints: ContactPoint[]): string | null {
   const email = contactPoints.find(
     (cp) =>
@@ -68,9 +53,6 @@ export function getPrimaryEmail(contactPoints: ContactPoint[]): string | null {
   return email?.value || null
 }
 
-/**
- * Helper to get primary phone from contact points
- */
 export function getPrimaryPhone(contactPoints: ContactPoint[]): string | null {
   const phone = contactPoints.find(
     (cp) =>
@@ -82,20 +64,8 @@ export function getPrimaryPhone(contactPoints: ContactPoint[]): string | null {
 }
 
 /**
- * Helper to normalize phone number for matching
- *
- * Validates phone number length and format (E.164 compatibility)
- * Returns null for invalid phone numbers
- *
- * Validation rules:
- * - 10 digits: US/Canada without country code (valid)
- * - 11 digits starting with 1: US/Canada with country code (valid)
- * - 11 digits not starting with 1: Invalid (country code mismatch)
- * - 12-15 digits: International numbers (valid)
- * - <10 or >15 digits: Invalid
- *
- * @param phone - Raw phone number string
- * @returns Normalized digits-only string, or null if invalid
+ * Normalize phone to digits-only. Strips NANP country code (1) from 11-digit numbers.
+ * Returns null for invalid numbers (<10 or >15 digits, or 11-digit non-NANP).
  */
 export function normalizePhone(
   phone: string | null | undefined
@@ -108,10 +78,10 @@ export function normalizePhone(
     return null
   }
 
-  // Validate US/Canada country code
-  // 11-digit numbers must start with 1 (NANP country code)
-  if (normalized.length === 11 && !normalized.startsWith('1')) {
-    return null
+  // 11-digit numbers: strip NANP country code 1, reject all others
+  // Changed from storing '1XXXXXXXXXX' to '10-digit'. Run scripts/migrate-phone-numbers.ts post-deploy.
+  if (normalized.length === 11) {
+    return normalized.startsWith('1') ? normalized.slice(1) : null
   }
 
   return normalized

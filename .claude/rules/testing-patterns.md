@@ -32,6 +32,20 @@ paths:
 - External HTTP calls (Sentry, Axiom) — mock at the transport level
 - `revalidatePath` / `revalidateTag` — mock to verify they're called with correct paths
 
+### Mock Data Must Match Runtime Shape
+
+When mocking Prisma records (e.g., `contactPoint`, `person`), include all fields the code filters on. Common miss: omitting `isActive: true` on contact point mocks causes `.find(cp => cp.isActive)` to return `undefined`.
+
+```typescript
+// Bad: missing isActive — lookup that filters isActive will fail
+contactPoints: [{ id: 'cp-1', type: 'PHONE', value: '1234567890' }]
+
+// Good: include all fields the code filters on
+contactPoints: [
+  { id: 'cp-1', type: 'PHONE', value: '1234567890', isActive: true },
+]
+```
+
 ### Test Structure
 
 ```typescript
