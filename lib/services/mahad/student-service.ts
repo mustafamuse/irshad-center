@@ -111,6 +111,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
               type: 'EMAIL',
               value: normalizedEmail,
               isActive: true,
+              personId: { not: personId },
             },
           })
           if (claimedEmail) {
@@ -150,6 +151,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
               type: phoneContact.type,
               value: normalizedPhone,
               isActive: true,
+              personId: { not: personId },
             },
           })
           if (claimedPhone) {
