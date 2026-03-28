@@ -102,6 +102,21 @@ export async function createMahadStudent(input: StudentCreateInput) {
           (cp) => cp.type === 'EMAIL' && cp.value === normalizedEmail
         )
         if (emailContact && !emailContact.isActive) {
+          const claimedEmail = await tx.contactPoint.findFirst({
+            where: {
+              type: 'EMAIL',
+              value: normalizedEmail,
+              isActive: true,
+            },
+          })
+          if (claimedEmail) {
+            throw new ActionError(
+              'This email address is already registered to another person',
+              ERROR_CODES.CONTACT_CLAIMED,
+              'email',
+              409
+            )
+          }
           await tx.contactPoint.update({
             where: { id: emailContact.id },
             data: { isActive: true, deactivatedAt: null },
@@ -125,6 +140,21 @@ export async function createMahadStudent(input: StudentCreateInput) {
             cp.value === normalizedPhone
         )
         if (phoneContact && !phoneContact.isActive) {
+          const claimedPhone = await tx.contactPoint.findFirst({
+            where: {
+              type: phoneContact.type,
+              value: normalizedPhone,
+              isActive: true,
+            },
+          })
+          if (claimedPhone) {
+            throw new ActionError(
+              'This phone number is already registered to another person',
+              ERROR_CODES.CONTACT_CLAIMED,
+              'phone',
+              409
+            )
+          }
           await tx.contactPoint.update({
             where: { id: phoneContact.id },
             data: { isActive: true, deactivatedAt: null },

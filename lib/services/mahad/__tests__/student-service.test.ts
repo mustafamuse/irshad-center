@@ -105,6 +105,7 @@ describe('createMahadStudent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
+    mockContactPointFindFirst.mockResolvedValue(null)
     mockPersonCreate.mockResolvedValue({
       id: 'person-1',
       name: 'Ahmed Mohamed',
@@ -311,6 +312,82 @@ describe('createMahadStudent', () => {
       data: { isActive: true, deactivatedAt: null },
     })
     expect(mockContactPointCreate).not.toHaveBeenCalled()
+  })
+
+  it('should throw CONTACT_CLAIMED when reactivating email already owned by another person', async () => {
+    const existingPerson = {
+      id: 'returnee-person',
+      name: 'Ahmed',
+      contactPoints: [
+        {
+          id: 'cp-email',
+          type: 'EMAIL',
+          value: 'ahmed@example.com',
+          isActive: false,
+          deactivatedAt: new Date(),
+        },
+      ],
+    }
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'email',
+      existingPerson,
+      hasActiveProfile: false,
+    })
+    mockContactPointFindFirst.mockResolvedValue({
+      id: 'other-cp',
+      type: 'EMAIL',
+      value: 'ahmed@example.com',
+      isActive: true,
+      personId: 'other-person',
+    })
+
+    await expect(createMahadStudent(baseInput)).rejects.toThrow(ActionError)
+    await expect(createMahadStudent(baseInput)).rejects.toThrow(
+      'This email address is already registered to another person'
+    )
+    expect(mockContactPointUpdate).not.toHaveBeenCalled()
+  })
+
+  it('should throw CONTACT_CLAIMED when reactivating phone already owned by another person', async () => {
+    const existingPerson = {
+      id: 'returnee-person',
+      name: 'Ahmed',
+      contactPoints: [
+        {
+          id: 'cp-email',
+          type: 'EMAIL',
+          value: 'ahmed@example.com',
+          isActive: true,
+        },
+        {
+          id: 'cp-phone',
+          type: 'PHONE',
+          value: '6125551234',
+          isActive: false,
+          deactivatedAt: new Date(),
+        },
+      ],
+    }
+    mockCheckDuplicate.mockResolvedValue({
+      isDuplicate: true,
+      duplicateField: 'phone',
+      existingPerson,
+      hasActiveProfile: false,
+    })
+    mockContactPointFindFirst.mockResolvedValue({
+      id: 'other-cp',
+      type: 'PHONE',
+      value: '6125551234',
+      isActive: true,
+      personId: 'other-person',
+    })
+
+    await expect(createMahadStudent(baseInput)).rejects.toThrow(ActionError)
+    await expect(createMahadStudent(baseInput)).rejects.toThrow(
+      'This phone number is already registered to another person'
+    )
+    expect(mockContactPointUpdate).not.toHaveBeenCalled()
   })
 
   it('should create email contact when person found by phone only', async () => {
