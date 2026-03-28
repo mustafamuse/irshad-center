@@ -59,6 +59,7 @@ export async function getProgramProfiles(
         {
           contactPoints: {
             some: {
+              isActive: true,
               OR: [
                 {
                   type: 'EMAIL',
@@ -98,7 +99,7 @@ export async function getProgramProfiles(
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
           },
         },
         enrollments: {
@@ -166,13 +167,13 @@ export async function getProgramProfileById(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
           dependentRelationships: {
             where: { isActive: true },
             include: {
               guardian: {
                 include: {
-                  contactPoints: true,
+                  contactPoints: { where: { isActive: true } },
                 },
               },
             },
@@ -208,7 +209,7 @@ export async function getProgramProfileById(
                     include: {
                       person: {
                         include: {
-                          contactPoints: true,
+                          contactPoints: { where: { isActive: true } },
                         },
                       },
                     },
@@ -304,7 +305,67 @@ export async function findPersonByContact(
     where,
     relationLoadStrategy: 'join',
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
+      programProfiles: {
+        include: {
+          enrollments: {
+            where: {
+              status: { not: 'WITHDRAWN' },
+              endDate: null,
+            },
+          },
+        },
+      },
+    },
+  })
+}
+
+/**
+ * Find person by active email or phone (excludes soft-deleted contacts)
+ */
+export async function findPersonByActiveContact(
+  email?: string | null,
+  phone?: string | null,
+  client: DatabaseClient = prisma
+) {
+  if (!email && !phone) return null
+
+  const where: Prisma.PersonWhereInput = {
+    OR: [],
+  }
+
+  if (email) {
+    where.OR!.push({
+      contactPoints: {
+        some: {
+          type: 'EMAIL',
+          value: email.toLowerCase().trim(),
+          isActive: true,
+        },
+      },
+    })
+  }
+
+  if (phone) {
+    const normalizedPhone = normalizePhone(phone)
+    if (normalizedPhone) {
+      where.OR!.push({
+        contactPoints: {
+          some: {
+            type: 'PHONE',
+            value: normalizedPhone,
+            isActive: true,
+          },
+        },
+      })
+    }
+  }
+
+  return client.person.findFirst({
+    where,
+    relationLoadStrategy: 'join',
+    include: {
+      contactPoints: { where: { isActive: true } },
       programProfiles: {
         include: {
           enrollments: {
@@ -522,7 +583,7 @@ export async function getProgramProfilesWithBilling(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -547,7 +608,7 @@ export async function getProgramProfilesWithBilling(
                 include: {
                   person: {
                     include: {
-                      contactPoints: true,
+                      contactPoints: { where: { isActive: true } },
                     },
                   },
                 },
@@ -661,6 +722,7 @@ export async function searchProgramProfilesByNameOrContact(
         {
           contactPoints: {
             some: {
+              isActive: true,
               OR: [
                 {
                   type: 'EMAIL',
@@ -692,7 +754,7 @@ export async function searchProgramProfilesByNameOrContact(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -763,7 +825,7 @@ export async function getProgramProfilesByStatus(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {

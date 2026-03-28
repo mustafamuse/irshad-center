@@ -14,7 +14,7 @@
  * - Get guardian's dependents
  */
 
-import { ContactType, GuardianRole, Prisma } from '@prisma/client'
+import { ContactType, GuardianRole } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import type { DatabaseClient } from '@/lib/db/types'
@@ -70,7 +70,7 @@ export async function updateGuardianInfo(
     const guardian = await tx.person.findUnique({
       relationLoadStrategy: 'join',
       where: { id: guardianId },
-      include: { contactPoints: true },
+      include: { contactPoints: { where: { isActive: true } } },
     })
 
     if (!guardian) {
@@ -91,33 +91,14 @@ export async function updateGuardianInfo(
           data: { value: normalizedEmail },
         })
       } else {
-        try {
-          await tx.contactPoint.create({
-            data: {
-              personId: guardianId,
-              type: 'EMAIL',
-              value: normalizedEmail,
-              isPrimary: true,
-            },
-          })
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            const existing = await tx.contactPoint.findFirst({
-              where: { personId: guardianId, type: 'EMAIL' },
-            })
-            if (existing) {
-              await tx.contactPoint.update({
-                where: { id: existing.id },
-                data: { value: normalizedEmail, isPrimary: true },
-              })
-            }
-          } else {
-            throw error
-          }
-        }
+        await tx.contactPoint.create({
+          data: {
+            personId: guardianId,
+            type: 'EMAIL',
+            value: normalizedEmail,
+            isPrimary: true,
+          },
+        })
       }
     }
 
@@ -135,33 +116,14 @@ export async function updateGuardianInfo(
             data: { value: normalizedPhone },
           })
         } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: guardianId,
-                type: 'PHONE',
-                value: normalizedPhone,
-                isPrimary: true,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: guardianId, type: 'PHONE' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedPhone },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
+          await tx.contactPoint.create({
+            data: {
+              personId: guardianId,
+              type: 'PHONE',
+              value: normalizedPhone,
+              isPrimary: true,
+            },
+          })
         }
       }
     }
@@ -169,7 +131,7 @@ export async function updateGuardianInfo(
     return await tx.person.findUnique({
       relationLoadStrategy: 'join',
       where: { id: guardianId },
-      include: { contactPoints: true },
+      include: { contactPoints: { where: { isActive: true } } },
     })
   }
 
@@ -204,6 +166,7 @@ export async function addGuardianRelationship(
         some: {
           type: 'EMAIL',
           value: normalizedEmail,
+          isActive: true,
         },
       },
     },
@@ -342,7 +305,7 @@ export async function getGuardianDependents(
     include: {
       dependent: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
           programProfiles: {
             include: {
               enrollments: {
@@ -385,7 +348,7 @@ export async function getDependentGuardians(
     include: {
       guardian: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
     },
@@ -414,11 +377,12 @@ export async function validateGuardianEmail(email: string) {
         some: {
           type: 'EMAIL',
           value: normalizedEmail,
+          isActive: true,
         },
       },
     },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
       programProfiles: true,
     },
   })
@@ -440,11 +404,12 @@ export async function findGuardianByEmail(email: string) {
         some: {
           type: 'EMAIL',
           value: normalizedEmail,
+          isActive: true,
         },
       },
     },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
       dependentRelationships: {
         where: { isActive: true },
         include: {

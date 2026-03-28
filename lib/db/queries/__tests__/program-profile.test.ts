@@ -30,6 +30,7 @@ import {
   getProgramProfileById,
   getProgramProfilesByPersonId,
   findPersonByContact,
+  findPersonByActiveContact,
   getProgramProfilesByFamilyId,
   getProgramProfilesWithBilling,
   searchProgramProfilesByNameOrContact,
@@ -94,6 +95,75 @@ describe('findPersonByContact', () => {
         relationLoadStrategy: 'join',
       })
     )
+  })
+})
+
+describe('findPersonByActiveContact', () => {
+  it('should add isActive: true to email some clause', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact('test@example.com')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.where.OR[0].contactPoints.some).toMatchObject({
+      type: 'EMAIL',
+      isActive: true,
+    })
+  })
+
+  it('should add isActive: true to phone some clause', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact(null, '6125551234')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.where.OR[0].contactPoints.some).toMatchObject({
+      type: 'PHONE',
+      isActive: true,
+    })
+  })
+
+  it('should filter included contactPoints by isActive', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact('test@example.com')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.include.contactPoints).toEqual({
+      where: { isActive: true },
+    })
+  })
+
+  it('should return null when no email or phone provided', async () => {
+    const result = await findPersonByActiveContact(null, null)
+
+    expect(result).toBeNull()
+    expect(mockPersonFindFirst).not.toHaveBeenCalled()
+  })
+
+  it('should use relationLoadStrategy join', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact('test@example.com')
+
+    expect(mockPersonFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        relationLoadStrategy: 'join',
+      })
+    )
+  })
+})
+
+describe('getProgramProfiles - isActive filtering', () => {
+  it('should add isActive: true to contact search some clause', async () => {
+    mockProfileFindMany.mockResolvedValue([])
+    mockProfileCount.mockResolvedValue(0)
+
+    await getProgramProfiles({ search: 'test@example.com' })
+
+    const call = mockProfileFindMany.mock.calls[0][0]
+    const contactSearch = call.where.person.OR[1].contactPoints.some
+    expect(contactSearch.isActive).toBe(true)
   })
 })
 

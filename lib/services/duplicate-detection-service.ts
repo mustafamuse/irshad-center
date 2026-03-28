@@ -38,7 +38,7 @@
 import { Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import type { DuplicateField } from '@/lib/types/registration-errors'
@@ -57,7 +57,7 @@ export interface DuplicateCheckResult {
   duplicateField: DuplicateField | null
 
   /** The existing person found (null if no duplicate) */
-  existingPerson: Awaited<ReturnType<typeof findPersonByContact>>
+  existingPerson: Awaited<ReturnType<typeof findPersonByActiveContact>>
 
   /** Whether the person has an active profile for the specified program */
   hasActiveProfile: boolean
@@ -130,7 +130,11 @@ export class DuplicateDetectionService {
 
     try {
       // Find person by email or phone
-      const existingPerson = await findPersonByContact(email, phone, client)
+      const existingPerson = await findPersonByActiveContact(
+        email,
+        phone,
+        client
+      )
 
       // No person found - not a duplicate
       if (!existingPerson) {
@@ -202,7 +206,7 @@ export class DuplicateDetectionService {
    * @returns Which field caused the duplicate
    */
   private static determineDuplicateField(
-    person: NonNullable<Awaited<ReturnType<typeof findPersonByContact>>>,
+    person: NonNullable<Awaited<ReturnType<typeof findPersonByActiveContact>>>,
     submittedEmail?: string | null,
     submittedPhone?: string | null
   ): DuplicateField {
