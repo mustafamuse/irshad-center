@@ -887,9 +887,13 @@ export async function resolveDuplicateStudents(
     }
 
     if (mergeData) {
-      const keepContacts = keepProfile.person.contactPoints
+      const keepContacts = keepProfile.person.contactPoints.filter(
+        (kc) => kc.isActive
+      )
       for (const delProfile of deleteProfiles) {
         for (const contact of delProfile.person.contactPoints) {
+          if (!contact.isActive) continue
+
           const normalizedValue =
             contact.type === 'PHONE'
               ? normalizePhone(contact.value)
@@ -910,7 +914,7 @@ export async function resolveDuplicateStudents(
                 type: contact.type,
                 value: normalizedValue,
                 isPrimary: true,
-                isActive: contact.isActive,
+                isActive: true,
               },
             })
           }

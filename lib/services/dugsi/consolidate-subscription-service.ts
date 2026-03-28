@@ -57,7 +57,11 @@ interface FamilyPayerData {
   primaryPayer: {
     id: string
     name: string
-    contactPoints?: Array<{ type: string; value: string; isPrimary?: boolean }>
+    contactPoints?: Array<{
+      type: 'EMAIL' | 'PHONE'
+      value: string
+      isPrimary?: boolean
+    }>
   }
   payerEmail: string | null
   payerPhone: string | null

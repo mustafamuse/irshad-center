@@ -2,7 +2,6 @@ import {
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
-  Prisma,
   StudentBillingType,
 } from '@prisma/client'
 
@@ -248,6 +247,7 @@ export async function updateMahadStudent(
           where: {
             personId: personId,
             type: 'EMAIL',
+            isActive: true,
           },
         })
 
@@ -257,33 +257,14 @@ export async function updateMahadStudent(
             data: { value: normalizedEmail },
           })
         } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: personId,
-                type: 'EMAIL',
-                value: normalizedEmail,
-                isPrimary: true,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: personId, type: 'EMAIL' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedEmail },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
+          await tx.contactPoint.create({
+            data: {
+              personId: personId,
+              type: 'EMAIL',
+              value: normalizedEmail,
+              isPrimary: true,
+            },
+          })
         }
       }
     }
@@ -298,6 +279,7 @@ export async function updateMahadStudent(
           where: {
             personId: personId,
             type: 'PHONE',
+            isActive: true,
           },
         })
 
@@ -307,33 +289,14 @@ export async function updateMahadStudent(
             data: { value: normalizedPhone },
           })
         } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: personId,
-                type: 'PHONE',
-                value: normalizedPhone,
-                isPrimary: true,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: personId, type: 'PHONE' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedPhone },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
+          await tx.contactPoint.create({
+            data: {
+              personId: personId,
+              type: 'PHONE',
+              value: normalizedPhone,
+              isPrimary: true,
+            },
+          })
         }
       }
     }

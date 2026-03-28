@@ -596,7 +596,7 @@ describe('updateMahadStudent', () => {
     await updateMahadStudent('profile-1', { email: 'new@test.com' })
 
     expect(mockContactPointFindFirst).toHaveBeenCalledWith({
-      where: { personId: 'person-1', type: 'EMAIL' },
+      where: { personId: 'person-1', type: 'EMAIL', isActive: true },
     })
     expect(mockContactPointUpdate).toHaveBeenCalledWith({
       where: { id: 'cp-email' },

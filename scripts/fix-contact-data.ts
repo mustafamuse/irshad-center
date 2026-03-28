@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/db'
 
+const dryRun = process.argv.includes('--dry-run')
+
 async function fixContactData() {
+  if (dryRun) console.log('*** DRY RUN — no writes will be performed ***\n')
   console.log('=== Contact Data Fix Script ===\n')
 
   console.log('--- Fix 1: Strip leading 1 from 11-digit NANP phones ---')
@@ -33,21 +36,25 @@ async function fixContactData() {
         })
 
         if (collision) {
-          await tx.contactPoint.update({
-            where: { id: phone.id },
-            data: { isActive: false, deactivatedAt: new Date() },
-          })
+          if (!dryRun) {
+            await tx.contactPoint.update({
+              where: { id: phone.id },
+              data: { isActive: false, deactivatedAt: new Date() },
+            })
+          }
           console.log(
-            `  Deactivated ${phone.person.name}: ${phone.value} (collision with existing ${stripped})`
+            `  ${dryRun ? '[DRY] Would deactivate' : 'Deactivated'} ${phone.person.name}: ${phone.value} (collision with existing ${stripped})`
           )
           phonesDeactivated++
         } else {
-          await tx.contactPoint.update({
-            where: { id: phone.id },
-            data: { value: stripped },
-          })
+          if (!dryRun) {
+            await tx.contactPoint.update({
+              where: { id: phone.id },
+              data: { value: stripped },
+            })
+          }
           console.log(
-            `  Updated ${phone.person.name}: ${phone.value} -> ${stripped}`
+            `  ${dryRun ? '[DRY] Would update' : 'Updated'} ${phone.person.name}: ${phone.value} -> ${stripped}`
           )
           phonesUpdated++
         }
@@ -67,19 +74,33 @@ async function fixContactData() {
 
   // Fix 2: Set isPrimary=true on emails with isPrimary=false
   console.log('--- Fix 2: Fix emails with isPrimary=false ---')
-  const emailFix = await prisma.contactPoint.updateMany({
+  const emailCount = await prisma.contactPoint.count({
     where: { type: 'EMAIL', isPrimary: false, isActive: true },
-    data: { isPrimary: true },
   })
-  console.log(`  Updated ${emailFix.count} emails to isPrimary=true\n`)
+  if (!dryRun && emailCount > 0) {
+    await prisma.contactPoint.updateMany({
+      where: { type: 'EMAIL', isPrimary: false, isActive: true },
+      data: { isPrimary: true },
+    })
+  }
+  console.log(
+    `  ${dryRun ? `[DRY] Would update ${emailCount}` : `Updated ${emailCount}`} emails to isPrimary=true\n`
+  )
 
   // Fix 3: Set isPrimary=true on phones with isPrimary=false
   console.log('--- Fix 3: Fix phones with isPrimary=false ---')
-  const phoneFix = await prisma.contactPoint.updateMany({
+  const phoneCount = await prisma.contactPoint.count({
     where: { type: 'PHONE', isPrimary: false, isActive: true },
-    data: { isPrimary: true },
   })
-  console.log(`  Updated ${phoneFix.count} phones to isPrimary=true\n`)
+  if (!dryRun && phoneCount > 0) {
+    await prisma.contactPoint.updateMany({
+      where: { type: 'PHONE', isPrimary: false, isActive: true },
+      data: { isPrimary: true },
+    })
+  }
+  console.log(
+    `  ${dryRun ? `[DRY] Would update ${phoneCount}` : `Updated ${phoneCount}`} phones to isPrimary=true\n`
+  )
 
   console.log('=== Verification ===')
   const summary = await prisma.$queryRaw<
