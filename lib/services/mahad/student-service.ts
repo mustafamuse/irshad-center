@@ -148,7 +148,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
           // Same read-first guard as email above; see TOCTOU comment there
           const claimedPhone = await tx.contactPoint.findFirst({
             where: {
-              type: { in: ['PHONE', 'WHATSAPP'] },
+              type: phoneContact.type,
               value: normalizedPhone,
               isActive: true,
               personId: { not: personId },
