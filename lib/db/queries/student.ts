@@ -887,8 +887,18 @@ export async function resolveDuplicateStudents(
     }
 
     if (mergeData) {
-      const keepContacts = keepProfile.person.contactPoints.filter(
-        (kc) => kc.isActive
+      // Seed with active keep-side contacts. Updated as new contacts are created
+      // so duplicate contacts across multiple deleteProfiles don't cause P2002.
+      const keepContactKeys = new Set(
+        keepProfile.person.contactPoints
+          .filter((kc) => kc.isActive)
+          .map((kc) => {
+            const v =
+              kc.type === 'PHONE'
+                ? (normalizePhone(kc.value) ?? kc.value)
+                : kc.value.toLowerCase().trim()
+            return `${kc.type}:${v}`
+          })
       )
       for (const delProfile of deleteProfiles) {
         for (const contact of delProfile.person.contactPoints) {
@@ -900,14 +910,8 @@ export async function resolveDuplicateStudents(
               : contact.value.toLowerCase().trim()
           if (!normalizedValue) continue
 
-          const alreadyExists = keepContacts.some(
-            (kc) =>
-              kc.type === contact.type &&
-              (kc.type === 'PHONE'
-                ? normalizePhone(kc.value) === normalizedValue
-                : kc.value.toLowerCase().trim() === normalizedValue)
-          )
-          if (!alreadyExists) {
+          const key = `${contact.type}:${normalizedValue}`
+          if (!keepContactKeys.has(key)) {
             await tx.contactPoint.create({
               data: {
                 personId: keepProfile.personId,
@@ -917,6 +921,7 @@ export async function resolveDuplicateStudents(
                 isActive: true,
               },
             })
+            keepContactKeys.add(key)
           }
         }
       }
