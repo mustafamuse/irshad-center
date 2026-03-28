@@ -41,7 +41,7 @@ async function testMustafaSearch() {
     where: {
       contactPoints: {
         some: {
-          type: { in: ['PHONE', 'WHATSAPP'] },
+          type: 'PHONE',
           value: normalizedUserPhone || userInputPhone,
         },
       },
@@ -81,7 +81,7 @@ async function testMustafaSearch() {
     where: {
       contactPoints: {
         some: {
-          type: { in: ['PHONE', 'WHATSAPP'] },
+          type: 'PHONE',
           value: normalizedActualPhone || actualPhone,
         },
       },
@@ -114,7 +114,7 @@ async function testMustafaSearch() {
       person: {
         name: { contains: 'Mustafa Muse', mode: 'insensitive' },
       },
-      type: { in: ['PHONE', 'WHATSAPP'] },
+      type: 'PHONE',
       isActive: true,
     },
     include: {

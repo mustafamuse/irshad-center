@@ -21,9 +21,7 @@ export function normalizeContact(
     case 'EMAIL':
       return normalizeEmail(value)
     case 'PHONE':
-    case 'WHATSAPP':
       return normalizePhone(value)
-    case 'OTHER':
     default:
       return value.trim() || null
   }

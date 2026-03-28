@@ -246,10 +246,11 @@ export function buildProgramEnrollmentWhere(
 // ============================================================================
 
 /**
- * Contact point with minimal required fields
+ * Contact point with minimal required fields.
+ * Does not include isActive — callers must pre-filter to active records only.
  */
 export interface MinimalContactPoint {
-  type: 'EMAIL' | 'PHONE' | 'WHATSAPP' | 'OTHER'
+  type: 'EMAIL' | 'PHONE'
   value: string
   isPrimary?: boolean
 }
@@ -257,7 +258,8 @@ export interface MinimalContactPoint {
 /**
  * Extract primary email from contact points array
  *
- * @param contactPoints - Array of contact points
+ * @param contactPoints - Active contact points only. Callers must filter
+ *   with `where: { isActive: true }` at the query layer before invoking.
  * @returns Email address or null
  */
 export function extractPrimaryEmail(
@@ -280,7 +282,8 @@ export function extractPrimaryEmail(
 /**
  * Extract primary phone from contact points array
  *
- * @param contactPoints - Array of contact points
+ * @param contactPoints - Active contact points only. Callers must filter
+ *   with `where: { isActive: true }` at the query layer before invoking.
  * @returns Phone number or null
  */
 export function extractPrimaryPhone(
@@ -289,14 +292,13 @@ export function extractPrimaryPhone(
   if (!contactPoints) return null
   const phone = contactPoints.find(
     (cp) =>
-      (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
+      cp.type === 'PHONE' &&
       (cp.isPrimary === true || cp.isPrimary === undefined)
   )
   // Fall back to any phone if no primary found
   return (
     phone?.value ||
-    contactPoints.find((cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP')
-      ?.value ||
+    contactPoints.find((cp) => cp.type === 'PHONE')?.value ||
     null
   )
 }
@@ -304,7 +306,8 @@ export function extractPrimaryPhone(
 /**
  * Extract both primary email and phone from contact points
  *
- * @param contactPoints - Array of contact points
+ * @param contactPoints - Active contact points only. Callers must filter
+ *   with `where: { isActive: true }` at the query layer before invoking.
  * @returns Object with email and phone (both nullable)
  */
 export function extractContactInfo(

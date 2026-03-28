@@ -23,7 +23,11 @@ import {
   getProgramProfiles,
   searchProgramProfilesByNameOrContact,
 } from '@/lib/db/queries/program-profile'
-import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+import {
+  extractPrimaryEmail,
+  extractPrimaryPhone,
+  LIVE_SUBSCRIPTION_STATUSES,
+} from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -310,13 +314,8 @@ export async function searchStudentsForLinking(
       LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
-    const email =
-      profile.person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
-      ''
-    const phone =
-      profile.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-      )?.value || null
+    const email = extractPrimaryEmail(profile.person.contactPoints) || ''
+    const phone = extractPrimaryPhone(profile.person.contactPoints)
 
     matches.push({
       id: profile.id,
@@ -381,13 +380,8 @@ export async function getPotentialStudentMatches(
       LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
-    const profileEmail =
-      profile.person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
-      ''
-    const phone =
-      profile.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-      )?.value || null
+    const profileEmail = extractPrimaryEmail(profile.person.contactPoints) || ''
+    const phone = extractPrimaryPhone(profile.person.contactPoints)
 
     matches.push({
       id: profile.id,

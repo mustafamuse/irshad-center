@@ -179,12 +179,7 @@ export async function lookupPersonAction(
                   ...(normalizedPhone
                     ? [
                         {
-                          type: {
-                            in: ['PHONE', 'WHATSAPP'] as (
-                              | 'PHONE'
-                              | 'WHATSAPP'
-                            )[],
-                          },
+                          type: 'PHONE' as const,
                           value: normalizedPhone,
                         },
                       ]

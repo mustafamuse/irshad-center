@@ -247,7 +247,7 @@ async function createStudentRecord(student: ProcessedStudent): Promise<void> {
             personId: person.id,
             type: 'PHONE',
             value: student.phone,
-            isPrimary: !student.email, // Primary if no email
+            isPrimary: true,
           },
         })
       )

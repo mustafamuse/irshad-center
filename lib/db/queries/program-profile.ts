@@ -292,7 +292,7 @@ export async function findPersonByContact(
       where.OR!.push({
         contactPoints: {
           some: {
-            type: { in: ['PHONE', 'WHATSAPP'] },
+            type: 'PHONE',
             value: normalizedPhone,
           },
         },
@@ -669,7 +669,7 @@ export async function searchProgramProfilesByNameOrContact(
                 ...(normalizedPhone
                   ? [
                       {
-                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
+                        type: 'PHONE' as ContactType,
                         value: normalizedPhone,
                       },
                     ]

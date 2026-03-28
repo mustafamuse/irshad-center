@@ -14,6 +14,7 @@ import {
   getDugsiTeachersForDropdown,
   TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
+import { extractContactInfo } from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   mapPersonToSearchResult,
@@ -35,7 +36,6 @@ import {
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
-import { extractContactInfo } from '@/lib/utils/contact-helpers'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -369,7 +369,7 @@ export async function createTeacherWithPersonAction(
         contactPoints.push({
           type: 'PHONE',
           value: normalizedPhone,
-          isPrimary: !input.email,
+          isPrimary: true,
         })
       }
     }
@@ -554,7 +554,7 @@ export async function updateTeacherDetailsAction(
               personId: teacher.personId,
               type: 'PHONE',
               value: normalizedPhone,
-              isPrimary: !email,
+              isPrimary: true,
             },
           })
         }
@@ -926,12 +926,7 @@ export async function searchPeopleAction(
                   ...(normalizedSearchTerm
                     ? [
                         {
-                          type: {
-                            in: ['PHONE', 'WHATSAPP'] as (
-                              | 'PHONE'
-                              | 'WHATSAPP'
-                            )[],
-                          },
+                          type: 'PHONE' as const,
                           value: normalizedSearchTerm,
                         },
                       ]

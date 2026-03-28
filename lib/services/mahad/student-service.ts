@@ -2,7 +2,6 @@ import {
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
-  Prisma,
   StudentBillingType,
 } from '@prisma/client'
 
@@ -120,9 +119,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
 
       if (normalizedPhone) {
         const phoneContact = dupResult.existingPerson.contactPoints.find(
-          (cp) =>
-            (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
-            cp.value === normalizedPhone
+          (cp) => cp.type === 'PHONE' && cp.value === normalizedPhone
         )
         if (phoneContact && !phoneContact.isActive) {
           await tx.contactPoint.update({
@@ -135,6 +132,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
               personId,
               type: 'PHONE',
               value: normalizedPhone,
+              isPrimary: true,
             },
           })
         }
@@ -158,6 +156,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
         contactPoints.push({
           type: 'PHONE' as const,
           value: normalizedPhone,
+          isPrimary: true,
         })
       }
 
@@ -245,45 +244,27 @@ export async function updateMahadStudent(
 
       if (normalizedEmail) {
         const existingEmail = await tx.contactPoint.findFirst({
-          where: {
-            personId: personId,
-            type: 'EMAIL',
-          },
+          where: { personId: personId, type: 'EMAIL' },
         })
 
         if (existingEmail) {
           await tx.contactPoint.update({
             where: { id: existingEmail.id },
-            data: { value: normalizedEmail },
+            data: {
+              value: normalizedEmail,
+              isActive: true,
+              deactivatedAt: null,
+            },
           })
         } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: personId,
-                type: 'EMAIL',
-                value: normalizedEmail,
-                isPrimary: true,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: personId, type: 'EMAIL' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedEmail },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
+          await tx.contactPoint.create({
+            data: {
+              personId: personId,
+              type: 'EMAIL',
+              value: normalizedEmail,
+              isPrimary: true,
+            },
+          })
         }
       }
     }
@@ -295,44 +276,27 @@ export async function updateMahadStudent(
 
       if (normalizedPhone) {
         const existingPhone = await tx.contactPoint.findFirst({
-          where: {
-            personId: personId,
-            type: 'PHONE',
-          },
+          where: { personId: personId, type: 'PHONE' },
         })
 
         if (existingPhone) {
           await tx.contactPoint.update({
             where: { id: existingPhone.id },
-            data: { value: normalizedPhone },
+            data: {
+              value: normalizedPhone,
+              isActive: true,
+              deactivatedAt: null,
+            },
           })
         } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: personId,
-                type: 'PHONE',
-                value: normalizedPhone,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: personId, type: 'PHONE' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedPhone },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
+          await tx.contactPoint.create({
+            data: {
+              personId: personId,
+              type: 'PHONE',
+              value: normalizedPhone,
+              isPrimary: true,
+            },
+          })
         }
       }
     }

@@ -1,5 +1,3 @@
-import { ContactType } from '@prisma/client'
-
 import { prisma } from '@/lib/db'
 import { normalizePhone } from '@/lib/types/person'
 
@@ -28,7 +26,7 @@ async function testSearchAction(query: string) {
                 ...(normalizedSearchTerm
                   ? [
                       {
-                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
+                        type: 'PHONE' as const,
                         value: normalizedSearchTerm,
                       },
                     ]

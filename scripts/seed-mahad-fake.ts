@@ -224,7 +224,7 @@ async function seedFakeStudents(count: number): Promise<void> {
               personId: person.id,
               type: 'PHONE',
               value: student.phone,
-              isPrimary: false,
+              isPrimary: true,
             },
           ],
         })

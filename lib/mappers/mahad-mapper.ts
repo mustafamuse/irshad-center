@@ -1,5 +1,10 @@
 import { Prisma } from '@prisma/client'
 
+import {
+  extractPrimaryEmail,
+  extractPrimaryPhone,
+} from '@/lib/db/query-builders'
+
 export const mahadEnrollmentInclude =
   Prisma.validator<Prisma.EnrollmentInclude>()({
     programProfile: {
@@ -28,17 +33,11 @@ export type MahadEnrollmentFull = Prisma.EnrollmentGetPayload<{
 export function extractStudentEmail(
   profile: Pick<MahadEnrollmentFull['programProfile'], 'person'>
 ): string | null {
-  const emailContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )
-  return emailContact?.value ?? null
+  return extractPrimaryEmail(profile.person.contactPoints)
 }
 
 export function extractStudentPhone(
   profile: Pick<MahadEnrollmentFull['programProfile'], 'person'>
 ): string | null {
-  const phoneContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
-  return phoneContact?.value ?? null
+  return extractPrimaryPhone(profile.person.contactPoints)
 }

@@ -1212,7 +1212,7 @@ export async function findOrCreatePersonWithContact(
         .filter((cp) => cp.type === 'EMAIL')
         .map((cp) => cp.value.toLowerCase())
       const existingPhones = existingPerson.contactPoints
-        .filter((cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP')
+        .filter((cp) => cp.type === 'PHONE')
         .map((cp) => normalizePhone(cp.value))
 
       if (email && !existingEmails.includes(email.toLowerCase().trim())) {
@@ -1225,8 +1225,13 @@ export async function findOrCreatePersonWithContact(
       }
 
       if (phone) {
-        const normalizedPhone = normalizePhone(phone) || phone
-        if (!existingPhones.includes(normalizedPhone)) {
+        const normalizedPhone = normalizePhone(phone)
+        if (!normalizedPhone) {
+          logger.warn(
+            { phone },
+            'findOrCreatePersonWithContact: phone failed normalization, skipping contact creation'
+          )
+        } else if (!existingPhones.includes(normalizedPhone)) {
           contactPointsToCreate.push({
             personId: existingPerson.id,
             type: 'PHONE',

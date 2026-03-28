@@ -11,7 +11,7 @@ import {
 } from '@prisma/client'
 
 import { PROGRAM_LABELS } from '@/lib/constants/program-ui'
-import { extractContactInfo } from '@/lib/utils/contact-helpers'
+import { extractContactInfo } from '@/lib/db/query-builders'
 
 /**
  * Search result for person lookup.
@@ -24,7 +24,7 @@ export interface PersonSearchResult {
   name: string
   /** Primary email address, null if none */
   email: string | null
-  /** Primary phone number (PHONE or WHATSAPP), null if none */
+  /** Primary phone number, null if none */
   phone: string | null
   /** Whether person has active teacher record */
   isTeacher: boolean

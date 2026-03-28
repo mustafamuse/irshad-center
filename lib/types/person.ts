@@ -45,24 +45,6 @@ export interface PersonWithRelations extends Person {
   dependentRelationships: GuardianRelationship[]
 }
 
-export function getPrimaryEmail(contactPoints: ContactPoint[]): string | null {
-  const email = contactPoints.find(
-    (cp) =>
-      cp.type === 'EMAIL' && cp.isPrimary && cp.verificationStatus !== 'INVALID'
-  )
-  return email?.value || null
-}
-
-export function getPrimaryPhone(contactPoints: ContactPoint[]): string | null {
-  const phone = contactPoints.find(
-    (cp) =>
-      (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
-      cp.isPrimary &&
-      cp.verificationStatus !== 'INVALID'
-  )
-  return phone?.value || null
-}
-
 /**
  * Normalize phone to digits-only. Strips NANP country code (1) from 11-digit numbers.
  * Returns null for invalid numbers (<10 or >15 digits, or 11-digit non-NANP).

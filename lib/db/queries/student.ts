@@ -23,11 +23,14 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
+import {
+  ACTIVE_BILLING_ASSIGNMENT_WHERE,
+  extractPrimaryEmail,
+  extractPrimaryPhone,
+} from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
-import { isPrismaError } from '@/lib/utils/type-guards'
 
 export interface MahadStudent {
   id: string
@@ -118,12 +121,8 @@ type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
 
 function transformToStudent(profile: ProfileWithRelations): MahadStudent {
   // Extract primary contact points
-  const emailContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )
-  const phoneContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
+  const emailContact = extractPrimaryEmail(profile.person.contactPoints)
+  const phoneContact = extractPrimaryPhone(profile.person.contactPoints)
 
   // Get the most recent active enrollment
   const enrollment = profile.enrollments?.[0]
@@ -135,8 +134,8 @@ function transformToStudent(profile: ProfileWithRelations): MahadStudent {
   return {
     id: profile.id,
     name: profile.person.name,
-    email: emailContact?.value || null,
-    phone: phoneContact?.value || null,
+    email: emailContact,
+    phone: phoneContact,
     dateOfBirth: profile.person.dateOfBirth,
     gradeLevel: profile.gradeLevel,
     schoolName: profile.schoolName,
@@ -323,7 +322,7 @@ export async function getStudentsWithBatchFiltered(
                 ...(normalizedPhone
                   ? [
                       {
-                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
+                        type: 'PHONE' as ContactType,
                         value: normalizedPhone,
                       },
                     ]
@@ -763,7 +762,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
       person: {
         contactPoints: {
           some: {
-            type: { in: ['PHONE', 'WHATSAPP'] },
+            type: 'PHONE',
           },
         },
       },
@@ -774,7 +773,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
         include: {
           contactPoints: {
             where: {
-              type: { in: ['PHONE', 'WHATSAPP'] },
+              type: 'PHONE',
             },
           },
         },
@@ -888,28 +887,41 @@ export async function resolveDuplicateStudents(
     }
 
     if (mergeData) {
-      const keepContacts = keepProfile.person.contactPoints
+      // Seed with active keep-side contacts. Updated as new contacts are created
+      // so duplicate contacts across multiple deleteProfiles don't cause P2002.
+      const keepContactKeys = new Set(
+        keepProfile.person.contactPoints
+          .filter((kc) => kc.isActive)
+          .map((kc) => {
+            const v =
+              kc.type === 'PHONE'
+                ? (normalizePhone(kc.value) ?? kc.value)
+                : kc.value.toLowerCase().trim()
+            return `${kc.type}:${v}`
+          })
+      )
       for (const delProfile of deleteProfiles) {
         for (const contact of delProfile.person.contactPoints) {
-          const alreadyExists = keepContacts.some(
-            (kc) => kc.type === contact.type && kc.value === contact.value
-          )
-          if (!alreadyExists) {
-            try {
-              await tx.contactPoint.create({
-                data: {
-                  personId: keepProfile.personId,
-                  type: contact.type,
-                  value: contact.value,
-                  isPrimary: false,
-                  isActive: contact.isActive,
-                },
-              })
-            } catch (error) {
-              if (!isPrismaError(error) || error.code !== 'P2002') {
-                throw error
-              }
-            }
+          if (!contact.isActive) continue
+
+          const normalizedValue =
+            contact.type === 'PHONE'
+              ? normalizePhone(contact.value)
+              : contact.value.toLowerCase().trim()
+          if (!normalizedValue) continue
+
+          const key = `${contact.type}:${normalizedValue}`
+          if (!keepContactKeys.has(key)) {
+            await tx.contactPoint.create({
+              data: {
+                personId: keepProfile.personId,
+                type: contact.type,
+                value: normalizedValue,
+                isPrimary: true,
+                isActive: true,
+              },
+            })
+            keepContactKeys.add(key)
           }
         }
       }
@@ -1044,7 +1056,7 @@ export async function getStudentCompleteness(
     (cp) => cp.type === 'EMAIL'
   )
   const phoneContact = profile.person.contactPoints.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    (cp) => cp.type === 'PHONE'
   )
 
   const values = {

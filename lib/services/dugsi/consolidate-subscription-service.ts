@@ -25,6 +25,10 @@ import {
   upsertBillingAccount,
 } from '@/lib/db/queries/billing'
 import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
+import {
+  extractPrimaryEmail,
+  extractPrimaryPhone,
+} from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -53,7 +57,11 @@ interface FamilyPayerData {
   primaryPayer: {
     id: string
     name: string
-    contactPoints?: Array<{ type: string; value: string }>
+    contactPoints?: Array<{
+      type: 'EMAIL' | 'PHONE'
+      value: string
+      isPrimary?: boolean
+    }>
   }
   payerEmail: string | null
   payerPhone: string | null
@@ -119,12 +127,8 @@ async function fetchFamilyPayerData(
   }
 
   const primaryPayer = primaryPayerRelation.guardian
-  const payerEmail =
-    primaryPayer.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value || null
-  const payerPhone =
-    primaryPayer.contactPoints?.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )?.value || null
+  const payerEmail = extractPrimaryEmail(primaryPayer.contactPoints)
+  const payerPhone = extractPrimaryPhone(primaryPayer.contactPoints)
 
   return { familyProfiles, primaryPayer, payerEmail, payerPhone }
 }
