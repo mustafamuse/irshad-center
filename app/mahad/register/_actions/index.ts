@@ -101,7 +101,7 @@ export async function registerStudent(
       return {
         success: false,
         error: message,
-        errors: { email: [message] },
+        errors: { email: [message], phone: [message] },
       }
     }
     await logError(logger, error, 'Mahad registration failed')
