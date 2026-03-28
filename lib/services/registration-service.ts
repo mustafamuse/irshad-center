@@ -1226,7 +1226,12 @@ export async function findOrCreatePersonWithContact(
 
       if (phone) {
         const normalizedPhone = normalizePhone(phone)
-        if (normalizedPhone && !existingPhones.includes(normalizedPhone)) {
+        if (!normalizedPhone) {
+          logger.warn(
+            { phone },
+            'findOrCreatePersonWithContact: phone failed normalization, skipping contact creation'
+          )
+        } else if (!existingPhones.includes(normalizedPhone)) {
           contactPointsToCreate.push({
             personId: existingPerson.id,
             type: 'PHONE',
