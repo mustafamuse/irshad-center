@@ -21,36 +21,37 @@ async function fixContactData() {
   for (const phone of elevenDigit) {
     const stripped = phone.value.slice(1)
 
-    const collision = await prisma.contactPoint.findFirst({
-      where: {
-        personId: phone.personId,
-        type: 'PHONE',
-        value: stripped,
-        isActive: true,
-      },
-    })
-
-    if (collision) {
-      await prisma.contactPoint.update({
-        where: { id: phone.id },
-        data: { isActive: false, deactivatedAt: new Date() },
-      })
-      console.log(
-        `  Deactivated ${phone.person.name}: ${phone.value} (collision with existing ${stripped})`
-      )
-      phonesDeactivated++
-      continue
-    }
-
     try {
-      await prisma.contactPoint.update({
-        where: { id: phone.id },
-        data: { value: stripped },
+      await prisma.$transaction(async (tx) => {
+        const collision = await tx.contactPoint.findFirst({
+          where: {
+            personId: phone.personId,
+            type: 'PHONE',
+            value: stripped,
+            isActive: true,
+          },
+        })
+
+        if (collision) {
+          await tx.contactPoint.update({
+            where: { id: phone.id },
+            data: { isActive: false, deactivatedAt: new Date() },
+          })
+          console.log(
+            `  Deactivated ${phone.person.name}: ${phone.value} (collision with existing ${stripped})`
+          )
+          phonesDeactivated++
+        } else {
+          await tx.contactPoint.update({
+            where: { id: phone.id },
+            data: { value: stripped },
+          })
+          console.log(
+            `  Updated ${phone.person.name}: ${phone.value} -> ${stripped}`
+          )
+          phonesUpdated++
+        }
       })
-      console.log(
-        `  Updated ${phone.person.name}: ${phone.value} -> ${stripped}`
-      )
-      phonesUpdated++
     } catch (error) {
       console.error(
         `  Failed ${phone.person.name}: ${phone.value}`,

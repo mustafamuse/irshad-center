@@ -211,7 +211,11 @@ function mapEnrollmentToStudentDTO(enrollment: {
     billingType: StudentBillingType | null
     person: {
       name: string
-      contactPoints?: Array<{ type: 'EMAIL' | 'PHONE'; value: string }>
+      contactPoints?: Array<{
+        type: 'EMAIL' | 'PHONE'
+        value: string
+        isPrimary?: boolean
+      }>
     }
     assignments: Array<{
       subscription: {

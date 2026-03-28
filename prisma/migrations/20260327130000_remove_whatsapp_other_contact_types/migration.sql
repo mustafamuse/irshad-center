@@ -1,6 +1,16 @@
 -- Remove WHATSAPP and OTHER from ContactType enum.
 -- Database has 0 WHATSAPP and 0 OTHER records (verified 2026-03-27).
 
+-- Guard: abort with a clear message if any WHATSAPP/OTHER rows exist
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM "ContactPoint" WHERE type::text IN ('WHATSAPP', 'OTHER')
+  ) THEN
+    RAISE EXCEPTION 'Cannot remove enum values: WHATSAPP or OTHER rows still exist in ContactPoint';
+  END IF;
+END $$;
+
 -- Step 1: Create new enum without WHATSAPP and OTHER
 CREATE TYPE "ContactType_new" AS ENUM ('EMAIL', 'PHONE');
 

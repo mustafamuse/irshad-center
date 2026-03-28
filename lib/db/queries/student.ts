@@ -27,7 +27,6 @@ import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
-import { isPrismaError } from '@/lib/utils/type-guards'
 
 export interface MahadStudent {
   id: string
@@ -891,30 +890,29 @@ export async function resolveDuplicateStudents(
       const keepContacts = keepProfile.person.contactPoints
       for (const delProfile of deleteProfiles) {
         for (const contact of delProfile.person.contactPoints) {
+          const normalizedValue =
+            contact.type === 'PHONE'
+              ? normalizePhone(contact.value)
+              : contact.value.toLowerCase().trim()
+          if (!normalizedValue) continue
+
           const alreadyExists = keepContacts.some(
-            (kc) => kc.type === contact.type && kc.value === contact.value
+            (kc) =>
+              kc.type === contact.type &&
+              (kc.type === 'PHONE'
+                ? normalizePhone(kc.value) === normalizedValue
+                : kc.value.toLowerCase().trim() === normalizedValue)
           )
           if (!alreadyExists) {
-            const normalizedValue =
-              contact.type === 'PHONE'
-                ? normalizePhone(contact.value)
-                : contact.value.toLowerCase().trim()
-            if (!normalizedValue) continue
-            try {
-              await tx.contactPoint.create({
-                data: {
-                  personId: keepProfile.personId,
-                  type: contact.type,
-                  value: normalizedValue,
-                  isPrimary: true,
-                  isActive: contact.isActive,
-                },
-              })
-            } catch (error) {
-              if (!isPrismaError(error) || error.code !== 'P2002') {
-                throw error
-              }
-            }
+            await tx.contactPoint.create({
+              data: {
+                personId: keepProfile.personId,
+                type: contact.type,
+                value: normalizedValue,
+                isPrimary: true,
+                isActive: contact.isActive,
+              },
+            })
           }
         }
       }
