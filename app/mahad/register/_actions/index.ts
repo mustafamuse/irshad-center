@@ -98,7 +98,8 @@ export async function registerStudent(
     ) {
       return {
         success: false,
-        error: 'A student with this contact information already exists',
+        error:
+          'This contact information is already registered to another person',
       }
     }
     await logError(logger, error, 'Mahad registration failed')

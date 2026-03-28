@@ -102,6 +102,10 @@ export async function createMahadStudent(input: StudentCreateInput) {
           (cp) => cp.type === 'EMAIL' && cp.value === normalizedEmail
         )
         if (emailContact && !emailContact.isActive) {
+          // Read-first guard: prevent P2002 on unique_active_contact_globally.
+          // A residual TOCTOU race exists under concurrent registrations
+          // (two txns read null, both attempt update). The server action
+          // catches P2002 outside the transaction as a fallback.
           const claimedEmail = await tx.contactPoint.findFirst({
             where: {
               type: 'EMAIL',
@@ -140,6 +144,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
             cp.value === normalizedPhone
         )
         if (phoneContact && !phoneContact.isActive) {
+          // Same read-first guard as email above; see TOCTOU comment there
           const claimedPhone = await tx.contactPoint.findFirst({
             where: {
               type: phoneContact.type,
