@@ -10,10 +10,7 @@
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
-import {
-  extractStudentEmail,
-  extractStudentPhone,
-} from '@/lib/mappers/mahad-mapper'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 
 const logger = createActionLogger('backup-data')
 
@@ -201,9 +198,8 @@ export async function backupData(): Promise<BackupResult> {
       const assignment = profile.assignments[0]
       const subscription = assignment?.subscription
 
-      // Use shared contact helpers
-      const email = extractStudentEmail({ person })
-      const phone = extractStudentPhone({ person })
+      const email = getPrimaryEmail(person.contactPoints)
+      const phone = getPrimaryPhone(person.contactPoints)
 
       return {
         id: profile.id,

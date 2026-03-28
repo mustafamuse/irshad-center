@@ -58,6 +58,7 @@ import {
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 import { createErrorResult } from '@/lib/utils/action-helpers'
 import {
   UpdateFamilyShiftSchema,
@@ -974,13 +975,8 @@ export async function getAvailableDugsiTeachers(): Promise<
     const teacherList = teachers.map((t) => ({
       id: t.id,
       name: t.person.name,
-      email:
-        t.person.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value ??
-        null,
-      phone:
-        t.person.contactPoints?.find(
-          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-        )?.value ?? null,
+      email: getPrimaryEmail(t.person.contactPoints),
+      phone: getPrimaryPhone(t.person.contactPoints),
     }))
 
     return { success: true, data: teacherList }

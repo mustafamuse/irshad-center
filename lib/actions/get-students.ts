@@ -18,6 +18,7 @@ import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 
 // Re-export StudentStatus from canonical source
@@ -225,11 +226,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
   const assignment = profile.assignments[0]
   const subscription = assignment?.subscription
 
-  // Extract contact points (inline to match local narrow type)
-  const emailContact = person.contactPoints?.find((cp) => cp.type === 'EMAIL')
-  const phoneContact = person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
+  const emailContact = getPrimaryEmail(person.contactPoints)
+  const phoneContact = getPrimaryPhone(person.contactPoints)
 
   // Determine subscription status
   const hasActiveSubscription =
@@ -257,8 +255,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
     siblingGroupId: null, // Intentionally null - use getSiblings() for sibling data
     batchId: enrollment.batch?.id ?? null,
     batchName: enrollment.batch?.name ?? null,
-    email: emailContact?.value ?? null,
-    phone: phoneContact?.value ?? null,
+    email: emailContact,
+    phone: phoneContact,
     stripeCustomerId: subscription?.stripeCustomerId ?? null,
     stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
     subscriptionStatus: subscription?.status ?? null,

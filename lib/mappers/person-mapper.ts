@@ -11,7 +11,7 @@ import {
 } from '@prisma/client'
 
 import { PROGRAM_LABELS } from '@/lib/constants/program-ui'
-import { extractContactInfo } from '@/lib/utils/contact-helpers'
+import { getContactInfo } from '@/lib/types/person'
 
 /**
  * Search result for person lookup.
@@ -85,7 +85,7 @@ type PersonWithRelations = Person & {
 export function mapPersonToSearchResult(
   person: PersonWithRelations
 ): PersonSearchResult {
-  const { email, phone } = extractContactInfo(person.contactPoints)
+  const { email, phone } = getContactInfo(person.contactPoints)
 
   const roles: string[] = []
   const roleDetails: PersonSearchResult['roleDetails'] = {}

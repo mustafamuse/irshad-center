@@ -34,6 +34,7 @@ import {
   createSubscriptionFromStripe,
   updateSubscriptionStatus,
 } from '@/lib/services/shared/subscription-service'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 import { extractCustomerId, extractPeriodDates } from '@/lib/utils/type-guards'
 
@@ -310,13 +311,8 @@ export async function searchStudentsForLinking(
       LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
-    const email =
-      profile.person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
-      ''
-    const phone =
-      profile.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-      )?.value || null
+    const email = getPrimaryEmail(profile.person.contactPoints) || ''
+    const phone = getPrimaryPhone(profile.person.contactPoints)
 
     matches.push({
       id: profile.id,
@@ -381,13 +377,8 @@ export async function getPotentialStudentMatches(
       LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
-    const profileEmail =
-      profile.person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
-      ''
-    const phone =
-      profile.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-      )?.value || null
+    const profileEmail = getPrimaryEmail(profile.person.contactPoints) || ''
+    const phone = getPrimaryPhone(profile.person.contactPoints)
 
     matches.push({
       id: profile.id,

@@ -45,22 +45,43 @@ export interface PersonWithRelations extends Person {
   dependentRelationships: GuardianRelationship[]
 }
 
-export function getPrimaryEmail(contactPoints: ContactPoint[]): string | null {
-  const email = contactPoints.find(
-    (cp) =>
-      cp.type === 'EMAIL' && cp.isPrimary && cp.verificationStatus !== 'INVALID'
-  )
-  return email?.value || null
+interface ContactPointLike {
+  type: string
+  value: string
+  isPrimary?: boolean
 }
 
-export function getPrimaryPhone(contactPoints: ContactPoint[]): string | null {
-  const phone = contactPoints.find(
-    (cp) =>
-      (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
-      cp.isPrimary &&
-      cp.verificationStatus !== 'INVALID'
+export function getPrimaryEmail(
+  contactPoints: ContactPointLike[] | null | undefined
+): string | null {
+  if (!contactPoints) return null
+  const primary = contactPoints.find(
+    (cp) => cp.type === 'EMAIL' && cp.isPrimary
   )
-  return phone?.value || null
+  return (
+    primary?.value ||
+    contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
+    null
+  )
+}
+
+export function getPrimaryPhone(
+  contactPoints: ContactPointLike[] | null | undefined
+): string | null {
+  if (!contactPoints) return null
+  const isPhone = (cp: ContactPointLike) =>
+    cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+  const primary = contactPoints.find((cp) => isPhone(cp) && cp.isPrimary)
+  return primary?.value || contactPoints.find(isPhone)?.value || null
+}
+
+export function getContactInfo(
+  contactPoints: ContactPointLike[] | null | undefined
+): { email: string | null; phone: string | null } {
+  return {
+    email: getPrimaryEmail(contactPoints),
+    phone: getPrimaryPhone(contactPoints),
+  }
 }
 
 /**

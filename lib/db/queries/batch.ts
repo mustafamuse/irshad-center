@@ -14,12 +14,10 @@
 import { EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import {
-  ACTIVE_MAHAD_ENROLLMENT_WHERE,
-  extractContactInfo,
-} from '@/lib/db/query-builders'
+import { ACTIVE_MAHAD_ENROLLMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { getContactInfo } from '@/lib/types/person'
 
 const logger = createServiceLogger('batch-queries')
 
@@ -277,7 +275,7 @@ export async function getBatchStudents(
   // Transform to student-like structure
   return enrollments.map((enrollment) => {
     const profile = enrollment.programProfile
-    const { email, phone } = extractContactInfo(profile.person.contactPoints)
+    const { email, phone } = getContactInfo(profile.person.contactPoints)
 
     return {
       id: profile.id,
@@ -711,7 +709,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
   })
 
   return profiles.map((profile) => {
-    const { email, phone } = extractContactInfo(profile.person.contactPoints)
+    const { email, phone } = getContactInfo(profile.person.contactPoints)
 
     return {
       id: profile.id,

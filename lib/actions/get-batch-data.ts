@@ -17,11 +17,8 @@ import {
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
-import {
-  mahadEnrollmentInclude,
-  extractStudentEmail,
-  extractStudentPhone,
-} from '@/lib/mappers/mahad-mapper'
+import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 
 const logger = createActionLogger('batch-data')
 
@@ -276,9 +273,8 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     const profile = enrollment.programProfile
     const person = profile.person
 
-    // Use shared contact helpers
-    const email = extractStudentEmail({ person })
-    const phone = extractStudentPhone({ person })
+    const email = getPrimaryEmail(person.contactPoints)
+    const phone = getPrimaryPhone(person.contactPoints)
 
     // Find sibling group using O(1) lookup
     const siblingGroup = profileToGroupMap.get(profile.id) ?? null

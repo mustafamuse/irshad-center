@@ -32,6 +32,7 @@ import {
   unlinkSubscription,
 } from '@/lib/services/shared/billing-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 import {
   formatRateDisplay,
   getRateTierDescription,
@@ -119,12 +120,8 @@ async function fetchFamilyPayerData(
   }
 
   const primaryPayer = primaryPayerRelation.guardian
-  const payerEmail =
-    primaryPayer.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value || null
-  const payerPhone =
-    primaryPayer.contactPoints?.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )?.value || null
+  const payerEmail = getPrimaryEmail(primaryPayer.contactPoints)
+  const payerPhone = getPrimaryPhone(primaryPayer.contactPoints)
 
   return { familyProfiles, primaryPayer, payerEmail, payerPhone }
 }

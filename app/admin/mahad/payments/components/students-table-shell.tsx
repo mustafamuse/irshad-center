@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/table'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 import { SearchParams } from '@/types'
 
 import { PaymentsPagination } from './payments-pagination'
@@ -232,10 +233,6 @@ export async function StudentsTableShell({
     const assignment = profile.assignments[0]
     const subscription = assignment?.subscription
 
-    // Get email and phone from contact points
-    const emailContact = person.contactPoints.find((cp) => cp.type === 'EMAIL')
-    const phoneContact = person.contactPoints.find((cp) => cp.type === 'PHONE')
-
     // Get subscription members from pre-fetched map (O(1) lookup)
     const subscriptionMembers =
       subscription?.id && subscriptionMembersMap.has(subscription.id)
@@ -245,8 +242,8 @@ export async function StudentsTableShell({
     return {
       id: profile.id,
       name: person.name,
-      email: emailContact?.value ?? null,
-      phone: phoneContact?.value ?? null,
+      email: getPrimaryEmail(person.contactPoints),
+      phone: getPrimaryPhone(person.contactPoints),
       status: enrollment.status.toLowerCase(),
       stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
       subscriptionStatus: subscription?.status ?? null,

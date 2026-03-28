@@ -34,8 +34,8 @@ import {
 } from '@/lib/services/shared/teacher-service'
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
+import { getContactInfo } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
-import { extractContactInfo } from '@/lib/utils/contact-helpers'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -185,7 +185,7 @@ export async function getTeachers(
 
       const teachersWithDetails: TeacherWithDetails[] = teachers.map(
         (teacher) => {
-          const { email, phone } = extractContactInfo(
+          const { email, phone } = getContactInfo(
             teacher.person.contactPoints || []
           )
           const status = statusMap.get(teacher.id)
@@ -246,7 +246,7 @@ export async function getTeachers(
     )
 
     const teachersWithDetails = teachers.map((teacher) => {
-      const { email, phone } = extractContactInfo(
+      const { email, phone } = getContactInfo(
         teacher.person.contactPoints || []
       )
 

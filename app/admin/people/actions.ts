@@ -4,6 +4,7 @@ import { Program } from '@prisma/client'
 
 import { getMultiRolePeople } from '@/lib/db/queries/person'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
 
 const logger = createServiceLogger('people-actions')
@@ -40,10 +41,8 @@ export async function getMultiRolePeopleAction(filters?: {
     const results: MultiRolePerson[] = people.map((person) => ({
       id: person.id,
       name: person.name,
-      email:
-        person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ?? null,
-      phone:
-        person.contactPoints.find((cp) => cp.type === 'PHONE')?.value ?? null,
+      email: getPrimaryEmail(person.contactPoints),
+      phone: getPrimaryPhone(person.contactPoints),
       roleCount: [
         person.teacher ? 1 : 0,
         person.programProfiles.length > 0 ? 1 : 0,

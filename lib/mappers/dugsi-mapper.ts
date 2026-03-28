@@ -19,6 +19,7 @@ import {
   ProgramProfileWithGuardians,
   ProgramProfileFull,
 } from '@/lib/db/prisma-helpers'
+import { getPrimaryEmail, getPrimaryPhone } from '@/lib/types/person'
 
 /**
  * Maps a ProgramProfile with full relations to a DugsiRegistration DTO.
@@ -48,12 +49,8 @@ export function mapProfileToDugsiRegistration(
 
   // Primary parent (first guardian)
   const parent1 = guardians[0]
-  const parent1Email = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent1Phone = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent1Email = getPrimaryEmail(parent1?.contactPoints)
+  const parent1Phone = getPrimaryPhone(parent1?.contactPoints)
   const parent1Name = parent1?.name
   const parent1NameParts = parent1Name ? parent1Name.split(' ') : []
   const parent1FirstName = parent1NameParts[0] || null
@@ -61,12 +58,8 @@ export function mapProfileToDugsiRegistration(
 
   // Second parent (second guardian)
   const parent2 = guardians[1]
-  const parent2Email = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent2Phone = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent2Email = getPrimaryEmail(parent2?.contactPoints)
+  const parent2Phone = getPrimaryPhone(parent2?.contactPoints)
   const parent2Name = parent2?.name
   const parent2NameParts = parent2Name ? parent2Name.split(' ') : []
   const parent2FirstName = parent2NameParts[0] || null
@@ -90,12 +83,8 @@ export function mapProfileToDugsiRegistration(
   const classTeachers = dugsiClass?.teachers || []
   const primaryClassTeacher = classTeachers[0]?.teacher
   const primaryTeacher = primaryClassTeacher?.person
-  const primaryTeacherEmail = primaryTeacher?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const primaryTeacherPhone = primaryTeacher?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const primaryTeacherEmail = getPrimaryEmail(primaryTeacher?.contactPoints)
+  const primaryTeacherPhone = getPrimaryPhone(primaryTeacher?.contactPoints)
 
   // Set shift-specific teacher based on class shift
   const classShift = dugsiClass?.shift
@@ -203,12 +192,8 @@ export function mapProfileToSimpleDugsiRegistration(
 
   // Primary parent
   const parent1 = guardians[0]
-  const parent1Email = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent1Phone = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent1Email = getPrimaryEmail(parent1?.contactPoints)
+  const parent1Phone = getPrimaryPhone(parent1?.contactPoints)
   const parent1Name = parent1?.name
   const parent1NameParts = parent1Name ? parent1Name.split(' ') : []
   const parent1FirstName = parent1NameParts[0] || null
@@ -216,12 +201,8 @@ export function mapProfileToSimpleDugsiRegistration(
 
   // Second parent
   const parent2 = guardians[1]
-  const parent2Email = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent2Phone = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent2Email = getPrimaryEmail(parent2?.contactPoints)
+  const parent2Phone = getPrimaryPhone(parent2?.contactPoints)
   const parent2Name = parent2?.name
   const parent2NameParts = parent2Name ? parent2Name.split(' ') : []
   const parent2FirstName = parent2NameParts[0] || null
@@ -259,17 +240,4 @@ export function mapProfileToSimpleDugsiRegistration(
 
     familyReferenceId: profile.familyReferenceId,
   }
-}
-
-/**
- * Helper to extract parent email from a profile.
- * Used for delete previews and other operations that need just the parent contact.
- */
-export function extractParentEmail(
-  profile: ProgramProfileWithGuardians
-): string | null {
-  const guardian = profile.person.dependentRelationships?.[0]?.guardian
-  return (
-    guardian?.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value ?? null
-  )
 }
