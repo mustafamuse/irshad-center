@@ -29,6 +29,7 @@ import {
 import {
   ACTIVE_BILLING_ASSIGNMENT_WHERE,
   extractPrimaryEmail,
+  extractPrimaryPhone,
 } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
@@ -1200,13 +1201,8 @@ export async function generatePaymentLinkWithOverrideAction(
     }
 
     // 7. Validate email exists
-    const emailContact = profile.person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL'
-    )
-    const phoneContact = profile.person.contactPoints.find(
-      (cp) => cp.type === 'PHONE'
-    )
-    const email = emailContact?.value
+    const email = extractPrimaryEmail(profile.person.contactPoints)
+    const phone = extractPrimaryPhone(profile.person.contactPoints)
 
     if (!email) {
       return {
@@ -1341,7 +1337,7 @@ export async function generatePaymentLinkWithOverrideAction(
           billingType: profile.billingType,
         },
         studentName: profile.person.name,
-        studentPhone: phoneContact?.value ?? null,
+        studentPhone: phone,
       },
     }
   } catch (error) {
