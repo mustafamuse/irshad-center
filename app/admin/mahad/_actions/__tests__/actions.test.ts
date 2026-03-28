@@ -21,6 +21,10 @@ const {
   mockBillingAssignmentFindMany,
   mockBillingAssignmentFindFirst,
   mockPrismaDeleteMany,
+  mockPersonUpdate,
+  mockContactPointUpdate,
+  mockContactPointCreate,
+  mockContactPointFindFirst,
   mockAfter,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
@@ -43,6 +47,10 @@ const {
   mockStripeSessionCreate: vi.fn(),
   mockBillingAssignmentFindMany: vi.fn(),
   mockBillingAssignmentFindFirst: vi.fn(),
+  mockPersonUpdate: vi.fn(),
+  mockContactPointUpdate: vi.fn(),
+  mockContactPointCreate: vi.fn(),
+  mockContactPointFindFirst: vi.fn(),
   mockAfter: vi.fn((fn: () => void) => fn()),
 }))
 
@@ -68,6 +76,14 @@ vi.mock('@/lib/db', () => ({
           mockBillingAssignmentFindMany(...args),
         findFirst: (...args: unknown[]) =>
           mockBillingAssignmentFindFirst(...args),
+      },
+      person: {
+        update: (...args: unknown[]) => mockPersonUpdate(...args),
+      },
+      contactPoint: {
+        update: (...args: unknown[]) => mockContactPointUpdate(...args),
+        create: (...args: unknown[]) => mockContactPointCreate(...args),
+        findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
       },
     }
     client.$transaction = (fn: (tx: unknown) => Promise<unknown>) => fn(client)
@@ -135,6 +151,7 @@ import {
   bulkDeleteStudentsAction,
   getStudentDeleteWarningsAction,
   generatePaymentLinkAction,
+  updateStudentAction,
 } from '../index'
 
 const VALID_BATCH_ID = '550e8400-e29b-41d4-a716-446655440000'
@@ -856,6 +873,89 @@ describe('Payment Link Actions', () => {
             payment_method_types: ['us_bank_account'],
           })
         )
+      })
+    })
+  })
+})
+
+describe('Student Update Actions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  describe('updateStudentAction', () => {
+    const mockProfile = {
+      id: 'profile-1',
+      personId: 'person-1',
+      person: {
+        contactPoints: [
+          { id: 'cp-1', type: 'PHONE', isActive: true, isPrimary: true },
+        ],
+      },
+      enrollments: [{ id: 'enroll-1' }],
+    }
+
+    beforeEach(() => {
+      mockGetStudentById.mockResolvedValue({ id: 'profile-1' })
+      mockPrismaFindUnique.mockResolvedValue(mockProfile)
+      mockContactPointUpdate.mockResolvedValue({ id: 'cp-1' })
+      mockContactPointCreate.mockResolvedValue({ id: 'cp-new' })
+      mockContactPointFindFirst.mockResolvedValue({
+        id: 'cp-1',
+        type: 'PHONE',
+        isActive: true,
+        isPrimary: true,
+      })
+    })
+
+    it('should normalize phone before storing (612-555-1234 → 6125551234)', async () => {
+      const result = await updateStudentAction('profile-1', {
+        phone: '612-555-1234',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockPersonUpdate).not.toHaveBeenCalled()
+      expect(mockContactPointUpdate).toHaveBeenCalledWith({
+        where: { id: 'cp-1' },
+        data: { value: '6125551234' },
+      })
+    })
+
+    it('should reject invalid phone number', async () => {
+      const result = await updateStudentAction('profile-1', {
+        phone: '123',
+      })
+
+      expect(result.success).toBe(false)
+    })
+
+    it('should strip NANP country code (+16125551234 → 6125551234)', async () => {
+      const result = await updateStudentAction('profile-1', {
+        phone: '+1 (612) 555-1234',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockContactPointUpdate).toHaveBeenCalledWith({
+        where: { id: 'cp-1' },
+        data: { value: '6125551234' },
+      })
+    })
+
+    it('should create contact point with isPrimary=false when no phone exists', async () => {
+      mockContactPointFindFirst.mockResolvedValueOnce(null)
+
+      const result = await updateStudentAction('profile-1', {
+        phone: '612-555-1234',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockContactPointCreate).toHaveBeenCalledWith({
+        data: {
+          personId: 'person-1',
+          type: 'PHONE',
+          value: '6125551234',
+          isPrimary: false,
+        },
       })
     })
   })

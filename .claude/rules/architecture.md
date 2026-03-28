@@ -1,10 +1,10 @@
 ---
 paths:
-  - "lib/services/**"
-  - "lib/db/**"
-  - "lib/mappers/**"
-  - "app/**/actions.ts"
-  - "app/api/**"
+  - 'lib/services/**'
+  - 'lib/db/**'
+  - 'lib/mappers/**'
+  - 'app/**/actions.ts'
+  - 'app/api/**'
 ---
 
 ## Architecture Patterns
@@ -53,9 +53,20 @@ export async function myAction(input: Input): Promise<ActionResult<Output>> {
 ```typescript
 // No DB calls, no business logic, pure functions, typed inputs
 export function mapEnrollmentToStudent(enrollment: EnrollmentFull): StudentDTO {
-  return { /* pure transformation */ }
+  return {
+    /* pure transformation */
+  }
 }
 ```
+
+### ContactPoint Rules
+
+When working with `contactPoint` records, follow these rules to avoid data bugs:
+
+1. **Always set `isPrimary`** on `contactPoint.create` — EMAIL gets `isPrimary: true`, PHONE/WHATSAPP get `isPrimary: false` (matches parent-service, student-service, and teacher actions convention)
+2. **Always filter `isActive: true`** when looking up existing contact points — never match soft-deleted records
+3. **Never try-catch P2002 inside `$transaction()`** — PostgreSQL aborts the transaction on constraint violations; any `tx` operations in the catch block are dead code. Use read-first pattern: `tx.contactPoint.findFirst` before `create` to decide update vs create
+4. **Validate input before opening a transaction** — normalize/validate phones, emails, etc. before `prisma.$transaction()` to avoid wasting DB connections on invalid input
 
 ### Webhook Handler Factory
 

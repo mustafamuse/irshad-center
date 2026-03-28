@@ -1,14 +1,5 @@
 'use server'
 
-/**
- * Batch Management Server Actions
- *
- * Server-side mutations for batch and student operations.
- * Only includes actively used actions - dead code removed.
- *
- * Uses Prisma-generated types and error codes for better type safety.
- */
-
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { after } from 'next/server'
 
@@ -41,6 +32,7 @@ import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger, logError } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 import {
   calculateMahadRate,
   getStripeInterval,
@@ -67,9 +59,6 @@ const logger = createActionLogger('mahad')
 // TYPE DEFINITIONS
 // ============================================================================
 
-/**
- * Action result type for consistent response structure
- */
 type ActionResult<T = void> = {
   success: boolean
   data?: T
@@ -77,9 +66,6 @@ type ActionResult<T = void> = {
   errors?: Partial<Record<string, string[]>>
 }
 
-/**
- * Type aliases for cleaner function signatures
- */
 type BatchData = Awaited<ReturnType<typeof createBatch>>
 type AssignmentResult = {
   assignedCount: number
@@ -94,18 +80,12 @@ type TransferResult = {
 // PRISMA ERROR HANDLING
 // ============================================================================
 
-/**
- * Prisma error code constants
- */
 const PRISMA_ERRORS = {
   UNIQUE_CONSTRAINT: 'P2002',
   RECORD_NOT_FOUND: 'P2025',
   FOREIGN_KEY_CONSTRAINT: 'P2003',
 } as const
 
-/**
- * Check if error is a Prisma error
- */
 function isPrismaError(
   error: unknown
 ): error is Prisma.PrismaClientKnownRequestError {
@@ -116,9 +96,6 @@ function isPrismaError(
   )
 }
 
-/**
- * Centralized error handler for all actions
- */
 async function handleActionError<T = void>(
   error: unknown,
   action: string,
@@ -163,9 +140,6 @@ async function handleActionError<T = void>(
 // BATCH ACTIONS
 // ============================================================================
 
-/**
- * Create a new batch
- */
 export async function createBatchAction(
   formData: FormData
 ): Promise<ActionResult<BatchData>> {
@@ -207,9 +181,6 @@ export async function createBatchAction(
   }
 }
 
-/**
- * Delete a batch with safety checks
- */
 export async function deleteBatchAction(id: string): Promise<ActionResult> {
   try {
     const batch = await getBatchById(id)
@@ -248,9 +219,6 @@ export async function deleteBatchAction(id: string): Promise<ActionResult> {
   }
 }
 
-/**
- * Update an existing batch
- */
 export async function updateBatchAction(
   id: string,
   data: { name?: string; startDate?: Date | null; endDate?: Date | null }
@@ -295,9 +263,6 @@ export async function updateBatchAction(
 // ASSIGNMENT ACTIONS
 // ============================================================================
 
-/**
- * Assign students to a batch
- */
 export async function assignStudentsAction(
   batchId: string,
   studentIds: string[]
@@ -341,9 +306,6 @@ export async function assignStudentsAction(
   }
 }
 
-/**
- * Transfer students between batches
- */
 export async function transferStudentsAction(
   fromBatchId: string,
   toBatchId: string,
@@ -422,9 +384,6 @@ export async function transferStudentsAction(
 // DUPLICATE RESOLUTION ACTIONS
 // ============================================================================
 
-/**
- * Resolve duplicate students
- */
 export async function resolveDuplicatesAction(
   keepId: string,
   deleteIds: string[],
@@ -502,9 +461,6 @@ export async function resolveDuplicatesAction(
 // STUDENT DELETION ACTIONS
 // ============================================================================
 
-/**
- * Get delete warnings for a student
- */
 export async function getStudentDeleteWarningsAction(
   id: string
 ): Promise<ActionResult<DeleteWarnings>> {
@@ -527,9 +483,6 @@ export async function getStudentDeleteWarningsAction(
   }
 }
 
-/**
- * Delete a single student
- */
 export async function deleteStudentAction(id: string): Promise<ActionResult> {
   const validId = z.string().uuid().safeParse(id)
   if (!validId.success) {
@@ -586,9 +539,6 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
   }
 }
 
-/**
- * Bulk delete students
- */
 export async function bulkDeleteStudentsAction(
   studentIds: string[]
 ): Promise<ActionResult<BulkDeleteResult>> {
@@ -657,24 +607,35 @@ export async function bulkDeleteStudentsAction(
   }
 }
 
-/**
- * Update a student
- */
 export async function updateStudentAction(
   id: string,
   data: UpdateStudentPayload
 ): Promise<ActionResult> {
   try {
-    // Validate input data
     const validated = UpdateStudentSchema.parse(data)
 
-    // Get current student to check if it exists
     const currentStudent = await getStudentById(id)
     if (!currentStudent) {
       return {
         success: false,
         error: 'Student not found',
       }
+    }
+
+    const normalizedPhone = validated.phone
+      ? normalizePhone(validated.phone)
+      : undefined
+    if (
+      validated.phone !== undefined &&
+      validated.phone !== '' &&
+      !normalizedPhone
+    ) {
+      throw new ActionError(
+        'Invalid phone number. Expected 10-15 digits (e.g. 612-555-1234)',
+        ERROR_CODES.VALIDATION_ERROR,
+        'phone',
+        400
+      )
     }
 
     await prisma.$transaction(async (tx) => {
@@ -730,24 +691,22 @@ export async function updateStudentAction(
       }
 
       if (validated.phone !== undefined) {
-        const existingPhone = profile.person.contactPoints.find(
-          (c) => c.type === 'PHONE' && c.isActive
-        )
-        if (validated.phone) {
+        const existingPhone = await tx.contactPoint.findFirst({
+          where: { personId: profile.personId, type: 'PHONE', isActive: true },
+        })
+        if (normalizedPhone) {
           if (existingPhone) {
             await tx.contactPoint.update({
               where: { id: existingPhone.id },
-              data: { value: validated.phone },
+              data: { value: normalizedPhone },
             })
           } else {
             await tx.contactPoint.create({
               data: {
                 personId: profile.personId,
                 type: 'PHONE',
-                value: validated.phone,
-                isPrimary: !profile.person.contactPoints.some(
-                  (c) => c.isPrimary && c.isActive
-                ),
+                value: normalizedPhone,
+                isPrimary: false,
               },
             })
           }
@@ -830,9 +789,6 @@ export async function updateStudentAction(
 // PAYMENT LINK GENERATION
 // ============================================================================
 
-/**
- * Data type for payment link generation
- */
 export interface PaymentLinkData {
   url: string
   amount: number
@@ -840,15 +796,8 @@ export interface PaymentLinkData {
 }
 
 /**
- * Generate a Stripe checkout payment link for a student
- *
- * This action allows admins to generate payment links for students who:
- * - Registered but abandoned checkout
- * - Need a new payment link (e.g., payment method update)
- * - Have been configured with specific billing settings by admin
- *
- * @param profileId - The student's program profile ID
- * @returns Payment link URL and calculated amount, or error
+ * Generate Stripe checkout link for students who abandoned checkout,
+ * need a new link, or have been configured with billing settings by admin.
  */
 export async function generatePaymentLinkAction(
   profileId: string
@@ -1112,18 +1061,12 @@ export async function generatePaymentLinkWithDefaultsAction(
 // PAYMENT LINK WITH OVERRIDE
 // ============================================================================
 
-/**
- * Input for generating payment link with optional override
- */
 export interface GeneratePaymentLinkInput {
   profileId: string
   overrideAmount?: number // in cents
   billingStartDate?: string // ISO date string for delayed start
 }
 
-/**
- * Data type for payment link with override info
- */
 export interface PaymentLinkWithOverrideData {
   url: string
   calculatedAmount: number
@@ -1140,19 +1083,8 @@ export interface PaymentLinkWithOverrideData {
 }
 
 /**
- * Generate a Stripe checkout payment link with optional override amount.
- *
- * This action allows admins to:
- * - Generate payment links with calculated rate based on billing config
- * - Override the rate with a custom amount
- * - Get billing config info for display in the UI
- *
- * NOTE: No revalidatePath() is called because this action only creates a
- * Stripe checkout session - it does not modify database state. The actual
- * subscription/billing updates happen via webhook after payment completion.
- *
- * @param input - Profile ID and optional override amount (in cents)
- * @returns Payment link URL, amounts, and billing info
+ * No revalidatePath() needed -- only creates a Stripe checkout session.
+ * Subscription/billing updates happen via webhook after payment completion.
  */
 export async function generatePaymentLinkWithOverrideAction(
   input: GeneratePaymentLinkInput
