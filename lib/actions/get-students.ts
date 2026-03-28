@@ -16,7 +16,11 @@ import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
-import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+import {
+  extractPrimaryEmail,
+  extractPrimaryPhone,
+  LIVE_SUBSCRIPTION_STATUSES,
+} from '@/lib/db/query-builders'
 import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 
@@ -207,7 +211,7 @@ function mapEnrollmentToStudentDTO(enrollment: {
     billingType: StudentBillingType | null
     person: {
       name: string
-      contactPoints?: Array<{ type: string; value: string }>
+      contactPoints?: Array<{ type: 'EMAIL' | 'PHONE'; value: string }>
     }
     assignments: Array<{
       subscription: {
@@ -225,11 +229,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
   const assignment = profile.assignments[0]
   const subscription = assignment?.subscription
 
-  // Extract contact points (inline to match local narrow type)
-  const emailContact = person.contactPoints?.find((cp) => cp.type === 'EMAIL')
-  const phoneContact = person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
+  const email = extractPrimaryEmail(person.contactPoints)
+  const phone = extractPrimaryPhone(person.contactPoints)
 
   // Determine subscription status
   const hasActiveSubscription =
@@ -257,8 +258,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
     siblingGroupId: null, // Intentionally null - use getSiblings() for sibling data
     batchId: enrollment.batch?.id ?? null,
     batchName: enrollment.batch?.name ?? null,
-    email: emailContact?.value ?? null,
-    phone: phoneContact?.value ?? null,
+    email,
+    phone,
     stripeCustomerId: subscription?.stripeCustomerId ?? null,
     stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
     subscriptionStatus: subscription?.status ?? null,

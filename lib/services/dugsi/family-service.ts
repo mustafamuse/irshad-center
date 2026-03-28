@@ -131,7 +131,7 @@ export async function updateParentInfo(
         const phoneContact = await tx.contactPoint.findFirst({
           where: {
             personId: guardian.id,
-            type: { in: ['PHONE', 'WHATSAPP'] },
+            type: 'PHONE',
             isActive: true,
           },
         })
@@ -147,7 +147,7 @@ export async function updateParentInfo(
               personId: guardian.id,
               type: 'PHONE',
               value: normalizedPhone,
-              isPrimary: false,
+              isPrimary: true,
             },
           })
         }
@@ -211,7 +211,7 @@ export async function addSecondParent(
           const existingPhone = await tx.contactPoint.findFirst({
             where: {
               personId: existingPerson.id,
-              type: { in: ['PHONE', 'WHATSAPP'] },
+              type: 'PHONE',
               isActive: true,
             },
           })
@@ -226,7 +226,7 @@ export async function addSecondParent(
                 personId: existingPerson.id,
                 type: 'PHONE',
                 value: normalizedPhone,
-                isPrimary: false,
+                isPrimary: true,
               },
             })
           }
@@ -241,7 +241,7 @@ export async function addSecondParent(
                   {
                     type: 'PHONE',
                     value: normalizedPhone,
-                    isPrimary: false,
+                    isPrimary: true,
                   },
                 ],
               },

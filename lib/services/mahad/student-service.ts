@@ -120,9 +120,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
 
       if (normalizedPhone) {
         const phoneContact = dupResult.existingPerson.contactPoints.find(
-          (cp) =>
-            (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
-            cp.value === normalizedPhone
+          (cp) => cp.type === 'PHONE' && cp.value === normalizedPhone
         )
         if (phoneContact && !phoneContact.isActive) {
           await tx.contactPoint.update({
@@ -135,6 +133,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
               personId,
               type: 'PHONE',
               value: normalizedPhone,
+              isPrimary: true,
             },
           })
         }
@@ -158,6 +157,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
         contactPoints.push({
           type: 'PHONE' as const,
           value: normalizedPhone,
+          isPrimary: true,
         })
       }
 
@@ -313,6 +313,7 @@ export async function updateMahadStudent(
                 personId: personId,
                 type: 'PHONE',
                 value: normalizedPhone,
+                isPrimary: true,
               },
             })
           } catch (error) {

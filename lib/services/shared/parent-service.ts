@@ -126,7 +126,7 @@ export async function updateGuardianInfo(
 
       if (normalizedPhone !== null) {
         const existingPhone = guardian.contactPoints.find(
-          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+          (cp) => cp.type === 'PHONE'
         )
 
         if (existingPhone) {
@@ -141,6 +141,7 @@ export async function updateGuardianInfo(
                 personId: guardianId,
                 type: 'PHONE',
                 value: normalizedPhone,
+                isPrimary: true,
               },
             })
           } catch (error) {
@@ -227,7 +228,7 @@ export async function addGuardianRelationship(
       contactPointsToCreate.push({
         type: 'PHONE' as ContactType,
         value: normalizedPhone,
-        isPrimary: false,
+        isPrimary: true,
       })
     }
 

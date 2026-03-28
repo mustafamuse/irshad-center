@@ -941,7 +941,7 @@ describe('Student Update Actions', () => {
       })
     })
 
-    it('should create contact point with isPrimary=false when no phone exists', async () => {
+    it('should create contact point with isPrimary=true when no phone exists', async () => {
       mockContactPointFindFirst.mockResolvedValueOnce(null)
 
       const result = await updateStudentAction('profile-1', {
@@ -954,7 +954,7 @@ describe('Student Update Actions', () => {
           personId: 'person-1',
           type: 'PHONE',
           value: '6125551234',
-          isPrimary: false,
+          isPrimary: true,
         },
       })
     })

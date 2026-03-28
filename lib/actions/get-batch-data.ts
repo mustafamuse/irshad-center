@@ -16,6 +16,7 @@ import {
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { extractPrimaryPhone } from '@/lib/db/query-builders'
 import { createActionLogger, logError } from '@/lib/logger'
 import {
   mahadEnrollmentInclude,
@@ -371,15 +372,11 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
       .filter((cp) => cp.person.programProfiles.length > 0)
       .map((cp) => {
         const profile = cp.person.programProfiles[0]
-        const phoneContact = cp.person.contactPoints.find(
-          (c) => c.type === 'PHONE' || c.type === 'WHATSAPP'
-        )
-
         return {
           id: profile.id,
           name: cp.person.name,
           email: dup.value,
-          phone: phoneContact?.value ?? null,
+          phone: extractPrimaryPhone(cp.person.contactPoints),
           status: profile.enrollments[0]?.status || 'REGISTERED',
           createdAt: profile.createdAt,
         }

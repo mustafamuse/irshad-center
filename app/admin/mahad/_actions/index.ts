@@ -26,7 +26,10 @@ import {
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
-import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
+import {
+  ACTIVE_BILLING_ASSIGNMENT_WHERE,
+  extractPrimaryEmail,
+} from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger, logError } from '@/lib/logger'
@@ -706,7 +709,7 @@ export async function updateStudentAction(
                 personId: profile.personId,
                 type: 'PHONE',
                 value: normalizedPhone,
-                isPrimary: false,
+                isPrimary: true,
               },
             })
           }
@@ -865,7 +868,7 @@ export async function generatePaymentLinkAction(
     }
 
     // 5. Validate email exists
-    const email = profile.person.contactPoints[0]?.value
+    const email = extractPrimaryEmail(profile.person.contactPoints)
     if (!email) {
       return {
         success: false,
@@ -1201,7 +1204,7 @@ export async function generatePaymentLinkWithOverrideAction(
       (cp) => cp.type === 'EMAIL'
     )
     const phoneContact = profile.person.contactPoints.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+      (cp) => cp.type === 'PHONE'
     )
     const email = emailContact?.value
 

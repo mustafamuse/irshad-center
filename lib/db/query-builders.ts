@@ -249,7 +249,7 @@ export function buildProgramEnrollmentWhere(
  * Contact point with minimal required fields
  */
 export interface MinimalContactPoint {
-  type: 'EMAIL' | 'PHONE' | 'WHATSAPP' | 'OTHER'
+  type: 'EMAIL' | 'PHONE'
   value: string
   isPrimary?: boolean
 }
@@ -289,14 +289,13 @@ export function extractPrimaryPhone(
   if (!contactPoints) return null
   const phone = contactPoints.find(
     (cp) =>
-      (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
+      cp.type === 'PHONE' &&
       (cp.isPrimary === true || cp.isPrimary === undefined)
   )
   // Fall back to any phone if no primary found
   return (
     phone?.value ||
-    contactPoints.find((cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP')
-      ?.value ||
+    contactPoints.find((cp) => cp.type === 'PHONE')?.value ||
     null
   )
 }

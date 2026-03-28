@@ -184,8 +184,6 @@ enum StripeAccountType {
 enum ContactType {
   EMAIL
   PHONE
-  WHATSAPP
-  OTHER
 }
 
 enum ContactVerificationStatus {
@@ -243,9 +241,9 @@ model Person {
 model ContactPoint {
   id                 String                    @id @default(uuid())
   personId           String
-  type               ContactType // EMAIL, PHONE, WHATSAPP, or OTHER
+  type               ContactType // EMAIL or PHONE
   value              String // Email address or phone number (normalized)
-  isPrimary          Boolean                   @default(false) // Primary contact method for the person
+  isPrimary          Boolean                   @default(true) // Primary contact method for the person
   verificationStatus ContactVerificationStatus @default(UNVERIFIED) // Verification status of contact
   verifiedAt         DateTime? // Timestamp when contact was verified
   isActive           Boolean                   @default(true) // Soft-delete: allows email/phone reuse after deactivation

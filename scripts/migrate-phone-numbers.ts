@@ -6,7 +6,7 @@ async function migratePhoneNumbers() {
 
   const allPhones = await prisma.contactPoint.findMany({
     where: {
-      type: { in: ['PHONE', 'WHATSAPP'] },
+      type: 'PHONE',
       isActive: true,
     },
     include: {

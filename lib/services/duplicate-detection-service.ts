@@ -217,13 +217,12 @@ export class DuplicateDetectionService {
         )
       : false
 
-    // Check if submitted phone matches any phone/whatsapp contact point
+    // Check if submitted phone matches any phone contact point
     // Note: Phone numbers are stored normalized (digits only) in the database
     const phoneMatches = submittedPhone
       ? contactPoints.some(
           (cp) =>
-            (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
-            cp.value === normalizePhone(submittedPhone)
+            cp.type === 'PHONE' && cp.value === normalizePhone(submittedPhone)
         )
       : false
 

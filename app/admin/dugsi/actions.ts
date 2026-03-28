@@ -22,6 +22,10 @@ import {
   getClassById,
   getClassPreviewForDelete,
 } from '@/lib/db/queries/dugsi-class'
+import {
+  extractPrimaryEmail,
+  extractPrimaryPhone,
+} from '@/lib/db/query-builders'
 import { ActionError } from '@/lib/errors/action-error'
 import {
   ClassNotFoundError,
@@ -974,13 +978,8 @@ export async function getAvailableDugsiTeachers(): Promise<
     const teacherList = teachers.map((t) => ({
       id: t.id,
       name: t.person.name,
-      email:
-        t.person.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value ??
-        null,
-      phone:
-        t.person.contactPoints?.find(
-          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-        )?.value ?? null,
+      email: extractPrimaryEmail(t.person.contactPoints),
+      phone: extractPrimaryPhone(t.person.contactPoints),
     }))
 
     return { success: true, data: teacherList }

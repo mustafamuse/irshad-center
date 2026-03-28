@@ -122,7 +122,7 @@ function transformToStudent(profile: ProfileWithRelations): MahadStudent {
     (cp) => cp.type === 'EMAIL'
   )
   const phoneContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    (cp) => cp.type === 'PHONE'
   )
 
   // Get the most recent active enrollment
@@ -323,7 +323,7 @@ export async function getStudentsWithBatchFiltered(
                 ...(normalizedPhone
                   ? [
                       {
-                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
+                        type: 'PHONE' as ContactType,
                         value: normalizedPhone,
                       },
                     ]
@@ -763,7 +763,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
       person: {
         contactPoints: {
           some: {
-            type: { in: ['PHONE', 'WHATSAPP'] },
+            type: 'PHONE',
           },
         },
       },
@@ -774,7 +774,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
         include: {
           contactPoints: {
             where: {
-              type: { in: ['PHONE', 'WHATSAPP'] },
+              type: 'PHONE',
             },
           },
         },
@@ -895,13 +895,18 @@ export async function resolveDuplicateStudents(
             (kc) => kc.type === contact.type && kc.value === contact.value
           )
           if (!alreadyExists) {
+            const normalizedValue =
+              contact.type === 'PHONE'
+                ? normalizePhone(contact.value)
+                : contact.value.toLowerCase().trim()
+            if (!normalizedValue) continue
             try {
               await tx.contactPoint.create({
                 data: {
                   personId: keepProfile.personId,
                   type: contact.type,
-                  value: contact.value,
-                  isPrimary: false,
+                  value: normalizedValue,
+                  isPrimary: true,
                   isActive: contact.isActive,
                 },
               })
@@ -1044,7 +1049,7 @@ export async function getStudentCompleteness(
     (cp) => cp.type === 'EMAIL'
   )
   const phoneContact = profile.person.contactPoints.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    (cp) => cp.type === 'PHONE'
   )
 
   const values = {

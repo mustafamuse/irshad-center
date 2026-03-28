@@ -295,7 +295,7 @@ export async function validateAndCreatePerson(
     name: string
     dateOfBirth?: Date | null
     contactPoints?: Array<{
-      type: 'EMAIL' | 'PHONE' | 'WHATSAPP' | 'OTHER'
+      type: 'EMAIL' | 'PHONE'
       value: string
       isPrimary?: boolean
     }>
@@ -310,9 +310,7 @@ export async function validateAndCreatePerson(
   // Validate contact points
   if (data.contactPoints) {
     const emails = data.contactPoints.filter((cp) => cp.type === 'EMAIL')
-    const phones = data.contactPoints.filter(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )
+    const phones = data.contactPoints.filter((cp) => cp.type === 'PHONE')
 
     // Check for duplicate emails
     const emailValues = emails.map((cp) => cp.value.toLowerCase().trim())
@@ -336,7 +334,7 @@ export async function validateAndCreatePerson(
             create: data.contactPoints.map((cp) => ({
               type: cp.type,
               value: cp.value.trim(),
-              isPrimary: cp.isPrimary || false,
+              isPrimary: cp.isPrimary ?? true,
             })),
           }
         : undefined,

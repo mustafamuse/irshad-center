@@ -38,7 +38,7 @@ export function extractStudentPhone(
   profile: Pick<MahadEnrollmentFull['programProfile'], 'person'>
 ): string | null {
   const phoneContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
+    (cp) => cp.type === 'PHONE'
   )
   return phoneContact?.value ?? null
 }

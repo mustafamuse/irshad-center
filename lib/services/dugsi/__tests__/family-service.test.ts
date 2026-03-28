@@ -277,7 +277,7 @@ describe('updateParentInfo', () => {
         personId: 'guardian-1',
         type: 'PHONE',
         value: '6125551234',
-        isPrimary: false,
+        isPrimary: true,
       },
     })
   })
@@ -392,7 +392,7 @@ describe('addSecondParent', () => {
         personId: 'existing-parent-id',
         type: 'PHONE',
         value: '6125551234',
-        isPrimary: false,
+        isPrimary: true,
       },
     })
     expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
@@ -465,7 +465,7 @@ describe('addSecondParent', () => {
         personId: 'existing-parent-id',
         type: 'PHONE',
         value: '6125551234',
-        isPrimary: false,
+        isPrimary: true,
       },
     })
   })

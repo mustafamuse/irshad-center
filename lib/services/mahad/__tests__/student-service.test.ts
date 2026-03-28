@@ -131,7 +131,7 @@ describe('createMahadStudent', () => {
         contactPoints: {
           create: [
             { type: 'EMAIL', value: 'ahmed@example.com', isPrimary: true },
-            { type: 'PHONE', value: '6125551234' },
+            { type: 'PHONE', value: '6125551234', isPrimary: true },
           ],
         },
       },
@@ -276,8 +276,8 @@ describe('createMahadStudent', () => {
     expect(mockPersonCreate).not.toHaveBeenCalled()
   })
 
-  // Person matched by email; WHATSAPP contact has same phone and needs reactivation
-  it('should reactivate deactivated WHATSAPP contact matching submitted phone', async () => {
+  // Person matched by email; deactivated PHONE contact has same phone and needs reactivation
+  it('should reactivate deactivated PHONE contact matching submitted phone', async () => {
     const existingPerson = {
       id: 'returnee-person',
       name: 'Ahmed',
@@ -289,8 +289,8 @@ describe('createMahadStudent', () => {
           isActive: true,
         },
         {
-          id: 'cp-whatsapp',
-          type: 'WHATSAPP',
+          id: 'cp-phone-deactivated',
+          type: 'PHONE',
           value: '6125551234',
           isActive: false,
           deactivatedAt: new Date(),
@@ -307,7 +307,7 @@ describe('createMahadStudent', () => {
     await createMahadStudent(baseInput)
 
     expect(mockContactPointUpdate).toHaveBeenCalledWith({
-      where: { id: 'cp-whatsapp' },
+      where: { id: 'cp-phone-deactivated' },
       data: { isActive: true, deactivatedAt: null },
     })
     expect(mockContactPointCreate).not.toHaveBeenCalled()
@@ -373,6 +373,7 @@ describe('createMahadStudent', () => {
         personId: 'email-only-person',
         type: 'PHONE',
         value: '6125551234',
+        isPrimary: true,
       },
     })
     expect(mockPersonCreate).not.toHaveBeenCalled()
@@ -458,7 +459,7 @@ describe('createMahadStudent', () => {
       data: expect.objectContaining({
         contactPoints: {
           create: expect.arrayContaining([
-            { type: 'PHONE', value: '6125551234' },
+            { type: 'PHONE', value: '6125551234', isPrimary: true },
           ]),
         },
       }),
