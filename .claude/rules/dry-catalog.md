@@ -43,12 +43,13 @@ paths:
 
 ### Mappers, Utilities, Constants, Validations
 
-| Location                             | Key exports                                               |
-| ------------------------------------ | --------------------------------------------------------- |
-| `lib/mappers/mahad-mapper.ts`        | `mahadEnrollmentInclude`, `extractStudentEmail/Phone()`   |
-| `lib/mappers/dugsi-mapper.ts`        | `mapToFamilyDTO()`                                        |
-| `lib/utils/action-helpers.ts`        | `ActionResult<T>`, `withActionError()`                    |
-| `lib/utils/type-guards.ts`           | `isPrismaError()`, `isStripeError()`, `isValidEmail()`    |
-| `lib/utils/contact-normalization.ts` | `normalizePhone()`, `normalizeEmail()`                    |
-| `lib/constants/`                     | `MAHAD_PROGRAM`, `DUGSI_PROGRAM`, `STRIPE_WEBHOOK_EVENTS` |
-| `lib/validations/`                   | `CreateBatchSchema`, `webhookStudentNameSchema`           |
+| Location                             | Key exports                                                  |
+| ------------------------------------ | ------------------------------------------------------------ |
+| `lib/mappers/mahad-mapper.ts`        | `mahadEnrollmentInclude`                                     |
+| `lib/types/person.ts`                | `getPrimaryEmail()`, `getPrimaryPhone()`, `getContactInfo()` |
+| `lib/mappers/dugsi-mapper.ts`        | `mapToFamilyDTO()`                                           |
+| `lib/utils/action-helpers.ts`        | `ActionResult<T>`, `withActionError()`                       |
+| `lib/utils/type-guards.ts`           | `isPrismaError()`, `isStripeError()`, `isValidEmail()`       |
+| `lib/utils/contact-normalization.ts` | `normalizePhone()`, `normalizeEmail()`                       |
+| `lib/constants/`                     | `MAHAD_PROGRAM`, `DUGSI_PROGRAM`, `STRIPE_WEBHOOK_EVENTS`    |
+| `lib/validations/`                   | `CreateBatchSchema`, `webhookStudentNameSchema`              |

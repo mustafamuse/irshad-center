@@ -7,6 +7,7 @@
  */
 
 import type {
+  ContactType,
   GraduationStatus,
   PaymentFrequency,
   StudentBillingType,
@@ -208,7 +209,13 @@ function mapEnrollmentToStudentDTO(enrollment: {
     billingType: StudentBillingType | null
     person: {
       name: string
-      contactPoints?: Array<{ type: string; value: string }>
+      contactPoints?: Array<{
+        type: ContactType
+        value: string
+        isPrimary: boolean
+        isActive: boolean
+        verificationStatus: string
+      }>
     }
     assignments: Array<{
       subscription: {
