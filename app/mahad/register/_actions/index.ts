@@ -96,10 +96,12 @@ export async function registerStudent(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      const message =
+        'This contact information is already registered to another person'
       return {
         success: false,
-        error:
-          'This contact information is already registered to another person',
+        error: message,
+        errors: { email: [message] },
       }
     }
     await logError(logger, error, 'Mahad registration failed')

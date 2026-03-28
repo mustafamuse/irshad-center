@@ -342,11 +342,8 @@ describe('createMahadStudent', () => {
       personId: 'other-person',
     })
 
-    const promise = createMahadStudent(baseInput)
-    await expect(promise).rejects.toThrow(
-      'This email address is already registered to another person'
-    )
-    await expect(promise).rejects.toMatchObject({
+    await expect(createMahadStudent(baseInput)).rejects.toMatchObject({
+      message: 'This email address is already registered to another person',
       code: 'CONTACT_CLAIMED',
     })
     expect(mockContactPointUpdate).not.toHaveBeenCalled()
@@ -386,11 +383,8 @@ describe('createMahadStudent', () => {
       personId: 'other-person',
     })
 
-    const promise = createMahadStudent(baseInput)
-    await expect(promise).rejects.toThrow(
-      'This phone number is already registered to another person'
-    )
-    await expect(promise).rejects.toMatchObject({
+    await expect(createMahadStudent(baseInput)).rejects.toMatchObject({
+      message: 'This phone number is already registered to another person',
       code: 'CONTACT_CLAIMED',
     })
     expect(mockContactPointUpdate).not.toHaveBeenCalled()
