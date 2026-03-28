@@ -255,7 +255,6 @@ model ContactPoint {
 
   // Relations
   person          Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
-  billingAccounts BillingAccount[] // Billing accounts using this contact point
 
   // Unique constraint includes isActive to allow reuse of deactivated contacts
   // Only active contacts enforce global uniqueness per type+value
@@ -415,16 +414,12 @@ model BillingAccount {
   paymentMethodCaptured   Boolean   @default(false) // Whether payment method has been captured
   paymentMethodCapturedAt DateTime? // Timestamp when payment method was captured
 
-  // Primary contact preference
-  primaryContactPointId String? // Preferred contact point for billing communications
-
   notes     String? // Optional notes about the billing account
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
   person              Person?        @relation(fields: [personId], references: [id], onDelete: SetNull) // SetNull allows organization accounts
-  primaryContactPoint ContactPoint?  @relation(fields: [primaryContactPointId], references: [id], onDelete: SetNull)
   subscriptions       Subscription[] // All subscriptions for this billing account
 
   @@index([accountType]) // Filter by account type

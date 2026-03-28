@@ -114,7 +114,6 @@ export async function createOrUpdateBillingAccount(input: BillingAccountInput) {
     paymentIntentIdDugsi?: string | null
     paymentMethodCaptured?: boolean
     paymentMethodCapturedAt?: Date | null
-    primaryContactPointId?: string | null
   } = {
     personId: input.personId,
     accountType: input.accountType,

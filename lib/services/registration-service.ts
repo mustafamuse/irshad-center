@@ -587,7 +587,7 @@ export async function createProgramProfileWithEnrollment(
  *   parent1LastName: 'Ali',
  *   familyReferenceId: crypto.randomUUID(),
  * })
- * // Returns: { profiles: [...], billingAccount: { id, primaryContactPointId } }
+ * // Returns: { profiles: [...], billingAccount: { id } }
  * ```
  *
  * @throws {ZodError} If data validation fails
@@ -595,7 +595,7 @@ export async function createProgramProfileWithEnrollment(
  */
 export async function createFamilyRegistration(data: unknown): Promise<{
   profiles: Array<{ id: string; name: string; personId: string }>
-  billingAccount: { id: string; primaryContactPointId: string | null }
+  billingAccount: { id: string }
 }> {
   // Validate at service boundary
   const validated = familyRegistrationSchema.parse(data)
@@ -665,9 +665,6 @@ export async function createFamilyRegistration(data: unknown): Promise<{
 
     // Phase 2: Create or get billing account (idempotent find-or-create)
     currentPhase = 'billing'
-    const primaryEmailContact = parent1Person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL' && cp.isPrimary
-    )
 
     const existingBillingAccount = await prisma.billingAccount.findFirst({
       where: {
@@ -676,30 +673,14 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       },
     })
 
-    let billingAccount
-    if (existingBillingAccount) {
-      // Update primary contact if changed
-      if (
-        primaryEmailContact &&
-        existingBillingAccount.primaryContactPointId !== primaryEmailContact.id
-      ) {
-        billingAccount = await prisma.billingAccount.update({
-          where: { id: existingBillingAccount.id },
-          data: { primaryContactPointId: primaryEmailContact.id },
+    const billingAccount = existingBillingAccount
+      ? existingBillingAccount
+      : await prisma.billingAccount.create({
+          data: {
+            personId: parent1Person.id,
+            accountType: 'DUGSI',
+          },
         })
-      } else {
-        billingAccount = existingBillingAccount
-      }
-    } else {
-      // Create new billing account
-      billingAccount = await prisma.billingAccount.create({
-        data: {
-          personId: parent1Person.id,
-          accountType: 'DUGSI',
-          primaryContactPointId: primaryEmailContact?.id || null,
-        },
-      })
-    }
 
     // Phase 3: Create children sequentially with batch lookups
     // OPTIMIZATION: Batch lookups reduce N queries to 1 query each
@@ -1121,7 +1102,6 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       profiles: createdProfiles,
       billingAccount: {
         id: billingAccount.id,
-        primaryContactPointId: billingAccount.primaryContactPointId,
       },
     }
   } catch (error) {

@@ -208,7 +208,6 @@ export async function upsertBillingAccount(
     paymentIntentIdDugsi?: string | null
     paymentMethodCaptured?: boolean
     paymentMethodCapturedAt?: Date | null
-    primaryContactPointId?: string | null
   },
   client: DatabaseClient = prisma
 ) {
@@ -261,8 +260,6 @@ export async function upsertBillingAccount(
           data.paymentMethodCaptured ?? existing.paymentMethodCaptured,
         paymentMethodCapturedAt:
           data.paymentMethodCapturedAt ?? existing.paymentMethodCapturedAt,
-        primaryContactPointId:
-          data.primaryContactPointId ?? existing.primaryContactPointId,
       },
       include: includeRelations,
     })
@@ -279,7 +276,6 @@ export async function upsertBillingAccount(
       paymentIntentIdDugsi: data.paymentIntentIdDugsi,
       paymentMethodCaptured: data.paymentMethodCaptured ?? false,
       paymentMethodCapturedAt: data.paymentMethodCapturedAt,
-      primaryContactPointId: data.primaryContactPointId,
     },
     include: includeRelations,
   })

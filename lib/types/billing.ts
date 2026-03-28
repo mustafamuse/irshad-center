@@ -25,9 +25,6 @@ export interface BillingAccount {
   paymentMethodCaptured: boolean
   paymentMethodCapturedAt: Date | null
 
-  // Primary contact preference
-  primaryContactPointId: string | null
-
   notes: string | null
   createdAt: Date
   updatedAt: Date
