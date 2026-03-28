@@ -96,6 +96,9 @@ export async function registerStudent(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      // P2002 on unique_active_contact_globally: meta.target is
+      // ['type','value','isActive'] — no way to map to the form field,
+      // so highlight both. This only fires on the rare TOCTOU race.
       const message =
         'This contact information is already registered to another person'
       return {
