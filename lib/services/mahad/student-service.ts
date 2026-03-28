@@ -244,17 +244,17 @@ export async function updateMahadStudent(
 
       if (normalizedEmail) {
         const existingEmail = await tx.contactPoint.findFirst({
-          where: {
-            personId: personId,
-            type: 'EMAIL',
-            isActive: true,
-          },
+          where: { personId: personId, type: 'EMAIL' },
         })
 
         if (existingEmail) {
           await tx.contactPoint.update({
             where: { id: existingEmail.id },
-            data: { value: normalizedEmail },
+            data: {
+              value: normalizedEmail,
+              isActive: true,
+              deactivatedAt: null,
+            },
           })
         } else {
           await tx.contactPoint.create({
@@ -276,17 +276,17 @@ export async function updateMahadStudent(
 
       if (normalizedPhone) {
         const existingPhone = await tx.contactPoint.findFirst({
-          where: {
-            personId: personId,
-            type: 'PHONE',
-            isActive: true,
-          },
+          where: { personId: personId, type: 'PHONE' },
         })
 
         if (existingPhone) {
           await tx.contactPoint.update({
             where: { id: existingPhone.id },
-            data: { value: normalizedPhone },
+            data: {
+              value: normalizedPhone,
+              isActive: true,
+              deactivatedAt: null,
+            },
           })
         } else {
           await tx.contactPoint.create({
