@@ -25,7 +25,7 @@ import { Prisma } from '@prisma/client'
 export const contactPointsSelect = {
   where: { isActive: true },
   select: { id: true, type: true, value: true, isPrimary: true },
-}
+} satisfies Prisma.Person$contactPointsArgs
 
 export const personMinimalSelect = {
   select: { id: true, name: true },

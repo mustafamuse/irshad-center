@@ -264,13 +264,15 @@ export async function getProgramProfilesByPersonId(
  * @param email - Email address to search for
  * @param phone - Phone number to search for
  * @param client - Optional database client (for transaction support)
+ * @see findPersonByActiveContact — preferred for normal lookups (excludes soft-deleted contacts)
  */
 export async function findPersonByContact(
   email?: string | null,
   phone?: string | null,
   client: DatabaseClient = prisma
 ) {
-  if (!email && !phone) return null
+  const normalizedPhone = phone ? normalizePhone(phone) : null
+  if (!email && !normalizedPhone) return null
 
   const where: Prisma.PersonWhereInput = {
     OR: [],
@@ -287,25 +289,22 @@ export async function findPersonByContact(
     })
   }
 
-  if (phone) {
-    const normalizedPhone = normalizePhone(phone)
-    if (normalizedPhone) {
-      where.OR!.push({
-        contactPoints: {
-          some: {
-            type: 'PHONE',
-            value: normalizedPhone,
-          },
+  if (normalizedPhone) {
+    where.OR!.push({
+      contactPoints: {
+        some: {
+          type: 'PHONE',
+          value: normalizedPhone,
         },
-      })
-    }
+      },
+    })
   }
 
   return client.person.findFirst({
     where,
     relationLoadStrategy: 'join',
     include: {
-      contactPoints: { where: { isActive: true } },
+      contactPoints: true,
       programProfiles: {
         include: {
           enrollments: {
@@ -328,7 +327,8 @@ export async function findPersonByActiveContact(
   phone?: string | null,
   client: DatabaseClient = prisma
 ) {
-  if (!email && !phone) return null
+  const normalizedPhone = phone ? normalizePhone(phone) : null
+  if (!email && !normalizedPhone) return null
 
   const where: Prisma.PersonWhereInput = {
     OR: [],
@@ -346,19 +346,16 @@ export async function findPersonByActiveContact(
     })
   }
 
-  if (phone) {
-    const normalizedPhone = normalizePhone(phone)
-    if (normalizedPhone) {
-      where.OR!.push({
-        contactPoints: {
-          some: {
-            type: 'PHONE',
-            value: normalizedPhone,
-            isActive: true,
-          },
+  if (normalizedPhone) {
+    where.OR!.push({
+      contactPoints: {
+        some: {
+          type: 'PHONE',
+          value: normalizedPhone,
+          isActive: true,
         },
-      })
-    }
+      },
+    })
   }
 
   return client.person.findFirst({

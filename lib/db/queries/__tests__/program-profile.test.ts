@@ -96,6 +96,13 @@ describe('findPersonByContact', () => {
       })
     )
   })
+
+  it('should return null when phone is invalid and no email', async () => {
+    const result = await findPersonByContact(null, '123')
+
+    expect(result).toBeNull()
+    expect(mockPersonFindFirst).not.toHaveBeenCalled()
+  })
 })
 
 describe('findPersonByActiveContact', () => {
@@ -136,6 +143,13 @@ describe('findPersonByActiveContact', () => {
 
   it('should return null when no email or phone provided', async () => {
     const result = await findPersonByActiveContact(null, null)
+
+    expect(result).toBeNull()
+    expect(mockPersonFindFirst).not.toHaveBeenCalled()
+  })
+
+  it('should return null when phone is invalid and no email', async () => {
+    const result = await findPersonByActiveContact(null, '123')
 
     expect(result).toBeNull()
     expect(mockPersonFindFirst).not.toHaveBeenCalled()
