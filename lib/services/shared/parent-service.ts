@@ -18,8 +18,11 @@ import { ContactType, GuardianRole } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import type { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
+
+const logger = createServiceLogger('parent-service')
 
 /**
  * Guardian update input
@@ -100,6 +103,10 @@ export async function updateGuardianInfo(
           },
         })
         if (deactivatedEmail) {
+          logger.info(
+            { guardianId, contactId: deactivatedEmail.id, type: 'EMAIL' },
+            'Reactivating deactivated email contact'
+          )
           await tx.contactPoint.update({
             where: { id: deactivatedEmail.id },
             data: { isActive: true, isPrimary: true, deactivatedAt: null },
@@ -140,6 +147,10 @@ export async function updateGuardianInfo(
             },
           })
           if (deactivatedPhone) {
+            logger.info(
+              { guardianId, contactId: deactivatedPhone.id, type: 'PHONE' },
+              'Reactivating deactivated phone contact'
+            )
             await tx.contactPoint.update({
               where: { id: deactivatedPhone.id },
               data: { isActive: true, isPrimary: true, deactivatedAt: null },

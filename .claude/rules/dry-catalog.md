@@ -15,7 +15,7 @@ paths:
 | `payment-service.ts`      | `recordPayment()`, `getPaymentHistory()`                         |
 | `enrollment-service.ts`   | `createEnrollment()`, `updateEnrollmentStatus()`                 |
 | `parent-service.ts`       | `createOrUpdateParent()`, `linkParentToChild()`                  |
-| `unified-matcher.ts`      | `findPersonByContact()`, `matchPersonToSubscription()`           |
+| `unified-matcher.ts`      | `matchPersonToSubscription()`                                    |
 
 ### Webhook Services (`lib/services/webhooks/`)
 
@@ -34,12 +34,13 @@ paths:
 
 ### Query Functions (`lib/db/queries/`)
 
-| File            | Functions                                                |
-| --------------- | -------------------------------------------------------- |
-| `student.ts`    | `getStudents()`, `getStudentById()`, `searchStudents()`  |
-| `billing.ts`    | `getBillingAccountByPerson()`, `getBillingAssignments()` |
-| `enrollment.ts` | `getEnrollmentsByBatch()`, `getActiveEnrollment()`       |
-| `siblings.ts`   | `getSiblingGroups()`, `createSiblingRelationship()`      |
+| File                 | Functions                                                |
+| -------------------- | -------------------------------------------------------- |
+| `student.ts`         | `getStudents()`, `getStudentById()`, `searchStudents()`  |
+| `program-profile.ts` | `findPersonByActiveContact()`, `getProgramProfiles()`    |
+| `billing.ts`         | `getBillingAccountByPerson()`, `getBillingAssignments()` |
+| `enrollment.ts`      | `getEnrollmentsByBatch()`, `getActiveEnrollment()`       |
+| `siblings.ts`        | `getSiblingGroups()`, `createSiblingRelationship()`      |
 
 ### Mappers, Utilities, Constants, Validations
 

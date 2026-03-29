@@ -154,8 +154,10 @@ describe('getProgramProfiles - isActive filtering', () => {
     await getProgramProfiles({ search: 'test@example.com' })
 
     const call = mockProfileFindMany.mock.calls[0][0]
-    const contactSearch = call.where.person.OR[1].contactPoints.some
-    expect(contactSearch.isActive).toBe(true)
+    const contactEntry = call.where.person.OR.find(
+      (entry: Record<string, unknown>) => entry.contactPoints
+    )
+    expect(contactEntry.contactPoints.some.isActive).toBe(true)
   })
 })
 
@@ -198,6 +200,18 @@ describe('searchProgramProfilesByNameOrContact', () => {
         relationLoadStrategy: 'join',
       })
     )
+  })
+
+  it('should add isActive: true to contact search some clause', async () => {
+    mockProfileFindMany.mockResolvedValue([])
+
+    await searchProgramProfilesByNameOrContact('test@example.com')
+
+    const call = mockProfileFindMany.mock.calls[0][0]
+    const contactEntry = call.where.person.OR.find(
+      (entry: Record<string, unknown>) => entry.contactPoints
+    )
+    expect(contactEntry.contactPoints.some.isActive).toBe(true)
   })
 })
 

@@ -76,6 +76,20 @@ const mockGuardianNoContacts = {
   contactPoints: [],
 }
 
+const mockGuardianWithPhone = {
+  id: 'guardian-1',
+  name: 'Test Guardian',
+  contactPoints: [
+    {
+      id: 'cp-phone-1',
+      type: 'PHONE',
+      value: '6125551234',
+      isPrimary: true,
+      isActive: true,
+    },
+  ],
+}
+
 describe('updateGuardianInfo', () => {
   it('should filter contactPoints by isActive: true when loading guardian', async () => {
     mockPersonFindUnique
@@ -158,7 +172,77 @@ describe('updateGuardianInfo', () => {
     expect(mockContactPointUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'cp-deactivated-1' },
-        data: expect.objectContaining({ isActive: true, isPrimary: true }),
+        data: { isActive: true, isPrimary: true, deactivatedAt: null },
+      })
+    )
+    expect(mockContactPointCreate).not.toHaveBeenCalled()
+  })
+
+  it('should update existing phone contact when one exists', async () => {
+    mockPersonFindUnique
+      .mockResolvedValueOnce(mockGuardianWithPhone)
+      .mockResolvedValueOnce(mockGuardianWithPhone)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+      phone: '612-555-9999',
+    })
+
+    expect(mockContactPointUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cp-phone-1' },
+        data: { value: '6125559999' },
+      })
+    )
+    expect(mockContactPointCreate).not.toHaveBeenCalled()
+  })
+
+  it('should create new phone contact when none exists', async () => {
+    mockPersonFindUnique
+      .mockResolvedValueOnce(mockGuardianNoContacts)
+      .mockResolvedValueOnce(mockGuardianNoContacts)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+      phone: '612-555-9999',
+    })
+
+    expect(mockContactPointCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          personId: 'guardian-1',
+          type: 'PHONE',
+          value: '6125559999',
+          isPrimary: true,
+        },
+      })
+    )
+  })
+
+  it('should reactivate deactivated phone contact instead of creating duplicate', async () => {
+    const deactivatedPhone = {
+      id: 'cp-deactivated-phone-1',
+      type: 'PHONE',
+      value: '6125559999',
+      isActive: false,
+    }
+    mockPersonFindUnique
+      .mockResolvedValueOnce(mockGuardianNoContacts)
+      .mockResolvedValueOnce(mockGuardianNoContacts)
+    mockContactPointFindFirst.mockResolvedValue(deactivatedPhone)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+      phone: '612-555-9999',
+    })
+
+    expect(mockContactPointUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cp-deactivated-phone-1' },
+        data: { isActive: true, isPrimary: true, deactivatedAt: null },
       })
     )
     expect(mockContactPointCreate).not.toHaveBeenCalled()
