@@ -5,12 +5,14 @@ const {
   mockPersonFindUnique,
   mockContactPointCreate,
   mockContactPointUpdate,
+  mockContactPointFindFirst,
   mockTransaction,
 } = vi.hoisted(() => ({
   mockPersonUpdate: vi.fn(),
   mockPersonFindUnique: vi.fn(),
   mockContactPointCreate: vi.fn(),
   mockContactPointUpdate: vi.fn(),
+  mockContactPointFindFirst: vi.fn(),
   mockTransaction: vi.fn(),
 }))
 
@@ -23,6 +25,7 @@ vi.mock('@/lib/db', () => ({
     contactPoint: {
       create: (...args: unknown[]) => mockContactPointCreate(...args),
       update: (...args: unknown[]) => mockContactPointUpdate(...args),
+      findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
@@ -36,6 +39,7 @@ import { updateGuardianInfo } from '../parent-service'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mockContactPointFindFirst.mockResolvedValue(null)
   mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) => {
     const tx = {
       person: {
@@ -45,6 +49,7 @@ beforeEach(() => {
       contactPoint: {
         create: (...args: unknown[]) => mockContactPointCreate(...args),
         update: (...args: unknown[]) => mockContactPointUpdate(...args),
+        findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
       },
     }
     return fn(tx)
@@ -130,6 +135,33 @@ describe('updateGuardianInfo', () => {
         },
       })
     )
+  })
+
+  it('should reactivate deactivated email contact instead of creating duplicate', async () => {
+    const deactivatedContact = {
+      id: 'cp-deactivated-1',
+      type: 'EMAIL',
+      value: 'same@example.com',
+      isActive: false,
+    }
+    mockPersonFindUnique
+      .mockResolvedValueOnce(mockGuardianNoContacts)
+      .mockResolvedValueOnce(mockGuardianNoContacts)
+    mockContactPointFindFirst.mockResolvedValue(deactivatedContact)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+      email: 'same@example.com',
+    })
+
+    expect(mockContactPointUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'cp-deactivated-1' },
+        data: expect.objectContaining({ isActive: true, isPrimary: true }),
+      })
+    )
+    expect(mockContactPointCreate).not.toHaveBeenCalled()
   })
 
   it('should not use try-catch P2002 pattern (removed dead code)', async () => {

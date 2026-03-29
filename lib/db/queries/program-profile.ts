@@ -265,6 +265,7 @@ export async function getProgramProfilesByPersonId(
  * @param phone - Phone number to search for
  * @param client - Optional database client (for transaction support)
  * @see findPersonByActiveContact — preferred for normal lookups (excludes soft-deleted contacts)
+ * @returns Person with ALL contactPoints including inactive — callers must not assume contacts are active
  */
 export async function findPersonByContact(
   email?: string | null,

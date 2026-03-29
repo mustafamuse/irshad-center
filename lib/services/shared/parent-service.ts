@@ -91,14 +91,29 @@ export async function updateGuardianInfo(
           data: { value: normalizedEmail },
         })
       } else {
-        await tx.contactPoint.create({
-          data: {
+        const deactivatedEmail = await tx.contactPoint.findFirst({
+          where: {
             personId: guardianId,
             type: 'EMAIL',
             value: normalizedEmail,
-            isPrimary: true,
+            isActive: false,
           },
         })
+        if (deactivatedEmail) {
+          await tx.contactPoint.update({
+            where: { id: deactivatedEmail.id },
+            data: { isActive: true, isPrimary: true, deactivatedAt: null },
+          })
+        } else {
+          await tx.contactPoint.create({
+            data: {
+              personId: guardianId,
+              type: 'EMAIL',
+              value: normalizedEmail,
+              isPrimary: true,
+            },
+          })
+        }
       }
     }
 
@@ -116,14 +131,29 @@ export async function updateGuardianInfo(
             data: { value: normalizedPhone },
           })
         } else {
-          await tx.contactPoint.create({
-            data: {
+          const deactivatedPhone = await tx.contactPoint.findFirst({
+            where: {
               personId: guardianId,
               type: 'PHONE',
               value: normalizedPhone,
-              isPrimary: true,
+              isActive: false,
             },
           })
+          if (deactivatedPhone) {
+            await tx.contactPoint.update({
+              where: { id: deactivatedPhone.id },
+              data: { isActive: true, isPrimary: true, deactivatedAt: null },
+            })
+          } else {
+            await tx.contactPoint.create({
+              data: {
+                personId: guardianId,
+                type: 'PHONE',
+                value: normalizedPhone,
+                isPrimary: true,
+              },
+            })
+          }
         }
       }
     }

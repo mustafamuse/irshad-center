@@ -200,7 +200,7 @@ export async function StudentsTableShell({
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: { where: { isActive: true } },
             },
           },
           assignments: {
