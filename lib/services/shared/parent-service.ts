@@ -89,6 +89,17 @@ export async function updateGuardianInfo(
       )
 
       if (existingEmail) {
+        const conflictingEmail = await tx.contactPoint.findFirst({
+          where: {
+            personId: guardianId,
+            type: 'EMAIL',
+            value: normalizedEmail,
+            isActive: false,
+          },
+        })
+        if (conflictingEmail) {
+          await tx.contactPoint.delete({ where: { id: conflictingEmail.id } })
+        }
         await tx.contactPoint.update({
           where: { id: existingEmail.id },
           data: { value: normalizedEmail },
@@ -133,6 +144,17 @@ export async function updateGuardianInfo(
         )
 
         if (existingPhone) {
+          const conflictingPhone = await tx.contactPoint.findFirst({
+            where: {
+              personId: guardianId,
+              type: 'PHONE',
+              value: normalizedPhone,
+              isActive: false,
+            },
+          })
+          if (conflictingPhone) {
+            await tx.contactPoint.delete({ where: { id: conflictingPhone.id } })
+          }
           await tx.contactPoint.update({
             where: { id: existingPhone.id },
             data: { value: normalizedPhone },

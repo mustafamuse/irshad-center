@@ -100,20 +100,30 @@ export async function createMahadStudent(input: StudentCreateInput) {
         const emailContact = dupResult.existingPerson.contactPoints.find(
           (cp) => cp.type === 'EMAIL' && cp.value === normalizedEmail
         )
-        if (emailContact && !emailContact.isActive) {
-          await tx.contactPoint.update({
-            where: { id: emailContact.id },
-            data: { isActive: true, deactivatedAt: null },
-          })
-        } else if (!emailContact) {
-          await tx.contactPoint.create({
-            data: {
+        if (!emailContact) {
+          const deactivatedEmail = await tx.contactPoint.findFirst({
+            where: {
               personId,
               type: 'EMAIL',
               value: normalizedEmail,
-              isPrimary: true,
+              isActive: false,
             },
           })
+          if (deactivatedEmail) {
+            await tx.contactPoint.update({
+              where: { id: deactivatedEmail.id },
+              data: { isActive: true, isPrimary: true, deactivatedAt: null },
+            })
+          } else {
+            await tx.contactPoint.create({
+              data: {
+                personId,
+                type: 'EMAIL',
+                value: normalizedEmail,
+                isPrimary: true,
+              },
+            })
+          }
         }
       }
 
@@ -121,20 +131,30 @@ export async function createMahadStudent(input: StudentCreateInput) {
         const phoneContact = dupResult.existingPerson.contactPoints.find(
           (cp) => cp.type === 'PHONE' && cp.value === normalizedPhone
         )
-        if (phoneContact && !phoneContact.isActive) {
-          await tx.contactPoint.update({
-            where: { id: phoneContact.id },
-            data: { isActive: true, deactivatedAt: null },
-          })
-        } else if (!phoneContact) {
-          await tx.contactPoint.create({
-            data: {
+        if (!phoneContact) {
+          const deactivatedPhone = await tx.contactPoint.findFirst({
+            where: {
               personId,
               type: 'PHONE',
               value: normalizedPhone,
-              isPrimary: true,
+              isActive: false,
             },
           })
+          if (deactivatedPhone) {
+            await tx.contactPoint.update({
+              where: { id: deactivatedPhone.id },
+              data: { isActive: true, isPrimary: true, deactivatedAt: null },
+            })
+          } else {
+            await tx.contactPoint.create({
+              data: {
+                personId,
+                type: 'PHONE',
+                value: normalizedPhone,
+                isPrimary: true,
+              },
+            })
+          }
         }
       }
     } else {

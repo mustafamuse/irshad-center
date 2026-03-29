@@ -6,6 +6,7 @@ const {
   mockContactPointCreate,
   mockContactPointUpdate,
   mockContactPointFindFirst,
+  mockContactPointDelete,
   mockTransaction,
 } = vi.hoisted(() => ({
   mockPersonUpdate: vi.fn(),
@@ -13,6 +14,7 @@ const {
   mockContactPointCreate: vi.fn(),
   mockContactPointUpdate: vi.fn(),
   mockContactPointFindFirst: vi.fn(),
+  mockContactPointDelete: vi.fn(),
   mockTransaction: vi.fn(),
 }))
 
@@ -50,6 +52,7 @@ beforeEach(() => {
         create: (...args: unknown[]) => mockContactPointCreate(...args),
         update: (...args: unknown[]) => mockContactPointUpdate(...args),
         findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
+        delete: (...args: unknown[]) => mockContactPointDelete(...args),
       },
     }
     return fn(tx)
@@ -106,6 +109,31 @@ describe('updateGuardianInfo', () => {
     expect(loadCall.include.contactPoints).toEqual({
       where: { isActive: true },
     })
+  })
+
+  it('should delete conflicting deactivated contact before updating active contact value', async () => {
+    const conflicting = {
+      id: 'cp-conflict-1',
+      type: 'EMAIL',
+      value: 'new@example.com',
+    }
+    mockPersonFindUnique
+      .mockResolvedValueOnce(mockGuardianWithEmail)
+      .mockResolvedValueOnce(mockGuardianWithEmail)
+    mockContactPointFindFirst.mockResolvedValueOnce(conflicting)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+      email: 'new@example.com',
+    })
+
+    expect(mockContactPointDelete).toHaveBeenCalledWith({
+      where: { id: 'cp-conflict-1' },
+    })
+    expect(mockContactPointUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'cp-email-1' } })
+    )
   })
 
   it('should update existing email contact when one exists', async () => {
