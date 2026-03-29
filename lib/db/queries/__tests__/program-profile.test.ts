@@ -29,7 +29,6 @@ import {
   getProgramProfiles,
   getProgramProfileById,
   getProgramProfilesByPersonId,
-  findPersonByContact,
   findPersonByActiveContact,
   getProgramProfilesByFamilyId,
   getProgramProfilesWithBilling,
@@ -81,27 +80,6 @@ describe('getProgramProfilesByPersonId', () => {
         relationLoadStrategy: 'join',
       })
     )
-  })
-})
-
-describe('findPersonByContact', () => {
-  it('should use relationLoadStrategy join', async () => {
-    mockPersonFindFirst.mockResolvedValue(null)
-
-    await findPersonByContact('test@example.com')
-
-    expect(mockPersonFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        relationLoadStrategy: 'join',
-      })
-    )
-  })
-
-  it('should return null when phone is invalid and no email', async () => {
-    const result = await findPersonByContact(null, '123')
-
-    expect(result).toBeNull()
-    expect(mockPersonFindFirst).not.toHaveBeenCalled()
   })
 })
 

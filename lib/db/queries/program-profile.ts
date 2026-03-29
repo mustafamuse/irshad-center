@@ -259,68 +259,6 @@ export async function getProgramProfilesByPersonId(
 }
 
 /**
- * Find person by email or phone
- *
- * @param email - Email address to search for
- * @param phone - Phone number to search for
- * @param client - Optional database client (for transaction support)
- * @see findPersonByActiveContact — preferred for normal lookups (excludes soft-deleted contacts)
- * @returns Person with ALL contactPoints including inactive — callers must not assume contacts are active
- */
-export async function findPersonByContact(
-  email?: string | null,
-  phone?: string | null,
-  client: DatabaseClient = prisma
-) {
-  const normalizedPhone = phone ? normalizePhone(phone) : null
-  if (!email && !normalizedPhone) return null
-
-  const where: Prisma.PersonWhereInput = {
-    OR: [],
-  }
-
-  if (email) {
-    where.OR!.push({
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: email.toLowerCase().trim(),
-        },
-      },
-    })
-  }
-
-  if (normalizedPhone) {
-    where.OR!.push({
-      contactPoints: {
-        some: {
-          type: 'PHONE',
-          value: normalizedPhone,
-        },
-      },
-    })
-  }
-
-  return client.person.findFirst({
-    where,
-    relationLoadStrategy: 'join',
-    include: {
-      contactPoints: true,
-      programProfiles: {
-        include: {
-          enrollments: {
-            where: {
-              status: { not: 'WITHDRAWN' },
-              endDate: null,
-            },
-          },
-        },
-      },
-    },
-  })
-}
-
-/**
  * Find person by active email or phone (excludes soft-deleted contacts)
  */
 export async function findPersonByActiveContact(
