@@ -104,6 +104,7 @@ export async function linkDugsiSubscription(
         some: {
           type: 'EMAIL',
           value: parentEmail.toLowerCase().trim(),
+          isActive: true,
         },
       },
     },
@@ -185,6 +186,7 @@ export async function getDugsiPaymentStatus(
         some: {
           type: 'EMAIL',
           value: parentEmail.toLowerCase().trim(),
+          isActive: true,
         },
       },
     },

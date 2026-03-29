@@ -647,7 +647,7 @@ export async function updateStudentAction(
         where: { id },
         relationLoadStrategy: 'join',
         include: {
-          person: { include: { contactPoints: true } },
+          person: { include: { contactPoints: { where: { isActive: true } } } },
           enrollments: { orderBy: { startDate: 'desc' }, take: 1 },
         },
       })

@@ -497,7 +497,9 @@ export async function updateTeacherDetailsAction(
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
       relationLoadStrategy: 'join',
-      include: { person: { include: { contactPoints: true } } },
+      include: {
+        person: { include: { contactPoints: { where: { isActive: true } } } },
+      },
     })
 
     if (!teacher) {
@@ -918,6 +920,7 @@ export async function searchPeopleAction(
           {
             contactPoints: {
               some: {
+                isActive: true,
                 OR: [
                   {
                     type: 'EMAIL',

@@ -360,6 +360,7 @@ export async function getBillingStatusByEmail(
         some: {
           type: 'EMAIL',
           value: email.toLowerCase().trim(),
+          isActive: true,
         },
       },
     },

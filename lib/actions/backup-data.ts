@@ -94,7 +94,7 @@ export async function backupData(): Promise<BackupResult> {
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
           },
         },
         enrollments: {

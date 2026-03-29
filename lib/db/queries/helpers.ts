@@ -340,7 +340,7 @@ export async function validateAndCreatePerson(
         : undefined,
     },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
     },
   })
 }

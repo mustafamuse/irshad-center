@@ -128,7 +128,7 @@ export async function createTeacher(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
     },

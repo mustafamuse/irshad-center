@@ -171,6 +171,7 @@ export async function lookupPersonAction(
           {
             contactPoints: {
               some: {
+                isActive: true,
                 OR: [
                   {
                     type: 'EMAIL',

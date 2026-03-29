@@ -412,6 +412,7 @@ export async function searchDugsiRegistrationsByContact(
                   some: {
                     type: contactType,
                     value: normalizedContact,
+                    isActive: true,
                   },
                 },
               },

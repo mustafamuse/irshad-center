@@ -15,7 +15,7 @@ export const teacherCheckinInclude = {
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
     },
@@ -251,7 +251,7 @@ export async function getAllDugsiTeachersWithTodayStatus(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       dugsiClasses: {
@@ -343,7 +343,7 @@ export async function getDugsiTeachersForDropdown(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       dugsiClasses: {

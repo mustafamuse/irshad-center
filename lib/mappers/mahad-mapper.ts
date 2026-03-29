@@ -11,7 +11,7 @@ export const mahadEnrollmentInclude =
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
           },
         },
         assignments: {
