@@ -30,9 +30,9 @@ function throwIfP2002(error: unknown): never {
     error.code === 'P2002'
   ) {
     const target = error.meta?.target as string[] | undefined
-    const field = target?.includes('Person_email_key')
+    const field = target?.includes('email')
       ? 'email'
-      : target?.includes('Person_phone_key')
+      : target?.includes('phone')
         ? 'phone'
         : 'email or phone'
     throw new ActionError(
@@ -79,6 +79,16 @@ export async function updateGuardianInfo(
   client: DatabaseClient = prisma
 ) {
   const fullName = `${input.firstName} ${input.lastName}`.trim()
+
+  if (input.phone && !normalizePhone(input.phone)) {
+    throw new ActionError(
+      'Invalid phone number. Expected 10-15 digits',
+      ERROR_CODES.VALIDATION_ERROR,
+      'phone',
+      400
+    )
+  }
+
   const email = normalizeEmail(input.email) ?? undefined
   const phone = normalizePhone(input.phone) ?? undefined
 
@@ -88,6 +98,14 @@ export async function updateGuardianInfo(
       data: { name: fullName, email, phone },
     })
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
+      throw new ValidationError('Guardian not found', 'GUARDIAN_NOT_FOUND', {
+        guardianId,
+      })
+    }
     throwIfP2002(error)
   }
 }
@@ -139,7 +157,7 @@ export async function addGuardianRelationship(
         guardianPerson = await prisma.person.findFirst({
           where: { email: normalizedEmail },
         })
-        if (!guardianPerson) throw error
+        if (!guardianPerson) throwIfP2002(error)
       } else {
         throw error
       }

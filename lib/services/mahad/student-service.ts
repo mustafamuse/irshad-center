@@ -2,6 +2,7 @@ import {
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
+  Prisma,
   StudentBillingType,
 } from '@prisma/client'
 
@@ -16,6 +17,27 @@ import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+
+function handleP2002(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    const target = error.meta?.target as string[] | undefined
+    const field = target?.includes('email')
+      ? 'email'
+      : target?.includes('phone')
+        ? 'phone'
+        : 'email or phone'
+    throw new ActionError(
+      `A student with this ${field} already exists`,
+      ERROR_CODES.DUPLICATE_CONTACT,
+      field,
+      409
+    )
+  }
+  throw error
+}
 
 /**
  * Student creation input
@@ -69,75 +91,80 @@ export async function createMahadStudent(input: StudentCreateInput) {
     ? (normalizePhone(input.phone) ?? null)
     : null
 
-  return prisma.$transaction(async (tx) => {
-    const dupResult = await DuplicateDetectionService.checkDuplicate(
-      {
-        email: normalizedEmail,
-        phone: normalizedPhone,
-        program: MAHAD_PROGRAM,
-      },
-      tx
-    )
-
-    if (dupResult.isDuplicate && dupResult.hasActiveProfile) {
-      throw new ActionError(
-        'Student already registered for Mahad',
-        ERROR_CODES.DUPLICATE_CONTACT,
-        dupResult.duplicateField === 'both'
-          ? 'email'
-          : (dupResult.duplicateField ?? 'email'),
-        409
-      )
-    }
-
-    let personId: string
-
-    if (dupResult.existingPerson) {
-      personId = dupResult.existingPerson.id
-
-      await tx.person.update({
-        where: { id: personId },
-        data: {
-          email: normalizedEmail ?? undefined,
-          phone: normalizedPhone ?? undefined,
-        },
-      })
-    } else {
-      const newPerson = await tx.person.create({
-        data: {
-          name: input.name,
-          dateOfBirth: input.dateOfBirth ?? null,
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const dupResult = await DuplicateDetectionService.checkDuplicate(
+        {
           email: normalizedEmail,
           phone: normalizedPhone,
+          program: MAHAD_PROGRAM,
+        },
+        tx
+      )
+
+      if (dupResult.isDuplicate && dupResult.hasActiveProfile) {
+        throw new ActionError(
+          'Student already registered for Mahad',
+          ERROR_CODES.DUPLICATE_CONTACT,
+          dupResult.duplicateField === 'both'
+            ? 'email'
+            : (dupResult.duplicateField ?? 'email'),
+          409
+        )
+      }
+
+      let personId: string
+
+      if (dupResult.existingPerson) {
+        personId = dupResult.existingPerson.id
+
+        await tx.person.update({
+          where: { id: personId },
+          data: {
+            email: normalizedEmail ?? undefined,
+            phone: normalizedPhone ?? undefined,
+          },
+        })
+      } else {
+        const newPerson = await tx.person.create({
+          data: {
+            name: input.name,
+            dateOfBirth: input.dateOfBirth ?? null,
+            email: normalizedEmail,
+            phone: normalizedPhone,
+          },
+        })
+        personId = newPerson.id
+      }
+
+      const profile = await tx.programProfile.create({
+        data: {
+          personId,
+          program: MAHAD_PROGRAM,
+          gradeLevel: input.gradeLevel ?? null,
+          schoolName: input.schoolName ?? null,
+          graduationStatus: input.graduationStatus ?? null,
+          paymentFrequency: input.paymentFrequency ?? null,
+          billingType: input.billingType ?? null,
+          paymentNotes: input.paymentNotes ?? null,
         },
       })
-      personId = newPerson.id
-    }
 
-    const profile = await tx.programProfile.create({
-      data: {
-        personId,
-        program: MAHAD_PROGRAM,
-        gradeLevel: input.gradeLevel ?? null,
-        schoolName: input.schoolName ?? null,
-        graduationStatus: input.graduationStatus ?? null,
-        paymentFrequency: input.paymentFrequency ?? null,
-        billingType: input.billingType ?? null,
-        paymentNotes: input.paymentNotes ?? null,
-      },
+      await tx.enrollment.create({
+        data: {
+          programProfileId: profile.id,
+          batchId: input.batchId ?? null,
+          status: 'REGISTERED',
+          startDate: new Date(),
+        },
+      })
+
+      return profile
     })
-
-    await tx.enrollment.create({
-      data: {
-        programProfileId: profile.id,
-        batchId: input.batchId ?? null,
-        status: 'REGISTERED',
-        startDate: new Date(),
-      },
-    })
-
-    return profile
-  })
+  } catch (error) {
+    if (error instanceof ActionError) throw error
+    handleP2002(error)
+  }
 }
 
 /**
@@ -206,11 +233,15 @@ export async function updateMahadStudent(
     })
   }
 
-  if (client !== prisma) {
-    return performUpdate(client)
+  try {
+    if (client !== prisma) {
+      return await performUpdate(client)
+    }
+    return await prisma.$transaction(performUpdate)
+  } catch (error) {
+    if (error instanceof ActionError) throw error
+    handleP2002(error)
   }
-
-  return prisma.$transaction(performUpdate)
 }
 
 /**

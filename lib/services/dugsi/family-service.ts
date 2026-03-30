@@ -189,62 +189,86 @@ export async function addSecondParent(
     )
   }
 
-  await Sentry.startSpan(
-    { name: 'family.addSecondParent', op: 'db.transaction' },
-    async () => {
-      await prisma.$transaction(async (tx) => {
-        let parentPersonId: string
-        const normalizedEmail = normalizeEmail(input.email)
+  const normalizedEmail = normalizeEmail(input.email)
 
-        const existingPerson = await findPersonByActiveContact(
-          input.email,
-          null,
-          tx
-        )
+  try {
+    await Sentry.startSpan(
+      { name: 'family.addSecondParent', op: 'db.transaction' },
+      async () => {
+        await prisma.$transaction(async (tx) => {
+          let parentPersonId: string
 
-        if (existingPerson) {
-          parentPersonId = existingPerson.id
-          await tx.person.update({
-            where: { id: existingPerson.id },
-            data: { phone: normalizedPhone },
-          })
-        } else {
-          const fullName = `${input.firstName} ${input.lastName}`.trim()
-          const newPerson = await tx.person.create({
-            data: {
-              name: fullName,
-              email: normalizedEmail,
-              phone: normalizedPhone,
-            },
-          })
-          parentPersonId = newPerson.id
-        }
+          const existingPerson = await findPersonByActiveContact(
+            normalizedEmail,
+            normalizedPhone,
+            tx
+          )
 
-        const existingRelationship = await tx.guardianRelationship.findFirst({
-          where: {
-            guardianId: parentPersonId,
-            dependentId: profile.person.id,
-          },
-        })
-        if (existingRelationship) {
-          if (!existingRelationship.isActive) {
-            await tx.guardianRelationship.update({
-              where: { id: existingRelationship.id },
-              data: { isActive: true, endDate: null },
+          if (existingPerson) {
+            parentPersonId = existingPerson.id
+            if (existingPerson.phone !== normalizedPhone) {
+              await tx.person.update({
+                where: { id: existingPerson.id },
+                data: { phone: normalizedPhone },
+              })
+            }
+          } else {
+            const fullName = `${input.firstName} ${input.lastName}`.trim()
+            const newPerson = await tx.person.create({
+              data: {
+                name: fullName,
+                email: normalizedEmail,
+                phone: normalizedPhone,
+              },
             })
+            parentPersonId = newPerson.id
           }
-        } else {
-          await tx.guardianRelationship.create({
-            data: {
+
+          const existingRelationship = await tx.guardianRelationship.findFirst({
+            where: {
               guardianId: parentPersonId,
               dependentId: profile.person.id,
-              isActive: true,
             },
           })
-        }
-      })
+          if (existingRelationship) {
+            if (!existingRelationship.isActive) {
+              await tx.guardianRelationship.update({
+                where: { id: existingRelationship.id },
+                data: { isActive: true, endDate: null },
+              })
+            }
+          } else {
+            await tx.guardianRelationship.create({
+              data: {
+                guardianId: parentPersonId,
+                dependentId: profile.person.id,
+                isActive: true,
+              },
+            })
+          }
+        })
+      }
+    )
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      const target = error.meta?.target as string[] | undefined
+      const field = target?.includes('email')
+        ? 'email'
+        : target?.includes('phone')
+          ? 'phone'
+          : 'email or phone'
+      throw new ActionError(
+        `This ${field} is already associated with another person`,
+        ERROR_CODES.DUPLICATE_CONTACT,
+        field,
+        409
+      )
     }
-  )
+    throw error
+  }
 
   return { updated: 1 }
 }
