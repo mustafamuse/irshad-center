@@ -3,7 +3,7 @@
 -- ContactPoint was retained after Phase 2 (PR #181) for rollback safety.
 
 -- Drop table first (CASCADE removes indexes, constraints, FK)
-DROP TABLE "ContactPoint" CASCADE;
+DROP TABLE IF EXISTS "ContactPoint" CASCADE;
 
 -- Drop enums (must come AFTER table drop — columns referenced them)
 DROP TYPE IF EXISTS "ContactType";
