@@ -13,15 +13,37 @@
  * - Get guardian's dependents
  */
 
-import { GuardianRole } from '@prisma/client'
+import { GuardianRole, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import type { DatabaseClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { ValidationError } from '@/lib/services/validation-service'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+
+function throwIfP2002(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    const target = error.meta?.target as string[] | undefined
+    const field = target?.includes('Person_email_key')
+      ? 'email'
+      : target?.includes('Person_phone_key')
+        ? 'phone'
+        : 'email or phone'
+    throw new ActionError(
+      `This ${field} is already associated with another person`,
+      ERROR_CODES.DUPLICATE_CONTACT,
+      field,
+      409
+    )
+  }
+  throw error
+}
 
 /**
  * Guardian update input
@@ -56,24 +78,18 @@ export async function updateGuardianInfo(
   input: GuardianUpdateInput,
   client: DatabaseClient = prisma
 ) {
-  async function performUpdate(tx: DatabaseClient) {
-    const fullName = `${input.firstName} ${input.lastName}`.trim()
+  const fullName = `${input.firstName} ${input.lastName}`.trim()
+  const email = normalizeEmail(input.email) ?? undefined
+  const phone = normalizePhone(input.phone) ?? undefined
 
-    return tx.person.update({
+  try {
+    return await client.person.update({
       where: { id: guardianId },
-      data: {
-        name: fullName,
-        email: normalizeEmail(input.email) ?? undefined,
-        phone: normalizePhone(input.phone) ?? undefined,
-      },
+      data: { name: fullName, email, phone },
     })
+  } catch (error) {
+    throwIfP2002(error)
   }
-
-  if (client !== prisma) {
-    return performUpdate(client)
-  }
-
-  return prisma.$transaction(performUpdate)
 }
 
 /**
@@ -93,18 +109,41 @@ export async function addGuardianRelationship(
   const normalizedEmail = normalizeEmail(input.email)
   const normalizedPhone = normalizePhone(input.phone)
 
+  if (!normalizedEmail) {
+    throw new ActionError(
+      'Guardian email is required',
+      ERROR_CODES.VALIDATION_ERROR,
+      'email',
+      400
+    )
+  }
+
   let guardianPerson = await prisma.person.findFirst({
     where: { email: normalizedEmail },
   })
 
   if (!guardianPerson) {
-    guardianPerson = await prisma.person.create({
-      data: {
-        name: fullName,
-        email: normalizedEmail,
-        phone: normalizedPhone,
-      },
-    })
+    try {
+      guardianPerson = await prisma.person.create({
+        data: {
+          name: fullName,
+          email: normalizedEmail,
+          phone: normalizedPhone,
+        },
+      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        guardianPerson = await prisma.person.findFirst({
+          where: { email: normalizedEmail },
+        })
+        if (!guardianPerson) throw error
+      } else {
+        throw error
+      }
+    }
   }
 
   // Check if relationship already exists

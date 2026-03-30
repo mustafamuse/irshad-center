@@ -54,4 +54,12 @@ describe('normalizeEmail', () => {
   it('returns null for undefined input', () => {
     expect(normalizeEmail(undefined)).toBeNull()
   })
+
+  it('returns null for empty string', () => {
+    expect(normalizeEmail('')).toBeNull()
+  })
+
+  it('returns null for whitespace-only string', () => {
+    expect(normalizeEmail('   ')).toBeNull()
+  })
 })

@@ -1212,6 +1212,10 @@ export async function findOrCreatePersonWithContact(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      if (tx) {
+        throw error
+      }
+
       logger.info(
         {
           email: normalizedEmailVal,

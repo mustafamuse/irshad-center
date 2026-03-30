@@ -1,4 +1,4 @@
-import { GradeLevel, Shift } from '@prisma/client'
+import { GradeLevel, Prisma, Shift } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -125,10 +125,25 @@ export async function updateParentInfo(
   await Sentry.startSpan(
     { name: 'family.updateParentInfo', op: 'db' },
     async () => {
-      await prisma.person.update({
-        where: { id: guardian.id },
-        data: { name: fullName, phone: normalizedPhone },
-      })
+      try {
+        await prisma.person.update({
+          where: { id: guardian.id },
+          data: { name: fullName, phone: normalizedPhone },
+        })
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          throw new ActionError(
+            'This phone number is already associated with another person',
+            ERROR_CODES.DUPLICATE_CONTACT,
+            'phone',
+            409
+          )
+        }
+        throw error
+      }
     }
   )
 
