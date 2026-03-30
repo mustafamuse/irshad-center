@@ -72,7 +72,8 @@ export async function updateGuardianInfo(
     )
   }
 
-  const email = normalizeEmail(input.email) ?? undefined
+  const email =
+    input.email !== undefined ? normalizeEmail(input.email) : undefined
   const phone = normalizePhone(input.phone) ?? undefined
 
   try {
@@ -137,13 +138,8 @@ export async function addGuardianRelationship(
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        guardianPerson = await prisma.person.findFirst({
-          where: {
-            OR: [
-              { email: normalizedEmail },
-              ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
-            ],
-          },
+        guardianPerson = await prisma.person.findUnique({
+          where: { email: normalizedEmail },
         })
         if (!guardianPerson) throwIfP2002(error)
       } else {
