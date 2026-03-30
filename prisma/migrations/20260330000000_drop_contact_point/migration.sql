@@ -6,5 +6,5 @@
 DROP TABLE "ContactPoint" CASCADE;
 
 -- Drop enums (must come AFTER table drop — columns referenced them)
-DROP TYPE "ContactType";
-DROP TYPE "ContactVerificationStatus";
+DROP TYPE IF EXISTS "ContactType";
+DROP TYPE IF EXISTS "ContactVerificationStatus";
