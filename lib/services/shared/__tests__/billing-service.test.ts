@@ -799,13 +799,7 @@ describe('getBillingStatusByEmail', () => {
     expect(mockPersonFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          contactPoints: {
-            some: {
-              type: 'EMAIL',
-              value: 'test@example.com',
-              isActive: true,
-            },
-          },
+          email: 'test@example.com',
         },
       })
     )
@@ -855,9 +849,9 @@ describe('getBillingStatusForProfiles', () => {
     ])
 
     expect(result.size).toBe(3)
-    for (const [, status] of result) {
+    result.forEach((status) => {
       expect(status).toEqual({ hasSubscription: false, amount: null })
-    }
+    })
   })
 
   it('should return empty map for empty input', async () => {

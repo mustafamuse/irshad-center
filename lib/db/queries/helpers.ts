@@ -325,22 +325,15 @@ export async function validateAndCreatePerson(
     }
   }
 
+  const emailContact = data.contactPoints?.find((cp) => cp.type === 'EMAIL')
+  const phoneContact = data.contactPoints?.find((cp) => cp.type === 'PHONE')
+
   return client.person.create({
     data: {
       name: data.name.trim(),
       dateOfBirth: data.dateOfBirth,
-      contactPoints: data.contactPoints
-        ? {
-            create: data.contactPoints.map((cp) => ({
-              type: cp.type,
-              value: cp.value.trim(),
-              isPrimary: cp.isPrimary ?? true,
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      contactPoints: { where: { isActive: true } },
+      email: emailContact?.value.toLowerCase().trim() ?? null,
+      phone: phoneContact?.value.trim() ?? null,
     },
   })
 }

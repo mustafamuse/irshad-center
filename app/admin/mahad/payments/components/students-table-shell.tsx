@@ -16,10 +16,6 @@ import {
 } from '@/components/ui/table'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
-import {
-  extractPrimaryEmail,
-  extractPrimaryPhone,
-} from '@/lib/db/query-builders'
 import { SearchParams } from '@/types'
 
 import { PaymentsPagination } from './payments-pagination'
@@ -198,11 +194,7 @@ export async function StudentsTableShell({
       batch: true,
       programProfile: {
         include: {
-          person: {
-            include: {
-              contactPoints: { where: { isActive: true } },
-            },
-          },
+          person: true,
           assignments: {
             where: { isActive: true },
             include: {
@@ -236,8 +228,8 @@ export async function StudentsTableShell({
     const assignment = profile.assignments[0]
     const subscription = assignment?.subscription
 
-    const email = extractPrimaryEmail(person.contactPoints)
-    const phone = extractPrimaryPhone(person.contactPoints)
+    const email = person.email
+    const phone = person.phone
 
     // Get subscription members from pre-fetched map (O(1) lookup)
     const subscriptionMembers =

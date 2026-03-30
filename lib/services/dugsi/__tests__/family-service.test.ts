@@ -11,9 +11,6 @@ const {
   mockGuardianRelationshipUpdate,
   mockProgramProfileCreate,
   mockEnrollmentCreate,
-  mockContactPointUpdate,
-  mockContactPointCreate,
-  mockContactPointFindFirst,
   mockTransaction,
 } = vi.hoisted(() => {
   const mockPersonCreate = vi.fn()
@@ -24,9 +21,6 @@ const {
   const mockGuardianRelationshipUpdate = vi.fn()
   const mockProgramProfileCreate = vi.fn()
   const mockEnrollmentCreate = vi.fn()
-  const mockContactPointUpdate = vi.fn()
-  const mockContactPointCreate = vi.fn()
-  const mockContactPointFindFirst = vi.fn()
 
   const tx = {
     person: {
@@ -45,11 +39,6 @@ const {
     enrollment: {
       create: mockEnrollmentCreate,
     },
-    contactPoint: {
-      update: mockContactPointUpdate,
-      create: mockContactPointCreate,
-      findFirst: mockContactPointFindFirst,
-    },
   }
 
   const mockTransaction = vi.fn(
@@ -67,15 +56,15 @@ const {
     mockGuardianRelationshipUpdate,
     mockProgramProfileCreate,
     mockEnrollmentCreate,
-    mockContactPointUpdate,
-    mockContactPointCreate,
-    mockContactPointFindFirst,
     mockTransaction,
   }
 })
 
 vi.mock('@/lib/db', () => ({
   prisma: {
+    person: {
+      update: mockPersonUpdate,
+    },
     $transaction: mockTransaction,
   },
 }))
@@ -212,16 +201,9 @@ describe('updateParentInfo', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockPersonUpdate.mockResolvedValue({ id: 'guardian-1' })
-    mockContactPointUpdate.mockResolvedValue({ id: 'cp-1' })
   })
 
-  it('should normalize phone before storing (612-555-1234 → 6125551234)', async () => {
-    mockContactPointFindFirst.mockResolvedValue({
-      id: 'cp-1',
-      type: 'PHONE',
-      value: '0000000000',
-      isActive: true,
-    })
+  it('should normalize phone before storing and update Person directly', async () => {
     mockGetProgramProfileById.mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI',
@@ -241,55 +223,11 @@ describe('updateParentInfo', () => {
 
     expect(mockPersonUpdate).toHaveBeenCalledWith({
       where: { id: 'guardian-1' },
-      data: { name: 'Fatima Ali' },
-    })
-    expect(mockContactPointUpdate).toHaveBeenCalledWith({
-      where: { id: 'cp-1' },
-      data: { value: '6125551234' },
+      data: { name: 'Fatima Ali', phone: '6125551234' },
     })
   })
 
-  it('should normalize phone when creating new contact point', async () => {
-    mockContactPointFindFirst.mockResolvedValue(null)
-    mockGetProgramProfileById.mockResolvedValue({
-      id: 'profile-1',
-      program: 'DUGSI',
-      person: {
-        id: 'person-1',
-        dependentRelationships: [{ guardian: { id: 'guardian-1' } }],
-      },
-    })
-    mockContactPointCreate.mockResolvedValue({ id: 'cp-new' })
-
-    await updateParentInfo({
-      studentId: 'profile-1',
-      parentNumber: 1,
-      firstName: 'Fatima',
-      lastName: 'Ali',
-      phone: '612-555-1234',
-    })
-
-    expect(mockPersonUpdate).toHaveBeenCalledWith({
-      where: { id: 'guardian-1' },
-      data: { name: 'Fatima Ali' },
-    })
-    expect(mockContactPointCreate).toHaveBeenCalledWith({
-      data: {
-        personId: 'guardian-1',
-        type: 'PHONE',
-        value: '6125551234',
-        isPrimary: true,
-      },
-    })
-  })
-
-  it('should strip NANP country code (+16125551234 → 6125551234)', async () => {
-    mockContactPointFindFirst.mockResolvedValue({
-      id: 'cp-1',
-      type: 'PHONE',
-      value: '0000000000',
-      isActive: true,
-    })
+  it('should strip NANP country code (+16125551234 -> 6125551234)', async () => {
     mockGetProgramProfileById.mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI',
@@ -307,9 +245,9 @@ describe('updateParentInfo', () => {
       phone: '+1 (612) 555-1234',
     })
 
-    expect(mockContactPointUpdate).toHaveBeenCalledWith({
-      where: { id: 'cp-1' },
-      data: { value: '6125551234' },
+    expect(mockPersonUpdate).toHaveBeenCalledWith({
+      where: { id: 'guardian-1' },
+      data: { name: 'Fatima Ali', phone: '6125551234' },
     })
   })
 
@@ -333,12 +271,9 @@ describe('addSecondParent', () => {
     mockGuardianRelationshipCreate.mockResolvedValue({ id: 'rel-1' })
     mockGuardianRelationshipFindFirst.mockResolvedValue(null)
     mockFindPersonByContact.mockResolvedValue(null)
-    mockContactPointFindFirst.mockResolvedValue(null)
-    mockContactPointCreate.mockResolvedValue({ id: 'cp-new' })
-    mockContactPointUpdate.mockResolvedValue({ id: 'cp-1' })
   })
 
-  it('should normalize phone before storing (612-555-1234 → 6125551234)', async () => {
+  it('should normalize phone before storing (612-555-1234 -> 6125551234)', async () => {
     mockGetProgramProfileById.mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI',
@@ -358,16 +293,13 @@ describe('addSecondParent', () => {
 
     expect(mockPersonCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        contactPoints: {
-          create: expect.arrayContaining([
-            expect.objectContaining({ type: 'PHONE', value: '6125551234' }),
-          ]),
-        },
+        email: 'ahmed@example.com',
+        phone: '6125551234',
       }),
     })
   })
 
-  it('should reuse existing person and create phone when email already exists', async () => {
+  it('should reuse existing person and update phone when email already exists', async () => {
     mockGetProgramProfileById.mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI',
@@ -377,7 +309,6 @@ describe('addSecondParent', () => {
       },
     })
     mockFindPersonByContact.mockResolvedValue({ id: 'existing-parent-id' })
-    mockContactPointFindFirst.mockResolvedValue(null)
 
     await addSecondParent({
       studentId: 'profile-1',
@@ -388,50 +319,15 @@ describe('addSecondParent', () => {
     })
 
     expect(mockPersonCreate).not.toHaveBeenCalled()
-    expect(mockContactPointCreate).toHaveBeenCalledWith({
-      data: {
-        personId: 'existing-parent-id',
-        type: 'PHONE',
-        value: '6125551234',
-        isPrimary: true,
-      },
+    expect(mockPersonUpdate).toHaveBeenCalledWith({
+      where: { id: 'existing-parent-id' },
+      data: { phone: '6125551234' },
     })
     expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ guardianId: 'existing-parent-id' }),
       })
     )
-  })
-
-  it('should update existing phone when reusing person', async () => {
-    mockGetProgramProfileById.mockResolvedValue({
-      id: 'profile-1',
-      program: 'DUGSI',
-      person: {
-        id: 'person-1',
-        dependentRelationships: [{ guardian: { id: 'guardian-1' } }],
-      },
-    })
-    mockFindPersonByContact.mockResolvedValue({ id: 'existing-parent-id' })
-    mockContactPointFindFirst.mockResolvedValue({
-      id: 'cp-existing',
-      type: 'PHONE',
-      value: '0000000000',
-      isActive: true,
-    })
-
-    await addSecondParent({
-      studentId: 'profile-1',
-      firstName: 'Ahmed',
-      lastName: 'Ali',
-      email: 'ahmed@example.com',
-      phone: '612-555-1234',
-    })
-
-    expect(mockContactPointUpdate).toHaveBeenCalledWith({
-      where: { id: 'cp-existing' },
-      data: { value: '6125551234' },
-    })
   })
 
   it('should skip create when active guardian relationship already exists', async () => {
@@ -461,14 +357,6 @@ describe('addSecondParent', () => {
 
     expect(mockGuardianRelationshipCreate).not.toHaveBeenCalled()
     expect(mockGuardianRelationshipUpdate).not.toHaveBeenCalled()
-    expect(mockContactPointCreate).toHaveBeenCalledWith({
-      data: {
-        personId: 'existing-parent-id',
-        type: 'PHONE',
-        value: '6125551234',
-        isPrimary: true,
-      },
-    })
   })
 
   it('should reactivate soft-deleted guardian relationship', async () => {

@@ -100,13 +100,7 @@ export async function linkDugsiSubscription(
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: parentEmail.toLowerCase().trim(),
-          isActive: true,
-        },
-      },
+      email: parentEmail.toLowerCase().trim(),
     },
     include: {
       programProfiles: {
@@ -182,13 +176,7 @@ export async function getDugsiPaymentStatus(
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: parentEmail.toLowerCase().trim(),
-          isActive: true,
-        },
-      },
+      email: parentEmail.toLowerCase().trim(),
     },
     include: {
       billingAccounts: {

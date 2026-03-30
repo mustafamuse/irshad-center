@@ -88,47 +88,15 @@ export const ACTIVE_GUARDIAN_WHERE = {
   isActive: true,
 } satisfies Prisma.GuardianRelationshipWhereInput
 
-/**
- * Filter for active contact points (soft-delete support)
- *
- * Usage:
- * ```typescript
- * await client.contactPoint.findMany({
- *   where: { personId, ...ACTIVE_CONTACT_WHERE },
- * })
- * ```
- */
-export const ACTIVE_CONTACT_WHERE = {
-  isActive: true,
-} satisfies Prisma.ContactPointWhereInput
-
 // ============================================================================
 // Common Include Patterns (using Prisma.validator for type safety)
 // ============================================================================
 
 /**
- * Include person with contact points - most common pattern
- *
- * Usage:
- * ```typescript
- * await client.programProfile.findMany({
- *   include: {
- *     person: PERSON_WITH_CONTACTS_INCLUDE,
- *   },
- * })
- * ```
- */
-export const PERSON_WITH_CONTACTS_INCLUDE =
-  Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: { where: { isActive: true } },
-  })
-
-/**
- * Include person with all relations (contacts, guardian relationships)
+ * Include person with all relations (guardian relationships)
  */
 export const PERSON_WITH_RELATIONS_INCLUDE =
   Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: { where: { isActive: true } },
     guardianRelationships: true,
     dependentRelationships: true,
   })
@@ -160,24 +128,13 @@ export const BATCH_FULL_SELECT = Prisma.validator<Prisma.BatchSelect>()({
 // ============================================================================
 
 /**
- * ProgramProfile with person and contacts - used in enrollment queries
- *
- * Usage:
- * ```typescript
- * await client.enrollment.findMany({
- *   include: ENROLLMENT_WITH_PROFILE_INCLUDE,
- * })
- * ```
+ * ProgramProfile with person - used in enrollment queries
  */
 export const ENROLLMENT_WITH_PROFILE_INCLUDE =
   Prisma.validator<Prisma.EnrollmentInclude>()({
     programProfile: {
       include: {
-        person: {
-          include: {
-            contactPoints: { where: { isActive: true } },
-          },
-        },
+        person: true,
       },
     },
     batch: {
@@ -191,15 +148,11 @@ export const ENROLLMENT_WITH_PROFILE_INCLUDE =
   })
 
 /**
- * Teacher with person and contacts
+ * Teacher with person
  */
 export const TEACHER_WITH_PERSON_INCLUDE =
   Prisma.validator<Prisma.TeacherInclude>()({
-    person: {
-      include: {
-        contactPoints: { where: { isActive: true } },
-      },
-    },
+    person: true,
   })
 
 // ============================================================================
@@ -238,83 +191,5 @@ export function buildProgramEnrollmentWhere(
       program,
     },
     ...(batchId && { batchId }),
-  }
-}
-
-// ============================================================================
-// Contact Extraction Utilities
-// ============================================================================
-
-/**
- * Contact point with minimal required fields.
- * Does not include isActive — callers must pre-filter to active records only.
- */
-export interface MinimalContactPoint {
-  type: 'EMAIL' | 'PHONE'
-  value: string
-  isPrimary?: boolean
-}
-
-/**
- * Extract primary email from contact points array
- *
- * @param contactPoints - Active contact points only. Callers must filter
- *   with `where: { isActive: true }` at the query layer before invoking.
- * @returns Email address or null
- */
-export function extractPrimaryEmail(
-  contactPoints: MinimalContactPoint[] | null | undefined
-): string | null {
-  if (!contactPoints) return null
-  const email = contactPoints.find(
-    (cp) =>
-      cp.type === 'EMAIL' &&
-      (cp.isPrimary === true || cp.isPrimary === undefined)
-  )
-  // Fall back to any email if no primary found
-  return (
-    email?.value ||
-    contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
-    null
-  )
-}
-
-/**
- * Extract primary phone from contact points array
- *
- * @param contactPoints - Active contact points only. Callers must filter
- *   with `where: { isActive: true }` at the query layer before invoking.
- * @returns Phone number or null
- */
-export function extractPrimaryPhone(
-  contactPoints: MinimalContactPoint[] | null | undefined
-): string | null {
-  if (!contactPoints) return null
-  const phone = contactPoints.find(
-    (cp) =>
-      cp.type === 'PHONE' &&
-      (cp.isPrimary === true || cp.isPrimary === undefined)
-  )
-  // Fall back to any phone if no primary found
-  return (
-    phone?.value ||
-    contactPoints.find((cp) => cp.type === 'PHONE')?.value ||
-    null
-  )
-}
-
-/**
- * Extract both primary email and phone from contact points
- *
- * @param contactPoints - Active contact points only. Callers must filter
- *   with `where: { isActive: true }` at the query layer before invoking.
- * @returns Object with email and phone (both nullable)
- */
-export function extractContactInfo(
-  contactPoints: MinimalContactPoint[] | null | undefined
-): { email: string | null; phone: string | null } {
-  return {
-    email: extractPrimaryEmail(contactPoints),
-    phone: extractPrimaryPhone(contactPoints),
   }
 }

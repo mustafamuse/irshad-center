@@ -1,27 +1,11 @@
-import type {
-  ContactType,
-  ContactVerificationStatus,
-  GuardianRole,
-} from '@prisma/client'
+import type { GuardianRole } from '@prisma/client'
 
 export interface Person {
   id: string
   name: string
+  email: string | null
+  phone: string | null
   dateOfBirth: Date | null
-  createdAt: Date
-  updatedAt: Date
-}
-
-export interface ContactPoint {
-  id: string
-  personId: string
-  type: ContactType
-  value: string // Email address or phone number
-  isPrimary: boolean
-  verificationStatus: ContactVerificationStatus
-  verifiedAt: Date | null
-  isActive: boolean // Soft-delete: allows email/phone reuse after deactivation
-  deactivatedAt: Date | null // When contact was deactivated (null if active)
   createdAt: Date
   updatedAt: Date
 }
@@ -40,7 +24,6 @@ export interface GuardianRelationship {
 }
 
 export interface PersonWithRelations extends Person {
-  contactPoints: ContactPoint[]
   guardianRelationships: GuardianRelationship[]
   dependentRelationships: GuardianRelationship[]
 }

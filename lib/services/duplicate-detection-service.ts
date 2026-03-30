@@ -210,32 +210,20 @@ export class DuplicateDetectionService {
     submittedEmail?: string | null,
     submittedPhone?: string | null
   ): DuplicateField {
-    const contactPoints = person.contactPoints
+    const emailMatches =
+      submittedEmail && person.email
+        ? person.email.toLowerCase() === submittedEmail.toLowerCase().trim()
+        : false
 
-    // Check if submitted email matches any email contact point
-    const emailMatches = submittedEmail
-      ? contactPoints.some(
-          (cp) =>
-            cp.type === 'EMAIL' &&
-            cp.value.toLowerCase() === submittedEmail.toLowerCase().trim()
-        )
-      : false
+    const phoneMatches =
+      submittedPhone && person.phone
+        ? person.phone === normalizePhone(submittedPhone)
+        : false
 
-    // Check if submitted phone matches any phone contact point
-    // Note: Phone numbers are stored normalized (digits only) in the database
-    const phoneMatches = submittedPhone
-      ? contactPoints.some(
-          (cp) =>
-            cp.type === 'PHONE' && cp.value === normalizePhone(submittedPhone)
-        )
-      : false
-
-    // If both match, return 'both'
     if (emailMatches && phoneMatches) {
       return 'both'
     }
 
-    // If only phone matches, return 'phone' (this was the bug - it was returning 'email')
     if (phoneMatches) {
       return 'phone'
     }

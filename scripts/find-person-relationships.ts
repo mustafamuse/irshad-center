@@ -9,23 +9,14 @@ async function findPersonRelationships() {
       },
     },
     include: {
-      contactPoints: { where: { isActive: true } },
       guardianRelationships: {
         include: {
-          dependent: {
-            include: {
-              contactPoints: { where: { isActive: true } },
-            },
-          },
+          dependent: true,
         },
       },
       dependentRelationships: {
         include: {
-          guardian: {
-            include: {
-              contactPoints: { where: { isActive: true } },
-            },
-          },
+          guardian: true,
         },
       },
       siblingRelationships1: {
@@ -82,22 +73,13 @@ async function findPersonRelationships() {
   console.log(`ID: ${person.id}`)
   console.log(`Name: ${person.name}`)
   console.log(`DOB: ${person.dateOfBirth}`)
-  console.log()
-
-  console.log('=== CONTACT POINTS ===')
-  person.contactPoints.forEach((cp) => {
-    console.log(
-      `- ${cp.type}: ${cp.value} ${cp.isPrimary ? '(PRIMARY)' : ''} ${cp.isActive ? '✓' : '✗'}`
-    )
-  })
+  console.log(`Email: ${person.email || 'N/A'}`)
+  console.log(`Phone: ${person.phone || 'N/A'}`)
   console.log()
 
   console.log('=== GUARDIAN RELATIONSHIPS (as Guardian) ===')
   person.guardianRelationships.forEach((rel) => {
     console.log(`- ${rel.role} to: ${rel.dependent.name} (${rel.dependent.id})`)
-    rel.dependent.contactPoints.forEach((cp) => {
-      console.log(`  Contact: ${cp.type}: ${cp.value}`)
-    })
   })
   console.log()
 

@@ -59,14 +59,15 @@ export function mapEnrollmentToStudent(enrollment: EnrollmentFull): StudentDTO {
 }
 ```
 
-### ContactPoint Rules
+### Person Contact Rules
 
-When working with `contactPoint` records, follow these rules to avoid data bugs:
+Email and phone live directly on `Person` as nullable unique fields.
 
-1. **Always set `isPrimary: true`** on `contactPoint.create` — all contact types get `isPrimary: true`
-2. **Always filter `isActive: true`** when looking up existing contact points — never match soft-deleted records
-3. **Never try-catch P2002 inside `$transaction()`** — PostgreSQL aborts the transaction on constraint violations; any `tx` operations in the catch block are dead code. Use read-first pattern: `tx.contactPoint.findFirst` before `create` to decide update vs create
-4. **Validate input before opening a transaction** — normalize/validate phones, emails, etc. before `prisma.$transaction()` to avoid wasting DB connections on invalid input
+1. **Always use normalizeEmail()/normalizePhone() before writing** — they return `null` for falsy input, preventing empty strings
+2. **Cleared values must be `NULL`, never empty string** — PostgreSQL treats `''` as a real value under unique constraints
+3. **Phone is US-only, 10-digit canonical** — `normalizePhone()` strips formatting and validates
+4. **Validate input before opening a transaction** — normalize/validate phones, emails, etc. before `prisma.$transaction()`
+5. **Never try-catch P2002 inside `$transaction()`** — PostgreSQL aborts the transaction on constraint violations
 
 ### Webhook Handler Factory
 

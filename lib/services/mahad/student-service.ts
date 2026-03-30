@@ -56,10 +56,9 @@ export interface StudentUpdateInput {
  * Create a new Mahad student.
  *
  * Creates:
- * 1. Person record
- * 2. ContactPoints for email/phone
- * 3. ProgramProfile for MAHAD_PROGRAM
- * 4. Enrollment record (with optional batch assignment)
+ * 1. Person record (with email/phone)
+ * 2. ProgramProfile for MAHAD_PROGRAM
+ * 3. Enrollment record (with optional batch assignment)
  *
  * @param input - Student creation data
  * @returns Created program profile
@@ -96,97 +95,20 @@ export async function createMahadStudent(input: StudentCreateInput) {
     if (dupResult.existingPerson) {
       personId = dupResult.existingPerson.id
 
-      if (normalizedEmail) {
-        const emailContact = dupResult.existingPerson.contactPoints.find(
-          (cp) => cp.type === 'EMAIL' && cp.value === normalizedEmail
-        )
-        if (!emailContact) {
-          const deactivatedEmail = await tx.contactPoint.findFirst({
-            where: {
-              personId,
-              type: 'EMAIL',
-              value: normalizedEmail,
-              isActive: false,
-            },
-          })
-          if (deactivatedEmail) {
-            await tx.contactPoint.update({
-              where: { id: deactivatedEmail.id },
-              data: { isActive: true, isPrimary: true, deactivatedAt: null },
-            })
-          } else {
-            await tx.contactPoint.create({
-              data: {
-                personId,
-                type: 'EMAIL',
-                value: normalizedEmail,
-                isPrimary: true,
-              },
-            })
-          }
-        }
-      }
-
-      if (normalizedPhone) {
-        const phoneContact = dupResult.existingPerson.contactPoints.find(
-          (cp) => cp.type === 'PHONE' && cp.value === normalizedPhone
-        )
-        if (!phoneContact) {
-          const deactivatedPhone = await tx.contactPoint.findFirst({
-            where: {
-              personId,
-              type: 'PHONE',
-              value: normalizedPhone,
-              isActive: false,
-            },
-          })
-          if (deactivatedPhone) {
-            await tx.contactPoint.update({
-              where: { id: deactivatedPhone.id },
-              data: { isActive: true, isPrimary: true, deactivatedAt: null },
-            })
-          } else {
-            await tx.contactPoint.create({
-              data: {
-                personId,
-                type: 'PHONE',
-                value: normalizedPhone,
-                isPrimary: true,
-              },
-            })
-          }
-        }
-      }
+      await tx.person.update({
+        where: { id: personId },
+        data: {
+          email: normalizedEmail ?? undefined,
+          phone: normalizedPhone ?? undefined,
+        },
+      })
     } else {
-      const contactPoints: {
-        type: 'EMAIL' | 'PHONE'
-        value: string
-        isPrimary?: boolean
-      }[] = []
-
-      if (normalizedEmail) {
-        contactPoints.push({
-          type: 'EMAIL' as const,
-          value: normalizedEmail,
-          isPrimary: true,
-        })
-      }
-
-      if (normalizedPhone) {
-        contactPoints.push({
-          type: 'PHONE' as const,
-          value: normalizedPhone,
-          isPrimary: true,
-        })
-      }
-
       const newPerson = await tx.person.create({
         data: {
           name: input.name,
           dateOfBirth: input.dateOfBirth ?? null,
-          contactPoints: {
-            create: contactPoints,
-          },
+          email: normalizedEmail,
+          phone: normalizedPhone,
         },
       })
       personId = newPerson.id
@@ -222,8 +144,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
  * Update Mahad student information.
  *
  * Updates:
- * - Person name and dateOfBirth
- * - ContactPoints (email/phone)
+ * - Person (name, dateOfBirth, email, phone)
  * - ProgramProfile fields
  *
  * @param studentId - Program profile ID
@@ -249,76 +170,27 @@ export async function updateMahadStudent(
 
     const { personId } = profile
 
-    if (input.name !== undefined || input.dateOfBirth !== undefined) {
-      await tx.person.update({
-        where: { id: personId },
-        data: {
-          name: input.name,
-          dateOfBirth: input.dateOfBirth,
-        },
-      })
-    }
-
-    if (input.email !== undefined) {
-      const normalizedEmail = normalizeEmail(input.email)
-
-      if (normalizedEmail) {
-        const existingEmail = await tx.contactPoint.findFirst({
-          where: { personId: personId, type: 'EMAIL' },
-        })
-
-        if (existingEmail) {
-          await tx.contactPoint.update({
-            where: { id: existingEmail.id },
-            data: {
-              value: normalizedEmail,
-              isActive: true,
-              deactivatedAt: null,
-            },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: personId,
-              type: 'EMAIL',
-              value: normalizedEmail,
-              isPrimary: true,
-            },
-          })
-        }
-      }
-    }
-
-    if (input.phone !== undefined) {
-      const normalizedPhone = input.phone
+    const personData: {
+      name?: string
+      dateOfBirth?: Date | null
+      email?: string | null
+      phone?: string | null
+    } = {}
+    if (input.name !== undefined) personData.name = input.name
+    if (input.dateOfBirth !== undefined)
+      personData.dateOfBirth = input.dateOfBirth
+    if (input.email !== undefined)
+      personData.email = normalizeEmail(input.email)
+    if (input.phone !== undefined)
+      personData.phone = input.phone
         ? (normalizePhone(input.phone) ?? null)
         : null
 
-      if (normalizedPhone) {
-        const existingPhone = await tx.contactPoint.findFirst({
-          where: { personId: personId, type: 'PHONE' },
-        })
-
-        if (existingPhone) {
-          await tx.contactPoint.update({
-            where: { id: existingPhone.id },
-            data: {
-              value: normalizedPhone,
-              isActive: true,
-              deactivatedAt: null,
-            },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: personId,
-              type: 'PHONE',
-              value: normalizedPhone,
-              isPrimary: true,
-            },
-          })
-        }
-      }
+    if (Object.keys(personData).length > 0) {
+      await tx.person.update({
+        where: { id: personId },
+        data: personData,
+      })
     }
 
     return await tx.programProfile.update({

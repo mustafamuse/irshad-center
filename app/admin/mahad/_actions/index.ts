@@ -26,11 +26,7 @@ import {
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
-import {
-  ACTIVE_BILLING_ASSIGNMENT_WHERE,
-  extractPrimaryEmail,
-  extractPrimaryPhone,
-} from '@/lib/db/query-builders'
+import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger, logError } from '@/lib/logger'
@@ -647,79 +643,29 @@ export async function updateStudentAction(
         where: { id },
         relationLoadStrategy: 'join',
         include: {
-          person: { include: { contactPoints: { where: { isActive: true } } } },
+          person: true,
           enrollments: { orderBy: { startDate: 'desc' }, take: 1 },
         },
       })
 
       if (!profile) throw new Error('Profile not found')
 
-      if (validated.name !== undefined || validated.dateOfBirth !== undefined) {
+      const personUpdate: Record<string, unknown> = {}
+      if (validated.name !== undefined) personUpdate.name = validated.name
+      if (validated.dateOfBirth !== undefined)
+        personUpdate.dateOfBirth = validated.dateOfBirth || null
+      if (validated.email !== undefined)
+        personUpdate.email = validated.email
+          ? validated.email.toLowerCase()
+          : null
+      if (validated.phone !== undefined)
+        personUpdate.phone = normalizedPhone || null
+
+      if (Object.keys(personUpdate).length > 0) {
         await tx.person.update({
           where: { id: profile.personId },
-          data: {
-            ...(validated.name !== undefined && { name: validated.name }),
-            ...(validated.dateOfBirth !== undefined && {
-              dateOfBirth: validated.dateOfBirth || null,
-            }),
-          },
+          data: personUpdate,
         })
-      }
-
-      if (validated.email !== undefined) {
-        const existingEmail = profile.person.contactPoints.find(
-          (c) => c.type === 'EMAIL' && c.isActive
-        )
-        if (validated.email) {
-          if (existingEmail) {
-            await tx.contactPoint.update({
-              where: { id: existingEmail.id },
-              data: { value: validated.email.toLowerCase() },
-            })
-          } else {
-            await tx.contactPoint.create({
-              data: {
-                personId: profile.personId,
-                type: 'EMAIL',
-                value: validated.email.toLowerCase(),
-                isPrimary: true,
-              },
-            })
-          }
-        } else if (existingEmail) {
-          await tx.contactPoint.update({
-            where: { id: existingEmail.id },
-            data: { isActive: false, deactivatedAt: new Date() },
-          })
-        }
-      }
-
-      if (validated.phone !== undefined) {
-        const existingPhone = await tx.contactPoint.findFirst({
-          where: { personId: profile.personId, type: 'PHONE', isActive: true },
-        })
-        if (normalizedPhone) {
-          if (existingPhone) {
-            await tx.contactPoint.update({
-              where: { id: existingPhone.id },
-              data: { value: normalizedPhone },
-            })
-          } else {
-            await tx.contactPoint.create({
-              data: {
-                personId: profile.personId,
-                type: 'PHONE',
-                value: normalizedPhone,
-                isPrimary: true,
-              },
-            })
-          }
-        } else if (existingPhone) {
-          await tx.contactPoint.update({
-            where: { id: existingPhone.id },
-            data: { isActive: false, deactivatedAt: new Date() },
-          })
-        }
       }
 
       const profileFields = {
@@ -817,15 +763,7 @@ export async function generatePaymentLinkAction(
       where: { id: profileId },
       relationLoadStrategy: 'join',
       include: {
-        person: {
-          include: {
-            contactPoints: {
-              where: { type: 'EMAIL', isActive: true },
-              orderBy: { isPrimary: 'desc' },
-              take: 1,
-            },
-          },
-        },
+        person: true,
       },
     })
 
@@ -869,7 +807,7 @@ export async function generatePaymentLinkAction(
     }
 
     // 5. Validate email exists
-    const email = extractPrimaryEmail(profile.person.contactPoints)
+    const email = profile.person.email
     if (!email) {
       return {
         success: false,
@@ -1130,14 +1068,7 @@ export async function generatePaymentLinkWithOverrideAction(
       where: { id: profileId },
       relationLoadStrategy: 'join',
       include: {
-        person: {
-          include: {
-            contactPoints: {
-              where: { isActive: true },
-              orderBy: { isPrimary: 'desc' },
-            },
-          },
-        },
+        person: true,
       },
     })
 
@@ -1201,8 +1132,8 @@ export async function generatePaymentLinkWithOverrideAction(
     }
 
     // 7. Validate email exists
-    const email = extractPrimaryEmail(profile.person.contactPoints)
-    const phone = extractPrimaryPhone(profile.person.contactPoints)
+    const email = profile.person.email
+    const phone = profile.person.phone
 
     if (!email) {
       return {

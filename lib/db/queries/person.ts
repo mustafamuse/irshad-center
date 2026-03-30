@@ -78,9 +78,6 @@ export async function getMultiRolePeople(
           },
         },
       },
-      contactPoints: {
-        where: { isActive: true },
-      },
     },
     orderBy: { name: 'asc' },
   })

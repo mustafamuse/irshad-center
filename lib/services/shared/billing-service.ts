@@ -356,13 +356,7 @@ export async function getBillingStatusByEmail(
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: email.toLowerCase().trim(),
-          isActive: true,
-        },
-      },
+      email: email.toLowerCase().trim(),
     },
     include: {
       billingAccounts: {

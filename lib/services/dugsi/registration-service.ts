@@ -210,9 +210,7 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
 
   // Extract parent email from guardian relationships (child is dependent, parents are guardians)
   const parentEmail =
-    profile.person.dependentRelationships?.[0]?.guardian?.contactPoints?.find(
-      (cp: { type: string }) => cp.type === 'EMAIL'
-    )?.value ?? null
+    profile.person.dependentRelationships?.[0]?.guardian?.email ?? null
 
   const students = profilesToDelete.map((p) => ({
     id: p.id,
@@ -395,42 +393,31 @@ export async function searchDugsiRegistrationsByContact(
     async () => {
       const normalizedContact = contact.toLowerCase().trim()
 
-      // Get family counts for billing accuracy
       const familyCounts = await getFamilyChildCounts()
 
-      // Search for profiles where either:
-      // 1. The student has this contact
-      // 2. The parent (guardian) has this contact
+      const personContactFilter =
+        contactType === 'EMAIL'
+          ? { email: normalizedContact }
+          : { phone: normalizedContact }
+
+      const guardianContactFilter =
+        contactType === 'EMAIL'
+          ? { email: normalizedContact }
+          : { phone: normalizedContact }
+
       const profiles = await prisma.programProfile.findMany({
         where: {
           program: DUGSI_PROGRAM,
           OR: [
             {
-              // Student's own contact
-              person: {
-                contactPoints: {
-                  some: {
-                    type: contactType,
-                    value: normalizedContact,
-                    isActive: true,
-                  },
-                },
-              },
+              person: personContactFilter,
             },
             {
-              // Parent's contact (via guardian relationship)
               person: {
                 guardianRelationships: {
                   some: {
                     isActive: true,
-                    guardian: {
-                      contactPoints: {
-                        some: {
-                          type: contactType,
-                          value: normalizedContact,
-                        },
-                      },
-                    },
+                    guardian: guardianContactFilter,
                   },
                 },
               },

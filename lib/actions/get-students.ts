@@ -16,11 +16,7 @@ import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
-import {
-  extractPrimaryEmail,
-  extractPrimaryPhone,
-  LIVE_SUBSCRIPTION_STATUSES,
-} from '@/lib/db/query-builders'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 
@@ -211,11 +207,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
     billingType: StudentBillingType | null
     person: {
       name: string
-      contactPoints?: Array<{
-        type: 'EMAIL' | 'PHONE'
-        value: string
-        isPrimary?: boolean
-      }>
+      email: string | null
+      phone: string | null
     }
     assignments: Array<{
       subscription: {
@@ -233,8 +226,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
   const assignment = profile.assignments[0]
   const subscription = assignment?.subscription
 
-  const email = extractPrimaryEmail(person.contactPoints)
-  const phone = extractPrimaryPhone(person.contactPoints)
+  const email = person.email
+  const phone = person.phone
 
   // Determine subscription status
   const hasActiveSubscription =

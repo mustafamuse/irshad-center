@@ -11,7 +11,6 @@ import type {
   Person,
   ProgramProfile,
   Enrollment,
-  ContactPoint,
   GuardianRelationship,
   SiblingRelationship,
   BillingAccount,
@@ -36,12 +35,9 @@ import type {
  */
 export type StudentProfile = ProgramProfile & {
   person: Person & {
-    contactPoints: ContactPoint[]
     guardianRelationships: Array<
       GuardianRelationship & {
-        guardian: Person & {
-          contactPoints: ContactPoint[]
-        }
+        guardian: Person
       }
     >
     siblingRelationships1: Array<
@@ -77,19 +73,11 @@ export type StudentProfile = ProgramProfile & {
  */
 export type FamilyProfile = {
   familyReferenceId: string
-  guardian: Person & {
-    contactPoints: ContactPoint[]
-  }
-  secondaryGuardian?:
-    | (Person & {
-        contactPoints: ContactPoint[]
-      })
-    | null
+  guardian: Person
+  secondaryGuardian?: Person | null
   children: Array<
     ProgramProfile & {
-      person: Person & {
-        contactPoints: ContactPoint[]
-      }
+      person: Person
       enrollments: Array<
         Enrollment & {
           batch: Batch | null
@@ -116,7 +104,6 @@ export type FamilyProfile = {
  * - Student (ProgramProfile)
  */
 export type TeacherProfile = Person & {
-  contactPoints: ContactPoint[]
   teacher: Teacher
   dependentRelationships?: Array<
     GuardianRelationship & {
@@ -133,7 +120,6 @@ export type TeacherProfile = Person & {
  * Represents the person responsible for payments.
  */
 export type PayerProfile = Person & {
-  contactPoints: ContactPoint[]
   billingAccounts: Array<
     BillingAccount & {
       subscriptions: Array<
@@ -213,7 +199,6 @@ export type TeacherListItem = {
  * PersonWithRelations - Person with all possible relationships
  */
 export type PersonWithRelations = Person & {
-  contactPoints: ContactPoint[]
   programProfiles: Array<
     ProgramProfile & {
       enrollments: Enrollment[]
@@ -248,9 +233,7 @@ export type PersonWithRelations = Person & {
  */
 export type EnrollmentWithRelations = Enrollment & {
   programProfile: ProgramProfile & {
-    person: Person & {
-      contactPoints: ContactPoint[]
-    }
+    person: Person
   }
   batch: Batch | null
 }
@@ -260,9 +243,7 @@ export type EnrollmentWithRelations = Enrollment & {
  */
 export type SubscriptionWithRelations = Subscription & {
   billingAccount: BillingAccount & {
-    person: Person & {
-      contactPoints: ContactPoint[]
-    }
+    person: Person
   }
   assignments: Array<
     BillingAssignment & {
@@ -303,10 +284,8 @@ export type PersonRoles = {
  * ContactInfo - Extracted contact information
  */
 export type ContactInfo = {
-  primaryEmail: string | null
-  primaryPhone: string | null
-  allEmails: string[]
-  allPhones: string[]
+  email: string | null
+  phone: string | null
 }
 
 /**
@@ -364,14 +343,9 @@ export function isPayer(person: PersonWithRelations): boolean {
 export type IncludeStudentProfile = {
   person: {
     include: {
-      contactPoints: true
       guardianRelationships: {
         include: {
-          guardian: {
-            include: {
-              contactPoints: true
-            }
-          }
+          guardian: true
         }
       }
       siblingRelationships1: {

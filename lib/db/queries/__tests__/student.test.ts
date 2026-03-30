@@ -30,9 +30,6 @@ vi.mock('@/lib/db', () => ({
     enrollment: {
       updateMany: vi.fn(),
     },
-    contactPoint: {
-      create: vi.fn(),
-    },
     person: {
       delete: vi.fn(),
     },
@@ -181,7 +178,7 @@ describe('student queries use relationLoadStrategy: join', () => {
         id: 'keep-1',
         program: 'MAHAD_PROGRAM',
         personId: 'person-1',
-        person: { contactPoints: [] },
+        person: { email: null, phone: null },
         assignments: [],
       })
       const txMockFindMany = vi.fn().mockResolvedValue([])
@@ -233,7 +230,8 @@ describe('student queries use relationLoadStrategy: join', () => {
         person: {
           name: 'Test',
           dateOfBirth: null,
-          contactPoints: [],
+          email: null,
+          phone: null,
         },
         enrollments: [],
       })

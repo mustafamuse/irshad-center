@@ -23,11 +23,7 @@ import {
   getProgramProfiles,
   searchProgramProfilesByNameOrContact,
 } from '@/lib/db/queries/program-profile'
-import {
-  extractPrimaryEmail,
-  extractPrimaryPhone,
-  LIVE_SUBSCRIPTION_STATUSES,
-} from '@/lib/db/query-builders'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -314,14 +310,11 @@ export async function searchStudentsForLinking(
       LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
-    const email = extractPrimaryEmail(profile.person.contactPoints) || ''
-    const phone = extractPrimaryPhone(profile.person.contactPoints)
-
     matches.push({
       id: profile.id,
       name: profile.person.name,
-      email,
-      phone,
+      email: profile.person.email || '',
+      phone: profile.person.phone ?? null,
       status: profile.status,
       hasSubscription,
       program: profile.program as 'MAHAD_PROGRAM' | 'DUGSI_PROGRAM',
@@ -380,14 +373,11 @@ export async function getPotentialStudentMatches(
       LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
 
-    const profileEmail = extractPrimaryEmail(profile.person.contactPoints) || ''
-    const phone = extractPrimaryPhone(profile.person.contactPoints)
-
     matches.push({
       id: profile.id,
       name: profile.person.name,
-      email: profileEmail,
-      phone,
+      email: profile.person.email || '',
+      phone: profile.person.phone ?? null,
       status: profile.status,
       hasSubscription,
       program: prismaProgram,

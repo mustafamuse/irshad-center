@@ -22,9 +22,6 @@ const {
   mockBillingAssignmentFindFirst,
   mockPrismaDeleteMany,
   mockPersonUpdate,
-  mockContactPointUpdate,
-  mockContactPointCreate,
-  mockContactPointFindFirst,
   mockAfter,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
@@ -48,9 +45,6 @@ const {
   mockBillingAssignmentFindMany: vi.fn(),
   mockBillingAssignmentFindFirst: vi.fn(),
   mockPersonUpdate: vi.fn(),
-  mockContactPointUpdate: vi.fn(),
-  mockContactPointCreate: vi.fn(),
-  mockContactPointFindFirst: vi.fn(),
   mockAfter: vi.fn((fn: () => void) => fn()),
 }))
 
@@ -79,11 +73,6 @@ vi.mock('@/lib/db', () => ({
       },
       person: {
         update: (...args: unknown[]) => mockPersonUpdate(...args),
-      },
-      contactPoint: {
-        update: (...args: unknown[]) => mockContactPointUpdate(...args),
-        create: (...args: unknown[]) => mockContactPointCreate(...args),
-        findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
       },
     }
     client.$transaction = (fn: (tx: unknown) => Promise<unknown>) => fn(client)
@@ -729,7 +718,8 @@ describe('Payment Link Actions', () => {
         billingType: 'FULL_TIME',
         person: {
           name: 'Test Student',
-          contactPoints: [{ value: 'test@example.com', type: 'EMAIL' }],
+          email: 'test@example.com',
+          phone: null,
         },
       })
       mockStripeSessionCreate.mockResolvedValue({
@@ -753,7 +743,8 @@ describe('Payment Link Actions', () => {
         billingType: null,
         person: {
           name: 'Test Student',
-          contactPoints: [{ value: 'test@example.com' }],
+          email: 'test@example.com',
+          phone: null,
         },
       })
 
@@ -772,7 +763,8 @@ describe('Payment Link Actions', () => {
         billingType: 'EXEMPT',
         person: {
           name: 'Test Student',
-          contactPoints: [{ value: 'test@example.com' }],
+          email: 'test@example.com',
+          phone: null,
         },
       })
 
@@ -791,7 +783,8 @@ describe('Payment Link Actions', () => {
         billingType: 'FULL_TIME',
         person: {
           name: 'Test Student',
-          contactPoints: [],
+          email: null,
+          phone: null,
         },
       })
 
@@ -827,7 +820,8 @@ describe('Payment Link Actions', () => {
         billingType: 'FULL_TIME',
         person: {
           name: 'Test Student',
-          contactPoints: [{ value: 'test@example.com', type: 'EMAIL' }],
+          email: 'test@example.com',
+          phone: null,
         },
       }
 
@@ -888,9 +882,8 @@ describe('Student Update Actions', () => {
       id: 'profile-1',
       personId: 'person-1',
       person: {
-        contactPoints: [
-          { id: 'cp-1', type: 'PHONE', isActive: true, isPrimary: true },
-        ],
+        email: null,
+        phone: '6125551234',
       },
       enrollments: [{ id: 'enroll-1' }],
     }
@@ -898,14 +891,6 @@ describe('Student Update Actions', () => {
     beforeEach(() => {
       mockGetStudentById.mockResolvedValue({ id: 'profile-1' })
       mockPrismaFindUnique.mockResolvedValue(mockProfile)
-      mockContactPointUpdate.mockResolvedValue({ id: 'cp-1' })
-      mockContactPointCreate.mockResolvedValue({ id: 'cp-new' })
-      mockContactPointFindFirst.mockResolvedValue({
-        id: 'cp-1',
-        type: 'PHONE',
-        isActive: true,
-        isPrimary: true,
-      })
     })
 
     it('should normalize phone before storing (612-555-1234 → 6125551234)', async () => {
@@ -914,11 +899,12 @@ describe('Student Update Actions', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(mockPersonUpdate).not.toHaveBeenCalled()
-      expect(mockContactPointUpdate).toHaveBeenCalledWith({
-        where: { id: 'cp-1' },
-        data: { value: '6125551234' },
-      })
+      expect(mockPersonUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'person-1' },
+          data: expect.objectContaining({ phone: '6125551234' }),
+        })
+      )
     })
 
     it('should reject invalid phone number', async () => {
@@ -935,28 +921,29 @@ describe('Student Update Actions', () => {
       })
 
       expect(result.success).toBe(true)
-      expect(mockContactPointUpdate).toHaveBeenCalledWith({
-        where: { id: 'cp-1' },
-        data: { value: '6125551234' },
-      })
+      expect(mockPersonUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ phone: '6125551234' }),
+        })
+      )
     })
 
-    it('should create contact point with isPrimary=true when no phone exists', async () => {
-      mockContactPointFindFirst.mockResolvedValueOnce(null)
+    it('should set phone on Person when none exists', async () => {
+      mockPrismaFindUnique.mockResolvedValue({
+        ...mockProfile,
+        person: { email: null, phone: null },
+      })
 
       const result = await updateStudentAction('profile-1', {
         phone: '612-555-1234',
       })
 
       expect(result.success).toBe(true)
-      expect(mockContactPointCreate).toHaveBeenCalledWith({
-        data: {
-          personId: 'person-1',
-          type: 'PHONE',
-          value: '6125551234',
-          isPrimary: true,
-        },
-      })
+      expect(mockPersonUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ phone: '6125551234' }),
+        })
+      )
     })
   })
 })

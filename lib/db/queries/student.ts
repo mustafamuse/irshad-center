@@ -19,15 +19,10 @@ import {
   EnrollmentStatus,
   Prisma,
   SubscriptionStatus,
-  ContactType,
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import {
-  ACTIVE_BILLING_ASSIGNMENT_WHERE,
-  extractPrimaryEmail,
-  extractPrimaryPhone,
-} from '@/lib/db/query-builders'
+import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
@@ -101,11 +96,7 @@ function studentStatusToEnrollmentStatus(
  */
 type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
   include: {
-    person: {
-      include: {
-        contactPoints: { where: { isActive: true } }
-      }
-    }
+    person: true
     enrollments: {
       include: {
         batch: true
@@ -120,22 +111,16 @@ type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
 }>
 
 function transformToStudent(profile: ProfileWithRelations): MahadStudent {
-  // Extract primary contact points
-  const emailContact = extractPrimaryEmail(profile.person.contactPoints)
-  const phoneContact = extractPrimaryPhone(profile.person.contactPoints)
-
-  // Get the most recent active enrollment
   const enrollment = profile.enrollments?.[0]
 
-  // Get active subscription
   const activeAssignment = profile.assignments?.[0]
   const subscription = activeAssignment?.subscription
 
   return {
     id: profile.id,
     name: profile.person.name,
-    email: emailContact,
-    phone: phoneContact,
+    email: profile.person.email,
+    phone: profile.person.phone,
     dateOfBirth: profile.person.dateOfBirth,
     gradeLevel: profile.gradeLevel,
     schoolName: profile.schoolName,
@@ -180,11 +165,7 @@ export async function getStudents(client: DatabaseClient = prisma) {
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -230,11 +211,7 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -303,7 +280,6 @@ export async function getStudentsWithBatchFiltered(
     program: 'MAHAD_PROGRAM',
   }
 
-  // Search across person name and contact points
   if (search && search.trim()) {
     const searchTerm = search.trim()
     const normalizedPhone = normalizePhone(searchTerm)
@@ -311,27 +287,8 @@ export async function getStudentsWithBatchFiltered(
     where.person = {
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
-        {
-          contactPoints: {
-            some: {
-              isActive: true,
-              OR: [
-                {
-                  type: 'EMAIL',
-                  value: { contains: searchTerm, mode: 'insensitive' },
-                },
-                ...(normalizedPhone
-                  ? [
-                      {
-                        type: 'PHONE' as ContactType,
-                        value: normalizedPhone,
-                      },
-                    ]
-                  : []),
-              ],
-            },
-          },
-        },
+        { email: { contains: searchTerm, mode: 'insensitive' } },
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     }
   }
@@ -416,11 +373,7 @@ export async function getStudentsWithBatchFiltered(
       where,
       relationLoadStrategy: 'join',
       include: {
-        person: {
-          include: {
-            contactPoints: { where: { isActive: true } },
-          },
-        },
+        person: true,
         enrollments: {
           where: {
             status: { not: 'WITHDRAWN' },
@@ -475,7 +428,6 @@ export async function getStudentById(
     include: {
       person: {
         include: {
-          contactPoints: { where: { isActive: true } },
           siblingRelationships1: {
             where: { isActive: true },
           },
@@ -531,22 +483,12 @@ export async function getStudentByEmail(
     where: {
       program: 'MAHAD_PROGRAM',
       person: {
-        contactPoints: {
-          some: {
-            type: 'EMAIL',
-            value: email.toLowerCase().trim(),
-            isActive: true,
-          },
-        },
+        email: email.toLowerCase().trim(),
       },
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -595,11 +537,7 @@ export async function getStudentsByBatch(
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           batchId,
@@ -656,11 +594,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -757,31 +691,16 @@ export async function searchStudents(
  * Uses exact phone matching - the most reliable indicator of duplicates
  */
 export async function findDuplicateStudents(client: DatabaseClient = prisma) {
-  // Get all Mahad profiles with phone numbers
   const profiles = await client.programProfile.findMany({
     where: {
       program: 'MAHAD_PROGRAM',
       person: {
-        contactPoints: {
-          some: {
-            type: 'PHONE',
-            isActive: true,
-          },
-        },
+        phone: { not: null },
       },
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: {
-            where: {
-              type: 'PHONE',
-              isActive: true,
-            },
-          },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -807,18 +726,15 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
     },
   })
 
-  // Group by phone number
   const phoneGroups = new Map<string, typeof profiles>()
 
   for (const profile of profiles) {
-    for (const contact of profile.person.contactPoints) {
-      if (contact.value) {
-        const phone = contact.value
-        if (!phoneGroups.has(phone)) {
-          phoneGroups.set(phone, [])
-        }
-        phoneGroups.get(phone)!.push(profile)
+    const phone = profile.person.phone
+    if (phone) {
+      if (!phoneGroups.has(phone)) {
+        phoneGroups.set(phone, [])
       }
+      phoneGroups.get(phone)!.push(profile)
     }
   }
 
@@ -869,7 +785,7 @@ export async function resolveDuplicateStudents(
       where: { id: keepId },
       relationLoadStrategy: 'join',
       include: {
-        person: { include: { contactPoints: { where: { isActive: true } } } },
+        person: true,
         assignments: true,
       },
     })
@@ -878,7 +794,7 @@ export async function resolveDuplicateStudents(
       where: { id: { in: deleteIds } },
       relationLoadStrategy: 'join',
       include: {
-        person: { include: { contactPoints: { where: { isActive: true } } } },
+        person: true,
         assignments: true,
       },
     })
@@ -891,43 +807,28 @@ export async function resolveDuplicateStudents(
     }
 
     if (mergeData) {
-      // Seed with active keep-side contacts. Updated as new contacts are created
-      // so duplicate contacts across multiple deleteProfiles don't cause P2002.
-      const keepContactKeys = new Set(
-        keepProfile.person.contactPoints
-          .filter((kc) => kc.isActive)
-          .map((kc) => {
-            const v =
-              kc.type === 'PHONE'
-                ? (normalizePhone(kc.value) ?? kc.value)
-                : kc.value.toLowerCase().trim()
-            return `${kc.type}:${v}`
-          })
-      )
-      for (const delProfile of deleteProfiles) {
-        for (const contact of delProfile.person.contactPoints) {
-          if (!contact.isActive) continue
-
-          const normalizedValue =
-            contact.type === 'PHONE'
-              ? normalizePhone(contact.value)
-              : contact.value.toLowerCase().trim()
-          if (!normalizedValue) continue
-
-          const key = `${contact.type}:${normalizedValue}`
-          if (!keepContactKeys.has(key)) {
-            await tx.contactPoint.create({
-              data: {
-                personId: keepProfile.personId,
-                type: contact.type,
-                value: normalizedValue,
-                isPrimary: true,
-                isActive: true,
-              },
-            })
-            keepContactKeys.add(key)
+      const personUpdates: Record<string, string> = {}
+      if (!keepProfile.person.email) {
+        for (const delProfile of deleteProfiles) {
+          if (delProfile.person.email) {
+            personUpdates.email = delProfile.person.email
+            break
           }
         }
+      }
+      if (!keepProfile.person.phone) {
+        for (const delProfile of deleteProfiles) {
+          if (delProfile.person.phone) {
+            personUpdates.phone = delProfile.person.phone
+            break
+          }
+        }
+      }
+      if (Object.keys(personUpdates).length > 0) {
+        await tx.person.update({
+          where: { id: keepProfile.personId },
+          data: personUpdates,
+        })
       }
 
       const billingFields = [
@@ -1027,11 +928,7 @@ export async function getStudentCompleteness(
     where: { id },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -1056,17 +953,10 @@ export async function getStudentCompleteness(
     'billingType',
   ]
 
-  const emailContact = profile.person.contactPoints.find(
-    (cp) => cp.type === 'EMAIL'
-  )
-  const phoneContact = profile.person.contactPoints.find(
-    (cp) => cp.type === 'PHONE'
-  )
-
   const values = {
     name: profile.person.name,
-    email: emailContact?.value,
-    phone: phoneContact?.value,
+    email: profile.person.email,
+    phone: profile.person.phone,
     dateOfBirth: profile.person.dateOfBirth,
     gradeLevel: profile.gradeLevel,
     graduationStatus: profile.graduationStatus,

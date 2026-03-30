@@ -125,16 +125,9 @@ export async function getPaymentStatus(
       await prisma.person.findFirst({
         relationLoadStrategy: 'join',
         where: {
-          contactPoints: {
-            some: {
-              type: 'EMAIL',
-              value: parentEmail.toLowerCase().trim(),
-              isActive: true,
-            },
-          },
+          email: parentEmail.toLowerCase().trim(),
         },
         include: {
-          contactPoints: { where: { isActive: true } },
           programProfiles: {
             where: {
               program: DUGSI_PROGRAM,

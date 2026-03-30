@@ -1,6 +1,5 @@
 import {
   Person,
-  ContactPoint,
   Teacher,
   TeacherProgram,
   GuardianRelationship,
@@ -11,7 +10,6 @@ import {
 } from '@prisma/client'
 
 import { PROGRAM_LABELS } from '@/lib/constants/program-ui'
-import { extractContactInfo } from '@/lib/db/query-builders'
 
 /**
  * Search result for person lookup.
@@ -54,7 +52,6 @@ export interface PersonSearchResult {
 }
 
 type PersonWithRelations = Person & {
-  contactPoints: ContactPoint[]
   teacher?:
     | (Teacher & {
         programs: TeacherProgram[]
@@ -85,7 +82,8 @@ type PersonWithRelations = Person & {
 export function mapPersonToSearchResult(
   person: PersonWithRelations
 ): PersonSearchResult {
-  const { email, phone } = extractContactInfo(person.contactPoints)
+  const email = person.email
+  const phone = person.phone
 
   const roles: string[] = []
   const roleDetails: PersonSearchResult['roleDetails'] = {}

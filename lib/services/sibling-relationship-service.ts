@@ -31,7 +31,6 @@ export class SiblingRelationshipService {
       include: {
         person2: {
           include: {
-            contactPoints: { where: { isActive: true } },
             programProfiles: {
               include: {
                 enrollments: {
@@ -54,7 +53,6 @@ export class SiblingRelationshipService {
       include: {
         person1: {
           include: {
-            contactPoints: { where: { isActive: true } },
             programProfiles: {
               include: {
                 enrollments: {

@@ -84,39 +84,28 @@ describe('getProgramProfilesByPersonId', () => {
 })
 
 describe('findPersonByActiveContact', () => {
-  it('should add isActive: true to email some clause', async () => {
+  it('should query by email on Person', async () => {
     mockPersonFindFirst.mockResolvedValue(null)
 
     await findPersonByActiveContact('test@example.com')
 
     const call = mockPersonFindFirst.mock.calls[0][0]
-    expect(call.where.OR[0].contactPoints.some).toMatchObject({
-      type: 'EMAIL',
-      isActive: true,
-    })
+    expect(call.where.OR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: 'test@example.com' }),
+      ])
+    )
   })
 
-  it('should add isActive: true to phone some clause', async () => {
+  it('should query by phone on Person', async () => {
     mockPersonFindFirst.mockResolvedValue(null)
 
     await findPersonByActiveContact(null, '6125551234')
 
     const call = mockPersonFindFirst.mock.calls[0][0]
-    expect(call.where.OR[0].contactPoints.some).toMatchObject({
-      type: 'PHONE',
-      isActive: true,
-    })
-  })
-
-  it('should filter included contactPoints by isActive', async () => {
-    mockPersonFindFirst.mockResolvedValue(null)
-
-    await findPersonByActiveContact('test@example.com')
-
-    const call = mockPersonFindFirst.mock.calls[0][0]
-    expect(call.include.contactPoints).toEqual({
-      where: { isActive: true },
-    })
+    expect(call.where.OR).toEqual(
+      expect.arrayContaining([expect.objectContaining({ phone: '6125551234' })])
+    )
   })
 
   it('should return null when no email or phone provided', async () => {
@@ -146,18 +135,20 @@ describe('findPersonByActiveContact', () => {
   })
 })
 
-describe('getProgramProfiles - isActive filtering', () => {
-  it('should add isActive: true to contact search some clause', async () => {
+describe('getProgramProfiles - contact search', () => {
+  it('should search by email/phone on Person', async () => {
     mockProfileFindMany.mockResolvedValue([])
     mockProfileCount.mockResolvedValue(0)
 
     await getProgramProfiles({ search: 'test@example.com' })
 
     const call = mockProfileFindMany.mock.calls[0][0]
-    const contactEntry = call.where.person.OR.find(
-      (entry: Record<string, unknown>) => entry.contactPoints
+    const personOR = call.where.person.OR
+    expect(personOR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: expect.any(Object) }),
+      ])
     )
-    expect(contactEntry.contactPoints.some.isActive).toBe(true)
   })
 })
 
@@ -202,16 +193,18 @@ describe('searchProgramProfilesByNameOrContact', () => {
     )
   })
 
-  it('should add isActive: true to contact search some clause', async () => {
+  it('should search by email/phone on Person', async () => {
     mockProfileFindMany.mockResolvedValue([])
 
     await searchProgramProfilesByNameOrContact('test@example.com')
 
     const call = mockProfileFindMany.mock.calls[0][0]
-    const contactEntry = call.where.person.OR.find(
-      (entry: Record<string, unknown>) => entry.contactPoints
+    const personOR = call.where.person.OR
+    expect(personOR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: expect.any(Object) }),
+      ])
     )
-    expect(contactEntry.contactPoints.some.isActive).toBe(true)
   })
 })
 

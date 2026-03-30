@@ -1,26 +1,7 @@
-import { ContactPoint, EnrollmentStatus, Program } from '@prisma/client'
+import { EnrollmentStatus, Program } from '@prisma/client'
 import { describe, it, expect } from 'vitest'
 
 import { mapPersonToSearchResult } from '../person-mapper'
-
-function createContactPoint(
-  overrides: Partial<ContactPoint> = {}
-): ContactPoint {
-  return {
-    id: 'cp-1',
-    personId: 'person-1',
-    type: 'EMAIL',
-    value: 'test@example.com',
-    isPrimary: false,
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    verificationStatus: 'UNVERIFIED',
-    verifiedAt: null,
-    deactivatedAt: null,
-    ...overrides,
-  }
-}
 
 function createTeacherProgram(program: Program, isActive = true) {
   return {
@@ -95,7 +76,8 @@ function createProgramProfile(
 function createPerson(overrides: {
   id?: string
   name?: string
-  contactPoints?: ContactPoint[]
+  email?: string | null
+  phone?: string | null
   teacher?: ReturnType<typeof createTeacher> | null
   guardianRelationships?: ReturnType<typeof createGuardianRelationship>[]
   programProfiles?: ReturnType<typeof createProgramProfile>[]
@@ -106,7 +88,8 @@ function createPerson(overrides: {
     createdAt: new Date(),
     updatedAt: new Date(),
     dateOfBirth: null,
-    contactPoints: overrides.contactPoints ?? [],
+    email: overrides.email ?? null,
+    phone: overrides.phone ?? null,
     teacher: overrides.teacher ?? undefined,
     guardianRelationships: overrides.guardianRelationships ?? [],
     programProfiles: overrides.programProfiles ?? [],
@@ -117,12 +100,7 @@ describe('mapPersonToSearchResult', () => {
   it('should map teacher role', () => {
     const person = createPerson({
       name: 'John Doe',
-      contactPoints: [
-        createContactPoint({
-          value: 'john@example.com',
-          isPrimary: true,
-        }),
-      ],
+      email: 'john@example.com',
       teacher: createTeacher([createTeacherProgram(Program.DUGSI_PROGRAM)]),
     })
 

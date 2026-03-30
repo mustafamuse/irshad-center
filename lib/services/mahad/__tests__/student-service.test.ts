@@ -6,9 +6,6 @@ const {
   mockProgramProfileCreate,
   mockProgramProfileUpdate,
   mockEnrollmentCreate,
-  mockContactPointFindFirst,
-  mockContactPointUpdate,
-  mockContactPointCreate,
   mockTransaction,
   mockGetProgramProfileById,
   mockCheckDuplicate,
@@ -18,9 +15,6 @@ const {
   mockProgramProfileCreate: vi.fn(),
   mockProgramProfileUpdate: vi.fn(),
   mockEnrollmentCreate: vi.fn(),
-  mockContactPointFindFirst: vi.fn(),
-  mockContactPointUpdate: vi.fn(),
-  mockContactPointCreate: vi.fn(),
   mockTransaction: vi.fn(),
   mockGetProgramProfileById: vi.fn(),
   mockCheckDuplicate: vi.fn(),
@@ -37,11 +31,6 @@ const mockTx = {
   },
   enrollment: {
     create: (...args: unknown[]) => mockEnrollmentCreate(...args),
-  },
-  contactPoint: {
-    findFirst: (...args: unknown[]) => mockContactPointFindFirst(...args),
-    update: (...args: unknown[]) => mockContactPointUpdate(...args),
-    create: (...args: unknown[]) => mockContactPointCreate(...args),
   },
 }
 
@@ -69,10 +58,7 @@ vi.mock('@/lib/utils/contact-normalization', async () => {
     typeof import('@/lib/utils/contact-normalization')
   >('@/lib/utils/contact-normalization')
   return {
-    normalizeEmail: (email: string | null | undefined) => {
-      if (!email) return null
-      return email.toLowerCase().trim()
-    },
+    normalizeEmail: actual.normalizeEmail,
     normalizePhone: actual.normalizePhone,
   }
 })
@@ -104,7 +90,6 @@ const baseInput = {
 describe('createMahadStudent', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockContactPointFindFirst.mockResolvedValue(null)
     mockCheckDuplicate.mockResolvedValue(noDuplicateResult)
     mockPersonCreate.mockResolvedValue({
       id: 'person-1',
@@ -117,7 +102,7 @@ describe('createMahadStudent', () => {
     })
   })
 
-  it('should create Person, ContactPoints, and ProgramProfile', async () => {
+  it('should create Person with email/phone and ProgramProfile', async () => {
     const result = await createMahadStudent(baseInput)
 
     expect(result).toEqual({
@@ -129,12 +114,8 @@ describe('createMahadStudent', () => {
       data: {
         name: 'Ahmed Mohamed',
         dateOfBirth: baseInput.dateOfBirth,
-        contactPoints: {
-          create: [
-            { type: 'EMAIL', value: 'ahmed@example.com', isPrimary: true },
-            { type: 'PHONE', value: '6125551234', isPrimary: true },
-          ],
-        },
+        email: 'ahmed@example.com',
+        phone: '6125551234',
       },
     })
     expect(mockProgramProfileCreate).toHaveBeenCalledWith({
@@ -162,14 +143,8 @@ describe('createMahadStudent', () => {
     const existingPerson = {
       id: 'existing-person',
       name: 'Ahmed',
-      contactPoints: [
-        {
-          id: 'cp-1',
-          type: 'EMAIL',
-          value: 'ahmed@example.com',
-          isActive: true,
-        },
-      ],
+      email: 'ahmed@example.com',
+      phone: null,
     }
     mockCheckDuplicate.mockResolvedValue({
       isDuplicate: true,
@@ -181,6 +156,12 @@ describe('createMahadStudent', () => {
     await createMahadStudent(baseInput)
 
     expect(mockPersonCreate).not.toHaveBeenCalled()
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'existing-person' },
+        data: { email: 'ahmed@example.com', phone: '6125551234' },
+      })
+    )
     expect(mockProgramProfileCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({ personId: 'existing-person' }),
     })
@@ -193,7 +174,8 @@ describe('createMahadStudent', () => {
       existingPerson: {
         id: 'existing-person',
         name: 'Ahmed',
-        contactPoints: [],
+        email: 'ahmed@example.com',
+        phone: null,
       },
       hasActiveProfile: true,
       activeProfile: {
@@ -211,19 +193,12 @@ describe('createMahadStudent', () => {
     expect(mockProgramProfileCreate).not.toHaveBeenCalled()
   })
 
-  it('should reactivate deactivated email contact for returnee via read-first', async () => {
+  it('should update email/phone on existing Person for returnee', async () => {
     const existingPerson = {
       id: 'returnee-person',
       name: 'Ahmed',
-      contactPoints: [
-        // deactivated email NOT in array — findPersonByActiveContact only returns active contacts
-      ],
-    }
-    const deactivatedEmail = {
-      id: 'cp-email',
-      type: 'EMAIL',
-      value: 'ahmed@example.com',
-      isActive: false,
+      email: null,
+      phone: null,
     }
     mockCheckDuplicate.mockResolvedValue({
       isDuplicate: true,
@@ -231,110 +206,24 @@ describe('createMahadStudent', () => {
       existingPerson,
       hasActiveProfile: false,
     })
-    mockContactPointFindFirst.mockResolvedValue(deactivatedEmail)
 
     await createMahadStudent(baseInput)
 
-    expect(mockContactPointUpdate).toHaveBeenCalledWith(
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'cp-email' },
-        data: expect.objectContaining({ isActive: true, deactivatedAt: null }),
+        where: { id: 'returnee-person' },
+        data: { email: 'ahmed@example.com', phone: '6125551234' },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
   })
 
-  it('should reactivate deactivated phone contact for returnee via read-first', async () => {
-    const existingPerson = {
-      id: 'returnee-person',
-      name: 'Ahmed',
-      contactPoints: [
-        {
-          id: 'cp-email',
-          type: 'EMAIL',
-          value: 'ahmed@example.com',
-          isActive: true,
-        },
-        // deactivated phone NOT in array — findPersonByActiveContact only returns active contacts
-      ],
-    }
-    const deactivatedPhone = {
-      id: 'cp-phone',
-      type: 'PHONE',
-      value: '6125551234',
-      isActive: false,
-    }
-    mockCheckDuplicate.mockResolvedValue({
-      isDuplicate: true,
-      duplicateField: 'phone',
-      existingPerson,
-      hasActiveProfile: false,
-    })
-    mockContactPointFindFirst.mockResolvedValue(deactivatedPhone)
-
-    await createMahadStudent(baseInput)
-
-    expect(mockContactPointUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'cp-phone' },
-        data: expect.objectContaining({ isActive: true, deactivatedAt: null }),
-      })
-    )
-    expect(mockPersonCreate).not.toHaveBeenCalled()
-  })
-
-  // Person matched by email; deactivated PHONE contact has same phone and needs reactivation
-  it('should reactivate deactivated PHONE contact matching submitted phone via read-first', async () => {
-    const existingPerson = {
-      id: 'returnee-person',
-      name: 'Ahmed',
-      contactPoints: [
-        {
-          id: 'cp-email',
-          type: 'EMAIL',
-          value: 'ahmed@example.com',
-          isActive: true,
-        },
-        // deactivated phone NOT in array — findPersonByActiveContact only returns active contacts
-      ],
-    }
-    const deactivatedPhone = {
-      id: 'cp-phone-deactivated',
-      type: 'PHONE',
-      value: '6125551234',
-      isActive: false,
-    }
-    mockCheckDuplicate.mockResolvedValue({
-      isDuplicate: true,
-      duplicateField: 'email',
-      existingPerson,
-      hasActiveProfile: false,
-    })
-    mockContactPointFindFirst.mockResolvedValue(deactivatedPhone)
-
-    await createMahadStudent(baseInput)
-
-    expect(mockContactPointUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'cp-phone-deactivated' },
-        data: expect.objectContaining({ isActive: true, deactivatedAt: null }),
-      })
-    )
-    expect(mockContactPointCreate).not.toHaveBeenCalled()
-  })
-
-  it('should create email contact when person found by phone only', async () => {
+  it('should update email on Person found by phone', async () => {
     const existingPerson = {
       id: 'phone-only-person',
       name: 'Ahmed',
-      contactPoints: [
-        {
-          id: 'cp-phone',
-          type: 'PHONE',
-          value: '6125551234',
-          isActive: true,
-        },
-      ],
+      email: null,
+      phone: '6125551234',
     }
     mockCheckDuplicate.mockResolvedValue({
       isDuplicate: true,
@@ -345,29 +234,21 @@ describe('createMahadStudent', () => {
 
     await createMahadStudent(baseInput)
 
-    expect(mockContactPointCreate).toHaveBeenCalledWith({
-      data: {
-        personId: 'phone-only-person',
-        type: 'EMAIL',
-        value: 'ahmed@example.com',
-        isPrimary: true,
-      },
-    })
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'phone-only-person' },
+        data: { email: 'ahmed@example.com', phone: '6125551234' },
+      })
+    )
     expect(mockPersonCreate).not.toHaveBeenCalled()
   })
 
-  it('should create phone contact when person found by email only', async () => {
+  it('should update phone on Person found by email', async () => {
     const existingPerson = {
       id: 'email-only-person',
       name: 'Ahmed',
-      contactPoints: [
-        {
-          id: 'cp-email',
-          type: 'EMAIL',
-          value: 'ahmed@example.com',
-          isActive: true,
-        },
-      ],
+      email: 'ahmed@example.com',
+      phone: null,
     }
     mockCheckDuplicate.mockResolvedValue({
       isDuplicate: true,
@@ -378,14 +259,12 @@ describe('createMahadStudent', () => {
 
     await createMahadStudent(baseInput)
 
-    expect(mockContactPointCreate).toHaveBeenCalledWith({
-      data: {
-        personId: 'email-only-person',
-        type: 'PHONE',
-        value: '6125551234',
-        isPrimary: true,
-      },
-    })
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'email-only-person' },
+        data: { email: 'ahmed@example.com', phone: '6125551234' },
+      })
+    )
     expect(mockPersonCreate).not.toHaveBeenCalled()
   })
 
@@ -393,14 +272,8 @@ describe('createMahadStudent', () => {
     const existingPerson = {
       id: 'dugsi-parent',
       name: 'Ahmed',
-      contactPoints: [
-        {
-          id: 'cp-1',
-          type: 'EMAIL',
-          value: 'ahmed@example.com',
-          isActive: true,
-        },
-      ],
+      email: 'ahmed@example.com',
+      phone: null,
     }
     mockCheckDuplicate.mockResolvedValue({
       isDuplicate: true,
@@ -467,11 +340,7 @@ describe('createMahadStudent', () => {
 
     expect(mockPersonCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        contactPoints: {
-          create: expect.arrayContaining([
-            { type: 'PHONE', value: '6125551234', isPrimary: true },
-          ]),
-        },
+        phone: '6125551234',
       }),
     })
   })
@@ -481,11 +350,8 @@ describe('createMahadStudent', () => {
 
     expect(mockPersonCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        contactPoints: {
-          create: [
-            { type: 'EMAIL', value: 'ahmed@example.com', isPrimary: true },
-          ],
-        },
+        email: 'ahmed@example.com',
+        phone: null,
       }),
     })
   })
@@ -497,7 +363,8 @@ describe('createMahadStudent', () => {
       existingPerson: {
         id: 'existing-person',
         name: 'Ahmed',
-        contactPoints: [],
+        email: 'ahmed@example.com',
+        phone: '6125551234',
       },
       hasActiveProfile: true,
       activeProfile: {
@@ -524,7 +391,8 @@ describe('createMahadStudent', () => {
       existingPerson: {
         id: 'existing-person',
         name: 'Ahmed',
-        contactPoints: [],
+        email: null,
+        phone: '6125551234',
       },
       hasActiveProfile: true,
       activeProfile: {
@@ -553,9 +421,8 @@ describe('createMahadStudent', () => {
 
     expect(mockPersonCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        contactPoints: {
-          create: [],
-        },
+        email: null,
+        phone: null,
       }),
     })
   })
@@ -566,7 +433,7 @@ describe('updateMahadStudent', () => {
     id: 'profile-1',
     personId: 'person-1',
     program: 'MAHAD_PROGRAM',
-    person: { contactPoints: [] },
+    person: { id: 'person-1', name: 'Ahmed', email: null, phone: null },
   }
 
   beforeEach(() => {
@@ -574,8 +441,6 @@ describe('updateMahadStudent', () => {
     mockGetProgramProfileById.mockResolvedValue(mockProfile)
     mockPersonUpdate.mockResolvedValue({ id: 'person-1' })
     mockProgramProfileUpdate.mockResolvedValue({ id: 'profile-1' })
-    mockContactPointFindFirst.mockResolvedValue(null)
-    mockContactPointCreate.mockResolvedValue({ id: 'cp-1' })
     mockTransaction.mockImplementation(
       (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(mockTx)
     )
@@ -587,30 +452,30 @@ describe('updateMahadStudent', () => {
     expect(mockTransaction).toHaveBeenCalledWith(expect.any(Function))
   })
 
-  it('should use tx client for person.update, not module-level prisma', async () => {
+  it('should update name directly on Person', async () => {
     await updateMahadStudent('profile-1', { name: 'New Name' })
 
     expect(mockPersonUpdate).toHaveBeenCalledWith({
       where: { id: 'person-1' },
-      data: { name: 'New Name', dateOfBirth: undefined },
+      data: { name: 'New Name' },
     })
   })
 
-  it('should use tx client for contactPoint operations', async () => {
-    mockContactPointFindFirst.mockResolvedValue({
-      id: 'cp-email',
-      type: 'EMAIL',
-      value: 'old@test.com',
-    })
-
+  it('should update email directly on Person', async () => {
     await updateMahadStudent('profile-1', { email: 'new@test.com' })
 
-    expect(mockContactPointFindFirst).toHaveBeenCalledWith({
-      where: { personId: 'person-1', type: 'EMAIL' },
+    expect(mockPersonUpdate).toHaveBeenCalledWith({
+      where: { id: 'person-1' },
+      data: { email: 'new@test.com' },
     })
-    expect(mockContactPointUpdate).toHaveBeenCalledWith({
-      where: { id: 'cp-email' },
-      data: { value: 'new@test.com', isActive: true, deactivatedAt: null },
+  })
+
+  it('should update phone directly on Person with normalization', async () => {
+    await updateMahadStudent('profile-1', { phone: '612-555-9999' })
+
+    expect(mockPersonUpdate).toHaveBeenCalledWith({
+      where: { id: 'person-1' },
+      data: { phone: '6125559999' },
     })
   })
 

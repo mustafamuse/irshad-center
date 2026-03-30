@@ -14,10 +14,7 @@
 import { EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import {
-  ACTIVE_MAHAD_ENROLLMENT_WHERE,
-  extractContactInfo,
-} from '@/lib/db/query-builders'
+import { ACTIVE_MAHAD_ENROLLMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 
@@ -249,11 +246,7 @@ export async function getBatchStudents(
     include: {
       programProfile: {
         include: {
-          person: {
-            include: {
-              contactPoints: { where: { isActive: true } },
-            },
-          },
+          person: true,
           assignments: {
             where: { isActive: true },
             include: {
@@ -277,13 +270,12 @@ export async function getBatchStudents(
   // Transform to student-like structure
   return enrollments.map((enrollment) => {
     const profile = enrollment.programProfile
-    const { email, phone } = extractContactInfo(profile.person.contactPoints)
 
     return {
       id: profile.id,
       name: profile.person.name,
-      email,
-      phone,
+      email: profile.person.email,
+      phone: profile.person.phone,
       dateOfBirth: profile.person.dateOfBirth,
       gradeLevel: profile.gradeLevel,
       schoolName: profile.schoolName,
@@ -638,11 +630,7 @@ export async function getBatchWithEnrollments(
         include: {
           programProfile: {
             include: {
-              person: {
-                include: {
-                  contactPoints: { where: { isActive: true } },
-                },
-              },
+              person: true,
               assignments: {
                 where: { isActive: true },
                 include: {
@@ -692,11 +680,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: ACTIVE_MAHAD_ENROLLMENT_WHERE,
         orderBy: {
@@ -711,13 +695,11 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
   })
 
   return profiles.map((profile) => {
-    const { email, phone } = extractContactInfo(profile.person.contactPoints)
-
     return {
       id: profile.id,
       name: profile.person.name,
-      email,
-      phone,
+      email: profile.person.email,
+      phone: profile.person.phone,
       gradeLevel: profile.gradeLevel,
       graduationStatus: profile.graduationStatus,
       billingType: profile.billingType,

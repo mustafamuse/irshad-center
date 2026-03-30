@@ -14,7 +14,6 @@ import {
   getDugsiTeachersForDropdown,
   TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
-import { extractContactInfo } from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   mapPersonToSearchResult,
@@ -185,9 +184,8 @@ export async function getTeachers(
 
       const teachersWithDetails: TeacherWithDetails[] = teachers.map(
         (teacher) => {
-          const { email, phone } = extractContactInfo(
-            teacher.person.contactPoints || []
-          )
+          const email = teacher.person.email
+          const phone = teacher.person.phone
           const status = statusMap.get(teacher.id)
 
           // Get shifts from TeacherProgram.shifts (directly assigned)
@@ -246,9 +244,8 @@ export async function getTeachers(
     )
 
     const teachersWithDetails = teachers.map((teacher) => {
-      const { email, phone } = extractContactInfo(
-        teacher.person.contactPoints || []
-      )
+      const email = teacher.person.email
+      const phone = teacher.person.phone
 
       return {
         id: teacher.id,
@@ -349,39 +346,14 @@ export async function createTeacherWithPersonAction(
   input: CreateTeacherWithPersonInput
 ): Promise<ActionResult<{ teacherId: string }>> {
   try {
-    const contactPoints: Array<{
-      type: 'EMAIL' | 'PHONE'
-      value: string
-      isPrimary: boolean
-    }> = []
+    const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
 
-    if (input.email) {
-      contactPoints.push({
-        type: 'EMAIL',
-        value: input.email,
-        isPrimary: true,
-      })
-    }
-
-    if (input.phone) {
-      const normalizedPhone = normalizePhone(input.phone)
-      if (normalizedPhone) {
-        contactPoints.push({
-          type: 'PHONE',
-          value: normalizedPhone,
-          isPrimary: true,
-        })
-      }
-    }
-
-    // Use transaction to ensure atomicity (prevents orphaned Person on failure)
     const teacher = await prisma.$transaction(async (tx) => {
       const person = await tx.person.create({
         data: {
           name: input.name,
-          contactPoints: {
-            create: contactPoints,
-          },
+          email: input.email ? input.email.trim().toLowerCase() : null,
+          phone: normalizedPhone,
         },
       })
 
@@ -420,12 +392,9 @@ export async function createTeacherWithPersonAction(
 
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
-        const target = error.meta?.target as string[] | undefined
-        if (target?.includes('type') && target?.includes('value')) {
-          return {
-            success: false,
-            error: 'A person with this email or phone already exists',
-          }
+        return {
+          success: false,
+          error: 'A person with this email or phone already exists',
         }
       }
     }
@@ -496,9 +465,8 @@ export async function updateTeacherDetailsAction(
   try {
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
-      relationLoadStrategy: 'join',
       include: {
-        person: { include: { contactPoints: { where: { isActive: true } } } },
+        person: true,
       },
     })
 
@@ -508,64 +476,13 @@ export async function updateTeacherDetailsAction(
 
     const normalizedPhone = phone ? normalizePhone(phone) : null
 
-    await prisma.$transaction(async (tx) => {
-      await tx.person.update({
-        where: { id: teacher.personId },
-        data: { name },
-      })
-
-      const existingEmail = teacher.person.contactPoints.find(
-        (cp) => cp.type === 'EMAIL' && cp.isActive
-      )
-      const existingPhone = teacher.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' && cp.isActive
-      )
-
-      if (email && email.trim()) {
-        if (existingEmail) {
-          await tx.contactPoint.update({
-            where: { id: existingEmail.id },
-            data: { value: email.trim().toLowerCase() },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: teacher.personId,
-              type: 'EMAIL',
-              value: email.trim().toLowerCase(),
-              isPrimary: true,
-            },
-          })
-        }
-      } else if (existingEmail) {
-        await tx.contactPoint.update({
-          where: { id: existingEmail.id },
-          data: { isActive: false },
-        })
-      }
-
-      if (normalizedPhone) {
-        if (existingPhone) {
-          await tx.contactPoint.update({
-            where: { id: existingPhone.id },
-            data: { value: normalizedPhone },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: teacher.personId,
-              type: 'PHONE',
-              value: normalizedPhone,
-              isPrimary: true,
-            },
-          })
-        }
-      } else if (existingPhone) {
-        await tx.contactPoint.update({
-          where: { id: existingPhone.id },
-          data: { isActive: false },
-        })
-      }
+    await prisma.person.update({
+      where: { id: teacher.personId },
+      data: {
+        name,
+        email: email && email.trim() ? email.trim().toLowerCase() : null,
+        phone: normalizedPhone,
+      },
     })
 
     revalidatePath('/admin/dugsi/teachers')
@@ -917,34 +834,12 @@ export async function searchPeopleAction(
       where: {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
-          {
-            contactPoints: {
-              some: {
-                isActive: true,
-                OR: [
-                  {
-                    type: 'EMAIL',
-                    value: { contains: searchTerm, mode: 'insensitive' },
-                  },
-                  ...(normalizedSearchTerm
-                    ? [
-                        {
-                          type: 'PHONE' as const,
-                          value: normalizedSearchTerm,
-                        },
-                      ]
-                    : []),
-                ],
-              },
-            },
-          },
+          { email: { contains: searchTerm, mode: 'insensitive' } },
+          ...(normalizedSearchTerm ? [{ phone: normalizedSearchTerm }] : []),
         ],
       },
       relationLoadStrategy: 'join',
       include: {
-        contactPoints: {
-          where: { isActive: true },
-        },
         teacher: {
           include: {
             programs: {

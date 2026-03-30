@@ -126,11 +126,7 @@ export async function createTeacher(
       personId: data.personId,
     },
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
     },
   })
 }

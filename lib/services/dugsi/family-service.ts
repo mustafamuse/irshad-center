@@ -9,7 +9,10 @@ import {
   updateFamilyShift as updateFamilyShiftQuery,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 export interface ParentUpdateInput {
   /** ID of any student in the family (used to look up family) */
@@ -120,37 +123,11 @@ export async function updateParentInfo(
 
   const fullName = `${input.firstName} ${input.lastName}`.trim()
   await Sentry.startSpan(
-    { name: 'family.updateParentInfo', op: 'db.transaction' },
+    { name: 'family.updateParentInfo', op: 'db' },
     async () => {
-      await prisma.$transaction(async (tx) => {
-        await tx.person.update({
-          where: { id: guardian.id },
-          data: { name: fullName },
-        })
-
-        const phoneContact = await tx.contactPoint.findFirst({
-          where: {
-            personId: guardian.id,
-            type: 'PHONE',
-            isActive: true,
-          },
-        })
-
-        if (phoneContact) {
-          await tx.contactPoint.update({
-            where: { id: phoneContact.id },
-            data: { value: normalizedPhone },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: guardian.id,
-              type: 'PHONE',
-              value: normalizedPhone,
-              isPrimary: true,
-            },
-          })
-        }
+      await prisma.person.update({
+        where: { id: guardian.id },
+        data: { name: fullName, phone: normalizedPhone },
       })
     }
   )
@@ -202,7 +179,7 @@ export async function addSecondParent(
     async () => {
       await prisma.$transaction(async (tx) => {
         let parentPersonId: string
-        const normalizedEmail = input.email.toLowerCase().trim()
+        const normalizedEmail = normalizeEmail(input.email)
 
         const existingPerson = await findPersonByActiveContact(
           input.email,
@@ -212,43 +189,17 @@ export async function addSecondParent(
 
         if (existingPerson) {
           parentPersonId = existingPerson.id
-          const existingPhone = await tx.contactPoint.findFirst({
-            where: {
-              personId: existingPerson.id,
-              type: 'PHONE',
-              isActive: true,
-            },
+          await tx.person.update({
+            where: { id: existingPerson.id },
+            data: { phone: normalizedPhone },
           })
-          if (existingPhone) {
-            await tx.contactPoint.update({
-              where: { id: existingPhone.id },
-              data: { value: normalizedPhone },
-            })
-          } else {
-            await tx.contactPoint.create({
-              data: {
-                personId: existingPerson.id,
-                type: 'PHONE',
-                value: normalizedPhone,
-                isPrimary: true,
-              },
-            })
-          }
         } else {
           const fullName = `${input.firstName} ${input.lastName}`.trim()
           const newPerson = await tx.person.create({
             data: {
               name: fullName,
-              contactPoints: {
-                create: [
-                  { type: 'EMAIL', value: normalizedEmail, isPrimary: true },
-                  {
-                    type: 'PHONE',
-                    value: normalizedPhone,
-                    isPrimary: true,
-                  },
-                ],
-              },
+              email: normalizedEmail,
+              phone: normalizedPhone,
             },
           })
           parentPersonId = newPerson.id
