@@ -391,12 +391,13 @@ export async function createTeacherWithPersonAction(
       ...input,
     })
 
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return {
-          success: false,
-          error: 'A person with this email or phone already exists',
-        }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return {
+        success: false,
+        error: 'A person with this email or phone already exists',
       }
     }
 
@@ -842,7 +843,12 @@ export async function searchPeopleAction(
       where: {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
-          { email: { contains: searchTerm, mode: 'insensitive' } },
+          {
+            email: {
+              contains: normalizeEmail(query.trim()) ?? searchTerm,
+              mode: 'insensitive',
+            },
+          },
           ...(normalizedSearchTerm ? [{ phone: normalizedSearchTerm }] : []),
         ],
       },

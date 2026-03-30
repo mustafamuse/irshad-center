@@ -4,6 +4,7 @@
  */
 
 import { StudentStatus } from '@/lib/types/student'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 import {
   DashboardStats,
@@ -96,7 +97,8 @@ export function detectDuplicates(students: MahadStudent[]): DuplicateGroup[] {
 
   for (const student of students) {
     if (student.email) {
-      const normalizedEmail = student.email.toLowerCase()
+      const normalizedEmail =
+        normalizeEmail(student.email) ?? student.email.toLowerCase()
       const emailKey = `email:${normalizedEmail}`
       const existing = seen.get(emailKey) || {
         matchValue: normalizedEmail,

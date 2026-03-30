@@ -27,7 +27,7 @@ export interface ParentUpdateInput {
   firstName: string
   /** Parent's last name (2-50 chars, letters/spaces/hyphens) */
   lastName: string
-  /** Phone number (any format with 10-15 digits, normalized to digits-only before storage) */
+  /** Phone number (10-digit US number, normalized before storage) */
   phone: string
 }
 
@@ -40,7 +40,7 @@ export interface SecondParentInput {
   lastName: string
   /** Second parent's email (will be lowercase normalized) */
   email: string
-  /** Phone number (any format with 10-15 digits, normalized to digits-only before storage) */
+  /** Phone number (10-digit US number, normalized before storage) */
   phone: string
 }
 

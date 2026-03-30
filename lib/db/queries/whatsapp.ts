@@ -12,8 +12,8 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-
-export type DatabaseClient = typeof prisma | Prisma.TransactionClient
+import { DatabaseClient } from '@/lib/db/types'
+import { normalizePhone } from '@/lib/types/person'
 
 export interface WhatsAppMessageFilters {
   program?: Program
@@ -179,12 +179,13 @@ export async function getRecentMessagesToPhone(
   limit: number = 100,
   client: DatabaseClient = prisma
 ) {
+  const normalized = normalizePhone(phoneNumber) ?? phoneNumber
   const cutoff = new Date()
   cutoff.setHours(cutoff.getHours() - withinHours)
 
   return client.whatsAppMessage.findMany({
     where: {
-      phoneNumber,
+      phoneNumber: normalized,
       createdAt: { gte: cutoff },
     },
     orderBy: { createdAt: 'desc' },
@@ -198,12 +199,13 @@ export async function hasRecentMessage(
   withinHours: number = 24,
   client: DatabaseClient = prisma
 ): Promise<boolean> {
+  const normalized = normalizePhone(phoneNumber) ?? phoneNumber
   const cutoff = new Date()
   cutoff.setHours(cutoff.getHours() - withinHours)
 
   const count = await client.whatsAppMessage.count({
     where: {
-      phoneNumber,
+      phoneNumber: normalized,
       templateName,
       createdAt: { gte: cutoff },
       status: 'sent',

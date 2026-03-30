@@ -196,7 +196,7 @@ export async function updateMahadStudent(
       const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
       if (input.phone && !normalizedPhone) {
         throw new ActionError(
-          'Invalid phone number. Expected a 10-digit US number',
+          'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
           ERROR_CODES.VALIDATION_ERROR,
           'phone',
           400

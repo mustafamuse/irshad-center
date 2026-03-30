@@ -1,6 +1,7 @@
 import { DonationStatus, Prisma, type Donation } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
 
 interface DonationListOptions {
   page?: number
@@ -29,7 +30,8 @@ interface DonationStats {
 }
 
 export async function getDonations(
-  options: DonationListOptions = {}
+  options: DonationListOptions = {},
+  client: DatabaseClient = prisma
 ): Promise<DonationListResult> {
   const {
     page = 1,
@@ -65,13 +67,13 @@ export async function getDonations(
   }
 
   const [donations, total] = await Promise.all([
-    prisma.donation.findMany({
+    client.donation.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       take: pageSize,
       skip: (page - 1) * pageSize,
     }),
-    prisma.donation.count({ where }),
+    client.donation.count({ where }),
   ])
 
   return { donations, total, page, pageSize }
@@ -92,7 +94,8 @@ interface CountRow {
 }
 
 export async function getDonationStats(
-  options: DonationStatsOptions = {}
+  options: DonationStatsOptions = {},
+  client: DatabaseClient = prisma
 ): Promise<DonationStats> {
   const { dateFrom, dateTo } = options
   const dateFilter =
@@ -107,7 +110,7 @@ export async function getDonationStats(
 
   const [oneTimeStats, recurringCount, mrrResult, donorCountRows] =
     await Promise.all([
-      prisma.donation.aggregate({
+      client.donation.aggregate({
         where: {
           status: DonationStatus.succeeded,
           isRecurring: false,
@@ -116,14 +119,14 @@ export async function getDonationStats(
         _sum: { amount: true },
         _count: true,
       }),
-      prisma.donation.count({
+      client.donation.count({
         where: {
           isRecurring: true,
           status: DonationStatus.succeeded,
           ...dateFilter,
         },
       }),
-      prisma.$queryRaw<MrrAggregateRow[]>`
+      client.$queryRaw<MrrAggregateRow[]>`
         SELECT
           COALESCE(SUM(lps.amount), 0) AS "mrrcents",
           COUNT(*) AS "activerecurringcount"
@@ -143,7 +146,7 @@ export async function getDonationStats(
           ORDER BY d."stripeSubscriptionId", d."paidAt" DESC NULLS LAST
         ) lps
       `,
-      prisma.$queryRaw<CountRow[]>`
+      client.$queryRaw<CountRow[]>`
         SELECT COUNT(DISTINCT d."donorEmail") AS count
         FROM "Donation" d
         WHERE d.status = ${DonationStatus.succeeded}
@@ -171,8 +174,10 @@ export interface ZakatFitrStats {
   totalPeopleCovered: number
 }
 
-export async function getZakatFitrStats(): Promise<ZakatFitrStats> {
-  const donations = await prisma.donation.findMany({
+export async function getZakatFitrStats(
+  client: DatabaseClient = prisma
+): Promise<ZakatFitrStats> {
+  const donations = await client.donation.findMany({
     where: {
       status: DonationStatus.succeeded,
       isRecurring: false,

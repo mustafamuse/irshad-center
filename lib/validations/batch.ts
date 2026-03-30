@@ -85,7 +85,7 @@ export const CreateStudentSchema = z.object({
     .optional()
     .or(z.literal(''))
     .refine(
-      (val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val),
+      (val) => !val || z.string().email().safeParse(val).success,
       'Invalid email address format'
     )
     .transform((val) => (val ? val.toLowerCase().trim() : val)),
@@ -96,7 +96,7 @@ export const CreateStudentSchema = z.object({
     .refine((val) => {
       if (!val) return true
       return normalizePhone(val) !== null
-    }, 'Invalid phone number. Expected a 10-digit US number'),
+    }, 'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)'),
   dateOfBirth: z
     .date()
     .max(new Date(), 'Date of birth cannot be in the future')

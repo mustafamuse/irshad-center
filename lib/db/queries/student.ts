@@ -15,6 +15,7 @@ import {
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
+  PrismaClient,
   StudentBillingType,
   EnrollmentStatus,
   Prisma,
@@ -782,9 +783,10 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
 export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
-  mergeData: boolean = false
+  mergeData: boolean = false,
+  client: PrismaClient = prisma
 ) {
-  await prisma.$transaction(async (tx) => {
+  await client.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({
       where: { id: keepId },
       relationLoadStrategy: 'join',
@@ -815,7 +817,7 @@ export async function resolveDuplicateStudents(
       if (!keepProfile.person.email) {
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.email) {
-            personUpdates.email = delProfile.person.email
+            personUpdates.email = normalizeEmail(delProfile.person.email)
             break
           }
         }
@@ -823,7 +825,8 @@ export async function resolveDuplicateStudents(
       if (!keepProfile.person.phone) {
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.phone) {
-            personUpdates.phone = delProfile.person.phone
+            personUpdates.phone =
+              normalizePhone(delProfile.person.phone) ?? delProfile.person.phone
             break
           }
         }

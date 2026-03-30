@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { ValidationError } from '@/lib/services/validation-service'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 export type DetectionMethod =
   | 'MANUAL'
@@ -149,7 +150,7 @@ export async function detectPotentialSiblings(
   // Match by shared email or phone on Person
   const contactOrConditions: Prisma.PersonWhereInput[] = []
   if (person.email) {
-    contactOrConditions.push({ email: person.email.toLowerCase() })
+    contactOrConditions.push({ email: normalizeEmail(person.email) })
   }
   if (person.phone) {
     contactOrConditions.push({ phone: person.phone })

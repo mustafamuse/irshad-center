@@ -3,6 +3,8 @@ import csvParser from 'csv-parser'
 import * as fs from 'fs'
 
 import { prisma } from '@/lib/db'
+import { normalizePhone } from '@/lib/types/person'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 // ============================================================================
 // CSV Row Type Definition
@@ -195,8 +197,10 @@ function processCSVRow(row: MahadCSVRow): ProcessedStudent {
   const schoolName = formatSchoolName(
     row['Name of School/College/University']?.trim() || null
   )
-  const email = row['Email Address:']?.trim()?.toLowerCase() || null
-  const phone = formatPhoneNumber(row['Phone Number: WhatsApp']?.trim() || null)
+  const email = normalizeEmail(row['Email Address:']?.trim()) ?? null
+  const phone =
+    normalizePhone(row['Phone Number: WhatsApp']?.trim()) ??
+    formatPhoneNumber(row['Phone Number: WhatsApp']?.trim() || null)
 
   return {
     fullName,
