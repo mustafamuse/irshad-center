@@ -66,7 +66,7 @@ async function getFamilyChildCounts(): Promise<Map<string, number>> {
  * Fetch all Dugsi registrations with full relations.
  *
  * Returns all program profiles with:
- * - Person and contact points
+ * - Person (email, phone)
  * - Guardian relationships
  * - Enrollment data
  * - Billing assignments and subscriptions
@@ -380,7 +380,7 @@ async function cancelFamilySubscriptions(
 /**
  * Search for a Dugsi registration by contact (email or phone).
  *
- * Searches both student and parent contact points.
+ * Searches both student and parent email/phone.
  *
  * @security Authorization must be enforced at the API route/action layer.
  *

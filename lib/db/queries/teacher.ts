@@ -48,7 +48,7 @@ export async function getTeacherByPersonId(
 }
 
 /**
- * Get teacher with full Person relations (contact points, etc.)
+ * Get teacher with full Person relations (email, phone, etc.)
  * @param client - Optional database client (for transaction support)
  */
 export async function getTeacherWithPersonRelations(

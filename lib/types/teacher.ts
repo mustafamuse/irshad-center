@@ -19,7 +19,7 @@ export interface TeacherWithPerson extends Teacher {
 }
 
 /**
- * Teacher with full Person relations (contact points, etc.)
+ * Teacher with full Person relations (email, phone, etc.)
  */
 export interface TeacherWithPersonRelations extends Teacher {
   person: PersonWithRelations
