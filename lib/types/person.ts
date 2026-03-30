@@ -53,18 +53,7 @@ export function normalizePhone(
   phone: string | null | undefined
 ): string | null {
   if (!phone) return null
-  const normalized = phone.replace(/\D/g, '')
-
-  // Validate length: E.164 format allows 10-15 digits
-  if (normalized.length < 10 || normalized.length > 15) {
-    return null
-  }
-
-  // 11-digit numbers: strip NANP country code 1, reject all others
-  // Changed from storing '1XXXXXXXXXX' to '10-digit'. Run scripts/migrate-phone-numbers.ts post-deploy.
-  if (normalized.length === 11) {
-    return normalized.startsWith('1') ? normalized.slice(1) : null
-  }
-
-  return normalized
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 11 && digits.startsWith('1')) return digits.slice(1)
+  return digits.length === 10 ? digits : null
 }
