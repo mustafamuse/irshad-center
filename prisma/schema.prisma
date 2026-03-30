@@ -181,7 +181,6 @@ enum StripeAccountType {
   GENERAL_DONATION
 }
 
-
 enum GuardianRole {
   PARENT
   GUARDIAN
