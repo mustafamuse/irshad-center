@@ -340,11 +340,7 @@ export async function getSiblingsByFamilyId(
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -391,7 +387,6 @@ export async function getSiblingsByFamilyId(
               },
             },
           },
-          contactPoints: { where: { isActive: true } },
         },
       },
       person2: {
@@ -410,7 +405,6 @@ export async function getSiblingsByFamilyId(
               },
             },
           },
-          contactPoints: { where: { isActive: true } },
         },
       },
     },

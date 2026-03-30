@@ -86,10 +86,8 @@ const mockTeacher = {
   person: {
     id: 'person-1',
     name: 'Test Teacher',
-    contactPoints: [
-      { type: 'EMAIL', value: 'teacher@test.com' },
-      { type: 'PHONE', value: '612-555-0001' },
-    ],
+    email: 'teacher@test.com',
+    phone: '6125550001',
   },
 }
 

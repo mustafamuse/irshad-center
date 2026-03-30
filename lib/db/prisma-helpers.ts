@@ -19,25 +19,16 @@ import { Prisma } from '@prisma/client'
 // ============================================================================
 
 /**
- * ProgramProfile with Person and ContactPoints
+ * ProgramProfile with Person
  * Common type for student/registration displays
  */
-export const contactPointsSelect = {
-  where: { isActive: true },
-  select: { id: true, type: true, value: true, isPrimary: true },
-} satisfies Prisma.Person$contactPointsArgs
-
 export const personMinimalSelect = {
   select: { id: true, name: true },
 } satisfies Prisma.PersonDefaultArgs
 
 export const programProfileWithPersonInclude =
   Prisma.validator<Prisma.ProgramProfileInclude>()({
-    person: {
-      include: {
-        contactPoints: contactPointsSelect,
-      },
-    },
+    person: true,
   })
 
 export type ProgramProfileWithPerson = Prisma.ProgramProfileGetPayload<{
@@ -52,14 +43,9 @@ export const programProfileFullInclude =
   Prisma.validator<Prisma.ProgramProfileInclude>()({
     person: {
       include: {
-        contactPoints: contactPointsSelect,
         dependentRelationships: {
           include: {
-            guardian: {
-              include: {
-                contactPoints: contactPointsSelect,
-              },
-            },
+            guardian: true,
           },
         },
       },
@@ -82,11 +68,7 @@ export const programProfileFullInclude =
               include: {
                 teacher: {
                   include: {
-                    person: {
-                      include: {
-                        contactPoints: contactPointsSelect,
-                      },
-                    },
+                    person: true,
                   },
                 },
               },
@@ -108,15 +90,10 @@ export const programProfileWithGuardiansInclude =
   Prisma.validator<Prisma.ProgramProfileInclude>()({
     person: {
       include: {
-        contactPoints: contactPointsSelect,
         dependentRelationships: {
           where: { isActive: true },
           include: {
-            guardian: {
-              include: {
-                contactPoints: contactPointsSelect,
-              },
-            },
+            guardian: true,
           },
         },
       },
@@ -139,11 +116,7 @@ export const enrollmentWithRelationsInclude =
     batch: true,
     programProfile: {
       include: {
-        person: {
-          include: {
-            contactPoints: contactPointsSelect,
-          },
-        },
+        person: true,
       },
     },
   })
@@ -161,11 +134,7 @@ export type EnrollmentWithRelations = Prisma.EnrollmentGetPayload<{
  */
 export const billingAccountWithRelationsInclude =
   Prisma.validator<Prisma.BillingAccountInclude>()({
-    person: {
-      include: {
-        contactPoints: contactPointsSelect,
-      },
-    },
+    person: true,
     subscriptions: {
       include: {
         assignments: {
@@ -188,11 +157,7 @@ export const subscriptionWithRelationsInclude =
   Prisma.validator<Prisma.SubscriptionInclude>()({
     billingAccount: {
       include: {
-        person: {
-          include: {
-            contactPoints: contactPointsSelect,
-          },
-        },
+        person: true,
       },
     },
     assignments: {
@@ -215,29 +180,15 @@ export type SubscriptionWithRelations = Prisma.SubscriptionGetPayload<{
 // ============================================================================
 
 /**
- * Person with all ContactPoints
- */
-export const personWithContactsInclude =
-  Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: contactPointsSelect,
-  })
-
-export type PersonWithContacts = Prisma.PersonGetPayload<{
-  include: typeof personWithContactsInclude
-}>
-
-/**
  * Person with GuardianRelationships (for finding dependents)
  */
 export const personWithDependentsInclude =
   Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: contactPointsSelect,
     dependentRelationships: {
       where: { isActive: true },
       include: {
         dependent: {
           include: {
-            contactPoints: contactPointsSelect,
             programProfiles: true,
           },
         },
@@ -262,11 +213,7 @@ export const batchWithEnrollmentsInclude =
       include: {
         programProfile: {
           include: {
-            person: {
-              include: {
-                contactPoints: contactPointsSelect,
-              },
-            },
+            person: true,
           },
         },
       },
@@ -286,11 +233,7 @@ export type BatchWithEnrollments = Prisma.BatchGetPayload<{
  */
 export const teacherWithRelationsInclude =
   Prisma.validator<Prisma.TeacherInclude>()({
-    person: {
-      include: {
-        contactPoints: contactPointsSelect,
-      },
-    },
+    person: true,
     programs: {
       where: { isActive: true },
     },

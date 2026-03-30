@@ -13,11 +13,7 @@ import { DatabaseClient } from '@/lib/db/types'
 export const teacherCheckinInclude = {
   teacher: {
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
     },
   },
 } as const satisfies Prisma.DugsiTeacherCheckInInclude
@@ -249,11 +245,7 @@ export async function getAllDugsiTeachersWithTodayStatus(
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       dugsiClasses: {
         where: {
           isActive: true,
@@ -284,13 +276,6 @@ export async function getAllDugsiTeachersWithTodayStatus(
   })
 
   return teachers.map((teacher) => {
-    const email = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL'
-    )?.value
-    const phone = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'PHONE'
-    )?.value
-
     const shiftValues = teacher.dugsiClasses.map((dc) => dc.class.shift)
     const shifts = Array.from(new Set(shiftValues))
     const morningCheckin =
@@ -302,8 +287,8 @@ export async function getAllDugsiTeachersWithTodayStatus(
       id: teacher.id,
       personId: teacher.personId,
       name: teacher.person.name,
-      email: email || null,
-      phone: phone || null,
+      email: teacher.person.email,
+      phone: teacher.person.phone,
       shifts,
       morningCheckin,
       afternoonCheckin,
@@ -341,11 +326,7 @@ export async function getDugsiTeachersForDropdown(
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       dugsiClasses: {
         where: {
           isActive: true,
@@ -379,13 +360,6 @@ export async function getDugsiTeachersForDropdown(
   })
 
   return teachers.map((teacher) => {
-    const email = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL'
-    )?.value
-    const phone = teacher.person.contactPoints.find(
-      (cp) => cp.type === 'PHONE'
-    )?.value
-
     const shiftValues = teacher.dugsiClasses.map((dc) => dc.class.shift)
     const shifts = Array.from(new Set(shiftValues)) as Shift[]
 
@@ -407,8 +381,8 @@ export async function getDugsiTeachersForDropdown(
     return {
       id: teacher.id,
       name: teacher.person.name,
-      email: email || null,
-      phone: phone || null,
+      email: teacher.person.email,
+      phone: teacher.person.phone,
       shifts,
       todayStatus,
     }

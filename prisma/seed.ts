@@ -216,46 +216,16 @@ function processCSVRow(row: MahadCSVRow): ProcessedStudent {
  */
 async function createStudentRecord(student: ProcessedStudent): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    // Step 1: Create Person
     const person = await tx.person.create({
       data: {
         name: student.fullName,
         dateOfBirth: student.dateOfBirth,
+        email: student.email,
+        phone: student.phone,
       },
     })
 
-    // Step 2: Create ContactPoints (email and/or phone) in parallel
-    const contactPointPromises: Promise<unknown>[] = []
-
-    if (student.email) {
-      contactPointPromises.push(
-        tx.contactPoint.create({
-          data: {
-            personId: person.id,
-            type: 'EMAIL',
-            value: student.email,
-            isPrimary: true,
-          },
-        })
-      )
-    }
-
-    if (student.phone) {
-      contactPointPromises.push(
-        tx.contactPoint.create({
-          data: {
-            personId: person.id,
-            type: 'PHONE',
-            value: student.phone,
-            isPrimary: true,
-          },
-        })
-      )
-    }
-
-    await Promise.all(contactPointPromises)
-
-    // Step 3: Create ProgramProfile for Mahad program
+    // Create ProgramProfile for Mahad program
     const programProfile = await tx.programProfile.create({
       data: {
         personId: person.id,
@@ -268,7 +238,7 @@ async function createStudentRecord(student: ProcessedStudent): Promise<void> {
       },
     })
 
-    // Step 4: Create Enrollment (registered status, no batch yet)
+    // Create Enrollment (registered status, no batch yet)
     await tx.enrollment.create({
       data: {
         programProfileId: programProfile.id,

@@ -7,10 +7,7 @@
 import { Prisma, StripeAccountType, SubscriptionStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import {
-  contactPointsSelect,
-  personMinimalSelect,
-} from '@/lib/db/prisma-helpers'
+import { personMinimalSelect } from '@/lib/db/prisma-helpers'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 
@@ -30,11 +27,7 @@ export async function getBillingAccountByPerson(
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: contactPointsSelect,
-        },
-      },
+      person: true,
       subscriptions: {
         where: {
           status: { in: LIVE_SUBSCRIPTION_STATUSES },
@@ -87,11 +80,7 @@ export async function getBillingAccountByStripeCustomerId(
     where,
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: contactPointsSelect,
-        },
-      },
+      person: true,
       subscriptions: {
         include: {
           assignments: {
@@ -124,11 +113,7 @@ export async function getSubscriptionByStripeId(
     include: {
       billingAccount: {
         include: {
-          person: {
-            include: {
-              contactPoints: contactPointsSelect,
-            },
-          },
+          person: true,
         },
       },
       assignments: {
@@ -179,11 +164,7 @@ export async function getOrphanedSubscriptions(
     include: {
       billingAccount: {
         include: {
-          person: {
-            include: {
-              contactPoints: contactPointsSelect,
-            },
-          },
+          person: true,
         },
       },
     },
@@ -213,11 +194,7 @@ export async function upsertBillingAccount(
 ) {
   // Include relations to match getBillingAccountByStripeCustomerId
   const includeRelations = {
-    person: {
-      include: {
-        contactPoints: contactPointsSelect,
-      },
-    },
+    person: true as const,
     subscriptions: {
       include: {
         assignments: {
@@ -322,11 +299,7 @@ export async function createSubscription(
     include: {
       billingAccount: {
         include: {
-          person: {
-            include: {
-              contactPoints: contactPointsSelect,
-            },
-          },
+          person: true,
         },
       },
       assignments: {
@@ -379,11 +352,7 @@ export async function updateSubscriptionStatus(
     include: {
       billingAccount: {
         include: {
-          person: {
-            include: {
-              contactPoints: contactPointsSelect,
-            },
-          },
+          person: true,
         },
       },
       assignments: {
@@ -550,11 +519,7 @@ export async function getBillingAssignmentsBySubscription(
     include: {
       programProfile: {
         include: {
-          person: {
-            include: {
-              contactPoints: contactPointsSelect,
-            },
-          },
+          person: true,
           enrollments: {
             where: {
               status: { not: 'WITHDRAWN' },

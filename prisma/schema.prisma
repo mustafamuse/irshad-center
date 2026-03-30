@@ -57,7 +57,7 @@ model StudentPayment {
 // Teacher - Staff role linked to Person
 // A Person can be a teacher (staff member) while also being a parent, payer, or student
 // Teachers can teach in multiple programs (Dugsi, Mahad, etc.) via assignments
-// Contact information (email, phone) comes from Person.contactPoints, not stored here
+// Contact information (email, phone) comes from Person.email/Person.phone
 model Teacher {
   id        String   @id @default(uuid())
   personId  String   @unique // One Teacher record per Person
@@ -215,12 +215,14 @@ enum EnrollmentStatus {
 model Person {
   id          String    @id @default(uuid())
   name        String
+  email       String?   @unique
+  phone       String?   @unique // exactly 10 digits, US only
   dateOfBirth DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  contactPoints          ContactPoint[]
+  contactPoints          ContactPoint[] // kept for rollback safety; will be dropped in Phase 3
   guardianRelationships  GuardianRelationship[] @relation("GuardianRelationships")
   dependentRelationships GuardianRelationship[] @relation("DependentRelationships")
   siblingRelationships1  SiblingRelationship[]  @relation("SiblingRelationships1")

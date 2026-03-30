@@ -24,6 +24,7 @@ import {
   upsertBillingAccount as upsertBillingAccountQuery,
 } from '@/lib/db/queries/billing'
 import { DatabaseClient } from '@/lib/db/types'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 /**
  * Billing account data for creation/update
@@ -352,17 +353,16 @@ export async function getBillingStatusByEmail(
   email: string,
   accountType: StripeAccountType
 ): Promise<BillingStatusResult> {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) {
+    throw new Error('Invalid email address')
+  }
+
   // Find person by email
-  const person = await prisma.person.findFirst({
+  const person = await prisma.person.findUnique({
     relationLoadStrategy: 'join',
     where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: email.toLowerCase().trim(),
-          isActive: true,
-        },
-      },
+      email: normalizedEmail,
     },
     include: {
       billingAccounts: {

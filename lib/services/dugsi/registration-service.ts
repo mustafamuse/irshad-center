@@ -27,6 +27,10 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logWarning } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 import { DugsiRegistrationFiltersSchema } from '@/lib/validations/dugsi'
 
 const logger = createServiceLogger('dugsi-registration')
@@ -210,9 +214,7 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
 
   // Extract parent email from guardian relationships (child is dependent, parents are guardians)
   const parentEmail =
-    profile.person.dependentRelationships?.[0]?.guardian?.contactPoints?.find(
-      (cp: { type: string }) => cp.type === 'EMAIL'
-    )?.value ?? null
+    profile.person.dependentRelationships?.[0]?.guardian?.email ?? null
 
   const students = profilesToDelete.map((p) => ({
     id: p.id,
@@ -393,44 +395,33 @@ export async function searchDugsiRegistrationsByContact(
   return Sentry.startSpan(
     { name: 'registration.searchDugsiRegistrationsByContact', op: 'db' },
     async () => {
-      const normalizedContact = contact.toLowerCase().trim()
+      const normalizedContact =
+        contactType === 'EMAIL'
+          ? normalizeEmail(contact)
+          : normalizePhone(contact)
 
-      // Get family counts for billing accuracy
+      if (!normalizedContact) return []
+
       const familyCounts = await getFamilyChildCounts()
 
-      // Search for profiles where either:
-      // 1. The student has this contact
-      // 2. The parent (guardian) has this contact
+      const contactFilter =
+        contactType === 'EMAIL'
+          ? { email: normalizedContact }
+          : { phone: normalizedContact }
+
       const profiles = await prisma.programProfile.findMany({
         where: {
           program: DUGSI_PROGRAM,
           OR: [
             {
-              // Student's own contact
-              person: {
-                contactPoints: {
-                  some: {
-                    type: contactType,
-                    value: normalizedContact,
-                    isActive: true,
-                  },
-                },
-              },
+              person: contactFilter,
             },
             {
-              // Parent's contact (via guardian relationship)
               person: {
                 guardianRelationships: {
                   some: {
                     isActive: true,
-                    guardian: {
-                      contactPoints: {
-                        some: {
-                          type: contactType,
-                          value: normalizedContact,
-                        },
-                      },
-                    },
+                    guardian: contactFilter,
                   },
                 },
               },

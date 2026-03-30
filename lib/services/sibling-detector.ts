@@ -27,7 +27,6 @@ export async function detectPotentialSiblings(
     relationLoadStrategy: 'join',
     where: { id: personId },
     include: {
-      contactPoints: { where: { isActive: true } },
       guardianRelationships: {
         include: {
           guardian: true,
@@ -147,40 +146,39 @@ export async function detectPotentialSiblings(
   }
 
   // Method 3: Contact Match
-  // Match by shared contact points (phone, email)
-  if (person.contactPoints.length > 0) {
-    const contactValues = person.contactPoints.map((cp) =>
-      cp.value.toLowerCase()
-    )
+  // Match by shared email or phone on Person
+  const contactOrConditions: Prisma.PersonWhereInput[] = []
+  if (person.email) {
+    contactOrConditions.push({ email: person.email.toLowerCase() })
+  }
+  if (person.phone) {
+    contactOrConditions.push({ phone: person.phone })
+  }
 
-    const contactMatches = await prisma.contactPoint.findMany({
-      relationLoadStrategy: 'join',
+  if (contactOrConditions.length > 0) {
+    const contactMatches = await prisma.person.findMany({
       where: {
-        value: {
-          in: contactValues,
-          mode: 'insensitive',
-        },
-        personId: { not: personId },
-      },
-      include: {
-        person: true,
+        id: { not: personId },
+        OR: contactOrConditions,
       },
     })
 
     for (const match of contactMatches) {
-      // Check if relationship already exists using the Set
-      if (!existingSiblingIds.has(match.personId)) {
-        // Check if this person is already in potentialSiblings
+      if (!existingSiblingIds.has(match.id)) {
         const alreadyAdded = potentialSiblings.some(
-          (ps) => ps.person.id === match.personId
+          (ps) => ps.person.id === match.id
         )
 
         if (!alreadyAdded) {
+          const sharedField =
+            person.email && match.email === person.email ? 'email' : 'phone'
+          const sharedValue =
+            (sharedField === 'email' ? match.email : match.phone) ?? 'unknown'
           potentialSiblings.push({
-            person: match.person,
+            person: match,
             method: 'CONTACT_MATCH',
             confidence: 0.8,
-            reasons: [`Shared ${match.type.toLowerCase()}: ${match.value}`],
+            reasons: [`Shared ${sharedField}: ${sharedValue}`],
           })
         }
       }

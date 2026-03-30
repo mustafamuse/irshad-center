@@ -12,7 +12,6 @@ import * as Sentry from '@sentry/nextjs'
 
 import { featureFlags } from '@/lib/config/feature-flags'
 import { prisma } from '@/lib/db'
-import { extractPrimaryEmail } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getDugsiKeys } from '@/lib/keys/stripe'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
@@ -153,11 +152,6 @@ export async function createDugsiCheckoutSession(
             include: {
               guardian: {
                 include: {
-                  contactPoints: {
-                    where: { type: 'EMAIL', isActive: true },
-                    orderBy: { isPrimary: 'desc' },
-                    take: 1,
-                  },
                   billingAccounts: {
                     select: { stripeCustomerIdDugsi: true },
                     take: 1,
@@ -213,7 +207,7 @@ export async function createDugsiCheckoutSession(
   }
 
   // Validate guardian email exists
-  const guardianEmail = extractPrimaryEmail(primaryGuardian.contactPoints)
+  const guardianEmail = primaryGuardian.email
   if (!guardianEmail) {
     throw new ActionError(
       'Guardian must have an email address on file to receive payment link',

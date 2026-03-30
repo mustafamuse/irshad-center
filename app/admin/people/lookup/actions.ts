@@ -15,12 +15,8 @@ const logger = createServiceLogger('person-lookup')
 export interface PersonLookupResult {
   id: string
   name: string
-  contactPoints: Array<{
-    id: string
-    type: string
-    value: string
-    isPrimary: boolean
-  }>
+  email: string | null
+  phone: string | null
   roles: {
     teacher?: {
       id: string
@@ -168,35 +164,12 @@ export async function lookupPersonAction(
       where: {
         OR: [
           { name: { equals: query.trim(), mode: 'insensitive' } },
-          {
-            contactPoints: {
-              some: {
-                isActive: true,
-                OR: [
-                  {
-                    type: 'EMAIL',
-                    value: { equals: searchTerm, mode: 'insensitive' },
-                  },
-                  ...(normalizedPhone
-                    ? [
-                        {
-                          type: 'PHONE' as const,
-                          value: normalizedPhone,
-                        },
-                      ]
-                    : []),
-                ],
-              },
-            },
-          },
+          { email: { equals: searchTerm, mode: 'insensitive' } },
+          ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
         ],
       },
       relationLoadStrategy: 'join',
       include: {
-        contactPoints: {
-          where: { isActive: true },
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-        },
         teacher: {
           include: {
             programs: {
@@ -273,12 +246,8 @@ export async function lookupPersonAction(
     const result: PersonLookupResult = {
       id: person.id,
       name: person.name,
-      contactPoints: person.contactPoints.map((cp) => ({
-        id: cp.id,
-        type: cp.type,
-        value: cp.value,
-        isPrimary: cp.isPrimary,
-      })),
+      email: person.email,
+      phone: person.phone,
       roles: {},
       billingAccounts: person.billingAccounts.map((ba) => ({
         id: ba.id,

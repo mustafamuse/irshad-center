@@ -133,22 +133,29 @@ export function PersonLookupClient() {
               </div>
 
               <div>
-                <Label className="text-muted-foreground">Contact Points</Label>
+                <Label className="text-muted-foreground">Contact</Label>
                 <div className="mt-2 space-y-2">
-                  {result.contactPoints.map((cp) => (
-                    <div
-                      key={cp.id}
-                      className="flex items-center justify-between rounded-md border p-3"
-                    >
+                  {result.email && (
+                    <div className="flex items-center justify-between rounded-md border p-3">
                       <div className="flex items-center gap-3">
-                        <Badge variant="outline">{cp.type}</Badge>
-                        <span className="font-mono">{cp.value}</span>
+                        <Badge variant="outline">EMAIL</Badge>
+                        <span className="font-mono">{result.email}</span>
                       </div>
-                      {cp.isPrimary && (
-                        <Badge variant="secondary">Primary</Badge>
-                      )}
                     </div>
-                  ))}
+                  )}
+                  {result.phone && (
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline">PHONE</Badge>
+                        <span className="font-mono">{result.phone}</span>
+                      </div>
+                    </div>
+                  )}
+                  {!result.email && !result.phone && (
+                    <p className="text-sm text-muted-foreground">
+                      No contact information
+                    </p>
+                  )}
                 </div>
               </div>
 

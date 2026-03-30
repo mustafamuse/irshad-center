@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 
 import { normalizePhone } from '@/lib/types/person'
 
-import { normalizeEmail, normalizeContact } from '../contact-normalization'
+import { normalizeEmail } from '../contact-normalization'
 
 describe('normalizePhone', () => {
   it('strips leading 1 from 11-digit NANP number', () => {
@@ -54,20 +54,12 @@ describe('normalizeEmail', () => {
   it('returns null for undefined input', () => {
     expect(normalizeEmail(undefined)).toBeNull()
   })
-})
 
-describe('normalizeContact', () => {
-  it('normalizes EMAIL type', () => {
-    expect(normalizeContact('Test@Example.COM', 'EMAIL')).toBe(
-      'test@example.com'
-    )
+  it('returns null for empty string', () => {
+    expect(normalizeEmail('')).toBeNull()
   })
 
-  it('normalizes PHONE type', () => {
-    expect(normalizeContact('(612) 555-1234', 'PHONE')).toBe('6125551234')
-  })
-
-  it('returns null for null value', () => {
-    expect(normalizeContact(null, 'EMAIL')).toBeNull()
+  it('returns null for whitespace-only string', () => {
+    expect(normalizeEmail('   ')).toBeNull()
   })
 })

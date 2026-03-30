@@ -1,4 +1,4 @@
-import { GradeLevel, Shift } from '@prisma/client'
+import { GradeLevel, Prisma, Shift } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -8,8 +8,15 @@ import {
   findPersonByActiveContact,
   updateFamilyShift as updateFamilyShiftQuery,
 } from '@/lib/db/queries/program-profile'
-import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 export interface ParentUpdateInput {
   /** ID of any student in the family (used to look up family) */
@@ -86,7 +93,7 @@ export async function updateParentInfo(
   const normalizedPhone = normalizePhone(input.phone)
   if (!normalizedPhone) {
     throw new ActionError(
-      'Invalid phone number. Expected 10-15 digits (e.g. 612-555-1234)',
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
       ERROR_CODES.VALIDATION_ERROR,
       'phone',
       400
@@ -120,38 +127,17 @@ export async function updateParentInfo(
 
   const fullName = `${input.firstName} ${input.lastName}`.trim()
   await Sentry.startSpan(
-    { name: 'family.updateParentInfo', op: 'db.transaction' },
+    { name: 'family.updateParentInfo', op: 'db' },
     async () => {
-      await prisma.$transaction(async (tx) => {
-        await tx.person.update({
+      try {
+        await prisma.person.update({
           where: { id: guardian.id },
-          data: { name: fullName },
+          data: { name: fullName, phone: normalizedPhone },
         })
-
-        const phoneContact = await tx.contactPoint.findFirst({
-          where: {
-            personId: guardian.id,
-            type: 'PHONE',
-            isActive: true,
-          },
-        })
-
-        if (phoneContact) {
-          await tx.contactPoint.update({
-            where: { id: phoneContact.id },
-            data: { value: normalizedPhone },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: guardian.id,
-              type: 'PHONE',
-              value: normalizedPhone,
-              isPrimary: true,
-            },
-          })
-        }
-      })
+      } catch (error) {
+        throwIfP2002(error)
+        throw error
+      }
     }
   )
 
@@ -167,7 +153,7 @@ export async function addSecondParent(
   const normalizedPhone = normalizePhone(input.phone)
   if (!normalizedPhone) {
     throw new ActionError(
-      'Invalid phone number. Expected 10-15 digits (e.g. 612-555-1234)',
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
       ERROR_CODES.VALIDATION_ERROR,
       'phone',
       400
@@ -197,88 +183,75 @@ export async function addSecondParent(
     )
   }
 
-  await Sentry.startSpan(
-    { name: 'family.addSecondParent', op: 'db.transaction' },
-    async () => {
-      await prisma.$transaction(async (tx) => {
-        let parentPersonId: string
-        const normalizedEmail = input.email.toLowerCase().trim()
+  const normalizedEmail = normalizeEmail(input.email)
 
-        const existingPerson = await findPersonByActiveContact(
-          input.email,
-          null,
-          tx
-        )
+  try {
+    await Sentry.startSpan(
+      { name: 'family.addSecondParent', op: 'db.transaction' },
+      async () => {
+        await prisma.$transaction(async (tx) => {
+          let parentPersonId: string
 
-        if (existingPerson) {
-          parentPersonId = existingPerson.id
-          const existingPhone = await tx.contactPoint.findFirst({
-            where: {
-              personId: existingPerson.id,
-              type: 'PHONE',
-              isActive: true,
-            },
-          })
-          if (existingPhone) {
-            await tx.contactPoint.update({
-              where: { id: existingPhone.id },
-              data: { value: normalizedPhone },
-            })
+          const existingPerson = await findPersonByActiveContact(
+            normalizedEmail,
+            normalizedPhone,
+            tx
+          )
+
+          if (existingPerson) {
+            parentPersonId = existingPerson.id
+            const updates: Prisma.PersonUpdateInput = {}
+            if (existingPerson.phone !== normalizedPhone)
+              updates.phone = normalizedPhone
+            if (!existingPerson.email && normalizedEmail)
+              updates.email = normalizedEmail
+            if (Object.keys(updates).length > 0) {
+              await tx.person.update({
+                where: { id: existingPerson.id },
+                data: updates,
+              })
+            }
           } else {
-            await tx.contactPoint.create({
+            const fullName = `${input.firstName} ${input.lastName}`.trim()
+            const newPerson = await tx.person.create({
               data: {
-                personId: existingPerson.id,
-                type: 'PHONE',
-                value: normalizedPhone,
-                isPrimary: true,
+                name: fullName,
+                email: normalizedEmail,
+                phone: normalizedPhone,
               },
             })
+            parentPersonId = newPerson.id
           }
-        } else {
-          const fullName = `${input.firstName} ${input.lastName}`.trim()
-          const newPerson = await tx.person.create({
-            data: {
-              name: fullName,
-              contactPoints: {
-                create: [
-                  { type: 'EMAIL', value: normalizedEmail, isPrimary: true },
-                  {
-                    type: 'PHONE',
-                    value: normalizedPhone,
-                    isPrimary: true,
-                  },
-                ],
-              },
-            },
-          })
-          parentPersonId = newPerson.id
-        }
 
-        const existingRelationship = await tx.guardianRelationship.findFirst({
-          where: {
-            guardianId: parentPersonId,
-            dependentId: profile.person.id,
-          },
-        })
-        if (existingRelationship) {
-          if (!existingRelationship.isActive) {
-            await tx.guardianRelationship.update({
-              where: { id: existingRelationship.id },
-              data: { isActive: true, endDate: null },
-            })
-          }
-        } else {
-          await tx.guardianRelationship.create({
-            data: {
+          const existingRelationship = await tx.guardianRelationship.findFirst({
+            where: {
               guardianId: parentPersonId,
               dependentId: profile.person.id,
-              isActive: true,
             },
           })
-        }
-      })
-    }
-  )
+          if (existingRelationship) {
+            if (!existingRelationship.isActive) {
+              await tx.guardianRelationship.update({
+                where: { id: existingRelationship.id },
+                data: { isActive: true, endDate: null },
+              })
+            }
+          } else {
+            await tx.guardianRelationship.create({
+              data: {
+                guardianId: parentPersonId,
+                dependentId: profile.person.id,
+                isActive: true,
+              },
+            })
+          }
+        })
+      }
+    )
+  } catch (error) {
+    throwIfP2002(error)
+    throw error
+  }
 
   return { updated: 1 }
 }
@@ -297,7 +270,7 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   await Sentry.startSpan(
     { name: 'family.updateChildInfo', op: 'db.transaction' },
     async () => {
-      const personUpdateData: { name?: string; dateOfBirth?: Date } = {}
+      const personUpdateData: Prisma.PersonUpdateInput = {}
 
       if (input.firstName || input.lastName) {
         const currentName = profile.person.name.split(' ')

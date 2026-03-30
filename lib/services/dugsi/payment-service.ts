@@ -18,6 +18,7 @@ import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('dugsi-payment')
 
@@ -112,29 +113,32 @@ export async function verifyBankAccount(
 export async function getPaymentStatus(
   parentEmail: string
 ): Promise<PaymentStatusData> {
+  const normalizedParentEmail = normalizeEmail(parentEmail)
+  if (!normalizedParentEmail) {
+    throw new ActionError(
+      'Invalid or missing parent email',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
   // Find person by email
   const person = await Sentry.startSpan(
     {
       name: 'dugsi.find_person_with_profiles',
       op: 'db.query',
       attributes: {
-        parent_email: parentEmail,
+        parent_email: normalizedParentEmail,
       },
     },
     async () =>
       await prisma.person.findFirst({
         relationLoadStrategy: 'join',
         where: {
-          contactPoints: {
-            some: {
-              type: 'EMAIL',
-              value: parentEmail.toLowerCase().trim(),
-              isActive: true,
-            },
-          },
+          email: normalizedParentEmail,
         },
         include: {
-          contactPoints: { where: { isActive: true } },
           programProfiles: {
             where: {
               program: DUGSI_PROGRAM,

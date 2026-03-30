@@ -73,14 +73,16 @@ describe('createDugsiCheckoutSession', () => {
       const primaryPayerGuardian = {
         id: 'guardian-primary',
         name: 'Primary Payer Parent',
-        contactPoints: [{ value: 'primary@test.com', type: 'EMAIL' }],
+        email: 'primary@test.com',
+        phone: null,
         billingAccounts: [],
       }
 
       const nonPrimaryGuardian = {
         id: 'guardian-other',
         name: 'Other Parent',
-        contactPoints: [{ value: 'other@test.com', type: 'EMAIL' }],
+        email: 'other@test.com',
+        phone: null,
         billingAccounts: [],
       }
 
@@ -110,14 +112,16 @@ describe('createDugsiCheckoutSession', () => {
       const firstGuardian = {
         id: 'guardian-first',
         name: 'First Parent',
-        contactPoints: [{ value: 'first@test.com', type: 'EMAIL' }],
+        email: 'first@test.com',
+        phone: null,
         billingAccounts: [],
       }
 
       const secondGuardian = {
         id: 'guardian-second',
         name: 'Second Parent',
-        contactPoints: [{ value: 'second@test.com', type: 'EMAIL' }],
+        email: 'second@test.com',
+        phone: null,
         billingAccounts: [],
       }
 
@@ -147,7 +151,8 @@ describe('createDugsiCheckoutSession', () => {
       const primaryPayerGuardian = {
         id: 'guardian-primary',
         name: 'Primary Payer',
-        contactPoints: [{ value: 'primary@test.com', type: 'EMAIL' }],
+        email: 'primary@test.com',
+        phone: null,
         billingAccounts: [{ stripeCustomerIdDugsi: 'cus_existing123' }],
       }
 
@@ -177,14 +182,16 @@ describe('createDugsiCheckoutSession', () => {
       const firstPrimaryPayer = {
         id: 'guardian-first-primary',
         name: 'First Primary',
-        contactPoints: [{ value: 'first@test.com', type: 'EMAIL' }],
+        email: 'first@test.com',
+        phone: null,
         billingAccounts: [],
       }
 
       const secondPrimaryPayer = {
         id: 'guardian-second-primary',
         name: 'Second Primary',
-        contactPoints: [{ value: 'second@test.com', type: 'EMAIL' }],
+        email: 'second@test.com',
+        phone: null,
         billingAccounts: [],
       }
 
@@ -214,7 +221,8 @@ describe('createDugsiCheckoutSession', () => {
       const guardianNoEmail = {
         id: 'guardian-no-email',
         name: 'No Email Parent',
-        contactPoints: [],
+        email: null,
+        phone: null,
         billingAccounts: [],
       }
 
@@ -244,7 +252,8 @@ describe('createDugsiCheckoutSession', () => {
     const mockGuardianWithEmail = {
       id: 'guardian-1',
       name: 'Test Parent',
-      contactPoints: [{ value: 'test@example.com', type: 'EMAIL' }],
+      email: 'test@example.com',
+      phone: null,
       billingAccounts: [],
     }
 

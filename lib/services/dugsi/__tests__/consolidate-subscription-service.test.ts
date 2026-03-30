@@ -128,10 +128,8 @@ describe('consolidate-subscription-service', () => {
   const mockPrimaryPayer = {
     id: 'guardian-123',
     name: 'John Doe',
-    contactPoints: [
-      { type: 'EMAIL', value: 'john@example.com' },
-      { type: 'PHONE', value: '+16125551234' },
-    ],
+    email: 'john@example.com',
+    phone: '6125551234',
   }
 
   const mockFamilyProfiles = [

@@ -171,11 +171,7 @@ export class UnifiedMatcher {
             program,
           },
           include: {
-            person: {
-              include: {
-                contactPoints: { where: { isActive: true } },
-              },
-            },
+            person: true,
             assignments: {
               where: { isActive: true },
               include: {
@@ -303,11 +299,7 @@ export class UnifiedMatcher {
         program,
       },
       include: {
-        person: {
-          include: {
-            contactPoints: { where: { isActive: true } },
-          },
-        },
+        person: true,
         assignments: {
           where: { isActive: true },
           include: {
@@ -421,17 +413,9 @@ export class UnifiedMatcher {
 
     // Try to find billing account first (guardian payer)
     const billingAccount = await prisma.billingAccount.findFirst({
-      relationLoadStrategy: 'join',
       where: {
         personId: person.id,
         accountType,
-      },
-      include: {
-        person: {
-          include: {
-            contactPoints: { where: { isActive: true } },
-          },
-        },
       },
     })
 

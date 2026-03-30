@@ -10,10 +10,6 @@
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
-import {
-  extractStudentEmail,
-  extractStudentPhone,
-} from '@/lib/mappers/mahad-mapper'
 
 const logger = createActionLogger('backup-data')
 
@@ -92,11 +88,7 @@ export async function backupData(): Promise<BackupResult> {
       },
       relationLoadStrategy: 'join',
       include: {
-        person: {
-          include: {
-            contactPoints: { where: { isActive: true } },
-          },
-        },
+        person: true,
         enrollments: {
           where: {
             status: { not: 'WITHDRAWN' },
@@ -201,9 +193,8 @@ export async function backupData(): Promise<BackupResult> {
       const assignment = profile.assignments[0]
       const subscription = assignment?.subscription
 
-      // Use shared contact helpers
-      const email = extractStudentEmail({ person })
-      const phone = extractStudentPhone({ person })
+      const email = person.email
+      const phone = person.phone
 
       return {
         id: profile.id,

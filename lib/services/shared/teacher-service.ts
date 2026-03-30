@@ -58,11 +58,7 @@ export async function createTeacher(
       personId,
     },
     include: {
-      person: {
-        include: {
-          contactPoints: { where: { isActive: true } },
-        },
-      },
+      person: true,
       programs: true,
     },
   })
@@ -362,11 +358,7 @@ export async function bulkAssignPrograms(
 // ============================================================================
 
 const teacherWithDetailsInclude = {
-  person: {
-    include: {
-      contactPoints: { where: { isActive: true } },
-    },
-  },
+  person: true,
   programs: {
     where: { isActive: true },
   },

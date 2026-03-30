@@ -209,24 +209,9 @@ async function seedFakeStudents(count: number): Promise<void> {
           data: {
             name: student.fullName,
             dateOfBirth: student.dateOfBirth,
+            email: student.email,
+            phone: student.phone,
           },
-        })
-
-        await tx.contactPoint.createMany({
-          data: [
-            {
-              personId: person.id,
-              type: 'EMAIL',
-              value: student.email,
-              isPrimary: true,
-            },
-            {
-              personId: person.id,
-              type: 'PHONE',
-              value: student.phone,
-              isPrimary: true,
-            },
-          ],
         })
 
         const profile = await tx.programProfile.create({
@@ -306,10 +291,6 @@ async function cleanFakeStudents(): Promise<void> {
 
     await tx.programProfile.deleteMany({
       where: { id: { in: profileIds } },
-    })
-
-    await tx.contactPoint.deleteMany({
-      where: { personId: { in: personIds } },
     })
 
     await tx.person.deleteMany({

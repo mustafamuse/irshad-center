@@ -3,10 +3,6 @@
 import { Program } from '@prisma/client'
 
 import { getMultiRolePeople } from '@/lib/db/queries/person'
-import {
-  extractPrimaryEmail,
-  extractPrimaryPhone,
-} from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { ActionResult } from '@/lib/utils/action-helpers'
 
@@ -44,8 +40,8 @@ export async function getMultiRolePeopleAction(filters?: {
     const results: MultiRolePerson[] = people.map((person) => ({
       id: person.id,
       name: person.name,
-      email: extractPrimaryEmail(person.contactPoints),
-      phone: extractPrimaryPhone(person.contactPoints),
+      email: person.email,
+      phone: person.phone,
       roleCount: [
         person.teacher ? 1 : 0,
         person.programProfiles.length > 0 ? 1 : 0,

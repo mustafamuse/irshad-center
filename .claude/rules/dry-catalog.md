@@ -46,7 +46,7 @@ paths:
 
 | Location                             | Key exports                                               |
 | ------------------------------------ | --------------------------------------------------------- |
-| `lib/mappers/mahad-mapper.ts`        | `mahadEnrollmentInclude`, `extractStudentEmail/Phone()`   |
+| `lib/mappers/mahad-mapper.ts`        | `mahadEnrollmentInclude`                                  |
 | `lib/mappers/dugsi-mapper.ts`        | `mapToFamilyDTO()`                                        |
 | `lib/utils/action-helpers.ts`        | `ActionResult<T>`, `withActionError()`                    |
 | `lib/utils/type-guards.ts`           | `isPrismaError()`, `isStripeError()`, `isValidEmail()`    |
