@@ -480,11 +480,14 @@ export async function getStudentByEmail(
   email: string,
   client: DatabaseClient = prisma
 ) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return null
+
   const profile = await client.programProfile.findFirst({
     where: {
       program: 'MAHAD_PROGRAM',
       person: {
-        email: normalizeEmail(email) ?? '',
+        email: normalizedEmail,
       },
     },
     relationLoadStrategy: 'join',

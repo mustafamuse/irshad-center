@@ -200,10 +200,15 @@ export async function addSecondParent(
 
           if (existingPerson) {
             parentPersonId = existingPerson.id
-            if (existingPerson.phone !== normalizedPhone) {
+            const updates: Prisma.PersonUpdateInput = {}
+            if (existingPerson.phone !== normalizedPhone)
+              updates.phone = normalizedPhone
+            if (!existingPerson.email && normalizedEmail)
+              updates.email = normalizedEmail
+            if (Object.keys(updates).length > 0) {
               await tx.person.update({
                 where: { id: existingPerson.id },
-                data: { phone: normalizedPhone },
+                data: updates,
               })
             }
           } else {

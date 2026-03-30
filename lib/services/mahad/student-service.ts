@@ -104,8 +104,12 @@ export async function createMahadStudent(input: StudentCreateInput) {
         await tx.person.update({
           where: { id: personId },
           data: {
-            email: normalizedEmail ?? undefined,
-            phone: normalizedPhone ?? undefined,
+            ...(normalizedEmail !== null && !dupResult.existingPerson.email
+              ? { email: normalizedEmail }
+              : {}),
+            ...(normalizedPhone !== null && !dupResult.existingPerson.phone
+              ? { phone: normalizedPhone }
+              : {}),
           },
         })
       } else {

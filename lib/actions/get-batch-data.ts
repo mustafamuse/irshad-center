@@ -58,7 +58,7 @@ export interface BatchStudentData {
 }
 
 export interface DuplicateStudentGroup {
-  email: string
+  email: string | null
   count: number
   students: Array<{
     id: string
@@ -333,7 +333,7 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
   for (const person of people) {
     if (person.programProfiles.length > 1) {
       duplicateGroups.push({
-        email: person.email ?? '(no email)',
+        email: person.email,
         count: person.programProfiles.length,
         students: person.programProfiles.map((profile) => ({
           id: profile.id,

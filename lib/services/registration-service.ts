@@ -93,7 +93,7 @@ function generateErrorRef(uuid: string): string {
  *       primarily serves a US-based community. International phone
  *       support may be added in the future if needed.
  *
- * @see normalizePhone() in utils/contact-normalization.ts for E.164 conversion
+ * @see normalizePhone() in utils/contact-normalization.ts
  */
 const phoneRegex = /^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/
 
@@ -314,7 +314,7 @@ export async function createPersonWithContact(
       'Phone normalization failed during person creation'
     )
     throw new Error(
-      `Invalid phone number format (${digits.length} digits found, expected 10-15 for E.164 format)`
+      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`
     )
   }
 
@@ -1145,7 +1145,7 @@ export async function findOrCreatePersonWithContact(
       'Phone normalization failed during findOrCreate'
     )
     throw new Error(
-      `Invalid phone number format (${digits.length} digits found, expected 10-15 for E.164 format)`
+      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`
     )
   }
 
