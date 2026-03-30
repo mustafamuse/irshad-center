@@ -113,20 +113,30 @@ export async function verifyBankAccount(
 export async function getPaymentStatus(
   parentEmail: string
 ): Promise<PaymentStatusData> {
+  const normalizedParentEmail = normalizeEmail(parentEmail)
+  if (!normalizedParentEmail) {
+    throw new ActionError(
+      'Invalid or missing parent email',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
   // Find person by email
   const person = await Sentry.startSpan(
     {
       name: 'dugsi.find_person_with_profiles',
       op: 'db.query',
       attributes: {
-        parent_email: parentEmail,
+        parent_email: normalizedParentEmail,
       },
     },
     async () =>
       await prisma.person.findFirst({
         relationLoadStrategy: 'join',
         where: {
-          email: normalizeEmail(parentEmail) ?? '',
+          email: normalizedParentEmail,
         },
         include: {
           programProfiles: {

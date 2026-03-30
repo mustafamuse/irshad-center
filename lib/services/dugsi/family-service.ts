@@ -1,4 +1,4 @@
-import { GradeLevel, Prisma, Shift } from '@prisma/client'
+import { GradeLevel, Shift } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -243,24 +243,7 @@ export async function addSecondParent(
       }
     )
   } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      const target = error.meta?.target as string[] | undefined
-      const field = target?.includes('email')
-        ? 'email'
-        : target?.includes('phone')
-          ? 'phone'
-          : 'email or phone'
-      throw new ActionError(
-        `This ${field} is already associated with another person`,
-        ERROR_CODES.DUPLICATE_CONTACT,
-        field,
-        409
-      )
-    }
-    throw error
+    throwIfP2002(error)
   }
 
   return { updated: 1 }

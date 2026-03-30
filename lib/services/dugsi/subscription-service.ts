@@ -97,11 +97,21 @@ export async function linkDugsiSubscription(
     )
   }
 
+  const normalizedParentEmail = normalizeEmail(parentEmail)
+  if (!normalizedParentEmail) {
+    throw new ActionError(
+      'Invalid or missing parent email',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
   // Find person by email (parent)
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      email: normalizeEmail(parentEmail) ?? '',
+      email: normalizedParentEmail,
     },
     include: {
       programProfiles: {
@@ -173,11 +183,21 @@ export async function linkDugsiSubscription(
 export async function getDugsiPaymentStatus(
   parentEmail: string
 ): Promise<PaymentStatusResult> {
+  const normalizedEmail = normalizeEmail(parentEmail)
+  if (!normalizedEmail) {
+    throw new ActionError(
+      'Invalid or missing parent email',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
   // Find person by email
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      email: normalizeEmail(parentEmail) ?? '',
+      email: normalizedEmail,
     },
     include: {
       billingAccounts: {
