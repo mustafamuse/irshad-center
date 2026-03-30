@@ -73,7 +73,7 @@ Do not pause for confirmation between steps unless a step fails more than twice.
 
 ### PR Creation
 
-All PRs use the global `/create-pr` command (defined in `~/.claude/commands/create-pr.md`). Do not use any other PR format.
+All PRs use the `/create-pr` command (`.claude/commands/create-pr.md`). Do not use any other PR format.
 
 ### Parallel Agent Swarm for Refactors
 
