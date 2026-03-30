@@ -100,6 +100,63 @@ describe('student queries use relationLoadStrategy: join', () => {
         })
       )
     })
+
+    it('should include email in search filter', async () => {
+      mockFindMany.mockResolvedValue([])
+      mockCount.mockResolvedValue(0)
+
+      await getStudentsWithBatchFiltered({ search: 'test@example.com' })
+
+      expect(mockFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            person: {
+              OR: expect.arrayContaining([
+                {
+                  email: { contains: 'test@example.com', mode: 'insensitive' },
+                },
+              ]),
+            },
+          }),
+        })
+      )
+    })
+
+    it('should include phone in search filter via normalizePhone', async () => {
+      mockFindMany.mockResolvedValue([])
+      mockCount.mockResolvedValue(0)
+
+      await getStudentsWithBatchFiltered({ search: '6125551234' })
+
+      expect(mockFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            person: {
+              OR: expect.arrayContaining([{ phone: '6125551234' }]),
+            },
+          }),
+        })
+      )
+    })
+
+    it('should include name in search filter', async () => {
+      mockFindMany.mockResolvedValue([])
+      mockCount.mockResolvedValue(0)
+
+      await getStudentsWithBatchFiltered({ search: 'Ahmed' })
+
+      expect(mockFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            person: {
+              OR: expect.arrayContaining([
+                { name: { contains: 'Ahmed', mode: 'insensitive' } },
+              ]),
+            },
+          }),
+        })
+      )
+    })
   })
 
   describe('getStudentById', () => {
@@ -127,6 +184,28 @@ describe('student queries use relationLoadStrategy: join', () => {
           relationLoadStrategy: 'join',
         })
       )
+    })
+
+    it('should normalize email in query', async () => {
+      mockFindFirst.mockResolvedValue(null)
+
+      await getStudentByEmail('  Test@Example.COM  ')
+
+      expect(mockFindFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            person: { email: 'test@example.com' },
+          }),
+        })
+      )
+    })
+
+    it('should return null when no match', async () => {
+      mockFindFirst.mockResolvedValue(null)
+
+      const result = await getStudentByEmail('nonexistent@example.com')
+
+      expect(result).toBeNull()
     })
   })
 

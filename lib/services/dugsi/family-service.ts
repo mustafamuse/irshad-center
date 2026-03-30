@@ -1,4 +1,4 @@
-import { GradeLevel, Shift } from '@prisma/client'
+import { GradeLevel, Prisma, Shift } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -263,7 +263,7 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   await Sentry.startSpan(
     { name: 'family.updateChildInfo', op: 'db.transaction' },
     async () => {
-      const personUpdateData: { name?: string; dateOfBirth?: Date } = {}
+      const personUpdateData: Prisma.PersonUpdateInput = {}
 
       if (input.firstName || input.lastName) {
         const currentName = profile.person.name.split(' ')

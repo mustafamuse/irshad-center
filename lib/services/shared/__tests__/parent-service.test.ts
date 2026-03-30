@@ -1,18 +1,38 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-const { mockPersonUpdate, mockPersonFindUnique, mockTransaction } = vi.hoisted(
-  () => ({
-    mockPersonUpdate: vi.fn(),
-    mockPersonFindUnique: vi.fn(),
-    mockTransaction: vi.fn(),
-  })
-)
+const {
+  mockPersonUpdate,
+  mockPersonFindUnique,
+  mockPersonFindFirst,
+  mockPersonCreate,
+  mockGuardianRelationshipFindFirst,
+  mockGuardianRelationshipCreate,
+  mockGuardianRelationshipUpdate,
+  mockTransaction,
+} = vi.hoisted(() => ({
+  mockPersonUpdate: vi.fn(),
+  mockPersonFindUnique: vi.fn(),
+  mockPersonFindFirst: vi.fn(),
+  mockPersonCreate: vi.fn(),
+  mockGuardianRelationshipFindFirst: vi.fn(),
+  mockGuardianRelationshipCreate: vi.fn(),
+  mockGuardianRelationshipUpdate: vi.fn(),
+  mockTransaction: vi.fn(),
+}))
 
 vi.mock('@/lib/db', () => ({
   prisma: {
     person: {
       update: (...args: unknown[]) => mockPersonUpdate(...args),
       findUnique: (...args: unknown[]) => mockPersonFindUnique(...args),
+      findFirst: (...args: unknown[]) => mockPersonFindFirst(...args),
+      create: (...args: unknown[]) => mockPersonCreate(...args),
+    },
+    guardianRelationship: {
+      findFirst: (...args: unknown[]) =>
+        mockGuardianRelationshipFindFirst(...args),
+      create: (...args: unknown[]) => mockGuardianRelationshipCreate(...args),
+      update: (...args: unknown[]) => mockGuardianRelationshipUpdate(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
@@ -25,7 +45,9 @@ vi.mock('@/lib/utils/contact-normalization', () => ({
     phone ? phone.replace(/\D/g, '') : null,
 }))
 
-import { updateGuardianInfo } from '../parent-service'
+import { ActionError } from '@/lib/errors/action-error'
+
+import { updateGuardianInfo, addGuardianRelationship } from '../parent-service'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -141,5 +163,140 @@ describe('updateGuardianInfo', () => {
         data: expect.objectContaining({ phone: '6125559999' }),
       })
     )
+  })
+})
+
+describe('addGuardianRelationship', () => {
+  const defaultInput = {
+    firstName: 'Jane',
+    lastName: 'Doe',
+    email: '  Jane@Example.COM  ',
+    phone: '612-555-1234',
+  }
+
+  const dependentId = 'dependent-1'
+
+  beforeEach(() => {
+    mockGuardianRelationshipFindFirst.mockResolvedValue(null)
+  })
+
+  it('should create new Person with normalized email/phone when no match found', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+    const createdPerson = {
+      id: 'new-person-1',
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      phone: '6125551234',
+    }
+    mockPersonCreate.mockResolvedValue(createdPerson)
+    mockGuardianRelationshipCreate.mockResolvedValue({
+      id: 'rel-1',
+      guardianId: 'new-person-1',
+      dependentId,
+      role: 'PARENT',
+      isActive: true,
+    })
+
+    await addGuardianRelationship(dependentId, defaultInput)
+
+    expect(mockPersonCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          email: 'jane@example.com',
+          phone: '6125551234',
+        }),
+      })
+    )
+  })
+
+  it('should reuse existing Person when email matches', async () => {
+    const existingPerson = {
+      id: 'existing-person-1',
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      phone: '6125559999',
+    }
+    mockPersonFindFirst.mockResolvedValue(existingPerson)
+    mockGuardianRelationshipCreate.mockResolvedValue({
+      id: 'rel-1',
+      guardianId: 'existing-person-1',
+      dependentId,
+      role: 'PARENT',
+      isActive: true,
+    })
+
+    await addGuardianRelationship(dependentId, defaultInput)
+
+    expect(mockPersonCreate).not.toHaveBeenCalled()
+    expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          guardianId: 'existing-person-1',
+          dependentId,
+        }),
+      })
+    )
+  })
+
+  it('should handle P2002 race condition on person create', async () => {
+    const { Prisma } = await import('@prisma/client')
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    const p2002Error = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed on the fields: (`email`)',
+      { code: 'P2002', clientVersion: '6.0.0' }
+    )
+    mockPersonCreate.mockRejectedValue(p2002Error)
+
+    const conflictingPerson = {
+      id: 'conflict-person-1',
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      phone: '6125551234',
+    }
+    mockPersonFindUnique.mockResolvedValue(conflictingPerson)
+    mockGuardianRelationshipCreate.mockResolvedValue({
+      id: 'rel-1',
+      guardianId: 'conflict-person-1',
+      dependentId,
+      role: 'PARENT',
+      isActive: true,
+    })
+
+    await addGuardianRelationship(dependentId, defaultInput)
+
+    expect(mockPersonFindUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: 'jane@example.com' },
+      })
+    )
+    expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          guardianId: 'conflict-person-1',
+          dependentId,
+        }),
+      })
+    )
+  })
+
+  it('should reject missing email', async () => {
+    await expect(
+      addGuardianRelationship(dependentId, {
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: '',
+        phone: '612-555-1234',
+      })
+    ).rejects.toThrow(ActionError)
+
+    await expect(
+      addGuardianRelationship(dependentId, {
+        firstName: 'Jane',
+        lastName: 'Doe',
+        email: '',
+        phone: '612-555-1234',
+      })
+    ).rejects.toThrow('Guardian email is required')
   })
 })

@@ -945,5 +945,34 @@ describe('Student Update Actions', () => {
         })
       )
     })
+
+    it('should normalize email before storing', async () => {
+      const result = await updateStudentAction('profile-1', {
+        email: 'Test@Example.COM',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockPersonUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'person-1' },
+          data: expect.objectContaining({ email: 'test@example.com' }),
+        })
+      )
+    })
+
+    it('should handle P2002 duplicate email', async () => {
+      const p2002Error = Object.assign(new Error('Unique constraint'), {
+        code: 'P2002',
+        meta: { target: ['email'] },
+      })
+      mockPersonUpdate.mockRejectedValue(p2002Error)
+
+      const result = await updateStudentAction('profile-1', {
+        email: 'duplicate@example.com',
+      })
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('email or phone')
+    })
   })
 })

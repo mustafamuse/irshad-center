@@ -42,7 +42,10 @@ import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import type { DuplicateField } from '@/lib/types/registration-errors'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('duplicate-detection')
 
@@ -212,7 +215,7 @@ export class DuplicateDetectionService {
   ): DuplicateField {
     const emailMatches =
       submittedEmail && person.email
-        ? person.email.toLowerCase() === submittedEmail.toLowerCase().trim()
+        ? person.email === normalizeEmail(submittedEmail)
         : false
 
     const phoneMatches =

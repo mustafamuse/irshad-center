@@ -26,6 +26,7 @@ import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 export interface MahadStudent {
   id: string
@@ -483,7 +484,7 @@ export async function getStudentByEmail(
     where: {
       program: 'MAHAD_PROGRAM',
       person: {
-        email: email.toLowerCase().trim(),
+        email: normalizeEmail(email) ?? '',
       },
     },
     relationLoadStrategy: 'join',

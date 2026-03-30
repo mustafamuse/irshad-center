@@ -24,6 +24,7 @@ import {
   upsertBillingAccount as upsertBillingAccountQuery,
 } from '@/lib/db/queries/billing'
 import { DatabaseClient } from '@/lib/db/types'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 /**
  * Billing account data for creation/update
@@ -356,7 +357,7 @@ export async function getBillingStatusByEmail(
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      email: email.toLowerCase().trim(),
+      email: normalizeEmail(email) ?? '',
     },
     include: {
       billingAccounts: {

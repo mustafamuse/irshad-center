@@ -2,6 +2,7 @@ import {
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
+  Prisma,
   StudentBillingType,
 } from '@prisma/client'
 
@@ -179,12 +180,7 @@ export async function updateMahadStudent(
 
     const { personId } = profile
 
-    const personData: {
-      name?: string
-      dateOfBirth?: Date | null
-      email?: string | null
-      phone?: string | null
-    } = {}
+    const personData: Prisma.PersonUpdateInput = {}
     if (input.name !== undefined) personData.name = input.name
     if (input.dateOfBirth !== undefined)
       personData.dateOfBirth = input.dateOfBirth
