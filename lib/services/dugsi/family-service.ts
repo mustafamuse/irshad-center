@@ -136,6 +136,7 @@ export async function updateParentInfo(
         })
       } catch (error) {
         throwIfP2002(error)
+        throw error
       }
     }
   )
@@ -244,6 +245,7 @@ export async function addSecondParent(
     )
   } catch (error) {
     throwIfP2002(error)
+    throw error
   }
 
   return { updated: 1 }

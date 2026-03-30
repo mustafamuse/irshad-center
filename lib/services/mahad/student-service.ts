@@ -147,6 +147,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
   } catch (error) {
     if (error instanceof ActionError) throw error
     throwIfP2002(error)
+    throw error
   }
 }
 
@@ -219,6 +220,7 @@ export async function updateMahadStudent(
   } catch (error) {
     if (error instanceof ActionError) throw error
     throwIfP2002(error)
+    throw error
   }
 }
 

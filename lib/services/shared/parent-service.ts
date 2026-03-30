@@ -91,6 +91,7 @@ export async function updateGuardianInfo(
       })
     }
     throwIfP2002(error)
+    throw error
   }
 }
 
