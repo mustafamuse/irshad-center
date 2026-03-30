@@ -65,7 +65,7 @@ export async function updateGuardianInfo(
 
   if (input.phone && !normalizePhone(input.phone)) {
     throw new ActionError(
-      'Invalid phone number. Expected 10-15 digits',
+      'Invalid phone number. Expected a 10-digit US number or 11 digits starting with 1',
       ERROR_CODES.VALIDATION_ERROR,
       'phone',
       400

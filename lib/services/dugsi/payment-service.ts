@@ -18,6 +18,7 @@ import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('dugsi-payment')
 
@@ -125,7 +126,7 @@ export async function getPaymentStatus(
       await prisma.person.findFirst({
         relationLoadStrategy: 'join',
         where: {
-          email: parentEmail.toLowerCase().trim(),
+          email: normalizeEmail(parentEmail) ?? '',
         },
         include: {
           programProfiles: {

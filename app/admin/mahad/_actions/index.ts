@@ -634,7 +634,7 @@ export async function updateStudentAction(
       !normalizedPhone
     ) {
       throw new ActionError(
-        'Invalid phone number. Expected 10-15 digits (e.g. 612-555-1234)',
+        'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
         ERROR_CODES.VALIDATION_ERROR,
         'phone',
         400
@@ -728,6 +728,8 @@ export async function updateStudentAction(
   } catch (error) {
     return await handleActionError(error, 'updateStudentAction', {
       handlers: {
+        [PRISMA_ERRORS.UNIQUE_CONSTRAINT]:
+          'This email or phone is already associated with another student',
         [PRISMA_ERRORS.RECORD_NOT_FOUND]: 'Student not found',
         [PRISMA_ERRORS.FOREIGN_KEY_CONSTRAINT]:
           'Invalid batch or related record reference',

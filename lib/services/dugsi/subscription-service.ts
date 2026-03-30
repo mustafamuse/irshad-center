@@ -21,6 +21,7 @@ import {
   validateStripeSubscription,
   linkSubscriptionToProfiles,
 } from '@/lib/services/shared'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 /**
  * Result type for subscription validation
@@ -100,7 +101,7 @@ export async function linkDugsiSubscription(
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      email: parentEmail.toLowerCase().trim(),
+      email: normalizeEmail(parentEmail) ?? '',
     },
     include: {
       programProfiles: {
@@ -176,7 +177,7 @@ export async function getDugsiPaymentStatus(
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      email: parentEmail.toLowerCase().trim(),
+      email: normalizeEmail(parentEmail) ?? '',
     },
     include: {
       billingAccounts: {

@@ -93,7 +93,7 @@ export async function updateParentInfo(
   const normalizedPhone = normalizePhone(input.phone)
   if (!normalizedPhone) {
     throw new ActionError(
-      'Invalid phone number. Expected 10-15 digits (e.g. 612-555-1234)',
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
       ERROR_CODES.VALIDATION_ERROR,
       'phone',
       400
@@ -152,7 +152,7 @@ export async function addSecondParent(
   const normalizedPhone = normalizePhone(input.phone)
   if (!normalizedPhone) {
     throw new ActionError(
-      'Invalid phone number. Expected 10-15 digits (e.g. 612-555-1234)',
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
       ERROR_CODES.VALIDATION_ERROR,
       'phone',
       400
