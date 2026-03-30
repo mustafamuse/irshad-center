@@ -448,7 +448,7 @@ export async function deleteTeacherAction(
 
 /**
  * Update teacher details (name, email, phone).
- * Updates the underlying Person record and ContactPoints.
+ * Updates the underlying Person record.
  */
 export async function updateTeacherDetailsAction(
   input: UpdateTeacherDetailsInput

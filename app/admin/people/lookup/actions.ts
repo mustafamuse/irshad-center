@@ -120,10 +120,6 @@ export async function deletePersonAction(
         where: { personId },
       })
 
-      await tx.contactPoint.deleteMany({
-        where: { personId },
-      })
-
       await tx.person.delete({
         where: { id: personId },
       })

@@ -100,8 +100,7 @@ async function dropTables() {
     prisma.siblingRelationship.deleteMany(),
     prisma.guardianRelationship.deleteMany(),
 
-    // Contact & Person
-    prisma.contactPoint.deleteMany(),
+    // Person
     prisma.person.deleteMany(),
 
     // Batches & Teachers

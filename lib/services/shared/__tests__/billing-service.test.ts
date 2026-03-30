@@ -9,7 +9,7 @@ const {
   mockBillingAssignmentFindMany,
   mockBillingAssignmentCreateMany,
   mockBillingAssignmentUpdateMany,
-  mockPersonFindFirst,
+  mockPersonFindUnique,
   mockTransaction,
   mockSentryStartSpan,
 } = vi.hoisted(() => ({
@@ -18,7 +18,7 @@ const {
   mockBillingAssignmentFindMany: vi.fn(),
   mockBillingAssignmentCreateMany: vi.fn(),
   mockBillingAssignmentUpdateMany: vi.fn(),
-  mockPersonFindFirst: vi.fn(),
+  mockPersonFindUnique: vi.fn(),
   mockTransaction: vi.fn(),
   mockSentryStartSpan: vi.fn(),
 }))
@@ -33,7 +33,7 @@ vi.mock('@/lib/db', () => ({
         mockBillingAssignmentUpdateMany(...args),
     },
     person: {
-      findFirst: (...args: unknown[]) => mockPersonFindFirst(...args),
+      findUnique: (...args: unknown[]) => mockPersonFindUnique(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
@@ -602,7 +602,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should throw when person not found', async () => {
-    mockPersonFindFirst.mockResolvedValue(null)
+    mockPersonFindUnique.mockResolvedValue(null)
 
     await expect(
       getBillingStatusByEmail('nobody@test.com', StripeAccountType.MAHAD)
@@ -610,7 +610,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should return status for person with active MAHAD subscription', async () => {
-    mockPersonFindFirst.mockResolvedValue({
+    mockPersonFindUnique.mockResolvedValue({
       id: 'person-1',
       billingAccounts: [
         {
@@ -645,7 +645,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should return DUGSI customer ID for DUGSI account type', async () => {
-    mockPersonFindFirst.mockResolvedValue({
+    mockPersonFindUnique.mockResolvedValue({
       id: 'person-1',
       billingAccounts: [
         {
@@ -671,7 +671,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should return YOUTH_EVENTS customer ID', async () => {
-    mockPersonFindFirst.mockResolvedValue({
+    mockPersonFindUnique.mockResolvedValue({
       id: 'person-1',
       billingAccounts: [
         {
@@ -697,7 +697,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should return GENERAL_DONATION customer ID', async () => {
-    mockPersonFindFirst.mockResolvedValue({
+    mockPersonFindUnique.mockResolvedValue({
       id: 'person-1',
       billingAccounts: [
         {
@@ -723,7 +723,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should exclude non-active subscriptions from status', async () => {
-    mockPersonFindFirst.mockResolvedValue({
+    mockPersonFindUnique.mockResolvedValue({
       id: 'person-1',
       billingAccounts: [
         {
@@ -741,7 +741,7 @@ describe('getBillingStatusByEmail', () => {
 
     expect(result.hasActiveSubscription).toBe(false)
     expect(result.subscriptionStatus).toBeNull()
-    expect(mockPersonFindFirst).toHaveBeenCalledWith(
+    expect(mockPersonFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         include: expect.objectContaining({
           billingAccounts: expect.objectContaining({
@@ -764,7 +764,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should return defaults when no billing account exists', async () => {
-    mockPersonFindFirst.mockResolvedValue({
+    mockPersonFindUnique.mockResolvedValue({
       id: 'person-1',
       billingAccounts: [],
     })
@@ -786,7 +786,7 @@ describe('getBillingStatusByEmail', () => {
   })
 
   it('should normalize email to lowercase and trim', async () => {
-    mockPersonFindFirst.mockResolvedValue({
+    mockPersonFindUnique.mockResolvedValue({
       id: 'person-1',
       billingAccounts: [],
     })
@@ -796,7 +796,7 @@ describe('getBillingStatusByEmail', () => {
       StripeAccountType.MAHAD
     )
 
-    expect(mockPersonFindFirst).toHaveBeenCalledWith(
+    expect(mockPersonFindUnique).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           email: 'test@example.com',
