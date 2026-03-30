@@ -66,39 +66,14 @@ When asked to implement a feature end-to-end, follow this sequence without stopp
 2. Run `tsc --noEmit` and fix type errors
 3. Run relevant tests and fix failures
 4. Commit with a descriptive message
-5. Push and create PR with the required format below
+5. Push and create PR using `/create-pr`
 6. Report back with a summary
 
 Do not pause for confirmation between steps unless a step fails more than twice.
 
-### PR Description Format (Required)
+### PR Creation
 
-Every PR description MUST use this format. Fill in each section thoroughly — no empty sections or placeholder text.
-
-```
-## Summary
-<2-4 bullet points: what this PR does and why>
-
-## Changes
-<Group by layer. List each file and what it does. Example:>
-**Service layer:**
-- `file.ts` - Description of what this file does
-
-**UI:**
-- `component.tsx` - Description
-
-**Tests:**
-- `file.test.ts` - What is tested (N tests covering X, Y, Z)
-
-## Test plan
-<Concrete verification steps as a checklist>
-- [ ] Step 1
-- [ ] Step 2
-```
-
-For bug fixes, add a `## Root cause` section after Summary.
-For database migrations, add a `## Safety` checklist after Changes.
-For hotfixes, add `## Severity` and `## Root cause` sections after Summary.
+All PRs use the `/create-pr` command (`.claude/commands/create-pr.md`). Do not use any other PR format.
 
 ### Parallel Agent Swarm for Refactors
 
