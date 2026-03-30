@@ -476,6 +476,13 @@ export async function updateTeacherDetailsAction(
     }
 
     const normalizedPhone = phone ? normalizePhone(phone) : null
+    if (phone && !normalizedPhone) {
+      return {
+        success: false,
+        error:
+          'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
+      }
+    }
 
     await prisma.person.update({
       where: { id: teacher.personId },

@@ -353,11 +353,16 @@ export async function getBillingStatusByEmail(
   email: string,
   accountType: StripeAccountType
 ): Promise<BillingStatusResult> {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) {
+    throw new Error('Invalid email address')
+  }
+
   // Find person by email
-  const person = await prisma.person.findFirst({
+  const person = await prisma.person.findUnique({
     relationLoadStrategy: 'join',
     where: {
-      email: normalizeEmail(email) ?? '',
+      email: normalizedEmail,
     },
     include: {
       billingAccounts: {
