@@ -9,12 +9,12 @@ async function findPersonRelationships() {
       },
     },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
       guardianRelationships: {
         include: {
           dependent: {
             include: {
-              contactPoints: true,
+              contactPoints: { where: { isActive: true } },
             },
           },
         },
@@ -23,7 +23,7 @@ async function findPersonRelationships() {
         include: {
           guardian: {
             include: {
-              contactPoints: true,
+              contactPoints: { where: { isActive: true } },
             },
           },
         },

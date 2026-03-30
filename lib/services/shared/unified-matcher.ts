@@ -18,7 +18,7 @@ import type { Stripe } from 'stripe'
 
 import { STRIPE_CUSTOM_FIELDS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
-import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger } from '@/lib/logger'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
@@ -139,7 +139,7 @@ export class UnifiedMatcher {
           email: validatedEmail,
         },
       },
-      async () => await findPersonByContact(validatedEmail, null)
+      async () => await findPersonByActiveContact(validatedEmail, null)
     )
     if (!person) {
       return {
@@ -173,7 +173,7 @@ export class UnifiedMatcher {
           include: {
             person: {
               include: {
-                contactPoints: true,
+                contactPoints: { where: { isActive: true } },
               },
             },
             assignments: {
@@ -282,7 +282,7 @@ export class UnifiedMatcher {
     }
 
     // Find person by phone
-    const person = await findPersonByContact(null, validatedPhone)
+    const person = await findPersonByActiveContact(null, validatedPhone)
     if (!person) {
       return {
         billingAccount: null,
@@ -305,7 +305,7 @@ export class UnifiedMatcher {
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
           },
         },
         assignments: {
@@ -407,7 +407,7 @@ export class UnifiedMatcher {
     }
 
     // Find person by email (could be student or guardian)
-    const person = await findPersonByContact(validatedEmail, null)
+    const person = await findPersonByActiveContact(validatedEmail, null)
     if (!person) {
       return {
         billingAccount: null,
@@ -429,7 +429,7 @@ export class UnifiedMatcher {
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
           },
         },
       },

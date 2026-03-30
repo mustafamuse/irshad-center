@@ -29,7 +29,7 @@ import {
   getProgramProfiles,
   getProgramProfileById,
   getProgramProfilesByPersonId,
-  findPersonByContact,
+  findPersonByActiveContact,
   getProgramProfilesByFamilyId,
   getProgramProfilesWithBilling,
   searchProgramProfilesByNameOrContact,
@@ -83,17 +83,81 @@ describe('getProgramProfilesByPersonId', () => {
   })
 })
 
-describe('findPersonByContact', () => {
+describe('findPersonByActiveContact', () => {
+  it('should add isActive: true to email some clause', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact('test@example.com')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.where.OR[0].contactPoints.some).toMatchObject({
+      type: 'EMAIL',
+      isActive: true,
+    })
+  })
+
+  it('should add isActive: true to phone some clause', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact(null, '6125551234')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.where.OR[0].contactPoints.some).toMatchObject({
+      type: 'PHONE',
+      isActive: true,
+    })
+  })
+
+  it('should filter included contactPoints by isActive', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact('test@example.com')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.include.contactPoints).toEqual({
+      where: { isActive: true },
+    })
+  })
+
+  it('should return null when no email or phone provided', async () => {
+    const result = await findPersonByActiveContact(null, null)
+
+    expect(result).toBeNull()
+    expect(mockPersonFindFirst).not.toHaveBeenCalled()
+  })
+
+  it('should return null when phone is invalid and no email', async () => {
+    const result = await findPersonByActiveContact(null, '123')
+
+    expect(result).toBeNull()
+    expect(mockPersonFindFirst).not.toHaveBeenCalled()
+  })
+
   it('should use relationLoadStrategy join', async () => {
     mockPersonFindFirst.mockResolvedValue(null)
 
-    await findPersonByContact('test@example.com')
+    await findPersonByActiveContact('test@example.com')
 
     expect(mockPersonFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         relationLoadStrategy: 'join',
       })
     )
+  })
+})
+
+describe('getProgramProfiles - isActive filtering', () => {
+  it('should add isActive: true to contact search some clause', async () => {
+    mockProfileFindMany.mockResolvedValue([])
+    mockProfileCount.mockResolvedValue(0)
+
+    await getProgramProfiles({ search: 'test@example.com' })
+
+    const call = mockProfileFindMany.mock.calls[0][0]
+    const contactEntry = call.where.person.OR.find(
+      (entry: Record<string, unknown>) => entry.contactPoints
+    )
+    expect(contactEntry.contactPoints.some.isActive).toBe(true)
   })
 })
 
@@ -136,6 +200,18 @@ describe('searchProgramProfilesByNameOrContact', () => {
         relationLoadStrategy: 'join',
       })
     )
+  })
+
+  it('should add isActive: true to contact search some clause', async () => {
+    mockProfileFindMany.mockResolvedValue([])
+
+    await searchProgramProfilesByNameOrContact('test@example.com')
+
+    const call = mockProfileFindMany.mock.calls[0][0]
+    const contactEntry = call.where.person.OR.find(
+      (entry: Record<string, unknown>) => entry.contactPoints
+    )
+    expect(contactEntry.contactPoints.some.isActive).toBe(true)
   })
 })
 

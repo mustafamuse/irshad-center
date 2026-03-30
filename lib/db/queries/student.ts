@@ -103,7 +103,7 @@ type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
   include: {
     person: {
       include: {
-        contactPoints: true
+        contactPoints: { where: { isActive: true } }
       }
     }
     enrollments: {
@@ -182,7 +182,7 @@ export async function getStudents(client: DatabaseClient = prisma) {
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -232,7 +232,7 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -314,6 +314,7 @@ export async function getStudentsWithBatchFiltered(
         {
           contactPoints: {
             some: {
+              isActive: true,
               OR: [
                 {
                   type: 'EMAIL',
@@ -417,7 +418,7 @@ export async function getStudentsWithBatchFiltered(
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
           },
         },
         enrollments: {
@@ -474,7 +475,7 @@ export async function getStudentById(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
           siblingRelationships1: {
             where: { isActive: true },
           },
@@ -534,6 +535,7 @@ export async function getStudentByEmail(
           some: {
             type: 'EMAIL',
             value: email.toLowerCase().trim(),
+            isActive: true,
           },
         },
       },
@@ -542,7 +544,7 @@ export async function getStudentByEmail(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -595,7 +597,7 @@ export async function getStudentsByBatch(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -656,7 +658,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -763,6 +765,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
         contactPoints: {
           some: {
             type: 'PHONE',
+            isActive: true,
           },
         },
       },
@@ -774,6 +777,7 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
           contactPoints: {
             where: {
               type: 'PHONE',
+              isActive: true,
             },
           },
         },
@@ -865,7 +869,7 @@ export async function resolveDuplicateStudents(
       where: { id: keepId },
       relationLoadStrategy: 'join',
       include: {
-        person: { include: { contactPoints: true } },
+        person: { include: { contactPoints: { where: { isActive: true } } } },
         assignments: true,
       },
     })
@@ -874,7 +878,7 @@ export async function resolveDuplicateStudents(
       where: { id: { in: deleteIds } },
       relationLoadStrategy: 'join',
       include: {
-        person: { include: { contactPoints: true } },
+        person: { include: { contactPoints: { where: { isActive: true } } } },
         assignments: true,
       },
     })
@@ -1025,7 +1029,7 @@ export async function getStudentCompleteness(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {

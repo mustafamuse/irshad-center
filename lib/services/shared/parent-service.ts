@@ -14,12 +14,15 @@
  * - Get guardian's dependents
  */
 
-import { ContactType, GuardianRole, Prisma } from '@prisma/client'
+import { ContactType, GuardianRole } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import type { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
+
+const logger = createServiceLogger('parent-service')
 
 /**
  * Guardian update input
@@ -70,7 +73,7 @@ export async function updateGuardianInfo(
     const guardian = await tx.person.findUnique({
       relationLoadStrategy: 'join',
       where: { id: guardianId },
-      include: { contactPoints: true },
+      include: { contactPoints: { where: { isActive: true } } },
     })
 
     if (!guardian) {
@@ -86,12 +89,40 @@ export async function updateGuardianInfo(
       )
 
       if (existingEmail) {
+        const conflictingEmail = await tx.contactPoint.findFirst({
+          where: {
+            personId: guardianId,
+            type: 'EMAIL',
+            value: normalizedEmail,
+            isActive: false,
+          },
+        })
+        if (conflictingEmail) {
+          await tx.contactPoint.delete({ where: { id: conflictingEmail.id } })
+        }
         await tx.contactPoint.update({
           where: { id: existingEmail.id },
           data: { value: normalizedEmail },
         })
       } else {
-        try {
+        const deactivatedEmail = await tx.contactPoint.findFirst({
+          where: {
+            personId: guardianId,
+            type: 'EMAIL',
+            value: normalizedEmail,
+            isActive: false,
+          },
+        })
+        if (deactivatedEmail) {
+          logger.info(
+            { guardianId, contactId: deactivatedEmail.id, type: 'EMAIL' },
+            'Reactivating deactivated email contact'
+          )
+          await tx.contactPoint.update({
+            where: { id: deactivatedEmail.id },
+            data: { isActive: true, isPrimary: true, deactivatedAt: null },
+          })
+        } else {
           await tx.contactPoint.create({
             data: {
               personId: guardianId,
@@ -100,23 +131,6 @@ export async function updateGuardianInfo(
               isPrimary: true,
             },
           })
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            const existing = await tx.contactPoint.findFirst({
-              where: { personId: guardianId, type: 'EMAIL' },
-            })
-            if (existing) {
-              await tx.contactPoint.update({
-                where: { id: existing.id },
-                data: { value: normalizedEmail, isPrimary: true },
-              })
-            }
-          } else {
-            throw error
-          }
         }
       }
     }
@@ -130,12 +144,40 @@ export async function updateGuardianInfo(
         )
 
         if (existingPhone) {
+          const conflictingPhone = await tx.contactPoint.findFirst({
+            where: {
+              personId: guardianId,
+              type: 'PHONE',
+              value: normalizedPhone,
+              isActive: false,
+            },
+          })
+          if (conflictingPhone) {
+            await tx.contactPoint.delete({ where: { id: conflictingPhone.id } })
+          }
           await tx.contactPoint.update({
             where: { id: existingPhone.id },
             data: { value: normalizedPhone },
           })
         } else {
-          try {
+          const deactivatedPhone = await tx.contactPoint.findFirst({
+            where: {
+              personId: guardianId,
+              type: 'PHONE',
+              value: normalizedPhone,
+              isActive: false,
+            },
+          })
+          if (deactivatedPhone) {
+            logger.info(
+              { guardianId, contactId: deactivatedPhone.id, type: 'PHONE' },
+              'Reactivating deactivated phone contact'
+            )
+            await tx.contactPoint.update({
+              where: { id: deactivatedPhone.id },
+              data: { isActive: true, isPrimary: true, deactivatedAt: null },
+            })
+          } else {
             await tx.contactPoint.create({
               data: {
                 personId: guardianId,
@@ -144,23 +186,6 @@ export async function updateGuardianInfo(
                 isPrimary: true,
               },
             })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: guardianId, type: 'PHONE' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedPhone },
-                })
-              }
-            } else {
-              throw error
-            }
           }
         }
       }
@@ -169,7 +194,7 @@ export async function updateGuardianInfo(
     return await tx.person.findUnique({
       relationLoadStrategy: 'join',
       where: { id: guardianId },
-      include: { contactPoints: true },
+      include: { contactPoints: { where: { isActive: true } } },
     })
   }
 
@@ -204,6 +229,7 @@ export async function addGuardianRelationship(
         some: {
           type: 'EMAIL',
           value: normalizedEmail,
+          isActive: true,
         },
       },
     },
@@ -342,7 +368,7 @@ export async function getGuardianDependents(
     include: {
       dependent: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
           programProfiles: {
             include: {
               enrollments: {
@@ -385,7 +411,7 @@ export async function getDependentGuardians(
     include: {
       guardian: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
     },
@@ -414,11 +440,12 @@ export async function validateGuardianEmail(email: string) {
         some: {
           type: 'EMAIL',
           value: normalizedEmail,
+          isActive: true,
         },
       },
     },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
       programProfiles: true,
     },
   })
@@ -440,11 +467,12 @@ export async function findGuardianByEmail(email: string) {
         some: {
           type: 'EMAIL',
           value: normalizedEmail,
+          isActive: true,
         },
       },
     },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
       dependentRelationships: {
         where: { isActive: true },
         include: {

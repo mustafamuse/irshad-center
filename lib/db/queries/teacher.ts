@@ -61,7 +61,7 @@ export async function getTeacherWithPersonRelations(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
           guardianRelationships: true,
           dependentRelationships: true,
         },

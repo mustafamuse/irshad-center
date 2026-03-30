@@ -120,7 +120,7 @@ export const ACTIVE_CONTACT_WHERE = {
  */
 export const PERSON_WITH_CONTACTS_INCLUDE =
   Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: true,
+    contactPoints: { where: { isActive: true } },
   })
 
 /**
@@ -128,7 +128,7 @@ export const PERSON_WITH_CONTACTS_INCLUDE =
  */
 export const PERSON_WITH_RELATIONS_INCLUDE =
   Prisma.validator<Prisma.PersonInclude>()({
-    contactPoints: true,
+    contactPoints: { where: { isActive: true } },
     guardianRelationships: true,
     dependentRelationships: true,
   })
@@ -175,7 +175,7 @@ export const ENROLLMENT_WITH_PROFILE_INCLUDE =
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
           },
         },
       },
@@ -197,7 +197,7 @@ export const TEACHER_WITH_PERSON_INCLUDE =
   Prisma.validator<Prisma.TeacherInclude>()({
     person: {
       include: {
-        contactPoints: true,
+        contactPoints: { where: { isActive: true } },
       },
     },
   })

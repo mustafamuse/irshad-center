@@ -27,7 +27,7 @@ export async function detectPotentialSiblings(
     relationLoadStrategy: 'join',
     where: { id: personId },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
       guardianRelationships: {
         include: {
           guardian: true,

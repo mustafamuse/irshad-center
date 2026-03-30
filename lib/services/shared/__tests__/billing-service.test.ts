@@ -803,6 +803,7 @@ describe('getBillingStatusByEmail', () => {
             some: {
               type: 'EMAIL',
               value: 'test@example.com',
+              isActive: true,
             },
           },
         },

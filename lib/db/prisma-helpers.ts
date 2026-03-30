@@ -23,8 +23,9 @@ import { Prisma } from '@prisma/client'
  * Common type for student/registration displays
  */
 export const contactPointsSelect = {
+  where: { isActive: true },
   select: { id: true, type: true, value: true, isPrimary: true },
-} satisfies Prisma.ContactPointDefaultArgs
+} satisfies Prisma.Person$contactPointsArgs
 
 export const personMinimalSelect = {
   select: { id: true, name: true },

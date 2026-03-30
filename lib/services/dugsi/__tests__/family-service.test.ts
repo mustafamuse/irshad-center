@@ -83,7 +83,8 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/db/queries/program-profile', () => ({
   getProgramProfileById: (...args: unknown[]) =>
     mockGetProgramProfileById(...args),
-  findPersonByContact: (...args: unknown[]) => mockFindPersonByContact(...args),
+  findPersonByActiveContact: (...args: unknown[]) =>
+    mockFindPersonByContact(...args),
 }))
 
 vi.mock('@/lib/constants/dugsi', () => ({

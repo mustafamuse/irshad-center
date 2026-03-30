@@ -342,7 +342,7 @@ export async function getSiblingsByFamilyId(
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {
@@ -391,7 +391,7 @@ export async function getSiblingsByFamilyId(
               },
             },
           },
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       person2: {
@@ -410,7 +410,7 @@ export async function getSiblingsByFamilyId(
               },
             },
           },
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
     },

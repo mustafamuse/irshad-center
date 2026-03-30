@@ -251,7 +251,7 @@ export async function getBatchStudents(
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: { where: { isActive: true } },
             },
           },
           assignments: {
@@ -640,7 +640,7 @@ export async function getBatchWithEnrollments(
             include: {
               person: {
                 include: {
-                  contactPoints: true,
+                  contactPoints: { where: { isActive: true } },
                 },
               },
               assignments: {
@@ -694,7 +694,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
     include: {
       person: {
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
         },
       },
       enrollments: {

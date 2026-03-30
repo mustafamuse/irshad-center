@@ -5,7 +5,7 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   getProgramProfileById,
-  findPersonByContact,
+  findPersonByActiveContact,
   updateFamilyShift as updateFamilyShiftQuery,
 } from '@/lib/db/queries/program-profile'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
@@ -204,7 +204,11 @@ export async function addSecondParent(
         let parentPersonId: string
         const normalizedEmail = input.email.toLowerCase().trim()
 
-        const existingPerson = await findPersonByContact(input.email, null, tx)
+        const existingPerson = await findPersonByActiveContact(
+          input.email,
+          null,
+          tx
+        )
 
         if (existingPerson) {
           parentPersonId = existingPerson.id

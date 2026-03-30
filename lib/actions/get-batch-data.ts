@@ -101,7 +101,7 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
         include: {
           person: {
             include: {
-              contactPoints: true,
+              contactPoints: { where: { isActive: true } },
               // Include both directions of sibling relationships
               siblingRelationships1: {
                 where: { isActive: true },
@@ -348,7 +348,7 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
       include: {
         person: {
           include: {
-            contactPoints: true,
+            contactPoints: { where: { isActive: true } },
             programProfiles: {
               where: {
                 program: MAHAD_PROGRAM,

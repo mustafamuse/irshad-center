@@ -22,7 +22,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
-import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
@@ -358,7 +358,7 @@ export async function createPersonWithContact(
       },
     },
     include: {
-      contactPoints: true,
+      contactPoints: { where: { isActive: true } },
     },
   })
 
@@ -1183,7 +1183,7 @@ export async function findOrCreatePersonWithContact(
 
   // Try to find existing person by contact
   if (email || phone) {
-    const existingPerson = await findPersonByContact(
+    const existingPerson = await findPersonByActiveContact(
       email?.toLowerCase().trim() || null,
       phone ? normalizePhone(phone) || null : null,
       client // Pass transaction client for consistency
@@ -1282,7 +1282,7 @@ export async function findOrCreatePersonWithContact(
       const updatedPerson = await client.person.findUnique({
         relationLoadStrategy: 'join',
         where: { id: existingPerson.id },
-        include: { contactPoints: true },
+        include: { contactPoints: { where: { isActive: true } } },
       })
 
       if (!updatedPerson) {
@@ -1344,7 +1344,7 @@ export async function findOrCreatePersonWithContact(
         },
       },
       include: {
-        contactPoints: true,
+        contactPoints: { where: { isActive: true } },
       },
     })
   } catch (error) {
@@ -1366,7 +1366,7 @@ export async function findOrCreatePersonWithContact(
       )
 
       // Another process created the person, find and return it
-      const existingPerson = await findPersonByContact(
+      const existingPerson = await findPersonByActiveContact(
         email?.toLowerCase().trim() || null,
         phone ? normalizePhone(phone) || null : null,
         client // Pass transaction client for consistency

@@ -129,11 +129,12 @@ export async function getPaymentStatus(
             some: {
               type: 'EMAIL',
               value: parentEmail.toLowerCase().trim(),
+              isActive: true,
             },
           },
         },
         include: {
-          contactPoints: true,
+          contactPoints: { where: { isActive: true } },
           programProfiles: {
             where: {
               program: DUGSI_PROGRAM,
