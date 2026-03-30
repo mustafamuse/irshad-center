@@ -13,7 +13,6 @@ This document describes how to rollback the unified identity schema migration if
 The unified identity schema migration (`unified_identity_schema`) creates:
 
 - `Person` - Canonical identity records
-- `ContactPoint` - Email, phone, WhatsApp contacts
 - `ProgramProfile` - Program-specific profiles (Mahad, Dugsi)
 - `GuardianRelationship` - Parent/guardian links
 - `SiblingRelationship` - Sibling connections

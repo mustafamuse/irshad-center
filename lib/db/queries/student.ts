@@ -789,7 +789,7 @@ export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
   mergeData: boolean = false,
-  client: PrismaClient = prisma
+  client: PrismaClient = prisma // must be PrismaClient, not TransactionClient — function owns its own $transaction
 ) {
   await client.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({

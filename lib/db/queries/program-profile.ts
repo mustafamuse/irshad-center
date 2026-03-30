@@ -594,12 +594,7 @@ export async function searchProgramProfilesByNameOrContact(
     person: {
       OR: [
         { name: { contains: normalizedSearch, mode: 'insensitive' } },
-        {
-          email: {
-            contains: normalizeEmail(normalizedSearch) ?? normalizedSearch,
-            mode: 'insensitive',
-          },
-        },
+        { email: { contains: normalizedSearch, mode: 'insensitive' } },
         ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     },

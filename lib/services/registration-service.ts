@@ -23,6 +23,7 @@ import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
+import { throwIfP2002 } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import {
@@ -356,6 +357,7 @@ export async function createPersonWithContact(
         logger.info({ personId: existingPerson.id }, 'Found existing Person')
         return existingPerson
       }
+      throwIfP2002(error)
     }
 
     throw error

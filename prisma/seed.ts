@@ -47,21 +47,6 @@ function capitalizeWords(str: string): string {
     .join(' ')
 }
 
-function formatPhoneNumber(phone: string | null): string | null {
-  if (!phone) return null
-
-  // Remove all non-numeric characters
-  const cleaned = phone.replace(/\D/g, '')
-
-  // Check if it's a 10-digit US number
-  if (cleaned.length === 10) {
-    return `+1${cleaned}` // E.164 format for US numbers
-  }
-
-  // If it's not a standard US number, return the original input
-  return phone
-}
-
 function formatSchoolName(name: string | null): string | null {
   if (!name) return null
 
@@ -198,9 +183,7 @@ function processCSVRow(row: MahadCSVRow): ProcessedStudent {
     row['Name of School/College/University']?.trim() || null
   )
   const email = normalizeEmail(row['Email Address:']?.trim()) ?? null
-  const phone =
-    normalizePhone(row['Phone Number: WhatsApp']?.trim()) ??
-    formatPhoneNumber(row['Phone Number: WhatsApp']?.trim() || null)
+  const phone = normalizePhone(row['Phone Number: WhatsApp']?.trim()) ?? null
 
   return {
     fullName,
