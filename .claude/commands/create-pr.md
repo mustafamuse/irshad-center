@@ -56,7 +56,7 @@ The base branch is the branch this PR should merge INTO.
 4. If uncertain, ask the user which branch to target.
 5. Always pass `--base <branch>` to `gh pr create`.
 
-### 4.5. Validate diff matches intent
+### 5. Validate diff matches intent
 
 Before writing the PR description, review the actual diff to ensure it matches the user's intent:
 
@@ -75,10 +75,10 @@ These may be leftover changes from a previous session. Should I:
 3. Exclude them (you'll need to stash or reset those files)
 ```
 
-4. Only proceed to step 5 once the user has confirmed the diff is intentional
+4. Only proceed to step 6 once the user has confirmed the diff is intentional
 5. When writing the PR description, base the "How?" section on the **actual diff**, not just the conversation context
 
-### 5. Create or update PR
+### 6. Create or update PR
 
 Use `gh` CLI for all PR operations:
 
@@ -143,12 +143,12 @@ If PR already exists for branch, update its description. Otherwise create new PR
 
 ## Anti-Patterns
 
-| Don't                     | Why                                                                               |
-| ------------------------- | --------------------------------------------------------------------------------- |
-| Fabricate intent          | User didn't explain why -> ASK, don't invent                                      |
-| List files changed        | GitHub already shows this                                                         |
-| Speculate on risks        | Only include if user mentioned them                                               |
-| Narrate code changes      | Diff shows the implementation                                                     |
-| Add "Test plan" section   | Testing is implicit in QA; clutters the PR                                        |
-| Describe intent, not diff | PR description must reflect the ACTUAL changes, not just what was discussed       |
-| Use `#NUMBER` in prose    | `#42` links to issue 42 — only use for intentional references, rephrase otherwise |
+| Don't                            | Why                                                                               |
+| -------------------------------- | --------------------------------------------------------------------------------- |
+| Fabricate intent                 | User didn't explain why -> ASK, don't invent                                      |
+| List files changed               | GitHub already shows this                                                         |
+| Speculate on risks               | Only include if user mentioned them                                               |
+| Narrate code changes             | Diff shows the implementation                                                     |
+| Add "Test plan" section          | Testing is implicit in QA; clutters the PR                                        |
+| Write intent, ignore actual diff | PR description must reflect the ACTUAL changes, not just what was discussed       |
+| Use `#NUMBER` in prose           | `#42` links to issue 42 — only use for intentional references, rephrase otherwise |
