@@ -322,7 +322,7 @@ export async function createPersonWithContact(
     data: {
       name,
       dateOfBirth,
-      email: normalizeEmail(email) || null,
+      email: normalizeEmail(email),
       phone: normalizedPhone,
     },
   })
@@ -1130,7 +1130,7 @@ export async function findOrCreatePersonWithContact(
   const { name, dateOfBirth, email, phone } = data
   const client = tx || prisma
 
-  const normalizedEmailVal = normalizeEmail(email) || null
+  const normalizedEmailVal = normalizeEmail(email)
   const normalizedPhoneVal = phone ? normalizePhone(phone) : null
 
   if (phone && !normalizedPhoneVal) {

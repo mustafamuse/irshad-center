@@ -173,7 +173,7 @@ export async function detectPotentialSiblings(
           const sharedField =
             person.email && match.email === person.email ? 'email' : 'phone'
           const sharedValue =
-            sharedField === 'email' ? match.email : match.phone
+            (sharedField === 'email' ? match.email : match.phone) ?? 'unknown'
           potentialSiblings.push({
             person: match,
             method: 'CONTACT_MATCH',

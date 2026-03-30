@@ -191,10 +191,18 @@ export async function updateMahadStudent(
       personData.dateOfBirth = input.dateOfBirth
     if (input.email !== undefined)
       personData.email = normalizeEmail(input.email)
-    if (input.phone !== undefined)
-      personData.phone = input.phone
-        ? (normalizePhone(input.phone) ?? null)
-        : null
+    if (input.phone !== undefined) {
+      const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
+      if (input.phone && !normalizedPhone) {
+        throw new ActionError(
+          'Invalid phone number. Expected a 10-digit US number',
+          ERROR_CODES.VALIDATION_ERROR,
+          'phone',
+          400
+        )
+      }
+      personData.phone = normalizedPhone
+    }
 
     if (Object.keys(personData).length > 0) {
       await tx.person.update({
