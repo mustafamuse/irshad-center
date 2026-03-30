@@ -76,7 +76,7 @@ type PersonWithRelations = Person & {
  * Pure transformation function with no database calls or business logic.
  * Extracts role information (teacher, student, parent) and formats for display.
  *
- * @param person - Person record with contactPoints, teacher, guardianRelationships, and programProfiles
+ * @param person - Person record with teacher, guardianRelationships, and programProfiles
  * @returns Formatted search result with role details
  */
 export function mapPersonToSearchResult(

@@ -8,6 +8,10 @@ import type { Program, EnrollmentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 import { createBillingAssignment } from './billing'
 import { createEnrollment } from './enrollment'
@@ -332,8 +336,8 @@ export async function validateAndCreatePerson(
     data: {
       name: data.name.trim(),
       dateOfBirth: data.dateOfBirth,
-      email: emailContact?.value.toLowerCase().trim() ?? null,
-      phone: phoneContact?.value.trim() ?? null,
+      email: normalizeEmail(emailContact?.value) ?? null,
+      phone: normalizePhone(phoneContact?.value) ?? null,
     },
   })
 }

@@ -27,6 +27,10 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logWarning } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 import { DugsiRegistrationFiltersSchema } from '@/lib/validations/dugsi'
 
 const logger = createServiceLogger('dugsi-registration')
@@ -391,7 +395,12 @@ export async function searchDugsiRegistrationsByContact(
   return Sentry.startSpan(
     { name: 'registration.searchDugsiRegistrationsByContact', op: 'db' },
     async () => {
-      const normalizedContact = contact.toLowerCase().trim()
+      const normalizedContact =
+        contactType === 'EMAIL'
+          ? normalizeEmail(contact)
+          : normalizePhone(contact)
+
+      if (!normalizedContact) return []
 
       const familyCounts = await getFamilyChildCounts()
 
