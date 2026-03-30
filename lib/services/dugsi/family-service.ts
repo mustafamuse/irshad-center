@@ -8,7 +8,11 @@ import {
   findPersonByActiveContact,
   updateFamilyShift as updateFamilyShiftQuery,
 } from '@/lib/db/queries/program-profile'
-import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
 import {
   normalizeEmail,
   normalizePhone,
@@ -131,18 +135,7 @@ export async function updateParentInfo(
           data: { name: fullName, phone: normalizedPhone },
         })
       } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          throw new ActionError(
-            'This phone number is already associated with another person',
-            ERROR_CODES.DUPLICATE_CONTACT,
-            'phone',
-            409
-          )
-        }
-        throw error
+        throwIfP2002(error)
       }
     }
   )

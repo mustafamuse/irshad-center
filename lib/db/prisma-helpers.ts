@@ -180,11 +180,6 @@ export type SubscriptionWithRelations = Prisma.SubscriptionGetPayload<{
 // ============================================================================
 
 /**
- * Person with contact info
- */
-export type PersonWithContacts = Prisma.PersonGetPayload<{}>
-
-/**
  * Person with GuardianRelationships (for finding dependents)
  */
 export const personWithDependentsInclude =

@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client'
+
 /**
  * Standard error class for Server Actions
  * Provides consistent error handling across all actions
@@ -62,6 +64,31 @@ export function validationError(message: string, field?: string) {
  */
 export function serverError(message: string = 'An unexpected error occurred') {
   return new ActionError(message, ERROR_CODES.SERVER_ERROR, undefined, 500)
+}
+
+/**
+ * Rethrow P2002 unique-constraint violations as ActionError with DUPLICATE_CONTACT code.
+ * If the error is not P2002, it is rethrown unchanged.
+ */
+export function throwIfP2002(error: unknown): never {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    const target = error.meta?.target as string[] | undefined
+    const field = target?.includes('email')
+      ? 'email'
+      : target?.includes('phone')
+        ? 'phone'
+        : 'email or phone'
+    throw new ActionError(
+      `This ${field} is already associated with another person`,
+      ERROR_CODES.DUPLICATE_CONTACT,
+      field,
+      409
+    )
+  }
+  throw error
 }
 
 /**

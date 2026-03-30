@@ -17,33 +17,16 @@ import { GuardianRole, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import type { DatabaseClient } from '@/lib/db/types'
-import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
 import { ValidationError } from '@/lib/services/validation-service'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
-
-function throwIfP2002(error: unknown): never {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  ) {
-    const target = error.meta?.target as string[] | undefined
-    const field = target?.includes('email')
-      ? 'email'
-      : target?.includes('phone')
-        ? 'phone'
-        : 'email or phone'
-    throw new ActionError(
-      `This ${field} is already associated with another person`,
-      ERROR_CODES.DUPLICATE_CONTACT,
-      field,
-      409
-    )
-  }
-  throw error
-}
 
 /**
  * Guardian update input
@@ -155,7 +138,12 @@ export async function addGuardianRelationship(
         error.code === 'P2002'
       ) {
         guardianPerson = await prisma.person.findFirst({
-          where: { email: normalizedEmail },
+          where: {
+            OR: [
+              { email: normalizedEmail },
+              ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+            ],
+          },
         })
         if (!guardianPerson) throwIfP2002(error)
       } else {

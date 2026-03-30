@@ -35,6 +35,7 @@ import {
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -352,7 +353,7 @@ export async function createTeacherWithPersonAction(
       const person = await tx.person.create({
         data: {
           name: input.name,
-          email: input.email ? input.email.trim().toLowerCase() : null,
+          email: normalizeEmail(input.email),
           phone: normalizedPhone,
         },
       })
@@ -480,7 +481,7 @@ export async function updateTeacherDetailsAction(
       where: { id: teacher.personId },
       data: {
         name,
-        email: email && email.trim() ? email.trim().toLowerCase() : null,
+        email: normalizeEmail(email),
         phone: normalizedPhone,
       },
     })

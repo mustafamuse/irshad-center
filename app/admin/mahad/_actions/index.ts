@@ -32,7 +32,10 @@ import { getMahadKeys } from '@/lib/keys/stripe'
 import { createActionLogger, logError } from '@/lib/logger'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 import {
   calculateMahadRate,
   getStripeInterval,
@@ -650,14 +653,12 @@ export async function updateStudentAction(
 
       if (!profile) throw new Error('Profile not found')
 
-      const personUpdate: Record<string, unknown> = {}
+      const personUpdate: Prisma.PersonUpdateInput = {}
       if (validated.name !== undefined) personUpdate.name = validated.name
       if (validated.dateOfBirth !== undefined)
         personUpdate.dateOfBirth = validated.dateOfBirth || null
       if (validated.email !== undefined)
-        personUpdate.email = validated.email
-          ? validated.email.toLowerCase()
-          : null
+        personUpdate.email = normalizeEmail(validated.email)
       if (validated.phone !== undefined)
         personUpdate.phone = normalizedPhone || null
 

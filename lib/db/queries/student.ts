@@ -807,7 +807,7 @@ export async function resolveDuplicateStudents(
     }
 
     if (mergeData) {
-      const personUpdates: Record<string, string> = {}
+      const personUpdates: Prisma.PersonUpdateInput = {}
       if (!keepProfile.person.email) {
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.email) {

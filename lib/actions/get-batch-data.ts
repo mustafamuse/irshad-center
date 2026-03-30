@@ -307,77 +307,45 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
 }
 
 /**
- * Find potential duplicate students by email
+ * Find persons with multiple active Mahad program profiles (duplicate enrollments)
  */
 export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
   const people = await prisma.person.findMany({
     where: {
-      email: { not: null },
       programProfiles: {
-        some: {
-          program: MAHAD_PROGRAM,
-        },
+        some: { program: MAHAD_PROGRAM, status: { not: 'WITHDRAWN' } },
       },
     },
-    relationLoadStrategy: 'join',
     include: {
       programProfiles: {
-        where: {
-          program: MAHAD_PROGRAM,
-        },
+        where: { program: MAHAD_PROGRAM, status: { not: 'WITHDRAWN' } },
         include: {
           enrollments: {
-            where: {
-              status: { not: 'WITHDRAWN' },
-              endDate: null,
-            },
+            where: { status: { not: 'WITHDRAWN' }, endDate: null },
             take: 1,
           },
         },
       },
     },
-    orderBy: { email: 'asc' },
   })
-
-  const emailGroups = new Map<
-    string,
-    Array<{
-      id: string
-      name: string
-      email: string | null
-      phone: string | null
-      status: string
-      createdAt: Date
-    }>
-  >()
-
-  for (const person of people) {
-    if (!person.email) continue
-    const profile = person.programProfiles[0]
-    if (!profile) continue
-
-    const group = emailGroups.get(person.email) || []
-    group.push({
-      id: profile.id,
-      name: person.name,
-      email: person.email,
-      phone: person.phone,
-      status: profile.enrollments[0]?.status || 'REGISTERED',
-      createdAt: profile.createdAt,
-    })
-    emailGroups.set(person.email, group)
-  }
 
   const duplicateGroups: DuplicateStudentGroup[] = []
-  emailGroups.forEach((students, email) => {
-    if (students.length > 1) {
+  for (const person of people) {
+    if (person.programProfiles.length > 1) {
       duplicateGroups.push({
-        email,
-        count: students.length,
-        students,
+        email: person.email ?? person.name,
+        count: person.programProfiles.length,
+        students: person.programProfiles.map((profile) => ({
+          id: profile.id,
+          name: person.name,
+          email: person.email,
+          phone: person.phone,
+          status: profile.enrollments[0]?.status || 'REGISTERED',
+          createdAt: profile.createdAt,
+        })),
       })
     }
-  })
+  }
 
   return duplicateGroups
 }

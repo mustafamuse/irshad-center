@@ -404,12 +404,7 @@ export async function searchDugsiRegistrationsByContact(
 
       const familyCounts = await getFamilyChildCounts()
 
-      const personContactFilter =
-        contactType === 'EMAIL'
-          ? { email: normalizedContact }
-          : { phone: normalizedContact }
-
-      const guardianContactFilter =
+      const contactFilter =
         contactType === 'EMAIL'
           ? { email: normalizedContact }
           : { phone: normalizedContact }
@@ -419,14 +414,14 @@ export async function searchDugsiRegistrationsByContact(
           program: DUGSI_PROGRAM,
           OR: [
             {
-              person: personContactFilter,
+              person: contactFilter,
             },
             {
               person: {
                 guardianRelationships: {
                   some: {
                     isActive: true,
-                    guardian: guardianContactFilter,
+                    guardian: contactFilter,
                   },
                 },
               },

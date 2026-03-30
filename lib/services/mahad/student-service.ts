@@ -2,7 +2,6 @@ import {
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
-  Prisma,
   StudentBillingType,
 } from '@prisma/client'
 
@@ -11,33 +10,16 @@ import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import type { DatabaseClient } from '@/lib/db/types'
-import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
-
-function handleP2002(error: unknown): never {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  ) {
-    const target = error.meta?.target as string[] | undefined
-    const field = target?.includes('email')
-      ? 'email'
-      : target?.includes('phone')
-        ? 'phone'
-        : 'email or phone'
-    throw new ActionError(
-      `A student with this ${field} already exists`,
-      ERROR_CODES.DUPLICATE_CONTACT,
-      field,
-      409
-    )
-  }
-  throw error
-}
 
 /**
  * Student creation input
@@ -163,7 +145,7 @@ export async function createMahadStudent(input: StudentCreateInput) {
     })
   } catch (error) {
     if (error instanceof ActionError) throw error
-    handleP2002(error)
+    throwIfP2002(error)
   }
 }
 
@@ -240,7 +222,7 @@ export async function updateMahadStudent(
     return await prisma.$transaction(performUpdate)
   } catch (error) {
     if (error instanceof ActionError) throw error
-    handleP2002(error)
+    throwIfP2002(error)
   }
 }
 
