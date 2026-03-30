@@ -514,18 +514,19 @@ export async function updateTeacherDetailsAction(
 
     return { success: false, error: 'Failed to fetch updated teacher' }
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      return {
+        success: false,
+        error: 'This email or phone is already in use',
+      }
+    }
+
     await logError(logger, error, 'Failed to update teacher details', {
       teacherId,
     })
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return {
-          success: false,
-          error: 'This email or phone is already in use',
-        }
-      }
-    }
 
     return {
       success: false,

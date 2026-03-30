@@ -15,7 +15,7 @@
  * 3. Rely on database unique constraints as the ultimate safeguard
  *
  * The database has unique constraints on Person(email) and Person(phone) which will
- * reject duplicate contact points even if a race condition occurs.
+ * reject duplicate email/phone values even if a race condition occurs.
  *
  * @example
  * ```typescript

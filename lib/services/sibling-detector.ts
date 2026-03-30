@@ -155,7 +155,10 @@ export async function detectPotentialSiblings(
   // Match by shared email or phone on Person
   const contactOrConditions: Prisma.PersonWhereInput[] = []
   if (person.email) {
-    contactOrConditions.push({ email: normalizeEmail(person.email) })
+    const normalizedEmail = normalizeEmail(person.email)
+    if (normalizedEmail) {
+      contactOrConditions.push({ email: normalizedEmail })
+    }
   }
   if (person.phone) {
     const normalizedPhone = normalizePhone(person.phone)
