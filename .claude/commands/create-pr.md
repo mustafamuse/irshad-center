@@ -51,7 +51,7 @@ If changes aren't committed and pushed, do that first.
 The base branch is the branch this PR should merge INTO.
 
 1. Get the repo's default branch: `gh repo view --json defaultBranchRef -q '.defaultBranchRef.name'`
-2. Check the current branch's upstream: `git rev-parse --abbrev-ref @{upstream} 2>/dev/null` — if this returns empty (no upstream set), skip to step 4.
+2. Check the current branch's upstream: `git rev-parse --abbrev-ref @{upstream} 2>/dev/null` — if this returns empty (no upstream set), use the default branch from step 1 as the base and skip to step 5.
 3. If the upstream tracking branch differs from the default branch (e.g., tracks `full` instead of `main`), use the upstream's remote branch as the base.
 4. If uncertain, ask the user which branch to target.
 5. Always pass `--base <branch>` to `gh pr create`.
