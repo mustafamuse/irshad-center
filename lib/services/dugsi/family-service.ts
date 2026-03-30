@@ -130,9 +130,13 @@ export async function updateParentInfo(
     { name: 'family.updateParentInfo', op: 'db' },
     async () => {
       try {
+        const personData: Prisma.PersonUpdateInput = {
+          name: fullName,
+          phone: normalizedPhone,
+        }
         await prisma.person.update({
           where: { id: guardian.id },
-          data: { name: fullName, phone: normalizedPhone },
+          data: personData,
         })
       } catch (error) {
         throwIfP2002(error)

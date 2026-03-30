@@ -467,6 +467,7 @@ export async function consolidateStripeSubscription(
       } catch (error) {
         await logError(logger, error, 'Failed to update Stripe metadata', {
           subscriptionId: subscription.id,
+          familyId,
         })
       }
 

@@ -57,7 +57,12 @@ export async function getProgramProfiles(
     where.person = {
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          email: {
+            contains: normalizeEmail(searchTerm) ?? searchTerm,
+            mode: 'insensitive',
+          },
+        },
         ...(normalizePhone(searchTerm)
           ? [{ phone: normalizePhone(searchTerm)! }]
           : []),
@@ -589,7 +594,12 @@ export async function searchProgramProfilesByNameOrContact(
     person: {
       OR: [
         { name: { contains: normalizedSearch, mode: 'insensitive' } },
-        { email: { contains: normalizedSearch, mode: 'insensitive' } },
+        {
+          email: {
+            contains: normalizeEmail(normalizedSearch) ?? normalizedSearch,
+            mode: 'insensitive',
+          },
+        },
         ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     },

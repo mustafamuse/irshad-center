@@ -289,7 +289,12 @@ export async function getStudentsWithBatchFiltered(
     where.person = {
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          email: {
+            contains: normalizeEmail(searchTerm) ?? searchTerm,
+            mode: 'insensitive',
+          },
+        },
         ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     }
@@ -826,7 +831,7 @@ export async function resolveDuplicateStudents(
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.phone) {
             personUpdates.phone =
-              normalizePhone(delProfile.person.phone) ?? delProfile.person.phone
+              normalizePhone(delProfile.person.phone) ?? null
             break
           }
         }

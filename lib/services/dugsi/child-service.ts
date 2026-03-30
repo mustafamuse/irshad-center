@@ -11,6 +11,8 @@
  * - Get student billing status
  */
 
+import { Prisma } from '@prisma/client'
+
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
@@ -166,11 +168,12 @@ export async function updateDugsiStudent(
     )
   }
 
+  const personData: Prisma.PersonUpdateInput = {
+    ...(data.name && { name: data.name }),
+    ...(data.dateOfBirth && { dateOfBirth: data.dateOfBirth }),
+  }
   return await prisma.person.update({
     where: { id: studentId },
-    data: {
-      ...(data.name && { name: data.name }),
-      ...(data.dateOfBirth && { dateOfBirth: data.dateOfBirth }),
-    },
+    data: personData,
   })
 }

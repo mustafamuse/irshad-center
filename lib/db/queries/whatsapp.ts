@@ -44,7 +44,9 @@ export async function getWhatsAppMessages(
   if (filters.recipientType) where.recipientType = filters.recipientType
   if (filters.messageType) where.messageType = filters.messageType
   if (filters.status) where.status = filters.status
-  if (filters.phoneNumber) where.phoneNumber = filters.phoneNumber
+  if (filters.phoneNumber)
+    where.phoneNumber =
+      normalizePhone(filters.phoneNumber) ?? filters.phoneNumber
   if (filters.personId) where.personId = filters.personId
   if (filters.familyId) where.familyId = filters.familyId
 

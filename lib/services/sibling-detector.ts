@@ -3,7 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { ValidationError } from '@/lib/services/validation-service'
-import { normalizeEmail } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 export type DetectionMethod =
   | 'MANUAL'
@@ -29,11 +32,13 @@ export async function detectPotentialSiblings(
     where: { id: personId },
     include: {
       guardianRelationships: {
+        where: { isActive: true },
         include: {
           guardian: true,
         },
       },
       dependentRelationships: {
+        where: { isActive: true },
         include: {
           dependent: true,
         },
@@ -153,7 +158,10 @@ export async function detectPotentialSiblings(
     contactOrConditions.push({ email: normalizeEmail(person.email) })
   }
   if (person.phone) {
-    contactOrConditions.push({ phone: person.phone })
+    const normalizedPhone = normalizePhone(person.phone)
+    if (normalizedPhone) {
+      contactOrConditions.push({ phone: normalizedPhone })
+    }
   }
 
   if (contactOrConditions.length > 0) {

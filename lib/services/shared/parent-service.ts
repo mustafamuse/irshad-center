@@ -76,7 +76,7 @@ export async function updateGuardianInfo(
     input.email !== undefined ? normalizeEmail(input.email) : undefined
   const phone =
     input.phone !== undefined
-      ? (normalizePhone(input.phone) ?? undefined)
+      ? (normalizePhone(input.phone) ?? null)
       : undefined
 
   try {

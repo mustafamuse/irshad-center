@@ -137,7 +137,8 @@ const personDataSchema = z.object({
     .string()
     .regex(phoneRegex, 'Phone must be in format XXX-XXX-XXXX')
     .refine((phone) => !phone || normalizePhone(phone) !== null, {
-      message: 'Invalid phone number - cannot be normalized',
+      message:
+        'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
     })
     .nullable()
     .optional(),
@@ -309,7 +310,7 @@ export async function createPersonWithContact(
         name,
         phone,
         digitCount: digits.length,
-        expectedDigits: '10-15',
+        expectedDigits: '10',
       },
       'Phone normalization failed during person creation'
     )
@@ -318,14 +319,47 @@ export async function createPersonWithContact(
     )
   }
 
-  const person = await client.person.create({
-    data: {
-      name,
-      dateOfBirth,
-      email: normalizeEmail(email),
-      phone: normalizedPhone,
-    },
-  })
+  let person
+  try {
+    person = await client.person.create({
+      data: {
+        name,
+        dateOfBirth,
+        email: normalizeEmail(email),
+        phone: normalizedPhone,
+      },
+    })
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      if (tx) {
+        throw error
+      }
+
+      logger.info(
+        {
+          email: normalizeEmail(email),
+          phone: normalizedPhone,
+        },
+        'Unique constraint violation caught - Person with this contact already exists, fetching'
+      )
+
+      const existingPerson = await findPersonByActiveContact(
+        normalizeEmail(email),
+        normalizedPhone,
+        client
+      )
+
+      if (existingPerson) {
+        logger.info({ personId: existingPerson.id }, 'Found existing Person')
+        return existingPerson
+      }
+    }
+
+    throw error
+  }
 
   logger.info(
     {
@@ -1140,7 +1174,7 @@ export async function findOrCreatePersonWithContact(
         name,
         phone,
         digitCount: digits.length,
-        expectedDigits: '10-15',
+        expectedDigits: '10',
       },
       'Phone normalization failed during findOrCreate'
     )

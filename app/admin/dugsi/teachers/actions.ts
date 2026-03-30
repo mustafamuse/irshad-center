@@ -131,7 +131,13 @@ const updateTeacherDetailsSchema = z.object({
   teacherId: uuidSchema,
   name: z.string().min(1, 'Name is required').max(100),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .refine(
+      (val) => !val || normalizePhone(val) !== null,
+      'Invalid phone number'
+    )
+    .optional(),
 })
 
 const updateTeacherShiftsSchema = z.object({
