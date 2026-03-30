@@ -51,7 +51,7 @@ If changes aren't committed and pushed, do that first.
 The base branch is the branch this PR should merge INTO.
 
 1. Get the repo's default branch: `gh repo view --json defaultBranchRef -q '.defaultBranchRef.name'`
-2. Check the current branch's upstream: `git rev-parse --abbrev-ref @{upstream} 2>/dev/null`
+2. Check the current branch's upstream: `git rev-parse --abbrev-ref @{upstream} 2>/dev/null` — if this returns empty (no upstream set), skip to step 4.
 3. If the upstream tracking branch differs from the default branch (e.g., tracks `full` instead of `main`), use the upstream's remote branch as the base.
 4. If uncertain, ask the user which branch to target.
 5. Always pass `--base <branch>` to `gh pr create`.
@@ -132,7 +132,7 @@ If PR already exists for branch, update its description. Otherwise create new PR
 **Finding the plan file:**
 
 1. **Check conversation history first.** Look in this conversation for a system message containing a path like `~/.claude/plans/<name>.md`. When plan mode was used, the system always injects the full path. Use it directly with the Read tool.
-2. **If not in history**, run `ls -t ~/.claude/plans/*.md | head -5` via Bash to get the 5 most recently modified plan files. Read the first few lines of each to identify which one matches the current task (based on the changes you're about to PR). If no plan clearly matches, or if the match is ambiguous, omit the plan section. (Do NOT use Glob for this — Glob sorts alphabetically by filename, not by modification time, and plan filenames are random.)
+2. **If not in history**, check project-scoped plans first: `ls -t .claude/plans/*.md 2>/dev/null | head -5`, then fall back to global: `ls -t ~/.claude/plans/*.md 2>/dev/null | head -5`. Read the first few lines of each to identify which one matches the current task (based on the changes you're about to PR). If no plan clearly matches, or if the match is ambiguous, omit the plan section. (Do NOT use Glob for this — Glob sorts alphabetically by filename, not by modification time, and plan filenames are random.)
 3. Paste the plan file's full markdown contents into the `<details>` block. Do NOT include the file path — plan files are gitignored and won't exist in the PR.
 4. If no plan file is found by either method, omit the entire `<details>` block.
 
