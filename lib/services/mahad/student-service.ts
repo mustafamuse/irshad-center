@@ -101,17 +101,18 @@ export async function createMahadStudent(input: StudentCreateInput) {
       if (dupResult.existingPerson) {
         personId = dupResult.existingPerson.id
 
-        await tx.person.update({
-          where: { id: personId },
-          data: {
-            ...(normalizedEmail !== null && !dupResult.existingPerson.email
-              ? { email: normalizedEmail }
-              : {}),
-            ...(normalizedPhone !== null && !dupResult.existingPerson.phone
-              ? { phone: normalizedPhone }
-              : {}),
-          },
-        })
+        const contactUpdates: Prisma.PersonUpdateInput = {}
+        if (normalizedEmail !== null && !dupResult.existingPerson.email)
+          contactUpdates.email = normalizedEmail
+        if (normalizedPhone !== null && !dupResult.existingPerson.phone)
+          contactUpdates.phone = normalizedPhone
+
+        if (Object.keys(contactUpdates).length > 0) {
+          await tx.person.update({
+            where: { id: personId },
+            data: contactUpdates,
+          })
+        }
       } else {
         const newPerson = await tx.person.create({
           data: {
