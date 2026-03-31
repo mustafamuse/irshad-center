@@ -8,6 +8,10 @@ vi.mock('../admin-auth', () => ({
   verifyAuthToken: vi.fn(),
 }))
 
+vi.mock('@/lib/logger', () => ({
+  createActionLogger: () => ({ warn: vi.fn() }),
+}))
+
 import { cookies } from 'next/headers'
 import { ActionError } from '@/lib/errors/action-error'
 import { verifyAuthToken } from '../admin-auth'
@@ -24,11 +28,9 @@ describe('assertAdmin', () => {
   it('throws UNAUTHORIZED when no cookie exists', async () => {
     mockCookies.mockResolvedValue({ get: () => undefined })
 
-    await expect(assertAdmin()).rejects.toThrow(ActionError)
-    await expect(assertAdmin()).rejects.toMatchObject({
-      code: 'UNAUTHORIZED',
-      statusCode: 401,
-    })
+    const err = await assertAdmin().catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ActionError)
+    expect(err).toMatchObject({ code: 'UNAUTHORIZED', statusCode: 401 })
   })
 
   it('throws UNAUTHORIZED when token is invalid', async () => {
@@ -37,11 +39,9 @@ describe('assertAdmin', () => {
     })
     mockVerify.mockReturnValue(false)
 
-    await expect(assertAdmin()).rejects.toThrow(ActionError)
-    await expect(assertAdmin()).rejects.toMatchObject({
-      code: 'UNAUTHORIZED',
-      statusCode: 401,
-    })
+    const err = await assertAdmin().catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ActionError)
+    expect(err).toMatchObject({ code: 'UNAUTHORIZED', statusCode: 401 })
     expect(mockVerify).toHaveBeenCalledWith('bad-token')
   })
 
