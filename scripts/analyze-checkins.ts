@@ -5,7 +5,7 @@ import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { prisma } from '@/lib/db'
 import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 
-type ConfidenceBucket =
+type CheckInClassification =
   | 'ON_TIME'
   | 'LATE'
   | 'STORED_MISMATCH'
@@ -17,7 +17,7 @@ interface ClassifiedCheckin {
   teacherName: string
   date: string
   shift: Shift
-  bucket: ConfidenceBucket
+  bucket: CheckInClassification
   minutesLate: number
   storedIsLate: boolean | null
   recalculatedIsLate: boolean | null
@@ -73,8 +73,8 @@ function parseArgs(): {
     } else if (arg === '--exclude') {
       if (!args[i + 1]) { console.error('--exclude requires a value'); process.exit(1) }
       const dateArg = args[i + 1]
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateArg)) {
-        console.error(`--exclude must be a YYYY-MM-DD date, got: ${dateArg}`)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateArg) || isNaN(new Date(dateArg + 'T12:00:00').getTime())) {
+        console.error(`--exclude must be a valid YYYY-MM-DD date, got: ${dateArg}`)
         process.exit(1)
       }
       excludeDates.add(dateArg)

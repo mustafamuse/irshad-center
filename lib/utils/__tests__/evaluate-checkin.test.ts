@@ -175,6 +175,21 @@ describe('evaluateCheckIn', () => {
     })
   })
 
+  describe('explicit schoolDate override', () => {
+    it('should use provided schoolDate instead of deriving from clockInTimeUtc', () => {
+      // Clock-in UTC time is on March 29, but schoolDate says March 28
+      const result = evaluateCheckIn({
+        clockInTimeUtc: ctToUtc('2026-03-29T08:50:00'),
+        shift: Shift.MORNING,
+        schoolDate: '2026-03-28',
+      })
+
+      // Deadline should be March 28 8:45 AM, not March 29
+      expect(result.deadlineUtc).toEqual(ctToUtc('2026-03-28T08:45:00'))
+      expect(result.isLate).toBe(true)
+    })
+  })
+
   describe('DST handling', () => {
     it('should correctly evaluate during CDT (summer)', () => {
       const result = evaluateCheckIn({
