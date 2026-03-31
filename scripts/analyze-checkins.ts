@@ -49,8 +49,8 @@ function parseArgs(): {
     const arg = args[i]
     if (arg === '--weeks' && args[i + 1]) {
       weeks = parseInt(args[i + 1], 10)
-      if (isNaN(weeks) || weeks < 1) {
-        console.error('--weeks must be a positive integer')
+      if (isNaN(weeks) || weeks < 1 || weeks > 52) {
+        console.error('--weeks must be between 1 and 52')
         process.exit(1)
       }
       i++
