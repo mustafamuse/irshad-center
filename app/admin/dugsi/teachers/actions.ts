@@ -122,6 +122,18 @@ const createTeacherSchema = z.object({
   personId: uuidSchema,
 })
 
+const createTeacherWithPersonSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z
+    .string()
+    .refine(
+      (val) => !val || normalizePhone(val) !== null,
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)'
+    )
+    .optional(),
+})
+
 const deleteTeacherSchema = z.object({
   teacherId: uuidSchema,
 })
@@ -353,8 +365,17 @@ export async function createTeacherAction(
  * Create a new teacher by first creating a person.
  */
 export async function createTeacherWithPersonAction(
-  input: CreateTeacherWithPersonInput
+  rawInput: unknown
 ): Promise<ActionResult<{ teacherId: string }>> {
+  const parsed = createTeacherWithPersonSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const input = parsed.data
+
   try {
     const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
 
@@ -500,13 +521,15 @@ export async function updateTeacherDetailsAction(
       }
     }
 
+    // Only include contact fields in update when explicitly provided.
+    // undefined = skip field (Prisma leaves it unchanged); null = clear the field.
+    const personData: Prisma.PersonUpdateInput = { name }
+    if (email !== undefined) personData.email = normalizeEmail(email)
+    if (phone !== undefined) personData.phone = normalizedPhone
+
     await prisma.person.update({
       where: { id: teacher.personId },
-      data: {
-        name,
-        email: normalizeEmail(email),
-        phone: normalizedPhone,
-      },
+      data: personData,
     })
 
     revalidatePath('/admin/dugsi/teachers')
