@@ -66,7 +66,12 @@ function parseArgs(): {
       shiftFilter = val as Shift
       i++
     } else if (arg === '--exclude' && args[i + 1]) {
-      excludeDates.add(args[i + 1])
+      const dateArg = args[i + 1]
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateArg)) {
+        console.error(`--exclude must be a YYYY-MM-DD date, got: ${dateArg}`)
+        process.exit(1)
+      }
+      excludeDates.add(dateArg)
       i++
     }
   }
