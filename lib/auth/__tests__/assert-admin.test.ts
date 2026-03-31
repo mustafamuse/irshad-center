@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const { mockLoggerWarn, mockLoggerChild } = vi.hoisted(() => {
+  const mockLoggerWarn = vi.fn()
+  const mockLoggerChild = vi.fn(() => ({ warn: mockLoggerWarn }))
+  return { mockLoggerWarn, mockLoggerChild }
+})
+
 vi.mock('next/headers', () => ({
   cookies: vi.fn(),
 }))
@@ -9,7 +15,10 @@ vi.mock('../admin-auth', () => ({
 }))
 
 vi.mock('@/lib/logger', () => ({
-  createActionLogger: () => ({ warn: vi.fn() }),
+  createActionLogger: () => ({
+    warn: mockLoggerWarn,
+    child: mockLoggerChild,
+  }),
 }))
 
 import { cookies } from 'next/headers'
@@ -21,7 +30,8 @@ const mockCookies = vi.mocked(cookies)
 const mockVerify = vi.mocked(verifyAuthToken)
 
 function mockCookieStore(value?: string) {
-  const get = () => (value !== undefined ? { name: 'admin_auth', value } : undefined)
+  const get = () =>
+    value !== undefined ? { name: 'admin_auth', value } : undefined
   mockCookies.mockResolvedValue({ get } as Awaited<ReturnType<typeof cookies>>)
 }
 
@@ -36,6 +46,9 @@ describe('assertAdmin', () => {
     const err = await assertAdmin().catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ActionError)
     expect(err).toMatchObject({ code: 'UNAUTHORIZED', statusCode: 401 })
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Admin auth check failed: no token cookie'
+    )
   })
 
   it('throws UNAUTHORIZED when token is invalid', async () => {
@@ -46,6 +59,9 @@ describe('assertAdmin', () => {
     expect(err).toBeInstanceOf(ActionError)
     expect(err).toMatchObject({ code: 'UNAUTHORIZED', statusCode: 401 })
     expect(mockVerify).toHaveBeenCalledWith('bad-token')
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'Admin auth check failed: token verification failed'
+    )
   })
 
   it('resolves when token is valid', async () => {
@@ -54,5 +70,22 @@ describe('assertAdmin', () => {
 
     await expect(assertAdmin()).resolves.toBeUndefined()
     expect(mockVerify).toHaveBeenCalledWith('valid-token')
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('creates child logger with caller context when provided', async () => {
+    mockCookieStore()
+
+    await assertAdmin('myAction').catch(() => {})
+    expect(mockLoggerChild).toHaveBeenCalledWith({ caller: 'myAction' })
+    expect(mockLoggerWarn).toHaveBeenCalledOnce()
+  })
+
+  it('uses base logger when no caller provided', async () => {
+    mockCookieStore()
+
+    await assertAdmin().catch(() => {})
+    expect(mockLoggerChild).not.toHaveBeenCalled()
+    expect(mockLoggerWarn).toHaveBeenCalledOnce()
   })
 })

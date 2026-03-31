@@ -14,6 +14,9 @@ export function generateAuthToken(): string {
 
 export function verifyAuthToken(token: string): boolean {
   try {
+    const secret = process.env.ADMIN_PIN
+    if (!secret) return false
+
     const [timestamp, signature] = token.split('.')
     if (!timestamp || !signature) return false
 
@@ -22,7 +25,6 @@ export function verifyAuthToken(token: string): boolean {
       return false
     }
 
-    const secret = process.env.ADMIN_PIN || ''
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(timestamp)
