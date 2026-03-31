@@ -15,6 +15,8 @@ import { z } from 'zod'
 
 import { normalizePhone } from '@/lib/types/person'
 
+const emailValidator = z.string().email()
+
 // Note: StudentStatus is a string in the database, not an enum
 // Using string literals matching the actual database values
 const StudentStatusEnum = z.enum([
@@ -85,7 +87,7 @@ export const CreateStudentSchema = z.object({
     .optional()
     .or(z.literal(''))
     .refine(
-      (val) => !val || z.string().email().safeParse(val).success,
+      (val) => !val || emailValidator.safeParse(val).success,
       'Invalid email address format'
     )
     .transform((val) => (val ? val.toLowerCase().trim() : val)),

@@ -9,7 +9,7 @@ import { prisma } from '@/lib/db'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
-import { normalizeEmail } from '@/lib/utils/contact-normalization'
+import { validateAndNormalizeEmail } from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('person-lookup')
 
@@ -163,7 +163,7 @@ export async function lookupPersonAction(
           { name: { equals: query.trim(), mode: 'insensitive' } },
           {
             email: {
-              equals: normalizeEmail(query.trim()) ?? searchTerm,
+              equals: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
               mode: 'insensitive',
             },
           },

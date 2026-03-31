@@ -400,8 +400,12 @@ export async function createPersonWithContact(
         return existingPerson
       }
       // findPersonByActiveContact returned null: the conflicting person was deleted
-      // in the race between our create and this findFirst. Surfaces a DUPLICATE_CONTACT
-      // ActionError — a retry at the call-site would likely succeed.
+      // in the race between our create and this findFirst. The DUPLICATE_CONTACT error
+      // below is technically misleading (person is gone), but a retry would likely succeed.
+      logger.warn(
+        { hasEmail: !!email, hasPhone: !!normalizedPhone },
+        'P2002 recovery: conflicting person not found (concurrent delete race)'
+      )
       throwIfP2002(error)
     }
 

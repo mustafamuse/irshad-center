@@ -35,7 +35,10 @@ import {
 import { ValidationError } from '@/lib/services/validation-service'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
-import { normalizeEmail } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  validateAndNormalizeEmail,
+} from '@/lib/utils/contact-normalization'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -857,11 +860,11 @@ export async function searchPeopleAction(
       where: {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
-          // normalizeEmail returns null for non-email strings (e.g. partial names);
-          // fall back to raw searchTerm so the contains query still works.
+          // validateAndNormalizeEmail returns null for non-email input (e.g. partial names)
+          // so the contains query falls back to raw searchTerm for case-insensitive matching.
           {
             email: {
-              contains: normalizeEmail(query.trim()) ?? searchTerm,
+              contains: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
               mode: 'insensitive',
             },
           },

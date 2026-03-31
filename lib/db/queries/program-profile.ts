@@ -12,6 +12,7 @@ import { DatabaseClient } from '@/lib/db/types'
 import {
   normalizeEmail,
   normalizePhone,
+  validateAndNormalizeEmail,
 } from '@/lib/utils/contact-normalization'
 
 /**
@@ -59,7 +60,7 @@ export async function getProgramProfiles(
         { name: { contains: searchTerm, mode: 'insensitive' } },
         {
           email: {
-            contains: normalizeEmail(searchTerm) ?? searchTerm,
+            contains: validateAndNormalizeEmail(searchTerm) ?? searchTerm,
             mode: 'insensitive',
           },
         },
