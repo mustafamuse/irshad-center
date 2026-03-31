@@ -17,8 +17,13 @@ import { ActionError } from '@/lib/errors/action-error'
 import { verifyAuthToken } from '../admin-auth'
 import { assertAdmin } from '../assert-admin'
 
-const mockCookies = cookies as unknown as ReturnType<typeof vi.fn>
-const mockVerify = verifyAuthToken as unknown as ReturnType<typeof vi.fn>
+const mockCookies = vi.mocked(cookies)
+const mockVerify = vi.mocked(verifyAuthToken)
+
+function mockCookieStore(value?: string) {
+  const get = () => (value !== undefined ? { name: 'admin_auth', value } : undefined)
+  mockCookies.mockResolvedValue({ get } as Awaited<ReturnType<typeof cookies>>)
+}
 
 describe('assertAdmin', () => {
   beforeEach(() => {
@@ -26,7 +31,7 @@ describe('assertAdmin', () => {
   })
 
   it('throws UNAUTHORIZED when no cookie exists', async () => {
-    mockCookies.mockResolvedValue({ get: () => undefined })
+    mockCookieStore()
 
     const err = await assertAdmin().catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ActionError)
@@ -34,9 +39,7 @@ describe('assertAdmin', () => {
   })
 
   it('throws UNAUTHORIZED when token is invalid', async () => {
-    mockCookies.mockResolvedValue({
-      get: () => ({ value: 'bad-token' }),
-    })
+    mockCookieStore('bad-token')
     mockVerify.mockReturnValue(false)
 
     const err = await assertAdmin().catch((e: unknown) => e)
@@ -46,9 +49,7 @@ describe('assertAdmin', () => {
   })
 
   it('resolves when token is valid', async () => {
-    mockCookies.mockResolvedValue({
-      get: () => ({ value: 'valid-token' }),
-    })
+    mockCookieStore('valid-token')
     mockVerify.mockReturnValue(true)
 
     await expect(assertAdmin()).resolves.toBeUndefined()

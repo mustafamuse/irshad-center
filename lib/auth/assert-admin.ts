@@ -11,8 +11,18 @@ export async function assertAdmin(): Promise<void> {
   const cookieStore = await cookies()
   const token = cookieStore.get('admin_auth')?.value
 
-  if (!token || !verifyAuthToken(token)) {
-    logger.warn({ hasToken: !!token }, 'Admin auth check failed')
+  if (!token) {
+    logger.warn('Admin auth check failed: no token cookie')
+    throw new ActionError(
+      'Unauthorized',
+      ERROR_CODES.UNAUTHORIZED,
+      undefined,
+      401
+    )
+  }
+
+  if (!verifyAuthToken(token)) {
+    logger.warn('Admin auth check failed: token verification failed')
     throw new ActionError(
       'Unauthorized',
       ERROR_CODES.UNAUTHORIZED,
