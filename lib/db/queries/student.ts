@@ -821,7 +821,8 @@ export async function resolveDuplicateStudents(
       if (!keepProfile.person.email) {
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.email) {
-            personUpdates.email = normalizeEmail(delProfile.person.email)
+            personUpdates.email =
+              normalizeEmail(delProfile.person.email) ?? delProfile.person.email
             break
           }
         }

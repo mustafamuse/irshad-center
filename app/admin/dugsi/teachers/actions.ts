@@ -404,7 +404,9 @@ export async function createTeacherWithPersonAction(
     }
 
     await logError(logger, error, 'Failed to create teacher with person', {
-      ...input,
+      name: input.name,
+      hasEmail: !!input.email,
+      hasPhone: !!input.phone,
     })
 
     if (
@@ -850,6 +852,8 @@ export async function searchPeopleAction(
       where: {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
+          // normalizeEmail returns null for non-email strings (e.g. partial names);
+          // fall back to raw searchTerm so the contains query still works.
           {
             email: {
               contains: normalizeEmail(query.trim()) ?? searchTerm,

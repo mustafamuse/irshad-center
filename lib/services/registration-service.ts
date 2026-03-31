@@ -303,6 +303,7 @@ export async function createPersonWithContact(
 
   const client = tx || prisma
 
+  const normalizedEmail = normalizeEmail(email)
   const normalizedPhone = phone ? normalizePhone(phone) : null
   if (phone && !normalizedPhone) {
     const digits = phone.replace(/\D/g, '')
@@ -327,7 +328,7 @@ export async function createPersonWithContact(
       data: {
         name,
         dateOfBirth,
-        email: normalizeEmail(email),
+        email: normalizedEmail,
         phone: normalizedPhone,
       },
     })
@@ -339,7 +340,7 @@ export async function createPersonWithContact(
       data: {
         name,
         dateOfBirth,
-        email: normalizeEmail(email),
+        email: normalizedEmail,
         phone: normalizedPhone,
       },
     })
@@ -354,7 +355,7 @@ export async function createPersonWithContact(
       )
 
       const existingPerson = await findPersonByActiveContact(
-        normalizeEmail(email),
+        normalizedEmail,
         normalizedPhone,
         client
       )

@@ -13,7 +13,7 @@ import {
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
-import { normalizePhone } from '@/lib/types/person'
+import { normalizePhone } from '@/lib/utils/contact-normalization'
 
 export interface WhatsAppMessageFilters {
   program?: Program
