@@ -3,8 +3,9 @@ import crypto from 'crypto'
 const MAX_TOKEN_AGE_MS = 24 * 60 * 60 * 1000
 
 export function generateAuthToken(): string {
+  const secret = process.env.ADMIN_PIN
+  if (!secret) throw new Error('ADMIN_PIN environment variable is not set')
   const timestamp = Date.now().toString()
-  const secret = process.env.ADMIN_PIN || ''
   const signature = crypto
     .createHmac('sha256', secret)
     .update(timestamp)
@@ -14,6 +15,9 @@ export function generateAuthToken(): string {
 
 export function verifyAuthToken(token: string): boolean {
   try {
+    const secret = process.env.ADMIN_PIN
+    if (!secret) return false
+
     const [timestamp, signature] = token.split('.')
     if (!timestamp || !signature) return false
 
@@ -22,7 +26,6 @@ export function verifyAuthToken(token: string): boolean {
       return false
     }
 
-    const secret = process.env.ADMIN_PIN || ''
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(timestamp)

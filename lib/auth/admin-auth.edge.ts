@@ -11,6 +11,9 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 export async function verifyAuthTokenEdge(token: string): Promise<boolean> {
   try {
+    const secret = process.env.ADMIN_PIN
+    if (!secret) return false
+
     const [timestamp, signature] = token.split('.')
     if (!timestamp || !signature) return false
 
@@ -19,7 +22,6 @@ export async function verifyAuthTokenEdge(token: string): Promise<boolean> {
       return false
     }
 
-    const secret = process.env.ADMIN_PIN || ''
     const encoder = new TextEncoder()
     const key = await crypto.subtle.importKey(
       'raw',
