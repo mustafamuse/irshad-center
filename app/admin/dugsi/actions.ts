@@ -706,6 +706,8 @@ export async function bulkGeneratePaymentLinksAction(params: {
     }>
   }>
 > {
+  await assertAdmin('bulkGeneratePaymentLinksAction')
+
   const validation = BulkPaymentLinksSchema.safeParse(params)
   if (!validation.success) {
     const errorMessages = validation.error.errors.map((e) => e.message)
@@ -717,8 +719,6 @@ export async function bulkGeneratePaymentLinksAction(params: {
           : errorMessages[0] || 'Invalid input',
     }
   }
-
-  await assertAdmin('bulkGeneratePaymentLinksAction')
 
   const links: Array<{
     familyId: string
@@ -740,7 +740,9 @@ export async function bulkGeneratePaymentLinksAction(params: {
     const batch = familyIds.slice(i, i + BATCH_SIZE)
 
     const results = await Promise.allSettled(
-      batch.map((familyId) => generateFamilyPaymentLinkAction({ familyId }))
+      batch.map((familyId) =>
+        createDugsiCheckoutSession({ familyId })
+      )
     )
 
     for (let j = 0; j < results.length; j++) {
@@ -748,22 +750,14 @@ export async function bulkGeneratePaymentLinksAction(params: {
       const result = results[j]
 
       if (result.status === 'fulfilled') {
-        const { value } = result
-        if (value.success && value.data) {
-          links.push({
-            familyId,
-            familyName: value.data.familyName,
-            paymentUrl: value.data.paymentUrl,
-            childCount: value.data.childCount,
-            rate: value.data.finalRate,
-          })
-        } else {
-          failed.push({
-            familyId,
-            familyName: familyId,
-            error: value.error || 'Unknown error',
-          })
-        }
+        const value = result.value
+        links.push({
+          familyId,
+          familyName: value.familyName,
+          paymentUrl: value.url,
+          childCount: value.childCount,
+          rate: value.finalRate,
+        })
       } else {
         const error = result.reason
         await logError(
