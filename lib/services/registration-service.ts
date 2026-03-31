@@ -369,10 +369,23 @@ export async function createPersonWithContact(
         if (!existingPerson.phone && normalizedPhone)
           updates.phone = normalizedPhone
         if (Object.keys(updates).length > 0) {
-          return client.person.update({
-            where: { id: existingPerson.id },
-            data: updates,
-          })
+          try {
+            return await client.person.update({
+              where: { id: existingPerson.id },
+              data: updates,
+            })
+          } catch (updateError) {
+            if (
+              updateError instanceof Prisma.PrismaClientKnownRequestError &&
+              updateError.code === 'P2002'
+            ) {
+              // Concurrent request already set the field — fetch latest state
+              return client.person.findUniqueOrThrow({
+                where: { id: existingPerson.id },
+              })
+            }
+            throw updateError
+          }
         }
         return existingPerson
       }
