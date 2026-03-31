@@ -48,6 +48,10 @@ const {
   mockAfter: vi.fn((fn: () => void) => fn()),
 }))
 
+vi.mock('@/lib/auth', () => ({
+  assertAdmin: vi.fn(),
+}))
+
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
   revalidateTag: (...args: unknown[]) => mockRevalidateTag(...args),

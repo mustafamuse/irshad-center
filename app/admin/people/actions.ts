@@ -2,6 +2,7 @@
 
 import { Program } from '@prisma/client'
 
+import { assertAdmin } from '@/lib/auth'
 import { getMultiRolePeople } from '@/lib/db/queries/person'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { ActionResult } from '@/lib/utils/action-helpers'
@@ -35,6 +36,7 @@ export async function getMultiRolePeopleAction(filters?: {
   program?: Program
 }): Promise<ActionResult<MultiRolePerson[]>> {
   try {
+    await assertAdmin('getMultiRolePeopleAction')
     const people = await getMultiRolePeople(filters)
 
     const results: MultiRolePerson[] = people.map((person) => ({

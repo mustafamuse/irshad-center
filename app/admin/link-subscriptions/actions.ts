@@ -2,6 +2,8 @@
 
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 
+import { assertAdmin } from '@/lib/auth'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError, logInfo } from '@/lib/logger'
 import {
   getAllOrphanedSubscriptions,
@@ -34,6 +36,7 @@ const getCachedOrphanedSubscriptions = unstable_cache(
 
 export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsResult> {
   try {
+    await assertAdmin('getOrphanedSubscriptions')
     const raw = await getCachedOrphanedSubscriptions()
     const data = raw.map((sub) => ({
       ...sub,
@@ -60,6 +63,7 @@ export async function searchStudents(
   query: string,
   program?: 'MAHAD' | 'DUGSI'
 ): Promise<StudentMatch[]> {
+  await assertAdmin('searchStudents')
   return await searchStudentsForLinking(query, program)
 }
 
@@ -70,6 +74,7 @@ export async function getPotentialMatches(
   email: string | null,
   program: 'MAHAD' | 'DUGSI'
 ): Promise<StudentMatch[]> {
+  await assertAdmin('getPotentialMatches')
   return await getPotentialStudentMatches(email, program)
 }
 
@@ -81,23 +86,29 @@ export async function linkSubscriptionToStudent(
   studentId: string,
   program: 'MAHAD' | 'DUGSI'
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await linkSubscriptionToProfile(
-    subscriptionId,
-    studentId,
-    program
-  )
-
-  if (result.success) {
-    await logInfo(logger, 'Subscription linked to student', {
+  try {
+    await assertAdmin('linkSubscriptionToStudent')
+    const result = await linkSubscriptionToProfile(
       subscriptionId,
       studentId,
-      program,
-    })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
-  }
+      program
+    )
 
-  return result
+    if (result.success) {
+      await logInfo(logger, 'Subscription linked to student', {
+        subscriptionId,
+        studentId,
+        program,
+      })
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    }
+
+    return result
+  } catch (error) {
+    if (error instanceof ActionError) return { success: false, error: error.message }
+    throw error
+  }
 }
 
 /**
@@ -109,23 +120,29 @@ export async function ignoreSubscription(
   program: 'MAHAD' | 'DUGSI',
   reason?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await ignoreSubscriptionService(
-    subscriptionId,
-    program,
-    reason
-  )
-
-  if (result.success) {
-    await logInfo(logger, 'Subscription ignored', {
+  try {
+    await assertAdmin('ignoreSubscription')
+    const result = await ignoreSubscriptionService(
       subscriptionId,
       program,
-      reason,
-    })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
-  }
+      reason
+    )
 
-  return result
+    if (result.success) {
+      await logInfo(logger, 'Subscription ignored', {
+        subscriptionId,
+        program,
+        reason,
+      })
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    }
+
+    return result
+  } catch (error) {
+    if (error instanceof ActionError) return { success: false, error: error.message }
+    throw error
+  }
 }
 
 /**
@@ -135,16 +152,22 @@ export async function unignoreSubscription(
   subscriptionId: string,
   program: 'MAHAD' | 'DUGSI'
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await unignoreSubscriptionService(subscriptionId, program)
+  try {
+    await assertAdmin('unignoreSubscription')
+    const result = await unignoreSubscriptionService(subscriptionId, program)
 
-  if (result.success) {
-    await logInfo(logger, 'Subscription unignored', {
-      subscriptionId,
-      program,
-    })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
+    if (result.success) {
+      await logInfo(logger, 'Subscription unignored', {
+        subscriptionId,
+        program,
+      })
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    }
+
+    return result
+  } catch (error) {
+    if (error instanceof ActionError) return { success: false, error: error.message }
+    throw error
   }
-
-  return result
 }

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
+import { assertAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import {
   getAllDugsiTeachersWithTodayStatus,
@@ -166,6 +167,7 @@ export async function getTeachers(
   program?: Program
 ): Promise<ActionResult<TeacherWithDetails[]>> {
   try {
+    await assertAdmin('getTeachers')
     if (program === 'DUGSI_PROGRAM') {
       // Get ALL teachers enrolled in Dugsi (not just those with class assignments)
       const teachers = await getAllTeachers('DUGSI_PROGRAM')
@@ -303,6 +305,7 @@ export async function createTeacherAction(
   const input = parsed.data
 
   try {
+    await assertAdmin('createTeacherAction')
     // Use transaction to create teacher and enroll in Dugsi atomically
     const teacher = await prisma.$transaction(async (tx) => {
       const newTeacher = await createTeacher(input.personId, tx)
@@ -371,6 +374,7 @@ export async function createTeacherWithPersonAction(
   const input = parsed.data
 
   try {
+    await assertAdmin('createTeacherWithPersonAction')
     const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
 
     const teacher = await prisma.$transaction(async (tx) => {
@@ -461,6 +465,7 @@ export async function deleteTeacherAction(
   const { teacherId } = parsed.data
 
   try {
+    await assertAdmin('deleteTeacherAction')
     await deleteTeacher(teacherId)
 
     revalidatePath('/admin/teachers')
@@ -495,6 +500,7 @@ export async function updateTeacherDetailsAction(
   const { teacherId, name, email, phone } = parsed.data
 
   try {
+    await assertAdmin('updateTeacherDetailsAction')
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
       include: {
@@ -574,6 +580,7 @@ export async function updateTeacherShiftsAction(
   const { teacherId, shifts } = parsed.data
 
   try {
+    await assertAdmin('updateTeacherShiftsAction')
     const teacherProgram = await prisma.teacherProgram.findFirst({
       where: {
         teacherId,
@@ -614,6 +621,7 @@ export async function getTeacherShiftsAction(
   teacherId: string
 ): Promise<ActionResult<Shift[]>> {
   try {
+    await assertAdmin('getTeacherShiftsAction')
     const teacherProgram = await prisma.teacherProgram.findFirst({
       where: {
         teacherId,
@@ -641,6 +649,7 @@ export async function deactivateTeacherAction(
   teacherId: string
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('deactivateTeacherAction')
     // Check for active class assignments
     const activeClasses = await prisma.dugsiClassTeacher.findMany({
       where: {
@@ -705,6 +714,7 @@ export async function assignTeacherToProgramAction(
   input: ProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('assignTeacherToProgramAction')
     await assignTeacherToProgram(input)
 
     revalidatePath('/admin/teachers')
@@ -747,6 +757,7 @@ export async function removeTeacherFromProgramAction(
   input: ProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('removeTeacherFromProgramAction')
     // For Dugsi, check for active class assignments
     if (input.program === 'DUGSI_PROGRAM') {
       const activeClasses = await prisma.dugsiClassTeacher.count({
@@ -795,6 +806,7 @@ export async function bulkAssignProgramsAction(
   input: BulkProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('bulkAssignProgramsAction')
     await bulkAssignPrograms(input.teacherId, input.programs)
 
     revalidatePath('/admin/teachers')
@@ -836,6 +848,7 @@ export async function getTeacherProgramsAction(
   const { teacherId } = parsed.data
 
   try {
+    await assertAdmin('getTeacherProgramsAction')
     const programs = await getTeacherPrograms(teacherId)
 
     return {
@@ -860,6 +873,7 @@ export async function searchPeopleAction(
   query: string
 ): Promise<ActionResult<PersonSearchResult[]>> {
   try {
+    await assertAdmin('searchPeopleAction')
     if (!query || query.trim().length < SEARCH_MIN_LENGTH) {
       return { success: true, data: [] }
     }
@@ -973,6 +987,7 @@ export async function getTeacherCheckinHistoryAction(
   page: number = 1
 ): Promise<ActionResult<CheckinHistoryResult>> {
   try {
+    await assertAdmin('getTeacherCheckinHistoryAction')
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -1062,6 +1077,7 @@ export async function getCheckinsForDateAction(filters: {
   teacherId?: string
 }): Promise<ActionResult<CheckinRecord[]>> {
   try {
+    await assertAdmin('getCheckinsForDateAction')
     const parsed = DateCheckinFiltersSchema.safeParse(filters)
     if (!parsed.success) {
       return {
@@ -1101,6 +1117,7 @@ export async function getCheckinHistoryWithFiltersAction(filters: {
   }>
 > {
   try {
+    await assertAdmin('getCheckinHistoryWithFiltersAction')
     const parsed = CheckinHistoryFiltersSchema.safeParse(filters)
     if (!parsed.success) {
       return {
@@ -1138,6 +1155,7 @@ export async function getLateArrivalsAction(filters: {
   teacherId?: string
 }): Promise<ActionResult<CheckinRecord[]>> {
   try {
+    await assertAdmin('getLateArrivalsAction')
     const parsed = LateReportFiltersSchema.safeParse(filters)
     if (!parsed.success) {
       return {
@@ -1163,6 +1181,7 @@ export async function getTeachersForDropdownAction(): Promise<
   ActionResult<TeacherOption[]>
 > {
   try {
+    await assertAdmin('getTeachersForDropdownAction')
     const teachers = await getDugsiTeachersForDropdown()
     const options: TeacherOption[] = teachers.map((t) => ({
       id: t.id,
@@ -1188,6 +1207,7 @@ export async function updateCheckinAction(input: {
   notes?: string | null
 }): Promise<ActionResult<CheckinRecord>> {
   try {
+    await assertAdmin('updateCheckinAction')
     const parsed = UpdateCheckinSchema.safeParse(input)
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]
@@ -1222,6 +1242,7 @@ export async function deleteCheckinAction(
   checkInId: string
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('deleteCheckinAction')
     const parsed = DeleteCheckinSchema.safeParse({ checkInId })
     if (!parsed.success) {
       return { success: false, error: 'Invalid check-in ID' }

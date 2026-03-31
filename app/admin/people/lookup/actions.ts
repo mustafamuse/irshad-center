@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { Program } from '@prisma/client'
 import { z } from 'zod'
 
+import { assertAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { normalizePhone } from '@/lib/types/person'
@@ -73,6 +74,7 @@ export async function deletePersonAction(
   const { personId } = parsed.data
 
   try {
+    await assertAdmin('deletePersonAction')
     await prisma.$transaction(async (tx) => {
       const teachers = await tx.teacher.findMany({
         where: { personId },
@@ -150,6 +152,7 @@ export async function lookupPersonAction(
   query: string
 ): Promise<ActionResult<PersonLookupResult | null>> {
   try {
+    await assertAdmin('lookupPersonAction')
     if (!query || query.trim().length < 2) {
       return { success: true, data: null }
     }

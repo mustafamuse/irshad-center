@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { GradeLevel, Shift } from '@prisma/client'
 import { z } from 'zod'
 
+import { assertAdmin } from '@/lib/auth'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import {
   getClassesWithDetails,
@@ -107,6 +108,7 @@ const logger = createServiceLogger('dugsi-admin-actions')
 export async function getDugsiRegistrations(filters?: {
   shift?: 'MORNING' | 'AFTERNOON'
 }): Promise<DugsiRegistration[]> {
+  await assertAdmin('getDugsiRegistrations')
   return await getAllDugsiRegistrations(undefined, filters)
 }
 
@@ -117,6 +119,7 @@ export async function validateDugsiSubscription(
   subscriptionId: string
 ): Promise<ActionResult<SubscriptionValidationData>> {
   try {
+    await assertAdmin('validateDugsiSubscription')
     const result = await validateDugsiSubscriptionService(subscriptionId)
     return {
       success: true,
@@ -142,6 +145,7 @@ export async function validateDugsiSubscription(
 export async function getFamilyMembers(
   studentId: string
 ): Promise<DugsiRegistration[]> {
+  await assertAdmin('getFamilyMembers')
   return await getFamilyMembersService(studentId)
 }
 
@@ -155,6 +159,7 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<
   }>
 > {
   try {
+    await assertAdmin('getDeleteFamilyPreview')
     const result = await getDeleteFamilyPreviewService(studentId)
     return {
       success: true,
@@ -183,6 +188,7 @@ export async function deleteDugsiFamily(
   ActionResult<{ studentsDeleted: number; subscriptionsCanceled: number }>
 > {
   try {
+    await assertAdmin('deleteDugsiFamily')
     const result = await deleteDugsiFamilyService(studentId)
     revalidatePath('/admin/dugsi')
 
@@ -224,6 +230,7 @@ export async function linkDugsiSubscription(params: {
   subscriptionId: string
 }): Promise<ActionResult<SubscriptionLinkData>> {
   try {
+    await assertAdmin('linkDugsiSubscription')
     const { parentEmail, subscriptionId } = params
 
     if (!parentEmail || parentEmail.trim() === '') {
@@ -270,6 +277,7 @@ export async function getDugsiPaymentStatus(
   parentEmail: string
 ): Promise<ActionResult<PaymentStatusData>> {
   try {
+    await assertAdmin('getDugsiPaymentStatus')
     const result = await getPaymentStatus(parentEmail)
     return {
       success: true,
@@ -295,6 +303,7 @@ export async function verifyDugsiBankAccount(
   descriptorCode: string
 ): Promise<ActionResult<BankVerificationData>> {
   try {
+    await assertAdmin('verifyDugsiBankAccount')
     // Validate inputs
     if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
       return {
@@ -375,6 +384,7 @@ export async function updateParentInfo(params: {
   phone: string
 }): Promise<ActionResult<{ updated: number }>> {
   try {
+    await assertAdmin('updateParentInfo')
     const result = await updateParentInfoService(params)
     revalidatePath('/admin/dugsi')
 
@@ -409,6 +419,7 @@ export async function addSecondParent(params: {
   phone: string
 }): Promise<ActionResult<{ updated: number }>> {
   try {
+    await assertAdmin('addSecondParent')
     const result = await addSecondParentService(params)
     revalidatePath('/admin/dugsi')
 
@@ -437,6 +448,7 @@ export async function setPrimaryPayer(params: {
   parentNumber: 1 | 2
 }): Promise<ActionResult<{ updated: number }>> {
   try {
+    await assertAdmin('setPrimaryPayer')
     const result = await setPrimaryPayerService(params)
     revalidatePath('/admin/dugsi')
 
@@ -472,6 +484,7 @@ export async function updateChildInfo(params: {
   healthInfo?: string | null
 }): Promise<ActionResult> {
   try {
+    await assertAdmin('updateChildInfo')
     await updateChildInfoService(params)
     revalidatePath('/admin/dugsi')
 
@@ -500,6 +513,7 @@ export async function updateFamilyShift(
   params: UpdateFamilyShiftInput
 ): Promise<ActionResult> {
   try {
+    await assertAdmin('updateFamilyShift')
     const validated = UpdateFamilyShiftSchema.parse(params)
 
     await updateFamilyShiftService({
@@ -542,6 +556,7 @@ export async function addChildToFamily(params: {
   healthInfo?: string | null
 }): Promise<ActionResult<{ childId: string }>> {
   try {
+    await assertAdmin('addChildToFamily')
     const result = await addChildToFamilyService(params)
     revalidatePath('/admin/dugsi')
 
@@ -610,6 +625,7 @@ export async function generateFamilyPaymentLinkAction(
   const { familyId, overrideAmount, billingStartDate } = input
 
   try {
+    await assertAdmin('generateFamilyPaymentLinkAction')
     // Override validation is handled by the checkout service (Zod schema)
     // Service also queries DB for authoritative child count
 
@@ -701,6 +717,8 @@ export async function bulkGeneratePaymentLinksAction(params: {
           : errorMessages[0] || 'Invalid input',
     }
   }
+
+  await assertAdmin('bulkGeneratePaymentLinksAction')
 
   const links: Array<{
     familyId: string
@@ -795,6 +813,7 @@ export async function getFamilyPaymentHistory(
   }
 
   try {
+    await assertAdmin('getFamilyPaymentHistory')
     const stripe = getDugsiStripeClient()
 
     const invoices = await stripe.invoices.list({
@@ -847,6 +866,7 @@ export async function generateDugsiVCardContent(): Promise<
   ActionResult<VCardResult>
 > {
   try {
+    await assertAdmin('generateDugsiVCardContent')
     const registrations = await getAllDugsiRegistrations()
 
     const familyMap = new Map<string, DugsiRegistration[]>()
@@ -969,6 +989,7 @@ export async function getAvailableDugsiTeachers(): Promise<
   >
 > {
   try {
+    await assertAdmin('getAvailableDugsiTeachers')
     const teachers = await getTeachersByProgramService(DUGSI_PROGRAM)
 
     const teacherList = teachers.map((t) => ({
@@ -995,6 +1016,7 @@ export async function getUnassignedStudentsAction(): Promise<
   ActionResult<UnassignedStudent[]>
 > {
   try {
+    await assertAdmin('getUnassignedStudentsAction')
     const students = await getUnassignedDugsiStudents()
     return { success: true, data: students }
   } catch (error) {
@@ -1026,6 +1048,7 @@ export async function assignTeacherToClassAction(
   const { classId, teacherId } = parsed.data
 
   try {
+    await assertAdmin('assignTeacherToClassAction')
     await assignTeacherToClass(classId, teacherId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1092,6 +1115,7 @@ export async function removeTeacherFromClassAction(
   const { classId, teacherId } = parsed.data
 
   try {
+    await assertAdmin('removeTeacherFromClassAction')
     await removeTeacherFromClass(classId, teacherId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1123,6 +1147,7 @@ export async function getClassesWithDetailsAction(): Promise<
   ActionResult<ClassWithDetails[]>
 > {
   try {
+    await assertAdmin('getClassesWithDetailsAction')
     const classes = await getClassesWithDetails()
 
     const result: ClassWithDetails[] = classes.map((c) => ({
@@ -1156,6 +1181,7 @@ export async function getAllTeachersForClassAssignmentAction(): Promise<
   ActionResult<Array<{ id: string; name: string }>>
 > {
   try {
+    await assertAdmin('getAllTeachersForClassAssignmentAction')
     const teachers = await getAllTeachersForAssignment()
     return { success: true, data: teachers }
   } catch (error) {
@@ -1175,6 +1201,7 @@ export async function getAvailableStudentsForClassAction(input: {
   shift: Shift
 }): Promise<ActionResult<StudentForEnrollment[]>> {
   try {
+    await assertAdmin('getAvailableStudentsForClassAction')
     const students = await getAvailableStudentsForClass(input.shift)
     return { success: true, data: students }
   } catch (error) {
@@ -1202,6 +1229,7 @@ export async function enrollStudentInClassAction(
   const { classId, programProfileId } = parsed.data
 
   try {
+    await assertAdmin('enrollStudentInClassAction')
     await enrollStudentInClass(classId, programProfileId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1253,6 +1281,7 @@ export async function removeStudentFromClassAction(
   const { programProfileId } = parsed.data
 
   try {
+    await assertAdmin('removeStudentFromClassAction')
     await removeStudentFromClass(programProfileId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1291,6 +1320,7 @@ export async function bulkEnrollStudentsAction(
   const { classId, programProfileIds } = parsed.data
 
   try {
+    await assertAdmin('bulkEnrollStudentsAction')
     const result = await bulkEnrollStudents(classId, programProfileIds)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1330,6 +1360,7 @@ export async function createClassAction(
   const { name, shift, description } = parsed.data
 
   try {
+    await assertAdmin('createClassAction')
     const newClass = await createClass(name, shift as Shift, description)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1387,6 +1418,7 @@ export async function updateClassAction(
   const { classId, name, description } = parsed.data
 
   try {
+    await assertAdmin('updateClassAction')
     await updateClass(classId, { name, description })
 
     const updatedClass = await getClassById(classId)
@@ -1460,6 +1492,7 @@ export async function deleteClassAction(
   const { classId } = parsed.data
 
   try {
+    await assertAdmin('deleteClassAction')
     await deleteClass(classId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1495,6 +1528,7 @@ export async function getClassDeletePreviewAction(input: {
   classId: string
 }): Promise<ActionResult<{ teacherCount: number; studentCount: number }>> {
   try {
+    await assertAdmin('getClassDeletePreviewAction')
     const preview = await getClassPreviewForDelete(input.classId)
 
     if (!preview) {
@@ -1531,6 +1565,7 @@ export async function previewStripeSubscriptionForConsolidation(
   familyId: string
 ): Promise<ActionResult<StripeSubscriptionPreview>> {
   try {
+    await assertAdmin('previewStripeSubscriptionForConsolidation')
     const validated = previewSubscriptionInputSchema.parse({
       subscriptionId,
       familyId,
@@ -1575,6 +1610,7 @@ export async function consolidateDugsiSubscription(input: {
   forceOverride?: boolean
 }): Promise<ActionResult<ConsolidateSubscriptionResult>> {
   try {
+    await assertAdmin('consolidateDugsiSubscription')
     const validated = consolidateSubscriptionInputSchema.parse(input)
 
     const result = await consolidateStripeSubscriptionService(validated)
@@ -1691,29 +1727,38 @@ export async function sendPaymentLinkViaWhatsAppAction(
   }
   const input = parseResult.data
 
-  const result = await sendPaymentLink({
-    phone: input.phone,
-    parentName: input.parentName,
-    amount: input.amount,
-    childCount: input.childCount,
-    paymentUrl: input.paymentUrl,
-    program: DUGSI_PROGRAM,
-    personId: input.personId,
-    familyId: input.familyId,
-  })
+  try {
+    await assertAdmin('sendPaymentLinkViaWhatsAppAction')
 
-  if (!result.success) {
-    return {
-      success: false,
-      error: result.error || 'Failed to send WhatsApp message',
+    const result = await sendPaymentLink({
+      phone: input.phone,
+      parentName: input.parentName,
+      amount: input.amount,
+      childCount: input.childCount,
+      paymentUrl: input.paymentUrl,
+      program: DUGSI_PROGRAM,
+      personId: input.personId,
+      familyId: input.familyId,
+    })
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || 'Failed to send WhatsApp message',
+      }
     }
-  }
 
-  revalidatePath('/admin/dugsi')
+    revalidatePath('/admin/dugsi')
 
-  return {
-    success: true,
-    data: { waMessageId: result.waMessageId },
-    message: 'Payment link sent via WhatsApp',
+    return {
+      success: true,
+      data: { waMessageId: result.waMessageId },
+      message: 'Payment link sent via WhatsApp',
+    }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    throw error
   }
 }

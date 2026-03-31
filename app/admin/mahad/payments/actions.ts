@@ -1,5 +1,6 @@
 'use server'
 
+import { assertAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError, logWarning } from '@/lib/logger'
 
@@ -7,6 +8,7 @@ const logger = createActionLogger('mahad-payments')
 
 export async function getBatchesForFilter() {
   try {
+    await assertAdmin('getBatchesForFilter')
     const batches = await prisma.batch.findMany({
       select: {
         id: true,
@@ -34,7 +36,7 @@ export async function getBatchesForFilter() {
  * TODO: Migrate in PR 2e when API routes are updated.
  */
 export async function runPaymentsBackfill() {
-  'use server'
+  await assertAdmin('runPaymentsBackfill')
   await logWarning(
     logger,
     'runPaymentsBackfill is deprecated and needs migration to new schema'

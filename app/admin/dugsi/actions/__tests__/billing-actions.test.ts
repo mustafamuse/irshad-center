@@ -12,6 +12,10 @@ const {
   mockLogError: vi.fn(),
 }))
 
+vi.mock('@/lib/auth', () => ({
+  assertAdmin: vi.fn(),
+}))
+
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
 }))

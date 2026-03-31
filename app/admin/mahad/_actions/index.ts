@@ -11,6 +11,7 @@ import {
 } from '@prisma/client'
 import { z } from 'zod'
 
+import { assertAdmin } from '@/lib/auth'
 import { featureFlags } from '@/lib/config/feature-flags'
 import { prisma } from '@/lib/db'
 import {
@@ -157,6 +158,7 @@ export async function createBatchAction(
   }
 
   try {
+    await assertAdmin('createBatchAction')
     const validated = CreateBatchSchema.parse(rawData)
 
     // Let Prisma handle uniqueness constraint - no race condition
@@ -186,6 +188,7 @@ export async function createBatchAction(
 
 export async function deleteBatchAction(id: string): Promise<ActionResult> {
   try {
+    await assertAdmin('deleteBatchAction')
     const batch = await getBatchById(id)
     if (!batch) {
       return {
@@ -227,6 +230,7 @@ export async function updateBatchAction(
   data: { name?: string; startDate?: Date | null; endDate?: Date | null }
 ): Promise<ActionResult<BatchData>> {
   try {
+    await assertAdmin('updateBatchAction')
     const validated = UpdateBatchSchema.parse(data)
 
     const existingBatch = await getBatchById(id)
@@ -271,6 +275,7 @@ export async function assignStudentsAction(
   studentIds: string[]
 ): Promise<ActionResult<AssignmentResult>> {
   try {
+    await assertAdmin('assignStudentsAction')
     const validated = BatchAssignmentSchema.parse({ batchId, studentIds })
 
     const batch = await getBatchById(validated.batchId)
@@ -315,6 +320,7 @@ export async function transferStudentsAction(
   studentIds: string[]
 ): Promise<ActionResult<TransferResult>> {
   try {
+    await assertAdmin('transferStudentsAction')
     const validated = BatchTransferSchema.parse({
       fromBatchId,
       toBatchId,
@@ -408,6 +414,7 @@ export async function resolveDuplicatesAction(
   }
 
   try {
+    await assertAdmin('resolveDuplicatesAction')
     if (deleteIds.includes(keepId)) {
       return {
         success: false,
@@ -473,6 +480,7 @@ export async function getStudentDeleteWarningsAction(
   }
 
   try {
+    await assertAdmin('getStudentDeleteWarningsAction')
     const warnings = await getStudentDeleteWarnings(id)
     return { success: true, data: warnings }
   } catch (error) {
@@ -493,6 +501,7 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
   }
 
   try {
+    await assertAdmin('deleteStudentAction')
     const student = await getStudentById(id)
     if (!student) {
       return {
@@ -554,6 +563,7 @@ export async function bulkDeleteStudentsAction(
   }
 
   try {
+    await assertAdmin('bulkDeleteStudentsAction')
     const { deletedCount, blockedIds } = await prisma.$transaction(
       async (tx) => {
         const activeAssignments = await tx.billingAssignment.findMany({
@@ -615,6 +625,7 @@ export async function updateStudentAction(
   data: UpdateStudentPayload
 ): Promise<ActionResult> {
   try {
+    await assertAdmin('updateStudentAction')
     const validated = UpdateStudentSchema.parse(data)
 
     const currentStudent = await getStudentById(id)
@@ -761,6 +772,7 @@ export async function generatePaymentLinkAction(
   }
 
   try {
+    await assertAdmin('generatePaymentLinkAction')
     // 1. Fetch profile with billing config and contact info
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },
@@ -939,6 +951,7 @@ export async function generatePaymentLinkWithDefaultsAction(
   }
 
   try {
+    await assertAdmin('generatePaymentLinkWithDefaultsAction')
     // Use transaction to ensure check + update are atomic
     const result = await prisma.$transaction(async (tx) => {
       // 1. Check student exists and get batch info via enrollment
@@ -1066,6 +1079,7 @@ export async function generatePaymentLinkWithOverrideAction(
   }
 
   try {
+    await assertAdmin('generatePaymentLinkWithOverrideAction')
     // 1. Fetch profile with billing config and contact info
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },

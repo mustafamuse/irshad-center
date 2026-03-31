@@ -1,5 +1,6 @@
 'use server'
 
+import { assertAdmin } from '@/lib/auth'
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
 import { createActionLogger, logError } from '@/lib/logger'
 import { ActionResult, createErrorResult } from '@/lib/utils/action-helpers'
@@ -17,6 +18,7 @@ export async function generateMahadVCardContent(
   batchId?: string
 ): Promise<ActionResult<VCardResult>> {
   try {
+    await assertAdmin('generateMahadVCardContent')
     const students = batchId
       ? await getStudentsByBatch(batchId)
       : await getStudents()

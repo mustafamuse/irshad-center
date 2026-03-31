@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
+import { assertAdmin } from '@/lib/auth'
 import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -29,6 +30,7 @@ export async function pauseFamilyBillingAction(
   }
 
   try {
+    await assertAdmin('pauseFamilyBillingAction')
     const result = await pauseFamilyBillingService(
       parsed.data.familyReferenceId
     )
@@ -70,6 +72,7 @@ export async function resumeFamilyBillingAction(
   }
 
   try {
+    await assertAdmin('resumeFamilyBillingAction')
     const result = await resumeFamilyBillingService(
       parsed.data.familyReferenceId
     )
