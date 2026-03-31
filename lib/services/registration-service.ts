@@ -354,6 +354,9 @@ export async function createPersonWithContact(
         'P2002 on person.create — looking up existing person by contact'
       )
 
+      // Note: findPersonByActiveContact includes programProfiles/enrollments which
+      // aren't needed here (only id/email/phone matter). Acceptable cost for
+      // an exceptional path that fires only on concurrent duplicate registrations.
       const existingPerson = await findPersonByActiveContact(
         normalizedEmail,
         normalizedPhone,
@@ -389,6 +392,9 @@ export async function createPersonWithContact(
         }
         return existingPerson
       }
+      // findPersonByActiveContact returned null: the conflicting person was deleted
+      // in the race between our create and this findFirst. Surfaces a DUPLICATE_CONTACT
+      // ActionError — a retry at the call-site would likely succeed.
       throwIfP2002(error)
     }
 
