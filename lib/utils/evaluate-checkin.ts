@@ -23,10 +23,19 @@ export function resolveShiftDeadline(params: {
   timezone?: string
 }): ShiftDeadline {
   const { schoolDate, shift, timezone = SCHOOL_TIMEZONE } = params
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(schoolDate)) {
+    throw new Error(`resolveShiftDeadline: invalid schoolDate format "${schoolDate}", expected YYYY-MM-DD`)
+  }
+
   const { hour, minute } = SHIFT_START_TIMES[shift]
 
   const localDateTimeStr = `${schoolDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
   const deadlineUtc = fromZonedTime(localDateTimeStr, timezone)
+
+  if (isNaN(deadlineUtc.getTime())) {
+    throw new Error(`resolveShiftDeadline: produced Invalid Date for "${localDateTimeStr}" in timezone "${timezone}"`)
+  }
 
   return { schoolDate, shift, deadlineUtc }
 }

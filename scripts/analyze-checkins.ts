@@ -45,19 +45,24 @@ function parseArgs(): {
   let shiftFilter: Shift | null = null
   const excludeDates = new Set<string>()
 
+  const KNOWN_FLAGS = new Set(['--weeks', '--teacher', '--shift', '--exclude'])
+
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]
-    if (arg === '--weeks' && args[i + 1]) {
+    if (arg === '--weeks') {
+      if (!args[i + 1]) { console.error('--weeks requires a value'); process.exit(1) }
       weeks = parseInt(args[i + 1], 10)
       if (isNaN(weeks) || weeks < 1 || weeks > 52) {
         console.error('--weeks must be between 1 and 52')
         process.exit(1)
       }
       i++
-    } else if (arg === '--teacher' && args[i + 1]) {
+    } else if (arg === '--teacher') {
+      if (!args[i + 1]) { console.error('--teacher requires a value'); process.exit(1) }
       teacherFilter = args[i + 1]
       i++
-    } else if (arg === '--shift' && args[i + 1]) {
+    } else if (arg === '--shift') {
+      if (!args[i + 1]) { console.error('--shift requires a value'); process.exit(1) }
       const val = args[i + 1].toUpperCase()
       if (val !== 'MORNING' && val !== 'AFTERNOON') {
         console.error('--shift must be MORNING or AFTERNOON')
@@ -65,7 +70,8 @@ function parseArgs(): {
       }
       shiftFilter = val as Shift
       i++
-    } else if (arg === '--exclude' && args[i + 1]) {
+    } else if (arg === '--exclude') {
+      if (!args[i + 1]) { console.error('--exclude requires a value'); process.exit(1) }
       const dateArg = args[i + 1]
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateArg)) {
         console.error(`--exclude must be a YYYY-MM-DD date, got: ${dateArg}`)
@@ -73,6 +79,10 @@ function parseArgs(): {
       }
       excludeDates.add(dateArg)
       i++
+    } else if (arg.startsWith('--') && !KNOWN_FLAGS.has(arg)) {
+      console.error(`Unknown argument: ${arg}`)
+      console.error('Usage: analyze-checkins [--weeks N] [--teacher NAME] [--shift MORNING|AFTERNOON] [--exclude YYYY-MM-DD]')
+      process.exit(1)
     }
   }
 
@@ -138,11 +148,13 @@ async function getActiveTeachers(
     },
   })
 
-  let teachers: TeacherInfo[] = teacherPrograms.map((tp) => ({
-    id: tp.teacherId,
-    name: tp.teacher.person.name,
-    shifts: tp.shifts,
-  }))
+  let teachers: TeacherInfo[] = teacherPrograms
+    .map((tp) => ({
+      id: tp.teacherId,
+      name: tp.teacher.person.name,
+      shifts: tp.shifts,
+    }))
+    .filter((t) => t.shifts.length > 0)
 
   if (teacherFilter) {
     const lower = teacherFilter.toLowerCase()
@@ -298,7 +310,6 @@ function printReport(
   const excluded = results.filter((r) => r.bucket === 'EXCLUDED')
 
   const totalExpected = results.length - excluded.length
-  const totalPresent = onTime.length + late.length + mismatches.length
 
   // Summary
   console.log(`\n${sep}`)
