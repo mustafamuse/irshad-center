@@ -150,7 +150,7 @@ const updateTeacherDetailsSchema = z.object({
     .string()
     .refine(
       (val) => !val || normalizePhone(val) !== null,
-      'Invalid phone number'
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)'
     )
     .optional(),
 })
@@ -512,14 +512,8 @@ export async function updateTeacherDetailsAction(
       return { success: false, error: 'Teacher not found' }
     }
 
+    // Schema already validated phone format via .refine() — normalizedPhone is safe.
     const normalizedPhone = phone ? normalizePhone(phone) : null
-    if (phone && !normalizedPhone) {
-      return {
-        success: false,
-        error:
-          'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
-      }
-    }
 
     // Only include contact fields in update when explicitly provided.
     // undefined = skip field (Prisma leaves it unchanged); null = clear the field.

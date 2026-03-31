@@ -55,6 +55,7 @@ export async function getProgramProfiles(
 
   if (search && search.trim()) {
     const searchTerm = search.trim()
+    const normalizedPhone = normalizePhone(searchTerm)
     where.person = {
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
@@ -64,9 +65,7 @@ export async function getProgramProfiles(
             mode: 'insensitive',
           },
         },
-        ...(normalizePhone(searchTerm)
-          ? [{ phone: normalizePhone(searchTerm)! }]
-          : []),
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     }
   }
