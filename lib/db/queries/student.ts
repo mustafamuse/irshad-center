@@ -830,6 +830,8 @@ export async function resolveDuplicateStudents(
       if (!keepProfile.person.phone) {
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.phone) {
+            // Phone must be canonical (10-digit US) or null — no raw fallback.
+            // All stored phones are already canonical so this ?? null is a safety net.
             personUpdates.phone =
               normalizePhone(delProfile.person.phone) ?? null
             break

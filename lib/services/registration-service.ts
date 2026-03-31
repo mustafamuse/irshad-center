@@ -324,7 +324,8 @@ export async function createPersonWithContact(
   // When called inside a transaction, let P2002 propagate naturally — no catch.
   // PostgreSQL aborts the tx on constraint violations, so recovery code would be dead.
   if (tx) {
-    return client.person.create({
+    // return await (not bare return) preserves this frame in rejection stack traces.
+    return await client.person.create({
       data: {
         name,
         dateOfBirth,
