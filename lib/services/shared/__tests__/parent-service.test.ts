@@ -164,6 +164,37 @@ describe('updateGuardianInfo', () => {
       })
     )
   })
+
+  it('should clear phone (set null) when empty string provided', async () => {
+    mockPersonFindUnique.mockResolvedValue(mockGuardianWithPhone)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+      phone: '',
+    })
+
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ phone: null }),
+      })
+    )
+  })
+
+  it('should pass phone as undefined when not provided (Prisma skips field)', async () => {
+    mockPersonFindUnique.mockResolvedValue(mockGuardianWithPhone)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+    })
+
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ phone: undefined }),
+      })
+    )
+  })
 })
 
 describe('addGuardianRelationship', () => {
