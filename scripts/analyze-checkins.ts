@@ -1,13 +1,8 @@
 import { Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
+import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/shift-times'
 import { prisma } from '@/lib/db'
-
-const SCHOOL_TIMEZONE = 'America/Chicago'
-const CHECKIN_DEADLINES: Record<Shift, { hour: number; minute: number }> = {
-  MORNING: { hour: 8, minute: 45 },
-  AFTERNOON: { hour: 13, minute: 15 },
-}
 
 type ConfidenceBucket =
   | 'ON_TIME'
@@ -85,7 +80,7 @@ function parseArgs(): {
 function getWeekendDatesInRange(weeksBack: number): string[] {
   const now = new Date()
   const todayStr = formatInTimeZone(now, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
-  const today = new Date(todayStr)
+  const today = new Date(todayStr + 'T12:00:00')
 
   const startDate = new Date(today)
   startDate.setDate(startDate.getDate() - weeksBack * 7)
@@ -118,11 +113,11 @@ function formatDateShort(dateStr: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Lateness evaluation (inlined to avoid Sentry import chain)
+// Lateness evaluation
 // ---------------------------------------------------------------------------
 
 function evaluateLateness(clockInTimeUtc: Date, shift: Shift): { isLate: boolean; minutesLate: number } {
-  const { hour, minute } = CHECKIN_DEADLINES[shift]
+  const { hour, minute } = SHIFT_START_TIMES[shift]
   const schoolDate = formatInTimeZone(clockInTimeUtc, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
   const deadlineStr = `${schoolDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
   const deadlineUtc = fromZonedTime(deadlineStr, SCHOOL_TIMEZONE)

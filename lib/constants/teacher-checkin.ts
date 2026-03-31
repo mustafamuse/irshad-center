@@ -5,18 +5,12 @@
  * shift times, geofencing, and status display.
  */
 
-import type { Shift } from '@prisma/client'
-
 import { createClientLogger } from '@/lib/logger-client'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 
+export { SCHOOL_TIMEZONE, SHIFT_START_TIMES, SHIFT_TIME_LABELS } from '@/lib/constants/shift-times'
+
 const logger = createClientLogger('teacher-checkin')
-
-// ============================================================================
-// TIMEZONE CONFIGURATION
-// ============================================================================
-
-export const SCHOOL_TIMEZONE = 'America/Chicago'
 
 // ============================================================================
 // GEOFENCE CONFIGURATION
@@ -36,29 +30,6 @@ export const IRSHAD_CENTER_LOCATION = {
  * 15 meters (~50ft) = must be at the building entrance.
  */
 export const GEOFENCE_RADIUS_METERS = 15
-
-// ============================================================================
-// SHIFT TIMING CONFIGURATION
-// ============================================================================
-
-/**
- * Shift start times. Teachers checking in after these times are marked late.
- */
-export const SHIFT_START_TIMES: Record<
-  Shift,
-  { hour: number; minute: number }
-> = {
-  MORNING: { hour: 8, minute: 45 },
-  AFTERNOON: { hour: 13, minute: 15 },
-} as const
-
-/**
- * Human-readable shift time labels for display.
- */
-export const SHIFT_TIME_LABELS: Record<Shift, string> = {
-  MORNING: '8:45 AM',
-  AFTERNOON: '1:15 PM',
-} as const
 
 // ============================================================================
 // STATUS BADGES

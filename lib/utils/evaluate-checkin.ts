@@ -1,7 +1,7 @@
 import type { Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
-import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/teacher-checkin'
+import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/shift-times'
 
 export interface ShiftDeadline {
   schoolDate: string
