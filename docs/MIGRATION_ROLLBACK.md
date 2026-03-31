@@ -59,7 +59,6 @@ psql -d your_database_name << EOF
   DROP TABLE IF EXISTS "Enrollment" CASCADE;
   DROP TABLE IF EXISTS "SiblingRelationship" CASCADE;
   DROP TABLE IF EXISTS "GuardianRelationship" CASCADE;
-  DROP TABLE IF EXISTS "ContactPoint" CASCADE;
   DROP TABLE IF EXISTS "ProgramProfile" CASCADE;
   DROP TABLE IF EXISTS "Person" CASCADE;
   DROP TABLE IF EXISTS "Batch" CASCADE;
