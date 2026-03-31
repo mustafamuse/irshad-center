@@ -44,10 +44,11 @@ export async function getWhatsAppMessages(
   if (filters.recipientType) where.recipientType = filters.recipientType
   if (filters.messageType) where.messageType = filters.messageType
   if (filters.status) where.status = filters.status
-  if (filters.phoneNumber) {
-    const normalizedPhone = normalizePhone(filters.phoneNumber)
-    if (normalizedPhone) where.phoneNumber = normalizedPhone
-  }
+  // Use normalized form when possible; raw fallback returns no matches since stored
+  // values are always normalized — preserving the "zero results" contract for invalid input.
+  if (filters.phoneNumber)
+    where.phoneNumber =
+      normalizePhone(filters.phoneNumber) ?? filters.phoneNumber
   if (filters.personId) where.personId = filters.personId
   if (filters.familyId) where.familyId = filters.familyId
 
