@@ -44,8 +44,9 @@ export async function getWhatsAppMessages(
   if (filters.recipientType) where.recipientType = filters.recipientType
   if (filters.messageType) where.messageType = filters.messageType
   if (filters.status) where.status = filters.status
-  // Use normalized form when possible; raw fallback returns no matches since stored
-  // values are always normalized — preserving the "zero results" contract for invalid input.
+  // Normalize phone before filtering; fall back to raw input on failure.
+  // Stored phoneNumber values are always normalized, so an unnormalized fallback
+  // won't match any row — invalid input correctly returns zero results.
   if (filters.phoneNumber)
     where.phoneNumber =
       normalizePhone(filters.phoneNumber) ?? filters.phoneNumber

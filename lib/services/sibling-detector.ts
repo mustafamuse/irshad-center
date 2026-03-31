@@ -75,9 +75,9 @@ export async function detectPotentialSiblings(
   // Find other dependents of the same guardians
   // Note: Uses batch query with `in: guardianIds` and `include` to prevent N+1
   if (person.guardianRelationships.length > 0) {
-    const guardianIds = person.guardianRelationships
-      .filter((rel) => rel.isActive)
-      .map((rel) => rel.guardianId)
+    const guardianIds = person.guardianRelationships.map(
+      (rel) => rel.guardianId
+    )
 
     if (guardianIds.length > 0) {
       const siblingsViaGuardians = await prisma.guardianRelationship.findMany({
