@@ -156,6 +156,7 @@ async function getCheckins(
   return prisma.dugsiTeacherCheckIn.findMany({
     where: {
       teacherId: { in: teacherIds },
+      // @db.Date column: Prisma compares at the date level, UTC midnight is safe
       date: {
         gte: new Date(dateFrom),
         lte: new Date(dateTo),
@@ -183,6 +184,7 @@ function classifyCheckins(
 ): ClassifiedCheckin[] {
   const checkinMap = new Map<string, (typeof checkins)[number]>()
   for (const c of checkins) {
+    // Prisma returns @db.Date as UTC midnight; UTC formatting yields the correct date string
     const dateStr = formatInTimeZone(c.date, 'UTC', 'yyyy-MM-dd')
     const key = `${c.teacherId}|${dateStr}|${c.shift}`
     checkinMap.set(key, c)
