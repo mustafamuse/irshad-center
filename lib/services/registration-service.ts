@@ -354,9 +354,15 @@ export async function createPersonWithContact(
         'P2002 on person.create — looking up existing person by contact'
       )
 
-      // Note: findPersonByActiveContact includes programProfiles/enrollments which
-      // aren't needed here (only id/email/phone matter). Acceptable cost for
-      // an exceptional path that fires only on concurrent duplicate registrations.
+      // Note: findPersonByActiveContact uses an OR query (email OR phone). In the
+      // rare split-contact race — email belongs to Person A, phone to Person B —
+      // findFirst returns whichever the DB finds first. The update for the other
+      // contact then hits a second P2002 (handled below). The function returns a
+      // valid real person but without the conflicting contact: conservative merge
+      // correctly refuses to overwrite a contact owned by a different person.
+      //
+      // Also includes programProfiles/enrollments (not needed here); acceptable
+      // cost on this exceptional path.
       const existingPerson = await findPersonByActiveContact(
         normalizedEmail,
         normalizedPhone,
