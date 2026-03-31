@@ -137,7 +137,7 @@ interface FakeStudent {
   gender: Gender
   dateOfBirth: Date
   email: string
-  phone: string
+  phone: string | null
   graduationStatus: GraduationStatus
   gradeLevel: GradeLevel | null
   billingType: StudentBillingType
@@ -186,7 +186,7 @@ function generateFakeStudent(index: number): FakeStudent {
     gender,
     dateOfBirth,
     email,
-    phone: normalizePhone(generateFakePhone()) ?? generateFakePhone(),
+    phone: normalizePhone(generateFakePhone()) ?? null,
     graduationStatus,
     gradeLevel,
     billingType: randomFrom(BILLING_TYPES),

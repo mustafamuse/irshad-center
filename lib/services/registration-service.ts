@@ -320,6 +320,19 @@ export async function createPersonWithContact(
     )
   }
 
+  // When called inside a transaction, let P2002 propagate naturally — no catch.
+  // PostgreSQL aborts the tx on constraint violations, so recovery code would be dead.
+  if (tx) {
+    return client.person.create({
+      data: {
+        name,
+        dateOfBirth,
+        email: normalizeEmail(email),
+        phone: normalizedPhone,
+      },
+    })
+  }
+
   let person
   try {
     person = await client.person.create({
@@ -335,16 +348,9 @@ export async function createPersonWithContact(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      if (tx) {
-        throw error
-      }
-
       logger.info(
-        {
-          email: normalizeEmail(email),
-          phone: normalizedPhone,
-        },
-        'Unique constraint violation caught - Person with this contact already exists, fetching'
+        { hasEmail: !!email, hasPhone: !!normalizedPhone },
+        'P2002 on person.create — looking up existing person by contact'
       )
 
       const existingPerson = await findPersonByActiveContact(

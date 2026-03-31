@@ -393,10 +393,6 @@ export async function createTeacherWithPersonAction(
       data: { teacherId: teacher.id },
     }
   } catch (error) {
-    await logError(logger, error, 'Failed to create teacher with person', {
-      ...input,
-    })
-
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
@@ -406,6 +402,10 @@ export async function createTeacherWithPersonAction(
         error: 'A person with this email or phone already exists',
       }
     }
+
+    await logError(logger, error, 'Failed to create teacher with person', {
+      ...input,
+    })
 
     if (
       error instanceof ValidationError &&

@@ -15,7 +15,6 @@ import {
   GradeLevel,
   GraduationStatus,
   PaymentFrequency,
-  PrismaClient,
   StudentBillingType,
   EnrollmentStatus,
   Prisma,
@@ -789,7 +788,7 @@ export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
   mergeData: boolean = false,
-  client: PrismaClient = prisma // must be PrismaClient, not TransactionClient — function owns its own $transaction
+  client: typeof prisma = prisma // must be the top-level client — calls $transaction() internally
 ) {
   await client.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({
