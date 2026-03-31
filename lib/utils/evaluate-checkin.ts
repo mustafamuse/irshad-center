@@ -12,6 +12,7 @@ export interface ShiftDeadline {
 
 export interface CheckInEvaluation {
   isLate: boolean
+  /** Floored to whole minutes. May be 0 when isLate is true (< 60 s late). Always use isLate for lateness checks. */
   minutesLate: number
   deadlineUtc: Date
 }

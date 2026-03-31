@@ -437,10 +437,11 @@ function printReport(
 
     // Distribution
     const brackets = [
-      { label: '1-5 min', min: 1, max: 5 },
+      { label: '<1 min',    min: 0, max: 1 },
+      { label: '1-5 min',  min: 1, max: 5 },
       { label: '5-10 min', min: 5, max: 10 },
       { label: '10-15 min', min: 10, max: 15 },
-      { label: '15+ min', min: 15, max: Infinity },
+      { label: '15+ min',  min: 15, max: Infinity },
     ]
     console.log('\nDistribution:')
     for (const b of brackets) {
