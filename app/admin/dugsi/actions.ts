@@ -706,83 +706,91 @@ export async function bulkGeneratePaymentLinksAction(params: {
     }>
   }>
 > {
-  await assertAdmin('bulkGeneratePaymentLinksAction')
+  try {
+    await assertAdmin('bulkGeneratePaymentLinksAction')
 
-  const validation = BulkPaymentLinksSchema.safeParse(params)
-  if (!validation.success) {
-    const errorMessages = validation.error.errors.map((e) => e.message)
-    return {
-      success: false,
-      error:
-        errorMessages.length > 1
-          ? `Validation errors: ${errorMessages.join('; ')}`
-          : errorMessages[0] || 'Invalid input',
-    }
-  }
-
-  const links: Array<{
-    familyId: string
-    familyName: string
-    paymentUrl: string
-    childCount: number
-    rate: number
-  }> = []
-  const failed: Array<{
-    familyId: string
-    familyName: string
-    error: string
-  }> = []
-
-  const BATCH_SIZE = 5
-  const familyIds = validation.data.familyIds
-
-  for (let i = 0; i < familyIds.length; i += BATCH_SIZE) {
-    const batch = familyIds.slice(i, i + BATCH_SIZE)
-
-    const results = await Promise.allSettled(
-      batch.map((familyId) =>
-        createDugsiCheckoutSession({ familyId })
-      )
-    )
-
-    for (let j = 0; j < results.length; j++) {
-      const familyId = batch[j]
-      const result = results[j]
-
-      if (result.status === 'fulfilled') {
-        const value = result.value
-        links.push({
-          familyId,
-          familyName: value.familyName,
-          paymentUrl: value.url,
-          childCount: value.childCount,
-          rate: value.finalRate,
-        })
-      } else {
-        const error = result.reason
-        await logError(
-          logger,
-          error,
-          'Failed to generate payment link in bulk operation',
-          { familyId }
-        )
-        failed.push({
-          familyId,
-          familyName: familyId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
+    const validation = BulkPaymentLinksSchema.safeParse(params)
+    if (!validation.success) {
+      const errorMessages = validation.error.errors.map((e) => e.message)
+      return {
+        success: false,
+        error:
+          errorMessages.length > 1
+            ? `Validation errors: ${errorMessages.join('; ')}`
+            : errorMessages[0] || 'Invalid input',
       }
     }
-  }
 
-  if (links.length === 0 && failed.length > 0) {
-    return {
-      success: false,
-      error: `Failed to generate payment links for ${failed.length} ${failed.length === 1 ? 'family' : 'families'}`,
+    const links: Array<{
+      familyId: string
+      familyName: string
+      paymentUrl: string
+      childCount: number
+      rate: number
+    }> = []
+    const failed: Array<{
+      familyId: string
+      familyName: string
+      error: string
+    }> = []
+
+    const BATCH_SIZE = 5
+    const familyIds = validation.data.familyIds
+
+    for (let i = 0; i < familyIds.length; i += BATCH_SIZE) {
+      const batch = familyIds.slice(i, i + BATCH_SIZE)
+
+      const results = await Promise.allSettled(
+        batch.map((familyId) =>
+          createDugsiCheckoutSession({ familyId })
+        )
+      )
+
+      for (let j = 0; j < results.length; j++) {
+        const familyId = batch[j]
+        const result = results[j]
+
+        if (result.status === 'fulfilled') {
+          const value = result.value
+          links.push({
+            familyId,
+            familyName: value.familyName,
+            paymentUrl: value.url,
+            childCount: value.childCount,
+            rate: value.finalRate,
+          })
+        } else {
+          const error = result.reason
+          await logError(
+            logger,
+            error,
+            'Failed to generate payment link in bulk operation',
+            { familyId }
+          )
+          failed.push({
+            familyId,
+            familyName: familyId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          })
+        }
+      }
     }
-  }
 
-  return { success: true, data: { links, failed } }
+    if (links.length === 0 && failed.length > 0) {
+      return {
+        success: false,
+        error: `Failed to generate payment links for ${failed.length} ${failed.length === 1 ? 'family' : 'families'}`,
+      }
+    }
+
+    return { success: true, data: { links, failed } }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to bulkGeneratePaymentLinksAction')
+    return { success: false, error: 'Failed to generate payment links' }
+  }
 }
 
 const PaymentHistorySchema = z.object({

@@ -23,6 +23,7 @@ const {
   mockPrismaDeleteMany,
   mockPersonUpdate,
   mockAfter,
+  mockAssertAdmin,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
   mockUpdateBatch: vi.fn(),
@@ -46,10 +47,11 @@ const {
   mockBillingAssignmentFindFirst: vi.fn(),
   mockPersonUpdate: vi.fn(),
   mockAfter: vi.fn((fn: () => void) => fn()),
+  mockAssertAdmin: vi.fn(),
 }))
 
 vi.mock('@/lib/auth', () => ({
-  assertAdmin: vi.fn(),
+  assertAdmin: (...args: unknown[]) => mockAssertAdmin(...args),
 }))
 
 vi.mock('next/cache', () => ({
@@ -977,6 +979,33 @@ describe('Student Update Actions', () => {
 
       expect(result.success).toBe(false)
       expect(result.error).toContain('email or phone')
+    })
+  })
+
+  describe('Auth Guard', () => {
+    it('should return unauthorized when assertAdmin rejects', async () => {
+      const { ActionError, ERROR_CODES } = await import(
+        '@/lib/errors/action-error'
+      )
+      mockAssertAdmin.mockRejectedValueOnce(
+        new ActionError(
+          'Unauthorized',
+          ERROR_CODES.UNAUTHORIZED,
+          undefined,
+          401
+        )
+      )
+
+      const formData = new FormData()
+      formData.set('name', 'Test Cohort')
+      formData.set('startDate', '2026-01-01')
+
+      const result = await createBatchAction(formData)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Unauthorized')
+      expect(mockAssertAdmin).toHaveBeenCalledWith('createBatchAction')
+      expect(mockCreateBatch).not.toHaveBeenCalled()
     })
   })
 })
