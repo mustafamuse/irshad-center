@@ -1,8 +1,9 @@
 import { Shift } from '@prisma/client'
-import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { formatInTimeZone } from 'date-fns-tz'
 
-import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/shift-times'
+import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { prisma } from '@/lib/db'
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 
 type ConfidenceBucket =
   | 'ON_TIME'
@@ -110,21 +111,6 @@ function formatDateShort(dateStr: string): string {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
   ]
   return `${dayNames[d.getDay()]} ${monthNames[d.getMonth()]} ${String(d.getDate()).padStart(2, ' ')}`
-}
-
-// ---------------------------------------------------------------------------
-// Lateness evaluation
-// ---------------------------------------------------------------------------
-
-function evaluateLateness(clockInTimeUtc: Date, shift: Shift): { isLate: boolean; minutesLate: number } {
-  const { hour, minute } = SHIFT_START_TIMES[shift]
-  const schoolDate = formatInTimeZone(clockInTimeUtc, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
-  const deadlineStr = `${schoolDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
-  const deadlineUtc = fromZonedTime(deadlineStr, SCHOOL_TIMEZONE)
-
-  const diffMs = clockInTimeUtc.getTime() - deadlineUtc.getTime()
-  const isLate = diffMs > 0
-  return { isLate, minutesLate: isLate ? Math.floor(diffMs / 60_000) : 0 }
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +228,7 @@ function classifyCheckins(
           continue
         }
 
-        const { isLate: recalcLate, minutesLate } = evaluateLateness(checkin.clockInTime, shift)
+        const { isLate: recalcLate, minutesLate } = evaluateCheckIn({ clockInTimeUtc: checkin.clockInTime, shift })
 
         if (checkin.isLate !== recalcLate) {
           results.push({
