@@ -86,6 +86,7 @@ function parseArgs(): {
 function getWeekendDatesInRange(weeksBack: number): string[] {
   const now = new Date()
   const todayStr = formatInTimeZone(now, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+  // Local noon: getDay()/getDate() use local time, and noon never rolls to a different calendar day
   const today = new Date(todayStr + 'T12:00:00')
 
   const startDate = new Date(today)
@@ -140,7 +141,7 @@ async function getActiveTeachers(
   let teachers: TeacherInfo[] = teacherPrograms.map((tp) => ({
     id: tp.teacherId,
     name: tp.teacher.person.name,
-    shifts: tp.shifts as Shift[],
+    shifts: tp.shifts,
   }))
 
   if (teacherFilter) {
@@ -516,6 +517,8 @@ function padRight(s: string, len: number): string {
 // ---------------------------------------------------------------------------
 
 async function main() {
+  console.log(`[READ-ONLY] Connecting to: ${process.env.DATABASE_URL?.replace(/\/\/.*@/, '//***@') ?? 'unknown'}`)
+
   const { weeks, teacherFilter, shiftFilter, excludeDates } = parseArgs()
 
   const weekendDates = getWeekendDatesInRange(weeks)

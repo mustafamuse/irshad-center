@@ -35,12 +35,13 @@ export function evaluateCheckIn(params: {
   clockInTimeUtc: Date
   shift: Shift
   timezone?: string
+  schoolDate?: string
 }): CheckInEvaluation {
   const { clockInTimeUtc, shift, timezone = SCHOOL_TIMEZONE } = params
 
-  // schoolDate derived from clockInTimeUtc — a check-in after midnight CT
-  // evaluates against the next day's deadline (accepted: real check-ins are 8–14 CT)
-  const schoolDate = formatInTimeZone(clockInTimeUtc, timezone, 'yyyy-MM-dd')
+  // When schoolDate is not provided, derive from clockInTimeUtc. A check-in after
+  // midnight CT evaluates against the next day's deadline (accepted: real check-ins are 8–14 CT).
+  const schoolDate = params.schoolDate ?? formatInTimeZone(clockInTimeUtc, timezone, 'yyyy-MM-dd')
   const { deadlineUtc } = resolveShiftDeadline({ schoolDate, shift, timezone })
 
   const diffMs = clockInTimeUtc.getTime() - deadlineUtc.getTime()
