@@ -313,7 +313,7 @@ function printReport(
     `  On-time:     ${String(onTime.length).padStart(4)} (${pct(onTime.length, totalExpected)})`
   )
   console.log(
-    `  Late:        ${String(late.length + mismatches.length).padStart(4)} (${pct(late.length + mismatches.length, totalExpected)})`
+    `  Late:        ${String(late.length + mismatches.filter((m) => m.recalculatedIsLate).length).padStart(4)} (${pct(late.length + mismatches.filter((m) => m.recalculatedIsLate).length, totalExpected)})`
   )
   console.log(
     `  Missing:     ${String(missing.length).padStart(4)} (${pct(missing.length, totalExpected)})  [provisional]`
@@ -547,8 +547,10 @@ async function main() {
 }
 
 main()
+  .then(() => prisma.$disconnect())
   .then(() => process.exit(0))
-  .catch((error) => {
+  .catch(async (error) => {
     console.error('Fatal error:', error)
+    await prisma.$disconnect()
     process.exit(1)
   })

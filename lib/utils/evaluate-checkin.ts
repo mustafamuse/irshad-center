@@ -3,6 +3,7 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/shift-times'
 
+// Phase 2: add deadlineLocal via toZonedTime(deadlineUtc, timezone) when display/logging needs it
 export interface ShiftDeadline {
   schoolDate: string
   shift: Shift
