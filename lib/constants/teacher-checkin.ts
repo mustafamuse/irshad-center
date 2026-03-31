@@ -6,10 +6,10 @@
  */
 
 import { Shift } from '@prisma/client'
-import { toZonedTime } from 'date-fns-tz'
 
 import { createClientLogger } from '@/lib/logger-client'
 import { calculateDistance } from '@/lib/services/geolocation-service'
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 
 const logger = createClientLogger('teacher-checkin')
 
@@ -49,16 +49,16 @@ export const SHIFT_START_TIMES: Record<
   Shift,
   { hour: number; minute: number }
 > = {
-  MORNING: { hour: 8, minute: 30 },
-  AFTERNOON: { hour: 14, minute: 15 },
+  MORNING: { hour: 8, minute: 45 },
+  AFTERNOON: { hour: 13, minute: 15 },
 } as const
 
 /**
  * Human-readable shift time labels for display.
  */
 export const SHIFT_TIME_LABELS: Record<Shift, string> = {
-  MORNING: '8:30 AM',
-  AFTERNOON: '2:15 PM',
+  MORNING: '8:45 AM',
+  AFTERNOON: '1:15 PM',
 } as const
 
 // ============================================================================
@@ -108,23 +108,11 @@ export const LOCATION_STATUS_BADGES = {
 // ============================================================================
 
 /**
- * Determines if a check-in time is late for a given shift.
- * Uses school timezone (America/Chicago) for consistent evaluation.
- *
- * @param clockInTime - The time the teacher clocked in
- * @param shift - The shift being checked into
- * @returns true if the teacher is late, false otherwise
+ * @deprecated Use evaluateCheckIn() from lib/utils/evaluate-checkin.ts instead.
+ * Thin wrapper kept for backward compatibility.
  */
 export function isLateForShift(clockInTime: Date, shift: Shift): boolean {
-  const shiftStart = SHIFT_START_TIMES[shift]
-  const zonedTime = toZonedTime(clockInTime, SCHOOL_TIMEZONE)
-  const clockInHour = zonedTime.getHours()
-  const clockInMinute = zonedTime.getMinutes()
-
-  if (clockInHour > shiftStart.hour) return true
-  if (clockInHour === shiftStart.hour && clockInMinute > shiftStart.minute)
-    return true
-  return false
+  return evaluateCheckIn({ clockInTimeUtc: clockInTime, shift }).isLate
 }
 
 /**

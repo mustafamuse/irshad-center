@@ -60,9 +60,17 @@ vi.mock('@/lib/constants/teacher-checkin', async (importOriginal) => {
     isWithinGeofence: (lat: number, lng: number) =>
       mockIsWithinGeofence(lat, lng),
     isGeofenceConfigured: () => mockIsGeofenceConfigured(),
-    isLateForShift: vi.fn(() => false),
   }
 })
+
+vi.mock('@/lib/utils/evaluate-checkin', () => ({
+  evaluateCheckIn: vi.fn(() => ({
+    isLate: false,
+    minutesLate: 0,
+    deadlineLocal: new Date('2024-01-15T08:45:00'),
+    deadlineUtc: new Date('2024-01-15T14:45:00Z'),
+  })),
+}))
 
 vi.mock('@/lib/logger', () => ({
   createServiceLogger: vi.fn(() => ({

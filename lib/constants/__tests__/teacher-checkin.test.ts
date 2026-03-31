@@ -10,20 +10,20 @@ import {
   GEOFENCE_RADIUS_METERS,
 } from '../teacher-checkin'
 
-describe('isLateForShift', () => {
-  describe('MORNING shift (8:30 AM)', () => {
-    it('should return false when clock-in is before 8:30', () => {
-      const clockIn = new Date('2024-01-15T08:00:00')
-      expect(isLateForShift(clockIn, Shift.MORNING)).toBe(false)
-    })
-
-    it('should return false when clock-in is exactly at 8:30', () => {
+describe('isLateForShift (deprecated wrapper)', () => {
+  describe('MORNING shift (8:45 AM CT)', () => {
+    it('should return false when clock-in is before 8:45', () => {
       const clockIn = new Date('2024-01-15T08:30:00')
       expect(isLateForShift(clockIn, Shift.MORNING)).toBe(false)
     })
 
-    it('should return true when clock-in is at 8:31', () => {
-      const clockIn = new Date('2024-01-15T08:31:00')
+    it('should return false when clock-in is exactly at 8:45', () => {
+      const clockIn = new Date('2024-01-15T08:45:00')
+      expect(isLateForShift(clockIn, Shift.MORNING)).toBe(false)
+    })
+
+    it('should return true when clock-in is at 8:46', () => {
+      const clockIn = new Date('2024-01-15T08:46:00')
       expect(isLateForShift(clockIn, Shift.MORNING)).toBe(true)
     })
 
@@ -33,29 +33,29 @@ describe('isLateForShift', () => {
     })
   })
 
-  describe('AFTERNOON shift (2:15 PM)', () => {
-    it('should return false when clock-in is before 14:15', () => {
-      const clockIn = new Date('2024-01-15T13:30:00')
+  describe('AFTERNOON shift (1:15 PM CT)', () => {
+    it('should return false when clock-in is before 13:15', () => {
+      const clockIn = new Date('2024-01-15T13:00:00')
       expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(false)
     })
 
-    it('should return false when clock-in is exactly at 14:15', () => {
-      const clockIn = new Date('2024-01-15T14:15:00')
+    it('should return false when clock-in is exactly at 13:15', () => {
+      const clockIn = new Date('2024-01-15T13:15:00')
       expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(false)
     })
 
-    it('should return false when clock-in is at 14:00', () => {
-      const clockIn = new Date('2024-01-15T14:00:00')
+    it('should return false when clock-in is at 13:00', () => {
+      const clockIn = new Date('2024-01-15T13:00:00')
       expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(false)
     })
 
-    it('should return true when clock-in is at 14:16', () => {
-      const clockIn = new Date('2024-01-15T14:16:00')
+    it('should return true when clock-in is at 13:16', () => {
+      const clockIn = new Date('2024-01-15T13:16:00')
       expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(true)
     })
 
-    it('should return true when clock-in is at 15:00', () => {
-      const clockIn = new Date('2024-01-15T15:00:00')
+    it('should return true when clock-in is at 14:15', () => {
+      const clockIn = new Date('2024-01-15T14:15:00')
       expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(true)
     })
   })
@@ -124,7 +124,7 @@ describe('isWithinGeofence', () => {
   })
 
   it('should validate shift start times are correct', () => {
-    expect(SHIFT_START_TIMES.MORNING).toEqual({ hour: 8, minute: 30 })
-    expect(SHIFT_START_TIMES.AFTERNOON).toEqual({ hour: 14, minute: 15 })
+    expect(SHIFT_START_TIMES.MORNING).toEqual({ hour: 8, minute: 45 })
+    expect(SHIFT_START_TIMES.AFTERNOON).toEqual({ hour: 13, minute: 15 })
   })
 })

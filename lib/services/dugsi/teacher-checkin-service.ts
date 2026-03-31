@@ -10,11 +10,11 @@ import { formatInTimeZone } from 'date-fns-tz'
 
 import {
   isWithinGeofence,
-  isLateForShift,
   isGeofenceConfigured,
   CHECKIN_ERROR_CODES,
   SCHOOL_TIMEZONE,
 } from '@/lib/constants/teacher-checkin'
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 import { prisma } from '@/lib/db'
 import {
   getCheckinById,
@@ -88,7 +88,8 @@ export async function clockIn(
     )
   }
 
-  const isLate = isLateForShift(now, shift)
+  const evaluation = evaluateCheckIn({ clockInTimeUtc: now, shift })
+  const isLate = evaluation.isLate
 
   let checkIn: TeacherCheckinWithRelations
 
