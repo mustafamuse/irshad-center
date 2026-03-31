@@ -397,6 +397,10 @@ export async function createTeacherWithPersonAction(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      logger.warn(
+        { hasEmail: !!input.email, hasPhone: !!input.phone },
+        'Duplicate contact on teacher create'
+      )
       return {
         success: false,
         error: 'A person with this email or phone already exists',
@@ -520,6 +524,7 @@ export async function updateTeacherDetailsAction(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
+      logger.warn({ teacherId }, 'Duplicate contact on teacher update')
       return {
         success: false,
         error: 'This email or phone is already in use',

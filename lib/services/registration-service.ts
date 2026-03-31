@@ -362,6 +362,18 @@ export async function createPersonWithContact(
 
       if (existingPerson) {
         logger.info({ personId: existingPerson.id }, 'Found existing Person')
+        // Conservative merge: fill null contact fields only (registration policy)
+        const updates: Prisma.PersonUpdateInput = {}
+        if (!existingPerson.email && normalizedEmail)
+          updates.email = normalizedEmail
+        if (!existingPerson.phone && normalizedPhone)
+          updates.phone = normalizedPhone
+        if (Object.keys(updates).length > 0) {
+          return client.person.update({
+            where: { id: existingPerson.id },
+            data: updates,
+          })
+        }
         return existingPerson
       }
       throwIfP2002(error)
