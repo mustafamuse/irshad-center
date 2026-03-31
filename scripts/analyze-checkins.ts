@@ -121,23 +121,15 @@ function formatDateShort(dateStr: string): string {
 // Lateness evaluation (inlined to avoid Sentry import chain)
 // ---------------------------------------------------------------------------
 
-function getMinutesLate(clockInTimeUtc: Date, shift: Shift): number {
-  const deadline = CHECKIN_DEADLINES[shift]
+function evaluateLateness(clockInTimeUtc: Date, shift: Shift): { isLate: boolean; minutesLate: number } {
+  const { hour, minute } = CHECKIN_DEADLINES[shift]
   const schoolDate = formatInTimeZone(clockInTimeUtc, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
-  const deadlineStr = `${schoolDate}T${String(deadline.hour).padStart(2, '0')}:${String(deadline.minute).padStart(2, '0')}:00`
+  const deadlineStr = `${schoolDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
   const deadlineUtc = fromZonedTime(deadlineStr, SCHOOL_TIMEZONE)
 
   const diffMs = clockInTimeUtc.getTime() - deadlineUtc.getTime()
-  return diffMs > 0 ? Math.floor(diffMs / 60_000) : 0
-}
-
-function isLateRecalculated(clockInTimeUtc: Date, shift: Shift): boolean {
-  const deadline = CHECKIN_DEADLINES[shift]
-  const schoolDate = formatInTimeZone(clockInTimeUtc, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
-  const deadlineStr = `${schoolDate}T${String(deadline.hour).padStart(2, '0')}:${String(deadline.minute).padStart(2, '0')}:00`
-  const deadlineUtc = fromZonedTime(deadlineStr, SCHOOL_TIMEZONE)
-
-  return clockInTimeUtc.getTime() > deadlineUtc.getTime()
+  const isLate = diffMs > 0
+  return { isLate, minutesLate: isLate ? Math.floor(diffMs / 60_000) : 0 }
 }
 
 // ---------------------------------------------------------------------------
@@ -255,8 +247,7 @@ function classifyCheckins(
           continue
         }
 
-        const recalcLate = isLateRecalculated(checkin.clockInTime, shift)
-        const minutesLate = getMinutesLate(checkin.clockInTime, shift)
+        const { isLate: recalcLate, minutesLate } = evaluateLateness(checkin.clockInTime, shift)
 
         if (checkin.isLate !== recalcLate) {
           results.push({

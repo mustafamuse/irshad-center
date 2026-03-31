@@ -5,11 +5,10 @@
  * shift times, geofencing, and status display.
  */
 
-import { Shift } from '@prisma/client'
+import type { Shift } from '@prisma/client'
 
 import { createClientLogger } from '@/lib/logger-client'
 import { calculateDistance } from '@/lib/services/geolocation-service'
-import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 
 const logger = createClientLogger('teacher-checkin')
 
@@ -106,14 +105,6 @@ export const LOCATION_STATUS_BADGES = {
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
-
-/**
- * @deprecated Use evaluateCheckIn() from lib/utils/evaluate-checkin.ts instead.
- * Thin wrapper kept for backward compatibility.
- */
-export function isLateForShift(clockInTime: Date, shift: Shift): boolean {
-  return evaluateCheckIn({ clockInTimeUtc: clockInTime, shift }).isLate
-}
 
 /**
  * Checks if a location is within the geofence radius of Irshad Center.

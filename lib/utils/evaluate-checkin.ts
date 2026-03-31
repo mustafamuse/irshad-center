@@ -6,14 +6,12 @@ import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/teacher-chec
 export interface ShiftDeadline {
   schoolDate: string
   shift: Shift
-  deadlineLocal: Date
   deadlineUtc: Date
 }
 
 export interface CheckInEvaluation {
   isLate: boolean
   minutesLate: number
-  deadlineLocal: Date
   deadlineUtc: Date
 }
 
@@ -28,14 +26,7 @@ export function resolveShiftDeadline(params: {
   const localDateTimeStr = `${schoolDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
   const deadlineUtc = fromZonedTime(localDateTimeStr, timezone)
 
-  const deadlineLocal = new Date(localDateTimeStr)
-
-  return {
-    schoolDate,
-    shift,
-    deadlineLocal,
-    deadlineUtc,
-  }
+  return { schoolDate, shift, deadlineUtc }
 }
 
 export function evaluateCheckIn(params: {
@@ -46,16 +37,11 @@ export function evaluateCheckIn(params: {
   const { clockInTimeUtc, shift, timezone = SCHOOL_TIMEZONE } = params
 
   const schoolDate = formatInTimeZone(clockInTimeUtc, timezone, 'yyyy-MM-dd')
-  const deadline = resolveShiftDeadline({ schoolDate, shift, timezone })
+  const { deadlineUtc } = resolveShiftDeadline({ schoolDate, shift, timezone })
 
-  const diffMs = clockInTimeUtc.getTime() - deadline.deadlineUtc.getTime()
+  const diffMs = clockInTimeUtc.getTime() - deadlineUtc.getTime()
   const isLate = diffMs > 0
   const minutesLate = isLate ? Math.floor(diffMs / 60_000) : 0
 
-  return {
-    isLate,
-    minutesLate,
-    deadlineLocal: deadline.deadlineLocal,
-    deadlineUtc: deadline.deadlineUtc,
-  }
+  return { isLate, minutesLate, deadlineUtc }
 }

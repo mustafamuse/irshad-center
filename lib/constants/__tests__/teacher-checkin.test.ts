@@ -1,65 +1,12 @@
-import { Shift } from '@prisma/client'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 import { calculateDistance } from '@/lib/services/geolocation-service'
 
 import {
-  isLateForShift,
   isWithinGeofence,
   SHIFT_START_TIMES,
   GEOFENCE_RADIUS_METERS,
 } from '../teacher-checkin'
-
-describe('isLateForShift (deprecated wrapper)', () => {
-  describe('MORNING shift (8:45 AM CT)', () => {
-    it('should return false when clock-in is before 8:45', () => {
-      const clockIn = new Date('2024-01-15T08:30:00')
-      expect(isLateForShift(clockIn, Shift.MORNING)).toBe(false)
-    })
-
-    it('should return false when clock-in is exactly at 8:45', () => {
-      const clockIn = new Date('2024-01-15T08:45:00')
-      expect(isLateForShift(clockIn, Shift.MORNING)).toBe(false)
-    })
-
-    it('should return true when clock-in is at 8:46', () => {
-      const clockIn = new Date('2024-01-15T08:46:00')
-      expect(isLateForShift(clockIn, Shift.MORNING)).toBe(true)
-    })
-
-    it('should return true when clock-in is at 9:00', () => {
-      const clockIn = new Date('2024-01-15T09:00:00')
-      expect(isLateForShift(clockIn, Shift.MORNING)).toBe(true)
-    })
-  })
-
-  describe('AFTERNOON shift (1:15 PM CT)', () => {
-    it('should return false when clock-in is before 13:15', () => {
-      const clockIn = new Date('2024-01-15T13:00:00')
-      expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(false)
-    })
-
-    it('should return false when clock-in is exactly at 13:15', () => {
-      const clockIn = new Date('2024-01-15T13:15:00')
-      expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(false)
-    })
-
-    it('should return false when clock-in is at 13:00', () => {
-      const clockIn = new Date('2024-01-15T13:00:00')
-      expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(false)
-    })
-
-    it('should return true when clock-in is at 13:16', () => {
-      const clockIn = new Date('2024-01-15T13:16:00')
-      expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(true)
-    })
-
-    it('should return true when clock-in is at 14:15', () => {
-      const clockIn = new Date('2024-01-15T14:15:00')
-      expect(isLateForShift(clockIn, Shift.AFTERNOON)).toBe(true)
-    })
-  })
-})
 
 describe('calculateDistance', () => {
   it('should return 0 for same coordinates', () => {

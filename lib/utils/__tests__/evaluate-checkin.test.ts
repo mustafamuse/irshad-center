@@ -20,7 +20,6 @@ describe('resolveShiftDeadline', () => {
     expect(result.schoolDate).toBe('2026-03-28')
     expect(result.shift).toBe(Shift.MORNING)
     expect(result.deadlineUtc).toEqual(ctToUtc('2026-03-28T08:45:00'))
-    expect(result.deadlineLocal).toEqual(new Date('2026-03-28T08:45:00'))
   })
 
   it('should resolve AFTERNOON deadline to 1:15 PM CT', () => {
@@ -30,7 +29,6 @@ describe('resolveShiftDeadline', () => {
     })
 
     expect(result.deadlineUtc).toEqual(ctToUtc('2026-03-28T13:15:00'))
-    expect(result.deadlineLocal).toEqual(new Date('2026-03-28T13:15:00'))
   })
 
   it('should handle DST spring-forward date (March 8, 2026)', () => {
