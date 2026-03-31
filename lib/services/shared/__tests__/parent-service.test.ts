@@ -165,6 +165,22 @@ describe('updateGuardianInfo', () => {
     )
   })
 
+  it('should clear email (set null) when empty string provided', async () => {
+    mockPersonFindUnique.mockResolvedValue(mockGuardianWithEmail)
+
+    await updateGuardianInfo('guardian-1', {
+      firstName: 'Test',
+      lastName: 'Guardian',
+      email: '',
+    })
+
+    expect(mockPersonUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ email: null }),
+      })
+    )
+  })
+
   it('should clear phone (set null) when empty string provided', async () => {
     mockPersonFindUnique.mockResolvedValue(mockGuardianWithPhone)
 
