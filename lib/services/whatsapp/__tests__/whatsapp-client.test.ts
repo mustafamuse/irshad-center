@@ -10,17 +10,19 @@ import {
 } from '../whatsapp-client'
 
 describe('formatPhoneForWhatsApp', () => {
-  it('should add country code 1 to 10-digit US phone', () => {
-    expect(formatPhoneForWhatsApp('5551234567')).toBe('15551234567')
+  it('should strip + from E.164 US number', () => {
+    expect(formatPhoneForWhatsApp('+15551234567')).toBe('15551234567')
   })
 
-  it('should strip non-numeric characters', () => {
-    expect(formatPhoneForWhatsApp('(555) 123-4567')).toBe('15551234567')
+  it('should strip + from E.164 Somali number', () => {
+    expect(formatPhoneForWhatsApp('+252612345678')).toBe('252612345678')
+  })
+
+  it('should strip + and formatting from E.164 with spaces', () => {
     expect(formatPhoneForWhatsApp('+1 555 123 4567')).toBe('15551234567')
-    expect(formatPhoneForWhatsApp('555.123.4567')).toBe('15551234567')
   })
 
-  it('should pass through 11-digit numbers unchanged', () => {
+  it('should pass through digits-only number unchanged', () => {
     expect(formatPhoneForWhatsApp('15551234567')).toBe('15551234567')
   })
 
@@ -29,8 +31,8 @@ describe('formatPhoneForWhatsApp', () => {
     expect(formatPhoneForWhatsApp('8615912345678')).toBe('8615912345678')
   })
 
-  it('should throw for numbers less than 10 digits', () => {
-    expect(() => formatPhoneForWhatsApp('555123456')).toThrow(
+  it('should throw for numbers fewer than 7 digits', () => {
+    expect(() => formatPhoneForWhatsApp('123456')).toThrow(
       'Invalid phone number format'
     )
     expect(() => formatPhoneForWhatsApp('12345')).toThrow(
@@ -65,8 +67,8 @@ describe('isValidPhoneNumber', () => {
     expect(isValidPhoneNumber('123456789012345')).toBe(true)
   })
 
-  it('should return false for numbers less than 10 digits', () => {
-    expect(isValidPhoneNumber('555123456')).toBe(false)
+  it('should return false for numbers fewer than 7 digits', () => {
+    expect(isValidPhoneNumber('123456')).toBe(false)
     expect(isValidPhoneNumber('12345')).toBe(false)
   })
 

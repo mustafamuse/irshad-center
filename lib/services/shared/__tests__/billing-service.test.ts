@@ -34,6 +34,7 @@ vi.mock('@/lib/db', () => ({
     },
     person: {
       findFirst: (...args: unknown[]) => mockPersonFindFirst(...args),
+      findUnique: (...args: unknown[]) => mockPersonFindFirst(...args),
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },

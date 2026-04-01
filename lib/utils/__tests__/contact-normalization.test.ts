@@ -5,16 +5,36 @@ import { normalizePhone } from '@/lib/types/person'
 import { normalizeEmail } from '../contact-normalization'
 
 describe('normalizePhone', () => {
-  it('strips leading 1 from 11-digit NANP number', () => {
-    expect(normalizePhone('16125551234')).toBe('6125551234')
+  it('normalizes 11-digit NANP to E.164', () => {
+    expect(normalizePhone('16125551234')).toBe('+16125551234')
   })
 
-  it('returns digits-only for valid 10-digit number', () => {
-    expect(normalizePhone('(612) 555-1234')).toBe('6125551234')
+  it('normalizes formatted US number to E.164', () => {
+    expect(normalizePhone('(612) 555-1234')).toBe('+16125551234')
   })
 
-  it('returns digits-only for already clean number', () => {
-    expect(normalizePhone('6125551234')).toBe('6125551234')
+  it('normalizes 10-digit US number to E.164', () => {
+    expect(normalizePhone('6125551234')).toBe('+16125551234')
+  })
+
+  it('passes through already-normalized E.164 US', () => {
+    expect(normalizePhone('+16125551234')).toBe('+16125551234')
+  })
+
+  it('normalizes Somali number (+252) to E.164', () => {
+    expect(normalizePhone('+252612345678')).toBe('+252612345678')
+  })
+
+  it('normalizes formatted Somali number to E.164', () => {
+    expect(normalizePhone('+252 61 234 5678')).toBe('+252612345678')
+  })
+
+  it('normalizes 12-digit international number without + to E.164', () => {
+    expect(normalizePhone('252612345678')).toBe('+252612345678')
+  })
+
+  it('normalizes 11-digit international number (not NANP)', () => {
+    expect(normalizePhone('26125551234')).toBe('+26125551234')
   })
 
   it('returns null for null input', () => {
@@ -35,10 +55,6 @@ describe('normalizePhone', () => {
 
   it('returns null for too-long number', () => {
     expect(normalizePhone('1234567890123456')).toBeNull()
-  })
-
-  it('rejects 11-digit non-NANP number', () => {
-    expect(normalizePhone('26125551234')).toBeNull()
   })
 })
 

@@ -132,7 +132,7 @@ describe('student queries use relationLoadStrategy: join', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             person: {
-              OR: expect.arrayContaining([{ phone: '6125551234' }]),
+              OR: expect.arrayContaining([{ phone: '+16125551234' }]),
             },
           }),
         })

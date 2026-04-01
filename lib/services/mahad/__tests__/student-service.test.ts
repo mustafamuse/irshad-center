@@ -115,7 +115,7 @@ describe('createMahadStudent', () => {
         name: 'Ahmed Mohamed',
         dateOfBirth: baseInput.dateOfBirth,
         email: 'ahmed@example.com',
-        phone: '6125551234',
+        phone: '+16125551234',
       },
     })
     expect(mockProgramProfileCreate).toHaveBeenCalledWith({
@@ -132,7 +132,7 @@ describe('createMahadStudent', () => {
     expect(mockCheckDuplicate).toHaveBeenCalledWith(
       {
         email: 'ahmed@example.com',
-        phone: '6125551234',
+        phone: '+16125551234',
         program: 'MAHAD_PROGRAM',
       },
       mockTx
@@ -159,7 +159,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'existing-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: { phone: '+16125551234' },
       })
     )
     expect(mockProgramProfileCreate).toHaveBeenCalledWith({
@@ -212,7 +212,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'returnee-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: { email: 'ahmed@example.com', phone: '+16125551234' },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
@@ -223,7 +223,7 @@ describe('createMahadStudent', () => {
       id: 'phone-only-person',
       name: 'Ahmed',
       email: null,
-      phone: '6125551234',
+      phone: '+16125551234',
     }
     mockCheckDuplicate.mockResolvedValue({
       isDuplicate: true,
@@ -237,7 +237,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'phone-only-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: { email: 'ahmed@example.com' },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
@@ -262,7 +262,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'email-only-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: { phone: '+16125551234' },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
@@ -335,12 +335,12 @@ describe('createMahadStudent', () => {
     })
   })
 
-  it('should normalize phone to digits only', async () => {
+  it('should normalize phone to E.164', async () => {
     await createMahadStudent({ ...baseInput, phone: '(612) 555-1234' })
 
     expect(mockPersonCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        phone: '6125551234',
+        phone: '+16125551234',
       }),
     })
   })
@@ -364,7 +364,7 @@ describe('createMahadStudent', () => {
         id: 'existing-person',
         name: 'Ahmed',
         email: 'ahmed@example.com',
-        phone: '6125551234',
+        phone: '+16125551234',
       },
       hasActiveProfile: true,
       activeProfile: {
@@ -392,7 +392,7 @@ describe('createMahadStudent', () => {
         id: 'existing-person',
         name: 'Ahmed',
         email: null,
-        phone: '6125551234',
+        phone: '+16125551234',
       },
       hasActiveProfile: true,
       activeProfile: {
@@ -475,7 +475,7 @@ describe('updateMahadStudent', () => {
 
     expect(mockPersonUpdate).toHaveBeenCalledWith({
       where: { id: 'person-1' },
-      data: { phone: '6125559999' },
+      data: { phone: '+16125559999' },
     })
   })
 

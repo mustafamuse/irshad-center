@@ -883,7 +883,7 @@ describe('Student Update Actions', () => {
       personId: 'person-1',
       person: {
         email: null,
-        phone: '6125551234',
+        phone: '+16125551234',
       },
       enrollments: [{ id: 'enroll-1' }],
     }
@@ -893,7 +893,7 @@ describe('Student Update Actions', () => {
       mockPrismaFindUnique.mockResolvedValue(mockProfile)
     })
 
-    it('should normalize phone before storing (612-555-1234 → 6125551234)', async () => {
+    it('should normalize phone before storing (612-555-1234 → +16125551234)', async () => {
       const result = await updateStudentAction('profile-1', {
         phone: '612-555-1234',
       })
@@ -902,7 +902,7 @@ describe('Student Update Actions', () => {
       expect(mockPersonUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'person-1' },
-          data: expect.objectContaining({ phone: '6125551234' }),
+          data: expect.objectContaining({ phone: '+16125551234' }),
         })
       )
     })
@@ -915,7 +915,7 @@ describe('Student Update Actions', () => {
       expect(result.success).toBe(false)
     })
 
-    it('should strip NANP country code (+16125551234 → 6125551234)', async () => {
+    it('should normalize NANP prefix to E.164 (+16125551234 -> +16125551234)', async () => {
       const result = await updateStudentAction('profile-1', {
         phone: '+1 (612) 555-1234',
       })
@@ -923,7 +923,7 @@ describe('Student Update Actions', () => {
       expect(result.success).toBe(true)
       expect(mockPersonUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ phone: '6125551234' }),
+          data: expect.objectContaining({ phone: '+16125551234' }),
         })
       )
     })
@@ -941,7 +941,7 @@ describe('Student Update Actions', () => {
       expect(result.success).toBe(true)
       expect(mockPersonUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ phone: '6125551234' }),
+          data: expect.objectContaining({ phone: '+16125551234' }),
         })
       )
     })

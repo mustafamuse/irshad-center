@@ -1,13 +1,12 @@
 // Phone number formatting function
 export function formatPhoneNumber(value: string): string {
+  // International numbers (+ prefix) — pass through without reformatting
+  if (value.trim().startsWith('+')) return value.trim()
+
   const cleaned = value.replace(/\D/g, '')
 
   if (cleaned.length <= 3) return cleaned
   if (cleaned.length <= 6) return `${cleaned.slice(0, 3)}-${cleaned.slice(3)}`
-  if (cleaned.length <= 10)
-    return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`
-
-  // Truncate to 10 digits
   return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`
 }
 

@@ -216,7 +216,7 @@ model Person {
   id          String    @id @default(uuid())
   name        String
   email       String?   @unique
-  phone       String?   @unique // exactly 10 digits, US only
+  phone       String?   @unique // E.164 format: +1XXXXXXXXXX (US), +252XXXXXXXXX (Somalia), etc.
   dateOfBirth DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt

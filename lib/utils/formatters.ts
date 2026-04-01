@@ -92,15 +92,21 @@ export function formatCurrency(amount: number): string {
 export function formatPhoneNumber(phone: string | null): string {
   if (!phone) return '—'
 
-  // Remove all non-digits
-  const digits = phone.replace(/\D/g, '')
+  const trimmed = phone.trim()
 
-  // Format as (XXX) XXX-XXXX if US number
-  if (digits.length === 10) {
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+  // E.164 US (+1XXXXXXXXXX) → (XXX) XXX-XXXX
+  const e164UsMatch = trimmed.match(/^\+1(\d{10})$/)
+  if (e164UsMatch) {
+    const d = e164UsMatch[1]
+    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`
   }
 
-  // Return original if not standard US format
+  // Legacy 10-digit US (pre-migration)
+  if (/^\d{10}$/.test(trimmed)) {
+    return `(${trimmed.slice(0, 3)}) ${trimmed.slice(3, 6)}-${trimmed.slice(6)}`
+  }
+
+  // International E.164 or other → return as-is
   return phone
 }
 

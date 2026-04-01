@@ -91,37 +91,22 @@ export interface TemplateComponent {
 // ============================================================================
 
 /**
- * Format phone number for WhatsApp API
- * WhatsApp requires E.164 format without the + prefix
+ * Format phone number for WhatsApp API.
+ * WhatsApp requires E.164 digits without the + prefix.
  *
- * ============================================================================
- * WARNING: US-CENTRIC IMPLEMENTATION
- * ============================================================================
- * This function assumes 10-digit numbers are US numbers and adds country code 1.
- * International numbers MUST include their country code (11-15 digits total).
- *
+ * Input must be E.164 format (from normalizePhone or stored in DB).
  * Examples:
- * - "5551234567" -> "15551234567" (US assumed)
- * - "15551234567" -> "15551234567" (US with code)
- * - "447911123456" -> "447911123456" (UK number)
+ * - "+16125551234" -> "16125551234"
+ * - "+252612345678" -> "252612345678"
  *
- * For full international support, consider libphonenumber-js library.
- * ============================================================================
- *
- * @param phone - Phone number in any format
- * @returns Phone number in WhatsApp format (country code + number, no +)
- * @throws Error if phone number length is invalid (<10 or >15 digits)
+ * @param phone - E.164 phone number (with or without + prefix)
+ * @returns Digits-only string for WhatsApp API (no + prefix)
+ * @throws Error if digit count is outside valid E.164 range (7-15)
  */
 export function formatPhoneForWhatsApp(phone: string): string {
   const digits = phone.replace(/\D/g, '')
 
-  // US numbers: 10 digits -> add country code 1
-  if (digits.length === 10) {
-    return `1${digits}`
-  }
-
-  // Already has country code (11-15 digits)
-  if (digits.length >= 11 && digits.length <= 15) {
+  if (digits.length >= 7 && digits.length <= 15) {
     return digits
   }
 
@@ -129,11 +114,11 @@ export function formatPhoneForWhatsApp(phone: string): string {
 }
 
 /**
- * Validate phone number format
+ * Validate phone number format (E.164 digit count check)
  */
 export function isValidPhoneNumber(phone: string): boolean {
   const digits = phone.replace(/\D/g, '')
-  return digits.length >= 10 && digits.length <= 15
+  return digits.length >= 7 && digits.length <= 15
 }
 
 /**

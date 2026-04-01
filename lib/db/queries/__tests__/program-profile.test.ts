@@ -100,11 +100,13 @@ describe('findPersonByActiveContact', () => {
   it('should query by phone on Person', async () => {
     mockPersonFindFirst.mockResolvedValue(null)
 
-    await findPersonByActiveContact(null, '6125551234')
+    await findPersonByActiveContact(null, '+16125551234')
 
     const call = mockPersonFindFirst.mock.calls[0][0]
     expect(call.where.OR).toEqual(
-      expect.arrayContaining([expect.objectContaining({ phone: '6125551234' })])
+      expect.arrayContaining([
+        expect.objectContaining({ phone: '+16125551234' }),
+      ])
     )
   })
 

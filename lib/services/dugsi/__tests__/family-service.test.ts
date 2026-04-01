@@ -223,11 +223,11 @@ describe('updateParentInfo', () => {
 
     expect(mockPersonUpdate).toHaveBeenCalledWith({
       where: { id: 'guardian-1' },
-      data: { name: 'Fatima Ali', phone: '6125551234' },
+      data: { name: 'Fatima Ali', phone: '+16125551234' },
     })
   })
 
-  it('should strip NANP country code (+16125551234 -> 6125551234)', async () => {
+  it('should normalize NANP prefix to E.164 (+16125551234 -> +16125551234)', async () => {
     mockGetProgramProfileById.mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI',
@@ -247,7 +247,7 @@ describe('updateParentInfo', () => {
 
     expect(mockPersonUpdate).toHaveBeenCalledWith({
       where: { id: 'guardian-1' },
-      data: { name: 'Fatima Ali', phone: '6125551234' },
+      data: { name: 'Fatima Ali', phone: '+16125551234' },
     })
   })
 
@@ -273,7 +273,7 @@ describe('addSecondParent', () => {
     mockFindPersonByContact.mockResolvedValue(null)
   })
 
-  it('should normalize phone before storing (612-555-1234 -> 6125551234)', async () => {
+  it('should normalize phone before storing (612-555-1234 -> +16125551234)', async () => {
     mockGetProgramProfileById.mockResolvedValue({
       id: 'profile-1',
       program: 'DUGSI',
@@ -294,7 +294,7 @@ describe('addSecondParent', () => {
     expect(mockPersonCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         email: 'ahmed@example.com',
-        phone: '6125551234',
+        phone: '+16125551234',
       }),
     })
   })
@@ -321,7 +321,7 @@ describe('addSecondParent', () => {
     expect(mockPersonCreate).not.toHaveBeenCalled()
     expect(mockPersonUpdate).toHaveBeenCalledWith({
       where: { id: 'existing-parent-id' },
-      data: { phone: '6125551234' },
+      data: { phone: '+16125551234', email: 'ahmed@example.com' },
     })
     expect(mockGuardianRelationshipCreate).toHaveBeenCalledWith(
       expect.objectContaining({

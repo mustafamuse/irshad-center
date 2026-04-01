@@ -65,7 +65,7 @@ Email and phone live directly on `Person` as nullable unique fields.
 
 1. **Always use normalizeEmail()/normalizePhone() before writing** — they return `null` for falsy input, preventing empty strings
 2. **Cleared values must be `NULL`, never empty string** — PostgreSQL treats `''` as a real value under unique constraints
-3. **Phone is US-only, 10-digit canonical** — `normalizePhone()` strips formatting and validates
+3. **Phone is E.164 canonical** (`+1XXXXXXXXXX` for US, `+252XXXXXXXXX` for Somalia, etc.) — `normalizePhone()` normalizes any input to E.164, returns null for invalid
 4. **Validate input before opening a transaction** — normalize/validate phones, emails, etc. before `prisma.$transaction()`
 5. **Never try-catch P2002 inside `$transaction()`** — PostgreSQL aborts the transaction on constraint violations
 

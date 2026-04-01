@@ -8,6 +8,8 @@ import {
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
+import { normalizePhone } from '@/lib/types/person'
+
 // ============================================================================
 // FEATURE FLAGS
 // ============================================================================
@@ -111,7 +113,10 @@ export const emailSchema = z
 
 export const phoneSchema = z
   .string()
-  .regex(/^\d{3}-\d{3}-\d{4}$/, 'Enter a valid phone number (XXX-XXX-XXXX)')
+  .refine(
+    (val) => normalizePhone(val) !== null,
+    'Enter a valid phone number (e.g. 612-555-1234 or +252 61 234 5678)'
+  )
 
 const schoolNameSchema = z
   .string()

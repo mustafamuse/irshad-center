@@ -41,8 +41,18 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/utils/contact-normalization', () => ({
   normalizeEmail: (email: string | undefined | null) =>
     email ? email.trim().toLowerCase() : null,
-  normalizePhone: (phone: string | undefined | null) =>
-    phone ? phone.replace(/\D/g, '') : null,
+  normalizePhone: (phone: string | undefined | null) => {
+    if (!phone) return null
+    const trimmed = phone.trim()
+    if (trimmed.startsWith('+')) {
+      const digits = trimmed.replace(/\D/g, '')
+      return digits.length >= 7 && digits.length <= 15 ? `+${digits}` : null
+    }
+    const digits = trimmed.replace(/\D/g, '')
+    if (digits.length === 10) return `+1${digits}`
+    if (digits.length >= 11 && digits.length <= 15) return `+${digits}`
+    return null
+  },
 }))
 
 import { ActionError } from '@/lib/errors/action-error'
@@ -128,7 +138,7 @@ describe('updateGuardianInfo', () => {
 
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ phone: '6125559999' }),
+        data: expect.objectContaining({ phone: '+16125559999' }),
       })
     )
   })
@@ -160,7 +170,7 @@ describe('updateGuardianInfo', () => {
 
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ phone: '6125559999' }),
+        data: expect.objectContaining({ phone: '+16125559999' }),
       })
     )
   })
@@ -186,7 +196,7 @@ describe('addGuardianRelationship', () => {
       id: 'new-person-1',
       name: 'Jane Doe',
       email: 'jane@example.com',
-      phone: '6125551234',
+      phone: '+16125551234',
     }
     mockPersonCreate.mockResolvedValue(createdPerson)
     mockGuardianRelationshipCreate.mockResolvedValue({
@@ -203,7 +213,7 @@ describe('addGuardianRelationship', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           email: 'jane@example.com',
-          phone: '6125551234',
+          phone: '+16125551234',
         }),
       })
     )
