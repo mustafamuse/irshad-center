@@ -88,9 +88,7 @@ export async function clockIn(
     )
   }
 
-  const evaluation = evaluateCheckIn({ clockInTimeUtc: now, shift })
-  const isLate = evaluation.isLate
-  // evaluation.minutesLate available for Phase 2 (DugsiTeacherAttendance)
+  const { isLate } = evaluateCheckIn({ clockInTimeUtc: now, shift })
 
   let checkIn: TeacherCheckinWithRelations
 

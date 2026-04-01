@@ -3,7 +3,6 @@ import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/shift-times'
 
-// Phase 2: add deadlineLocal via toZonedTime(deadlineUtc, timezone) when display/logging needs it
 export interface ShiftDeadline {
   schoolDate: string
   shift: Shift
@@ -25,7 +24,9 @@ export function resolveShiftDeadline(params: {
   const { schoolDate, shift, timezone = SCHOOL_TIMEZONE } = params
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(schoolDate)) {
-    throw new Error(`resolveShiftDeadline: invalid schoolDate format "${schoolDate}", expected YYYY-MM-DD`)
+    throw new Error(
+      `resolveShiftDeadline: invalid schoolDate format "${schoolDate}", expected YYYY-MM-DD`
+    )
   }
 
   const { hour, minute } = SHIFT_START_TIMES[shift]
@@ -34,7 +35,9 @@ export function resolveShiftDeadline(params: {
   const deadlineUtc = fromZonedTime(localDateTimeStr, timezone)
 
   if (isNaN(deadlineUtc.getTime())) {
-    throw new Error(`resolveShiftDeadline: produced Invalid Date for "${localDateTimeStr}" in timezone "${timezone}"`)
+    throw new Error(
+      `resolveShiftDeadline: produced Invalid Date for "${localDateTimeStr}" in timezone "${timezone}"`
+    )
   }
 
   return { schoolDate, shift, deadlineUtc }
@@ -48,9 +51,11 @@ export function evaluateCheckIn(params: {
 }): CheckInEvaluation {
   const { clockInTimeUtc, shift, timezone = SCHOOL_TIMEZONE } = params
 
-  // When schoolDate is not provided, derive from clockInTimeUtc. A check-in after
-  // midnight CT evaluates against the next day's deadline (accepted: real check-ins are 8–14 CT).
-  const schoolDate = params.schoolDate ?? formatInTimeZone(clockInTimeUtc, timezone, 'yyyy-MM-dd')
+  // No schoolDate provided: derive from clockInTimeUtc projected into CT. A UTC timestamp
+  // crossing midnight CT belongs to the next calendar school day.
+  const schoolDate =
+    params.schoolDate ??
+    formatInTimeZone(clockInTimeUtc, timezone, 'yyyy-MM-dd')
   const { deadlineUtc } = resolveShiftDeadline({ schoolDate, shift, timezone })
 
   const diffMs = clockInTimeUtc.getTime() - deadlineUtc.getTime()

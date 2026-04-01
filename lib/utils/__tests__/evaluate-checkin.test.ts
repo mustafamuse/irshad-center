@@ -48,6 +48,12 @@ describe('resolveShiftDeadline', () => {
 
     expect(result.deadlineUtc).toEqual(ctToUtc('2026-11-01T08:45:00'))
   })
+
+  it('should throw on invalid schoolDate format', () => {
+    expect(() =>
+      resolveShiftDeadline({ schoolDate: '03/28/2026', shift: Shift.MORNING })
+    ).toThrow('invalid schoolDate format')
+  })
 })
 
 describe('evaluateCheckIn', () => {
