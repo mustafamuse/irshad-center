@@ -390,7 +390,7 @@ export async function createPersonWithContact(
               updateError.code === 'P2002'
             ) {
               // Concurrent request already set the field — fetch latest state
-              return client.person.findUniqueOrThrow({
+              return await client.person.findUniqueOrThrow({
                 where: { id: existingPerson.id },
               })
             }

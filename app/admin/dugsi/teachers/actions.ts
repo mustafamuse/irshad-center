@@ -33,10 +33,10 @@ import {
   getTeacherPrograms,
 } from '@/lib/services/shared/teacher-service'
 import { ValidationError } from '@/lib/services/validation-service'
-import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
 import {
   normalizeEmail,
+  normalizePhone,
   validateAndNormalizeEmail,
 } from '@/lib/utils/contact-normalization'
 import {
