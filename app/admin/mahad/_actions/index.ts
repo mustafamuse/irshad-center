@@ -398,23 +398,22 @@ export async function resolveDuplicatesAction(
   deleteIds: string[],
   mergeData: boolean = false
 ): Promise<ActionResult> {
-  const validKeepId = z.string().uuid().safeParse(keepId)
-  if (!validKeepId.success) {
-    return { success: false, error: 'Invalid student ID' }
-  }
-  if (!Array.isArray(deleteIds) || deleteIds.length === 0) {
-    return {
-      success: false,
-      error: 'No duplicate records selected for deletion',
-    }
-  }
-  const validDeleteIds = z.array(z.string().uuid()).safeParse(deleteIds)
-  if (!validDeleteIds.success) {
-    return { success: false, error: 'Invalid duplicate IDs' }
-  }
-
   try {
     await assertAdmin('resolveDuplicatesAction')
+    const validKeepId = z.string().uuid().safeParse(keepId)
+    if (!validKeepId.success) {
+      return { success: false, error: 'Invalid student ID' }
+    }
+    if (!Array.isArray(deleteIds) || deleteIds.length === 0) {
+      return {
+        success: false,
+        error: 'No duplicate records selected for deletion',
+      }
+    }
+    const validDeleteIds = z.array(z.string().uuid()).safeParse(deleteIds)
+    if (!validDeleteIds.success) {
+      return { success: false, error: 'Invalid duplicate IDs' }
+    }
     if (deleteIds.includes(keepId)) {
       return {
         success: false,
@@ -474,13 +473,12 @@ export async function resolveDuplicatesAction(
 export async function getStudentDeleteWarningsAction(
   id: string
 ): Promise<ActionResult<DeleteWarnings>> {
-  const validId = z.string().uuid().safeParse(id)
-  if (!validId.success) {
-    return { success: false, error: 'Invalid student ID' }
-  }
-
   try {
     await assertAdmin('getStudentDeleteWarningsAction')
+    const validId = z.string().uuid().safeParse(id)
+    if (!validId.success) {
+      return { success: false, error: 'Invalid student ID' }
+    }
     const warnings = await getStudentDeleteWarnings(id)
     return { success: true, data: warnings }
   } catch (error) {
@@ -495,13 +493,12 @@ export async function getStudentDeleteWarningsAction(
 }
 
 export async function deleteStudentAction(id: string): Promise<ActionResult> {
-  const validId = z.string().uuid().safeParse(id)
-  if (!validId.success) {
-    return { success: false, error: 'Invalid student ID' }
-  }
-
   try {
     await assertAdmin('deleteStudentAction')
+    const validId = z.string().uuid().safeParse(id)
+    if (!validId.success) {
+      return { success: false, error: 'Invalid student ID' }
+    }
     const student = await getStudentById(id)
     if (!student) {
       return {
@@ -554,16 +551,15 @@ export async function deleteStudentAction(id: string): Promise<ActionResult> {
 export async function bulkDeleteStudentsAction(
   studentIds: string[]
 ): Promise<ActionResult<BulkDeleteResult>> {
-  if (!Array.isArray(studentIds) || studentIds.length === 0) {
-    return { success: false, error: 'No students selected for deletion' }
-  }
-  const validIds = z.array(z.string().uuid()).safeParse(studentIds)
-  if (!validIds.success) {
-    return { success: false, error: 'Invalid student IDs' }
-  }
-
   try {
     await assertAdmin('bulkDeleteStudentsAction')
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return { success: false, error: 'No students selected for deletion' }
+    }
+    const validIds = z.array(z.string().uuid()).safeParse(studentIds)
+    if (!validIds.success) {
+      return { success: false, error: 'Invalid student IDs' }
+    }
     const { deletedCount, blockedIds } = await prisma.$transaction(
       async (tx) => {
         const activeAssignments = await tx.billingAssignment.findMany({
@@ -766,13 +762,12 @@ export interface PaymentLinkData {
 export async function generatePaymentLinkAction(
   profileId: string
 ): Promise<ActionResult<PaymentLinkData>> {
-  const validId = z.string().uuid().safeParse(profileId)
-  if (!validId.success) {
-    return { success: false, error: 'Invalid student ID' }
-  }
-
   try {
     await assertAdmin('generatePaymentLinkAction')
+    const validId = z.string().uuid().safeParse(profileId)
+    if (!validId.success) {
+      return { success: false, error: 'Invalid student ID' }
+    }
     // 1. Fetch profile with billing config and contact info
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },
@@ -945,13 +940,12 @@ const DEFAULT_BILLING_CONFIG: {
 export async function generatePaymentLinkWithDefaultsAction(
   profileId: string
 ): Promise<ActionResult<PaymentLinkData>> {
-  const validId = z.string().uuid().safeParse(profileId)
-  if (!validId.success) {
-    return { success: false, error: 'Invalid student ID' }
-  }
-
   try {
     await assertAdmin('generatePaymentLinkWithDefaultsAction')
+    const validId = z.string().uuid().safeParse(profileId)
+    if (!validId.success) {
+      return { success: false, error: 'Invalid student ID' }
+    }
     // Use transaction to ensure check + update are atomic
     const result = await prisma.$transaction(async (tx) => {
       // 1. Check student exists and get batch info via enrollment
@@ -1049,37 +1043,36 @@ export async function generatePaymentLinkWithOverrideAction(
 ): Promise<ActionResult<PaymentLinkWithOverrideData>> {
   const { profileId, overrideAmount, billingStartDate } = input
 
-  const validId = z.string().uuid().safeParse(profileId)
-  if (!validId.success) {
-    return { success: false, error: 'Invalid student ID' }
-  }
-
-  // Validate billingStartDate if provided (Zod validation per CLAUDE.md Rule 8)
-  if (billingStartDate) {
-    const dateResult = BillingStartDateSchema.safeParse(billingStartDate)
-    if (!dateResult.success) {
-      return {
-        success: false,
-        error:
-          dateResult.error.errors[0]?.message || 'Invalid billing start date',
-      }
-    }
-  }
-
-  // Validate override amount if provided
-  if (overrideAmount !== undefined) {
-    const amountResult = OverrideAmountSchema.safeParse(overrideAmount)
-    if (!amountResult.success) {
-      return {
-        success: false,
-        error:
-          amountResult.error.errors[0]?.message || 'Invalid override amount',
-      }
-    }
-  }
-
   try {
     await assertAdmin('generatePaymentLinkWithOverrideAction')
+    const validId = z.string().uuid().safeParse(profileId)
+    if (!validId.success) {
+      return { success: false, error: 'Invalid student ID' }
+    }
+
+    // Validate billingStartDate if provided (Zod validation per CLAUDE.md Rule 8)
+    if (billingStartDate) {
+      const dateResult = BillingStartDateSchema.safeParse(billingStartDate)
+      if (!dateResult.success) {
+        return {
+          success: false,
+          error:
+            dateResult.error.errors[0]?.message || 'Invalid billing start date',
+        }
+      }
+    }
+
+    // Validate override amount if provided
+    if (overrideAmount !== undefined) {
+      const amountResult = OverrideAmountSchema.safeParse(overrideAmount)
+      if (!amountResult.success) {
+        return {
+          success: false,
+          error:
+            amountResult.error.errors[0]?.message || 'Invalid override amount',
+        }
+      }
+    }
     // 1. Fetch profile with billing config and contact info
     const profile = await prisma.programProfile.findUnique({
       where: { id: profileId },

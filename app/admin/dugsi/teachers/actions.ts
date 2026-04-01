@@ -298,14 +298,16 @@ export async function getTeachers(
 export async function createTeacherAction(
   rawInput: unknown
 ): Promise<ActionResult<{ teacherId: string }>> {
-  const parsed = createTeacherSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const input = parsed.data
+  let personId: string | undefined
 
   try {
     await assertAdmin('createTeacherAction')
+    const parsed = createTeacherSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    }
+    const input = parsed.data
+    personId = input.personId
     // Use transaction to create teacher and enroll in Dugsi atomically
     const teacher = await prisma.$transaction(async (tx) => {
       const newTeacher = await createTeacher(input.personId, tx)
@@ -338,7 +340,7 @@ export async function createTeacherAction(
     }
   } catch (error) {
     await logError(logger, error, 'Failed to create teacher', {
-      personId: input.personId,
+      personId,
     })
 
     if (
@@ -458,14 +460,15 @@ export async function createTeacherWithPersonAction(
 export async function deleteTeacherAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = deleteTeacherSchema.safeParse({ teacherId: rawInput })
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { teacherId } = parsed.data
+  let teacherId: string | undefined
 
   try {
     await assertAdmin('deleteTeacherAction')
+    const parsed = deleteTeacherSchema.safeParse({ teacherId: rawInput })
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    }
+    teacherId = parsed.data.teacherId
     await deleteTeacher(teacherId)
 
     revalidatePath('/admin/teachers')
@@ -489,18 +492,17 @@ export async function deleteTeacherAction(
 export async function updateTeacherDetailsAction(
   input: UpdateTeacherDetailsInput
 ): Promise<ActionResult<TeacherWithDetails>> {
-  const parsed = updateTeacherDetailsSchema.safeParse(input)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-
-  const { teacherId, name, email, phone } = parsed.data
-
   try {
     await assertAdmin('updateTeacherDetailsAction')
+    const parsed = updateTeacherDetailsSchema.safeParse(input)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+
+    const { teacherId, name, email, phone } = parsed.data
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
       include: {
@@ -552,7 +554,7 @@ export async function updateTeacherDetailsAction(
     }
 
     await logError(logger, error, 'Failed to update teacher details', {
-      teacherId,
+      teacherId: input.teacherId,
     })
 
     return {
@@ -569,18 +571,17 @@ export async function updateTeacherDetailsAction(
 export async function updateTeacherShiftsAction(
   input: UpdateTeacherShiftsInput
 ): Promise<ActionResult<Shift[]>> {
-  const parsed = updateTeacherShiftsSchema.safeParse(input)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-
-  const { teacherId, shifts } = parsed.data
-
   try {
     await assertAdmin('updateTeacherShiftsAction')
+    const parsed = updateTeacherShiftsSchema.safeParse(input)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+
+    const { teacherId, shifts } = parsed.data
     const teacherProgram = await prisma.teacherProgram.findFirst({
       where: {
         teacherId,
@@ -605,7 +606,7 @@ export async function updateTeacherShiftsAction(
     return { success: true, data: shifts as Shift[] }
   } catch (error) {
     await logError(logger, error, 'Failed to update teacher shifts', {
-      teacherId,
+      teacherId: input.teacherId,
     })
     return {
       success: false,
@@ -841,14 +842,15 @@ export async function bulkAssignProgramsAction(
 export async function getTeacherProgramsAction(
   rawInput: unknown
 ): Promise<ActionResult<Program[]>> {
-  const parsed = getTeacherProgramsSchema.safeParse({ teacherId: rawInput })
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { teacherId } = parsed.data
+  let teacherId: string | undefined
 
   try {
     await assertAdmin('getTeacherProgramsAction')
+    const parsed = getTeacherProgramsSchema.safeParse({ teacherId: rawInput })
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    }
+    teacherId = parsed.data.teacherId
     const programs = await getTeacherPrograms(teacherId)
 
     return {

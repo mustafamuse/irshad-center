@@ -133,6 +133,24 @@ describe('pauseFamilyBillingAction', () => {
       expect.objectContaining({ familyReferenceId: VALID_UUID })
     )
   })
+
+  it('should return unauthorized when assertAdmin rejects', async () => {
+    const { ActionError, ERROR_CODES } = await import(
+      '@/lib/errors/action-error'
+    )
+    mockAssertAdmin.mockRejectedValueOnce(
+      new ActionError('Unauthorized', ERROR_CODES.UNAUTHORIZED, undefined, 401)
+    )
+
+    const result = await pauseFamilyBillingAction({
+      familyReferenceId: VALID_UUID,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Unauthorized')
+    expect(mockAssertAdmin).toHaveBeenCalledWith('pauseFamilyBillingAction')
+    expect(mockPauseFamilyBilling).not.toHaveBeenCalled()
+  })
 })
 
 // ============================================================================
@@ -212,13 +230,13 @@ describe('resumeFamilyBillingAction', () => {
       new ActionError('Unauthorized', ERROR_CODES.UNAUTHORIZED, undefined, 401)
     )
 
-    const result = await pauseFamilyBillingAction({
+    const result = await resumeFamilyBillingAction({
       familyReferenceId: VALID_UUID,
     })
 
     expect(result.success).toBe(false)
     expect(result.error).toContain('Unauthorized')
-    expect(mockAssertAdmin).toHaveBeenCalledWith('pauseFamilyBillingAction')
-    expect(mockPauseFamilyBilling).not.toHaveBeenCalled()
+    expect(mockAssertAdmin).toHaveBeenCalledWith('resumeFamilyBillingAction')
+    expect(mockResumeFamilyBilling).not.toHaveBeenCalled()
   })
 })
