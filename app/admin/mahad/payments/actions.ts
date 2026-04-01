@@ -2,6 +2,7 @@
 
 import { assertAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError, logWarning } from '@/lib/logger'
 
 const logger = createActionLogger('mahad-payments')
@@ -25,6 +26,7 @@ export async function getBatchesForFilter() {
     })
     return batches
   } catch (error) {
+    if (error instanceof ActionError) throw error
     await logError(logger, error, 'Failed to fetch batches for filter')
     return []
   }
@@ -39,7 +41,7 @@ export async function runPaymentsBackfill() {
   try {
     await assertAdmin('runPaymentsBackfill')
   } catch {
-    return { success: false, message: 'Unauthorized' }
+    return { success: false, error: 'Unauthorized' }
   }
   await logWarning(
     logger,

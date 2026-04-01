@@ -127,7 +127,12 @@ export async function linkSubscriptionToStudent(
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    throw error
+    await logError(logger, error, 'Failed to link subscription', {
+      subscriptionId,
+      studentId,
+      program,
+    })
+    return { success: false, error: 'Failed to link subscription' }
   }
 }
 
@@ -162,7 +167,11 @@ export async function ignoreSubscription(
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    throw error
+    await logError(logger, error, 'Failed to ignore subscription', {
+      subscriptionId,
+      program,
+    })
+    return { success: false, error: 'Failed to ignore subscription' }
   }
 }
 
@@ -190,6 +199,10 @@ export async function unignoreSubscription(
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    throw error
+    await logError(logger, error, 'Failed to unignore subscription', {
+      subscriptionId,
+      program,
+    })
+    return { success: false, error: 'Failed to unignore subscription' }
   }
 }
