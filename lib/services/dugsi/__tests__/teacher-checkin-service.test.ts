@@ -60,9 +60,16 @@ vi.mock('@/lib/constants/teacher-checkin', async (importOriginal) => {
     isWithinGeofence: (lat: number, lng: number) =>
       mockIsWithinGeofence(lat, lng),
     isGeofenceConfigured: () => mockIsGeofenceConfigured(),
-    isLateForShift: vi.fn(() => false),
   }
 })
+
+vi.mock('@/lib/utils/evaluate-checkin', () => ({
+  evaluateCheckIn: vi.fn(() => ({
+    isLate: false,
+    minutesLate: 0,
+    deadlineUtc: new Date('2024-01-15T14:45:00Z'),
+  })),
+}))
 
 vi.mock('@/lib/logger', () => ({
   createServiceLogger: vi.fn(() => ({
@@ -72,6 +79,8 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn(),
   })),
 }))
+
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 
 import {
   clockIn,
@@ -133,6 +142,33 @@ describe('clockIn', () => {
     expect(result.checkIn).toBeDefined()
     expect(result.checkIn.id).toBe('checkin-1')
     expect(mockCreate).toHaveBeenCalled()
+    expect(evaluateCheckIn).toHaveBeenCalledWith(
+      expect.objectContaining({ shift: Shift.MORNING })
+    )
+  })
+
+  it('should pass isLate: true from evaluator to database record', async () => {
+    vi.mocked(evaluateCheckIn).mockReturnValueOnce({
+      isLate: true,
+      minutesLate: 5,
+      deadlineUtc: new Date('2024-01-15T14:45:00Z'),
+    })
+    mockCreate.mockResolvedValue({ ...mockCheckin, isLate: true })
+
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await clockIn(input)
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ isLate: true }),
+      })
+    )
   })
 
   it('should throw error if teacher is not enrolled in Dugsi', async () => {

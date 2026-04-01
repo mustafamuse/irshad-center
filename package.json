@@ -33,7 +33,8 @@
     "setup-hooks": "bash .github/scripts/setup-hooks.sh",
     "db:safety-check": "tsx scripts/db-safety-check.ts",
     "db:reset-safe": "tsx scripts/safe-migrate-reset.ts",
-    "merge:duplicates": "tsx scripts/merge-duplicate-persons.ts"
+    "merge:duplicates": "tsx scripts/merge-duplicate-persons.ts",
+    "analyze:checkins": "tsx scripts/analyze-checkins.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
