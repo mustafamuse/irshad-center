@@ -36,7 +36,7 @@ export type RegistrationResult = {
  * Register children for the Dugsi program.
  *
  * Creates:
- * - Parent Person records with ContactPoints (email, phone)
+ * - Parent Person records (email, phone)
  * - Child Person records
  * - ProgramProfiles for each child (program = DUGSI_PROGRAM)
  * - Enrollments (status = REGISTERED)

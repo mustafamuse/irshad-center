@@ -26,7 +26,10 @@ import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
-import { normalizeEmail } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  validateAndNormalizeEmail,
+} from '@/lib/utils/contact-normalization'
 
 export interface MahadStudent {
   id: string
@@ -288,7 +291,12 @@ export async function getStudentsWithBatchFiltered(
     where.person = {
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
+        {
+          email: {
+            contains: validateAndNormalizeEmail(searchTerm) ?? searchTerm,
+            mode: 'insensitive',
+          },
+        },
         ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     }
@@ -782,9 +790,10 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
 export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
-  mergeData: boolean = false
+  mergeData: boolean = false,
+  client: typeof prisma = prisma // must be the top-level client — calls $transaction() internally
 ) {
-  await prisma.$transaction(async (tx) => {
+  await client.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({
       where: { id: keepId },
       relationLoadStrategy: 'join',
@@ -815,7 +824,8 @@ export async function resolveDuplicateStudents(
       if (!keepProfile.person.email) {
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.email) {
-            personUpdates.email = delProfile.person.email
+            personUpdates.email =
+              normalizeEmail(delProfile.person.email) ?? null
             break
           }
         }
@@ -823,7 +833,10 @@ export async function resolveDuplicateStudents(
       if (!keepProfile.person.phone) {
         for (const delProfile of deleteProfiles) {
           if (delProfile.person.phone) {
-            personUpdates.phone = delProfile.person.phone
+            // Phone must be canonical (10-digit US) or null — no raw fallback.
+            // All stored phones are already canonical so this ?? null is a safety net.
+            personUpdates.phone =
+              normalizePhone(delProfile.person.phone) ?? null
             break
           }
         }

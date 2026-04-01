@@ -30,7 +30,7 @@ export interface PersonWithRelations extends Person {
 
 /**
  * Normalize phone to digits-only. Strips NANP country code (1) from 11-digit numbers.
- * Returns null for invalid numbers (<10 or >15 digits, or 11-digit non-NANP).
+ * Returns null for invalid numbers (only 10-digit US numbers or 11-digit with leading '1' accepted).
  */
 export function normalizePhone(
   phone: string | null | undefined

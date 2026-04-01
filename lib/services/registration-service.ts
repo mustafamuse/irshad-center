@@ -23,6 +23,7 @@ import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
+import { throwIfP2002 } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import {
@@ -137,7 +138,8 @@ const personDataSchema = z.object({
     .string()
     .regex(phoneRegex, 'Phone must be in format XXX-XXX-XXXX')
     .refine((phone) => !phone || normalizePhone(phone) !== null, {
-      message: 'Invalid phone number - cannot be normalized',
+      message:
+        'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
     })
     .nullable()
     .optional(),
@@ -301,6 +303,7 @@ export async function createPersonWithContact(
 
   const client = tx || prisma
 
+  const normalizedEmail = normalizeEmail(email)
   const normalizedPhone = phone ? normalizePhone(phone) : null
   if (phone && !normalizedPhone) {
     const digits = phone.replace(/\D/g, '')
@@ -309,7 +312,7 @@ export async function createPersonWithContact(
         name,
         phone,
         digitCount: digits.length,
-        expectedDigits: '10-15',
+        expectedDigits: '10',
       },
       'Phone normalization failed during person creation'
     )
@@ -318,14 +321,96 @@ export async function createPersonWithContact(
     )
   }
 
-  const person = await client.person.create({
-    data: {
-      name,
-      dateOfBirth,
-      email: normalizeEmail(email),
-      phone: normalizedPhone,
-    },
-  })
+  // When called inside a transaction, let P2002 propagate naturally — no catch.
+  // PostgreSQL aborts the tx on constraint violations, so recovery code would be dead.
+  if (tx) {
+    // return await (not bare return) preserves this frame in rejection stack traces.
+    return await client.person.create({
+      data: {
+        name,
+        dateOfBirth,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+      },
+    })
+  }
+
+  let person
+  try {
+    person = await client.person.create({
+      data: {
+        name,
+        dateOfBirth,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+      },
+    })
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      logger.info(
+        { hasEmail: !!email, hasPhone: !!normalizedPhone },
+        'P2002 on person.create — looking up existing person by contact'
+      )
+
+      // Note: findPersonByActiveContact uses an OR query (email OR phone). In the
+      // rare split-contact race — email belongs to Person A, phone to Person B —
+      // findFirst returns whichever the DB finds first. The update for the other
+      // contact then hits a second P2002 (handled below). The function returns a
+      // valid real person but without the conflicting contact: conservative merge
+      // correctly refuses to overwrite a contact owned by a different person.
+      //
+      // Also includes programProfiles/enrollments (not needed here); acceptable
+      // cost on this exceptional path.
+      const existingPerson = await findPersonByActiveContact(
+        normalizedEmail,
+        normalizedPhone,
+        client
+      )
+
+      if (existingPerson) {
+        logger.info({ personId: existingPerson.id }, 'Found existing Person')
+        // Conservative merge: fill null contact fields only (registration policy)
+        const updates: Prisma.PersonUpdateInput = {}
+        if (!existingPerson.email && normalizedEmail)
+          updates.email = normalizedEmail
+        if (!existingPerson.phone && normalizedPhone)
+          updates.phone = normalizedPhone
+        if (Object.keys(updates).length > 0) {
+          try {
+            return await client.person.update({
+              where: { id: existingPerson.id },
+              data: updates,
+            })
+          } catch (updateError) {
+            if (
+              updateError instanceof Prisma.PrismaClientKnownRequestError &&
+              updateError.code === 'P2002'
+            ) {
+              // Concurrent request already set the field — fetch latest state
+              return await client.person.findUniqueOrThrow({
+                where: { id: existingPerson.id },
+              })
+            }
+            throw updateError
+          }
+        }
+        return existingPerson
+      }
+      // findPersonByActiveContact returned null: the conflicting person was deleted
+      // in the race between our create and this findFirst. The DUPLICATE_CONTACT error
+      // below is technically misleading (person is gone), but a retry would likely succeed.
+      logger.warn(
+        { hasEmail: !!email, hasPhone: !!normalizedPhone },
+        'P2002 recovery: conflicting person not found (concurrent delete race)'
+      )
+      throwIfP2002(error)
+    }
+
+    throw error
+  }
 
   logger.info(
     {
@@ -1140,7 +1225,7 @@ export async function findOrCreatePersonWithContact(
         name,
         phone,
         digitCount: digits.length,
-        expectedDigits: '10-15',
+        expectedDigits: '10',
       },
       'Phone normalization failed during findOrCreate'
     )

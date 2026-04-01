@@ -69,6 +69,14 @@ Email and phone live directly on `Person` as nullable unique fields.
 4. **Validate input before opening a transaction** — normalize/validate phones, emails, etc. before `prisma.$transaction()`
 5. **Never try-catch P2002 inside `$transaction()`** — PostgreSQL aborts the transaction on constraint violations
 
+### Returnee Contact Policy
+
+When a person re-registers or returns after absence:
+
+- **Registration flows** (self-service): Conservative merge — fill null fields only, never overwrite existing email/phone
+- **Admin update flows** (dashboard): Unconditional overwrite — admin has authority to correct data
+- Both paths normalize via `normalizeEmail()`/`normalizePhone()` before writing
+
 ### Webhook Handler Factory
 
 ```typescript

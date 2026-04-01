@@ -14,8 +14,8 @@
  * 2. Perform both operations within the same database transaction
  * 3. Rely on database unique constraints as the ultimate safeguard
  *
- * The database has unique constraints on ContactPoint(type, value) which will
- * reject duplicate contact points even if a race condition occurs.
+ * The database has unique constraints on Person(email) and Person(phone) which will
+ * reject duplicate email/phone values even if a race condition occurs.
  *
  * @example
  * ```typescript

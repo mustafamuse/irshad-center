@@ -13,7 +13,6 @@ This document describes how to rollback the unified identity schema migration if
 The unified identity schema migration (`unified_identity_schema`) creates:
 
 - `Person` - Canonical identity records
-- `ContactPoint` - Email, phone, WhatsApp contacts
 - `ProgramProfile` - Program-specific profiles (Mahad, Dugsi)
 - `GuardianRelationship` - Parent/guardian links
 - `SiblingRelationship` - Sibling connections
@@ -60,7 +59,6 @@ psql -d your_database_name << EOF
   DROP TABLE IF EXISTS "Enrollment" CASCADE;
   DROP TABLE IF EXISTS "SiblingRelationship" CASCADE;
   DROP TABLE IF EXISTS "GuardianRelationship" CASCADE;
-  DROP TABLE IF EXISTS "ContactPoint" CASCADE;
   DROP TABLE IF EXISTS "ProgramProfile" CASCADE;
   DROP TABLE IF EXISTS "Person" CASCADE;
   DROP TABLE IF EXISTS "Batch" CASCADE;

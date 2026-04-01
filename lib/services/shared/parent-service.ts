@@ -65,7 +65,7 @@ export async function updateGuardianInfo(
 
   if (input.phone && !normalizePhone(input.phone)) {
     throw new ActionError(
-      'Invalid phone number. Expected a 10-digit US number or 11 digits starting with 1',
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
       ERROR_CODES.VALIDATION_ERROR,
       'phone',
       400
@@ -74,7 +74,10 @@ export async function updateGuardianInfo(
 
   const email =
     input.email !== undefined ? normalizeEmail(input.email) : undefined
-  const phone = normalizePhone(input.phone) ?? undefined
+  const phone =
+    input.phone !== undefined
+      ? (normalizePhone(input.phone) ?? null)
+      : undefined
 
   try {
     return await client.person.update({

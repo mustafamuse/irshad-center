@@ -159,7 +159,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'existing-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: { phone: '6125551234' },
       })
     )
     expect(mockProgramProfileCreate).toHaveBeenCalledWith({
@@ -237,7 +237,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'phone-only-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: { email: 'ahmed@example.com' },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()
@@ -262,7 +262,7 @@ describe('createMahadStudent', () => {
     expect(mockPersonUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'email-only-person' },
-        data: { email: 'ahmed@example.com', phone: '6125551234' },
+        data: { phone: '6125551234' },
       })
     )
     expect(mockPersonCreate).not.toHaveBeenCalled()

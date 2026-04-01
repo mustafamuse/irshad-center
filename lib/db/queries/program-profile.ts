@@ -12,6 +12,7 @@ import { DatabaseClient } from '@/lib/db/types'
 import {
   normalizeEmail,
   normalizePhone,
+  validateAndNormalizeEmail,
 } from '@/lib/utils/contact-normalization'
 
 /**
@@ -54,13 +55,17 @@ export async function getProgramProfiles(
 
   if (search && search.trim()) {
     const searchTerm = search.trim()
+    const normalizedPhone = normalizePhone(searchTerm)
     where.person = {
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
-        { email: { contains: searchTerm, mode: 'insensitive' } },
-        ...(normalizePhone(searchTerm)
-          ? [{ phone: normalizePhone(searchTerm)! }]
-          : []),
+        {
+          email: {
+            contains: validateAndNormalizeEmail(searchTerm) ?? searchTerm,
+            mode: 'insensitive',
+          },
+        },
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     }
   }

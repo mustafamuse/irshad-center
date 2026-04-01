@@ -33,9 +33,12 @@ import {
   getTeacherPrograms,
 } from '@/lib/services/shared/teacher-service'
 import { ValidationError } from '@/lib/services/validation-service'
-import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
-import { normalizeEmail } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+  validateAndNormalizeEmail,
+} from '@/lib/utils/contact-normalization'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -81,12 +84,6 @@ export interface CreateTeacherInput {
   personId: string
 }
 
-export interface CreateTeacherWithPersonInput {
-  name: string
-  email?: string
-  phone?: string
-}
-
 export interface ProgramAssignmentInput {
   teacherId: string
   program: Program
@@ -119,6 +116,18 @@ const createTeacherSchema = z.object({
   personId: uuidSchema,
 })
 
+const createTeacherWithPersonSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z
+    .string()
+    .refine(
+      (val) => !val || normalizePhone(val) !== null,
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)'
+    )
+    .optional(),
+})
+
 const deleteTeacherSchema = z.object({
   teacherId: uuidSchema,
 })
@@ -131,7 +140,13 @@ const updateTeacherDetailsSchema = z.object({
   teacherId: uuidSchema,
   name: z.string().min(1, 'Name is required').max(100),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .refine(
+      (val) => !val || normalizePhone(val) !== null,
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)'
+    )
+    .optional(),
 })
 
 const updateTeacherShiftsSchema = z.object({
@@ -344,8 +359,17 @@ export async function createTeacherAction(
  * Create a new teacher by first creating a person.
  */
 export async function createTeacherWithPersonAction(
-  input: CreateTeacherWithPersonInput
+  rawInput: unknown
 ): Promise<ActionResult<{ teacherId: string }>> {
+  const parsed = createTeacherWithPersonSchema.safeParse(rawInput)
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.errors[0]?.message || 'Invalid input',
+    }
+  }
+  const input = parsed.data
+
   try {
     const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
 
@@ -387,18 +411,25 @@ export async function createTeacherWithPersonAction(
       data: { teacherId: teacher.id },
     }
   } catch (error) {
-    await logError(logger, error, 'Failed to create teacher with person', {
-      ...input,
-    })
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return {
-          success: false,
-          error: 'A person with this email or phone already exists',
-        }
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      logger.warn(
+        { hasEmail: !!input.email, hasPhone: !!input.phone },
+        'Duplicate contact on teacher create'
+      )
+      return {
+        success: false,
+        error: 'A person with this email or phone already exists',
       }
     }
+
+    await logError(logger, error, 'Failed to create teacher with person', {
+      name: input.name,
+      hasEmail: !!input.email,
+      hasPhone: !!input.phone,
+    })
 
     if (
       error instanceof ValidationError &&
@@ -448,7 +479,7 @@ export async function deleteTeacherAction(
 
 /**
  * Update teacher details (name, email, phone).
- * Updates the underlying Person record and ContactPoints.
+ * Updates the underlying Person record.
  */
 export async function updateTeacherDetailsAction(
   input: UpdateTeacherDetailsInput
@@ -475,22 +506,18 @@ export async function updateTeacherDetailsAction(
       return { success: false, error: 'Teacher not found' }
     }
 
+    // Schema already validated phone format via .refine() — normalizedPhone is safe.
     const normalizedPhone = phone ? normalizePhone(phone) : null
-    if (phone && !normalizedPhone) {
-      return {
-        success: false,
-        error:
-          'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
-      }
-    }
+
+    // Only include contact fields in update when explicitly provided.
+    // undefined = skip field (Prisma leaves it unchanged); null = clear the field.
+    const personData: Prisma.PersonUpdateInput = { name }
+    if (email !== undefined) personData.email = normalizeEmail(email)
+    if (phone !== undefined) personData.phone = normalizedPhone
 
     await prisma.person.update({
       where: { id: teacher.personId },
-      data: {
-        name,
-        email: normalizeEmail(email),
-        phone: normalizedPhone,
-      },
+      data: personData,
     })
 
     revalidatePath('/admin/dugsi/teachers')
@@ -507,18 +534,20 @@ export async function updateTeacherDetailsAction(
 
     return { success: false, error: 'Failed to fetch updated teacher' }
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      logger.warn({ teacherId }, 'Duplicate contact on teacher update')
+      return {
+        success: false,
+        error: 'This email or phone is already in use',
+      }
+    }
+
     await logError(logger, error, 'Failed to update teacher details', {
       teacherId,
     })
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return {
-          success: false,
-          error: 'This email or phone is already in use',
-        }
-      }
-    }
 
     return {
       success: false,
@@ -842,7 +871,14 @@ export async function searchPeopleAction(
       where: {
         OR: [
           { name: { contains: searchTerm, mode: 'insensitive' } },
-          { email: { contains: searchTerm, mode: 'insensitive' } },
+          // validateAndNormalizeEmail returns null for non-email input (e.g. partial names)
+          // so the contains query falls back to raw searchTerm for case-insensitive matching.
+          {
+            email: {
+              contains: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
+              mode: 'insensitive',
+            },
+          },
           ...(normalizedSearchTerm ? [{ phone: normalizedSearchTerm }] : []),
         ],
       },

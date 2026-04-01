@@ -9,6 +9,7 @@ import { prisma } from '@/lib/db'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
+import { validateAndNormalizeEmail } from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('person-lookup')
 
@@ -120,10 +121,6 @@ export async function deletePersonAction(
         where: { personId },
       })
 
-      await tx.contactPoint.deleteMany({
-        where: { personId },
-      })
-
       await tx.person.delete({
         where: { id: personId },
       })
@@ -164,7 +161,12 @@ export async function lookupPersonAction(
       where: {
         OR: [
           { name: { equals: query.trim(), mode: 'insensitive' } },
-          { email: { equals: searchTerm, mode: 'insensitive' } },
+          {
+            email: {
+              equals: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
+              mode: 'insensitive',
+            },
+          },
           ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
         ],
       },

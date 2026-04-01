@@ -468,7 +468,11 @@ export async function linkSubscriptionToProfile(
 
     return { success: true }
   } catch (error) {
-    await logError(logger, error, 'Error linking subscription')
+    await logError(logger, error, 'Error linking subscription', {
+      subscriptionId,
+      profileId,
+      program,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -511,7 +515,10 @@ export async function ignoreSubscription(
 
     return { success: true }
   } catch (error) {
-    await logError(logger, error, 'Error ignoring subscription')
+    await logError(logger, error, 'Error ignoring subscription', {
+      subscriptionId,
+      program,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -547,7 +554,10 @@ export async function unignoreSubscription(
 
     return { success: true }
   } catch (error) {
-    await logError(logger, error, 'Error unignoring subscription')
+    await logError(logger, error, 'Error unignoring subscription', {
+      subscriptionId,
+      program,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',

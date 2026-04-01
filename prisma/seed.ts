@@ -3,6 +3,8 @@ import csvParser from 'csv-parser'
 import * as fs from 'fs'
 
 import { prisma } from '@/lib/db'
+import { normalizePhone } from '@/lib/types/person'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 // ============================================================================
 // CSV Row Type Definition
@@ -45,21 +47,6 @@ function capitalizeWords(str: string): string {
     .join(' ')
 }
 
-function formatPhoneNumber(phone: string | null): string | null {
-  if (!phone) return null
-
-  // Remove all non-numeric characters
-  const cleaned = phone.replace(/\D/g, '')
-
-  // Check if it's a 10-digit US number
-  if (cleaned.length === 10) {
-    return `+1${cleaned}` // E.164 format for US numbers
-  }
-
-  // If it's not a standard US number, return the original input
-  return phone
-}
-
 function formatSchoolName(name: string | null): string | null {
   if (!name) return null
 
@@ -100,8 +87,7 @@ async function dropTables() {
     prisma.siblingRelationship.deleteMany(),
     prisma.guardianRelationship.deleteMany(),
 
-    // Contact & Person
-    prisma.contactPoint.deleteMany(),
+    // Person
     prisma.person.deleteMany(),
 
     // Batches & Teachers
@@ -196,8 +182,8 @@ function processCSVRow(row: MahadCSVRow): ProcessedStudent {
   const schoolName = formatSchoolName(
     row['Name of School/College/University']?.trim() || null
   )
-  const email = row['Email Address:']?.trim()?.toLowerCase() || null
-  const phone = formatPhoneNumber(row['Phone Number: WhatsApp']?.trim() || null)
+  const email = normalizeEmail(row['Email Address:']?.trim()) ?? null
+  const phone = normalizePhone(row['Phone Number: WhatsApp']?.trim()) ?? null
 
   return {
     fullName,

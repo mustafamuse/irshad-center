@@ -3,6 +3,10 @@ import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { ValidationError } from '@/lib/services/validation-service'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 export type DetectionMethod =
   | 'MANUAL'
@@ -28,11 +32,13 @@ export async function detectPotentialSiblings(
     where: { id: personId },
     include: {
       guardianRelationships: {
+        where: { isActive: true },
         include: {
           guardian: true,
         },
       },
       dependentRelationships: {
+        where: { isActive: true },
         include: {
           dependent: true,
         },
@@ -69,9 +75,9 @@ export async function detectPotentialSiblings(
   // Find other dependents of the same guardians
   // Note: Uses batch query with `in: guardianIds` and `include` to prevent N+1
   if (person.guardianRelationships.length > 0) {
-    const guardianIds = person.guardianRelationships
-      .filter((rel) => rel.isActive)
-      .map((rel) => rel.guardianId)
+    const guardianIds = person.guardianRelationships.map(
+      (rel) => rel.guardianId
+    )
 
     if (guardianIds.length > 0) {
       const siblingsViaGuardians = await prisma.guardianRelationship.findMany({
@@ -149,10 +155,16 @@ export async function detectPotentialSiblings(
   // Match by shared email or phone on Person
   const contactOrConditions: Prisma.PersonWhereInput[] = []
   if (person.email) {
-    contactOrConditions.push({ email: person.email.toLowerCase() })
+    const normalizedEmail = normalizeEmail(person.email)
+    if (normalizedEmail) {
+      contactOrConditions.push({ email: normalizedEmail })
+    }
   }
   if (person.phone) {
-    contactOrConditions.push({ phone: person.phone })
+    const normalizedPhone = normalizePhone(person.phone)
+    if (normalizedPhone) {
+      contactOrConditions.push({ phone: normalizedPhone })
+    }
   }
 
   if (contactOrConditions.length > 0) {

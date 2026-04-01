@@ -53,7 +53,7 @@ interface UpdateStudentResult {
  *
  * Uses the existing updateMahadStudent service which handles:
  * - Person name and dateOfBirth updates
- * - ContactPoint updates (email, phone) with P2002 handling
+ * - Person email/phone updates with P2002 handling
  * - ProgramProfile field updates
  */
 export async function updateStudent(

@@ -31,7 +31,7 @@ export interface DugsiRegistration {
   healthInfo: string | null
   createdAt: Date
 
-  // Parent 1 info (from GuardianRelationship -> Person -> ContactPoints)
+  // Parent 1 info (from GuardianRelationship -> Person)
   parentFirstName: string | null
   parentLastName: string | null
   parentEmail: string | null

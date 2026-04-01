@@ -34,16 +34,14 @@ paths:
 
 ### Mock Data Must Match Runtime Shape
 
-When mocking Prisma records (e.g., `contactPoint`, `person`), include all fields the code filters on. Common miss: omitting `isActive: true` on contact point mocks causes `.find(cp => cp.isActive)` to return `undefined`.
+When mocking Prisma records (e.g., `person`), include all fields the code accesses. Common miss: omitting `email` or `phone` on Person mocks causes null access errors.
 
 ```typescript
-// Bad: missing isActive — lookup that filters isActive will fail
-contactPoints: [{ id: 'cp-1', type: 'PHONE', value: '1234567890' }]
+// Bad: missing email/phone — code that reads person.email will get undefined
+{ id: 'p-1', name: 'Test Person' }
 
-// Good: include all fields the code filters on
-contactPoints: [
-  { id: 'cp-1', type: 'PHONE', value: '1234567890', isActive: true },
-]
+// Good: include all fields the code accesses
+{ id: 'p-1', name: 'Test Person', email: 'test@example.com', phone: '6125551234' }
 ```
 
 ### Test Structure

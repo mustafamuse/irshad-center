@@ -308,7 +308,11 @@ describe('addSecondParent', () => {
         dependentRelationships: [{ guardian: { id: 'guardian-1' } }],
       },
     })
-    mockFindPersonByContact.mockResolvedValue({ id: 'existing-parent-id' })
+    mockFindPersonByContact.mockResolvedValue({
+      id: 'existing-parent-id',
+      email: 'ahmed@example.com',
+      phone: null,
+    })
 
     await addSecondParent({
       studentId: 'profile-1',

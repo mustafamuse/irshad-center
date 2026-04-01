@@ -80,8 +80,20 @@ describe('Batch Lookup Helpers', () => {
       const yesterday = new Date('2020-01-02')
 
       mockPersonFindMany.mockResolvedValue([
-        { id: 'person-1', name: 'John Doe', dateOfBirth: today },
-        { id: 'person-2', name: 'Jane Smith', dateOfBirth: yesterday },
+        {
+          id: 'person-1',
+          name: 'John Doe',
+          email: null,
+          phone: null,
+          dateOfBirth: today,
+        },
+        {
+          id: 'person-2',
+          name: 'Jane Smith',
+          email: null,
+          phone: null,
+          dateOfBirth: yesterday,
+        },
       ])
 
       const children = [
@@ -144,7 +156,13 @@ describe('Batch Lookup Helpers', () => {
       const dob = new Date('2020-01-01')
 
       mockPersonFindMany.mockResolvedValue([
-        { id: 'person-1', name: 'John Doe', dateOfBirth: dob },
+        {
+          id: 'person-1',
+          name: 'John Doe',
+          email: null,
+          phone: null,
+          dateOfBirth: dob,
+        },
       ])
 
       const children = [
@@ -187,7 +205,13 @@ describe('Batch Lookup Helpers', () => {
       const validDob = new Date('2020-01-01')
 
       mockPersonFindMany.mockResolvedValue([
-        { id: 'person-1', name: 'Valid Child', dateOfBirth: validDob },
+        {
+          id: 'person-1',
+          name: 'Valid Child',
+          email: null,
+          phone: null,
+          dateOfBirth: validDob,
+        },
       ])
 
       const children = [
@@ -356,7 +380,13 @@ describe('Batch Lookup Helpers', () => {
 
       // Mock returns person with "John Doe" (capitalized)
       mockPersonFindMany.mockResolvedValue([
-        { id: 'person-1', name: 'John Doe', dateOfBirth: dob },
+        {
+          id: 'person-1',
+          name: 'John Doe',
+          email: null,
+          phone: null,
+          dateOfBirth: dob,
+        },
       ])
 
       // Input with lowercase
@@ -388,7 +418,13 @@ describe('Batch Lookup Helpers', () => {
       const dob = new Date('2020-01-01')
 
       mockPersonFindMany.mockResolvedValue([
-        { id: 'person-1', name: 'John  Doe', dateOfBirth: dob }, // DB has double space
+        {
+          id: 'person-1',
+          name: 'John  Doe',
+          email: null,
+          phone: null,
+          dateOfBirth: dob,
+        }, // DB has double space
       ])
 
       const children = [
@@ -425,8 +461,20 @@ describe('Batch Lookup Helpers', () => {
 
       // Mock: both children exist
       mockPersonFindMany.mockResolvedValue([
-        { id: 'person-1', name: 'Ahmed Ali', dateOfBirth: dob1 },
-        { id: 'person-2', name: 'Fatima Ali', dateOfBirth: dob2 },
+        {
+          id: 'person-1',
+          name: 'Ahmed Ali',
+          email: null,
+          phone: null,
+          dateOfBirth: dob1,
+        },
+        {
+          id: 'person-2',
+          name: 'Fatima Ali',
+          email: null,
+          phone: null,
+          dateOfBirth: dob2,
+        },
       ])
 
       // Mock: person-1 has profile with different familyReferenceId
@@ -506,7 +554,13 @@ describe('Batch Lookup Helpers', () => {
 
       // Mock: child exists
       mockPersonFindMany.mockResolvedValue([
-        { id: 'person-1', name: 'Ahmed Ali', dateOfBirth: dob },
+        {
+          id: 'person-1',
+          name: 'Ahmed Ali',
+          email: null,
+          phone: null,
+          dateOfBirth: dob,
+        },
       ])
 
       // Mock: profile has same familyReferenceId (no conflict)
