@@ -84,12 +84,6 @@ export interface CreateTeacherInput {
   personId: string
 }
 
-export interface CreateTeacherWithPersonInput {
-  name: string
-  email?: string
-  phone?: string
-}
-
 export interface ProgramAssignmentInput {
   teacherId: string
   program: Program
