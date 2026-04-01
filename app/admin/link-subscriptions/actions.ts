@@ -5,6 +5,7 @@ import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 import { assertAdmin } from '@/lib/auth'
 import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError, logInfo } from '@/lib/logger'
+import { ActionResult } from '@/lib/utils/action-helpers'
 import {
   getAllOrphanedSubscriptions,
   searchStudentsForLinking,
@@ -62,9 +63,18 @@ export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsR
 export async function searchStudents(
   query: string,
   program?: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  await assertAdmin('searchStudents')
-  return await searchStudentsForLinking(query, program)
+): Promise<ActionResult<StudentMatch[]>> {
+  try {
+    await assertAdmin('searchStudents')
+    const data = await searchStudentsForLinking(query, program)
+    return { success: true, data }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to search students')
+    return { success: false, error: 'Failed to search students' }
+  }
 }
 
 /**
@@ -73,9 +83,18 @@ export async function searchStudents(
 export async function getPotentialMatches(
   email: string | null,
   program: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  await assertAdmin('getPotentialMatches')
-  return await getPotentialStudentMatches(email, program)
+): Promise<ActionResult<StudentMatch[]>> {
+  try {
+    await assertAdmin('getPotentialMatches')
+    const data = await getPotentialStudentMatches(email, program)
+    return { success: true, data }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to get potential matches')
+    return { success: false, error: 'Failed to get potential matches' }
+  }
 }
 
 /**
@@ -106,7 +125,8 @@ export async function linkSubscriptionToStudent(
 
     return result
   } catch (error) {
-    if (error instanceof ActionError) return { success: false, error: error.message }
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     throw error
   }
 }
@@ -140,7 +160,8 @@ export async function ignoreSubscription(
 
     return result
   } catch (error) {
-    if (error instanceof ActionError) return { success: false, error: error.message }
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     throw error
   }
 }
@@ -167,7 +188,8 @@ export async function unignoreSubscription(
 
     return result
   } catch (error) {
-    if (error instanceof ActionError) return { success: false, error: error.message }
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     throw error
   }
 }
