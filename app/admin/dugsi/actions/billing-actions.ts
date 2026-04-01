@@ -21,19 +21,20 @@ const logger = createServiceLogger('dugsi-billing-actions')
 export async function pauseFamilyBillingAction(
   rawInput: unknown
 ): Promise<ActionResult> {
-  const parsed = PauseFamilyBillingSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-
+  let familyReferenceId: string | undefined
   try {
     await assertAdmin('pauseFamilyBillingAction')
-    const result = await pauseFamilyBillingService(
-      parsed.data.familyReferenceId
-    )
+
+    const parsed = PauseFamilyBillingSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+
+    familyReferenceId = parsed.data.familyReferenceId
+    const result = await pauseFamilyBillingService(familyReferenceId)
     // Revalidate even on DB sync failure — Stripe is already updated
     revalidatePath('/admin/dugsi')
 
@@ -51,7 +52,7 @@ export async function pauseFamilyBillingAction(
       return { success: false, error: error.message }
     }
     await logError(logger, error, 'Failed to pause billing', {
-      familyReferenceId: parsed.data.familyReferenceId,
+      familyReferenceId,
     })
     return {
       success: false,
@@ -63,19 +64,20 @@ export async function pauseFamilyBillingAction(
 export async function resumeFamilyBillingAction(
   rawInput: unknown
 ): Promise<ActionResult> {
-  const parsed = ResumeFamilyBillingSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-
+  let familyReferenceId: string | undefined
   try {
     await assertAdmin('resumeFamilyBillingAction')
-    const result = await resumeFamilyBillingService(
-      parsed.data.familyReferenceId
-    )
+
+    const parsed = ResumeFamilyBillingSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+
+    familyReferenceId = parsed.data.familyReferenceId
+    const result = await resumeFamilyBillingService(familyReferenceId)
     // Revalidate even on DB sync failure — Stripe is already updated
     revalidatePath('/admin/dugsi')
 
@@ -93,7 +95,7 @@ export async function resumeFamilyBillingAction(
       return { success: false, error: error.message }
     }
     await logError(logger, error, 'Failed to resume billing', {
-      familyReferenceId: parsed.data.familyReferenceId,
+      familyReferenceId,
     })
     return {
       success: false,
