@@ -741,9 +741,7 @@ export async function bulkGeneratePaymentLinksAction(params: {
       const batch = familyIds.slice(i, i + BATCH_SIZE)
 
       const results = await Promise.allSettled(
-        batch.map((familyId) =>
-          createDugsiCheckoutSession({ familyId })
-        )
+        batch.map((familyId) => createDugsiCheckoutSession({ familyId }))
       )
 
       for (let j = 0; j < results.length; j++) {
@@ -1040,17 +1038,20 @@ export async function getUnassignedStudentsAction(): Promise<
 export async function assignTeacherToClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = AssignTeacherToClassSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { classId, teacherId } = parsed.data
+  let classId: string | undefined
+  let teacherId: string | undefined
 
   try {
     await assertAdmin('assignTeacherToClassAction')
+    const parsed = AssignTeacherToClassSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    classId = parsed.data.classId
+    teacherId = parsed.data.teacherId
     await assignTeacherToClass(classId, teacherId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1107,17 +1108,20 @@ export async function assignTeacherToClassAction(
 export async function removeTeacherFromClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = RemoveTeacherFromClassSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { classId, teacherId } = parsed.data
+  let classId: string | undefined
+  let teacherId: string | undefined
 
   try {
     await assertAdmin('removeTeacherFromClassAction')
+    const parsed = RemoveTeacherFromClassSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    classId = parsed.data.classId
+    teacherId = parsed.data.teacherId
     await removeTeacherFromClass(classId, teacherId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1221,17 +1225,20 @@ export async function getAvailableStudentsForClassAction(input: {
 export async function enrollStudentInClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = EnrollStudentInClassSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { classId, programProfileId } = parsed.data
+  let classId: string | undefined
+  let programProfileId: string | undefined
 
   try {
     await assertAdmin('enrollStudentInClassAction')
+    const parsed = EnrollStudentInClassSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    classId = parsed.data.classId
+    programProfileId = parsed.data.programProfileId
     await enrollStudentInClass(classId, programProfileId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1273,17 +1280,18 @@ export async function enrollStudentInClassAction(
 export async function removeStudentFromClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = RemoveStudentFromClassSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { programProfileId } = parsed.data
+  let programProfileId: string | undefined
 
   try {
     await assertAdmin('removeStudentFromClassAction')
+    const parsed = RemoveStudentFromClassSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    programProfileId = parsed.data.programProfileId
     await removeStudentFromClass(programProfileId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1720,17 +1728,17 @@ export interface WhatsAppSendResult {
 export async function sendPaymentLinkViaWhatsAppAction(
   rawInput: unknown
 ): Promise<ActionResult<WhatsAppSendResult>> {
-  const parseResult = SendPaymentLinkViaWhatsAppSchema.safeParse(rawInput)
-  if (!parseResult.success) {
-    return {
-      success: false,
-      error: parseResult.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const input = parseResult.data
-
   try {
     await assertAdmin('sendPaymentLinkViaWhatsAppAction')
+
+    const parseResult = SendPaymentLinkViaWhatsAppSchema.safeParse(rawInput)
+    if (!parseResult.success) {
+      return {
+        success: false,
+        error: parseResult.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    const input = parseResult.data
 
     const result = await sendPaymentLink({
       phone: input.phone,
@@ -1761,6 +1769,7 @@ export async function sendPaymentLinkViaWhatsAppAction(
     if (error instanceof ActionError) {
       return { success: false, error: error.message }
     }
-    throw error
+    await logError(logger, error, 'Failed to send WhatsApp payment link')
+    return { success: false, error: 'Failed to send payment link via WhatsApp' }
   }
 }

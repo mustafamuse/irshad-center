@@ -36,7 +36,11 @@ export async function getBatchesForFilter() {
  * TODO: Migrate in PR 2e when API routes are updated.
  */
 export async function runPaymentsBackfill() {
-  await assertAdmin('runPaymentsBackfill')
+  try {
+    await assertAdmin('runPaymentsBackfill')
+  } catch {
+    return { success: false, message: 'Unauthorized' }
+  }
   await logWarning(
     logger,
     'runPaymentsBackfill is deprecated and needs migration to new schema'
