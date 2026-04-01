@@ -20,7 +20,7 @@ export const webhookStudentNameSchema = z
   .min(2, 'Name must be at least 2 characters')
   .max(100, 'Name must be less than 100 characters')
   .regex(
-    /^[a-zA-Z\s'-]+$/,
+    /^[\p{L}\s'-]+$/u,
     'Name can only contain letters, spaces, apostrophes, and hyphens'
   )
   .transform((name) => name.replace(/\s+/g, ' ')) // Normalize multiple spaces

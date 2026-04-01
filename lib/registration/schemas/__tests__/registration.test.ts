@@ -371,5 +371,21 @@ describe('dugsiRegistrationSchema', () => {
       expect(nameSchema.safeParse('').success).toBe(false)
       expect(nameSchema.safeParse('A').success).toBe(false)
     })
+
+    it('accepts Arabic names', () => {
+      expect(nameSchema.safeParse('محمد').success).toBe(true)
+      expect(nameSchema.safeParse('محمد علي').success).toBe(true)
+      expect(nameSchema.safeParse('فاطمة').success).toBe(true)
+    })
+
+    it('accepts accented Latin names', () => {
+      expect(nameSchema.safeParse('José').success).toBe(true)
+      expect(nameSchema.safeParse('François').success).toBe(true)
+    })
+
+    it('accepts Somali names', () => {
+      expect(nameSchema.safeParse('Cabdullaahi').success).toBe(true)
+      expect(nameSchema.safeParse('Xaawo').success).toBe(true)
+    })
   })
 })

@@ -99,7 +99,7 @@ export const nameSchema = z
   .min(2, 'Name must be at least 2 characters')
   .max(50, 'Name must be less than 50 characters')
   .regex(
-    /^[a-zA-Z\s'-]+$/,
+    /^[\p{L}\s'-]+$/u,
     'Name can only contain letters, spaces, hyphens, and apostrophes'
   )
 
@@ -118,7 +118,7 @@ const schoolNameSchema = z
   .min(2, 'School name must be at least 2 characters')
   .max(100, 'School name must be less than 100 characters')
   .regex(
-    /^[a-zA-Z0-9\s-.']+$/,
+    /^[\p{L}\p{N}\s.'-]+$/u,
     'School name can only contain letters, numbers, spaces, hyphens, periods, and apostrophes'
   )
 
