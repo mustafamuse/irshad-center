@@ -1,4 +1,4 @@
-import { Shift } from '@prisma/client'
+import { Program, Shift } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
@@ -156,7 +156,7 @@ async function getActiveTeachers(
 ): Promise<TeacherInfo[]> {
   const teacherPrograms = await prisma.teacherProgram.findMany({
     where: {
-      program: 'DUGSI_PROGRAM',
+      program: Program.DUGSI_PROGRAM,
       isActive: true,
     },
     include: {
