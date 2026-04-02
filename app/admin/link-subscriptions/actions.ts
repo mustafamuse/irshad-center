@@ -51,6 +51,7 @@ export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsR
     }))
     return { data }
   } catch (error) {
+    if (error instanceof ActionError) throw error
     await logError(logger, error, 'Failed to fetch orphaned subscriptions')
     const message = error instanceof Error ? error.message : 'Unknown error'
     return { data: [], error: message }

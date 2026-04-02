@@ -482,6 +482,8 @@ export async function getStudentDeleteWarningsAction(
     const warnings = await getStudentDeleteWarnings(id)
     return { success: true, data: warnings }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to fetch delete warnings', {
       studentId: id,
     })
@@ -920,6 +922,8 @@ export async function generatePaymentLinkAction(
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Error generating payment link', {
       profileId,
     })
@@ -994,6 +998,8 @@ export async function generatePaymentLinkWithDefaultsAction(
     // Generate payment link (outside transaction since it's an external API call)
     return generatePaymentLinkAction(profileId)
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(
       logger,
       error,
@@ -1282,6 +1288,8 @@ export async function generatePaymentLinkWithOverrideAction(
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(
       logger,
       error,

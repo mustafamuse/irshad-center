@@ -2,6 +2,7 @@
 
 import { assertAdmin } from '@/lib/auth'
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
 import { ActionResult, createErrorResult } from '@/lib/utils/action-helpers'
 import {
@@ -68,6 +69,8 @@ export async function generateMahadVCardContent(
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to generate Mahad vCard content', {
       batchId,
     })

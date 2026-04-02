@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 import { assertAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { normalizePhone } from '@/lib/types/person'
 import { ActionResult } from '@/lib/utils/action-helpers'
@@ -67,14 +68,14 @@ const deletePersonSchema = z.object({
 export async function deletePersonAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = deletePersonSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input' }
-  }
-  const { personId } = parsed.data
-
   try {
     await assertAdmin('deletePersonAction')
+    const parsed = deletePersonSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid input' }
+    }
+    const { personId } = parsed.data
+
     await prisma.$transaction(async (tx) => {
       const teachers = await tx.teacher.findMany({
         where: { personId },
@@ -139,7 +140,9 @@ export async function deletePersonAction(
 
     return { success: true, data: undefined }
   } catch (error) {
-    await logError(logger, error, 'Failed to delete person', { personId })
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to delete person')
     return {
       success: false,
       error:
@@ -319,6 +322,8 @@ export async function lookupPersonAction(
 
     return { success: true, data: result }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to lookup person', { query })
     return {
       success: false,

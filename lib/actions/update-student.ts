@@ -13,6 +13,8 @@ import {
   StudentBillingType,
 } from '@prisma/client'
 
+import { assertAdmin } from '@/lib/auth'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
 import {
   updateMahadStudent,
@@ -61,6 +63,7 @@ export async function updateStudent(
   data: UpdateStudentData
 ): Promise<UpdateStudentResult> {
   try {
+    await assertAdmin('updateStudent')
     // Filter out undefined values and pass directly to service
     const updateInput: StudentUpdateInput = Object.fromEntries(
       Object.entries(data).filter(([, value]) => value !== undefined)
@@ -70,6 +73,8 @@ export async function updateStudent(
 
     return { success: true }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update student', { studentId })
     return {
       success: false,

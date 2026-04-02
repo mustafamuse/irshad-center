@@ -3,6 +3,7 @@
 import { Program } from '@prisma/client'
 
 import { assertAdmin } from '@/lib/auth'
+import { ActionError } from '@/lib/errors/action-error'
 import { getMultiRolePeople } from '@/lib/db/queries/person'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { ActionResult } from '@/lib/utils/action-helpers'
@@ -72,6 +73,8 @@ export async function getMultiRolePeopleAction(filters?: {
 
     return { success: true, data: results }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to load multi-role people', filters)
     return { success: false, error: 'Failed to load multi-role people' }
   }

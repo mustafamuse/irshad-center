@@ -6,6 +6,7 @@ import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { assertAdmin } from '@/lib/auth'
+import { ActionError } from '@/lib/errors/action-error'
 import { prisma } from '@/lib/db'
 import {
   getAllDugsiTeachersWithTodayStatus,
@@ -284,6 +285,8 @@ export async function getTeachers(
 
     return { success: true, data: teachersWithDetails }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teachers')
     return {
       success: false,
@@ -339,6 +342,8 @@ export async function createTeacherAction(
       data: { teacherId: teacher.id },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to create teacher', {
       personId,
     })
@@ -417,6 +422,8 @@ export async function createTeacherWithPersonAction(
       data: { teacherId: teacher.id },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
@@ -477,6 +484,8 @@ export async function deleteTeacherAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to delete teacher', { teacherId })
     return {
       success: false,
@@ -542,6 +551,8 @@ export async function updateTeacherDetailsAction(
 
     return { success: false, error: 'Failed to fetch updated teacher' }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
@@ -605,6 +616,8 @@ export async function updateTeacherShiftsAction(
 
     return { success: true, data: shifts as Shift[] }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update teacher shifts', {
       teacherId: input.teacherId,
     })
@@ -634,6 +647,8 @@ export async function getTeacherShiftsAction(
 
     return { success: true, data: teacherProgram?.shifts ?? [] }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teacher shifts', { teacherId })
     return {
       success: false,
@@ -696,6 +711,8 @@ export async function deactivateTeacherAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to deactivate teacher', { teacherId })
     return {
       success: false,
@@ -730,6 +747,8 @@ export async function assignTeacherToProgramAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to assign teacher to program', {
       ...input,
     })
@@ -790,6 +809,8 @@ export async function removeTeacherFromProgramAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to remove teacher from program', {
       ...input,
     })
@@ -826,6 +847,8 @@ export async function bulkAssignProgramsAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to bulk assign programs', {
       ...input,
     })
@@ -858,6 +881,8 @@ export async function getTeacherProgramsAction(
       data: programs.map((p) => p.program),
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teacher programs', {
       teacherId,
     })
@@ -952,6 +977,8 @@ export async function searchPeopleAction(
 
     return { success: true, data: results }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to search people', { query })
     return {
       success: false,
@@ -1021,6 +1048,8 @@ export async function getTeacherCheckinHistoryAction(
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get check-in history', {
       teacherId,
     })
@@ -1093,6 +1122,8 @@ export async function getCheckinsForDateAction(filters: {
 
     return { success: true, data: records }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get check-ins for date')
     return { success: false, error: 'Failed to load check-ins' }
   }
@@ -1142,6 +1173,8 @@ export async function getCheckinHistoryWithFiltersAction(filters: {
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get check-in history')
     return { success: false, error: 'Failed to load check-in history' }
   }
@@ -1171,6 +1204,8 @@ export async function getLateArrivalsAction(filters: {
 
     return { success: true, data: records }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get late arrivals')
     return { success: false, error: 'Failed to load late arrivals report' }
   }
@@ -1192,6 +1227,8 @@ export async function getTeachersForDropdownAction(): Promise<
 
     return { success: true, data: options }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teachers for dropdown')
     return { success: false, error: 'Failed to load teachers' }
   }
@@ -1225,6 +1262,8 @@ export async function updateCheckinAction(input: {
 
     return { success: true, data: record }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update check-in', {
       checkInId: input.checkInId,
     })
@@ -1258,6 +1297,8 @@ export async function deleteCheckinAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to delete check-in', { checkInId })
 
     if (error instanceof ValidationError) {

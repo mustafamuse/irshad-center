@@ -49,7 +49,7 @@ export async function runPaymentsBackfill() {
   )
   return {
     success: false,
-    message:
+    error:
       'This backfill script needs migration to the new ProgramProfile-based schema.',
   }
 }

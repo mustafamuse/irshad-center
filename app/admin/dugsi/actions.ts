@@ -126,6 +126,8 @@ export async function validateDugsiSubscription(
       data: result,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to validate Dugsi subscription', {
       subscriptionId,
     })
@@ -166,6 +168,8 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<
       data: result,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get delete preview', {
       studentId,
     })
@@ -214,6 +218,8 @@ export async function deleteDugsiFamily(
       message: `Successfully deleted ${parts.join(', ')}`,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to delete family', { studentId })
     return {
       success: false,
@@ -258,6 +264,8 @@ export async function linkDugsiSubscription(params: {
       message: `Successfully linked subscription to ${result.updated} students`,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to link Dugsi subscription', {
       parentEmail: params.parentEmail,
       subscriptionId: params.subscriptionId,
@@ -284,6 +292,8 @@ export async function getDugsiPaymentStatus(
       data: result,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get payment status', {
       parentEmail,
     })
@@ -330,6 +340,8 @@ export async function verifyDugsiBankAccount(
       data: result,
     }
   } catch (error: unknown) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to verify bank account', {
       paymentIntentId,
     })
@@ -394,6 +406,8 @@ export async function updateParentInfo(params: {
       message: `Successfully updated parent information for ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update parent information', {
       studentId: params.studentId,
       parentNumber: params.parentNumber,
@@ -429,6 +443,8 @@ export async function addSecondParent(params: {
       message: `Successfully added second parent to ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to add second parent', {
       studentId: params.studentId,
     })
@@ -458,6 +474,8 @@ export async function setPrimaryPayer(params: {
       message: `Parent ${params.parentNumber} is now the primary payer`,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to set primary payer', {
       studentId: params.studentId,
       parentNumber: params.parentNumber,
@@ -493,6 +511,8 @@ export async function updateChildInfo(params: {
       message: 'Successfully updated child information',
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update child information', {
       studentId: params.studentId,
     })
@@ -528,6 +548,8 @@ export async function updateFamilyShift(
       message: 'Successfully updated family shift',
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update family shift', {
       familyReferenceId: params.familyReferenceId,
       attemptedShift: params.shift,
@@ -566,6 +588,8 @@ export async function addChildToFamily(params: {
       message: 'Successfully added child to family',
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to add child to family', {
       existingStudentId: params.existingStudentId,
     })
@@ -804,16 +828,15 @@ const PaymentHistorySchema = z.object({
 export async function getFamilyPaymentHistory(
   customerId: string
 ): Promise<ActionResult<StripePaymentHistoryItem[]>> {
-  const validation = PaymentHistorySchema.safeParse({ customerId })
-  if (!validation.success) {
-    return {
-      success: false,
-      error: validation.error.errors[0]?.message || 'Invalid customer ID',
-    }
-  }
-
   try {
     await assertAdmin('getFamilyPaymentHistory')
+    const validation = PaymentHistorySchema.safeParse({ customerId })
+    if (!validation.success) {
+      return {
+        success: false,
+        error: validation.error.errors[0]?.message || 'Invalid customer ID',
+      }
+    }
     const stripe = getDugsiStripeClient()
 
     const invoices = await stripe.invoices.list({
@@ -843,6 +866,8 @@ export async function getFamilyPaymentHistory(
 
     return { success: true, data: history }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to fetch payment history', {
       customerId,
     })
@@ -970,6 +995,8 @@ export async function generateDugsiVCardContent(): Promise<
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to generate Dugsi vCard content')
     return createErrorResult(error, 'Failed to generate vCard content')
   }
@@ -1001,6 +1028,8 @@ export async function getAvailableDugsiTeachers(): Promise<
 
     return { success: true, data: teacherList }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get available Dugsi teachers')
     return {
       success: false,
@@ -1020,6 +1049,8 @@ export async function getUnassignedStudentsAction(): Promise<
     const students = await getUnassignedDugsiStudents()
     return { success: true, data: students }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get unassigned students')
     return {
       success: false,
@@ -1091,6 +1122,8 @@ export async function assignTeacherToClassAction(
       }
     }
 
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to assign teacher to class', {
       classId,
       teacherId,
@@ -1135,6 +1168,8 @@ export async function removeTeacherFromClassAction(
       message: 'Teacher removed from class',
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to remove teacher from class', {
       classId,
       teacherId,
@@ -1172,6 +1207,8 @@ export async function getClassesWithDetailsAction(): Promise<
 
     return { success: true, data: result }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get classes with details')
     return {
       success: false,
@@ -1191,6 +1228,8 @@ export async function getAllTeachersForClassAssignmentAction(): Promise<
     const teachers = await getAllTeachersForAssignment()
     return { success: true, data: teachers }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teachers for class assignment')
     return {
       success: false,
@@ -1211,6 +1250,8 @@ export async function getAvailableStudentsForClassAction(input: {
     const students = await getAvailableStudentsForClass(input.shift)
     return { success: true, data: students }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get available students for class')
     return {
       success: false,
@@ -1263,6 +1304,8 @@ export async function enrollStudentInClassAction(
       }
     }
 
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to enroll student in class', {
       classId,
       programProfileId,
@@ -1304,6 +1347,8 @@ export async function removeStudentFromClassAction(
       message: 'Student removed from class',
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to remove student from class', {
       programProfileId,
     })
@@ -1320,17 +1365,16 @@ export async function removeStudentFromClassAction(
 export async function bulkEnrollStudentsAction(
   rawInput: unknown
 ): Promise<ActionResult<{ enrolled: number; moved: number }>> {
-  const parsed = BulkEnrollStudentsSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { classId, programProfileIds } = parsed.data
-
   try {
     await assertAdmin('bulkEnrollStudentsAction')
+    const parsed = BulkEnrollStudentsSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    const { classId, programProfileIds } = parsed.data
     const result = await bulkEnrollStudents(classId, programProfileIds)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1346,7 +1390,9 @@ export async function bulkEnrollStudentsAction(
       message: `Enrolled ${result.enrolled} students${result.moved > 0 ? ` (${result.moved} moved from other classes)` : ''}`,
     }
   } catch (error) {
-    await logError(logger, error, 'Failed to bulk enroll students', { classId })
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to bulk enroll students')
     return {
       success: false,
       error: 'Unable to enroll students. Please try again.',
@@ -1360,17 +1406,16 @@ export async function bulkEnrollStudentsAction(
 export async function createClassAction(
   rawInput: unknown
 ): Promise<ActionResult<ClassWithDetails>> {
-  const parsed = CreateClassSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { name, shift, description } = parsed.data
-
   try {
     await assertAdmin('createClassAction')
+    const parsed = CreateClassSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    const { name, shift, description } = parsed.data
     const newClass = await createClass(name, shift as Shift, description)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1404,7 +1449,9 @@ export async function createClassAction(
       }
     }
 
-    await logError(logger, error, 'Failed to create class', { name, shift })
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to create class')
     return {
       success: false,
       error: 'Unable to create class. Please try again.',
@@ -1418,17 +1465,16 @@ export async function createClassAction(
 export async function updateClassAction(
   rawInput: unknown
 ): Promise<ActionResult<ClassWithDetails>> {
-  const parsed = UpdateClassSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { classId, name, description } = parsed.data
-
   try {
     await assertAdmin('updateClassAction')
+    const parsed = UpdateClassSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    const { classId, name, description } = parsed.data
     await updateClass(classId, { name, description })
 
     const updatedClass = await getClassById(classId)
@@ -1478,7 +1524,9 @@ export async function updateClassAction(
       }
     }
 
-    await logError(logger, error, 'Failed to update class', { classId, name })
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to update class')
     return {
       success: false,
       error: 'Unable to update class. Please try again.',
@@ -1492,17 +1540,16 @@ export async function updateClassAction(
 export async function deleteClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = DeleteClassSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-  const { classId } = parsed.data
-
   try {
     await assertAdmin('deleteClassAction')
+    const parsed = DeleteClassSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+    const { classId } = parsed.data
     await deleteClass(classId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1523,7 +1570,9 @@ export async function deleteClassAction(
       }
     }
 
-    await logError(logger, error, 'Failed to delete class', { classId })
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to delete class')
     return {
       success: false,
       error: 'Unable to delete class. Please try again.',
@@ -1550,6 +1599,8 @@ export async function getClassDeletePreviewAction(input: {
 
     return { success: true, data: preview }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get class delete preview', {
       classId: input.classId,
     })
@@ -1591,6 +1642,8 @@ export async function previewStripeSubscriptionForConsolidation(
       data: preview,
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(
       logger,
       error,
@@ -1657,19 +1710,12 @@ export async function consolidateDugsiSubscription(input: {
       message: parts.join(', '),
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to consolidate subscription', {
       subscriptionId: input.stripeSubscriptionId,
       familyId: input.familyId,
     })
-
-    if (error instanceof ActionError && error.code === 'ALREADY_LINKED') {
-      return {
-        success: false,
-        error:
-          'This subscription is already linked to another family. Enable "force override" to move it.',
-      }
-    }
-
     return {
       success: false,
       error:
