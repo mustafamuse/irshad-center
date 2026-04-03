@@ -74,8 +74,8 @@ export function StudentSelector({
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const result = await searchStudents(searchQuery, program)
-        if (result.success && result.data) {
+        const result = await searchStudents({ query: searchQuery, program })
+        if (result?.data) {
           setSearchResults(result.data)
         }
       } catch (error) {
@@ -91,9 +91,9 @@ export function StudentSelector({
   // Load potential matches on mount if we have an email
   useEffect(() => {
     if (customerEmail && potentialMatches.length === 0) {
-      getPotentialMatches(customerEmail, program)
+      getPotentialMatches({ email: customerEmail, program })
         .then((result) => {
-          if (result.success && result.data) {
+          if (result?.data) {
             setSearchResults(result.data)
           }
         })

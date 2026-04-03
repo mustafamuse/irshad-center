@@ -67,13 +67,13 @@ export function SubscriptionCard({
     setShowConfirmDialog(false)
 
     try {
-      const result = await linkSubscriptionToStudent(
-        subscription.id,
-        selectedStudent.id,
-        subscription.program
-      )
+      const result = await linkSubscriptionToStudent({
+        subscriptionId: subscription.id,
+        studentId: selectedStudent.id,
+        program: subscription.program,
+      })
 
-      if (result.success) {
+      if (result?.data) {
         toast.success(
           `Successfully linked subscription to ${selectedStudent.name}`,
           {
@@ -87,7 +87,7 @@ export function SubscriptionCard({
         )
         setSelectedStudent(null)
       } else {
-        toast.error(result.error || 'Failed to link subscription', {
+        toast.error(result?.serverError || 'Failed to link subscription', {
           action: {
             label: 'Retry',
             onClick: () => {
