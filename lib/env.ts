@@ -94,27 +94,57 @@ const envSchema = z
     STRIPE_DONATION_WEBHOOK_SECRET_TEST: stripeField('whsec_'),
     STRIPE_DONATION_WEBHOOK_SECRET_LIVE: stripeField('whsec_'),
     STRIPE_DONATION_PRODUCT_ID: stripeField('prod_'),
+    NEXT_PUBLIC_STRIPE_DONATION_PUBLISHABLE_KEY_TEST: stripeField('pk_test_'),
+    NEXT_PUBLIC_STRIPE_DONATION_PUBLISHABLE_KEY_LIVE: stripeField('pk_live_'),
 
     // ── WhatsApp ─────────────────────────────────────────────────────────────────
     // All four vars below are required together when WHATSAPP_PHONE_NUMBER_ID is
     // set — enforced via superRefine below.
-    WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
-    WHATSAPP_ACCESS_TOKEN: z.string().optional(),
-    WHATSAPP_APP_SECRET: z.string().optional(),
-    WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
+    WHATSAPP_PHONE_NUMBER_ID: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
+    WHATSAPP_ACCESS_TOKEN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
+    WHATSAPP_APP_SECRET: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
+    WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
     WHATSAPP_DEFAULT_LANGUAGE: z.preprocess(
       (v) => (v === '' ? undefined : v),
       z.string().optional().default('en')
     ),
 
     // ── Feature Flags ────────────────────────────────────────────────────────────
-    DUGSI_CARD_PAYMENTS_ENABLED: z.string().optional(),
-    MAHAD_CARD_PAYMENTS_ENABLED: z.string().optional(),
-    NEXT_PUBLIC_SHOW_GRADE_SCHOOL: z.string().optional(),
+    // Consumed as === 'true' in lib/config/feature-flags.ts — enum catches typos at startup.
+    DUGSI_CARD_PAYMENTS_ENABLED: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.enum(['true', 'false']).optional()
+    ),
+    MAHAD_CARD_PAYMENTS_ENABLED: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.enum(['true', 'false']).optional()
+    ),
+    NEXT_PUBLIC_SHOW_GRADE_SCHOOL: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.enum(['true', 'false']).optional()
+    ),
 
     // ── Sentry ───────────────────────────────────────────────────────────────────
-    SENTRY_DSN: z.string().optional(),
-    NEXT_PUBLIC_SENTRY_DSN: z.string().optional(),
+    SENTRY_DSN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().url().optional()
+    ),
+    NEXT_PUBLIC_SENTRY_DSN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().url().optional()
+    ),
     SENTRY_ORG: z.string().optional(),
     SENTRY_PROJECT: z.string().optional(),
     SENTRY_RELEASE: z.string().optional(),
@@ -164,7 +194,10 @@ const envSchema = z
 
     if (
       data.NODE_ENV === 'production' &&
-      data.NEXT_PUBLIC_APP_URL === 'http://localhost:3000'
+      data.NEXT_PUBLIC_APP_URL != null &&
+      /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(
+        data.NEXT_PUBLIC_APP_URL
+      )
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

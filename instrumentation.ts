@@ -9,8 +9,8 @@ export async function register() {
     // Run in dev too (not just production) so geofence misconfiguration surfaces
     // at startup rather than silently at first teacher check-in attempt.
     // Guarded by var presence so devs without teacher check-in vars don't crash.
-    // env.ts superRefine rejects partial sets, so by the time this runs they
-    // are either both valid or both absent.
+    // lib/env (imported above) already enforces via superRefine that LAT and LNG
+    // must both be set or both absent — this adds a semantic check (non-zero values).
     if (
       process.env.NODE_ENV !== 'test' &&
       (process.env.IRSHAD_CENTER_LAT || process.env.IRSHAD_CENTER_LNG)
