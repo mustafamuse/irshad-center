@@ -125,12 +125,12 @@ export function AssignStudentsDialog({
     }
 
     startTransition(async () => {
-      const result = await assignStudentsAction(
-        selectedBatchId,
-        Array.from(selectedStudentIds)
-      )
+      const result = await assignStudentsAction({
+        batchId: selectedBatchId,
+        studentIds: Array.from(selectedStudentIds),
+      })
 
-      if (result.success && result.data) {
+      if (result?.data) {
         const { assignedCount, failedAssignments } = result.data
         if (failedAssignments.length > 0) {
           toast.warning(
@@ -144,7 +144,7 @@ export function AssignStudentsDialog({
         handleOpenChange(false)
         router.refresh()
       } else {
-        toast.error(result.error || 'Failed to assign students')
+        toast.error(result?.serverError || 'Failed to assign students')
       }
     })
   }

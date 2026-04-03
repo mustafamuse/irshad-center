@@ -39,8 +39,7 @@ vi.mock('../../../store', () => ({
 const mockAssignStudentsAction = vi.fn()
 
 vi.mock('../../../_actions', () => ({
-  assignStudentsAction: (batchId: string, studentIds: string[]) =>
-    mockAssignStudentsAction(batchId, studentIds),
+  assignStudentsAction: (input: unknown) => mockAssignStudentsAction(input),
 }))
 
 vi.mock('sonner', () => ({
@@ -71,7 +70,6 @@ describe('AssignStudentsDialog', () => {
     vi.clearAllMocks()
     mockOpenDialog = 'assignStudents'
     mockAssignStudentsAction.mockResolvedValue({
-      success: true,
       data: { assignedCount: 2, failedAssignments: [] },
     })
   })
@@ -319,9 +317,10 @@ describe('AssignStudentsDialog', () => {
       })
       await user.click(submitButton)
 
-      expect(mockAssignStudentsAction).toHaveBeenCalledWith('batch-1', [
-        'student-1',
-      ])
+      expect(mockAssignStudentsAction).toHaveBeenCalledWith({
+        batchId: 'batch-1',
+        studentIds: ['student-1'],
+      })
     })
 
     it('shows success toast and closes dialog on success', async () => {
@@ -355,7 +354,6 @@ describe('AssignStudentsDialog', () => {
     it('shows warning toast on partial success', async () => {
       const { toast } = await import('sonner')
       mockAssignStudentsAction.mockResolvedValue({
-        success: true,
         data: {
           assignedCount: 1,
           failedAssignments: ['student-2'],
@@ -389,8 +387,7 @@ describe('AssignStudentsDialog', () => {
     it('shows error toast on failure', async () => {
       const { toast } = await import('sonner')
       mockAssignStudentsAction.mockResolvedValue({
-        success: false,
-        error: 'Assignment failed',
+        serverError: 'Assignment failed',
       })
 
       const user = userEvent.setup()

@@ -33,9 +33,8 @@ const mockCreateBatchAction = vi.fn()
 const mockUpdateBatchAction = vi.fn()
 
 vi.mock('../../../_actions', () => ({
-  createBatchAction: (formData: FormData) => mockCreateBatchAction(formData),
-  updateBatchAction: (id: string, data: unknown) =>
-    mockUpdateBatchAction(id, data),
+  createBatchAction: (input: unknown) => mockCreateBatchAction(input),
+  updateBatchAction: (input: unknown) => mockUpdateBatchAction(input),
 }))
 
 vi.mock('sonner', () => ({
@@ -49,7 +48,9 @@ describe('CreateBatchDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockOpenDialog = 'createBatch'
-    mockCreateBatchAction.mockResolvedValue({ success: true })
+    mockCreateBatchAction.mockResolvedValue({
+      data: { id: 'batch-1', name: 'Test' },
+    })
   })
 
   describe('rendering', () => {
@@ -119,8 +120,8 @@ describe('CreateBatchDialog', () => {
 
       await waitFor(() => {
         expect(mockCreateBatchAction).toHaveBeenCalled()
-        const formData = mockCreateBatchAction.mock.calls[0][0] as FormData
-        expect(formData.get('name')).toBe('Fall 2024')
+        const input = mockCreateBatchAction.mock.calls[0][0] as { name: string }
+        expect(input.name).toBe('Fall 2024')
       })
     })
   })
@@ -155,8 +156,10 @@ describe('CreateBatchDialog', () => {
       await user.click(submitButton)
 
       await waitFor(() => {
-        const formData = mockCreateBatchAction.mock.calls[0][0] as FormData
-        expect(formData.get('startDate')).toBe('2024-09-01')
+        const input = mockCreateBatchAction.mock.calls[0][0] as {
+          startDate: Date | null
+        }
+        expect(input.startDate).toBeInstanceOf(Date)
       })
     })
 
@@ -179,8 +182,7 @@ describe('CreateBatchDialog', () => {
     it('shows error toast on failure', async () => {
       const { toast } = await import('sonner')
       mockCreateBatchAction.mockResolvedValue({
-        success: false,
-        error: 'Batch name already exists',
+        serverError: 'Batch name already exists',
       })
 
       const user = userEvent.setup()

@@ -45,8 +45,8 @@ export function DeleteStudentDialog({
 
   useEffect(() => {
     if (open && studentId) {
-      getStudentDeleteWarningsAction(studentId).then((result) => {
-        if (result.success && result.data) {
+      getStudentDeleteWarningsAction({ id: studentId }).then((result) => {
+        if (result?.data) {
           setWarnings(result.data)
         }
       })
@@ -57,15 +57,15 @@ export function DeleteStudentDialog({
 
   const handleDelete = () => {
     startTransition(async () => {
-      const result = await deleteStudentAction(studentId)
+      const result = await deleteStudentAction({ id: studentId })
 
-      if (result.success) {
+      if (result?.data !== undefined) {
         toast.success(`${studentName} has been deleted`)
         onOpenChange(false)
         onDeleted?.()
         router.refresh()
       } else {
-        toast.error(result.error || 'Failed to delete student')
+        toast.error(result?.serverError || 'Failed to delete student')
       }
     })
   }

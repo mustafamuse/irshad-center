@@ -70,37 +70,33 @@ export function BatchFormDialog() {
 
     startTransition(async () => {
       if (isEditMode && dialogData) {
-        const result = await updateBatchAction(dialogData.id, {
+        const result = await updateBatchAction({
+          id: dialogData.id,
           name: name.trim(),
           startDate: startDate ? new Date(startDate) : null,
           endDate: endDate ? new Date(endDate) : null,
         })
 
-        if (result.success) {
+        if (result?.data) {
           toast.success(`Batch "${name}" updated successfully`)
           handleOpenChange(false)
           router.refresh()
         } else {
-          toast.error(result.error || 'Failed to update batch')
+          toast.error(result?.serverError || 'Failed to update batch')
         }
       } else {
-        const formData = new FormData()
-        formData.set('name', name.trim())
-        if (startDate) {
-          formData.set('startDate', startDate)
-        }
-        if (endDate) {
-          formData.set('endDate', endDate)
-        }
+        const result = await createBatchAction({
+          name: name.trim(),
+          startDate: startDate ? new Date(startDate) : null,
+          endDate: endDate ? new Date(endDate) : null,
+        })
 
-        const result = await createBatchAction(formData)
-
-        if (result.success) {
+        if (result?.data) {
           toast.success(`Batch "${name}" created successfully`)
           handleOpenChange(false)
           router.refresh()
         } else {
-          toast.error(result.error || 'Failed to create batch')
+          toast.error(result?.serverError || 'Failed to create batch')
         }
       }
     })
