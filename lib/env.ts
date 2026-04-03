@@ -13,8 +13,10 @@ const envSchema = z.object({
   DIRECT_URL: z.string().optional(),
 
   // ── Admin Auth ───────────────────────────────────────────────────────────────
-  ADMIN_PIN: z.string().min(1, 'ADMIN_PIN is required'),
-  ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
+  ADMIN_PIN: z.string().min(6, 'ADMIN_PIN must be at least 6 characters'),
+  ADMIN_PASSWORD: z
+    .string()
+    .min(8, 'ADMIN_PASSWORD must be at least 8 characters'),
 
   // ── App Config ───────────────────────────────────────────────────────────────
   NEXT_PUBLIC_APP_URL: z
@@ -25,6 +27,7 @@ const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
   EMAIL_FROM: z
     .string()
+    .min(1)
     .optional()
     .default('Irshad Center <noreply@irshadcenter.com>'),
   ADMIN_EMAIL: z.string().email('ADMIN_EMAIL must be a valid email'),
@@ -48,6 +51,14 @@ const envSchema = z.object({
     .startsWith('whsec_', 'Must start with whsec_')
     .optional(),
   STRIPE_MAHAD_PRODUCT_ID: z
+    .string()
+    .startsWith('prod_', 'Must start with prod_')
+    .optional(),
+  STRIPE_MAHAD_PRODUCT_ID_TEST: z
+    .string()
+    .startsWith('prod_', 'Must start with prod_')
+    .optional(),
+  STRIPE_MAHAD_PRODUCT_ID_LIVE: z
     .string()
     .startsWith('prod_', 'Must start with prod_')
     .optional(),
@@ -113,10 +124,16 @@ const envSchema = z.object({
     .string()
     .startsWith('whsec_', 'Must start with whsec_')
     .optional(),
+  STRIPE_DONATION_PRODUCT_ID: z
+    .string()
+    .startsWith('prod_', 'Must start with prod_')
+    .optional(),
 
   // ── WhatsApp ─────────────────────────────────────────────────────────────────
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
   WHATSAPP_ACCESS_TOKEN: z.string().optional(),
+  // Required for webhook signature verification (project rule #11).
+  // If WHATSAPP_PHONE_NUMBER_ID is set, this must also be set.
   WHATSAPP_APP_SECRET: z.string().optional(),
   WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
   WHATSAPP_DEFAULT_LANGUAGE: z.string().optional().default('en'),
@@ -146,8 +163,8 @@ const envSchema = z.object({
     .optional(),
 
   // ── Geofence ─────────────────────────────────────────────────────────────────
-  IRSHAD_CENTER_LAT: z.string().optional(),
-  IRSHAD_CENTER_LNG: z.string().optional(),
+  IRSHAD_CENTER_LAT: z.coerce.number().min(-90).max(90).optional(),
+  IRSHAD_CENTER_LNG: z.coerce.number().min(-180).max(180).optional(),
 })
 
 const result = envSchema.safeParse(process.env)
