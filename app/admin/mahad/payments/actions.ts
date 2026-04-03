@@ -1,7 +1,7 @@
 'use server'
 
 import { assertAdmin } from '@/lib/auth'
-import { prisma } from '@/lib/db'
+import { getBatchDropdownOptions } from '@/lib/db/queries/batch'
 import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError, logWarning } from '@/lib/logger'
 
@@ -10,21 +10,7 @@ const logger = createActionLogger('mahad-payments')
 export async function getBatchesForFilter() {
   try {
     await assertAdmin('getBatchesForFilter')
-    const batches = await prisma.batch.findMany({
-      select: {
-        id: true,
-        name: true,
-      },
-      where: {
-        name: {
-          not: 'Test',
-        },
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    })
-    return batches
+    return await getBatchDropdownOptions()
   } catch (error) {
     if (error instanceof ActionError) throw error
     await logError(logger, error, 'Failed to fetch batches for filter')

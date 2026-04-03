@@ -6,6 +6,7 @@ import { Program } from '@prisma/client'
 import { z } from 'zod'
 
 import { assertAdmin } from '@/lib/auth'
+import { countActiveClassesForTeacher } from '@/lib/db/queries/dugsi-class'
 import { prisma } from '@/lib/db'
 import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -277,12 +278,7 @@ export async function lookupPersonAction(
 
     if (person.teacher) {
       // Count classes assigned to teacher
-      const classCount = await prisma.dugsiClassTeacher.count({
-        where: {
-          teacherId: person.teacher.id,
-          isActive: true,
-        },
-      })
+      const classCount = await countActiveClassesForTeacher(person.teacher.id)
 
       result.roles.teacher = {
         id: person.teacher.id,

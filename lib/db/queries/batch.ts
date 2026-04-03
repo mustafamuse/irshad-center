@@ -34,6 +34,19 @@ export interface BatchWithCount {
 }
 
 /**
+ * Get batches as lightweight dropdown options, excluding the 'Test' batch.
+ */
+export async function getBatchDropdownOptions(
+  client: DatabaseClient = prisma
+): Promise<{ id: string; name: string }[]> {
+  return client.batch.findMany({
+    select: { id: true, name: true },
+    where: { name: { not: 'Test' } },
+    orderBy: { name: 'asc' },
+  })
+}
+
+/**
  * Get all batches with student count (excluding withdrawn students)
  */
 export async function getBatches(

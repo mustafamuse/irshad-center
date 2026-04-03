@@ -13,6 +13,17 @@ import { DatabaseClient } from '@/lib/db/types'
  * Get people with multiple roles across the system
  * Useful for identifying staff/students/parents with multiple roles for policy decisions
  */
+export async function updatePersonContact(
+  personId: string,
+  data: Prisma.PersonUpdateInput,
+  client: DatabaseClient = prisma
+): Promise<void> {
+  await client.person.update({
+    where: { id: personId },
+    data,
+  })
+}
+
 export async function getMultiRolePeople(
   filters?: {
     minRoles?: number
