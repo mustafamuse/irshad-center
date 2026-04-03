@@ -3,8 +3,8 @@ import { type Instrumentation } from 'next'
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    const { env } = await import('@/lib/env')
     await import('./sentry.server.config')
+    const { env } = await import('@/lib/env')
 
     // Run in dev too (not just production) so geofence misconfiguration surfaces
     // at startup rather than silently at first teacher check-in attempt.
