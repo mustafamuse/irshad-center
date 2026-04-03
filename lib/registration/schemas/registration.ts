@@ -118,7 +118,7 @@ const schoolNameSchema = z
   .min(2, 'School name must be at least 2 characters')
   .max(100, 'School name must be less than 100 characters')
   .regex(
-    /^[\p{L}\p{N}\s.'-]+$/u,
+    /^[\p{L}\p{Nd}\s.'-]+$/u,
     'School name can only contain letters, numbers, spaces, hyphens, periods, and apostrophes'
   )
 

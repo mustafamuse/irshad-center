@@ -341,11 +341,15 @@ describe('dugsiRegistrationSchema', () => {
     })
 
     it('accepts Arabic school names', () => {
-      const result = childInfoSchema.safeParse({
-        ...validChildData,
-        schoolName: 'مدرسة الإسلامية',
-      })
-      expect(result.success).toBe(true)
+      expect(
+        childInfoSchema.safeParse({ ...validChildData, schoolName: 'مدرسة الإسلامية' }).success
+      ).toBe(true)
+    })
+
+    it('accepts Arabic-Indic digits in school names', () => {
+      expect(
+        childInfoSchema.safeParse({ ...validChildData, schoolName: 'مدرسة ١٢٣' }).success
+      ).toBe(true)
     })
   })
 
@@ -390,6 +394,12 @@ describe('dugsiRegistrationSchema', () => {
       expect(nameSchema.safeParse('José').success).toBe(true)
       expect(nameSchema.safeParse('François').success).toBe(true)
       expect(nameSchema.safeParse('Müller').success).toBe(true)
+    })
+
+    it('rejects emoji and non-letter symbols', () => {
+      expect(nameSchema.safeParse('John😀').success).toBe(false)
+      expect(nameSchema.safeParse('Ali★').success).toBe(false)
+      expect(nameSchema.safeParse('محمد123').success).toBe(false)
     })
   })
 })
