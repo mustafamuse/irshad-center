@@ -6,7 +6,7 @@ export async function register() {
     await import('@/lib/env')
     await import('./sentry.server.config')
 
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV !== 'test') {
       const { validateCenterLocationConfig } = await import(
         '@/lib/constants/teacher-checkin'
       )
