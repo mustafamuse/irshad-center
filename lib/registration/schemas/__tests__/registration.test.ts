@@ -339,6 +339,14 @@ describe('dugsiRegistrationSchema', () => {
         expect(result.data.useCustomShift).toBe(false)
       }
     })
+
+    it('accepts Arabic school names', () => {
+      const result = childInfoSchema.safeParse({
+        ...validChildData,
+        schoolName: 'مدرسة الإسلامية',
+      })
+      expect(result.success).toBe(true)
+    })
   })
 
   describe('nameSchema', () => {
