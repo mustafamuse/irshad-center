@@ -251,6 +251,14 @@ describe('countActiveClassesForTeacher', () => {
     )
   })
 
+  it('should return count from Prisma', async () => {
+    mockDugsiClassTeacherCount.mockResolvedValue(4)
+
+    const result = await countActiveClassesForTeacher('t1')
+
+    expect(result).toBe(4)
+  })
+
   it('should return 0 when no active classes', async () => {
     mockDugsiClassTeacherCount.mockResolvedValue(0)
 

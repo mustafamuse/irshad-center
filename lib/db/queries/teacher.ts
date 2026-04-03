@@ -4,7 +4,7 @@
  * Query functions for Teacher model linked to Person.
  */
 
-import { Prisma, Shift, TeacherProgram } from '@prisma/client'
+import { Prisma, Program, Shift, TeacherProgram } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -117,7 +117,7 @@ export async function getTeacherDugsiProgram(
   client: DatabaseClient = prisma
 ): Promise<TeacherProgram | null> {
   return client.teacherProgram.findFirst({
-    where: { teacherId, program: 'DUGSI_PROGRAM', isActive: true },
+    where: { teacherId, program: Program.DUGSI_PROGRAM, isActive: true },
   })
 }
 

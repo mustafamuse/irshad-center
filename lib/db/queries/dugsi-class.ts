@@ -64,7 +64,11 @@ export async function getClassCountsByTeacherIds(
 export async function getActiveClassesForTeacher(
   teacherId: string,
   client: DatabaseClient = prisma
-) {
+): Promise<
+  Prisma.DugsiClassTeacherGetPayload<{
+    include: { class: { select: { name: true; shift: true } } }
+  }>[]
+> {
   return client.dugsiClassTeacher.findMany({
     where: { teacherId, isActive: true },
     relationLoadStrategy: 'join',
