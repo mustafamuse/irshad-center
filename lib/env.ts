@@ -13,10 +13,8 @@ const envSchema = z.object({
   DIRECT_URL: z.string().optional(),
 
   // ── Admin Auth ───────────────────────────────────────────────────────────────
-  ADMIN_PIN: z.string().min(6, 'ADMIN_PIN must be at least 6 characters'),
-  ADMIN_PASSWORD: z
-    .string()
-    .min(8, 'ADMIN_PASSWORD must be at least 8 characters'),
+  ADMIN_PIN: z.string().min(1, 'ADMIN_PIN is required'),
+  ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
 
   // ── App Config ───────────────────────────────────────────────────────────────
   NEXT_PUBLIC_APP_URL: z
