@@ -16,7 +16,9 @@ import {
   getDugsiTeachersForDropdown,
   getTeacherCheckin,
 } from '@/lib/db/queries/teacher-checkin'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { actionClient } from '@/lib/safe-action'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 import { ValidationError } from '@/lib/services/validation-service'
@@ -67,71 +69,63 @@ export async function getTeacherCurrentStatus(
   }
 }
 
-export async function teacherClockInAction(
-  input: unknown
-): Promise<ActionResult<{ checkInId: string; status: TeacherCurrentStatus }>> {
-  try {
-    const validated = ClockInSchema.parse(input)
-    const result = await clockIn(validated)
-    revalidatePath('/teacher/checkin')
-    revalidatePath('/admin/dugsi/teacher-checkins')
+export const teacherClockInAction = actionClient
+  .metadata({ actionName: 'teacherClockInAction' })
+  .schema(ClockInSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      const result = await clockIn(parsedInput)
+      revalidatePath('/teacher/checkin')
+      revalidatePath('/admin/dugsi/teacher-checkins')
 
-    const status = await getTeacherCurrentStatus(validated.teacherId)
+      const status = await getTeacherCurrentStatus(parsedInput.teacherId)
 
-    return {
-      success: true,
-      data: { checkInId: result.checkIn.id, status },
-      message: result.checkIn.isLate
-        ? 'Clocked in (Late)'
-        : 'Clocked in successfully',
-    }
-  } catch (error) {
-    if (error instanceof ValidationError) {
       return {
-        success: false,
-        error: error.message,
+        checkInId: result.checkIn.id,
+        status,
+        message: result.checkIn.isLate
+          ? 'Clocked in (Late)'
+          : 'Clocked in successfully',
       }
-    }
-
-    await logError(logger, error, 'Clock-in failed')
-    return {
-      success: false,
-      error: 'Failed to clock in. Please try again.',
-    }
-  }
-}
-
-export async function teacherClockOutAction(
-  input: unknown
-): Promise<ActionResult<{ status: TeacherCurrentStatus }>> {
-  try {
-    const validated = ClockOutSchema.parse(input)
-    await clockOut(validated)
-    revalidatePath('/teacher/checkin')
-    revalidatePath('/admin/dugsi/teacher-checkins')
-
-    const status = await getTeacherCurrentStatus(validated.teacherId)
-
-    return {
-      success: true,
-      data: { status },
-      message: 'Clocked out successfully',
-    }
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      return {
-        success: false,
-        error: error.message,
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
       }
+      await logError(logger, error, 'Clock-in failed')
+      throw new ActionError(
+        'Failed to clock in. Please try again.',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
     }
+  })
 
-    await logError(logger, error, 'Clock-out failed')
-    return {
-      success: false,
-      error: 'Failed to clock out. Please try again.',
+export const teacherClockOutAction = actionClient
+  .metadata({ actionName: 'teacherClockOutAction' })
+  .schema(ClockOutSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      await clockOut(parsedInput)
+      revalidatePath('/teacher/checkin')
+      revalidatePath('/admin/dugsi/teacher-checkins')
+
+      const status = await getTeacherCurrentStatus(parsedInput.teacherId)
+
+      return { status, message: 'Clocked out successfully' }
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      }
+      await logError(logger, error, 'Clock-out failed')
+      throw new ActionError(
+        'Failed to clock out. Please try again.',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
     }
-  }
-}
+  })
 
 export interface GeofenceCheckResult {
   isWithinGeofence: boolean
