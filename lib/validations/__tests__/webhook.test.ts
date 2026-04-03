@@ -20,4 +20,13 @@ describe('webhookStudentNameSchema', () => {
   it('rejects names with numbers', () => {
     expect(webhookStudentNameSchema.safeParse('John123').success).toBe(false)
   })
+
+  it('rejects names shorter than 2 characters', () => {
+    expect(webhookStudentNameSchema.safeParse('A').success).toBe(false)
+    expect(webhookStudentNameSchema.safeParse('').success).toBe(false)
+  })
+
+  it('rejects names longer than 100 characters', () => {
+    expect(webhookStudentNameSchema.safeParse('A'.repeat(101)).success).toBe(false)
+  })
 })
