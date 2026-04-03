@@ -34,7 +34,7 @@ export type TeacherForDropdown = Awaited<
   ReturnType<typeof getDugsiTeachersForDropdown>
 >[number]
 
-export interface TeacherCurrentStatus {
+export type TeacherCurrentStatus = {
   morningCheckinId: string | null
   morningClockInTime: Date | null
   morningClockOutTime: Date | null
@@ -127,7 +127,7 @@ export const teacherClockOutAction = actionClient
     }
   })
 
-export interface GeofenceCheckResult {
+export type GeofenceCheckResult = {
   isWithinGeofence: boolean
   distanceMeters: number
   allowedRadiusMeters: number
@@ -159,7 +159,7 @@ export async function checkGeofence(
   }
 }
 
-export interface CheckinHistoryItem {
+export type CheckinHistoryItem = {
   id: string
   date: string
   shift: Shift
@@ -168,7 +168,7 @@ export interface CheckinHistoryItem {
   isLate: boolean
 }
 
-export interface CheckinHistoryResult {
+export type CheckinHistoryResult = {
   data: CheckinHistoryItem[]
   total: number
 }
