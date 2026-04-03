@@ -32,6 +32,8 @@ const envSchema = z
     // must read them via process.env directly — server-only prevents this module
     // from being imported in client components. The schema's role for these is
     // startup format-checking.
+    // Required in production — superRefine below rejects localhost values.
+    // Default is for local development only.
     NEXT_PUBLIC_APP_URL: z.preprocess(
       (v) => (v === '' ? undefined : v),
       z
@@ -204,6 +206,22 @@ const envSchema = z
         message: 'NEXT_PUBLIC_APP_URL must be set to a real URL in production',
         path: ['NEXT_PUBLIC_APP_URL'],
       })
+    }
+
+    if (data.NODE_ENV === 'production') {
+      const requiredInProduction = [
+        'STRIPE_MAHAD_SECRET_KEY_LIVE',
+        'STRIPE_DUGSI_SECRET_KEY_LIVE',
+      ] as const
+      for (const key of requiredInProduction) {
+        if (!data[key]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${key} is required in production`,
+            path: [key],
+          })
+        }
+      }
     }
 
     const hasLat = data.IRSHAD_CENTER_LAT !== undefined

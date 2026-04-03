@@ -3,7 +3,7 @@ import { type Instrumentation } from 'next'
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    await import('@/lib/env')
+    const { env } = await import('@/lib/env')
     await import('./sentry.server.config')
 
     // Run in dev too (not just production) so geofence misconfiguration surfaces
@@ -13,7 +13,7 @@ export async function register() {
     // must both be set or both absent — this adds a semantic check (non-zero values).
     if (
       process.env.NODE_ENV !== 'test' &&
-      (process.env.IRSHAD_CENTER_LAT || process.env.IRSHAD_CENTER_LNG)
+      env.IRSHAD_CENTER_LAT !== undefined
     ) {
       try {
         const { validateCenterLocationConfig } = await import(
