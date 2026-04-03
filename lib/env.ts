@@ -3,7 +3,7 @@ import 'server-only'
 import { z } from 'zod'
 
 // Coerces blank env var values ("") to undefined so optional() works correctly.
-// Node.js loads blank lines from .env files as "" not undefined.
+// Node.js (via dotenv) loads vars set to empty values (KEY=) as "" not undefined.
 const stripeField = (prefix: string) =>
   z.preprocess(
     (v) => (v === '' ? undefined : v),
@@ -32,10 +32,14 @@ const envSchema = z
     // must read them via process.env directly — server-only prevents this module
     // from being imported in client components. The schema's role for these is
     // startup format-checking.
-    NEXT_PUBLIC_APP_URL: z
-      .string()
-      .url('NEXT_PUBLIC_APP_URL must be a valid URL')
-      .default('http://localhost:3000'),
+    NEXT_PUBLIC_APP_URL: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z
+        .string()
+        .url('NEXT_PUBLIC_APP_URL must be a valid URL')
+        .optional()
+        .default('http://localhost:3000')
+    ),
 
     // ── Email ────────────────────────────────────────────────────────────────────
     RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
@@ -58,14 +62,17 @@ const envSchema = z
     STRIPE_MAHAD_SECRET_KEY_LIVE: stripeField('sk_live_'),
     STRIPE_MAHAD_WEBHOOK_SECRET_TEST: stripeField('whsec_'),
     STRIPE_MAHAD_WEBHOOK_SECRET_LIVE: stripeField('whsec_'),
-    // Product ID resolution (lib/keys/stripe.ts): production → LIVE || generic,
-    // development → TEST || generic
+    // Mahad product ID resolution (lib/keys/stripe.ts): production → LIVE || generic,
+    // non-production → TEST || generic. Dugsi uses a single STRIPE_DUGSI_PRODUCT_ID.
     STRIPE_MAHAD_PRODUCT_ID: stripeField('prod_'),
     STRIPE_MAHAD_PRODUCT_ID_TEST: stripeField('prod_'),
     STRIPE_MAHAD_PRODUCT_ID_LIVE: stripeField('prod_'),
     NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_TEST: stripeField('pk_test_'),
     NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_LIVE: stripeField('pk_live_'),
-    NEXT_PUBLIC_STRIPE_MAHAD_PRICING_TABLE_ID: z.string().optional(),
+    NEXT_PUBLIC_STRIPE_MAHAD_PRICING_TABLE_ID: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
 
     // ── Stripe — Dugsi ───────────────────────────────────────────────────────────
     STRIPE_DUGSI_SECRET_KEY_TEST: stripeField('sk_test_'),
@@ -90,12 +97,15 @@ const envSchema = z
 
     // ── WhatsApp ─────────────────────────────────────────────────────────────────
     // All four vars below are required together when WHATSAPP_PHONE_NUMBER_ID is
-    // set — enforced via superRefine below (project rule #11).
+    // set — enforced via superRefine below.
     WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
     WHATSAPP_ACCESS_TOKEN: z.string().optional(),
     WHATSAPP_APP_SECRET: z.string().optional(),
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
-    WHATSAPP_DEFAULT_LANGUAGE: z.string().optional().default('en'),
+    WHATSAPP_DEFAULT_LANGUAGE: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional().default('en')
+    ),
 
     // ── Feature Flags ────────────────────────────────────────────────────────────
     DUGSI_CARD_PAYMENTS_ENABLED: z.string().optional(),
@@ -119,13 +129,20 @@ const envSchema = z
     NEXT_PUBLIC_AXIOM_TOKEN: z.string().optional(),
 
     // ── Logging ──────────────────────────────────────────────────────────────────
-    PINO_LOG_LEVEL: z
-      .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal'])
-      .optional(),
+    PINO_LOG_LEVEL: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).optional()
+    ),
 
     // ── Geofence ─────────────────────────────────────────────────────────────────
-    IRSHAD_CENTER_LAT: z.coerce.number().min(-90).max(90).optional(),
-    IRSHAD_CENTER_LNG: z.coerce.number().min(-180).max(180).optional(),
+    IRSHAD_CENTER_LAT: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.coerce.number().min(-90).max(90).optional()
+    ),
+    IRSHAD_CENTER_LNG: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.coerce.number().min(-180).max(180).optional()
+    ),
   })
   .superRefine((data, ctx) => {
     if (data.WHATSAPP_PHONE_NUMBER_ID) {
