@@ -211,7 +211,9 @@ const envSchema = z
     if (data.NODE_ENV === 'production') {
       const requiredInProduction = [
         'STRIPE_MAHAD_SECRET_KEY_LIVE',
+        'STRIPE_MAHAD_WEBHOOK_SECRET_LIVE',
         'STRIPE_DUGSI_SECRET_KEY_LIVE',
+        'STRIPE_DUGSI_WEBHOOK_SECRET_LIVE',
       ] as const
       for (const key of requiredInProduction) {
         if (!data[key]) {
