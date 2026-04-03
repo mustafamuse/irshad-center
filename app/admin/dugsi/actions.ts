@@ -1365,6 +1365,7 @@ export async function removeStudentFromClassAction(
 export async function bulkEnrollStudentsAction(
   rawInput: unknown
 ): Promise<ActionResult<{ enrolled: number; moved: number }>> {
+  let classId: string | undefined
   try {
     await assertAdmin('bulkEnrollStudentsAction')
     const parsed = BulkEnrollStudentsSchema.safeParse(rawInput)
@@ -1374,7 +1375,8 @@ export async function bulkEnrollStudentsAction(
         error: parsed.error.errors[0]?.message || 'Invalid input',
       }
     }
-    const { classId, programProfileIds } = parsed.data
+    ;({ classId } = parsed.data)
+    const { programProfileIds } = parsed.data
     const result = await bulkEnrollStudents(classId, programProfileIds)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1392,7 +1394,7 @@ export async function bulkEnrollStudentsAction(
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to bulk enroll students')
+    await logError(logger, error, 'Failed to bulk enroll students', { classId })
     return {
       success: false,
       error: 'Unable to enroll students. Please try again.',
@@ -1406,6 +1408,8 @@ export async function bulkEnrollStudentsAction(
 export async function createClassAction(
   rawInput: unknown
 ): Promise<ActionResult<ClassWithDetails>> {
+  let name: string | undefined
+  let shift: string | undefined
   try {
     await assertAdmin('createClassAction')
     const parsed = CreateClassSchema.safeParse(rawInput)
@@ -1415,7 +1419,8 @@ export async function createClassAction(
         error: parsed.error.errors[0]?.message || 'Invalid input',
       }
     }
-    const { name, shift, description } = parsed.data
+    ;({ name, shift } = parsed.data)
+    const { description } = parsed.data
     const newClass = await createClass(name, shift as Shift, description)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1451,7 +1456,7 @@ export async function createClassAction(
 
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to create class')
+    await logError(logger, error, 'Failed to create class', { name, shift })
     return {
       success: false,
       error: 'Unable to create class. Please try again.',
@@ -1465,6 +1470,8 @@ export async function createClassAction(
 export async function updateClassAction(
   rawInput: unknown
 ): Promise<ActionResult<ClassWithDetails>> {
+  let classId: string | undefined
+  let name: string | undefined
   try {
     await assertAdmin('updateClassAction')
     const parsed = UpdateClassSchema.safeParse(rawInput)
@@ -1474,7 +1481,8 @@ export async function updateClassAction(
         error: parsed.error.errors[0]?.message || 'Invalid input',
       }
     }
-    const { classId, name, description } = parsed.data
+    ;({ classId, name } = parsed.data)
+    const { description } = parsed.data
     await updateClass(classId, { name, description })
 
     const updatedClass = await getClassById(classId)
@@ -1526,7 +1534,7 @@ export async function updateClassAction(
 
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to update class')
+    await logError(logger, error, 'Failed to update class', { classId, name })
     return {
       success: false,
       error: 'Unable to update class. Please try again.',
@@ -1540,6 +1548,7 @@ export async function updateClassAction(
 export async function deleteClassAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
+  let classId: string | undefined
   try {
     await assertAdmin('deleteClassAction')
     const parsed = DeleteClassSchema.safeParse(rawInput)
@@ -1549,7 +1558,7 @@ export async function deleteClassAction(
         error: parsed.error.errors[0]?.message || 'Invalid input',
       }
     }
-    const { classId } = parsed.data
+    ;({ classId } = parsed.data)
     await deleteClass(classId)
 
     revalidatePath('/admin/dugsi/classes')
@@ -1572,7 +1581,7 @@ export async function deleteClassAction(
 
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to delete class')
+    await logError(logger, error, 'Failed to delete class', { classId })
     return {
       success: false,
       error: 'Unable to delete class. Please try again.',

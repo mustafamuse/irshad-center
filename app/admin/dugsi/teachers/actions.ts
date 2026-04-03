@@ -1264,14 +1264,11 @@ export async function updateCheckinAction(input: {
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
+    if (error instanceof ValidationError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update check-in', {
       checkInId: input.checkInId,
     })
-
-    if (error instanceof ValidationError) {
-      return { success: false, error: error.message }
-    }
-
     return { success: false, error: 'Failed to update check-in' }
   }
 }
@@ -1299,12 +1296,9 @@ export async function deleteCheckinAction(
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to delete check-in', { checkInId })
-
-    if (error instanceof ValidationError) {
+    if (error instanceof ValidationError)
       return { success: false, error: error.message }
-    }
-
+    await logError(logger, error, 'Failed to delete check-in', { checkInId })
     return { success: false, error: 'Failed to delete check-in' }
   }
 }

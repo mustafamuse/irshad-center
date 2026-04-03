@@ -68,13 +68,14 @@ const deletePersonSchema = z.object({
 export async function deletePersonAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
+  let personId: string | undefined
   try {
     await assertAdmin('deletePersonAction')
     const parsed = deletePersonSchema.safeParse(rawInput)
     if (!parsed.success) {
       return { success: false, error: 'Invalid input' }
     }
-    const { personId } = parsed.data
+    ;({ personId } = parsed.data)
 
     await prisma.$transaction(async (tx) => {
       const teachers = await tx.teacher.findMany({
@@ -142,7 +143,7 @@ export async function deletePersonAction(
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to delete person')
+    await logError(logger, error, 'Failed to delete person', { personId })
     return {
       success: false,
       error:
