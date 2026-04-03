@@ -1,35 +1,26 @@
 'use server'
 
 import { createZakatFitrCheckoutSession } from '@/lib/services/donation/zakat-fitr-checkout-service'
-import { createActionLogger, logError } from '@/lib/logger'
-import { type ActionResult } from '@/lib/utils/action-helpers'
-import {
-  ZakatFitrCheckoutSchema,
-  type ZakatFitrCheckoutInput,
-} from '@/lib/validations/zakat-fitr'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { actionClient } from '@/lib/safe-action'
+import { ZakatFitrCheckoutSchema } from '@/lib/validations/zakat-fitr'
 
-const logger = createActionLogger('zakat-fitr-actions')
+const _createZakatFitrAction = actionClient
+  .metadata({ actionName: 'createZakatFitrAction' })
+  .schema(ZakatFitrCheckoutSchema)
+  .action(async ({ parsedInput }) => {
+    const session = await createZakatFitrCheckoutSession(parsedInput)
+    if (!session.url) {
+      throw new ActionError(
+        'Failed to create checkout session',
+        ERROR_CODES.SERVER_ERROR
+      )
+    }
+    return { url: session.url }
+  })
 
 export async function createZakatFitrAction(
-  formData: ZakatFitrCheckoutInput
-): Promise<ActionResult<{ url: string }>> {
-  try {
-    const validated = ZakatFitrCheckoutSchema.parse(formData)
-    const session = await createZakatFitrCheckoutSession(validated)
-
-    if (!session.url) {
-      throw new Error('Failed to create checkout session')
-    }
-
-    return { success: true, data: { url: session.url } }
-  } catch (error) {
-    await logError(logger, error, 'Failed to create Zakat al-Fitr checkout')
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to create Zakat al-Fitr checkout',
-    }
-  }
+  ...args: Parameters<typeof _createZakatFitrAction>
+) {
+  return _createZakatFitrAction(...args)
 }

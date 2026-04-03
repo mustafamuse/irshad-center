@@ -1,35 +1,26 @@
 'use server'
 
 import { createDonationCheckoutSession } from '@/lib/services/donation/checkout-service'
-import { createActionLogger, logError } from '@/lib/logger'
-import { type ActionResult } from '@/lib/utils/action-helpers'
-import {
-  DonationCheckoutSchema,
-  type DonationCheckoutInput,
-} from '@/lib/validations/donation'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { actionClient } from '@/lib/safe-action'
+import { DonationCheckoutSchema } from '@/lib/validations/donation'
 
-const logger = createActionLogger('donate-actions')
+const _createDonationAction = actionClient
+  .metadata({ actionName: 'createDonationAction' })
+  .schema(DonationCheckoutSchema)
+  .action(async ({ parsedInput }) => {
+    const session = await createDonationCheckoutSession(parsedInput)
+    if (!session.url) {
+      throw new ActionError(
+        'Failed to create checkout session',
+        ERROR_CODES.SERVER_ERROR
+      )
+    }
+    return { url: session.url }
+  })
 
 export async function createDonationAction(
-  formData: DonationCheckoutInput
-): Promise<ActionResult<{ url: string }>> {
-  try {
-    const validated = DonationCheckoutSchema.parse(formData)
-    const session = await createDonationCheckoutSession(validated)
-
-    if (!session.url) {
-      throw new Error('Failed to create checkout session')
-    }
-
-    return { success: true, data: { url: session.url } }
-  } catch (error) {
-    await logError(logger, error, 'Failed to create donation checkout')
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to create donation checkout',
-    }
-  }
+  ...args: Parameters<typeof _createDonationAction>
+) {
+  return _createDonationAction(...args)
 }
