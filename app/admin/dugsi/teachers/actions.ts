@@ -592,7 +592,7 @@ export async function updateTeacherShiftsAction(
 
     logger.info({ teacherId, shifts }, 'Teacher shifts updated')
 
-    return { success: true, data: shifts as Shift[] }
+    return { success: true, data: shifts }
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
@@ -616,7 +616,7 @@ export async function getTeacherShiftsAction(
     await assertAdmin('getTeacherShiftsAction')
     const teacherProgram = await getTeacherDugsiProgram(teacherId)
 
-    return { success: true, data: (teacherProgram?.shifts ?? []) as Shift[] }
+    return { success: true, data: teacherProgram?.shifts ?? [] }
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }

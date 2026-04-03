@@ -185,12 +185,11 @@ describe('getClassCountsByTeacherIds', () => {
     expect(result.get('t1')).toBe(3)
   })
 
-  it('should return empty Map for empty results', async () => {
-    mockDugsiClassTeacherGroupBy.mockResolvedValue([])
-
+  it('should short-circuit for empty teacherIds without querying', async () => {
     const result = await getClassCountsByTeacherIds([])
 
     expect(result.size).toBe(0)
+    expect(mockDugsiClassTeacherGroupBy).not.toHaveBeenCalled()
   })
 })
 

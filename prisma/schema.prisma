@@ -514,6 +514,7 @@ model DugsiClassTeacher {
   @@unique([classId, teacherId])
   @@index([classId])
   @@index([teacherId])
+  @@index([teacherId, isActive])
 }
 
 model DugsiClassEnrollment {
