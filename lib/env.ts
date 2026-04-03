@@ -39,11 +39,14 @@ const envSchema = z
 
     // ── Email ────────────────────────────────────────────────────────────────────
     RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
-    EMAIL_FROM: z
-      .string()
-      .min(1)
-      .optional()
-      .default('Irshad Center <noreply@irshadcenter.com>'),
+    EMAIL_FROM: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z
+        .string()
+        .min(1)
+        .optional()
+        .default('Irshad Center <noreply@irshadcenter.com>')
+    ),
     ADMIN_EMAIL: z.string().email('ADMIN_EMAIL must be a valid email'),
     REPLY_TO_EMAIL: z.preprocess(
       (v) => (v === '' ? undefined : v),

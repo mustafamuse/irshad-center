@@ -6,6 +6,9 @@ export async function register() {
     await import('@/lib/env')
     await import('./sentry.server.config')
 
+    // Run in dev too (not just production) so geofence misconfiguration surfaces
+    // at startup rather than silently at first teacher check-in attempt.
+    // Guarded by var presence so devs without teacher check-in vars don't crash.
     if (
       process.env.NODE_ENV !== 'test' &&
       (process.env.IRSHAD_CENTER_LAT || process.env.IRSHAD_CENTER_LNG)
