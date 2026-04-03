@@ -14,18 +14,12 @@ export function BackfillPaymentsButton() {
 
   async function handleBackfill() {
     setIsBackfilling(true)
-    const { success, message } = await runPaymentsBackfill()
+    const { error } = await runPaymentsBackfill()
     setIsBackfilling(false)
 
-    if (success) {
-      toast.success('Backfill Complete', {
-        description: message,
-      })
-    } else {
-      toast.error('Backfill Failed', {
-        description: message,
-      })
-    }
+    toast.error('Backfill Failed', {
+      description: error,
+    })
   }
 
   return (

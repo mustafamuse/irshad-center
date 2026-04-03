@@ -5,6 +5,8 @@ import { revalidatePath } from 'next/cache'
 import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
+import { assertAdmin } from '@/lib/auth'
+import { ActionError } from '@/lib/errors/action-error'
 import { prisma } from '@/lib/db'
 import {
   getAllDugsiTeachersWithTodayStatus,
@@ -166,6 +168,7 @@ export async function getTeachers(
   program?: Program
 ): Promise<ActionResult<TeacherWithDetails[]>> {
   try {
+    await assertAdmin('getTeachers')
     if (program === 'DUGSI_PROGRAM') {
       // Get ALL teachers enrolled in Dugsi (not just those with class assignments)
       const teachers = await getAllTeachers('DUGSI_PROGRAM')
@@ -282,6 +285,8 @@ export async function getTeachers(
 
     return { success: true, data: teachersWithDetails }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teachers')
     return {
       success: false,
@@ -296,13 +301,16 @@ export async function getTeachers(
 export async function createTeacherAction(
   rawInput: unknown
 ): Promise<ActionResult<{ teacherId: string }>> {
-  const parsed = createTeacherSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const input = parsed.data
+  let personId: string | undefined
 
   try {
+    await assertAdmin('createTeacherAction')
+    const parsed = createTeacherSchema.safeParse(rawInput)
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    }
+    const input = parsed.data
+    personId = input.personId
     // Use transaction to create teacher and enroll in Dugsi atomically
     const teacher = await prisma.$transaction(async (tx) => {
       const newTeacher = await createTeacher(input.personId, tx)
@@ -334,8 +342,10 @@ export async function createTeacherAction(
       data: { teacherId: teacher.id },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to create teacher', {
-      personId: input.personId,
+      personId,
     })
 
     if (
@@ -371,6 +381,7 @@ export async function createTeacherWithPersonAction(
   const input = parsed.data
 
   try {
+    await assertAdmin('createTeacherWithPersonAction')
     const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
 
     const teacher = await prisma.$transaction(async (tx) => {
@@ -411,6 +422,8 @@ export async function createTeacherWithPersonAction(
       data: { teacherId: teacher.id },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
@@ -454,13 +467,15 @@ export async function createTeacherWithPersonAction(
 export async function deleteTeacherAction(
   rawInput: unknown
 ): Promise<ActionResult<void>> {
-  const parsed = deleteTeacherSchema.safeParse({ teacherId: rawInput })
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { teacherId } = parsed.data
+  let teacherId: string | undefined
 
   try {
+    await assertAdmin('deleteTeacherAction')
+    const parsed = deleteTeacherSchema.safeParse({ teacherId: rawInput })
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    }
+    teacherId = parsed.data.teacherId
     await deleteTeacher(teacherId)
 
     revalidatePath('/admin/teachers')
@@ -469,6 +484,8 @@ export async function deleteTeacherAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to delete teacher', { teacherId })
     return {
       success: false,
@@ -484,17 +501,17 @@ export async function deleteTeacherAction(
 export async function updateTeacherDetailsAction(
   input: UpdateTeacherDetailsInput
 ): Promise<ActionResult<TeacherWithDetails>> {
-  const parsed = updateTeacherDetailsSchema.safeParse(input)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-
-  const { teacherId, name, email, phone } = parsed.data
-
   try {
+    await assertAdmin('updateTeacherDetailsAction')
+    const parsed = updateTeacherDetailsSchema.safeParse(input)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+
+    const { teacherId, name, email, phone } = parsed.data
     const teacher = await prisma.teacher.findUnique({
       where: { id: teacherId },
       include: {
@@ -534,11 +551,16 @@ export async function updateTeacherDetailsAction(
 
     return { success: false, error: 'Failed to fetch updated teacher' }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
     ) {
-      logger.warn({ teacherId }, 'Duplicate contact on teacher update')
+      logger.warn(
+        { teacherId: input.teacherId },
+        'Duplicate contact on teacher update'
+      )
       return {
         success: false,
         error: 'This email or phone is already in use',
@@ -546,7 +568,7 @@ export async function updateTeacherDetailsAction(
     }
 
     await logError(logger, error, 'Failed to update teacher details', {
-      teacherId,
+      teacherId: input.teacherId,
     })
 
     return {
@@ -563,17 +585,17 @@ export async function updateTeacherDetailsAction(
 export async function updateTeacherShiftsAction(
   input: UpdateTeacherShiftsInput
 ): Promise<ActionResult<Shift[]>> {
-  const parsed = updateTeacherShiftsSchema.safeParse(input)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-
-  const { teacherId, shifts } = parsed.data
-
   try {
+    await assertAdmin('updateTeacherShiftsAction')
+    const parsed = updateTeacherShiftsSchema.safeParse(input)
+    if (!parsed.success) {
+      return {
+        success: false,
+        error: parsed.error.errors[0]?.message || 'Invalid input',
+      }
+    }
+
+    const { teacherId, shifts } = parsed.data
     const teacherProgram = await prisma.teacherProgram.findFirst({
       where: {
         teacherId,
@@ -597,8 +619,10 @@ export async function updateTeacherShiftsAction(
 
     return { success: true, data: shifts as Shift[] }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update teacher shifts', {
-      teacherId,
+      teacherId: input.teacherId,
     })
     return {
       success: false,
@@ -614,6 +638,7 @@ export async function getTeacherShiftsAction(
   teacherId: string
 ): Promise<ActionResult<Shift[]>> {
   try {
+    await assertAdmin('getTeacherShiftsAction')
     const teacherProgram = await prisma.teacherProgram.findFirst({
       where: {
         teacherId,
@@ -625,6 +650,8 @@ export async function getTeacherShiftsAction(
 
     return { success: true, data: teacherProgram?.shifts ?? [] }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teacher shifts', { teacherId })
     return {
       success: false,
@@ -641,6 +668,7 @@ export async function deactivateTeacherAction(
   teacherId: string
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('deactivateTeacherAction')
     // Check for active class assignments
     const activeClasses = await prisma.dugsiClassTeacher.findMany({
       where: {
@@ -686,6 +714,8 @@ export async function deactivateTeacherAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to deactivate teacher', { teacherId })
     return {
       success: false,
@@ -705,6 +735,7 @@ export async function assignTeacherToProgramAction(
   input: ProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('assignTeacherToProgramAction')
     await assignTeacherToProgram(input)
 
     revalidatePath('/admin/teachers')
@@ -719,6 +750,8 @@ export async function assignTeacherToProgramAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to assign teacher to program', {
       ...input,
     })
@@ -747,6 +780,7 @@ export async function removeTeacherFromProgramAction(
   input: ProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('removeTeacherFromProgramAction')
     // For Dugsi, check for active class assignments
     if (input.program === 'DUGSI_PROGRAM') {
       const activeClasses = await prisma.dugsiClassTeacher.count({
@@ -778,6 +812,8 @@ export async function removeTeacherFromProgramAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to remove teacher from program', {
       ...input,
     })
@@ -795,6 +831,7 @@ export async function bulkAssignProgramsAction(
   input: BulkProgramAssignmentInput
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('bulkAssignProgramsAction')
     await bulkAssignPrograms(input.teacherId, input.programs)
 
     revalidatePath('/admin/teachers')
@@ -813,6 +850,8 @@ export async function bulkAssignProgramsAction(
 
     return { success: true, data: undefined }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to bulk assign programs', {
       ...input,
     })
@@ -829,13 +868,15 @@ export async function bulkAssignProgramsAction(
 export async function getTeacherProgramsAction(
   rawInput: unknown
 ): Promise<ActionResult<Program[]>> {
-  const parsed = getTeacherProgramsSchema.safeParse({ teacherId: rawInput })
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { teacherId } = parsed.data
+  let teacherId: string | undefined
 
   try {
+    await assertAdmin('getTeacherProgramsAction')
+    const parsed = getTeacherProgramsSchema.safeParse({ teacherId: rawInput })
+    if (!parsed.success) {
+      return { success: false, error: 'Invalid input: ' + parsed.error.message }
+    }
+    teacherId = parsed.data.teacherId
     const programs = await getTeacherPrograms(teacherId)
 
     return {
@@ -843,6 +884,8 @@ export async function getTeacherProgramsAction(
       data: programs.map((p) => p.program),
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teacher programs', {
       teacherId,
     })
@@ -860,6 +903,7 @@ export async function searchPeopleAction(
   query: string
 ): Promise<ActionResult<PersonSearchResult[]>> {
   try {
+    await assertAdmin('searchPeopleAction')
     if (!query || query.trim().length < SEARCH_MIN_LENGTH) {
       return { success: true, data: [] }
     }
@@ -936,6 +980,8 @@ export async function searchPeopleAction(
 
     return { success: true, data: results }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to search people', { query })
     return {
       success: false,
@@ -973,6 +1019,7 @@ export async function getTeacherCheckinHistoryAction(
   page: number = 1
 ): Promise<ActionResult<CheckinHistoryResult>> {
   try {
+    await assertAdmin('getTeacherCheckinHistoryAction')
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
@@ -1004,6 +1051,8 @@ export async function getTeacherCheckinHistoryAction(
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get check-in history', {
       teacherId,
     })
@@ -1062,6 +1111,7 @@ export async function getCheckinsForDateAction(filters: {
   teacherId?: string
 }): Promise<ActionResult<CheckinRecord[]>> {
   try {
+    await assertAdmin('getCheckinsForDateAction')
     const parsed = DateCheckinFiltersSchema.safeParse(filters)
     if (!parsed.success) {
       return {
@@ -1075,6 +1125,8 @@ export async function getCheckinsForDateAction(filters: {
 
     return { success: true, data: records }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get check-ins for date')
     return { success: false, error: 'Failed to load check-ins' }
   }
@@ -1101,6 +1153,7 @@ export async function getCheckinHistoryWithFiltersAction(filters: {
   }>
 > {
   try {
+    await assertAdmin('getCheckinHistoryWithFiltersAction')
     const parsed = CheckinHistoryFiltersSchema.safeParse(filters)
     if (!parsed.success) {
       return {
@@ -1123,6 +1176,8 @@ export async function getCheckinHistoryWithFiltersAction(filters: {
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get check-in history')
     return { success: false, error: 'Failed to load check-in history' }
   }
@@ -1138,6 +1193,7 @@ export async function getLateArrivalsAction(filters: {
   teacherId?: string
 }): Promise<ActionResult<CheckinRecord[]>> {
   try {
+    await assertAdmin('getLateArrivalsAction')
     const parsed = LateReportFiltersSchema.safeParse(filters)
     if (!parsed.success) {
       return {
@@ -1151,6 +1207,8 @@ export async function getLateArrivalsAction(filters: {
 
     return { success: true, data: records }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get late arrivals')
     return { success: false, error: 'Failed to load late arrivals report' }
   }
@@ -1163,6 +1221,7 @@ export async function getTeachersForDropdownAction(): Promise<
   ActionResult<TeacherOption[]>
 > {
   try {
+    await assertAdmin('getTeachersForDropdownAction')
     const teachers = await getDugsiTeachersForDropdown()
     const options: TeacherOption[] = teachers.map((t) => ({
       id: t.id,
@@ -1171,6 +1230,8 @@ export async function getTeachersForDropdownAction(): Promise<
 
     return { success: true, data: options }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to get teachers for dropdown')
     return { success: false, error: 'Failed to load teachers' }
   }
@@ -1188,6 +1249,7 @@ export async function updateCheckinAction(input: {
   notes?: string | null
 }): Promise<ActionResult<CheckinRecord>> {
   try {
+    await assertAdmin('updateCheckinAction')
     const parsed = UpdateCheckinSchema.safeParse(input)
     if (!parsed.success) {
       const firstError = parsed.error.errors[0]
@@ -1203,14 +1265,13 @@ export async function updateCheckinAction(input: {
 
     return { success: true, data: record }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    if (error instanceof ValidationError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to update check-in', {
       checkInId: input.checkInId,
     })
-
-    if (error instanceof ValidationError) {
-      return { success: false, error: error.message }
-    }
-
     return { success: false, error: 'Failed to update check-in' }
   }
 }
@@ -1222,6 +1283,7 @@ export async function deleteCheckinAction(
   checkInId: string
 ): Promise<ActionResult<void>> {
   try {
+    await assertAdmin('deleteCheckinAction')
     const parsed = DeleteCheckinSchema.safeParse({ checkInId })
     if (!parsed.success) {
       return { success: false, error: 'Invalid check-in ID' }
@@ -1235,12 +1297,11 @@ export async function deleteCheckinAction(
 
     return { success: true, data: undefined }
   } catch (error) {
-    await logError(logger, error, 'Failed to delete check-in', { checkInId })
-
-    if (error instanceof ValidationError) {
+    if (error instanceof ActionError)
       return { success: false, error: error.message }
-    }
-
+    if (error instanceof ValidationError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to delete check-in', { checkInId })
     return { success: false, error: 'Failed to delete check-in' }
   }
 }

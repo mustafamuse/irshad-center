@@ -5,11 +5,17 @@ const {
   mockResumeFamilyBilling,
   mockRevalidatePath,
   mockLogError,
+  mockAssertAdmin,
 } = vi.hoisted(() => ({
   mockPauseFamilyBilling: vi.fn(),
   mockResumeFamilyBilling: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockLogError: vi.fn(),
+  mockAssertAdmin: vi.fn(),
+}))
+
+vi.mock('@/lib/auth', () => ({
+  assertAdmin: (...args: unknown[]) => mockAssertAdmin(...args),
 }))
 
 vi.mock('next/cache', () => ({
@@ -127,6 +133,24 @@ describe('pauseFamilyBillingAction', () => {
       expect.objectContaining({ familyReferenceId: VALID_UUID })
     )
   })
+
+  it('should return unauthorized when assertAdmin rejects', async () => {
+    const { ActionError, ERROR_CODES } = await import(
+      '@/lib/errors/action-error'
+    )
+    mockAssertAdmin.mockRejectedValueOnce(
+      new ActionError('Unauthorized', ERROR_CODES.UNAUTHORIZED, undefined, 401)
+    )
+
+    const result = await pauseFamilyBillingAction({
+      familyReferenceId: VALID_UUID,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Unauthorized')
+    expect(mockAssertAdmin).toHaveBeenCalledWith('pauseFamilyBillingAction')
+    expect(mockPauseFamilyBilling).not.toHaveBeenCalled()
+  })
 })
 
 // ============================================================================
@@ -196,5 +220,23 @@ describe('resumeFamilyBillingAction', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe('Network error')
     expect(mockLogError).toHaveBeenCalled()
+  })
+
+  it('should return unauthorized when assertAdmin rejects', async () => {
+    const { ActionError, ERROR_CODES } = await import(
+      '@/lib/errors/action-error'
+    )
+    mockAssertAdmin.mockRejectedValueOnce(
+      new ActionError('Unauthorized', ERROR_CODES.UNAUTHORIZED, undefined, 401)
+    )
+
+    const result = await resumeFamilyBillingAction({
+      familyReferenceId: VALID_UUID,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('Unauthorized')
+    expect(mockAssertAdmin).toHaveBeenCalledWith('resumeFamilyBillingAction')
+    expect(mockResumeFamilyBilling).not.toHaveBeenCalled()
   })
 })

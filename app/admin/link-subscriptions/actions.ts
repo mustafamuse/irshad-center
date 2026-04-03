@@ -2,7 +2,10 @@
 
 import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 
+import { assertAdmin } from '@/lib/auth'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError, logInfo } from '@/lib/logger'
+import { ActionResult } from '@/lib/utils/action-helpers'
 import {
   getAllOrphanedSubscriptions,
   searchStudentsForLinking,
@@ -34,6 +37,7 @@ const getCachedOrphanedSubscriptions = unstable_cache(
 
 export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsResult> {
   try {
+    await assertAdmin('getOrphanedSubscriptions')
     const raw = await getCachedOrphanedSubscriptions()
     const data = raw.map((sub) => ({
       ...sub,
@@ -47,6 +51,7 @@ export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsR
     }))
     return { data }
   } catch (error) {
+    if (error instanceof ActionError) throw error
     await logError(logger, error, 'Failed to fetch orphaned subscriptions')
     const message = error instanceof Error ? error.message : 'Unknown error'
     return { data: [], error: message }
@@ -59,8 +64,18 @@ export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsR
 export async function searchStudents(
   query: string,
   program?: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  return await searchStudentsForLinking(query, program)
+): Promise<ActionResult<StudentMatch[]>> {
+  try {
+    await assertAdmin('searchStudents')
+    const data = await searchStudentsForLinking(query, program)
+    return { success: true, data }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to search students')
+    return { success: false, error: 'Failed to search students' }
+  }
 }
 
 /**
@@ -69,8 +84,18 @@ export async function searchStudents(
 export async function getPotentialMatches(
   email: string | null,
   program: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  return await getPotentialStudentMatches(email, program)
+): Promise<ActionResult<StudentMatch[]>> {
+  try {
+    await assertAdmin('getPotentialMatches')
+    const data = await getPotentialStudentMatches(email, program)
+    return { success: true, data }
+  } catch (error) {
+    if (error instanceof ActionError) {
+      return { success: false, error: error.message }
+    }
+    await logError(logger, error, 'Failed to get potential matches')
+    return { success: false, error: 'Failed to get potential matches' }
+  }
 }
 
 /**
@@ -81,23 +106,35 @@ export async function linkSubscriptionToStudent(
   studentId: string,
   program: 'MAHAD' | 'DUGSI'
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await linkSubscriptionToProfile(
-    subscriptionId,
-    studentId,
-    program
-  )
+  try {
+    await assertAdmin('linkSubscriptionToStudent')
+    const result = await linkSubscriptionToProfile(
+      subscriptionId,
+      studentId,
+      program
+    )
 
-  if (result.success) {
-    await logInfo(logger, 'Subscription linked to student', {
+    if (result.success) {
+      await logInfo(logger, 'Subscription linked to student', {
+        subscriptionId,
+        studentId,
+        program,
+      })
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    }
+
+    return result
+  } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to link subscription', {
       subscriptionId,
       studentId,
       program,
     })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
+    return { success: false, error: 'Failed to link subscription' }
   }
-
-  return result
 }
 
 /**
@@ -109,23 +146,34 @@ export async function ignoreSubscription(
   program: 'MAHAD' | 'DUGSI',
   reason?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await ignoreSubscriptionService(
-    subscriptionId,
-    program,
-    reason
-  )
-
-  if (result.success) {
-    await logInfo(logger, 'Subscription ignored', {
+  try {
+    await assertAdmin('ignoreSubscription')
+    const result = await ignoreSubscriptionService(
       subscriptionId,
       program,
-      reason,
-    })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
-  }
+      reason
+    )
 
-  return result
+    if (result.success) {
+      await logInfo(logger, 'Subscription ignored', {
+        subscriptionId,
+        program,
+        reason,
+      })
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    }
+
+    return result
+  } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to ignore subscription', {
+      subscriptionId,
+      program,
+    })
+    return { success: false, error: 'Failed to ignore subscription' }
+  }
 }
 
 /**
@@ -135,16 +183,27 @@ export async function unignoreSubscription(
   subscriptionId: string,
   program: 'MAHAD' | 'DUGSI'
 ): Promise<{ success: boolean; error?: string }> {
-  const result = await unignoreSubscriptionService(subscriptionId, program)
+  try {
+    await assertAdmin('unignoreSubscription')
+    const result = await unignoreSubscriptionService(subscriptionId, program)
 
-  if (result.success) {
-    await logInfo(logger, 'Subscription unignored', {
+    if (result.success) {
+      await logInfo(logger, 'Subscription unignored', {
+        subscriptionId,
+        program,
+      })
+      revalidateTag('link-subscriptions')
+      revalidatePath('/admin/link-subscriptions')
+    }
+
+    return result
+  } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
+    await logError(logger, error, 'Failed to unignore subscription', {
       subscriptionId,
       program,
     })
-    revalidateTag('link-subscriptions')
-    revalidatePath('/admin/link-subscriptions')
+    return { success: false, error: 'Failed to unignore subscription' }
   }
-
-  return result
 }

@@ -69,7 +69,8 @@ export async function SubscriptionsListShell({
   const subsWithMatches = await Promise.all(
     singleSubsWithMatches.map(async (sub) => {
       const matches = sub.customerEmail
-        ? await getPotentialMatches(sub.customerEmail, sub.program)
+        ? ((await getPotentialMatches(sub.customerEmail, sub.program)).data ??
+          [])
         : []
       return { sub, matches }
     })
@@ -91,7 +92,7 @@ export async function SubscriptionsListShell({
   >()
   for (const sub of multiSubs) {
     const matches = sub.customerEmail
-      ? await getPotentialMatches(sub.customerEmail, sub.program)
+      ? ((await getPotentialMatches(sub.customerEmail, sub.program)).data ?? [])
       : []
     multiSubsMatchesMap.set(sub.id, matches)
   }

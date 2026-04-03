@@ -7,8 +7,10 @@
  * Produces JSON format suitable for data restoration or migration.
  */
 
+import { assertAdmin } from '@/lib/auth'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
 
 const logger = createActionLogger('backup-data')
@@ -81,6 +83,7 @@ interface BackupResult {
  */
 export async function backupData(): Promise<BackupResult> {
   try {
+    await assertAdmin('backupData')
     // Get all Mahad profiles with full relations
     const profiles = await prisma.programProfile.findMany({
       where: {
@@ -245,6 +248,8 @@ export async function backupData(): Promise<BackupResult> {
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to export backup data')
     return {
       success: false,
