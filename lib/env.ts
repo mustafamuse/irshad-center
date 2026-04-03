@@ -28,9 +28,10 @@ const envSchema = z
     ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
 
     // ── App Config ───────────────────────────────────────────────────────────────
-    // NEXT_PUBLIC_* vars are inlined by Next.js and must still be read via
-    // process.env in server actions/services — server-only prevents importing
-    // this module there. The schema's role for these is startup format-checking.
+    // NEXT_PUBLIC_* vars are inlined by Next.js at build time. Client-side code
+    // must read them via process.env directly — server-only prevents this module
+    // from being imported in client components. The schema's role for these is
+    // startup format-checking.
     NEXT_PUBLIC_APP_URL: z
       .string()
       .url('NEXT_PUBLIC_APP_URL must be a valid URL')
@@ -44,7 +45,10 @@ const envSchema = z
       .optional()
       .default('Irshad Center <noreply@irshadcenter.com>'),
     ADMIN_EMAIL: z.string().email('ADMIN_EMAIL must be a valid email'),
-    REPLY_TO_EMAIL: z.string().email().optional(),
+    REPLY_TO_EMAIL: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().email().optional()
+    ),
 
     // ── Stripe — Mahad ───────────────────────────────────────────────────────────
     STRIPE_MAHAD_SECRET_KEY_TEST: stripeField('sk_test_'),
@@ -68,7 +72,10 @@ const envSchema = z
     STRIPE_DUGSI_PRODUCT_ID: stripeField('prod_'),
     NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_TEST: stripeField('pk_test_'),
     NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE: stripeField('pk_live_'),
-    NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK: z.string().url().optional(),
+    NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().url().optional()
+    ),
 
     // ── Stripe — Zakat / Donation ────────────────────────────────────────────────
     STRIPE_ZAKAT_FITR_PRODUCT_ID: stripeField('prod_'),
@@ -133,6 +140,28 @@ const envSchema = z
           })
         }
       }
+    }
+
+    if (
+      data.NODE_ENV === 'production' &&
+      data.NEXT_PUBLIC_APP_URL === 'http://localhost:3000'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'NEXT_PUBLIC_APP_URL must be set to a real URL in production',
+        path: ['NEXT_PUBLIC_APP_URL'],
+      })
+    }
+
+    const hasLat = data.IRSHAD_CENTER_LAT !== undefined
+    const hasLng = data.IRSHAD_CENTER_LNG !== undefined
+    if (hasLat !== hasLng) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'IRSHAD_CENTER_LAT and IRSHAD_CENTER_LNG must both be set or both be absent',
+        path: [hasLat ? 'IRSHAD_CENTER_LNG' : 'IRSHAD_CENTER_LAT'],
+      })
     }
   })
 
