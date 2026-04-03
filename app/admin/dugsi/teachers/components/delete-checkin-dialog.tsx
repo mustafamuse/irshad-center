@@ -40,12 +40,12 @@ export function DeleteCheckinDialog({
     setError(null)
 
     startTransition(async () => {
-      const result = await deleteCheckinAction(checkin.id)
+      const result = await deleteCheckinAction({ checkInId: checkin.id })
 
-      if (result.success) {
+      if (!result?.serverError) {
         onSuccess?.()
       } else {
-        setError(result.error || 'Failed to delete check-in')
+        setError(result.serverError || 'Failed to delete check-in')
       }
     })
   }

@@ -41,11 +41,11 @@ export function ManageShiftsTab({ teacherId, currentShifts, onUpdate }: Props) {
     setError(null)
     startTransition(async () => {
       const result = await updateTeacherShiftsAction({ teacherId, shifts })
-      if (result.success) {
+      if (result?.data) {
         setSaved(true)
         onUpdate?.(shifts)
       } else {
-        setError(result.error || 'Failed to save')
+        setError(result?.serverError || 'Failed to save')
       }
     })
   }

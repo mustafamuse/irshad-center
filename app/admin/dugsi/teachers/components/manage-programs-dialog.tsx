@@ -65,11 +65,11 @@ export function ManageProgramsDialog({
 
     setIsSubmitting(false)
 
-    if (result.success) {
+    if (!result?.serverError) {
       onOpenChange(false)
       onSuccess?.()
     } else {
-      setError(result.error || 'Failed to update programs')
+      setError(result.serverError || 'Failed to update programs')
     }
   }
 

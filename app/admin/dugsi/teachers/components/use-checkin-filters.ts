@@ -50,11 +50,11 @@ export function useCheckinFilters(): CheckinFiltersState &
   const loadTeachers = useCallback(() => {
     startTransition(async () => {
       const result = await getTeachersForDropdownAction()
-      if (result.success && result.data) {
+      if (result?.data) {
         setTeachers(result.data)
         setTeachersError(null)
       } else {
-        setTeachersError(result.error || 'Failed to load teachers')
+        setTeachersError(result?.serverError || 'Failed to load teachers')
       }
     })
   }, [])

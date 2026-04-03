@@ -1,16 +1,58 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest' // eslint-disable-line import/order
+import { z } from 'zod'
 
-const {
-  mockTeacherFindUnique,
-  mockPersonUpdate,
-  mockGetTeachers,
-  mockAssertAdmin,
-} = vi.hoisted(() => ({
-  mockTeacherFindUnique: vi.fn(),
-  mockPersonUpdate: vi.fn(),
-  mockGetTeachers: vi.fn(),
-  mockAssertAdmin: vi.fn(),
-}))
+import { ActionError } from '@/lib/errors/action-error'
+
+vi.mock('@/lib/safe-action', () => {
+  function makeClient() {
+    const client = {
+      metadata: () => client,
+      use: () => client,
+      schema: (schema: z.ZodType) => ({
+        action:
+          (handler: (args: { parsedInput: unknown }) => Promise<unknown>) =>
+          async (input: unknown) => {
+            const parsed = schema.safeParse(input)
+            if (!parsed.success) {
+              return { validationErrors: parsed.error.flatten().fieldErrors }
+            }
+            try {
+              const data = await handler({ parsedInput: parsed.data })
+              return { data }
+            } catch (error) {
+              if (error instanceof ActionError)
+                return { serverError: (error as ActionError).message }
+              return { serverError: 'Something went wrong' }
+            }
+          },
+      }),
+      action: (handler: () => Promise<unknown>) => async () => {
+        try {
+          const data = await handler()
+          return { data }
+        } catch (error) {
+          if (error instanceof ActionError)
+            return { serverError: (error as ActionError).message }
+          return { serverError: 'Something went wrong' }
+        }
+      },
+    }
+    return client
+  }
+  return {
+    actionClient: makeClient(),
+    adminActionClient: makeClient(),
+    rateLimitedActionClient: makeClient(),
+  }
+})
+
+const { mockTeacherFindUnique, mockPersonUpdate, mockGetTeachers } = vi.hoisted(
+  () => ({
+    mockTeacherFindUnique: vi.fn(),
+    mockPersonUpdate: vi.fn(),
+    mockGetTeachers: vi.fn(),
+  })
+)
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -72,7 +114,13 @@ vi.mock('@/lib/mappers/person-mapper', () => ({
 }))
 
 vi.mock('@/lib/auth', () => ({
-  assertAdmin: (...args: unknown[]) => mockAssertAdmin(...args),
+  assertAdmin: vi.fn(),
+}))
+
+vi.mock('@/lib/db/queries/dugsi-class', () => ({
+  countActiveClassesForTeacher: vi.fn(),
+  getActiveClassesForTeacher: vi.fn(),
+  getClassCountsByTeacherIds: vi.fn().mockResolvedValue(new Map()),
 }))
 
 vi.mock('next/cache', () => ({
@@ -96,14 +144,12 @@ const mockTeacher = {
 const mockUpdatedTeacher = {
   id: 'teacher-1',
   personId: 'person-1',
-  name: 'Ahmed Hassan',
-  email: 'ahmed@school.org',
-  phone: '6125551234',
+  person: {
+    name: 'Ahmed Hassan',
+    email: 'ahmed@school.org',
+    phone: '6125551234',
+  },
   programs: [],
-  classCount: 0,
-  shifts: [],
-  morningCheckin: null,
-  afternoonCheckin: null,
   createdAt: new Date(),
 }
 
@@ -111,10 +157,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockTeacherFindUnique.mockResolvedValue(mockTeacher)
   mockPersonUpdate.mockResolvedValue(mockTeacher.person)
-  mockGetTeachers.mockResolvedValue({
-    success: true,
-    data: [mockUpdatedTeacher],
-  })
+  mockGetTeachers.mockResolvedValue([mockUpdatedTeacher])
 })
 
 describe('updateTeacherDetailsAction', () => {
@@ -124,7 +167,7 @@ describe('updateTeacherDetailsAction', () => {
       name: '',
     })
 
-    expect(result.success).toBe(false)
+    expect(result?.validationErrors).toBeDefined()
     expect(mockTeacherFindUnique).not.toHaveBeenCalled()
   })
 
@@ -209,8 +252,7 @@ describe('updateTeacherDetailsAction', () => {
       email: 'taken@example.com',
     })
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('already in use')
+    expect(result?.serverError).toContain('already in use')
   })
 
   it('should return error when teacher not found', async () => {
@@ -221,7 +263,6 @@ describe('updateTeacherDetailsAction', () => {
       name: 'New Name',
     })
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Teacher not found')
+    expect(result?.serverError).toBe('Teacher not found')
   })
 })

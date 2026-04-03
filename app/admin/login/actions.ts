@@ -60,7 +60,7 @@ export const validateAdminPin = rateLimitedActionClient
     redirect(redirectTo)
   })
 
-export const logoutAdmin = actionClient
+const _logoutAdmin = actionClient
   .metadata({ actionName: 'logoutAdmin' })
   .action(async () => {
     const cookieStore = await cookies()
@@ -72,3 +72,7 @@ export const logoutAdmin = actionClient
   })
 
 export { verifyAuthToken }
+
+export async function logoutAdmin(...args: Parameters<typeof _logoutAdmin>) {
+  return _logoutAdmin(...args)
+}

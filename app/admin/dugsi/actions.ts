@@ -237,14 +237,14 @@ export interface WhatsAppSendResult {
 // Data fetch actions (no schema — no input)
 // ============================================================================
 
-export const getDugsiRegistrations = adminActionClient
+const _getDugsiRegistrations = adminActionClient
   .metadata({ actionName: 'getDugsiRegistrations' })
   .schema(ShiftFilterSchema)
   .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
     return await getAllDugsiRegistrations(undefined, parsedInput)
   })
 
-export const generateDugsiVCardContent = adminActionClient
+const _generateDugsiVCardContent = adminActionClient
   .metadata({ actionName: 'generateDugsiVCardContent' })
   .action(async (): Promise<VCardResult> => {
     const registrations = await getAllDugsiRegistrations()
@@ -348,7 +348,7 @@ export const generateDugsiVCardContent = adminActionClient
     }
   })
 
-export const getAvailableDugsiTeachers = adminActionClient
+const _getAvailableDugsiTeachers = adminActionClient
   .metadata({ actionName: 'getAvailableDugsiTeachers' })
   .action(
     async (): Promise<
@@ -369,13 +369,13 @@ export const getAvailableDugsiTeachers = adminActionClient
     }
   )
 
-export const getUnassignedStudentsAction = adminActionClient
+const _getUnassignedStudentsAction = adminActionClient
   .metadata({ actionName: 'getUnassignedStudentsAction' })
   .action(async (): Promise<UnassignedStudent[]> => {
     return await getUnassignedDugsiStudents()
   })
 
-export const getClassesWithDetailsAction = adminActionClient
+const _getClassesWithDetailsAction = adminActionClient
   .metadata({ actionName: 'getClassesWithDetailsAction' })
   .action(async (): Promise<ClassWithDetails[]> => {
     const classes = await getClassesWithDetails()
@@ -394,7 +394,7 @@ export const getClassesWithDetailsAction = adminActionClient
     }))
   })
 
-export const getAllTeachersForClassAssignmentAction = adminActionClient
+const _getAllTeachersForClassAssignmentAction = adminActionClient
   .metadata({ actionName: 'getAllTeachersForClassAssignmentAction' })
   .action(async (): Promise<Array<{ id: string; name: string }>> => {
     return await getAllTeachersForAssignment()
@@ -404,14 +404,14 @@ export const getAllTeachersForClassAssignmentAction = adminActionClient
 // Family/subscription data fetch actions (with input)
 // ============================================================================
 
-export const getFamilyMembers = adminActionClient
+const _getFamilyMembers = adminActionClient
   .metadata({ actionName: 'getFamilyMembers' })
   .schema(StudentIdSchema)
   .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
     return await getFamilyMembersService(parsedInput.studentId)
   })
 
-export const getDeleteFamilyPreview = adminActionClient
+const _getDeleteFamilyPreview = adminActionClient
   .metadata({ actionName: 'getDeleteFamilyPreview' })
   .schema(StudentIdSchema)
   .action(
@@ -425,21 +425,21 @@ export const getDeleteFamilyPreview = adminActionClient
     }
   )
 
-export const validateDugsiSubscription = adminActionClient
+const _validateDugsiSubscription = adminActionClient
   .metadata({ actionName: 'validateDugsiSubscription' })
   .schema(SubscriptionIdSchema)
   .action(async ({ parsedInput }): Promise<SubscriptionValidationData> => {
     return await validateDugsiSubscriptionService(parsedInput.subscriptionId)
   })
 
-export const getDugsiPaymentStatus = adminActionClient
+const _getDugsiPaymentStatus = adminActionClient
   .metadata({ actionName: 'getDugsiPaymentStatus' })
   .schema(ParentEmailSchema)
   .action(async ({ parsedInput }): Promise<PaymentStatusData> => {
     return await getPaymentStatus(parsedInput.parentEmail)
   })
 
-export const getFamilyPaymentHistory = adminActionClient
+const _getFamilyPaymentHistory = adminActionClient
   .metadata({ actionName: 'getFamilyPaymentHistory' })
   .schema(PaymentHistorySchema)
   .action(async ({ parsedInput }): Promise<StripePaymentHistoryItem[]> => {
@@ -470,14 +470,14 @@ export const getFamilyPaymentHistory = adminActionClient
       }))
   })
 
-export const getAvailableStudentsForClassAction = adminActionClient
+const _getAvailableStudentsForClassAction = adminActionClient
   .metadata({ actionName: 'getAvailableStudentsForClassAction' })
   .schema(z.object({ shift: z.nativeEnum(Shift) }))
   .action(async ({ parsedInput }): Promise<StudentForEnrollment[]> => {
     return await getAvailableStudentsForClass(parsedInput.shift)
   })
 
-export const getClassDeletePreviewAction = adminActionClient
+const _getClassDeletePreviewAction = adminActionClient
   .metadata({ actionName: 'getClassDeletePreviewAction' })
   .schema(ClassIdSchema)
   .action(
@@ -501,7 +501,7 @@ export const getClassDeletePreviewAction = adminActionClient
 // Mutation actions
 // ============================================================================
 
-export const deleteDugsiFamily = adminActionClient
+const _deleteDugsiFamily = adminActionClient
   .metadata({ actionName: 'deleteDugsiFamily' })
   .schema(StudentIdSchema)
   .action(
@@ -538,7 +538,7 @@ export const deleteDugsiFamily = adminActionClient
     }
   )
 
-export const linkDugsiSubscription = adminActionClient
+const _linkDugsiSubscription = adminActionClient
   .metadata({ actionName: 'linkDugsiSubscription' })
   .schema(LinkSubscriptionSchema)
   .action(
@@ -573,7 +573,7 @@ export const linkDugsiSubscription = adminActionClient
     }
   )
 
-export const verifyDugsiBankAccount = adminActionClient
+const _verifyDugsiBankAccount = adminActionClient
   .metadata({ actionName: 'verifyDugsiBankAccount' })
   .schema(VerifyBankSchema)
   .action(async ({ parsedInput }): Promise<BankVerificationData> => {
@@ -629,7 +629,7 @@ export const verifyDugsiBankAccount = adminActionClient
     }
   })
 
-export const updateParentInfo = adminActionClient
+const _updateParentInfo = adminActionClient
   .metadata({ actionName: 'updateParentInfo' })
   .schema(UpdateParentInfoSchema)
   .action(
@@ -643,7 +643,7 @@ export const updateParentInfo = adminActionClient
     }
   )
 
-export const addSecondParent = adminActionClient
+const _addSecondParent = adminActionClient
   .metadata({ actionName: 'addSecondParent' })
   .schema(AddSecondParentSchema)
   .action(
@@ -657,7 +657,7 @@ export const addSecondParent = adminActionClient
     }
   )
 
-export const setPrimaryPayer = adminActionClient
+const _setPrimaryPayer = adminActionClient
   .metadata({ actionName: 'setPrimaryPayer' })
   .schema(SetPrimaryPayerSchema)
   .action(
@@ -671,7 +671,7 @@ export const setPrimaryPayer = adminActionClient
     }
   )
 
-export const updateChildInfo = adminActionClient
+const _updateChildInfo = adminActionClient
   .metadata({ actionName: 'updateChildInfo' })
   .schema(UpdateChildInfoSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
@@ -680,7 +680,7 @@ export const updateChildInfo = adminActionClient
     return { message: 'Successfully updated child information' }
   })
 
-export const updateFamilyShift = adminActionClient
+const _updateFamilyShift = adminActionClient
   .metadata({ actionName: 'updateFamilyShift' })
   .schema(UpdateFamilyShiftSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
@@ -692,7 +692,7 @@ export const updateFamilyShift = adminActionClient
     return { message: 'Successfully updated family shift' }
   })
 
-export const addChildToFamily = adminActionClient
+const _addChildToFamily = adminActionClient
   .metadata({ actionName: 'addChildToFamily' })
   .schema(AddChildToFamilySchema)
   .action(
@@ -703,7 +703,7 @@ export const addChildToFamily = adminActionClient
     }
   )
 
-export const generateFamilyPaymentLinkAction = adminActionClient
+const _generateFamilyPaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generateFamilyPaymentLinkAction' })
   .schema(GenerateFamilyPaymentLinkSchema)
   .action(async ({ parsedInput }): Promise<FamilyPaymentLinkData> => {
@@ -734,7 +734,7 @@ export const generateFamilyPaymentLinkAction = adminActionClient
     }
   })
 
-export const bulkGeneratePaymentLinksAction = adminActionClient
+const _bulkGeneratePaymentLinksAction = adminActionClient
   .metadata({ actionName: 'bulkGeneratePaymentLinksAction' })
   .schema(BulkPaymentLinksSchema)
   .action(
@@ -816,7 +816,7 @@ export const bulkGeneratePaymentLinksAction = adminActionClient
 // Class-Teacher Assignment Actions
 // ============================================================================
 
-export const assignTeacherToClassAction = adminActionClient
+const _assignTeacherToClassAction = adminActionClient
   .metadata({ actionName: 'assignTeacherToClassAction' })
   .schema(AssignTeacherToClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
@@ -856,7 +856,7 @@ export const assignTeacherToClassAction = adminActionClient
     return { message: 'Teacher assigned to class' }
   })
 
-export const removeTeacherFromClassAction = adminActionClient
+const _removeTeacherFromClassAction = adminActionClient
   .metadata({ actionName: 'removeTeacherFromClassAction' })
   .schema(RemoveTeacherFromClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
@@ -868,7 +868,7 @@ export const removeTeacherFromClassAction = adminActionClient
     return { message: 'Teacher removed from class' }
   })
 
-export const enrollStudentInClassAction = adminActionClient
+const _enrollStudentInClassAction = adminActionClient
   .metadata({ actionName: 'enrollStudentInClassAction' })
   .schema(EnrollStudentInClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
@@ -894,7 +894,7 @@ export const enrollStudentInClassAction = adminActionClient
     return { message: 'Student enrolled in class' }
   })
 
-export const removeStudentFromClassAction = adminActionClient
+const _removeStudentFromClassAction = adminActionClient
   .metadata({ actionName: 'removeStudentFromClassAction' })
   .schema(RemoveStudentFromClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
@@ -905,7 +905,7 @@ export const removeStudentFromClassAction = adminActionClient
     return { message: 'Student removed from class' }
   })
 
-export const bulkEnrollStudentsAction = adminActionClient
+const _bulkEnrollStudentsAction = adminActionClient
   .metadata({ actionName: 'bulkEnrollStudentsAction' })
   .schema(BulkEnrollStudentsSchema)
   .action(
@@ -926,7 +926,7 @@ export const bulkEnrollStudentsAction = adminActionClient
     }
   )
 
-export const createClassAction = adminActionClient
+const _createClassAction = adminActionClient
   .metadata({ actionName: 'createClassAction' })
   .schema(CreateClassSchema)
   .action(
@@ -966,7 +966,7 @@ export const createClassAction = adminActionClient
     }
   )
 
-export const updateClassAction = adminActionClient
+const _updateClassAction = adminActionClient
   .metadata({ actionName: 'updateClassAction' })
   .schema(UpdateClassSchema)
   .action(
@@ -1028,7 +1028,7 @@ export const updateClassAction = adminActionClient
     }
   )
 
-export const deleteClassAction = adminActionClient
+const _deleteClassAction = adminActionClient
   .metadata({ actionName: 'deleteClassAction' })
   .schema(DeleteClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
@@ -1054,7 +1054,7 @@ export const deleteClassAction = adminActionClient
 // Consolidate Subscription Actions
 // ============================================================================
 
-export const previewStripeSubscriptionForConsolidation = adminActionClient
+const _previewStripeSubscriptionForConsolidation = adminActionClient
   .metadata({ actionName: 'previewStripeSubscriptionForConsolidation' })
   .schema(previewSubscriptionInputSchema)
   .action(async ({ parsedInput }): Promise<StripeSubscriptionPreview> => {
@@ -1064,7 +1064,7 @@ export const previewStripeSubscriptionForConsolidation = adminActionClient
     )
   })
 
-export const consolidateDugsiSubscription = adminActionClient
+const _consolidateDugsiSubscription = adminActionClient
   .metadata({ actionName: 'consolidateDugsiSubscription' })
   .schema(consolidateSubscriptionInputSchema)
   .action(
@@ -1106,7 +1106,7 @@ export const consolidateDugsiSubscription = adminActionClient
 // WhatsApp Actions
 // ============================================================================
 
-export const sendPaymentLinkViaWhatsAppAction = adminActionClient
+const _sendPaymentLinkViaWhatsAppAction = adminActionClient
   .metadata({ actionName: 'sendPaymentLinkViaWhatsAppAction' })
   .schema(SendPaymentLinkViaWhatsAppSchema)
   .action(
@@ -1138,3 +1138,179 @@ export const sendPaymentLinkViaWhatsAppAction = adminActionClient
       }
     }
   )
+
+export async function getDugsiRegistrations(
+  ...args: Parameters<typeof _getDugsiRegistrations>
+) {
+  return _getDugsiRegistrations(...args)
+}
+export async function generateDugsiVCardContent(
+  ...args: Parameters<typeof _generateDugsiVCardContent>
+) {
+  return _generateDugsiVCardContent(...args)
+}
+export async function getAvailableDugsiTeachers(
+  ...args: Parameters<typeof _getAvailableDugsiTeachers>
+) {
+  return _getAvailableDugsiTeachers(...args)
+}
+export async function getUnassignedStudentsAction(
+  ...args: Parameters<typeof _getUnassignedStudentsAction>
+) {
+  return _getUnassignedStudentsAction(...args)
+}
+export async function getClassesWithDetailsAction(
+  ...args: Parameters<typeof _getClassesWithDetailsAction>
+) {
+  return _getClassesWithDetailsAction(...args)
+}
+export async function getAllTeachersForClassAssignmentAction(
+  ...args: Parameters<typeof _getAllTeachersForClassAssignmentAction>
+) {
+  return _getAllTeachersForClassAssignmentAction(...args)
+}
+export async function getFamilyMembers(
+  ...args: Parameters<typeof _getFamilyMembers>
+) {
+  return _getFamilyMembers(...args)
+}
+export async function getDeleteFamilyPreview(
+  ...args: Parameters<typeof _getDeleteFamilyPreview>
+) {
+  return _getDeleteFamilyPreview(...args)
+}
+export async function validateDugsiSubscription(
+  ...args: Parameters<typeof _validateDugsiSubscription>
+) {
+  return _validateDugsiSubscription(...args)
+}
+export async function getDugsiPaymentStatus(
+  ...args: Parameters<typeof _getDugsiPaymentStatus>
+) {
+  return _getDugsiPaymentStatus(...args)
+}
+export async function getFamilyPaymentHistory(
+  ...args: Parameters<typeof _getFamilyPaymentHistory>
+) {
+  return _getFamilyPaymentHistory(...args)
+}
+export async function getAvailableStudentsForClassAction(
+  ...args: Parameters<typeof _getAvailableStudentsForClassAction>
+) {
+  return _getAvailableStudentsForClassAction(...args)
+}
+export async function getClassDeletePreviewAction(
+  ...args: Parameters<typeof _getClassDeletePreviewAction>
+) {
+  return _getClassDeletePreviewAction(...args)
+}
+export async function deleteDugsiFamily(
+  ...args: Parameters<typeof _deleteDugsiFamily>
+) {
+  return _deleteDugsiFamily(...args)
+}
+export async function linkDugsiSubscription(
+  ...args: Parameters<typeof _linkDugsiSubscription>
+) {
+  return _linkDugsiSubscription(...args)
+}
+export async function verifyDugsiBankAccount(
+  ...args: Parameters<typeof _verifyDugsiBankAccount>
+) {
+  return _verifyDugsiBankAccount(...args)
+}
+export async function updateParentInfo(
+  ...args: Parameters<typeof _updateParentInfo>
+) {
+  return _updateParentInfo(...args)
+}
+export async function addSecondParent(
+  ...args: Parameters<typeof _addSecondParent>
+) {
+  return _addSecondParent(...args)
+}
+export async function setPrimaryPayer(
+  ...args: Parameters<typeof _setPrimaryPayer>
+) {
+  return _setPrimaryPayer(...args)
+}
+export async function updateChildInfo(
+  ...args: Parameters<typeof _updateChildInfo>
+) {
+  return _updateChildInfo(...args)
+}
+export async function updateFamilyShift(
+  ...args: Parameters<typeof _updateFamilyShift>
+) {
+  return _updateFamilyShift(...args)
+}
+export async function addChildToFamily(
+  ...args: Parameters<typeof _addChildToFamily>
+) {
+  return _addChildToFamily(...args)
+}
+export async function generateFamilyPaymentLinkAction(
+  ...args: Parameters<typeof _generateFamilyPaymentLinkAction>
+) {
+  return _generateFamilyPaymentLinkAction(...args)
+}
+export async function bulkGeneratePaymentLinksAction(
+  ...args: Parameters<typeof _bulkGeneratePaymentLinksAction>
+) {
+  return _bulkGeneratePaymentLinksAction(...args)
+}
+export async function assignTeacherToClassAction(
+  ...args: Parameters<typeof _assignTeacherToClassAction>
+) {
+  return _assignTeacherToClassAction(...args)
+}
+export async function removeTeacherFromClassAction(
+  ...args: Parameters<typeof _removeTeacherFromClassAction>
+) {
+  return _removeTeacherFromClassAction(...args)
+}
+export async function enrollStudentInClassAction(
+  ...args: Parameters<typeof _enrollStudentInClassAction>
+) {
+  return _enrollStudentInClassAction(...args)
+}
+export async function removeStudentFromClassAction(
+  ...args: Parameters<typeof _removeStudentFromClassAction>
+) {
+  return _removeStudentFromClassAction(...args)
+}
+export async function bulkEnrollStudentsAction(
+  ...args: Parameters<typeof _bulkEnrollStudentsAction>
+) {
+  return _bulkEnrollStudentsAction(...args)
+}
+export async function createClassAction(
+  ...args: Parameters<typeof _createClassAction>
+) {
+  return _createClassAction(...args)
+}
+export async function updateClassAction(
+  ...args: Parameters<typeof _updateClassAction>
+) {
+  return _updateClassAction(...args)
+}
+export async function deleteClassAction(
+  ...args: Parameters<typeof _deleteClassAction>
+) {
+  return _deleteClassAction(...args)
+}
+export async function previewStripeSubscriptionForConsolidation(
+  ...args: Parameters<typeof _previewStripeSubscriptionForConsolidation>
+) {
+  return _previewStripeSubscriptionForConsolidation(...args)
+}
+export async function consolidateDugsiSubscription(
+  ...args: Parameters<typeof _consolidateDugsiSubscription>
+) {
+  return _consolidateDugsiSubscription(...args)
+}
+export async function sendPaymentLinkViaWhatsAppAction(
+  ...args: Parameters<typeof _sendPaymentLinkViaWhatsAppAction>
+) {
+  return _sendPaymentLinkViaWhatsAppAction(...args)
+}

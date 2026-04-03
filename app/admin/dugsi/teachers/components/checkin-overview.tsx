@@ -75,11 +75,11 @@ export function CheckinOverview({ onDataChanged }: Props) {
       }
 
       const result = await getCheckinsForDateAction(queryFilters)
-      if (result.success && result.data) {
+      if (result?.data) {
         setCheckins(result.data)
         setError(null)
       } else {
-        setError(result.error || 'Failed to load check-ins')
+        setError(result?.serverError || 'Failed to load check-ins')
       }
     })
   }, [
@@ -113,7 +113,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
         }
 
         const result = await getCheckinHistoryWithFiltersAction(queryFilters)
-        if (result.success && result.data) {
+        if (result?.data) {
           setCheckins(result.data.data)
           setPagination({
             page: result.data.page,
@@ -122,7 +122,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
           })
           setError(null)
         } else {
-          setError(result.error || 'Failed to load check-in history')
+          setError(result?.serverError || 'Failed to load check-in history')
         }
       })
     },

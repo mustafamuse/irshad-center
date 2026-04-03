@@ -24,7 +24,7 @@ export interface MultiRolePerson {
   }
 }
 
-export const getMultiRolePeopleAction = adminActionClient
+const _getMultiRolePeopleAction = adminActionClient
   .metadata({ actionName: 'getMultiRolePeopleAction' })
   .action(async () => {
     const people = await getMultiRolePeople()
@@ -56,3 +56,9 @@ export const getMultiRolePeopleAction = adminActionClient
       })
     )
   })
+
+export async function getMultiRolePeopleAction(
+  ...args: Parameters<typeof _getMultiRolePeopleAction>
+) {
+  return _getMultiRolePeopleAction(...args)
+}
