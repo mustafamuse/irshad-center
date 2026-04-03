@@ -48,7 +48,7 @@ export function DeleteClassDialog({
       setIsLoadingPreview(true)
       getClassDeletePreviewAction({ classId: classData.id })
         .then((result) => {
-          if (result.success && result.data) {
+          if (result?.data) {
             setPreview(result.data)
           } else {
             setPreview({ teacherCount: 0, studentCount: 0 })
@@ -74,12 +74,12 @@ export function DeleteClassDialog({
 
     startTransition(async () => {
       const result = await deleteClassAction({ classId: classData.id })
-      if (result.success) {
-        toast.success(result.message || 'Class deleted successfully')
+      if (result?.data) {
+        toast.success(result.data.message || 'Class deleted successfully')
         onOpenChange(false)
         onSuccess?.()
       } else {
-        toast.error(result.error || 'Failed to delete class')
+        toast.error(result?.serverError || 'Failed to delete class')
       }
     })
   }

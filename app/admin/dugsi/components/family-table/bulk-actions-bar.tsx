@@ -47,7 +47,7 @@ export function BulkActionsBar({ selectedFamilies }: BulkActionsBarProps) {
 
       const result = await bulkGeneratePaymentLinksAction({ familyIds })
 
-      if (result.success && result.data) {
+      if (result?.data) {
         const { links, failed } = result.data as BulkPaymentLinkResult
 
         if (links.length > 0) {
@@ -73,7 +73,7 @@ export function BulkActionsBar({ selectedFamilies }: BulkActionsBarProps) {
         clearSelection()
       } else {
         toast.error('Failed to generate payment links', {
-          description: result.error,
+          description: result?.serverError,
         })
       }
     } catch (error) {

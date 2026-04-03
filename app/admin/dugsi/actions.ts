@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache'
 import { GradeLevel, Shift } from '@prisma/client'
 import { z } from 'zod'
 
-import { assertAdmin } from '@/lib/auth'
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import {
   getClassesWithDetails,
@@ -23,12 +22,12 @@ import {
   getClassById,
   getClassPreviewForDelete,
 } from '@/lib/db/queries/dugsi-class'
-import { ActionError } from '@/lib/errors/action-error'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import {
   ClassNotFoundError,
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
-import { createServiceLogger, logError, logInfo } from '@/lib/logger'
+import { createServiceLogger, logInfo } from '@/lib/logger'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -80,13 +79,13 @@ import {
   VCardContact,
   VCardResult,
 } from '@/lib/vcard-export'
+import { adminActionClient } from '@/lib/safe-action'
 
 import {
   previewSubscriptionInputSchema,
   consolidateSubscriptionInputSchema,
 } from './_schemas/dialog-schemas'
 import {
-  ActionResult,
   SubscriptionValidationData,
   PaymentStatusData,
   BankVerificationData,
@@ -101,522 +100,124 @@ import {
 
 const logger = createServiceLogger('dugsi-admin-actions')
 
-/**
- * Get all Dugsi registrations.
- */
-export async function getDugsiRegistrations(filters?: {
-  shift?: 'MORNING' | 'AFTERNOON'
-}): Promise<DugsiRegistration[]> {
-  await assertAdmin('getDugsiRegistrations')
-  return await getAllDugsiRegistrations(undefined, filters)
-}
+// ============================================================================
+// Schemas for actions that take positional string args
+// ============================================================================
 
-/**
- * Validate a Stripe subscription ID without linking it.
- */
-export async function validateDugsiSubscription(
-  subscriptionId: string
-): Promise<ActionResult<SubscriptionValidationData>> {
-  try {
-    await assertAdmin('validateDugsiSubscription')
-    const result = await validateDugsiSubscriptionService(subscriptionId)
-    return {
-      success: true,
-      data: result,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to validate Dugsi subscription', {
-      subscriptionId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to validate subscription',
-    }
-  }
-}
+const StudentIdSchema = z.object({ studentId: z.string().min(1) })
+const SubscriptionIdSchema = z.object({ subscriptionId: z.string().min(1) })
+const ParentEmailSchema = z.object({ parentEmail: z.string().email() })
+const CustomerIdSchema = z.object({ customerId: z.string().min(1) })
+const ClassIdSchema = z.object({ classId: z.string().min(1) })
+const ShiftFilterSchema = z.object({
+  shift: z.enum(['MORNING', 'AFTERNOON']).optional(),
+})
 
-/**
- * Get family members for a student.
- */
-export async function getFamilyMembers(
-  studentId: string
-): Promise<DugsiRegistration[]> {
-  await assertAdmin('getFamilyMembers')
-  return await getFamilyMembersService(studentId)
-}
+const LinkSubscriptionSchema = z.object({
+  parentEmail: z.string().email(),
+  subscriptionId: z.string().min(1),
+})
 
-/**
- * Get preview of students that will be deleted.
- */
-export async function getDeleteFamilyPreview(studentId: string): Promise<
-  ActionResult<{
-    count: number
-    students: Array<{ id: string; name: string; parentEmail: string | null }>
-  }>
-> {
-  try {
-    await assertAdmin('getDeleteFamilyPreview')
-    const result = await getDeleteFamilyPreviewService(studentId)
-    return {
-      success: true,
-      data: result,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get delete preview', {
-      studentId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : 'Failed to get delete preview',
-    }
-  }
-}
+const VerifyBankSchema = z.object({
+  paymentIntentId: z.string().min(1),
+  descriptorCode: z.string().min(1),
+})
 
-/**
- * Delete a Dugsi family.
- *
- * Cancels active Stripe subscriptions, then deletes all program data.
- */
-export async function deleteDugsiFamily(
-  studentId: string
-): Promise<
-  ActionResult<{ studentsDeleted: number; subscriptionsCanceled: number }>
-> {
-  try {
-    await assertAdmin('deleteDugsiFamily')
-    const result = await deleteDugsiFamilyService(studentId)
-    revalidatePath('/admin/dugsi')
+const UpdateParentInfoSchema = z.object({
+  studentId: z.string().min(1),
+  parentNumber: z.union([z.literal(1), z.literal(2)]),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  phone: z.string().min(1),
+})
 
-    await logInfo(logger, 'Dugsi family deleted', {
-      studentId,
-      studentsDeleted: result.studentsDeleted,
-      subscriptionsCanceled: result.subscriptionsCanceled,
-    })
+const AddSecondParentSchema = z.object({
+  studentId: z.string().min(1),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().min(1),
+})
 
-    const parts: string[] = []
-    parts.push(
-      `${result.studentsDeleted} ${result.studentsDeleted === 1 ? 'student' : 'students'}`
-    )
-    if (result.subscriptionsCanceled > 0) {
-      parts.push(
-        `${result.subscriptionsCanceled} ${result.subscriptionsCanceled === 1 ? 'subscription' : 'subscriptions'} canceled`
-      )
-    }
+const SetPrimaryPayerSchema = z.object({
+  studentId: z.string().min(1),
+  parentNumber: z.union([z.literal(1), z.literal(2)]),
+})
 
-    return {
-      success: true,
-      data: result,
-      message: `Successfully deleted ${parts.join(', ')}`,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to delete family', { studentId })
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete family',
-    }
-  }
-}
+const UpdateChildInfoSchema = z.object({
+  studentId: z.string().min(1),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
+  gender: z.enum(['MALE', 'FEMALE']).optional(),
+  dateOfBirth: z.date().optional(),
+  gradeLevel: z.nativeEnum(GradeLevel).optional(),
+  schoolName: z.string().optional(),
+  healthInfo: z.string().nullable().optional(),
+})
 
-/**
- * Link a Stripe subscription to a Dugsi family.
- */
-export async function linkDugsiSubscription(params: {
-  parentEmail: string
-  subscriptionId: string
-}): Promise<ActionResult<SubscriptionLinkData>> {
-  try {
-    await assertAdmin('linkDugsiSubscription')
-    const { parentEmail, subscriptionId } = params
+const AddChildToFamilySchema = z.object({
+  existingStudentId: z.string().min(1),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  gender: z.enum(['MALE', 'FEMALE']),
+  dateOfBirth: z.date().optional(),
+  gradeLevel: z.nativeEnum(GradeLevel).optional(),
+  schoolName: z.string().optional(),
+  healthInfo: z.string().nullable().optional(),
+})
 
-    if (!parentEmail || parentEmail.trim() === '') {
-      return {
-        success: false,
-        error: 'Parent email is required to link subscription.',
-      }
-    }
+const GenerateFamilyPaymentLinkSchema = z.object({
+  familyId: z.string().min(1),
+  overrideAmount: z.number().optional(),
+  billingStartDate: z.string().optional(),
+})
 
-    const result = await linkDugsiSubscriptionService(
-      parentEmail,
-      subscriptionId
-    )
-    revalidatePath('/admin/dugsi')
+const BulkPaymentLinksSchema = z.object({
+  familyIds: z.array(z.string()).min(1, 'At least one family must be selected'),
+})
 
-    await logInfo(logger, 'Dugsi subscription linked', {
-      parentEmail,
-      subscriptionId,
-      studentsUpdated: result.updated,
-    })
+const PaymentHistorySchema = z.object({
+  customerId: z
+    .string()
+    .startsWith('cus_', 'Invalid Stripe customer ID format'),
+})
 
-    return {
-      success: true,
-      data: result,
-      message: `Successfully linked subscription to ${result.updated} students`,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to link Dugsi subscription', {
-      parentEmail: params.parentEmail,
-      subscriptionId: params.subscriptionId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : 'Failed to link subscription',
-    }
-  }
-}
+const SendPaymentLinkViaWhatsAppSchema = z.object({
+  phone: z
+    .string()
+    .min(10, 'Phone number too short')
+    .max(15, 'Phone number too long'),
+  parentName: z
+    .string()
+    .min(1, 'Parent name required')
+    .max(100, 'Parent name too long'),
+  amount: z
+    .number()
+    .int('Amount must be an integer')
+    .positive('Amount must be positive'),
+  childCount: z
+    .number()
+    .int('Child count must be an integer')
+    .positive('Child count must be positive'),
+  paymentUrl: z.string().url('Invalid payment URL'),
+  familyId: z.string().optional(),
+  personId: z.string().optional(),
+})
 
-/**
- * Get payment status for a Dugsi family.
- */
-export async function getDugsiPaymentStatus(
-  parentEmail: string
-): Promise<ActionResult<PaymentStatusData>> {
-  try {
-    await assertAdmin('getDugsiPaymentStatus')
-    const result = await getPaymentStatus(parentEmail)
-    return {
-      success: true,
-      data: result,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get payment status', {
-      parentEmail,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : 'Failed to get payment status',
-    }
-  }
-}
+// ============================================================================
+// Re-export types used by callsites
+// ============================================================================
 
-/**
- * Verify bank account using microdeposit descriptor code.
- */
-export async function verifyDugsiBankAccount(
-  paymentIntentId: string,
-  descriptorCode: string
-): Promise<ActionResult<BankVerificationData>> {
-  try {
-    await assertAdmin('verifyDugsiBankAccount')
-    // Validate inputs
-    if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
-      return {
-        success: false,
-        error: 'Invalid payment intent ID format. Must start with "pi_"',
-      }
-    }
+export type SendPaymentLinkViaWhatsAppInput = z.infer<
+  typeof SendPaymentLinkViaWhatsAppSchema
+>
 
-    // Validate descriptor code format (6 characters, starts with SM)
-    const cleanCode = descriptorCode.trim().toUpperCase()
-    if (!/^SM[A-Z0-9]{4}$/.test(cleanCode)) {
-      return {
-        success: false,
-        error:
-          'Invalid descriptor code format. Must be 6 characters starting with SM (e.g., SMT86W)',
-      }
-    }
-
-    const result = await verifyBankAccount(paymentIntentId, cleanCode)
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      data: result,
-    }
-  } catch (error: unknown) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to verify bank account', {
-      paymentIntentId,
-    })
-
-    // Handle specific Stripe errors
-    if (
-      error &&
-      typeof error === 'object' &&
-      'type' in error &&
-      error.type === 'StripeInvalidRequestError' &&
-      'code' in error
-    ) {
-      if (error.code === 'payment_intent_unexpected_state') {
-        return {
-          success: false,
-          error: 'This bank account has already been verified',
-        }
-      }
-      if (error.code === 'incorrect_code') {
-        return {
-          success: false,
-          error:
-            'Incorrect verification code. Please check the code in the bank statement and try again',
-        }
-      }
-      if (error.code === 'resource_missing') {
-        return {
-          success: false,
-          error: 'Payment intent not found. The verification may have expired',
-        }
-      }
-    }
-
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to verify bank account',
-    }
-  }
-}
-
-/**
- * Update parent information for entire family.
- */
-export async function updateParentInfo(params: {
-  studentId: string
-  parentNumber: 1 | 2
-  firstName: string
-  lastName: string
-  phone: string
-}): Promise<ActionResult<{ updated: number }>> {
-  try {
-    await assertAdmin('updateParentInfo')
-    const result = await updateParentInfoService(params)
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      data: result,
-      message: `Successfully updated parent information for ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to update parent information', {
-      studentId: params.studentId,
-      parentNumber: params.parentNumber,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to update parent information',
-    }
-  }
-}
-
-/**
- * Add a second parent to a family.
- */
-export async function addSecondParent(params: {
-  studentId: string
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-}): Promise<ActionResult<{ updated: number }>> {
-  try {
-    await assertAdmin('addSecondParent')
-    const result = await addSecondParentService(params)
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      data: result,
-      message: `Successfully added second parent to ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to add second parent', {
-      studentId: params.studentId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : 'Failed to add second parent',
-    }
-  }
-}
-
-/**
- * Set which parent is the primary payer for a family.
- */
-export async function setPrimaryPayer(params: {
-  studentId: string
-  parentNumber: 1 | 2
-}): Promise<ActionResult<{ updated: number }>> {
-  try {
-    await assertAdmin('setPrimaryPayer')
-    const result = await setPrimaryPayerService(params)
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      data: result,
-      message: `Parent ${params.parentNumber} is now the primary payer`,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to set primary payer', {
-      studentId: params.studentId,
-      parentNumber: params.parentNumber,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : 'Failed to set primary payer',
-    }
-  }
-}
-
-/**
- * Update child information for a specific student.
- */
-export async function updateChildInfo(params: {
-  studentId: string
-  firstName?: string
-  lastName?: string
-  gender?: 'MALE' | 'FEMALE'
-  dateOfBirth?: Date
-  gradeLevel?: GradeLevel
-  schoolName?: string
-  healthInfo?: string | null
-}): Promise<ActionResult> {
-  try {
-    await assertAdmin('updateChildInfo')
-    await updateChildInfoService(params)
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      message: 'Successfully updated child information',
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to update child information', {
-      studentId: params.studentId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to update child information',
-    }
-  }
-}
-
-/**
- * Update shift for all children in a family.
- */
-export async function updateFamilyShift(
-  params: UpdateFamilyShiftInput
-): Promise<ActionResult> {
-  try {
-    await assertAdmin('updateFamilyShift')
-    const validated = UpdateFamilyShiftSchema.parse(params)
-
-    await updateFamilyShiftService({
-      familyReferenceId: validated.familyReferenceId,
-      shift: validated.shift,
-    })
-
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      message: 'Successfully updated family shift',
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to update family shift', {
-      familyReferenceId: params.familyReferenceId,
-      attemptedShift: params.shift,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to update family shift',
-    }
-  }
-}
-
-/**
- * Add a new child to an existing family.
- */
-export async function addChildToFamily(params: {
-  existingStudentId: string
-  firstName: string
-  lastName: string
-  gender: 'MALE' | 'FEMALE'
-  dateOfBirth?: Date
-  gradeLevel?: GradeLevel
-  schoolName?: string
-  healthInfo?: string | null
-}): Promise<ActionResult<{ childId: string }>> {
-  try {
-    await assertAdmin('addChildToFamily')
-    const result = await addChildToFamilyService(params)
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      data: result,
-      message: 'Successfully added child to family',
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to add child to family', {
-      existingStudentId: params.existingStudentId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to add child to family',
-    }
-  }
-}
-
-/**
- * Input for generating family payment link with calculated/override rate
- *
- * NOTE: childCount is NOT included - the service queries the database
- * for the authoritative child count to prevent billing manipulation.
- */
 export interface GenerateFamilyPaymentLinkInput {
   familyId: string
   overrideAmount?: number
-  billingStartDate?: string // ISO date string for delayed start
+  billingStartDate?: string
 }
 
-/**
- * Output from generating family payment link
- */
 export interface FamilyPaymentLinkData {
   paymentUrl: string
   calculatedRate: number
@@ -628,269 +229,24 @@ export interface FamilyPaymentLinkData {
   childCount: number
 }
 
-/**
- * Generate a payment link for a Dugsi family with dynamic pricing.
- *
- * This creates a Stripe Checkout Session with:
- * - Calculated rate based on child count (tiered pricing)
- * - Optional admin override amount
- * - ACH-only payment method
- *
- * SECURITY: Uses createDugsiCheckoutSession service which always
- * gets child count from database, preventing billing manipulation.
- *
- * @param input - Family ID and optional override amount (in cents)
- * @returns Payment link data with rate information
- */
-export async function generateFamilyPaymentLinkAction(
-  input: GenerateFamilyPaymentLinkInput
-): Promise<ActionResult<FamilyPaymentLinkData>> {
-  const { familyId, overrideAmount, billingStartDate } = input
-
-  try {
-    await assertAdmin('generateFamilyPaymentLinkAction')
-    // Override validation is handled by the checkout service (Zod schema)
-    // Service also queries DB for authoritative child count
-
-    // Call the checkout service
-    const result = await createDugsiCheckoutSession({
-      familyId,
-      overrideAmount,
-      billingStartDate,
-    })
-
-    await logInfo(logger, 'Payment link generated', {
-      familyId,
-      familyName: result.familyName,
-      childCount: result.childCount,
-      finalRate: result.finalRate,
-      isOverride: result.isOverride,
-    })
-
-    return {
-      success: true,
-      data: {
-        paymentUrl: result.url,
-        calculatedRate: result.calculatedRate,
-        finalRate: result.finalRate,
-        isOverride: result.isOverride,
-        rateDescription: result.rateDescription,
-        tierDescription: result.tierDescription,
-        familyName: result.familyName,
-        childCount: result.childCount,
-      },
-    }
-  } catch (error) {
-    // Handle ActionError from service
-    if (error instanceof ActionError) {
-      return {
-        success: false,
-        error: error.message,
-      }
-    }
-
-    await logError(logger, error, 'Failed to generate family payment link', {
-      familyId,
-      overrideAmount,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to generate payment link',
-    }
-  }
+export interface WhatsAppSendResult {
+  waMessageId?: string
 }
 
-const BulkPaymentLinksSchema = z.object({
-  familyIds: z.array(z.string()).min(1, 'At least one family must be selected'),
-})
+// ============================================================================
+// Data fetch actions (no schema — no input)
+// ============================================================================
 
-/**
- * Bulk generate payment links for multiple families.
- * Used for batch operations from the dashboard.
- */
-export async function bulkGeneratePaymentLinksAction(params: {
-  familyIds: string[]
-}): Promise<
-  ActionResult<{
-    links: Array<{
-      familyId: string
-      familyName: string
-      paymentUrl: string
-      childCount: number
-      rate: number
-    }>
-    failed: Array<{
-      familyId: string
-      familyName: string
-      error: string
-    }>
-  }>
-> {
-  try {
-    await assertAdmin('bulkGeneratePaymentLinksAction')
+export const getDugsiRegistrations = adminActionClient
+  .metadata({ actionName: 'getDugsiRegistrations' })
+  .schema(ShiftFilterSchema)
+  .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
+    return await getAllDugsiRegistrations(undefined, parsedInput)
+  })
 
-    const validation = BulkPaymentLinksSchema.safeParse(params)
-    if (!validation.success) {
-      const errorMessages = validation.error.errors.map((e) => e.message)
-      return {
-        success: false,
-        error:
-          errorMessages.length > 1
-            ? `Validation errors: ${errorMessages.join('; ')}`
-            : errorMessages[0] || 'Invalid input',
-      }
-    }
-
-    const links: Array<{
-      familyId: string
-      familyName: string
-      paymentUrl: string
-      childCount: number
-      rate: number
-    }> = []
-    const failed: Array<{
-      familyId: string
-      familyName: string
-      error: string
-    }> = []
-
-    const BATCH_SIZE = 5
-    const familyIds = validation.data.familyIds
-
-    for (let i = 0; i < familyIds.length; i += BATCH_SIZE) {
-      const batch = familyIds.slice(i, i + BATCH_SIZE)
-
-      const results = await Promise.allSettled(
-        batch.map((familyId) => createDugsiCheckoutSession({ familyId }))
-      )
-
-      for (let j = 0; j < results.length; j++) {
-        const familyId = batch[j]
-        const result = results[j]
-
-        if (result.status === 'fulfilled') {
-          const value = result.value
-          links.push({
-            familyId,
-            familyName: value.familyName,
-            paymentUrl: value.url,
-            childCount: value.childCount,
-            rate: value.finalRate,
-          })
-        } else {
-          const error = result.reason
-          await logError(
-            logger,
-            error,
-            'Failed to generate payment link in bulk operation',
-            { familyId }
-          )
-          failed.push({
-            familyId,
-            familyName: familyId,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          })
-        }
-      }
-    }
-
-    if (links.length === 0 && failed.length > 0) {
-      return {
-        success: false,
-        error: `Failed to generate payment links for ${failed.length} ${failed.length === 1 ? 'family' : 'families'}`,
-      }
-    }
-
-    return { success: true, data: { links, failed } }
-  } catch (error) {
-    if (error instanceof ActionError) {
-      return { success: false, error: error.message }
-    }
-    await logError(logger, error, 'Failed to bulkGeneratePaymentLinksAction')
-    return { success: false, error: 'Failed to generate payment links' }
-  }
-}
-
-const PaymentHistorySchema = z.object({
-  customerId: z
-    .string()
-    .startsWith('cus_', 'Invalid Stripe customer ID format'),
-})
-
-/**
- * Fetch payment history from Stripe for a family.
- * Returns list of invoices with their payment status.
- */
-export async function getFamilyPaymentHistory(
-  customerId: string
-): Promise<ActionResult<StripePaymentHistoryItem[]>> {
-  try {
-    await assertAdmin('getFamilyPaymentHistory')
-    const validation = PaymentHistorySchema.safeParse({ customerId })
-    if (!validation.success) {
-      return {
-        success: false,
-        error: validation.error.errors[0]?.message || 'Invalid customer ID',
-      }
-    }
-    const stripe = getDugsiStripeClient()
-
-    const invoices = await stripe.invoices.list({
-      customer: customerId,
-      limit: 50,
-    })
-
-    const history: StripePaymentHistoryItem[] = invoices.data
-      .filter(
-        (invoice): invoice is typeof invoice & { id: string } => !!invoice.id
-      )
-      .map((invoice) => ({
-        id: invoice.id,
-        date: new Date(invoice.created * 1000),
-        amount: invoice.total ?? invoice.amount_paid,
-        status:
-          invoice.status === 'paid'
-            ? 'succeeded'
-            : invoice.status === 'open'
-              ? 'pending'
-              : 'failed',
-        description:
-          invoice.description ||
-          `Invoice for ${invoice.lines.data[0]?.description || 'subscription'}`,
-        invoiceUrl: invoice.hosted_invoice_url ?? null,
-      }))
-
-    return { success: true, data: history }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to fetch payment history', {
-      customerId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to fetch payment history',
-    }
-  }
-}
-
-/**
- * Generate vCard content for Dugsi parents.
- *
- * Fetches all registrations from DB, groups by family, and generates
- * vCard content with deduplicated parent contacts.
- */
-export async function generateDugsiVCardContent(): Promise<
-  ActionResult<VCardResult>
-> {
-  try {
-    await assertAdmin('generateDugsiVCardContent')
+export const generateDugsiVCardContent = adminActionClient
+  .metadata({ actionName: 'generateDugsiVCardContent' })
+  .action(async (): Promise<VCardResult> => {
     const registrations = await getAllDugsiRegistrations()
 
     const familyMap = new Map<string, DugsiRegistration[]>()
@@ -985,218 +341,45 @@ export async function generateDugsiVCardContent(): Promise<
     }
 
     return {
-      success: true,
-      data: {
-        content: generateVCardsContent(contacts),
-        filename: `dugsi-parent-contacts-${getDateString()}.vcf`,
-        exported: contacts.length,
-        skipped,
-      },
+      content: generateVCardsContent(contacts),
+      filename: `dugsi-parent-contacts-${getDateString()}.vcf`,
+      exported: contacts.length,
+      skipped,
     }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to generate Dugsi vCard content')
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to generate vCard content',
+  })
+
+export const getAvailableDugsiTeachers = adminActionClient
+  .metadata({ actionName: 'getAvailableDugsiTeachers' })
+  .action(
+    async (): Promise<
+      Array<{
+        id: string
+        name: string
+        email: string | null
+        phone: string | null
+      }>
+    > => {
+      const teachers = await getTeachersByProgramService(DUGSI_PROGRAM)
+      return teachers.map((t) => ({
+        id: t.id,
+        name: t.person.name,
+        email: t.person.email,
+        phone: t.person.phone,
+      }))
     }
-  }
-}
+  )
 
-/**
- * Get teachers available for Dugsi (enrolled in DUGSI_PROGRAM).
- */
-export async function getAvailableDugsiTeachers(): Promise<
-  ActionResult<
-    Array<{
-      id: string
-      name: string
-      email: string | null
-      phone: string | null
-    }>
-  >
-> {
-  try {
-    await assertAdmin('getAvailableDugsiTeachers')
-    const teachers = await getTeachersByProgramService(DUGSI_PROGRAM)
+export const getUnassignedStudentsAction = adminActionClient
+  .metadata({ actionName: 'getUnassignedStudentsAction' })
+  .action(async (): Promise<UnassignedStudent[]> => {
+    return await getUnassignedDugsiStudents()
+  })
 
-    const teacherList = teachers.map((t) => ({
-      id: t.id,
-      name: t.person.name,
-      email: t.person.email,
-      phone: t.person.phone,
-    }))
-
-    return { success: true, data: teacherList }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get available Dugsi teachers')
-    return {
-      success: false,
-      error: 'Failed to load available teachers',
-    }
-  }
-}
-
-/**
- * Get Dugsi students not enrolled in any class.
- */
-export async function getUnassignedStudentsAction(): Promise<
-  ActionResult<UnassignedStudent[]>
-> {
-  try {
-    await assertAdmin('getUnassignedStudentsAction')
-    const students = await getUnassignedDugsiStudents()
-    return { success: true, data: students }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get unassigned students')
-    return {
-      success: false,
-      error: 'Unable to load unassigned students. Please refresh the page.',
-    }
-  }
-}
-
-// ============================================================================
-// Class-Teacher Assignment Actions
-// ============================================================================
-
-/**
- * Assign a teacher to a Dugsi class.
- */
-export async function assignTeacherToClassAction(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  let classId: string | undefined
-  let teacherId: string | undefined
-
-  try {
-    await assertAdmin('assignTeacherToClassAction')
-    const parsed = AssignTeacherToClassSchema.safeParse(rawInput)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
-      }
-    }
-    classId = parsed.data.classId
-    teacherId = parsed.data.teacherId
-    await assignTeacherToClass(classId, teacherId)
-
-    revalidatePath('/admin/dugsi/classes')
-    revalidatePath('/teacher/checkin')
-
-    logger.info({ classId, teacherId }, 'Teacher assigned to class')
-
-    return {
-      success: true,
-      data: undefined,
-      message: 'Teacher assigned to class',
-    }
-  } catch (error) {
-    if (error instanceof ClassNotFoundError) {
-      return {
-        success: false,
-        error: 'Class not found or has been deactivated',
-      }
-    }
-
-    if (error instanceof TeacherNotAuthorizedError) {
-      return {
-        success: false,
-        error: 'Teacher must be enrolled in Dugsi program before assignment',
-      }
-    }
-
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === 'P2002'
-    ) {
-      return {
-        success: false,
-        error: 'This teacher is already assigned to this class',
-      }
-    }
-
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to assign teacher to class', {
-      classId,
-      teacherId,
-    })
-    return {
-      success: false,
-      error: 'Unable to assign teacher. Please try again.',
-    }
-  }
-}
-
-/**
- * Remove a teacher from a Dugsi class.
- */
-export async function removeTeacherFromClassAction(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  let classId: string | undefined
-  let teacherId: string | undefined
-
-  try {
-    await assertAdmin('removeTeacherFromClassAction')
-    const parsed = RemoveTeacherFromClassSchema.safeParse(rawInput)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
-      }
-    }
-    classId = parsed.data.classId
-    teacherId = parsed.data.teacherId
-    await removeTeacherFromClass(classId, teacherId)
-
-    revalidatePath('/admin/dugsi/classes')
-    revalidatePath('/teacher/checkin')
-
-    logger.info({ classId, teacherId }, 'Teacher removed from class')
-
-    return {
-      success: true,
-      data: undefined,
-      message: 'Teacher removed from class',
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to remove teacher from class', {
-      classId,
-      teacherId,
-    })
-    return {
-      success: false,
-      error: 'Unable to remove teacher. Please try again.',
-    }
-  }
-}
-
-/**
- * Get all Dugsi classes with their teachers and student counts.
- */
-export async function getClassesWithDetailsAction(): Promise<
-  ActionResult<ClassWithDetails[]>
-> {
-  try {
-    await assertAdmin('getClassesWithDetailsAction')
+export const getClassesWithDetailsAction = adminActionClient
+  .metadata({ actionName: 'getClassesWithDetailsAction' })
+  .action(async (): Promise<ClassWithDetails[]> => {
     const classes = await getClassesWithDetails()
-
-    const result: ClassWithDetails[] = classes.map((c) => ({
+    return classes.map((c) => ({
       id: c.id,
       name: c.name,
       shift: c.shift,
@@ -1209,300 +392,626 @@ export async function getClassesWithDetailsAction(): Promise<
       })),
       studentCount: c.students.length,
     }))
+  })
 
-    return { success: true, data: result }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get classes with details')
-    return {
-      success: false,
-      error: 'Unable to load classes. Please refresh the page.',
+export const getAllTeachersForClassAssignmentAction = adminActionClient
+  .metadata({ actionName: 'getAllTeachersForClassAssignmentAction' })
+  .action(async (): Promise<Array<{ id: string; name: string }>> => {
+    return await getAllTeachersForAssignment()
+  })
+
+// ============================================================================
+// Family/subscription data fetch actions (with input)
+// ============================================================================
+
+export const getFamilyMembers = adminActionClient
+  .metadata({ actionName: 'getFamilyMembers' })
+  .schema(StudentIdSchema)
+  .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
+    return await getFamilyMembersService(parsedInput.studentId)
+  })
+
+export const getDeleteFamilyPreview = adminActionClient
+  .metadata({ actionName: 'getDeleteFamilyPreview' })
+  .schema(StudentIdSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<{
+      count: number
+      students: Array<{ id: string; name: string; parentEmail: string | null }>
+    }> => {
+      return await getDeleteFamilyPreviewService(parsedInput.studentId)
     }
-  }
-}
+  )
 
-/**
- * Get all teachers available for class assignment.
- */
-export async function getAllTeachersForClassAssignmentAction(): Promise<
-  ActionResult<Array<{ id: string; name: string }>>
-> {
-  try {
-    await assertAdmin('getAllTeachersForClassAssignmentAction')
-    const teachers = await getAllTeachersForAssignment()
-    return { success: true, data: teachers }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get teachers for class assignment')
-    return {
-      success: false,
-      error: 'Unable to load teachers. Please refresh the page.',
+export const validateDugsiSubscription = adminActionClient
+  .metadata({ actionName: 'validateDugsiSubscription' })
+  .schema(SubscriptionIdSchema)
+  .action(async ({ parsedInput }): Promise<SubscriptionValidationData> => {
+    return await validateDugsiSubscriptionService(parsedInput.subscriptionId)
+  })
+
+export const getDugsiPaymentStatus = adminActionClient
+  .metadata({ actionName: 'getDugsiPaymentStatus' })
+  .schema(ParentEmailSchema)
+  .action(async ({ parsedInput }): Promise<PaymentStatusData> => {
+    return await getPaymentStatus(parsedInput.parentEmail)
+  })
+
+export const getFamilyPaymentHistory = adminActionClient
+  .metadata({ actionName: 'getFamilyPaymentHistory' })
+  .schema(PaymentHistorySchema)
+  .action(async ({ parsedInput }): Promise<StripePaymentHistoryItem[]> => {
+    const stripe = getDugsiStripeClient()
+    const invoices = await stripe.invoices.list({
+      customer: parsedInput.customerId,
+      limit: 50,
+    })
+
+    return invoices.data
+      .filter(
+        (invoice): invoice is typeof invoice & { id: string } => !!invoice.id
+      )
+      .map((invoice) => ({
+        id: invoice.id,
+        date: new Date(invoice.created * 1000),
+        amount: invoice.total ?? invoice.amount_paid,
+        status:
+          invoice.status === 'paid'
+            ? 'succeeded'
+            : invoice.status === 'open'
+              ? 'pending'
+              : 'failed',
+        description:
+          invoice.description ||
+          `Invoice for ${invoice.lines.data[0]?.description || 'subscription'}`,
+        invoiceUrl: invoice.hosted_invoice_url ?? null,
+      }))
+  })
+
+export const getAvailableStudentsForClassAction = adminActionClient
+  .metadata({ actionName: 'getAvailableStudentsForClassAction' })
+  .schema(z.object({ shift: z.nativeEnum(Shift) }))
+  .action(async ({ parsedInput }): Promise<StudentForEnrollment[]> => {
+    return await getAvailableStudentsForClass(parsedInput.shift)
+  })
+
+export const getClassDeletePreviewAction = adminActionClient
+  .metadata({ actionName: 'getClassDeletePreviewAction' })
+  .schema(ClassIdSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<{ teacherCount: number; studentCount: number }> => {
+      const preview = await getClassPreviewForDelete(parsedInput.classId)
+      if (!preview) {
+        throw new ActionError(
+          'Class not found',
+          ERROR_CODES.NOT_FOUND,
+          undefined,
+          404
+        )
+      }
+      return preview
     }
-  }
-}
+  )
 
-/**
- * Get students available for enrollment in a class.
- * Filters by shift and shows enrollment status.
- */
-export async function getAvailableStudentsForClassAction(input: {
-  shift: Shift
-}): Promise<ActionResult<StudentForEnrollment[]>> {
-  try {
-    await assertAdmin('getAvailableStudentsForClassAction')
-    const students = await getAvailableStudentsForClass(input.shift)
-    return { success: true, data: students }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get available students for class')
-    return {
-      success: false,
-      error: 'Unable to load students. Please refresh the page.',
-    }
-  }
-}
+// ============================================================================
+// Mutation actions
+// ============================================================================
 
-/**
- * Enroll a student in a Dugsi class.
- */
-export async function enrollStudentInClassAction(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  let classId: string | undefined
-  let programProfileId: string | undefined
+export const deleteDugsiFamily = adminActionClient
+  .metadata({ actionName: 'deleteDugsiFamily' })
+  .schema(StudentIdSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<{
+      studentsDeleted: number
+      subscriptionsCanceled: number
+      message: string
+    }> => {
+      const result = await deleteDugsiFamilyService(parsedInput.studentId)
+      revalidatePath('/admin/dugsi')
 
-  try {
-    await assertAdmin('enrollStudentInClassAction')
-    const parsed = EnrollStudentInClassSchema.safeParse(rawInput)
-    if (!parsed.success) {
+      await logInfo(logger, 'Dugsi family deleted', {
+        studentId: parsedInput.studentId,
+        studentsDeleted: result.studentsDeleted,
+        subscriptionsCanceled: result.subscriptionsCanceled,
+      })
+
+      const parts: string[] = []
+      parts.push(
+        `${result.studentsDeleted} ${result.studentsDeleted === 1 ? 'student' : 'students'}`
+      )
+      if (result.subscriptionsCanceled > 0) {
+        parts.push(
+          `${result.subscriptionsCanceled} ${result.subscriptionsCanceled === 1 ? 'subscription' : 'subscriptions'} canceled`
+        )
+      }
+
       return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
+        ...result,
+        message: `Successfully deleted ${parts.join(', ')}`,
       }
     }
-    classId = parsed.data.classId
-    programProfileId = parsed.data.programProfileId
-    await enrollStudentInClass(classId, programProfileId)
+  )
+
+export const linkDugsiSubscription = adminActionClient
+  .metadata({ actionName: 'linkDugsiSubscription' })
+  .schema(LinkSubscriptionSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<SubscriptionLinkData & { message: string }> => {
+      const { parentEmail, subscriptionId } = parsedInput
+
+      if (!parentEmail || parentEmail.trim() === '') {
+        throw new ActionError(
+          'Parent email is required to link subscription.',
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+
+      const result = await linkDugsiSubscriptionService(
+        parentEmail,
+        subscriptionId
+      )
+      revalidatePath('/admin/dugsi')
+
+      await logInfo(logger, 'Dugsi subscription linked', {
+        parentEmail,
+        subscriptionId,
+        studentsUpdated: result.updated,
+      })
+
+      return {
+        ...result,
+        message: `Successfully linked subscription to ${result.updated} students`,
+      }
+    }
+  )
+
+export const verifyDugsiBankAccount = adminActionClient
+  .metadata({ actionName: 'verifyDugsiBankAccount' })
+  .schema(VerifyBankSchema)
+  .action(async ({ parsedInput }): Promise<BankVerificationData> => {
+    const { paymentIntentId, descriptorCode } = parsedInput
+
+    if (!paymentIntentId || !paymentIntentId.startsWith('pi_')) {
+      throw new ActionError(
+        'Invalid payment intent ID format. Must start with "pi_"',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+
+    const cleanCode = descriptorCode.trim().toUpperCase()
+    if (!/^SM[A-Z0-9]{4}$/.test(cleanCode)) {
+      throw new ActionError(
+        'Invalid descriptor code format. Must be 6 characters starting with SM (e.g., SMT86W)',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+
+    try {
+      const result = await verifyBankAccount(paymentIntentId, cleanCode)
+      revalidatePath('/admin/dugsi')
+      return result
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'type' in error &&
+        error.type === 'StripeInvalidRequestError' &&
+        'code' in error
+      ) {
+        if (error.code === 'payment_intent_unexpected_state') {
+          throw new ActionError(
+            'This bank account has already been verified',
+            ERROR_CODES.STRIPE_ERROR
+          )
+        }
+        if (error.code === 'incorrect_code') {
+          throw new ActionError(
+            'Incorrect verification code. Please check the code in the bank statement and try again',
+            ERROR_CODES.STRIPE_ERROR
+          )
+        }
+        if (error.code === 'resource_missing') {
+          throw new ActionError(
+            'Payment intent not found. The verification may have expired',
+            ERROR_CODES.NOT_FOUND
+          )
+        }
+      }
+      throw error
+    }
+  })
+
+export const updateParentInfo = adminActionClient
+  .metadata({ actionName: 'updateParentInfo' })
+  .schema(UpdateParentInfoSchema)
+  .action(
+    async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
+      const result = await updateParentInfoService(parsedInput)
+      revalidatePath('/admin/dugsi')
+      return {
+        ...result,
+        message: `Successfully updated parent information for ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
+      }
+    }
+  )
+
+export const addSecondParent = adminActionClient
+  .metadata({ actionName: 'addSecondParent' })
+  .schema(AddSecondParentSchema)
+  .action(
+    async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
+      const result = await addSecondParentService(parsedInput)
+      revalidatePath('/admin/dugsi')
+      return {
+        ...result,
+        message: `Successfully added second parent to ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
+      }
+    }
+  )
+
+export const setPrimaryPayer = adminActionClient
+  .metadata({ actionName: 'setPrimaryPayer' })
+  .schema(SetPrimaryPayerSchema)
+  .action(
+    async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
+      const result = await setPrimaryPayerService(parsedInput)
+      revalidatePath('/admin/dugsi')
+      return {
+        ...result,
+        message: `Parent ${parsedInput.parentNumber} is now the primary payer`,
+      }
+    }
+  )
+
+export const updateChildInfo = adminActionClient
+  .metadata({ actionName: 'updateChildInfo' })
+  .schema(UpdateChildInfoSchema)
+  .action(async ({ parsedInput }): Promise<{ message: string }> => {
+    await updateChildInfoService(parsedInput)
+    revalidatePath('/admin/dugsi')
+    return { message: 'Successfully updated child information' }
+  })
+
+export const updateFamilyShift = adminActionClient
+  .metadata({ actionName: 'updateFamilyShift' })
+  .schema(UpdateFamilyShiftSchema)
+  .action(async ({ parsedInput }): Promise<{ message: string }> => {
+    await updateFamilyShiftService({
+      familyReferenceId: parsedInput.familyReferenceId,
+      shift: parsedInput.shift,
+    })
+    revalidatePath('/admin/dugsi')
+    return { message: 'Successfully updated family shift' }
+  })
+
+export const addChildToFamily = adminActionClient
+  .metadata({ actionName: 'addChildToFamily' })
+  .schema(AddChildToFamilySchema)
+  .action(
+    async ({ parsedInput }): Promise<{ childId: string; message: string }> => {
+      const result = await addChildToFamilyService(parsedInput)
+      revalidatePath('/admin/dugsi')
+      return { ...result, message: 'Successfully added child to family' }
+    }
+  )
+
+export const generateFamilyPaymentLinkAction = adminActionClient
+  .metadata({ actionName: 'generateFamilyPaymentLinkAction' })
+  .schema(GenerateFamilyPaymentLinkSchema)
+  .action(async ({ parsedInput }): Promise<FamilyPaymentLinkData> => {
+    const { familyId, overrideAmount, billingStartDate } = parsedInput
+    const result = await createDugsiCheckoutSession({
+      familyId,
+      overrideAmount,
+      billingStartDate,
+    })
+
+    await logInfo(logger, 'Payment link generated', {
+      familyId,
+      familyName: result.familyName,
+      childCount: result.childCount,
+      finalRate: result.finalRate,
+      isOverride: result.isOverride,
+    })
+
+    return {
+      paymentUrl: result.url,
+      calculatedRate: result.calculatedRate,
+      finalRate: result.finalRate,
+      isOverride: result.isOverride,
+      rateDescription: result.rateDescription,
+      tierDescription: result.tierDescription,
+      familyName: result.familyName,
+      childCount: result.childCount,
+    }
+  })
+
+export const bulkGeneratePaymentLinksAction = adminActionClient
+  .metadata({ actionName: 'bulkGeneratePaymentLinksAction' })
+  .schema(BulkPaymentLinksSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<{
+      links: Array<{
+        familyId: string
+        familyName: string
+        paymentUrl: string
+        childCount: number
+        rate: number
+      }>
+      failed: Array<{
+        familyId: string
+        familyName: string
+        error: string
+      }>
+    }> => {
+      const links: Array<{
+        familyId: string
+        familyName: string
+        paymentUrl: string
+        childCount: number
+        rate: number
+      }> = []
+      const failed: Array<{
+        familyId: string
+        familyName: string
+        error: string
+      }> = []
+
+      const BATCH_SIZE = 5
+      const familyIds = parsedInput.familyIds
+
+      for (let i = 0; i < familyIds.length; i += BATCH_SIZE) {
+        const batch = familyIds.slice(i, i + BATCH_SIZE)
+
+        const results = await Promise.allSettled(
+          batch.map((familyId) => createDugsiCheckoutSession({ familyId }))
+        )
+
+        for (let j = 0; j < results.length; j++) {
+          const familyId = batch[j]
+          const result = results[j]
+
+          if (result.status === 'fulfilled') {
+            const value = result.value
+            links.push({
+              familyId,
+              familyName: value.familyName,
+              paymentUrl: value.url,
+              childCount: value.childCount,
+              rate: value.finalRate,
+            })
+          } else {
+            const error = result.reason
+            failed.push({
+              familyId,
+              familyName: familyId,
+              error: error instanceof Error ? error.message : 'Unknown error',
+            })
+          }
+        }
+      }
+
+      if (links.length === 0 && failed.length > 0) {
+        throw new ActionError(
+          `Failed to generate payment links for ${failed.length} ${failed.length === 1 ? 'family' : 'families'}`,
+          ERROR_CODES.STRIPE_ERROR
+        )
+      }
+
+      return { links, failed }
+    }
+  )
+
+// ============================================================================
+// Class-Teacher Assignment Actions
+// ============================================================================
+
+export const assignTeacherToClassAction = adminActionClient
+  .metadata({ actionName: 'assignTeacherToClassAction' })
+  .schema(AssignTeacherToClassSchema)
+  .action(async ({ parsedInput }): Promise<{ message: string }> => {
+    const { classId, teacherId } = parsedInput
+    try {
+      await assignTeacherToClass(classId, teacherId)
+    } catch (error) {
+      if (error instanceof ClassNotFoundError) {
+        throw new ActionError(
+          'Class not found or has been deactivated',
+          ERROR_CODES.NOT_FOUND
+        )
+      }
+      if (error instanceof TeacherNotAuthorizedError) {
+        throw new ActionError(
+          'Teacher must be enrolled in Dugsi program before assignment',
+          ERROR_CODES.UNAUTHORIZED
+        )
+      }
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
+        throw new ActionError(
+          'This teacher is already assigned to this class',
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+      throw error
+    }
 
     revalidatePath('/admin/dugsi/classes')
+    revalidatePath('/teacher/checkin')
+    logger.info({ classId, teacherId }, 'Teacher assigned to class')
+    return { message: 'Teacher assigned to class' }
+  })
 
+export const removeTeacherFromClassAction = adminActionClient
+  .metadata({ actionName: 'removeTeacherFromClassAction' })
+  .schema(RemoveTeacherFromClassSchema)
+  .action(async ({ parsedInput }): Promise<{ message: string }> => {
+    const { classId, teacherId } = parsedInput
+    await removeTeacherFromClass(classId, teacherId)
+    revalidatePath('/admin/dugsi/classes')
+    revalidatePath('/teacher/checkin')
+    logger.info({ classId, teacherId }, 'Teacher removed from class')
+    return { message: 'Teacher removed from class' }
+  })
+
+export const enrollStudentInClassAction = adminActionClient
+  .metadata({ actionName: 'enrollStudentInClassAction' })
+  .schema(EnrollStudentInClassSchema)
+  .action(async ({ parsedInput }): Promise<{ message: string }> => {
+    const { classId, programProfileId } = parsedInput
+    try {
+      await enrollStudentInClass(classId, programProfileId)
+    } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
+        throw new ActionError(
+          'This student is already enrolled in a class',
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+      throw error
+    }
+    revalidatePath('/admin/dugsi/classes')
     logger.info({ classId, programProfileId }, 'Student enrolled in class')
+    return { message: 'Student enrolled in class' }
+  })
 
-    return {
-      success: true,
-      data: undefined,
-      message: 'Student enrolled in class',
-    }
-  } catch (error) {
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === 'P2002'
-    ) {
-      return {
-        success: false,
-        error: 'This student is already enrolled in a class',
-      }
-    }
-
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to enroll student in class', {
-      classId,
-      programProfileId,
-    })
-    return {
-      success: false,
-      error: 'Unable to enroll student. Please try again.',
-    }
-  }
-}
-
-/**
- * Remove a student from a Dugsi class.
- */
-export async function removeStudentFromClassAction(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  let programProfileId: string | undefined
-
-  try {
-    await assertAdmin('removeStudentFromClassAction')
-    const parsed = RemoveStudentFromClassSchema.safeParse(rawInput)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
-      }
-    }
-    programProfileId = parsed.data.programProfileId
+export const removeStudentFromClassAction = adminActionClient
+  .metadata({ actionName: 'removeStudentFromClassAction' })
+  .schema(RemoveStudentFromClassSchema)
+  .action(async ({ parsedInput }): Promise<{ message: string }> => {
+    const { programProfileId } = parsedInput
     await removeStudentFromClass(programProfileId)
-
     revalidatePath('/admin/dugsi/classes')
-
     logger.info({ programProfileId }, 'Student removed from class')
+    return { message: 'Student removed from class' }
+  })
 
-    return {
-      success: true,
-      data: undefined,
-      message: 'Student removed from class',
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to remove student from class', {
-      programProfileId,
-    })
-    return {
-      success: false,
-      error: 'Unable to remove student. Please try again.',
-    }
-  }
-}
-
-/**
- * Bulk enroll students in a Dugsi class.
- */
-export async function bulkEnrollStudentsAction(
-  rawInput: unknown
-): Promise<ActionResult<{ enrolled: number; moved: number }>> {
-  let classId: string | undefined
-  try {
-    await assertAdmin('bulkEnrollStudentsAction')
-    const parsed = BulkEnrollStudentsSchema.safeParse(rawInput)
-    if (!parsed.success) {
+export const bulkEnrollStudentsAction = adminActionClient
+  .metadata({ actionName: 'bulkEnrollStudentsAction' })
+  .schema(BulkEnrollStudentsSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<{ enrolled: number; moved: number; message: string }> => {
+      const { classId, programProfileIds } = parsedInput
+      const result = await bulkEnrollStudents(classId, programProfileIds)
+      revalidatePath('/admin/dugsi/classes')
+      logger.info(
+        { classId, enrolled: result.enrolled, moved: result.moved },
+        'Bulk enrollment completed'
+      )
       return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
+        ...result,
+        message: `Enrolled ${result.enrolled} students${result.moved > 0 ? ` (${result.moved} moved from other classes)` : ''}`,
       }
     }
-    ;({ classId } = parsed.data)
-    const { programProfileIds } = parsed.data
-    const result = await bulkEnrollStudents(classId, programProfileIds)
+  )
 
-    revalidatePath('/admin/dugsi/classes')
-
-    logger.info(
-      { classId, enrolled: result.enrolled, moved: result.moved },
-      'Bulk enrollment completed'
-    )
-
-    return {
-      success: true,
-      data: result,
-      message: `Enrolled ${result.enrolled} students${result.moved > 0 ? ` (${result.moved} moved from other classes)` : ''}`,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to bulk enroll students', { classId })
-    return {
-      success: false,
-      error: 'Unable to enroll students. Please try again.',
-    }
-  }
-}
-
-/**
- * Create a new Dugsi class.
- */
-export async function createClassAction(
-  rawInput: unknown
-): Promise<ActionResult<ClassWithDetails>> {
-  let name: string | undefined
-  let shift: string | undefined
-  try {
-    await assertAdmin('createClassAction')
-    const parsed = CreateClassSchema.safeParse(rawInput)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
+export const createClassAction = adminActionClient
+  .metadata({ actionName: 'createClassAction' })
+  .schema(CreateClassSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<ClassWithDetails & { message: string }> => {
+      const { name, shift, description } = parsedInput
+      try {
+        const newClass = await createClass(name, shift as Shift, description)
+        revalidatePath('/admin/dugsi/classes')
+        revalidatePath('/teacher/checkin')
+        logger.info({ classId: newClass.id, name, shift }, 'Class created')
+        return {
+          id: newClass.id,
+          name: newClass.name,
+          shift: newClass.shift,
+          description: newClass.description,
+          isActive: newClass.isActive,
+          teachers: [],
+          studentCount: 0,
+          message: 'Class created successfully',
+        }
+      } catch (error) {
+        if (
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === 'P2002'
+        ) {
+          throw new ActionError(
+            'A class with this name already exists for this shift',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        }
+        throw error
       }
     }
-    ;({ name, shift } = parsed.data)
-    const { description } = parsed.data
-    const newClass = await createClass(name, shift as Shift, description)
+  )
 
-    revalidatePath('/admin/dugsi/classes')
-    revalidatePath('/teacher/checkin')
-
-    logger.info({ classId: newClass.id, name, shift }, 'Class created')
-
-    return {
-      success: true,
-      data: {
-        id: newClass.id,
-        name: newClass.name,
-        shift: newClass.shift,
-        description: newClass.description,
-        isActive: newClass.isActive,
-        teachers: [],
-        studentCount: 0,
-      },
-      message: 'Class created successfully',
-    }
-  } catch (error) {
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === 'P2002'
-    ) {
-      return {
-        success: false,
-        error: 'A class with this name already exists for this shift',
+export const updateClassAction = adminActionClient
+  .metadata({ actionName: 'updateClassAction' })
+  .schema(UpdateClassSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<ClassWithDetails & { message: string }> => {
+      const { classId, name, description } = parsedInput
+      try {
+        await updateClass(classId, { name, description })
+      } catch (error) {
+        if (error instanceof ClassNotFoundError) {
+          throw new ActionError(
+            'Class not found or has been deactivated',
+            ERROR_CODES.NOT_FOUND
+          )
+        }
+        if (
+          error &&
+          typeof error === 'object' &&
+          'code' in error &&
+          error.code === 'P2002'
+        ) {
+          throw new ActionError(
+            'A class with this name already exists',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        }
+        throw error
       }
-    }
 
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to create class', { name, shift })
-    return {
-      success: false,
-      error: 'Unable to create class. Please try again.',
-    }
-  }
-}
-
-/**
- * Update a Dugsi class.
- */
-export async function updateClassAction(
-  rawInput: unknown
-): Promise<ActionResult<ClassWithDetails>> {
-  let classId: string | undefined
-  let name: string | undefined
-  try {
-    await assertAdmin('updateClassAction')
-    const parsed = UpdateClassSchema.safeParse(rawInput)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
+      const updatedClass = await getClassById(classId)
+      if (!updatedClass) {
+        throw new ActionError(
+          'Class not found',
+          ERROR_CODES.NOT_FOUND,
+          undefined,
+          404
+        )
       }
-    }
-    ;({ classId, name } = parsed.data)
-    const { description } = parsed.data
-    await updateClass(classId, { name, description })
 
-    const updatedClass = await getClassById(classId)
-    if (!updatedClass) {
-      return { success: false, error: 'Class not found' }
-    }
+      revalidatePath('/admin/dugsi/classes')
+      revalidatePath('/teacher/checkin')
+      logger.info({ classId, name }, 'Class updated')
 
-    revalidatePath('/admin/dugsi/classes')
-    revalidatePath('/teacher/checkin')
-
-    logger.info({ classId, name }, 'Class updated')
-
-    return {
-      success: true,
-      data: {
+      return {
         id: updatedClass.id,
         name: updatedClass.name,
         shift: updatedClass.shift,
@@ -1514,322 +1023,118 @@ export async function updateClassAction(
           teacherName: t.teacher.person.name,
         })),
         studentCount: updatedClass.students.length,
-      },
-      message: 'Class updated successfully',
-    }
-  } catch (error) {
-    if (error instanceof ClassNotFoundError) {
-      return {
-        success: false,
-        error: 'Class not found or has been deactivated',
+        message: 'Class updated successfully',
       }
     }
+  )
 
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      error.code === 'P2002'
-    ) {
-      return {
-        success: false,
-        error: 'A class with this name already exists',
+export const deleteClassAction = adminActionClient
+  .metadata({ actionName: 'deleteClassAction' })
+  .schema(DeleteClassSchema)
+  .action(async ({ parsedInput }): Promise<{ message: string }> => {
+    const { classId } = parsedInput
+    try {
+      await deleteClass(classId)
+    } catch (error) {
+      if (error instanceof ClassNotFoundError) {
+        throw new ActionError(
+          'Class not found or has been deactivated',
+          ERROR_CODES.NOT_FOUND
+        )
       }
+      throw error
     }
-
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to update class', { classId, name })
-    return {
-      success: false,
-      error: 'Unable to update class. Please try again.',
-    }
-  }
-}
-
-/**
- * Delete a Dugsi class (soft delete).
- */
-export async function deleteClassAction(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  let classId: string | undefined
-  try {
-    await assertAdmin('deleteClassAction')
-    const parsed = DeleteClassSchema.safeParse(rawInput)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid input',
-      }
-    }
-    ;({ classId } = parsed.data)
-    await deleteClass(classId)
-
     revalidatePath('/admin/dugsi/classes')
     revalidatePath('/teacher/checkin')
-
     logger.info({ classId }, 'Class deleted')
-
-    return {
-      success: true,
-      data: undefined,
-      message: 'Class deleted successfully',
-    }
-  } catch (error) {
-    if (error instanceof ClassNotFoundError) {
-      return {
-        success: false,
-        error: 'Class not found or has been deactivated',
-      }
-    }
-
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to delete class', { classId })
-    return {
-      success: false,
-      error: 'Unable to delete class. Please try again.',
-    }
-  }
-}
-
-/**
- * Get class delete preview (teacher and student counts).
- */
-export async function getClassDeletePreviewAction(input: {
-  classId: string
-}): Promise<ActionResult<{ teacherCount: number; studentCount: number }>> {
-  try {
-    await assertAdmin('getClassDeletePreviewAction')
-    const preview = await getClassPreviewForDelete(input.classId)
-
-    if (!preview) {
-      return {
-        success: false,
-        error: 'Class not found',
-      }
-    }
-
-    return { success: true, data: preview }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to get class delete preview', {
-      classId: input.classId,
-    })
-    return {
-      success: false,
-      error: 'Unable to load class details. Please try again.',
-    }
-  }
-}
+    return { message: 'Class deleted successfully' }
+  })
 
 // ============================================================================
 // Consolidate Subscription Actions
 // ============================================================================
 
-/**
- * Preview a Stripe subscription for consolidation with a family.
- *
- * Fetches subscription from Stripe and compares customer details
- * with the family's primary payer in the database.
- */
-export async function previewStripeSubscriptionForConsolidation(
-  subscriptionId: string,
-  familyId: string
-): Promise<ActionResult<StripeSubscriptionPreview>> {
-  try {
-    await assertAdmin('previewStripeSubscriptionForConsolidation')
-    const validated = previewSubscriptionInputSchema.parse({
-      subscriptionId,
-      familyId,
-    })
-
-    const preview = await previewStripeSubscriptionService(
-      validated.subscriptionId,
-      validated.familyId
+export const previewStripeSubscriptionForConsolidation = adminActionClient
+  .metadata({ actionName: 'previewStripeSubscriptionForConsolidation' })
+  .schema(previewSubscriptionInputSchema)
+  .action(async ({ parsedInput }): Promise<StripeSubscriptionPreview> => {
+    return await previewStripeSubscriptionService(
+      parsedInput.subscriptionId,
+      parsedInput.familyId
     )
+  })
 
-    return {
-      success: true,
-      data: preview,
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(
-      logger,
-      error,
-      'Failed to preview subscription for consolidation',
-      { subscriptionId, familyId }
-    )
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to preview subscription',
-    }
-  }
-}
+export const consolidateDugsiSubscription = adminActionClient
+  .metadata({ actionName: 'consolidateDugsiSubscription' })
+  .schema(consolidateSubscriptionInputSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<ConsolidateSubscriptionResult & { message: string }> => {
+      const result = await consolidateStripeSubscriptionService(parsedInput)
+      revalidatePath('/admin/dugsi')
 
-/**
- * Consolidate a Stripe subscription with a Dugsi family.
- *
- * Creates/updates BillingAccount, Subscription, and BillingAssignments.
- * Optionally syncs Stripe customer to match DB and updates metadata.
- */
-export async function consolidateDugsiSubscription(input: {
-  stripeSubscriptionId: string
-  familyId: string
-  syncStripeCustomer: boolean
-  forceOverride?: boolean
-}): Promise<ActionResult<ConsolidateSubscriptionResult>> {
-  try {
-    await assertAdmin('consolidateDugsiSubscription')
-    const validated = consolidateSubscriptionInputSchema.parse(input)
+      await logInfo(logger, 'Dugsi subscription consolidated', {
+        subscriptionId: parsedInput.stripeSubscriptionId,
+        familyId: parsedInput.familyId,
+        assignmentsCreated: result.assignmentsCreated,
+        stripeCustomerSynced: result.stripeCustomerSynced,
+        previousFamilyUnlinked: result.previousFamilyUnlinked,
+      })
 
-    const result = await consolidateStripeSubscriptionService(validated)
+      const parts: string[] = []
+      parts.push('Subscription linked')
+      if (result.assignmentsCreated > 0) {
+        parts.push(
+          `${result.assignmentsCreated} ${result.assignmentsCreated === 1 ? 'child' : 'children'} assigned`
+        )
+      }
+      if (result.stripeCustomerSynced) {
+        parts.push('Stripe customer synced')
+      } else if (result.syncError) {
+        parts.push(`Stripe sync failed: ${result.syncError}`)
+      }
+      if (result.previousFamilyUnlinked) {
+        parts.push('moved from previous family')
+      }
 
-    revalidatePath('/admin/dugsi')
-
-    await logInfo(logger, 'Dugsi subscription consolidated', {
-      subscriptionId: input.stripeSubscriptionId,
-      familyId: input.familyId,
-      assignmentsCreated: result.assignmentsCreated,
-      stripeCustomerSynced: result.stripeCustomerSynced,
-      previousFamilyUnlinked: result.previousFamilyUnlinked,
-    })
-
-    const parts: string[] = []
-    parts.push('Subscription linked')
-    if (result.assignmentsCreated > 0) {
-      parts.push(
-        `${result.assignmentsCreated} ${result.assignmentsCreated === 1 ? 'child' : 'children'} assigned`
-      )
+      return { ...result, message: parts.join(', ') }
     }
-    if (result.stripeCustomerSynced) {
-      parts.push('Stripe customer synced')
-    } else if (result.syncError) {
-      parts.push(`Stripe sync failed: ${result.syncError}`)
-    }
-    if (result.previousFamilyUnlinked) {
-      parts.push('moved from previous family')
-    }
-
-    return {
-      success: true,
-      data: result,
-      message: parts.join(', '),
-    }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to consolidate subscription', {
-      subscriptionId: input.stripeSubscriptionId,
-      familyId: input.familyId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to consolidate subscription',
-    }
-  }
-}
+  )
 
 // ============================================================================
 // WhatsApp Actions
 // ============================================================================
 
-const SendPaymentLinkViaWhatsAppSchema = z.object({
-  phone: z
-    .string()
-    .min(10, 'Phone number too short')
-    .max(15, 'Phone number too long'),
-  parentName: z
-    .string()
-    .min(1, 'Parent name required')
-    .max(100, 'Parent name too long'),
-  amount: z
-    .number()
-    .int('Amount must be an integer')
-    .positive('Amount must be positive'),
-  childCount: z
-    .number()
-    .int('Child count must be an integer')
-    .positive('Child count must be positive'),
-  paymentUrl: z.string().url('Invalid payment URL'),
-  familyId: z.string().optional(),
-  personId: z.string().optional(),
-})
+export const sendPaymentLinkViaWhatsAppAction = adminActionClient
+  .metadata({ actionName: 'sendPaymentLinkViaWhatsAppAction' })
+  .schema(SendPaymentLinkViaWhatsAppSchema)
+  .action(
+    async ({
+      parsedInput,
+    }): Promise<WhatsAppSendResult & { message: string }> => {
+      const result = await sendPaymentLink({
+        phone: parsedInput.phone,
+        parentName: parsedInput.parentName,
+        amount: parsedInput.amount,
+        childCount: parsedInput.childCount,
+        paymentUrl: parsedInput.paymentUrl,
+        program: DUGSI_PROGRAM,
+        personId: parsedInput.personId,
+        familyId: parsedInput.familyId,
+      })
 
-export type SendPaymentLinkViaWhatsAppInput = z.infer<
-  typeof SendPaymentLinkViaWhatsAppSchema
->
+      if (!result.success) {
+        throw new ActionError(
+          result.error || 'Failed to send WhatsApp message',
+          ERROR_CODES.SERVER_ERROR
+        )
+      }
 
-export interface WhatsAppSendResult {
-  waMessageId?: string
-}
-
-/**
- * Send a payment link to a parent via WhatsApp API.
- *
- * Uses the WhatsApp Cloud API to send a pre-approved template message
- * with the payment link. Message is logged to WhatsAppMessage table.
- *
- * Design decision: This action intentionally does NOT use a database transaction.
- * The WhatsApp message record should persist for audit trail purposes even if
- * any caller's subsequent operations fail. The message has already been sent
- * to WhatsApp's servers at that point.
- */
-export async function sendPaymentLinkViaWhatsAppAction(
-  rawInput: unknown
-): Promise<ActionResult<WhatsAppSendResult>> {
-  try {
-    await assertAdmin('sendPaymentLinkViaWhatsAppAction')
-
-    const parseResult = SendPaymentLinkViaWhatsAppSchema.safeParse(rawInput)
-    if (!parseResult.success) {
+      revalidatePath('/admin/dugsi')
       return {
-        success: false,
-        error: parseResult.error.errors[0]?.message || 'Invalid input',
+        waMessageId: result.waMessageId,
+        message: 'Payment link sent via WhatsApp',
       }
     }
-    const input = parseResult.data
-
-    const result = await sendPaymentLink({
-      phone: input.phone,
-      parentName: input.parentName,
-      amount: input.amount,
-      childCount: input.childCount,
-      paymentUrl: input.paymentUrl,
-      program: DUGSI_PROGRAM,
-      personId: input.personId,
-      familyId: input.familyId,
-    })
-
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error || 'Failed to send WhatsApp message',
-      }
-    }
-
-    revalidatePath('/admin/dugsi')
-
-    return {
-      success: true,
-      data: { waMessageId: result.waMessageId },
-      message: 'Payment link sent via WhatsApp',
-    }
-  } catch (error) {
-    if (error instanceof ActionError) {
-      return { success: false, error: error.message }
-    }
-    await logError(logger, error, 'Failed to send WhatsApp payment link')
-    return { success: false, error: 'Failed to send payment link via WhatsApp' }
-  }
-}
+  )

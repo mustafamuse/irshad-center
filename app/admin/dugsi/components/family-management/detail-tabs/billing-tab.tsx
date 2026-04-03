@@ -67,14 +67,14 @@ export function BillingTab({ family }: BillingTabProps) {
       setError(null)
 
       try {
-        const result = await getFamilyPaymentHistory(customerId)
+        const result = await getFamilyPaymentHistory({ customerId })
 
         if (cancelled) return
 
-        if (result.success && result.data) {
+        if (result?.data) {
           setPaymentHistory(result.data)
         } else {
-          setError(result.error ?? 'Failed to fetch payment history')
+          setError(result?.serverError ?? 'Failed to fetch payment history')
         }
       } catch (error) {
         if (cancelled) return

@@ -7,7 +7,6 @@
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-import { ActionResult } from '../../_types'
 import { useActionHandler } from '../use-action-handler'
 
 vi.mock('next/navigation', () => ({
@@ -49,9 +48,8 @@ describe('useActionHandler', () => {
   describe('successful action execution', () => {
     it('should call action and trigger onSuccess callback', async () => {
       const mockAction = vi.fn().mockResolvedValue({
-        success: true,
         data: { id: '123' },
-      } as ActionResult<{ id: string }>)
+      })
 
       const onSuccess = vi.fn()
 
@@ -71,8 +69,8 @@ describe('useActionHandler', () => {
 
     it('should pass arguments to action', async () => {
       const mockAction = vi.fn().mockResolvedValue({
-        success: true,
-      } as ActionResult)
+        data: {},
+      })
 
       const { result } = renderHook(() =>
         useActionHandler(mockAction, { refreshOnSuccess: false })
@@ -92,7 +90,7 @@ describe('useActionHandler', () => {
 
       const mockAction = vi.fn().mockImplementation(async () => {
         callOrder.push('action')
-        return { success: true } as ActionResult
+        return { data: {} }
       })
 
       const optimisticUpdate = vi.fn().mockImplementation(() => {
@@ -120,9 +118,8 @@ describe('useActionHandler', () => {
   describe('failed action execution', () => {
     it('should call onError callback on failure', async () => {
       const mockAction = vi.fn().mockResolvedValue({
-        success: false,
-        error: 'Something went wrong',
-      } as ActionResult)
+        serverError: 'Something went wrong',
+      })
 
       const onError = vi.fn()
 
@@ -141,9 +138,8 @@ describe('useActionHandler', () => {
 
     it('should call rollback on failure', async () => {
       const mockAction = vi.fn().mockResolvedValue({
-        success: false,
-        error: 'Failed',
-      } as ActionResult)
+        serverError: 'Failed',
+      })
 
       const rollback = vi.fn()
 
@@ -207,9 +203,8 @@ describe('useActionHandler', () => {
       }
 
       const mockAction = vi.fn().mockResolvedValue({
-        success: true,
         data: { updated: true },
-      } as ActionResult<{ updated: boolean }>)
+      })
 
       const { result } = renderHook(() =>
         useActionHandler<{ updated: boolean }, [UpdateParams]>(mockAction, {

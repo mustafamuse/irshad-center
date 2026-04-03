@@ -89,18 +89,18 @@ export function ConsolidateSubscriptionDialog({
   const handleValidate = async (data: ConsolidateSubscriptionFormValues) => {
     setIsValidating(true)
     try {
-      const result = await previewStripeSubscriptionForConsolidation(
-        data.stripeSubscriptionId,
-        familyId
-      )
+      const result = await previewStripeSubscriptionForConsolidation({
+        subscriptionId: data.stripeSubscriptionId,
+        familyId,
+      })
 
-      if (result.success && result.data) {
+      if (result?.data) {
         setPreview(result.data)
         setStep('preview')
         setSyncOption(result.data.hasMismatch ? 'sync' : 'keep')
         setForceOverrideConfirmed(false)
       } else {
-        toast.error(result.error || 'Failed to validate subscription')
+        toast.error(result?.serverError || 'Failed to validate subscription')
       }
     } catch (error) {
       Sentry.captureException(error, {

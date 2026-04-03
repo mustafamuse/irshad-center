@@ -53,7 +53,7 @@ export function VerifyBankDialog({
       return
     }
 
-    await verifyBank(paymentIntentId, descriptorCode)
+    await verifyBank({ paymentIntentId, descriptorCode })
   }
 
   const handleClose = () => {

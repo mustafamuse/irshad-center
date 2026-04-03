@@ -73,14 +73,14 @@ export function LinkSubscriptionDialog({
     setIsValidating(true)
 
     try {
-      const result = await validateDugsiSubscription(subscriptionId)
+      const result = await validateDugsiSubscription({ subscriptionId })
 
-      if (result.success) {
+      if (result?.data) {
         setValidationStatus('valid')
         toast.success('Subscription ID is valid and exists in Stripe')
       } else {
         setValidationStatus('invalid')
-        toast.error(result.error || 'Invalid subscription ID')
+        toast.error(result?.serverError || 'Invalid subscription ID')
       }
     } catch (error) {
       setValidationStatus('invalid')

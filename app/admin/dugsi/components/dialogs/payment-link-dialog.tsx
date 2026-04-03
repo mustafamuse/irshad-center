@@ -133,14 +133,14 @@ export function PaymentLinkDialog({
         billingStartDate: billingDateISO,
       })
 
-      if (response.success && response.data) {
+      if (response?.data) {
         setResult(response.data)
         setError(null)
         setSelectedBillingDate(billingDateISO || null)
         toast.success('Payment link generated successfully')
       } else {
-        setError(response.error || 'Failed to generate payment link')
-        toast.error(response.error || 'Failed to generate payment link')
+        setError(response?.serverError || 'Failed to generate payment link')
+        toast.error(response?.serverError || 'Failed to generate payment link')
       }
     })
   }
@@ -164,11 +164,11 @@ export function PaymentLinkDialog({
         familyId: familyId || undefined,
       })
 
-      if (response.success) {
+      if (response?.data) {
         setWhatsAppSent(true)
         toast.success('Payment link sent via WhatsApp')
       } else {
-        toast.error(response.error || 'Failed to send WhatsApp message')
+        toast.error(response?.serverError || 'Failed to send WhatsApp message')
       }
     } catch (error) {
       Sentry.captureException(error, {
