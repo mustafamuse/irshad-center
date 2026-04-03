@@ -5,10 +5,6 @@
  * and standardize error handling patterns.
  */
 
-import { createActionLogger, logError } from '@/lib/logger'
-
-const logger = createActionLogger('action-helpers')
-
 /**
  * Generic action result type for consistent response structure
  */
@@ -19,62 +15,6 @@ export type ActionResult<T = void> = {
   message?: string
   warning?: string
   errors?: Partial<Record<string, string[]>>
-}
-
-/**
- * Creates a standardized error result for catch blocks.
- * Extracts error message from Error instances or uses default message.
- */
-export function createErrorResult<T = void>(
-  error: unknown,
-  defaultMessage: string
-): ActionResult<T> {
-  return {
-    success: false,
-    error: error instanceof Error ? error.message : defaultMessage,
-  }
-}
-
-/**
- * Wraps an async function with standardized error handling.
- *
- * Eliminates try-catch boilerplate and ensures consistent error format
- * across all server actions.
- *
- * @param fn - Async function to execute
- * @param errorMessage - Default error message if function throws
- * @returns ActionResult with success/error state
- *
- * @example
- * ```typescript
- * export async function myAction(id: string) {
- *   return withActionError(
- *     async () => {
- *       const data = await someService(id)
- *       return data
- *     },
- *     'Failed to perform action'
- *   )
- * }
- * ```
- */
-export async function withActionError<T>(
-  fn: () => Promise<T>,
-  errorMessage: string
-): Promise<ActionResult<T>> {
-  try {
-    const data = await fn()
-    return {
-      success: true,
-      data,
-    }
-  } catch (error) {
-    await logError(logger, error, errorMessage)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : errorMessage,
-    }
-  }
 }
 
 /**

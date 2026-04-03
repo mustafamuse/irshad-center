@@ -1,16 +1,19 @@
 'use server'
 
 import { createDonationCheckoutSession } from '@/lib/services/donation/checkout-service'
-import { type ActionResult, withActionError } from '@/lib/utils/action-helpers'
+import { createActionLogger, logError } from '@/lib/logger'
+import { type ActionResult } from '@/lib/utils/action-helpers'
 import {
   DonationCheckoutSchema,
   type DonationCheckoutInput,
 } from '@/lib/validations/donation'
 
+const logger = createActionLogger('donate-actions')
+
 export async function createDonationAction(
   formData: DonationCheckoutInput
 ): Promise<ActionResult<{ url: string }>> {
-  return withActionError(async () => {
+  try {
     const validated = DonationCheckoutSchema.parse(formData)
     const session = await createDonationCheckoutSession(validated)
 
@@ -18,6 +21,15 @@ export async function createDonationAction(
       throw new Error('Failed to create checkout session')
     }
 
-    return { url: session.url }
-  }, 'Failed to create donation checkout')
+    return { success: true, data: { url: session.url } }
+  } catch (error) {
+    await logError(logger, error, 'Failed to create donation checkout')
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to create donation checkout',
+    }
+  }
 }

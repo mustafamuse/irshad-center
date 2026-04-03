@@ -26,7 +26,6 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
-import { DuplicateError } from '@/lib/errors'
 import { createWebhookLogger, logError, logInfo } from '@/lib/logger'
 
 /**
@@ -243,8 +242,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       })
 
       // 10. Cleanup webhook event record on error (allows retry)
-      // Don't delete if error is about duplicate processing
-      if (eventId && !(err instanceof DuplicateError)) {
+      if (eventId) {
         try {
           await prisma.webhookEvent.delete({
             where: {

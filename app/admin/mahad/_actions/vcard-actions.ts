@@ -4,7 +4,7 @@ import { assertAdmin } from '@/lib/auth'
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
 import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
-import { ActionResult, createErrorResult } from '@/lib/utils/action-helpers'
+import { ActionResult } from '@/lib/utils/action-helpers'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -74,6 +74,12 @@ export async function generateMahadVCardContent(
     await logError(logger, error, 'Failed to generate Mahad vCard content', {
       batchId,
     })
-    return createErrorResult(error, 'Failed to generate vCard content')
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to generate vCard content',
+    }
   }
 }

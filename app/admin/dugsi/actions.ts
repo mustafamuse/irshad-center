@@ -59,7 +59,6 @@ import {
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
-import { createErrorResult } from '@/lib/utils/action-helpers'
 import {
   UpdateFamilyShiftSchema,
   type UpdateFamilyShiftInput,
@@ -998,7 +997,13 @@ export async function generateDugsiVCardContent(): Promise<
     if (error instanceof ActionError)
       return { success: false, error: error.message }
     await logError(logger, error, 'Failed to generate Dugsi vCard content')
-    return createErrorResult(error, 'Failed to generate vCard content')
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Failed to generate vCard content',
+    }
   }
 }
 
