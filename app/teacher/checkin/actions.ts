@@ -69,7 +69,7 @@ export async function getTeacherCurrentStatus(
   }
 }
 
-export const teacherClockInAction = actionClient
+const _teacherClockInAction = actionClient
   .metadata({ actionName: 'teacherClockInAction' })
   .schema(ClockInSchema)
   .action(async ({ parsedInput }) => {
@@ -101,7 +101,13 @@ export const teacherClockInAction = actionClient
     }
   })
 
-export const teacherClockOutAction = actionClient
+export async function teacherClockInAction(
+  ...args: Parameters<typeof _teacherClockInAction>
+) {
+  return _teacherClockInAction(...args)
+}
+
+const _teacherClockOutAction = actionClient
   .metadata({ actionName: 'teacherClockOutAction' })
   .schema(ClockOutSchema)
   .action(async ({ parsedInput }) => {
@@ -126,6 +132,12 @@ export const teacherClockOutAction = actionClient
       )
     }
   })
+
+export async function teacherClockOutAction(
+  ...args: Parameters<typeof _teacherClockOutAction>
+) {
+  return _teacherClockOutAction(...args)
+}
 
 export type GeofenceCheckResult = {
   isWithinGeofence: boolean
