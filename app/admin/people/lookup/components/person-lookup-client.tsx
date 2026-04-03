@@ -37,15 +37,15 @@ export function PersonLookupClient() {
     setError(null)
     setResult(null)
 
-    const response = await lookupPersonAction(query)
+    const response = await lookupPersonAction({ query })
 
-    if (response.success) {
-      setResult(response.data ?? null)
-      if (!response.data) {
+    if (response?.serverError) {
+      setError(response.serverError)
+    } else {
+      setResult(response?.data ?? null)
+      if (!response?.data) {
         setError('No person found matching your search')
       }
-    } else {
-      setError(response.error ?? 'Search failed')
     }
 
     setLoading(false)
@@ -61,15 +61,15 @@ export function PersonLookupClient() {
     if (!result) return
 
     setDeleting(true)
-    const response = await deletePersonAction(result.id)
+    const response = await deletePersonAction({ personId: result.id })
 
-    if (response.success) {
+    if (response?.serverError) {
+      setError(response.serverError)
+    } else {
       setResult(null)
       setQuery('')
       setShowDeleteDialog(false)
       router.refresh()
-    } else {
-      setError(response.error ?? 'Delete failed')
     }
 
     setDeleting(false)

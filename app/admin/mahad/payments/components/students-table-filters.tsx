@@ -52,7 +52,7 @@ export function StudentsTableFilters() {
   const [batches, setBatches] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
-    getBatchesForFilter().then(setBatches)
+    getBatchesForFilter().then((result) => setBatches(result?.data ?? []))
   }, [])
 
   const handleFilterChange = useDebouncedCallback(
