@@ -1,12 +1,16 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest' // eslint-disable-line import/order
 
-const { mockTeacherFindUnique, mockPersonUpdate, mockGetTeachers } = vi.hoisted(
-  () => ({
-    mockTeacherFindUnique: vi.fn(),
-    mockPersonUpdate: vi.fn(),
-    mockGetTeachers: vi.fn(),
-  })
-)
+const {
+  mockTeacherFindUnique,
+  mockPersonUpdate,
+  mockGetTeachers,
+  mockAssertAdmin,
+} = vi.hoisted(() => ({
+  mockTeacherFindUnique: vi.fn(),
+  mockPersonUpdate: vi.fn(),
+  mockGetTeachers: vi.fn(),
+  mockAssertAdmin: vi.fn(),
+}))
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -65,6 +69,10 @@ vi.mock('@/lib/services/dugsi/teacher-checkin-service', () => ({
 vi.mock('@/lib/mappers/person-mapper', () => ({
   mapPersonToSearchResult: vi.fn(),
   PersonSearchResult: {},
+}))
+
+vi.mock('@/lib/auth', () => ({
+  assertAdmin: (...args: unknown[]) => mockAssertAdmin(...args),
 }))
 
 vi.mock('next/cache', () => ({
