@@ -9,21 +9,15 @@ import { Prisma, Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
+export type PersonContactFields = Pick<
+  Prisma.PersonUpdateInput,
+  'name' | 'email' | 'phone'
+>
+
 /**
  * Get people with multiple roles across the system
  * Useful for identifying staff/students/parents with multiple roles for policy decisions
  */
-export async function updatePersonContact(
-  personId: string,
-  data: Prisma.PersonUpdateInput,
-  client: DatabaseClient = prisma
-): Promise<void> {
-  await client.person.update({
-    where: { id: personId },
-    data,
-  })
-}
-
 export async function getMultiRolePeople(
   filters?: {
     minRoles?: number
@@ -100,5 +94,16 @@ export async function getMultiRolePeople(
     if (person.programProfiles.length > 0) roleCount++
     if (person.guardianRelationships.length > 0) roleCount++
     return roleCount >= minRoles
+  })
+}
+
+export async function updatePersonContact(
+  personId: string,
+  data: PersonContactFields,
+  client: DatabaseClient = prisma
+): Promise<void> {
+  await client.person.update({
+    where: { id: personId },
+    data,
   })
 }

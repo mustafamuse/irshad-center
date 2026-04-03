@@ -13,7 +13,10 @@ import {
   getActiveClassesForTeacher,
   getClassCountsByTeacherIds,
 } from '@/lib/db/queries/dugsi-class'
-import { updatePersonContact } from '@/lib/db/queries/person'
+import {
+  type PersonContactFields,
+  updatePersonContact,
+} from '@/lib/db/queries/person'
 import {
   getTeacherById,
   getTeacherDugsiProgram,
@@ -512,7 +515,7 @@ export async function updateTeacherDetailsAction(
 
     // Only include contact fields in update when explicitly provided.
     // undefined = skip field (Prisma leaves it unchanged); null = clear the field.
-    const personData: Prisma.PersonUpdateInput = { name }
+    const personData: PersonContactFields = { name }
     if (email !== undefined) personData.email = normalizeEmail(email)
     if (phone !== undefined) personData.phone = normalizedPhone
 

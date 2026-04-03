@@ -53,6 +53,7 @@ export async function getClassCountsByTeacherIds(
   teacherIds: string[],
   client: DatabaseClient = prisma
 ): Promise<Map<string, number>> {
+  if (teacherIds.length === 0) return new Map()
   const rows = await client.dugsiClassTeacher.groupBy({
     by: ['teacherId'],
     where: { teacherId: { in: teacherIds }, isActive: true },
