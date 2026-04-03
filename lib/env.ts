@@ -2,6 +2,14 @@ import 'server-only'
 
 import { z } from 'zod'
 
+// Coerces blank env var values ("") to undefined so optional() works correctly.
+// Node.js loads blank lines from .env files as "" not undefined.
+const stripeField = (prefix: string) =>
+  z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().startsWith(prefix, `Must start with ${prefix}`).optional()
+  )
+
 const envSchema = z
   .object({
     // ── Node / Vercel ────────────────────────────────────────────────────────────
@@ -20,9 +28,13 @@ const envSchema = z
     ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
 
     // ── App Config ───────────────────────────────────────────────────────────────
+    // NEXT_PUBLIC_* vars are inlined by Next.js and must still be read via
+    // process.env in server actions/services — server-only prevents importing
+    // this module there. The schema's role for these is startup format-checking.
     NEXT_PUBLIC_APP_URL: z
       .string()
-      .url('NEXT_PUBLIC_APP_URL must be a valid URL'),
+      .url('NEXT_PUBLIC_APP_URL must be a valid URL')
+      .default('http://localhost:3000'),
 
     // ── Email ────────────────────────────────────────────────────────────────────
     RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
@@ -35,106 +47,42 @@ const envSchema = z
     REPLY_TO_EMAIL: z.string().email().optional(),
 
     // ── Stripe — Mahad ───────────────────────────────────────────────────────────
-    STRIPE_MAHAD_SECRET_KEY_TEST: z
-      .string()
-      .startsWith('sk_test_', 'Must start with sk_test_')
-      .optional(),
-    STRIPE_MAHAD_SECRET_KEY_LIVE: z
-      .string()
-      .startsWith('sk_live_', 'Must start with sk_live_')
-      .optional(),
-    STRIPE_MAHAD_WEBHOOK_SECRET_TEST: z
-      .string()
-      .startsWith('whsec_', 'Must start with whsec_')
-      .optional(),
-    STRIPE_MAHAD_WEBHOOK_SECRET_LIVE: z
-      .string()
-      .startsWith('whsec_', 'Must start with whsec_')
-      .optional(),
-    STRIPE_MAHAD_PRODUCT_ID: z
-      .string()
-      .startsWith('prod_', 'Must start with prod_')
-      .optional(),
-    STRIPE_MAHAD_PRODUCT_ID_TEST: z
-      .string()
-      .startsWith('prod_', 'Must start with prod_')
-      .optional(),
-    STRIPE_MAHAD_PRODUCT_ID_LIVE: z
-      .string()
-      .startsWith('prod_', 'Must start with prod_')
-      .optional(),
-    NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_TEST: z
-      .string()
-      .startsWith('pk_test_', 'Must start with pk_test_')
-      .optional(),
-    NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_LIVE: z
-      .string()
-      .startsWith('pk_live_', 'Must start with pk_live_')
-      .optional(),
+    STRIPE_MAHAD_SECRET_KEY_TEST: stripeField('sk_test_'),
+    STRIPE_MAHAD_SECRET_KEY_LIVE: stripeField('sk_live_'),
+    STRIPE_MAHAD_WEBHOOK_SECRET_TEST: stripeField('whsec_'),
+    STRIPE_MAHAD_WEBHOOK_SECRET_LIVE: stripeField('whsec_'),
+    // Product ID resolution (lib/keys/stripe.ts): production → LIVE || generic,
+    // development → TEST || generic
+    STRIPE_MAHAD_PRODUCT_ID: stripeField('prod_'),
+    STRIPE_MAHAD_PRODUCT_ID_TEST: stripeField('prod_'),
+    STRIPE_MAHAD_PRODUCT_ID_LIVE: stripeField('prod_'),
+    NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_TEST: stripeField('pk_test_'),
+    NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_LIVE: stripeField('pk_live_'),
     NEXT_PUBLIC_STRIPE_MAHAD_PRICING_TABLE_ID: z.string().optional(),
 
     // ── Stripe — Dugsi ───────────────────────────────────────────────────────────
-    STRIPE_DUGSI_SECRET_KEY_TEST: z
-      .string()
-      .startsWith('sk_test_', 'Must start with sk_test_')
-      .optional(),
-    STRIPE_DUGSI_SECRET_KEY_LIVE: z
-      .string()
-      .startsWith('sk_live_', 'Must start with sk_live_')
-      .optional(),
-    STRIPE_DUGSI_WEBHOOK_SECRET_TEST: z
-      .string()
-      .startsWith('whsec_', 'Must start with whsec_')
-      .optional(),
-    STRIPE_DUGSI_WEBHOOK_SECRET_LIVE: z
-      .string()
-      .startsWith('whsec_', 'Must start with whsec_')
-      .optional(),
-    STRIPE_DUGSI_PRODUCT_ID: z
-      .string()
-      .startsWith('prod_', 'Must start with prod_')
-      .optional(),
-    NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_TEST: z
-      .string()
-      .startsWith('pk_test_', 'Must start with pk_test_')
-      .optional(),
-    NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE: z
-      .string()
-      .startsWith('pk_live_', 'Must start with pk_live_')
-      .optional(),
+    STRIPE_DUGSI_SECRET_KEY_TEST: stripeField('sk_test_'),
+    STRIPE_DUGSI_SECRET_KEY_LIVE: stripeField('sk_live_'),
+    STRIPE_DUGSI_WEBHOOK_SECRET_TEST: stripeField('whsec_'),
+    STRIPE_DUGSI_WEBHOOK_SECRET_LIVE: stripeField('whsec_'),
+    STRIPE_DUGSI_PRODUCT_ID: stripeField('prod_'),
+    NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_TEST: stripeField('pk_test_'),
+    NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE: stripeField('pk_live_'),
     NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK: z.string().url().optional(),
 
     // ── Stripe — Zakat / Donation ────────────────────────────────────────────────
-    STRIPE_ZAKAT_FITR_PRODUCT_ID: z
-      .string()
-      .startsWith('prod_', 'Must start with prod_')
-      .optional(),
-    STRIPE_DONATION_SECRET_KEY_TEST: z
-      .string()
-      .startsWith('sk_test_', 'Must start with sk_test_')
-      .optional(),
-    STRIPE_DONATION_SECRET_KEY_LIVE: z
-      .string()
-      .startsWith('sk_live_', 'Must start with sk_live_')
-      .optional(),
-    STRIPE_DONATION_WEBHOOK_SECRET_TEST: z
-      .string()
-      .startsWith('whsec_', 'Must start with whsec_')
-      .optional(),
-    STRIPE_DONATION_WEBHOOK_SECRET_LIVE: z
-      .string()
-      .startsWith('whsec_', 'Must start with whsec_')
-      .optional(),
-    STRIPE_DONATION_PRODUCT_ID: z
-      .string()
-      .startsWith('prod_', 'Must start with prod_')
-      .optional(),
+    STRIPE_ZAKAT_FITR_PRODUCT_ID: stripeField('prod_'),
+    STRIPE_DONATION_SECRET_KEY_TEST: stripeField('sk_test_'),
+    STRIPE_DONATION_SECRET_KEY_LIVE: stripeField('sk_live_'),
+    STRIPE_DONATION_WEBHOOK_SECRET_TEST: stripeField('whsec_'),
+    STRIPE_DONATION_WEBHOOK_SECRET_LIVE: stripeField('whsec_'),
+    STRIPE_DONATION_PRODUCT_ID: stripeField('prod_'),
 
     // ── WhatsApp ─────────────────────────────────────────────────────────────────
+    // All four vars below are required together when WHATSAPP_PHONE_NUMBER_ID is
+    // set — enforced via superRefine below (project rule #11).
     WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
     WHATSAPP_ACCESS_TOKEN: z.string().optional(),
-    // Required for webhook signature verification (project rule #11).
-    // If WHATSAPP_PHONE_NUMBER_ID is set, this must also be set.
     WHATSAPP_APP_SECRET: z.string().optional(),
     WHATSAPP_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
     WHATSAPP_DEFAULT_LANGUAGE: z.string().optional().default('en'),
@@ -156,6 +104,8 @@ const envSchema = z
 
     // ── Axiom ────────────────────────────────────────────────────────────────────
     NEXT_PUBLIC_AXIOM_DATASET: z.string().optional(),
+    // NEXT_PUBLIC_AXIOM_TOKEN is a write-only credential scoped to this dataset.
+    // Intentionally public — required by next-axiom for client-side log forwarding.
     NEXT_PUBLIC_AXIOM_TOKEN: z.string().optional(),
 
     // ── Logging ──────────────────────────────────────────────────────────────────
@@ -168,13 +118,21 @@ const envSchema = z
     IRSHAD_CENTER_LNG: z.coerce.number().min(-180).max(180).optional(),
   })
   .superRefine((data, ctx) => {
-    if (data.WHATSAPP_PHONE_NUMBER_ID && !data.WHATSAPP_APP_SECRET) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message:
-          'WHATSAPP_APP_SECRET is required when WHATSAPP_PHONE_NUMBER_ID is set (project rule #11: webhook signatures must be verified)',
-        path: ['WHATSAPP_APP_SECRET'],
-      })
+    if (data.WHATSAPP_PHONE_NUMBER_ID) {
+      const required = [
+        'WHATSAPP_ACCESS_TOKEN',
+        'WHATSAPP_APP_SECRET',
+        'WHATSAPP_WEBHOOK_VERIFY_TOKEN',
+      ] as const
+      for (const key of required) {
+        if (!data[key]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${key} is required when WHATSAPP_PHONE_NUMBER_ID is set`,
+            path: [key],
+          })
+        }
+      }
     }
   })
 
