@@ -49,6 +49,45 @@ const siblingPersonSelect = {
   },
 } as const
 
+export async function getClassCountsByTeacherIds(
+  teacherIds: string[],
+  client: DatabaseClient = prisma
+): Promise<Map<string, number>> {
+  if (teacherIds.length === 0) return new Map()
+  const rows = await client.dugsiClassTeacher.groupBy({
+    by: ['teacherId'],
+    where: { teacherId: { in: teacherIds }, isActive: true },
+    _count: { id: true },
+  })
+  return new Map(rows.map((r) => [r.teacherId, r._count.id]))
+}
+
+export async function getActiveClassesForTeacher(
+  teacherId: string,
+  client: DatabaseClient = prisma
+): Promise<
+  Prisma.DugsiClassTeacherGetPayload<{
+    include: { class: { select: { name: true; shift: true } } }
+  }>[]
+> {
+  return client.dugsiClassTeacher.findMany({
+    where: { teacherId, isActive: true },
+    relationLoadStrategy: 'join',
+    include: {
+      class: { select: { name: true, shift: true } },
+    },
+  })
+}
+
+export async function countActiveClassesForTeacher(
+  teacherId: string,
+  client: DatabaseClient = prisma
+): Promise<number> {
+  return client.dugsiClassTeacher.count({
+    where: { teacherId, isActive: true },
+  })
+}
+
 export async function getUnassignedDugsiStudents(
   client: DatabaseClient = prisma
 ): Promise<UnassignedStudent[]> {

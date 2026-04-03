@@ -9,6 +9,20 @@ import { assertAdmin } from '@/lib/auth'
 import { ActionError } from '@/lib/errors/action-error'
 import { prisma } from '@/lib/db'
 import {
+  countActiveClassesForTeacher,
+  getActiveClassesForTeacher,
+  getClassCountsByTeacherIds,
+} from '@/lib/db/queries/dugsi-class'
+import {
+  type PersonContactFields,
+  updatePersonContact,
+} from '@/lib/db/queries/person'
+import {
+  getTeacherById,
+  getTeacherDugsiProgram,
+  updateTeacherProgramShifts,
+} from '@/lib/db/queries/teacher'
+import {
   getAllDugsiTeachersWithTodayStatus,
   getCheckinHistory,
   getCheckinsForDate,
@@ -188,18 +202,7 @@ export async function getTeachers(
       )
 
       // Get class counts
-      const classCounts = await prisma.dugsiClassTeacher.groupBy({
-        by: ['teacherId'],
-        where: {
-          teacherId: { in: teacherIds },
-          isActive: true,
-        },
-        _count: { id: true },
-      })
-
-      const classCountMap = new Map<string, number>(
-        classCounts.map((cc) => [cc.teacherId, cc._count.id])
-      )
+      const classCountMap = await getClassCountsByTeacherIds(teacherIds)
 
       const teachersWithDetails: TeacherWithDetails[] = teachers.map(
         (teacher) => {
@@ -249,18 +252,7 @@ export async function getTeachers(
     const teachers = await getAllTeachers(program)
     const teacherIds = teachers.map((t) => t.id)
 
-    const classCounts = await prisma.dugsiClassTeacher.groupBy({
-      by: ['teacherId'],
-      where: {
-        teacherId: { in: teacherIds },
-        isActive: true,
-      },
-      _count: { id: true },
-    })
-
-    const countMap = new Map(
-      classCounts.map((cc) => [cc.teacherId, cc._count.id])
-    )
+    const countMap = await getClassCountsByTeacherIds(teacherIds)
 
     const teachersWithDetails = teachers.map((teacher) => {
       const email = teacher.person.email
@@ -512,12 +504,7 @@ export async function updateTeacherDetailsAction(
     }
 
     const { teacherId, name, email, phone } = parsed.data
-    const teacher = await prisma.teacher.findUnique({
-      where: { id: teacherId },
-      include: {
-        person: true,
-      },
-    })
+    const teacher = await getTeacherById(teacherId)
 
     if (!teacher) {
       return { success: false, error: 'Teacher not found' }
@@ -528,14 +515,11 @@ export async function updateTeacherDetailsAction(
 
     // Only include contact fields in update when explicitly provided.
     // undefined = skip field (Prisma leaves it unchanged); null = clear the field.
-    const personData: Prisma.PersonUpdateInput = { name }
+    const personData: PersonContactFields = { name }
     if (email !== undefined) personData.email = normalizeEmail(email)
     if (phone !== undefined) personData.phone = normalizedPhone
 
-    await prisma.person.update({
-      where: { id: teacher.personId },
-      data: personData,
-    })
+    await updatePersonContact(teacher.personId, personData)
 
     revalidatePath('/admin/dugsi/teachers')
 
@@ -596,28 +580,19 @@ export async function updateTeacherShiftsAction(
     }
 
     const { teacherId, shifts } = parsed.data
-    const teacherProgram = await prisma.teacherProgram.findFirst({
-      where: {
-        teacherId,
-        program: 'DUGSI_PROGRAM',
-        isActive: true,
-      },
-    })
+    const teacherProgram = await getTeacherDugsiProgram(teacherId)
 
     if (!teacherProgram) {
       return { success: false, error: 'Teacher is not enrolled in Dugsi' }
     }
 
-    await prisma.teacherProgram.update({
-      where: { id: teacherProgram.id },
-      data: { shifts },
-    })
+    await updateTeacherProgramShifts(teacherProgram.id, shifts)
 
     revalidatePath('/admin/dugsi/teachers')
 
     logger.info({ teacherId, shifts }, 'Teacher shifts updated')
 
-    return { success: true, data: shifts as Shift[] }
+    return { success: true, data: shifts }
   } catch (error) {
     if (error instanceof ActionError)
       return { success: false, error: error.message }
@@ -639,14 +614,7 @@ export async function getTeacherShiftsAction(
 ): Promise<ActionResult<Shift[]>> {
   try {
     await assertAdmin('getTeacherShiftsAction')
-    const teacherProgram = await prisma.teacherProgram.findFirst({
-      where: {
-        teacherId,
-        program: 'DUGSI_PROGRAM',
-        isActive: true,
-      },
-      select: { shifts: true },
-    })
+    const teacherProgram = await getTeacherDugsiProgram(teacherId)
 
     return { success: true, data: teacherProgram?.shifts ?? [] }
   } catch (error) {
@@ -670,18 +638,7 @@ export async function deactivateTeacherAction(
   try {
     await assertAdmin('deactivateTeacherAction')
     // Check for active class assignments
-    const activeClasses = await prisma.dugsiClassTeacher.findMany({
-      where: {
-        teacherId,
-        isActive: true,
-      },
-      relationLoadStrategy: 'join',
-      include: {
-        class: {
-          select: { name: true, shift: true },
-        },
-      },
-    })
+    const activeClasses = await getActiveClassesForTeacher(teacherId)
 
     if (activeClasses.length > 0) {
       const classNames = activeClasses
@@ -783,12 +740,7 @@ export async function removeTeacherFromProgramAction(
     await assertAdmin('removeTeacherFromProgramAction')
     // For Dugsi, check for active class assignments
     if (input.program === 'DUGSI_PROGRAM') {
-      const activeClasses = await prisma.dugsiClassTeacher.count({
-        where: {
-          teacherId: input.teacherId,
-          isActive: true,
-        },
-      })
+      const activeClasses = await countActiveClassesForTeacher(input.teacherId)
 
       if (activeClasses > 0) {
         return {
