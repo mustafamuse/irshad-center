@@ -55,9 +55,18 @@ export function useActionHandler<
             'message' in result.data
               ? (result.data as { message?: string }).message
               : undefined
+          const dataWarning =
+            result.data &&
+            typeof result.data === 'object' &&
+            'warning' in result.data
+              ? (result.data as { warning?: string }).warning
+              : undefined
           const message =
             dataMessage || successMessage || 'Action completed successfully'
           toast.success(message)
+          if (dataWarning) {
+            toast.warning(dataWarning)
+          }
 
           if (refreshOnSuccess) {
             router.refresh()

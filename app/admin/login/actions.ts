@@ -15,7 +15,7 @@ import { adminPinSchema } from '@/lib/validations/admin-auth'
 
 const logger = createActionLogger('admin-auth')
 
-export const validateAdminPin = rateLimitedActionClient
+const _validateAdminPin = rateLimitedActionClient
   .metadata({ actionName: 'validateAdminPin' })
   .schema(adminPinSchema)
   .action(async ({ parsedInput: { pin, redirectTo } }) => {
@@ -67,6 +67,12 @@ const _logoutAdmin = actionClient
   })
 
 export { verifyAuthToken }
+
+export async function validateAdminPin(
+  ...args: Parameters<typeof _validateAdminPin>
+) {
+  return _validateAdminPin(...args)
+}
 
 export async function logoutAdmin(...args: Parameters<typeof _logoutAdmin>) {
   return _logoutAdmin(...args)

@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 
-import { BackfillPaymentsButton } from './components/backfill-button'
 import {
   StatsCardsSkeleton,
   TableSkeleton,
@@ -36,7 +35,6 @@ export default async function PaymentsPage({
             Manage student enrollments, billing, and payment tracking
           </p>
         </div>
-        <BackfillPaymentsButton />
       </div>
 
       <Suspense fallback={<StatsCardsSkeleton />}>

@@ -27,7 +27,7 @@ import {
   ClassNotFoundError,
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
-import { createServiceLogger, logInfo } from '@/lib/logger'
+import { createServiceLogger, logError, logInfo } from '@/lib/logger'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -792,6 +792,12 @@ const _bulkGeneratePaymentLinksAction = adminActionClient
             })
           } else {
             const error = result.reason
+            await logError(
+              logger,
+              error,
+              'Failed to generate payment link in bulk',
+              { familyId }
+            )
             failed.push({
               familyId,
               familyName: familyId,
