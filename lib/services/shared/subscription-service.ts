@@ -22,6 +22,7 @@ import {
 } from '@/lib/db/queries/billing'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
@@ -69,7 +70,10 @@ export async function validateStripeSubscription(
 ): Promise<SubscriptionValidationResult> {
   // Validate subscription ID format
   if (!subscriptionId.startsWith('sub_')) {
-    throw new Error('Invalid subscription ID format. Must start with "sub_"')
+    throw new ActionError(
+      'Invalid subscription ID format. Must start with "sub_"',
+      ERROR_CODES.VALIDATION_ERROR
+    )
   }
 
   // Get appropriate Stripe client
@@ -96,7 +100,10 @@ export async function validateStripeSubscription(
   }
 
   if (!subscription) {
-    throw new Error('Subscription not found in Stripe')
+    throw new ActionError(
+      'Subscription not found in Stripe',
+      ERROR_CODES.SUBSCRIPTION_NOT_FOUND
+    )
   }
 
   // Extract customer ID
@@ -267,7 +274,10 @@ export async function updateSubscriptionStatus(
   const subscription = await getSubscriptionByStripeId(subscriptionId)
 
   if (!subscription) {
-    throw new Error('Subscription not found in database')
+    throw new ActionError(
+      'Subscription not found in database',
+      ERROR_CODES.SUBSCRIPTION_NOT_FOUND
+    )
   }
 
   return await updateSubscriptionStatusQuery(

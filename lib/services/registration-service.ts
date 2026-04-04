@@ -23,7 +23,11 @@ import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
 import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
-import { throwIfP2002 } from '@/lib/errors/action-error'
+import {
+  throwIfP2002,
+  ActionError,
+  ERROR_CODES,
+} from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
 import {
@@ -316,8 +320,9 @@ export async function createPersonWithContact(
       },
       'Phone normalization failed during person creation'
     )
-    throw new Error(
-      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`
+    throw new ActionError(
+      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`,
+      ERROR_CODES.VALIDATION_ERROR
     )
   }
 
@@ -1229,8 +1234,9 @@ export async function findOrCreatePersonWithContact(
       },
       'Phone normalization failed during findOrCreate'
     )
-    throw new Error(
-      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`
+    throw new ActionError(
+      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`,
+      ERROR_CODES.VALIDATION_ERROR
     )
   }
 

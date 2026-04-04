@@ -25,6 +25,7 @@ import {
 } from '@/lib/db/queries/billing'
 import { DatabaseClient } from '@/lib/db/types'
 import { normalizeEmail } from '@/lib/utils/contact-normalization'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
 /**
  * Billing account data for creation/update
@@ -199,8 +200,9 @@ export async function linkSubscriptionToProfiles(
   // Validate no split amount is <= 0 (CLAUDE.md Rule #13)
   const hasInvalidAmount = amounts.some((amount) => amount <= 0)
   if (hasInvalidAmount) {
-    throw new Error(
-      `Cannot split ${validated.totalAmount} cents across ${validated.programProfileIds.length} profiles: would create zero-amount assignments`
+    throw new ActionError(
+      `Cannot split ${validated.totalAmount} cents across ${validated.programProfileIds.length} profiles: would create zero-amount assignments`,
+      ERROR_CODES.VALIDATION_ERROR
     )
   }
 
@@ -355,7 +357,7 @@ export async function getBillingStatusByEmail(
 ): Promise<BillingStatusResult> {
   const normalizedEmail = normalizeEmail(email)
   if (!normalizedEmail) {
-    throw new Error('Invalid email address')
+    throw new ActionError('Invalid email address', ERROR_CODES.VALIDATION_ERROR)
   }
 
   // Find person by email
@@ -390,7 +392,10 @@ export async function getBillingStatusByEmail(
   })
 
   if (!person) {
-    throw new Error('Person not found with this email address')
+    throw new ActionError(
+      'Person not found with this email address',
+      ERROR_CODES.NOT_FOUND
+    )
   }
 
   // Get billing account
