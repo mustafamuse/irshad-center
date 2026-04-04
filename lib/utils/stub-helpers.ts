@@ -16,7 +16,12 @@
  */
 
 import { createActionLogger, logWarning } from '@/lib/logger'
-import type { ActionResult } from '@/lib/utils/action-helpers'
+
+type StubbedActionResult<T = void> = {
+  success: boolean
+  data?: T
+  error?: string
+}
 
 // ============================================================================
 // TYPES
@@ -50,13 +55,13 @@ interface StubConfig {
  */
 export function createStubbedAction<TArgs extends unknown[], TReturn = void>(
   config: StubConfig
-): (...args: TArgs) => Promise<ActionResult<TReturn>> {
+): (...args: TArgs) => Promise<StubbedActionResult<TReturn>> {
   const logger = createActionLogger(config.feature)
   const message =
     config.userMessage ??
     'This feature is temporarily unavailable. Please try again later.'
 
-  return async (..._args: TArgs): Promise<ActionResult<TReturn>> => {
+  return async (..._args: TArgs): Promise<StubbedActionResult<TReturn>> => {
     await logWarning(logger, `${config.feature} disabled`, {
       reason: config.reason,
     })

@@ -16,13 +16,18 @@ import {
 } from '@/lib/registration/schemas/registration'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import { createMahadStudent } from '@/lib/services/mahad/student-service'
-import type { ActionResult } from '@/lib/utils/action-helpers'
+type RegistrationResult<T = void> = {
+  success: boolean
+  data?: T
+  error?: string
+  errors?: Partial<Record<string, string[]>>
+}
 
 const logger = createActionLogger('mahad-registration')
 
 export async function registerStudent(
   studentData: MahadRegistrationValues
-): Promise<ActionResult<{ id: string; name: string }>> {
+): Promise<RegistrationResult<{ id: string; name: string }>> {
   try {
     const validationResult = mahadRegistrationSchema.safeParse(studentData)
     if (!validationResult.success) {
