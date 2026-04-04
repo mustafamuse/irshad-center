@@ -199,9 +199,11 @@ describe('CheckinForm', () => {
         allowedRadiusMeters: 50,
       })
       mockTeacherClockInAction.mockResolvedValue({
-        success: true,
-        data: { checkInId: 'checkin-1', status: defaultStatus },
-        message: 'Clocked in successfully',
+        data: {
+          checkInId: 'checkin-1',
+          status: defaultStatus,
+          message: 'Clocked in successfully',
+        },
       })
 
       const user = userEvent.setup()
@@ -532,7 +534,6 @@ describe('CheckinForm', () => {
         allowedRadiusMeters: 50,
       })
       mockTeacherClockInAction.mockResolvedValue({
-        success: true,
         data: {
           checkInId: 'checkin-1',
           status: {
@@ -540,8 +541,8 @@ describe('CheckinForm', () => {
             morningCheckinId: 'checkin-1',
             morningClockInTime: new Date(),
           },
+          message: 'Clocked in successfully',
         },
-        message: 'Clocked in successfully',
       })
 
       const user = userEvent.setup()
@@ -599,8 +600,7 @@ describe('CheckinForm', () => {
         allowedRadiusMeters: 50,
       })
       mockTeacherClockInAction.mockResolvedValue({
-        success: false,
-        error: 'Not enrolled in Dugsi program',
+        serverError: 'Not enrolled in Dugsi program',
       })
 
       const user = userEvent.setup()
@@ -646,9 +646,7 @@ describe('CheckinForm', () => {
       }
       mockGetTeacherCurrentStatus.mockResolvedValue(clockedInStatus)
       mockTeacherClockOutAction.mockResolvedValue({
-        success: true,
-        data: { status: clockedOutStatus },
-        message: 'Clocked out successfully',
+        data: { status: clockedOutStatus, message: 'Clocked out successfully' },
       })
 
       const user = userEvent.setup()

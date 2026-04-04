@@ -1,10 +1,9 @@
 'use server'
 
-import { assertAdmin } from '@/lib/auth'
+import { z } from 'zod'
+
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
-import { ActionError } from '@/lib/errors/action-error'
-import { createActionLogger, logError } from '@/lib/logger'
-import { ActionResult } from '@/lib/utils/action-helpers'
+import { adminActionClient } from '@/lib/safe-action'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -13,13 +12,11 @@ import {
   VCardResult,
 } from '@/lib/vcard-export'
 
-const logger = createActionLogger('mahad-vcard')
-
-export async function generateMahadVCardContent(
-  batchId?: string
-): Promise<ActionResult<VCardResult>> {
-  try {
-    await assertAdmin('generateMahadVCardContent')
+const _generateMahadVCardContent = adminActionClient
+  .metadata({ actionName: 'generateMahadVCardContent' })
+  .schema(z.object({ batchId: z.string().uuid().optional() }))
+  .action(async ({ parsedInput }): Promise<VCardResult> => {
+    const { batchId } = parsedInput
     const students = batchId
       ? await getStudentsByBatch(batchId)
       : await getStudents()
@@ -60,26 +57,15 @@ export async function generateMahadVCardContent(
     }
 
     return {
-      success: true,
-      data: {
-        content: generateVCardsContent(contacts),
-        filename,
-        exported: contacts.length,
-        skipped,
-      },
+      content: generateVCardsContent(contacts),
+      filename,
+      exported: contacts.length,
+      skipped,
     }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to generate Mahad vCard content', {
-      batchId,
-    })
-    return {
-      success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Failed to generate vCard content',
-    }
-  }
+  })
+
+export async function generateMahadVCardContent(
+  ...args: Parameters<typeof _generateMahadVCardContent>
+) {
+  return _generateMahadVCardContent(...args)
 }

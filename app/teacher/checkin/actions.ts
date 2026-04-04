@@ -22,7 +22,6 @@ import { actionClient } from '@/lib/safe-action'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 import { ValidationError } from '@/lib/services/validation-service'
-import { ActionResult } from '@/lib/utils/action-helpers'
 import {
   ClockInSchema,
   ClockOutSchema,
@@ -187,35 +186,24 @@ export type CheckinHistoryResult = {
 
 export async function getTeacherCheckinHistory(
   teacherId: string
-): Promise<ActionResult<CheckinHistoryResult>> {
-  try {
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+): Promise<CheckinHistoryResult> {
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const result = await getCheckinHistory(
-      { teacherId, dateFrom: thirtyDaysAgo },
-      { page: 1, limit: 10 }
-    )
+  const result = await getCheckinHistory(
+    { teacherId, dateFrom: thirtyDaysAgo },
+    { page: 1, limit: 10 }
+  )
 
-    return {
-      success: true,
-      data: {
-        data: result.data.map((item) => ({
-          id: item.id,
-          date: item.date.toISOString().split('T')[0],
-          shift: item.shift,
-          clockInTime: item.clockInTime,
-          clockOutTime: item.clockOutTime,
-          isLate: item.isLate,
-        })),
-        total: result.total,
-      },
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to fetch check-in history')
-    return {
-      success: false,
-      error: 'Failed to load check-in history',
-    }
+  return {
+    data: result.data.map((item) => ({
+      id: item.id,
+      date: item.date.toISOString().split('T')[0],
+      shift: item.shift,
+      clockInTime: item.clockInTime,
+      clockOutTime: item.clockOutTime,
+      isLate: item.isLate,
+    })),
+    total: result.total,
   }
 }

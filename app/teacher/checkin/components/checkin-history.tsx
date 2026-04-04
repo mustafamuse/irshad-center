@@ -47,13 +47,14 @@ export function CheckinHistory({ teacherId }: Props) {
     if (!teacherId || hasLoaded) return
     const requestTeacherId = teacherId
     startTransition(async () => {
-      const result = await getTeacherCheckinHistory(requestTeacherId)
-      if (currentTeacherRef.current !== requestTeacherId) return
-      if (result.success && result.data) {
-        setHistory(result.data)
+      try {
+        const result = await getTeacherCheckinHistory(requestTeacherId)
+        if (currentTeacherRef.current !== requestTeacherId) return
+        setHistory(result)
         setError(null)
-      } else {
-        setError(result.error ?? 'Failed to load history')
+      } catch (err) {
+        if (currentTeacherRef.current !== requestTeacherId) return
+        setError(err instanceof Error ? err.message : 'Failed to load history')
       }
       setHasLoaded(true)
     })
