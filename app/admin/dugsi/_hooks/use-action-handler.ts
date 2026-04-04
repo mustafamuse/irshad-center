@@ -48,7 +48,7 @@ export function useActionHandler<
       try {
         const result = await action(...args)
 
-        if (result?.data !== undefined && !result?.serverError) {
+        if (result !== undefined && !result.serverError) {
           const dataMessage =
             result.data &&
             typeof result.data === 'object' &&

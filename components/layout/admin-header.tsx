@@ -15,7 +15,13 @@ export function AdminHeader() {
       <Separator orientation="vertical" className="mr-2 h-4" />
       <div className="flex flex-1 items-center justify-between">
         <Logo size="xs" className="h-8 w-auto" />
-        <Button variant="ghost" size="sm" onClick={() => logoutAdmin()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            void logoutAdmin()
+          }}
+        >
           <LogOut className="mr-2 h-4 w-4" />
           Logout
         </Button>

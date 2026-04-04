@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { GradeLevel, Shift } from '@prisma/client'
+import { GradeLevel, Prisma, Shift } from '@prisma/client'
 import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -837,9 +837,7 @@ const _assignTeacherToClassAction = adminActionClient
         )
       }
       if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
+        error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         throw new ActionError(

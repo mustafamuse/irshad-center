@@ -37,12 +37,7 @@ export const validateAdminPin = rateLimitedActionClient
       crypto.timingSafeEqual(pinBuffer, expectedBuffer)
 
     if (!isValid) {
-      throw new ActionError(
-        'Invalid PIN',
-        ERROR_CODES.VALIDATION_ERROR,
-        'pin',
-        401
-      )
+      throw new ActionError('Invalid PIN', ERROR_CODES.UNAUTHORIZED, 'pin', 401)
     }
 
     const token = generateAuthToken()

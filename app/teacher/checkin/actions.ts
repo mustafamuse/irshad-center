@@ -18,7 +18,7 @@ import {
 } from '@/lib/db/queries/teacher-checkin'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
-import { actionClient } from '@/lib/safe-action'
+import { rateLimitedActionClient } from '@/lib/safe-action'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 import { ValidationError } from '@/lib/services/validation-service'
@@ -68,7 +68,7 @@ export async function getTeacherCurrentStatus(
   }
 }
 
-const _teacherClockInAction = actionClient
+const _teacherClockInAction = rateLimitedActionClient
   .metadata({ actionName: 'teacherClockInAction' })
   .schema(ClockInSchema)
   .action(async ({ parsedInput }) => {
@@ -106,7 +106,7 @@ export async function teacherClockInAction(
   return _teacherClockInAction(...args)
 }
 
-const _teacherClockOutAction = actionClient
+const _teacherClockOutAction = rateLimitedActionClient
   .metadata({ actionName: 'teacherClockOutAction' })
   .schema(ClockOutSchema)
   .action(async ({ parsedInput }) => {

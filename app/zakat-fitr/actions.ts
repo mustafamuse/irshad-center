@@ -2,10 +2,10 @@
 
 import { createZakatFitrCheckoutSession } from '@/lib/services/donation/zakat-fitr-checkout-service'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { actionClient } from '@/lib/safe-action'
+import { rateLimitedActionClient } from '@/lib/safe-action'
 import { ZakatFitrCheckoutSchema } from '@/lib/validations/zakat-fitr'
 
-const _createZakatFitrAction = actionClient
+const _createZakatFitrAction = rateLimitedActionClient
   .metadata({ actionName: 'createZakatFitrAction' })
   .schema(ZakatFitrCheckoutSchema)
   .action(async ({ parsedInput }) => {

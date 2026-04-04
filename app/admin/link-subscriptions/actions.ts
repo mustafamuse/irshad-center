@@ -112,6 +112,7 @@ const _linkSubscriptionToStudent = adminActionClient
     })
     revalidateTag('link-subscriptions')
     revalidatePath('/admin/link-subscriptions')
+    return { linked: true }
   })
 
 const ignoreSubscriptionSchema = z.object({

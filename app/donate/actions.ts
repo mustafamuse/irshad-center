@@ -2,10 +2,10 @@
 
 import { createDonationCheckoutSession } from '@/lib/services/donation/checkout-service'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { actionClient } from '@/lib/safe-action'
+import { rateLimitedActionClient } from '@/lib/safe-action'
 import { DonationCheckoutSchema } from '@/lib/validations/donation'
 
-const _createDonationAction = actionClient
+const _createDonationAction = rateLimitedActionClient
   .metadata({ actionName: 'createDonationAction' })
   .schema(DonationCheckoutSchema)
   .action(async ({ parsedInput }) => {
