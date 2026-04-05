@@ -1,56 +1,99 @@
 'use client'
 
-import { useAction } from 'next-safe-action/hooks'
-import type { HookCallbacks, HookSafeActionFn } from 'next-safe-action/hooks'
-import type { Schema } from 'next-safe-action/adapters/types'
+import { useTransition } from 'react'
 
-/**
- * Normalized result shape matching ActionResult<T> used by existing callsites.
- */
-export type ActionHandlerResult<T> = {
-  success: boolean
-  data?: T
-  error?: string
+import { useRouter } from 'next/navigation'
+
+import * as Sentry from '@sentry/nextjs'
+import { toast } from 'sonner'
+
+type MaybeResult =
+  | { data?: unknown; serverError?: string; validationErrors?: unknown }
+  | undefined
+
+interface UseActionHandlerOptions<T> {
+  onSuccess?: (data?: T) => void
+  onError?: (error: string) => void
+  successMessage?: string
+  errorMessage?: string
+  refreshOnSuccess?: boolean
+  optimisticUpdate?: () => void
+  rollback?: () => void
 }
 
-/**
- * Wraps next-safe-action's useAction hook and returns an ActionResult-compatible
- * result shape, preserving existing client callsite patterns.
- */
 export function useActionHandler<
-  ServerError,
-  S extends Schema | undefined,
-  const BAS extends readonly Schema[],
-  CVE,
-  CBAVE,
-  Data,
+  T = unknown,
+  TArgs extends unknown[] = never[],
 >(
-  safeActionFn: HookSafeActionFn<ServerError, S, BAS, CVE, CBAVE, Data>,
-  callbacks?: HookCallbacks<ServerError, S, BAS, CVE, CBAVE, Data>
+  action: (...args: TArgs) => Promise<MaybeResult>,
+  options: UseActionHandlerOptions<T> = {}
 ) {
-  const {
-    execute,
-    executeAsync,
-    result,
-    reset,
-    isPending,
-    hasSucceeded,
-    hasErrored,
-  } = useAction(safeActionFn, callbacks)
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
 
-  const normalizedResult: ActionHandlerResult<Data> = {
-    success: hasSucceeded && !result.serverError,
-    data: result.data,
-    error: result.serverError as string | undefined,
+  const {
+    onSuccess,
+    onError,
+    successMessage,
+    errorMessage,
+    refreshOnSuccess = true,
+    optimisticUpdate,
+    rollback,
+  } = options
+
+  const execute = async (...args: TArgs) => {
+    optimisticUpdate?.()
+
+    startTransition(async () => {
+      try {
+        const result = await action(...args)
+
+        if (result !== undefined && !result.serverError) {
+          const dataMessage =
+            result.data &&
+            typeof result.data === 'object' &&
+            'message' in result.data
+              ? (result.data as { message?: string }).message
+              : undefined
+          const dataWarning =
+            result.data &&
+            typeof result.data === 'object' &&
+            'warning' in result.data
+              ? (result.data as { warning?: string }).warning
+              : undefined
+          const message =
+            dataMessage || successMessage || 'Action completed successfully'
+          toast.success(message)
+          if (dataWarning) {
+            toast.warning(dataWarning)
+          }
+
+          if (refreshOnSuccess) {
+            router.refresh()
+          }
+
+          onSuccess?.(result.data as T)
+        } else {
+          rollback?.()
+          const message = result?.serverError || errorMessage || 'Action failed'
+          toast.error(message)
+          onError?.(result?.serverError || 'Unknown error')
+        }
+      } catch (error) {
+        rollback?.()
+        Sentry.captureException(error, {
+          tags: { component: 'useActionHandler' },
+        })
+        const message =
+          errorMessage || 'An unexpected error occurred. Please try again.'
+        toast.error(message)
+        onError?.(error instanceof Error ? error.message : 'Unknown error')
+      }
+    })
   }
 
   return {
     execute,
-    executeAsync,
-    result: normalizedResult,
-    reset,
     isPending,
-    hasSucceeded,
-    hasErrored,
   }
 }

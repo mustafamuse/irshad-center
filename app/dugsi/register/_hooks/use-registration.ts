@@ -35,14 +35,9 @@ export function useDugsiRegistration({
     async (formData: DugsiRegistrationValues) => {
       if (isPending) return
 
-      console.log('🔍 Starting registration...', {
-        childCount: formData.children.length,
-      })
-
       startTransition(async () => {
         try {
           const result = await registerDugsiChildren(formData)
-          console.log('🔍 Server action result:', result)
 
           if (!result.success) {
             // Handle validation errors
@@ -65,8 +60,6 @@ export function useDugsiRegistration({
 
           // Success handling
           if (result.data?.paymentUrl) {
-            console.log('✅ Registration successful! Redirecting to payment...')
-
             // Show informative message before redirect
             const childText =
               formData.children.length === 1

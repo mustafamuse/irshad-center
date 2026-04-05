@@ -8,8 +8,6 @@ import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 import { getDugsiRegistrations } from './actions'
 import { DugsiDashboard } from './components/dugsi-dashboard'
 
-export const dynamic = 'force-dynamic'
-
 function Loading() {
   return (
     <div className="container mx-auto space-y-6 p-4 sm:space-y-8 sm:p-6">

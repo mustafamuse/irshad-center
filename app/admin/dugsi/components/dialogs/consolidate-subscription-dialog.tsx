@@ -42,7 +42,7 @@ import { Separator } from '@/components/ui/separator'
 import type { StripeSubscriptionPreview } from '@/lib/services/dugsi'
 import { formatRate } from '@/lib/utils/dugsi-tuition'
 
-import { useActionHandler } from '../../_hooks/use-action-handler'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import {
   consolidateSubscriptionSchema,
   type ConsolidateSubscriptionFormValues,

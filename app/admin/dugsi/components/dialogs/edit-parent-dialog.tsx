@@ -27,7 +27,7 @@ import { Input } from '@/components/ui/input'
 import { formatPhoneNumber } from '@/lib/registration/utils/form-utils'
 import { capitalizeName } from '@/lib/utils'
 
-import { useActionHandler } from '../../_hooks/use-action-handler'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import {
   parentFormSchema,
   type ParentFormValues,

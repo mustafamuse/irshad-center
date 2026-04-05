@@ -18,7 +18,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-import { useActionHandler } from '../../_hooks/use-action-handler'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { linkDugsiSubscription, validateDugsiSubscription } from '../../actions'
 
 interface LinkSubscriptionDialogProps {

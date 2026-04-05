@@ -1,11 +1,3 @@
-'use server'
-
-/**
- * Get Students Actions
- *
- * Query functions for Mahad students. Uses existing services and mappers.
- */
-
 import type {
   GraduationStatus,
   PaymentFrequency,

@@ -66,8 +66,6 @@ const _logoutAdmin = actionClient
     redirect('/admin/login')
   })
 
-export { verifyAuthToken }
-
 export async function validateAdminPin(
   ...args: Parameters<typeof _validateAdminPin>
 ) {

@@ -23,6 +23,10 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
       const loginUrl = new URL('/admin/login', request.url)
       loginUrl.searchParams.set('redirect', path)
       response = NextResponse.redirect(loginUrl)
+      response.headers.set(
+        'Cache-Control',
+        'no-store, no-cache, must-revalidate'
+      )
     } else {
       response = NextResponse.next()
     }

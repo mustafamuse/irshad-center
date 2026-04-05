@@ -33,7 +33,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { useActionHandler } from '../../../_hooks/use-action-handler'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { Family, StripePaymentHistoryItem } from '../../../_types'
 import { getBillingStatus } from '../../../_utils/billing'
 import {

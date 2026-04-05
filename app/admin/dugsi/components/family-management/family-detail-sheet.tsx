@@ -45,7 +45,7 @@ import { SHIFT_BADGES, SHIFT_COLORS } from '@/lib/constants/dugsi'
 
 import { OverviewTab, BillingTab, HistoryTab } from './detail-tabs'
 import { FamilyStatusBadge } from './family-status-badge'
-import { useActionHandler } from '../../_hooks/use-action-handler'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'

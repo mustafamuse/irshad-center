@@ -1,4 +1,7 @@
 import crypto from 'crypto'
+import { cache } from 'react'
+
+import { cookies } from 'next/headers'
 
 const MAX_TOKEN_AGE_MS = 24 * 60 * 60 * 1000
 
@@ -39,3 +42,12 @@ export function verifyAuthToken(token: string): boolean {
     return false
   }
 }
+
+export const getVerifiedAuth = cache(
+  async (): Promise<{ admin: true } | null> => {
+    const cookieStore = await cookies()
+    const token = cookieStore.get('admin_auth')?.value
+    if (!token) return null
+    return verifyAuthToken(token) ? { admin: true } : null
+  }
+)
