@@ -13,6 +13,8 @@
  * Uses shared services for DRY implementation.
  */
 
+import { revalidateTag } from 'next/cache'
+
 import { StripeAccountType, SubscriptionStatus } from '@prisma/client'
 import type {
   GraduationStatus,
@@ -23,13 +25,13 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
-import type { DatabaseClient } from '@/lib/db/types'
 import {
   getBillingAccountByStripeCustomerId,
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
+import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -389,6 +391,10 @@ export async function handleSubscriptionCreated(
     )
   }
 
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  }
+
   return {
     subscriptionId: dbSubscription.id,
     status: dbSubscription.status,
@@ -441,6 +447,8 @@ export async function handleSubscriptionUpdated(
     paidUntil: periodDates.periodEnd,
   })
 
+  revalidateTag('mahad-students')
+
   return {
     subscriptionId: dbSubscription.id,
     status,
@@ -487,6 +495,8 @@ export async function handleSubscriptionDeleted(
     )
     await unlinkSubscription(dbSubscription.id, tx)
   })
+
+  revalidateTag('mahad-students')
 
   return {
     subscriptionId: dbSubscription.id,
