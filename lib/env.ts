@@ -150,8 +150,14 @@ const envSchema = z
     SENTRY_ORG: z.string().optional(),
     SENTRY_PROJECT: z.string().optional(),
     SENTRY_RELEASE: z.string().optional(),
-    SENTRY_DEBUG: z.string().optional(),
-    NEXT_PUBLIC_SENTRY_DEBUG: z.string().optional(),
+    SENTRY_DEBUG: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.enum(['true', 'false']).optional()
+    ),
+    NEXT_PUBLIC_SENTRY_DEBUG: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.enum(['true', 'false']).optional()
+    ),
     NEXT_PUBLIC_SENTRY_RELEASE: z.string().optional(),
 
     // ── Axiom ────────────────────────────────────────────────────────────────────
@@ -196,6 +202,7 @@ const envSchema = z
 
     if (
       data.NODE_ENV === 'production' &&
+      data.VERCEL_ENV !== 'preview' &&
       data.NEXT_PUBLIC_APP_URL != null &&
       /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(
         data.NEXT_PUBLIC_APP_URL
@@ -208,7 +215,8 @@ const envSchema = z
       })
     }
 
-    if (data.NODE_ENV === 'production') {
+    // Donation keys are intentionally excluded — the feature is opt-in and absent keys disable it gracefully.
+    if (data.NODE_ENV === 'production' && data.VERCEL_ENV !== 'preview') {
       const requiredInProduction = [
         'STRIPE_MAHAD_SECRET_KEY_LIVE',
         'STRIPE_MAHAD_WEBHOOK_SECRET_LIVE',
