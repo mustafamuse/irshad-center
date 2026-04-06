@@ -12,6 +12,7 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 
 import { z } from 'zod'
 
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { createFamilyRegistration } from '@/lib/services/registration-service'
@@ -100,7 +101,6 @@ export async function registerDugsiChildren(
       },
     }
   } catch (error) {
-    // Handle Zod validation errors with field-level detail
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -108,7 +108,21 @@ export async function registerDugsiChildren(
       }
     }
 
-    // Handle other errors with generic message
+    if (error instanceof ActionError && error.field) {
+      // Map generic field name to form field; default to parent1 since we
+      // can't know which parent caused the conflict from the P2002 target alone.
+      const fieldMap: Record<string, string> = {
+        email: 'parent1Email',
+        phone: 'parent1Phone',
+      }
+      const formField = fieldMap[error.field] ?? error.field
+      return {
+        success: false,
+        error: error.message,
+        errors: { [formField]: [error.message] },
+      }
+    }
+
     await logError(logger, error, 'Dugsi registration failed')
     return {
       success: false,
