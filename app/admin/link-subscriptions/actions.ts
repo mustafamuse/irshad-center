@@ -58,7 +58,7 @@ const searchStudentsSchema = z.object({
 
 const _searchStudents = adminActionClient
   .metadata({ actionName: 'searchStudents' })
-  .schema(searchStudentsSchema)
+  .inputSchema(searchStudentsSchema)
   .action(async ({ parsedInput }) => {
     return await searchStudentsForLinking(
       parsedInput.query,
@@ -73,7 +73,7 @@ const getPotentialMatchesSchema = z.object({
 
 const _getPotentialMatches = adminActionClient
   .metadata({ actionName: 'getPotentialMatches' })
-  .schema(getPotentialMatchesSchema)
+  .inputSchema(getPotentialMatchesSchema)
   .action(async ({ parsedInput }) => {
     return await getPotentialStudentMatches(
       parsedInput.email,
@@ -89,7 +89,7 @@ const linkSubscriptionToStudentSchema = z.object({
 
 const _linkSubscriptionToStudent = adminActionClient
   .metadata({ actionName: 'linkSubscriptionToStudent' })
-  .schema(linkSubscriptionToStudentSchema)
+  .inputSchema(linkSubscriptionToStudentSchema)
   .action(async ({ parsedInput }) => {
     const { subscriptionId, studentId, program } = parsedInput
     const result = await linkSubscriptionToProfile(
@@ -123,7 +123,7 @@ const ignoreSubscriptionSchema = z.object({
 
 const _ignoreSubscription = adminActionClient
   .metadata({ actionName: 'ignoreSubscription' })
-  .schema(ignoreSubscriptionSchema)
+  .inputSchema(ignoreSubscriptionSchema)
   .action(async ({ parsedInput }) => {
     const { subscriptionId, program, reason } = parsedInput
     const result = await ignoreSubscriptionService(
@@ -155,7 +155,7 @@ const unignoreSubscriptionSchema = z.object({
 
 const _unignoreSubscription = adminActionClient
   .metadata({ actionName: 'unignoreSubscription' })
-  .schema(unignoreSubscriptionSchema)
+  .inputSchema(unignoreSubscriptionSchema)
   .action(async ({ parsedInput }) => {
     const { subscriptionId, program } = parsedInput
     const result = await unignoreSubscriptionService(subscriptionId, program)

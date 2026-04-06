@@ -70,7 +70,7 @@ export async function getTeacherCurrentStatus(
 
 const _teacherClockInAction = rateLimitedActionClient
   .metadata({ actionName: 'teacherClockInAction' })
-  .schema(ClockInSchema)
+  .inputSchema(ClockInSchema)
   .action(async ({ parsedInput }) => {
     try {
       const result = await clockIn(parsedInput)
@@ -108,7 +108,7 @@ export async function teacherClockInAction(
 
 const _teacherClockOutAction = rateLimitedActionClient
   .metadata({ actionName: 'teacherClockOutAction' })
-  .schema(ClockOutSchema)
+  .inputSchema(ClockOutSchema)
   .action(async ({ parsedInput }) => {
     try {
       await clockOut(parsedInput)

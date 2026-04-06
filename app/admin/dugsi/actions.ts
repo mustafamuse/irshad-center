@@ -28,6 +28,7 @@ import {
   TeacherNotAuthorizedError,
 } from '@/lib/errors/dugsi-class-errors'
 import { createServiceLogger, logError, logInfo } from '@/lib/logger'
+import { adminActionClient } from '@/lib/safe-action'
 import {
   // Registration service
   getAllDugsiRegistrations,
@@ -58,10 +59,7 @@ import {
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
-import {
-  UpdateFamilyShiftSchema,
-  type UpdateFamilyShiftInput,
-} from '@/lib/validations/dugsi'
+import { UpdateFamilyShiftSchema } from '@/lib/validations/dugsi'
 import {
   AssignTeacherToClassSchema,
   RemoveTeacherFromClassSchema,
@@ -79,7 +77,6 @@ import {
   VCardContact,
   VCardResult,
 } from '@/lib/vcard-export'
-import { adminActionClient } from '@/lib/safe-action'
 
 import {
   previewSubscriptionInputSchema,
@@ -107,7 +104,6 @@ const logger = createServiceLogger('dugsi-admin-actions')
 const StudentIdSchema = z.object({ studentId: z.string().min(1) })
 const SubscriptionIdSchema = z.object({ subscriptionId: z.string().min(1) })
 const ParentEmailSchema = z.object({ parentEmail: z.string().email() })
-const CustomerIdSchema = z.object({ customerId: z.string().min(1) })
 const ClassIdSchema = z.object({ classId: z.string().min(1) })
 const ShiftFilterSchema = z.object({
   shift: z.enum(['MORNING', 'AFTERNOON']).optional(),
@@ -239,7 +235,7 @@ export interface WhatsAppSendResult {
 
 const _getDugsiRegistrations = adminActionClient
   .metadata({ actionName: 'getDugsiRegistrations' })
-  .schema(ShiftFilterSchema)
+  .inputSchema(ShiftFilterSchema)
   .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
     return await getAllDugsiRegistrations(undefined, parsedInput)
   })
@@ -406,14 +402,14 @@ const _getAllTeachersForClassAssignmentAction = adminActionClient
 
 const _getFamilyMembers = adminActionClient
   .metadata({ actionName: 'getFamilyMembers' })
-  .schema(StudentIdSchema)
+  .inputSchema(StudentIdSchema)
   .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
     return await getFamilyMembersService(parsedInput.studentId)
   })
 
 const _getDeleteFamilyPreview = adminActionClient
   .metadata({ actionName: 'getDeleteFamilyPreview' })
-  .schema(StudentIdSchema)
+  .inputSchema(StudentIdSchema)
   .action(
     async ({
       parsedInput,
@@ -427,21 +423,21 @@ const _getDeleteFamilyPreview = adminActionClient
 
 const _validateDugsiSubscription = adminActionClient
   .metadata({ actionName: 'validateDugsiSubscription' })
-  .schema(SubscriptionIdSchema)
+  .inputSchema(SubscriptionIdSchema)
   .action(async ({ parsedInput }): Promise<SubscriptionValidationData> => {
     return await validateDugsiSubscriptionService(parsedInput.subscriptionId)
   })
 
 const _getDugsiPaymentStatus = adminActionClient
   .metadata({ actionName: 'getDugsiPaymentStatus' })
-  .schema(ParentEmailSchema)
+  .inputSchema(ParentEmailSchema)
   .action(async ({ parsedInput }): Promise<PaymentStatusData> => {
     return await getPaymentStatus(parsedInput.parentEmail)
   })
 
 const _getFamilyPaymentHistory = adminActionClient
   .metadata({ actionName: 'getFamilyPaymentHistory' })
-  .schema(PaymentHistorySchema)
+  .inputSchema(PaymentHistorySchema)
   .action(async ({ parsedInput }): Promise<StripePaymentHistoryItem[]> => {
     const stripe = getDugsiStripeClient()
     const invoices = await stripe.invoices.list({
@@ -472,14 +468,14 @@ const _getFamilyPaymentHistory = adminActionClient
 
 const _getAvailableStudentsForClassAction = adminActionClient
   .metadata({ actionName: 'getAvailableStudentsForClassAction' })
-  .schema(z.object({ shift: z.nativeEnum(Shift) }))
+  .inputSchema(z.object({ shift: z.nativeEnum(Shift) }))
   .action(async ({ parsedInput }): Promise<StudentForEnrollment[]> => {
     return await getAvailableStudentsForClass(parsedInput.shift)
   })
 
 const _getClassDeletePreviewAction = adminActionClient
   .metadata({ actionName: 'getClassDeletePreviewAction' })
-  .schema(ClassIdSchema)
+  .inputSchema(ClassIdSchema)
   .action(
     async ({
       parsedInput,
@@ -503,7 +499,7 @@ const _getClassDeletePreviewAction = adminActionClient
 
 const _deleteDugsiFamily = adminActionClient
   .metadata({ actionName: 'deleteDugsiFamily' })
-  .schema(StudentIdSchema)
+  .inputSchema(StudentIdSchema)
   .action(
     async ({
       parsedInput,
@@ -540,7 +536,7 @@ const _deleteDugsiFamily = adminActionClient
 
 const _linkDugsiSubscription = adminActionClient
   .metadata({ actionName: 'linkDugsiSubscription' })
-  .schema(LinkSubscriptionSchema)
+  .inputSchema(LinkSubscriptionSchema)
   .action(
     async ({
       parsedInput,
@@ -575,7 +571,7 @@ const _linkDugsiSubscription = adminActionClient
 
 const _verifyDugsiBankAccount = adminActionClient
   .metadata({ actionName: 'verifyDugsiBankAccount' })
-  .schema(VerifyBankSchema)
+  .inputSchema(VerifyBankSchema)
   .action(async ({ parsedInput }): Promise<BankVerificationData> => {
     const { paymentIntentId, descriptorCode } = parsedInput
 
@@ -631,7 +627,7 @@ const _verifyDugsiBankAccount = adminActionClient
 
 const _updateParentInfo = adminActionClient
   .metadata({ actionName: 'updateParentInfo' })
-  .schema(UpdateParentInfoSchema)
+  .inputSchema(UpdateParentInfoSchema)
   .action(
     async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
       const result = await updateParentInfoService(parsedInput)
@@ -645,7 +641,7 @@ const _updateParentInfo = adminActionClient
 
 const _addSecondParent = adminActionClient
   .metadata({ actionName: 'addSecondParent' })
-  .schema(AddSecondParentSchema)
+  .inputSchema(AddSecondParentSchema)
   .action(
     async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
       const result = await addSecondParentService(parsedInput)
@@ -659,7 +655,7 @@ const _addSecondParent = adminActionClient
 
 const _setPrimaryPayer = adminActionClient
   .metadata({ actionName: 'setPrimaryPayer' })
-  .schema(SetPrimaryPayerSchema)
+  .inputSchema(SetPrimaryPayerSchema)
   .action(
     async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
       const result = await setPrimaryPayerService(parsedInput)
@@ -673,7 +669,7 @@ const _setPrimaryPayer = adminActionClient
 
 const _updateChildInfo = adminActionClient
   .metadata({ actionName: 'updateChildInfo' })
-  .schema(UpdateChildInfoSchema)
+  .inputSchema(UpdateChildInfoSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     await updateChildInfoService(parsedInput)
     revalidatePath('/admin/dugsi')
@@ -682,7 +678,7 @@ const _updateChildInfo = adminActionClient
 
 const _updateFamilyShift = adminActionClient
   .metadata({ actionName: 'updateFamilyShift' })
-  .schema(UpdateFamilyShiftSchema)
+  .inputSchema(UpdateFamilyShiftSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     await updateFamilyShiftService({
       familyReferenceId: parsedInput.familyReferenceId,
@@ -694,7 +690,7 @@ const _updateFamilyShift = adminActionClient
 
 const _addChildToFamily = adminActionClient
   .metadata({ actionName: 'addChildToFamily' })
-  .schema(AddChildToFamilySchema)
+  .inputSchema(AddChildToFamilySchema)
   .action(
     async ({ parsedInput }): Promise<{ childId: string; message: string }> => {
       const result = await addChildToFamilyService(parsedInput)
@@ -705,7 +701,7 @@ const _addChildToFamily = adminActionClient
 
 const _generateFamilyPaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generateFamilyPaymentLinkAction' })
-  .schema(GenerateFamilyPaymentLinkSchema)
+  .inputSchema(GenerateFamilyPaymentLinkSchema)
   .action(async ({ parsedInput }): Promise<FamilyPaymentLinkData> => {
     const { familyId, overrideAmount, billingStartDate } = parsedInput
     const result = await createDugsiCheckoutSession({
@@ -736,7 +732,7 @@ const _generateFamilyPaymentLinkAction = adminActionClient
 
 const _bulkGeneratePaymentLinksAction = adminActionClient
   .metadata({ actionName: 'bulkGeneratePaymentLinksAction' })
-  .schema(BulkPaymentLinksSchema)
+  .inputSchema(BulkPaymentLinksSchema)
   .action(
     async ({
       parsedInput,
@@ -824,7 +820,7 @@ const _bulkGeneratePaymentLinksAction = adminActionClient
 
 const _assignTeacherToClassAction = adminActionClient
   .metadata({ actionName: 'assignTeacherToClassAction' })
-  .schema(AssignTeacherToClassSchema)
+  .inputSchema(AssignTeacherToClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId, teacherId } = parsedInput
     try {
@@ -862,7 +858,7 @@ const _assignTeacherToClassAction = adminActionClient
 
 const _removeTeacherFromClassAction = adminActionClient
   .metadata({ actionName: 'removeTeacherFromClassAction' })
-  .schema(RemoveTeacherFromClassSchema)
+  .inputSchema(RemoveTeacherFromClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId, teacherId } = parsedInput
     await removeTeacherFromClass(classId, teacherId)
@@ -874,7 +870,7 @@ const _removeTeacherFromClassAction = adminActionClient
 
 const _enrollStudentInClassAction = adminActionClient
   .metadata({ actionName: 'enrollStudentInClassAction' })
-  .schema(EnrollStudentInClassSchema)
+  .inputSchema(EnrollStudentInClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId, programProfileId } = parsedInput
     try {
@@ -900,7 +896,7 @@ const _enrollStudentInClassAction = adminActionClient
 
 const _removeStudentFromClassAction = adminActionClient
   .metadata({ actionName: 'removeStudentFromClassAction' })
-  .schema(RemoveStudentFromClassSchema)
+  .inputSchema(RemoveStudentFromClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { programProfileId } = parsedInput
     await removeStudentFromClass(programProfileId)
@@ -911,7 +907,7 @@ const _removeStudentFromClassAction = adminActionClient
 
 const _bulkEnrollStudentsAction = adminActionClient
   .metadata({ actionName: 'bulkEnrollStudentsAction' })
-  .schema(BulkEnrollStudentsSchema)
+  .inputSchema(BulkEnrollStudentsSchema)
   .action(
     async ({
       parsedInput,
@@ -932,7 +928,7 @@ const _bulkEnrollStudentsAction = adminActionClient
 
 const _createClassAction = adminActionClient
   .metadata({ actionName: 'createClassAction' })
-  .schema(CreateClassSchema)
+  .inputSchema(CreateClassSchema)
   .action(
     async ({
       parsedInput,
@@ -972,7 +968,7 @@ const _createClassAction = adminActionClient
 
 const _updateClassAction = adminActionClient
   .metadata({ actionName: 'updateClassAction' })
-  .schema(UpdateClassSchema)
+  .inputSchema(UpdateClassSchema)
   .action(
     async ({
       parsedInput,
@@ -1034,7 +1030,7 @@ const _updateClassAction = adminActionClient
 
 const _deleteClassAction = adminActionClient
   .metadata({ actionName: 'deleteClassAction' })
-  .schema(DeleteClassSchema)
+  .inputSchema(DeleteClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId } = parsedInput
     try {
@@ -1060,7 +1056,7 @@ const _deleteClassAction = adminActionClient
 
 const _previewStripeSubscriptionForConsolidation = adminActionClient
   .metadata({ actionName: 'previewStripeSubscriptionForConsolidation' })
-  .schema(previewSubscriptionInputSchema)
+  .inputSchema(previewSubscriptionInputSchema)
   .action(async ({ parsedInput }): Promise<StripeSubscriptionPreview> => {
     return await previewStripeSubscriptionService(
       parsedInput.subscriptionId,
@@ -1070,7 +1066,7 @@ const _previewStripeSubscriptionForConsolidation = adminActionClient
 
 const _consolidateDugsiSubscription = adminActionClient
   .metadata({ actionName: 'consolidateDugsiSubscription' })
-  .schema(consolidateSubscriptionInputSchema)
+  .inputSchema(consolidateSubscriptionInputSchema)
   .action(
     async ({
       parsedInput,
@@ -1112,7 +1108,7 @@ const _consolidateDugsiSubscription = adminActionClient
 
 const _sendPaymentLinkViaWhatsAppAction = adminActionClient
   .metadata({ actionName: 'sendPaymentLinkViaWhatsAppAction' })
-  .schema(SendPaymentLinkViaWhatsAppSchema)
+  .inputSchema(SendPaymentLinkViaWhatsAppSchema)
   .action(
     async ({
       parsedInput,

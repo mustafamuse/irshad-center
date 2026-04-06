@@ -1,13 +1,13 @@
 'use server'
 
-import { createZakatFitrCheckoutSession } from '@/lib/services/donation/zakat-fitr-checkout-service'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { rateLimitedActionClient } from '@/lib/safe-action'
+import { createZakatFitrCheckoutSession } from '@/lib/services/donation/zakat-fitr-checkout-service'
 import { ZakatFitrCheckoutSchema } from '@/lib/validations/zakat-fitr'
 
 const _createZakatFitrAction = rateLimitedActionClient
   .metadata({ actionName: 'createZakatFitrAction' })
-  .schema(ZakatFitrCheckoutSchema)
+  .inputSchema(ZakatFitrCheckoutSchema)
   .action(async ({ parsedInput }) => {
     const session = await createZakatFitrCheckoutSession(parsedInput)
     if (!session.url) {

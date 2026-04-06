@@ -27,7 +27,7 @@ const updateStudentSchema = z.object({
 
 export const updateStudent = adminActionClient
   .metadata({ actionName: 'updateStudent' })
-  .schema(updateStudentSchema)
+  .inputSchema(updateStudentSchema)
   .action(async ({ parsedInput }) => {
     const { studentId, ...data } = parsedInput
     await updateMahadStudent(studentId, data)

@@ -61,7 +61,7 @@ export interface PersonLookupResult {
 
 export const deletePersonAction = adminActionClient
   .metadata({ actionName: 'deletePersonAction' })
-  .schema(z.object({ personId: z.string().uuid('Invalid person ID') }))
+  .inputSchema(z.object({ personId: z.string().uuid('Invalid person ID') }))
   .action(async ({ parsedInput: { personId } }) => {
     await deletePerson(personId)
 
@@ -75,7 +75,7 @@ export const deletePersonAction = adminActionClient
 
 export const lookupPersonAction = adminActionClient
   .metadata({ actionName: 'lookupPersonAction' })
-  .schema(z.object({ query: z.string().min(1) }))
+  .inputSchema(z.object({ query: z.string().min(1) }))
   .action(async ({ parsedInput: { query } }) => {
     if (query.trim().length < 2) {
       return null

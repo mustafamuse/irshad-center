@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 
 import crypto from 'crypto'
 
-import { generateAuthToken, verifyAuthToken } from '@/lib/auth/admin-auth'
+import { generateAuthToken } from '@/lib/auth/admin-auth'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createActionLogger, logInfo } from '@/lib/logger'
 import { actionClient, rateLimitedActionClient } from '@/lib/safe-action'
@@ -17,7 +17,7 @@ const logger = createActionLogger('admin-auth')
 
 const _validateAdminPin = rateLimitedActionClient
   .metadata({ actionName: 'validateAdminPin' })
-  .schema(adminPinSchema)
+  .inputSchema(adminPinSchema)
   .action(async ({ parsedInput: { pin, redirectTo } }) => {
     const expectedPin = process.env.ADMIN_PIN
 

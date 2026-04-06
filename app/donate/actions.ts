@@ -1,13 +1,13 @@
 'use server'
 
-import { createDonationCheckoutSession } from '@/lib/services/donation/checkout-service'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { rateLimitedActionClient } from '@/lib/safe-action'
+import { createDonationCheckoutSession } from '@/lib/services/donation/checkout-service'
 import { DonationCheckoutSchema } from '@/lib/validations/donation'
 
 const _createDonationAction = rateLimitedActionClient
   .metadata({ actionName: 'createDonationAction' })
-  .schema(DonationCheckoutSchema)
+  .inputSchema(DonationCheckoutSchema)
   .action(async ({ parsedInput }) => {
     const session = await createDonationCheckoutSession(parsedInput)
     if (!session.url) {
