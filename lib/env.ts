@@ -24,8 +24,18 @@ const envSchema = z
     DIRECT_URL: z.string().optional(),
 
     // ── Admin Auth ───────────────────────────────────────────────────────────────
-    ADMIN_PIN: z.string().min(1, 'ADMIN_PIN is required'),
-    ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
+    ADMIN_PIN: z
+      .string()
+      .min(
+        16,
+        'ADMIN_PIN must be at least 16 characters (use: openssl rand -base64 32)'
+      ),
+    ADMIN_PASSWORD: z
+      .string()
+      .min(
+        16,
+        'ADMIN_PASSWORD must be at least 16 characters (use: openssl rand -base64 32)'
+      ),
 
     // ── App Config ───────────────────────────────────────────────────────────────
     // NEXT_PUBLIC_* vars are inlined by Next.js at build time. Client-side code
@@ -86,7 +96,14 @@ const envSchema = z
     NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE: stripeField('pk_live_'),
     NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK: z.preprocess(
       (v) => (v === '' ? undefined : v),
-      z.string().url().optional()
+      z
+        .string()
+        .url()
+        .startsWith(
+          'https://',
+          'NEXT_PUBLIC_STRIPE_DUGSI_PAYMENT_LINK must use HTTPS'
+        )
+        .optional()
     ),
 
     // ── Stripe — Zakat / Donation ────────────────────────────────────────────────
@@ -220,8 +237,10 @@ const envSchema = z
       const requiredInProduction = [
         'STRIPE_MAHAD_SECRET_KEY_LIVE',
         'STRIPE_MAHAD_WEBHOOK_SECRET_LIVE',
+        'NEXT_PUBLIC_STRIPE_MAHAD_PUBLISHABLE_KEY_LIVE',
         'STRIPE_DUGSI_SECRET_KEY_LIVE',
         'STRIPE_DUGSI_WEBHOOK_SECRET_LIVE',
+        'NEXT_PUBLIC_STRIPE_DUGSI_PUBLISHABLE_KEY_LIVE',
       ] as const
       for (const key of requiredInProduction) {
         if (!data[key]) {
