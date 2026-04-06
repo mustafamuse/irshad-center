@@ -204,11 +204,17 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
         longitude: lng,
       })
 
-      if (result.success && result.data) {
-        setMessage({ type: 'success', text: result.message ?? 'Clocked in!' })
+      if (result?.data) {
+        setMessage({
+          type: 'success',
+          text: result.data.message ?? 'Clocked in!',
+        })
         setStatus(result.data.status)
       } else {
-        setMessage({ type: 'error', text: result.error ?? 'Clock-in failed' })
+        setMessage({
+          type: 'error',
+          text: result?.serverError ?? 'Clock-in failed',
+        })
       }
     })
   }
@@ -240,11 +246,17 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
         longitude: lng,
       })
 
-      if (result.success && result.data) {
-        setMessage({ type: 'success', text: result.message ?? 'Clocked out!' })
+      if (result?.data) {
+        setMessage({
+          type: 'success',
+          text: result.data.message ?? 'Clocked out!',
+        })
         setStatus(result.data.status)
       } else {
-        setMessage({ type: 'error', text: result.error ?? 'Clock-out failed' })
+        setMessage({
+          type: 'error',
+          text: result?.serverError ?? 'Clock-out failed',
+        })
       }
     })
   }

@@ -77,15 +77,12 @@ export function DonationForm() {
         mode: 'subscription',
       })
 
-      if (!result.success) {
-        setError(result.error ?? 'Something went wrong')
-        return
-      }
-
-      if (result.data?.url) {
+      if (result?.data?.url) {
         window.location.href = result.data.url
       } else {
-        setError('Unable to start checkout. Please try again.')
+        setError(
+          result?.serverError ?? 'Unable to start checkout. Please try again.'
+        )
       }
     })
   }

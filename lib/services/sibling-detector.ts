@@ -2,6 +2,7 @@ import type { Person } from '@prisma/client'
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { ValidationError } from '@/lib/services/validation-service'
 import {
   normalizeEmail,
@@ -265,7 +266,10 @@ export async function createSiblingRelationship(
   }
 ) {
   if (person1Id === person2Id) {
-    throw new Error('Cannot create sibling relationship with self')
+    throw new ActionError(
+      'Cannot create sibling relationship with self',
+      ERROR_CODES.VALIDATION_ERROR
+    )
   }
 
   // Ensure person1Id < person2Id for consistency (or use a different ordering)

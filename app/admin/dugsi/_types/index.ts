@@ -143,9 +143,6 @@ export interface UnassignedStudent {
   siblings: { name: string; teacherName: string; classShift: Shift }[]
 }
 
-// Re-export ActionResult from canonical location
-export type { ActionResult } from '@/lib/utils/action-helpers'
-
 // Action data payload types
 export interface SubscriptionValidationData {
   subscriptionId: string

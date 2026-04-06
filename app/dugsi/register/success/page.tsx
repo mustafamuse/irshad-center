@@ -8,7 +8,7 @@ import type { Metadata } from 'next'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { createServiceLogger } from '@/lib/logger'
-import { getAllDugsiRegistrations } from '@/lib/services/dugsi'
+import { getCachedDugsiRegistrations } from '@/lib/services/dugsi'
 import { formatGradeLevel } from '@/lib/utils/enum-formatters'
 import messages from '@/messages/en.json'
 
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 }
 
 function groupByFamily(
-  registrations: Awaited<ReturnType<typeof getAllDugsiRegistrations>>
+  registrations: Awaited<ReturnType<typeof getCachedDugsiRegistrations>>
 ): Family[] {
   const familyMap = new Map<string, Family>()
 
@@ -103,7 +103,7 @@ async function RegistrationsList({
 }) {
   let registrations
   try {
-    registrations = await getAllDugsiRegistrations(MAX_RECENT_REGISTRATIONS)
+    registrations = await getCachedDugsiRegistrations(MAX_RECENT_REGISTRATIONS)
   } catch (error) {
     logger.error({ error }, 'Failed to load registrations')
     return (

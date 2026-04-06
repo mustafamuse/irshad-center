@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
@@ -5,18 +6,42 @@ const {
   mockResumeFamilyBilling,
   mockRevalidatePath,
   mockLogError,
-  mockAssertAdmin,
 } = vi.hoisted(() => ({
   mockPauseFamilyBilling: vi.fn(),
   mockResumeFamilyBilling: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockLogError: vi.fn(),
-  mockAssertAdmin: vi.fn(),
 }))
 
-vi.mock('@/lib/auth', () => ({
-  assertAdmin: (...args: unknown[]) => mockAssertAdmin(...args),
-}))
+vi.mock('@/lib/safe-action', () => {
+  function makeClient() {
+    const client = {
+      metadata: () => client,
+      use: () => client,
+      schema: (schema: z.ZodType) => ({
+        action:
+          (handler: (args: { parsedInput: unknown }) => Promise<unknown>) =>
+          async (input: unknown) => {
+            const parsed = schema.safeParse(input)
+            if (!parsed.success) {
+              return { validationErrors: parsed.error.flatten().fieldErrors }
+            }
+            try {
+              const data = await handler({ parsedInput: parsed.data })
+              return { data }
+            } catch (error) {
+              const { ActionError } = await import('@/lib/errors/action-error')
+              if (error instanceof ActionError)
+                return { serverError: error.message }
+              return { serverError: 'Something went wrong' }
+            }
+          },
+      }),
+    }
+    return client
+  }
+  return { adminActionClient: makeClient() }
+})
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
@@ -35,11 +60,6 @@ vi.mock('@/lib/logger', () => ({
   })),
   logError: (...args: unknown[]) => mockLogError(...args),
 }))
-
-vi.mock('@/lib/errors/action-error', async () => {
-  const actual = await vi.importActual('@/lib/errors/action-error')
-  return actual
-})
 
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
@@ -63,13 +83,8 @@ describe('pauseFamilyBillingAction', () => {
     const result = await pauseFamilyBillingAction({
       familyReferenceId: 'bad',
     })
-    expect(result.success).toBe(false)
+    expect(result?.validationErrors).toBeDefined()
     expect(mockPauseFamilyBilling).not.toHaveBeenCalled()
-  })
-
-  it('should return validation error for missing input', async () => {
-    const result = await pauseFamilyBillingAction({})
-    expect(result.success).toBe(false)
   })
 
   it('should return success on pause', async () => {
@@ -79,9 +94,8 @@ describe('pauseFamilyBillingAction', () => {
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(true)
-    expect(result.message).toBe('Billing paused successfully')
-    expect(result.warning).toBeUndefined()
+    expect(result?.data?.message).toBe('Billing paused successfully')
+    expect(result?.data?.warning).toBeUndefined()
     expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi')
   })
 
@@ -95,9 +109,8 @@ describe('pauseFamilyBillingAction', () => {
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(true)
-    expect(result.warning).toContain('DB sync failed')
-    expect(result.warning).toContain('DB connection lost')
+    expect(result?.data?.warning).toContain('DB sync failed')
+    expect(result?.data?.warning).toContain('DB connection lost')
   })
 
   it('should return ActionError message without logging', async () => {
@@ -112,44 +125,26 @@ describe('pauseFamilyBillingAction', () => {
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('No active subscription found for this family')
+    expect(result?.serverError).toBe(
+      'No active subscription found for this family'
+    )
     expect(mockLogError).not.toHaveBeenCalled()
   })
 
-  it('should log and return generic error for unexpected failures', async () => {
+  it('should log and return error message for unexpected failures', async () => {
     mockPauseFamilyBilling.mockRejectedValueOnce(new Error('Stripe down'))
 
     const result = await pauseFamilyBillingAction({
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Stripe down')
+    expect(result?.serverError).toBe('Stripe down')
     expect(mockLogError).toHaveBeenCalledWith(
       expect.anything(),
       expect.any(Error),
       'Failed to pause billing',
       expect.objectContaining({ familyReferenceId: VALID_UUID })
     )
-  })
-
-  it('should return unauthorized when assertAdmin rejects', async () => {
-    const { ActionError, ERROR_CODES } = await import(
-      '@/lib/errors/action-error'
-    )
-    mockAssertAdmin.mockRejectedValueOnce(
-      new ActionError('Unauthorized', ERROR_CODES.UNAUTHORIZED, undefined, 401)
-    )
-
-    const result = await pauseFamilyBillingAction({
-      familyReferenceId: VALID_UUID,
-    })
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Unauthorized')
-    expect(mockAssertAdmin).toHaveBeenCalledWith('pauseFamilyBillingAction')
-    expect(mockPauseFamilyBilling).not.toHaveBeenCalled()
   })
 })
 
@@ -162,7 +157,7 @@ describe('resumeFamilyBillingAction', () => {
     const result = await resumeFamilyBillingAction({
       familyReferenceId: '',
     })
-    expect(result.success).toBe(false)
+    expect(result?.validationErrors).toBeDefined()
     expect(mockResumeFamilyBilling).not.toHaveBeenCalled()
   })
 
@@ -173,9 +168,8 @@ describe('resumeFamilyBillingAction', () => {
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(true)
-    expect(result.message).toBe('Billing resumed successfully')
-    expect(result.warning).toBeUndefined()
+    expect(result?.data?.message).toBe('Billing resumed successfully')
+    expect(result?.data?.warning).toBeUndefined()
     expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/dugsi')
   })
 
@@ -189,8 +183,7 @@ describe('resumeFamilyBillingAction', () => {
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(true)
-    expect(result.warning).toContain('DB sync failed')
+    expect(result?.data?.warning).toContain('DB sync failed')
   })
 
   it('should return ActionError message without logging', async () => {
@@ -205,38 +198,20 @@ describe('resumeFamilyBillingAction', () => {
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Cannot resume subscription with status "active"')
+    expect(result?.serverError).toBe(
+      'Cannot resume subscription with status "active"'
+    )
     expect(mockLogError).not.toHaveBeenCalled()
   })
 
-  it('should log and return generic error for unexpected failures', async () => {
+  it('should log and return error message for unexpected failures', async () => {
     mockResumeFamilyBilling.mockRejectedValueOnce(new Error('Network error'))
 
     const result = await resumeFamilyBillingAction({
       familyReferenceId: VALID_UUID,
     })
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Network error')
+    expect(result?.serverError).toBe('Network error')
     expect(mockLogError).toHaveBeenCalled()
-  })
-
-  it('should return unauthorized when assertAdmin rejects', async () => {
-    const { ActionError, ERROR_CODES } = await import(
-      '@/lib/errors/action-error'
-    )
-    mockAssertAdmin.mockRejectedValueOnce(
-      new ActionError('Unauthorized', ERROR_CODES.UNAUTHORIZED, undefined, 401)
-    )
-
-    const result = await resumeFamilyBillingAction({
-      familyReferenceId: VALID_UUID,
-    })
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Unauthorized')
-    expect(mockAssertAdmin).toHaveBeenCalledWith('resumeFamilyBillingAction')
-    expect(mockResumeFamilyBilling).not.toHaveBeenCalled()
   })
 })

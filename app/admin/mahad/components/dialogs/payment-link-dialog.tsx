@@ -41,7 +41,6 @@ import {
   generatePaymentLinkWithOverrideAction,
   type PaymentLinkWithOverrideData,
 } from '../../_actions'
-import type { ActionResult } from '../../_types'
 
 interface PaymentLinkDialogProps {
   profileId: string
@@ -68,8 +67,9 @@ export function PaymentLinkDialog({
   errorActionHref,
 }: PaymentLinkDialogProps) {
   const [isPending, startTransition] = useTransition()
-  const [result, setResult] =
-    useState<ActionResult<PaymentLinkWithOverrideData> | null>(null)
+  const [result, setResult] = useState<Awaited<
+    ReturnType<typeof generatePaymentLinkWithOverrideAction>
+  > | null>(null)
   const [copied, setCopied] = useState(false)
   const [useOverride, setUseOverride] = useState(false)
   const [overrideAmount, setOverrideAmount] = useState('')
@@ -123,12 +123,12 @@ export function PaymentLinkDialog({
         billingStartDate: billingDateISO,
       })
 
-      if (response.success && response.data?.url) {
+      if (response?.data?.url) {
         setResult(response)
         setSelectedBillingDate(billingDateISO || null)
         toast.success('Payment link generated successfully')
       } else {
-        toast.error(response.error || 'Failed to generate payment link')
+        toast.error(response?.serverError || 'Failed to generate payment link')
       }
     })
   }
@@ -153,11 +153,11 @@ export function PaymentLinkDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {result?.error && (
+          {result?.serverError && (
             <Alert variant="destructive">
               <AlertTitle>Cannot Generate Link</AlertTitle>
               <AlertDescription>
-                {result.error}
+                {result.serverError}
                 {errorActionHref && (
                   <Button asChild variant="outline" size="sm" className="mt-3">
                     <Link href={errorActionHref}>Review billing details</Link>
@@ -167,7 +167,7 @@ export function PaymentLinkDialog({
             </Alert>
           )}
 
-          {!result?.data?.url && !result?.error && (
+          {!result?.data?.url && !result?.serverError && (
             <>
               <OverrideAmountInput
                 useOverride={useOverride}

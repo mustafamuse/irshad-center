@@ -68,7 +68,7 @@ export function StudentEnrollmentDialog({
       setIsLoading(true)
       getAvailableStudentsForClassAction({ shift: classData.shift })
         .then((result) => {
-          if (result.success && result.data) {
+          if (result?.data) {
             setStudents(result.data)
           } else {
             setStudents([])
@@ -147,7 +147,7 @@ export function StudentEnrollmentDialog({
         programProfileIds: Array.from(selectedToEnroll),
       })
 
-      if (result.success && result.data) {
+      if (result?.data) {
         const { enrolled, moved } = result.data
         if (moved > 0) {
           toast.success(
@@ -163,11 +163,11 @@ export function StudentEnrollmentDialog({
         const refreshResult = await getAvailableStudentsForClassAction({
           shift: classData.shift,
         })
-        if (refreshResult.success && refreshResult.data) {
+        if (refreshResult?.data) {
           setStudents(refreshResult.data)
         }
       } else {
-        toast.error(result.error || 'Failed to enroll students')
+        toast.error(result?.serverError || 'Failed to enroll students')
       }
     })
   }
@@ -185,7 +185,7 @@ export function StudentEnrollmentDialog({
       )
 
       const successCount = results.filter(
-        (r) => r.status === 'fulfilled' && r.value.success
+        (r) => r.status === 'fulfilled' && r.value?.data !== undefined
       ).length
       const failCount = results.length - successCount
 
@@ -206,7 +206,7 @@ export function StudentEnrollmentDialog({
         const refreshResult = await getAvailableStudentsForClassAction({
           shift: classData.shift,
         })
-        if (refreshResult.success && refreshResult.data) {
+        if (refreshResult?.data) {
           setStudents(refreshResult.data)
         }
       }

@@ -11,6 +11,8 @@
  * - Manage registration status updates
  */
 
+import { unstable_cache } from 'next/cache'
+
 import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
@@ -117,6 +119,12 @@ export async function getAllDugsiRegistrations(
     }
   )
 }
+
+export const getCachedDugsiRegistrations = unstable_cache(
+  getAllDugsiRegistrations,
+  ['dugsi-registrations'],
+  { revalidate: 300, tags: ['dugsi-registrations'] }
+)
 
 /**
  * Get all family members for a given student.

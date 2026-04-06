@@ -1,23 +1,26 @@
 'use server'
 
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { rateLimitedActionClient } from '@/lib/safe-action'
 import { createZakatFitrCheckoutSession } from '@/lib/services/donation/zakat-fitr-checkout-service'
-import { type ActionResult, withActionError } from '@/lib/utils/action-helpers'
-import {
-  ZakatFitrCheckoutSchema,
-  type ZakatFitrCheckoutInput,
-} from '@/lib/validations/zakat-fitr'
+import { ZakatFitrCheckoutSchema } from '@/lib/validations/zakat-fitr'
+
+const _createZakatFitrAction = rateLimitedActionClient
+  .metadata({ actionName: 'createZakatFitrAction' })
+  .inputSchema(ZakatFitrCheckoutSchema)
+  .action(async ({ parsedInput }) => {
+    const session = await createZakatFitrCheckoutSession(parsedInput)
+    if (!session.url) {
+      throw new ActionError(
+        'Failed to create checkout session',
+        ERROR_CODES.SERVER_ERROR
+      )
+    }
+    return { url: session.url }
+  })
 
 export async function createZakatFitrAction(
-  formData: ZakatFitrCheckoutInput
-): Promise<ActionResult<{ url: string }>> {
-  return withActionError(async () => {
-    const validated = ZakatFitrCheckoutSchema.parse(formData)
-    const session = await createZakatFitrCheckoutSession(validated)
-
-    if (!session.url) {
-      throw new Error('Failed to create checkout session')
-    }
-
-    return { url: session.url }
-  }, 'Failed to create Zakat al-Fitr checkout')
+  ...args: Parameters<typeof _createZakatFitrAction>
+) {
+  return _createZakatFitrAction(...args)
 }

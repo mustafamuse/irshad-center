@@ -4,7 +4,7 @@ import { MultiRolePeopleList } from './components/multi-role-people-list'
 export default async function MultiRolePeoplePage() {
   const result = await getMultiRolePeopleAction()
 
-  if (!result.success || !result.data) {
+  if (!result?.data) {
     return (
       <div className="space-y-6">
         <div>
@@ -15,7 +15,7 @@ export default async function MultiRolePeoplePage() {
         </div>
         <div className="rounded-md border border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-800">
-            {result.error ?? 'Failed to load data'}
+            {result?.serverError ?? 'Failed to load data'}
           </p>
         </div>
       </div>

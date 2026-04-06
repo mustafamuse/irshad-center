@@ -16,11 +16,12 @@ import {
   getDugsiTeachersForDropdown,
   getTeacherCheckin,
 } from '@/lib/db/queries/teacher-checkin'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { rateLimitedActionClient } from '@/lib/safe-action'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 import { ValidationError } from '@/lib/services/validation-service'
-import { ActionResult } from '@/lib/utils/action-helpers'
 import {
   ClockInSchema,
   ClockOutSchema,
@@ -32,7 +33,7 @@ export type TeacherForDropdown = Awaited<
   ReturnType<typeof getDugsiTeachersForDropdown>
 >[number]
 
-export interface TeacherCurrentStatus {
+export type TeacherCurrentStatus = {
   morningCheckinId: string | null
   morningClockInTime: Date | null
   morningClockOutTime: Date | null
@@ -67,73 +68,77 @@ export async function getTeacherCurrentStatus(
   }
 }
 
-export async function teacherClockInAction(
-  input: unknown
-): Promise<ActionResult<{ checkInId: string; status: TeacherCurrentStatus }>> {
-  try {
-    const validated = ClockInSchema.parse(input)
-    const result = await clockIn(validated)
-    revalidatePath('/teacher/checkin')
-    revalidatePath('/admin/dugsi/teacher-checkins')
+const _teacherClockInAction = rateLimitedActionClient
+  .metadata({ actionName: 'teacherClockInAction' })
+  .inputSchema(ClockInSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      const result = await clockIn(parsedInput)
+      revalidatePath('/teacher/checkin')
+      revalidatePath('/admin/dugsi/teacher-checkins')
 
-    const status = await getTeacherCurrentStatus(validated.teacherId)
+      const status = await getTeacherCurrentStatus(parsedInput.teacherId)
 
-    return {
-      success: true,
-      data: { checkInId: result.checkIn.id, status },
-      message: result.checkIn.isLate
-        ? 'Clocked in (Late)'
-        : 'Clocked in successfully',
-    }
-  } catch (error) {
-    if (error instanceof ValidationError) {
       return {
-        success: false,
-        error: error.message,
+        checkInId: result.checkIn.id,
+        status,
+        message: result.checkIn.isLate
+          ? 'Clocked in (Late)'
+          : 'Clocked in successfully',
       }
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      }
+      await logError(logger, error, 'Clock-in failed')
+      throw new ActionError(
+        'Failed to clock in. Please try again.',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
     }
+  })
 
-    await logError(logger, error, 'Clock-in failed')
-    return {
-      success: false,
-      error: 'Failed to clock in. Please try again.',
-    }
-  }
+export async function teacherClockInAction(
+  ...args: Parameters<typeof _teacherClockInAction>
+) {
+  return _teacherClockInAction(...args)
 }
+
+const _teacherClockOutAction = rateLimitedActionClient
+  .metadata({ actionName: 'teacherClockOutAction' })
+  .inputSchema(ClockOutSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      await clockOut(parsedInput)
+      revalidatePath('/teacher/checkin')
+      revalidatePath('/admin/dugsi/teacher-checkins')
+
+      const status = await getTeacherCurrentStatus(parsedInput.teacherId)
+
+      return { status, message: 'Clocked out successfully' }
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      }
+      await logError(logger, error, 'Clock-out failed')
+      throw new ActionError(
+        'Failed to clock out. Please try again.',
+        ERROR_CODES.SERVER_ERROR,
+        undefined,
+        500
+      )
+    }
+  })
 
 export async function teacherClockOutAction(
-  input: unknown
-): Promise<ActionResult<{ status: TeacherCurrentStatus }>> {
-  try {
-    const validated = ClockOutSchema.parse(input)
-    await clockOut(validated)
-    revalidatePath('/teacher/checkin')
-    revalidatePath('/admin/dugsi/teacher-checkins')
-
-    const status = await getTeacherCurrentStatus(validated.teacherId)
-
-    return {
-      success: true,
-      data: { status },
-      message: 'Clocked out successfully',
-    }
-  } catch (error) {
-    if (error instanceof ValidationError) {
-      return {
-        success: false,
-        error: error.message,
-      }
-    }
-
-    await logError(logger, error, 'Clock-out failed')
-    return {
-      success: false,
-      error: 'Failed to clock out. Please try again.',
-    }
-  }
+  ...args: Parameters<typeof _teacherClockOutAction>
+) {
+  return _teacherClockOutAction(...args)
 }
 
-export interface GeofenceCheckResult {
+export type GeofenceCheckResult = {
   isWithinGeofence: boolean
   distanceMeters: number
   allowedRadiusMeters: number
@@ -165,7 +170,7 @@ export async function checkGeofence(
   }
 }
 
-export interface CheckinHistoryItem {
+export type CheckinHistoryItem = {
   id: string
   date: string
   shift: Shift
@@ -174,42 +179,31 @@ export interface CheckinHistoryItem {
   isLate: boolean
 }
 
-export interface CheckinHistoryResult {
+export type CheckinHistoryResult = {
   data: CheckinHistoryItem[]
   total: number
 }
 
 export async function getTeacherCheckinHistory(
   teacherId: string
-): Promise<ActionResult<CheckinHistoryResult>> {
-  try {
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+): Promise<CheckinHistoryResult> {
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    const result = await getCheckinHistory(
-      { teacherId, dateFrom: thirtyDaysAgo },
-      { page: 1, limit: 10 }
-    )
+  const result = await getCheckinHistory(
+    { teacherId, dateFrom: thirtyDaysAgo },
+    { page: 1, limit: 10 }
+  )
 
-    return {
-      success: true,
-      data: {
-        data: result.data.map((item) => ({
-          id: item.id,
-          date: item.date.toISOString().split('T')[0],
-          shift: item.shift,
-          clockInTime: item.clockInTime,
-          clockOutTime: item.clockOutTime,
-          isLate: item.isLate,
-        })),
-        total: result.total,
-      },
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to fetch check-in history')
-    return {
-      success: false,
-      error: 'Failed to load check-in history',
-    }
+  return {
+    data: result.data.map((item) => ({
+      id: item.id,
+      date: item.date.toISOString().split('T')[0],
+      shift: item.shift,
+      clockInTime: item.clockInTime,
+      clockOutTime: item.clockOutTime,
+      isLate: item.isLate,
+    })),
+    total: result.total,
   }
 }

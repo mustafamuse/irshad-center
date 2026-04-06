@@ -8,8 +8,6 @@ import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 import { getDugsiRegistrations } from './actions'
 import { DugsiDashboard } from './components/dugsi-dashboard'
 
-export const dynamic = 'force-dynamic'
-
 function Loading() {
   return (
     <div className="container mx-auto space-y-6 p-4 sm:space-y-8 sm:p-6">
@@ -57,7 +55,8 @@ export default async function DugsiAdminPage({
   const params = await searchParams
   const shift = ShiftFilterSchema.parse(params?.shift)
 
-  const registrations = await getDugsiRegistrations({ shift })
+  const result = await getDugsiRegistrations({ shift })
+  const registrations = result?.data ?? []
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">

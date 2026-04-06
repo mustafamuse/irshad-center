@@ -16,7 +16,11 @@ export const metadata = {
 }
 
 async function LinkSubscriptionsContent() {
-  const result = await getOrphanedSubscriptions()
+  const actionResult = await getOrphanedSubscriptions()
+  const result = {
+    data: actionResult?.data ?? [],
+    error: actionResult?.serverError,
+  }
 
   return (
     <>

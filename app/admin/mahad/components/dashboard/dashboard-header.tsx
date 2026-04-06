@@ -18,9 +18,9 @@ export function DashboardHeader() {
   const handleExportAll = async () => {
     setIsExporting(true)
     try {
-      const result = await generateMahadVCardContent()
-      if (!result.success || !result.data) {
-        toast.error(result.error || 'Failed to generate contacts')
+      const result = await generateMahadVCardContent({})
+      if (!result?.data) {
+        toast.error(result?.serverError ?? 'Failed to generate contacts')
         return
       }
 

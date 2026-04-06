@@ -1,18 +1,20 @@
-/**
- * Custom error classes for Dugsi class operations.
- * Used for type-safe error handling in actions.
- */
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
-export class TeacherNotAuthorizedError extends Error {
+export class TeacherNotAuthorizedError extends ActionError {
   constructor() {
-    super('Teacher not authorized for Dugsi program')
+    super(
+      'Teacher not authorized for Dugsi program',
+      ERROR_CODES.UNAUTHORIZED,
+      undefined,
+      403
+    )
     this.name = 'TeacherNotAuthorizedError'
   }
 }
 
-export class ClassNotFoundError extends Error {
+export class ClassNotFoundError extends ActionError {
   constructor() {
-    super('Class not found or inactive')
+    super('Class not found or inactive', ERROR_CODES.NOT_FOUND, undefined, 404)
     this.name = 'ClassNotFoundError'
   }
 }

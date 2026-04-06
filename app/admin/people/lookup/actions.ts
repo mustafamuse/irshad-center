@@ -5,14 +5,11 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { Program } from '@prisma/client'
 import { z } from 'zod'
 
-import { assertAdmin } from '@/lib/auth'
-import { prisma } from '@/lib/db'
 import { countActiveClassesForTeacher } from '@/lib/db/queries/dugsi-class'
-import { ActionError } from '@/lib/errors/action-error'
-import { createServiceLogger, logError } from '@/lib/logger'
-import { normalizePhone } from '@/lib/types/person'
-import { ActionResult } from '@/lib/utils/action-helpers'
-import { validateAndNormalizeEmail } from '@/lib/utils/contact-normalization'
+import { getPersonWithAllRelations } from '@/lib/db/queries/person'
+import { createServiceLogger, logInfo } from '@/lib/logger'
+import { adminActionClient } from '@/lib/safe-action'
+import { deletePerson } from '@/lib/services/shared/person-service'
 
 const logger = createServiceLogger('person-lookup')
 
@@ -62,76 +59,11 @@ export interface PersonLookupResult {
   updatedAt: Date
 }
 
-const deletePersonSchema = z.object({
-  personId: z.string().uuid('Invalid person ID'),
-})
-
-export async function deletePersonAction(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  let personId: string | undefined
-  try {
-    await assertAdmin('deletePersonAction')
-    const parsed = deletePersonSchema.safeParse(rawInput)
-    if (!parsed.success) {
-      return { success: false, error: 'Invalid input' }
-    }
-    ;({ personId } = parsed.data)
-
-    await prisma.$transaction(async (tx) => {
-      const teachers = await tx.teacher.findMany({
-        where: { personId },
-        select: { id: true },
-      })
-      const teacherIds = teachers.map((t) => t.id)
-
-      const profiles = await tx.programProfile.findMany({
-        where: { personId },
-        select: { id: true },
-      })
-      const profileIds = profiles.map((p) => p.id)
-
-      // Clean up Dugsi class teacher assignments
-      await tx.dugsiClassTeacher.deleteMany({
-        where: { teacherId: { in: teacherIds } },
-      })
-
-      await tx.teacherProgram.deleteMany({
-        where: { teacherId: { in: teacherIds } },
-      })
-
-      await tx.teacher.deleteMany({
-        where: { personId },
-      })
-
-      await tx.enrollment.deleteMany({
-        where: { programProfileId: { in: profileIds } },
-      })
-
-      await tx.programProfile.deleteMany({
-        where: { personId },
-      })
-
-      await tx.guardianRelationship.deleteMany({
-        where: {
-          OR: [{ guardianId: personId }, { dependentId: personId }],
-        },
-      })
-
-      await tx.subscription.deleteMany({
-        where: { billingAccount: { personId } },
-      })
-
-      await tx.billingAccount.deleteMany({
-        where: { personId },
-      })
-
-      await tx.person.delete({
-        where: { id: personId },
-      })
-    })
-
-    logger.info({ personId }, 'Person and all related records deleted entirely')
+export const deletePersonAction = adminActionClient
+  .metadata({ actionName: 'deletePersonAction' })
+  .inputSchema(z.object({ personId: z.string().uuid('Invalid person ID') }))
+  .action(async ({ parsedInput: { personId } }) => {
+    await deletePerson(personId)
 
     revalidatePath('/admin/people/lookup')
     revalidatePath('/admin/people')
@@ -139,119 +71,19 @@ export async function deletePersonAction(
     revalidatePath('/admin/dugsi')
     revalidateTag('mahad-stats')
     revalidatePath('/admin/mahad')
+  })
 
-    return { success: true, data: undefined }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to delete person', { personId })
-    return {
-      success: false,
-      error:
-        'Failed to delete person. They may have dependencies that need to be removed first.',
-    }
-  }
-}
-
-export async function lookupPersonAction(
-  query: string
-): Promise<ActionResult<PersonLookupResult | null>> {
-  try {
-    await assertAdmin('lookupPersonAction')
-    if (!query || query.trim().length < 2) {
-      return { success: true, data: null }
+export const lookupPersonAction = adminActionClient
+  .metadata({ actionName: 'lookupPersonAction' })
+  .inputSchema(z.object({ query: z.string().min(1) }))
+  .action(async ({ parsedInput: { query } }) => {
+    if (query.trim().length < 2) {
+      return null
     }
 
-    const searchTerm = query.trim().toLowerCase()
-    const normalizedPhone = normalizePhone(query.trim())
+    const person = await getPersonWithAllRelations(query)
 
-    const person = await prisma.person.findFirst({
-      where: {
-        OR: [
-          { name: { equals: query.trim(), mode: 'insensitive' } },
-          {
-            email: {
-              equals: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
-              mode: 'insensitive',
-            },
-          },
-          ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
-        ],
-      },
-      relationLoadStrategy: 'join',
-      include: {
-        teacher: {
-          include: {
-            programs: {
-              where: { isActive: true },
-            },
-          },
-        },
-        programProfiles: {
-          include: {
-            enrollments: {
-              where: {
-                status: { in: ['REGISTERED', 'ENROLLED'] },
-                endDate: null,
-              },
-              orderBy: { startDate: 'desc' },
-              take: 1,
-            },
-            dugsiClassEnrollment: {
-              where: { isActive: true },
-              include: {
-                class: {
-                  include: {
-                    teachers: {
-                      where: { isActive: true },
-                      include: {
-                        teacher: {
-                          include: { person: true },
-                        },
-                      },
-                      take: 1,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        guardianRelationships: {
-          where: { isActive: true },
-          include: {
-            dependent: {
-              include: {
-                programProfiles: {
-                  include: {
-                    enrollments: {
-                      where: {
-                        status: { in: ['REGISTERED', 'ENROLLED'] },
-                        endDate: null,
-                      },
-                      orderBy: { startDate: 'desc' },
-                      take: 1,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        billingAccounts: {
-          include: {
-            subscriptions: {
-              where: { status: { in: ['active', 'trialing', 'past_due'] } },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-      },
-    })
-
-    if (!person) {
-      return { success: true, data: null }
-    }
+    if (!person) return null
 
     const result: PersonLookupResult = {
       id: person.id,
@@ -268,8 +100,8 @@ export async function lookupPersonAction(
           amount: sub.amount,
           program:
             sub.stripeAccountType === 'DUGSI'
-              ? 'DUGSI_PROGRAM'
-              : 'MAHAD_PROGRAM',
+              ? ('DUGSI_PROGRAM' as Program)
+              : ('MAHAD_PROGRAM' as Program),
         })),
       })),
       createdAt: person.createdAt,
@@ -277,13 +109,11 @@ export async function lookupPersonAction(
     }
 
     if (person.teacher) {
-      // Count classes assigned to teacher
       const classCount = await countActiveClassesForTeacher(person.teacher.id)
-
       result.roles.teacher = {
         id: person.teacher.id,
         programs: person.teacher.programs.map((p) => p.program),
-        studentCount: classCount, // Now represents class count
+        studentCount: classCount,
       }
     }
 
@@ -315,16 +145,10 @@ export async function lookupPersonAction(
       }
     }
 
-    logger.info({ personId: person.id, query }, 'Person lookup successful')
+    await logInfo(logger, 'Person lookup successful', {
+      personId: person.id,
+      query,
+    })
 
-    return { success: true, data: result }
-  } catch (error) {
-    if (error instanceof ActionError)
-      return { success: false, error: error.message }
-    await logError(logger, error, 'Failed to lookup person', { query })
-    return {
-      success: false,
-      error: 'Failed to lookup person',
-    }
-  }
-}
+    return result
+  })
