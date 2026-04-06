@@ -24,18 +24,8 @@ const envSchema = z
     DIRECT_URL: z.string().optional(),
 
     // ── Admin Auth ───────────────────────────────────────────────────────────────
-    ADMIN_PIN: z
-      .string()
-      .min(
-        16,
-        'ADMIN_PIN must be at least 16 characters (use: openssl rand -base64 32)'
-      ),
-    ADMIN_PASSWORD: z
-      .string()
-      .min(
-        16,
-        'ADMIN_PASSWORD must be at least 16 characters (use: openssl rand -base64 32)'
-      ),
+    ADMIN_PIN: z.string().min(1, 'ADMIN_PIN is required'),
+    ADMIN_PASSWORD: z.string().min(1, 'ADMIN_PASSWORD is required'),
 
     // ── App Config ───────────────────────────────────────────────────────────────
     // NEXT_PUBLIC_* vars are inlined by Next.js at build time. Client-side code
