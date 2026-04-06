@@ -8,7 +8,7 @@
  * creates ProgramProfiles with DUGSI_PROGRAM, and sets up billing accounts.
  */
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 import { z } from 'zod'
 
@@ -88,8 +88,8 @@ export async function registerDugsiChildren(
       familyReferenceId,
     })
 
-    // Revalidate admin page to show new registrations
     revalidatePath('/admin/dugsi')
+    revalidateTag('dugsi-registrations')
 
     return {
       success: true,
