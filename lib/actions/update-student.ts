@@ -1,5 +1,8 @@
 'use server'
 
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
+
 import {
   GradeLevel,
   GraduationStatus,
@@ -31,4 +34,9 @@ export const updateStudent = adminActionClient
   .action(async ({ parsedInput }) => {
     const { studentId, ...data } = parsedInput
     await updateMahadStudent(studentId, data)
+    after(() => {
+      revalidateTag('mahad-students')
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
   })

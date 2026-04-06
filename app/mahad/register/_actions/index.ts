@@ -59,8 +59,7 @@ const _registerStudent = rateLimitedActionClient
             email: { _errors: [error.message] },
           })
         }
-      }
-      if (
+      } else if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
