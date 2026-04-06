@@ -1,13 +1,11 @@
-/**
- * Person Query Functions
- *
- * Query functions for Person entity and multi-role scenarios
- */
-
 import { Prisma, Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import {
+  normalizePhone,
+  validateAndNormalizeEmail,
+} from '@/lib/utils/contact-normalization'
 
 export type PersonContactFields = Pick<
   Prisma.PersonUpdateInput,
@@ -94,6 +92,92 @@ export async function getMultiRolePeople(
     if (person.programProfiles.length > 0) roleCount++
     if (person.guardianRelationships.length > 0) roleCount++
     return roleCount >= minRoles
+  })
+}
+
+export async function getPersonWithAllRelations(
+  query: string,
+  client: DatabaseClient = prisma
+) {
+  const searchTerm = query.trim().toLowerCase()
+  const normalizedPhone = normalizePhone(query.trim())
+
+  return client.person.findFirst({
+    where: {
+      OR: [
+        { name: { equals: query.trim(), mode: 'insensitive' } },
+        {
+          email: {
+            equals: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
+            mode: 'insensitive',
+          },
+        },
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+      ],
+    },
+    relationLoadStrategy: 'join',
+    include: {
+      teacher: {
+        include: {
+          programs: { where: { isActive: true } },
+        },
+      },
+      programProfiles: {
+        include: {
+          enrollments: {
+            where: {
+              status: { in: ['REGISTERED', 'ENROLLED'] },
+              endDate: null,
+            },
+            orderBy: { startDate: 'desc' },
+            take: 1,
+          },
+          dugsiClassEnrollment: {
+            where: { isActive: true },
+            include: {
+              class: {
+                include: {
+                  teachers: {
+                    where: { isActive: true },
+                    include: { teacher: { include: { person: true } } },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      guardianRelationships: {
+        where: { isActive: true },
+        include: {
+          dependent: {
+            include: {
+              programProfiles: {
+                include: {
+                  enrollments: {
+                    where: {
+                      status: { in: ['REGISTERED', 'ENROLLED'] },
+                      endDate: null,
+                    },
+                    orderBy: { startDate: 'desc' },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      billingAccounts: {
+        include: {
+          subscriptions: {
+            where: { status: { in: ['active', 'trialing', 'past_due'] } },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      },
+    },
   })
 }
 

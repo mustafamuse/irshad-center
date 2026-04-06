@@ -5,12 +5,11 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { Program } from '@prisma/client'
 import { z } from 'zod'
 
-import { prisma } from '@/lib/db'
 import { countActiveClassesForTeacher } from '@/lib/db/queries/dugsi-class'
-import { createServiceLogger } from '@/lib/logger'
-import { normalizePhone } from '@/lib/types/person'
+import { getPersonWithAllRelations } from '@/lib/db/queries/person'
+import { createServiceLogger, logInfo } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
-import { validateAndNormalizeEmail } from '@/lib/utils/contact-normalization'
+import { deletePerson } from '@/lib/services/shared/person-service'
 
 const logger = createServiceLogger('person-lookup')
 
@@ -64,51 +63,7 @@ export const deletePersonAction = adminActionClient
   .metadata({ actionName: 'deletePersonAction' })
   .schema(z.object({ personId: z.string().uuid('Invalid person ID') }))
   .action(async ({ parsedInput: { personId } }) => {
-    await prisma.$transaction(async (tx) => {
-      const teachers = await tx.teacher.findMany({
-        where: { personId },
-        select: { id: true },
-      })
-      const teacherIds = teachers.map((t) => t.id)
-
-      const profiles = await tx.programProfile.findMany({
-        where: { personId },
-        select: { id: true },
-      })
-      const profileIds = profiles.map((p) => p.id)
-
-      await tx.dugsiClassTeacher.deleteMany({
-        where: { teacherId: { in: teacherIds } },
-      })
-
-      await tx.teacherProgram.deleteMany({
-        where: { teacherId: { in: teacherIds } },
-      })
-
-      await tx.teacher.deleteMany({ where: { personId } })
-
-      await tx.enrollment.deleteMany({
-        where: { programProfileId: { in: profileIds } },
-      })
-
-      await tx.programProfile.deleteMany({ where: { personId } })
-
-      await tx.guardianRelationship.deleteMany({
-        where: {
-          OR: [{ guardianId: personId }, { dependentId: personId }],
-        },
-      })
-
-      await tx.subscription.deleteMany({
-        where: { billingAccount: { personId } },
-      })
-
-      await tx.billingAccount.deleteMany({ where: { personId } })
-
-      await tx.person.delete({ where: { id: personId } })
-    })
-
-    logger.info({ personId }, 'Person and all related records deleted entirely')
+    await deletePerson(personId)
 
     revalidatePath('/admin/people/lookup')
     revalidatePath('/admin/people')
@@ -126,86 +81,7 @@ export const lookupPersonAction = adminActionClient
       return null
     }
 
-    const searchTerm = query.trim().toLowerCase()
-    const normalizedPhone = normalizePhone(query.trim())
-
-    const person = await prisma.person.findFirst({
-      where: {
-        OR: [
-          { name: { equals: query.trim(), mode: 'insensitive' } },
-          {
-            email: {
-              equals: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
-              mode: 'insensitive',
-            },
-          },
-          ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
-        ],
-      },
-      relationLoadStrategy: 'join',
-      include: {
-        teacher: {
-          include: {
-            programs: { where: { isActive: true } },
-          },
-        },
-        programProfiles: {
-          include: {
-            enrollments: {
-              where: {
-                status: { in: ['REGISTERED', 'ENROLLED'] },
-                endDate: null,
-              },
-              orderBy: { startDate: 'desc' },
-              take: 1,
-            },
-            dugsiClassEnrollment: {
-              where: { isActive: true },
-              include: {
-                class: {
-                  include: {
-                    teachers: {
-                      where: { isActive: true },
-                      include: { teacher: { include: { person: true } } },
-                      take: 1,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        guardianRelationships: {
-          where: { isActive: true },
-          include: {
-            dependent: {
-              include: {
-                programProfiles: {
-                  include: {
-                    enrollments: {
-                      where: {
-                        status: { in: ['REGISTERED', 'ENROLLED'] },
-                        endDate: null,
-                      },
-                      orderBy: { startDate: 'desc' },
-                      take: 1,
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-        billingAccounts: {
-          include: {
-            subscriptions: {
-              where: { status: { in: ['active', 'trialing', 'past_due'] } },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-        },
-      },
-    })
+    const person = await getPersonWithAllRelations(query)
 
     if (!person) return null
 
@@ -269,7 +145,10 @@ export const lookupPersonAction = adminActionClient
       }
     }
 
-    logger.info({ personId: person.id, query }, 'Person lookup successful')
+    await logInfo(logger, 'Person lookup successful', {
+      personId: person.id,
+      query,
+    })
 
     return result
   })
