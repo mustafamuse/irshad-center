@@ -100,7 +100,11 @@ vi.mock('@/lib/safe-action', () => ({
                     .validationErrors,
                 }
               }
-              return { serverError: e instanceof Error ? e.message : String(e) }
+              // ActionError extends Error and always has a `code` property
+              if (e instanceof Error && 'code' in e) {
+                return { serverError: e.message }
+              }
+              return { serverError: 'Something went wrong' }
             }
           },
       }),
@@ -289,7 +293,7 @@ describe('registerStudent', () => {
 
     const result = await registerStudent(validInput)
 
-    expect(result?.serverError).toBe('Database connection lost')
+    expect(result?.serverError).toBe('Something went wrong')
     expect(result?.data).toBeUndefined()
   })
 })

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import { Program } from '@prisma/client'
 import { z } from 'zod'
@@ -65,13 +66,15 @@ export const deletePersonAction = adminActionClient
   .action(async ({ parsedInput: { personId } }) => {
     await deletePerson(personId)
 
-    revalidatePath('/admin/people/lookup')
-    revalidatePath('/admin/people')
-    revalidatePath('/admin/teachers')
-    revalidatePath('/admin/dugsi')
-    revalidateTag('mahad-stats')
-    revalidateTag('mahad-students')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidatePath('/admin/people/lookup')
+      revalidatePath('/admin/people')
+      revalidatePath('/admin/teachers')
+      revalidatePath('/admin/dugsi')
+      revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
+      revalidatePath('/admin/mahad')
+    })
   })
 
 export const lookupPersonAction = adminActionClient
