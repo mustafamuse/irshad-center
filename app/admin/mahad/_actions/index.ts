@@ -140,7 +140,7 @@ const paymentLinkWithOverrideInputSchema = z.object({
 
 const _createBatchAction = adminActionClient
   .metadata({ actionName: 'createBatchAction' })
-  .inputSchema(createBatchInputSchema)
+  .schema(createBatchInputSchema)
   .action(async ({ parsedInput }) => {
     const validated = CreateBatchSchema.parse({
       name: parsedInput.name,
@@ -182,7 +182,7 @@ export async function createBatchAction(
 
 const _deleteBatchAction = adminActionClient
   .metadata({ actionName: 'deleteBatchAction' })
-  .inputSchema(deleteBatchInputSchema)
+  .schema(deleteBatchInputSchema)
   .action(async ({ parsedInput }) => {
     const batch = await getBatchById(parsedInput.id)
     if (!batch) {
@@ -226,7 +226,7 @@ export async function deleteBatchAction(
 
 const _updateBatchAction = adminActionClient
   .metadata({ actionName: 'updateBatchAction' })
-  .inputSchema(updateBatchInputSchema)
+  .schema(updateBatchInputSchema)
   .action(async ({ parsedInput }) => {
     const { id, ...data } = parsedInput
     const validated = UpdateBatchSchema.parse(data)
@@ -277,7 +277,7 @@ export async function updateBatchAction(
 
 const _assignStudentsAction = adminActionClient
   .metadata({ actionName: 'assignStudentsAction' })
-  .inputSchema(BatchAssignmentSchema)
+  .schema(BatchAssignmentSchema)
   .action(async ({ parsedInput }) => {
     const batch = await getBatchById(parsedInput.batchId)
     if (!batch) {
@@ -325,7 +325,7 @@ export async function assignStudentsAction(
 
 const _transferStudentsAction = adminActionClient
   .metadata({ actionName: 'transferStudentsAction' })
-  .inputSchema(BatchTransferSchema)
+  .schema(BatchTransferSchema)
   .action(async ({ parsedInput }) => {
     const [fromBatch, toBatch] = await Promise.all([
       getBatchById(parsedInput.fromBatchId),
@@ -404,7 +404,7 @@ export async function transferStudentsAction(
 
 const _resolveDuplicatesAction = adminActionClient
   .metadata({ actionName: 'resolveDuplicatesAction' })
-  .inputSchema(resolveDuplicatesInputSchema)
+  .schema(resolveDuplicatesInputSchema)
   .action(async ({ parsedInput }) => {
     const { keepId, deleteIds, mergeData } = parsedInput
 
@@ -472,7 +472,7 @@ export async function resolveDuplicatesAction(
 
 const _getStudentDeleteWarningsAction = adminActionClient
   .metadata({ actionName: 'getStudentDeleteWarningsAction' })
-  .inputSchema(studentIdInputSchema)
+  .schema(studentIdInputSchema)
   .action(async ({ parsedInput }): Promise<DeleteWarnings> => {
     const warnings = await getStudentDeleteWarnings(parsedInput.id)
     return warnings
@@ -486,7 +486,7 @@ export async function getStudentDeleteWarningsAction(
 
 const _deleteStudentAction = adminActionClient
   .metadata({ actionName: 'deleteStudentAction' })
-  .inputSchema(studentIdInputSchema)
+  .schema(studentIdInputSchema)
   .action(async ({ parsedInput }) => {
     const student = await getStudentById(parsedInput.id)
     if (!student) {
@@ -544,7 +544,7 @@ export async function deleteStudentAction(
 
 const _bulkDeleteStudentsAction = adminActionClient
   .metadata({ actionName: 'bulkDeleteStudentsAction' })
-  .inputSchema(bulkDeleteInputSchema)
+  .schema(bulkDeleteInputSchema)
   .action(async ({ parsedInput }): Promise<BulkDeleteResult> => {
     const { studentIds } = parsedInput
 
@@ -606,7 +606,7 @@ export async function bulkDeleteStudentsAction(
 
 const _updateStudentAction = adminActionClient
   .metadata({ actionName: 'updateStudentAction' })
-  .inputSchema(updateStudentInputSchema)
+  .schema(updateStudentInputSchema)
   .action(async ({ parsedInput }) => {
     const { id, ...data } = parsedInput
     const validated = UpdateStudentSchema.parse(data)
@@ -915,7 +915,7 @@ async function createPaymentLinkSession(
  */
 const _generatePaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generatePaymentLinkAction' })
-  .inputSchema(paymentLinkInputSchema)
+  .schema(paymentLinkInputSchema)
   .action(async ({ parsedInput }): Promise<PaymentLinkData> => {
     return createPaymentLinkSession(parsedInput.profileId)
   })
@@ -928,7 +928,7 @@ export async function generatePaymentLinkAction(
 
 const _generatePaymentLinkWithDefaultsAction = adminActionClient
   .metadata({ actionName: 'generatePaymentLinkWithDefaultsAction' })
-  .inputSchema(paymentLinkInputSchema)
+  .schema(paymentLinkInputSchema)
   .action(async ({ parsedInput }): Promise<PaymentLinkData> => {
     const { profileId } = parsedInput
 
@@ -1005,7 +1005,7 @@ export interface PaymentLinkWithOverrideData {
  */
 const _generatePaymentLinkWithOverrideAction = adminActionClient
   .metadata({ actionName: 'generatePaymentLinkWithOverrideAction' })
-  .inputSchema(paymentLinkWithOverrideInputSchema)
+  .schema(paymentLinkWithOverrideInputSchema)
   .action(async ({ parsedInput }): Promise<PaymentLinkWithOverrideData> => {
     const { profileId, overrideAmount, billingStartDate } = parsedInput
 

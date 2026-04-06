@@ -14,7 +14,7 @@ import {
 
 const _generateMahadVCardContent = adminActionClient
   .metadata({ actionName: 'generateMahadVCardContent' })
-  .inputSchema(z.object({ batchId: z.string().uuid().optional() }))
+  .schema(z.object({ batchId: z.string().uuid().optional() }))
   .action(async ({ parsedInput }): Promise<VCardResult> => {
     const { batchId } = parsedInput
     const students = batchId

@@ -18,7 +18,7 @@ const logger = createServiceLogger('dugsi-billing-actions')
 
 const _pauseFamilyBillingAction = adminActionClient
   .metadata({ actionName: 'pauseFamilyBillingAction' })
-  .inputSchema(PauseFamilyBillingSchema)
+  .schema(PauseFamilyBillingSchema)
   .action(async ({ parsedInput }) => {
     const { familyReferenceId } = parsedInput
     try {
@@ -50,7 +50,7 @@ export async function pauseFamilyBillingAction(
 
 const _resumeFamilyBillingAction = adminActionClient
   .metadata({ actionName: 'resumeFamilyBillingAction' })
-  .inputSchema(ResumeFamilyBillingSchema)
+  .schema(ResumeFamilyBillingSchema)
   .action(async ({ parsedInput }) => {
     const { familyReferenceId } = parsedInput
     try {
