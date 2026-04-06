@@ -158,6 +158,7 @@ const _createBatchAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -212,6 +213,7 @@ const _deleteBatchAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -244,6 +246,7 @@ const _updateBatchAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -289,6 +292,7 @@ const _assignStudentsAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -362,6 +366,7 @@ const _transferStudentsAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -450,6 +455,7 @@ const _resolveDuplicatesAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -525,6 +531,7 @@ const _deleteStudentAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -576,6 +583,7 @@ const _bulkDeleteStudentsAction = adminActionClient
     if (deletedCount > 0) {
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
     }
@@ -721,6 +729,7 @@ const _updateStudentAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -951,6 +960,7 @@ const _generatePaymentLinkWithDefaultsAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
 

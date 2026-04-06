@@ -1,130 +1,92 @@
 'use server'
 
+import { after } from 'next/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { headers } from 'next/headers'
-import { after } from 'next/server'
 
 import { Prisma } from '@prisma/client'
+import { returnValidationErrors } from 'next-safe-action'
 
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { ActionError } from '@/lib/errors/action-error'
-import { createActionLogger, logError } from '@/lib/logger'
-import {
-  mahadRegistrationSchema,
-  type MahadRegistrationValues,
-} from '@/lib/registration/schemas/registration'
+import { createActionLogger } from '@/lib/logger'
+import { mahadRegistrationSchema } from '@/lib/registration/schemas/registration'
+import { rateLimitedActionClient } from '@/lib/safe-action'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import { createMahadStudent } from '@/lib/services/mahad/student-service'
-type RegistrationResult<T = void> = {
-  success: boolean
-  data?: T
-  error?: string
-  errors?: Partial<Record<string, string[]>>
-}
 
 const logger = createActionLogger('mahad-registration')
 
-export async function registerStudent(
-  studentData: MahadRegistrationValues
-): Promise<RegistrationResult<{ id: string; name: string }>> {
-  try {
-    const validationResult = mahadRegistrationSchema.safeParse(studentData)
-    if (!validationResult.success) {
-      const firstError = validationResult.error.errors[0]
-      const field = firstError.path[0] as string
-      return {
-        success: false,
-        error: firstError.message,
-        errors: field ? { [field]: [firstError.message] } : undefined,
-      }
-    }
-
-    try {
-      const headerStore = await headers()
-      const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
-      if (ip) {
-        const rateResult = await checkRateLimit(`register:${ip}`)
-        if (!rateResult.success) {
-          return {
-            success: false,
-            error: 'Too many registration attempts. Please try again later.',
-          }
-        }
-      }
-    } catch {
-      // Fail open if headers/rate-limit unavailable
-    }
-
-    const data = validationResult.data
+const _registerStudent = rateLimitedActionClient
+  .metadata({ actionName: 'registerStudent' })
+  .schema(mahadRegistrationSchema)
+  .action(async ({ parsedInput: data }) => {
     const fullName = `${data.firstName} ${data.lastName}`.trim()
 
-    const profile = await createMahadStudent({
-      name: fullName,
-      email: data.email,
-      phone: data.phone,
-      dateOfBirth: data.dateOfBirth,
-      gradeLevel: data.gradeLevel,
-      schoolName: data.schoolName,
-      graduationStatus: data.graduationStatus,
-      paymentFrequency: data.paymentFrequency,
-    })
-
-    after(() => {
-      revalidateTag('mahad-stats')
-      revalidatePath('/admin/mahad')
-    })
-
-    logger.info(
-      { profileId: profile.id, name: fullName },
-      'Student registration completed'
-    )
-
-    return {
-      success: true,
-      data: {
-        id: profile.id,
+    try {
+      const profile = await createMahadStudent({
         name: fullName,
-      },
-    }
-  } catch (error) {
-    if (error instanceof ActionError) {
-      return {
-        success: false,
-        error: error.message,
-        errors: error.field
-          ? { [error.field]: [error.message] }
-          : { email: [error.message] },
+        email: data.email,
+        phone: data.phone,
+        dateOfBirth: data.dateOfBirth,
+        gradeLevel: data.gradeLevel,
+        schoolName: data.schoolName,
+        graduationStatus: data.graduationStatus,
+        paymentFrequency: data.paymentFrequency,
+      })
+
+      after(() => {
+        revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
+        revalidatePath('/admin/mahad')
+      })
+
+      logger.info({ profileId: profile.id, name: fullName }, 'Student registration completed')
+
+      return { id: profile.id, name: fullName }
+    } catch (error) {
+      if (error instanceof ActionError) {
+        if (error.field === 'phone') {
+          returnValidationErrors(mahadRegistrationSchema, {
+            phone: { _errors: [error.message] },
+          })
+        }
+        returnValidationErrors(mahadRegistrationSchema, {
+          email: { _errors: [error.message] },
+        })
       }
-    }
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      const target = (error.meta?.target as string[]) ?? []
-      const field = target.includes('email')
-        ? 'email'
-        : target.includes('phone')
-          ? 'phone'
-          : undefined
-      const msg = field
-        ? `This ${field} is already registered to another student`
-        : 'A student with this contact information already exists'
-      return {
-        success: false,
-        error: msg,
-        errors: field ? { [field]: [msg] } : undefined,
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const target = (error.meta?.target as string[]) ?? []
+        if (target.includes('phone')) {
+          returnValidationErrors(mahadRegistrationSchema, {
+            phone: { _errors: ['This phone is already registered to another student'] },
+          })
+        }
+        returnValidationErrors(mahadRegistrationSchema, {
+          email: {
+            _errors: [
+              target.includes('email')
+                ? 'This email is already registered to another student'
+                : 'A student with this contact information already exists',
+            ],
+          },
+        })
       }
+      throw error
     }
-    await logError(logger, error, 'Mahad registration failed')
-    return {
-      success: false,
-      error: 'Registration failed. Please try again.',
-    }
-  }
+  })
+
+export async function registerStudent(
+  ...args: Parameters<typeof _registerStudent>
+) {
+  return _registerStudent(...args)
 }
 
-// Returns boolean (not ActionResult<boolean>) because the client-side
+// Returns boolean (not a safe-action result) because the client-side
 // useEmailValidation hook expects a plain boolean for inline field validation.
 export async function checkEmailExists(email: string): Promise<boolean> {
   try {

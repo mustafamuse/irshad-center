@@ -18,7 +18,6 @@ interface UseDugsiRegistrationProps {
   onSuccess?: (data: {
     children: Array<{ id: string; name: string }>
     count: number
-    paymentUrl?: string
     familyId?: string
   }) => void
 }
@@ -39,63 +38,34 @@ export function useDugsiRegistration({
         try {
           const result = await registerDugsiChildren(formData)
 
-          if (!result.success) {
-            // Handle validation errors
-            if (result.errors) {
-              // Set field errors if available
-              Object.entries(result.errors).forEach(([field, messages]) => {
-                if (messages && messages.length > 0) {
-                  form.setError(field as keyof DugsiRegistrationValues, {
-                    type: 'manual',
-                    message: messages[0],
-                  })
-                }
-              })
+          if (result?.validationErrors) {
+            for (const [field, fieldErrors] of Object.entries(result.validationErrors)) {
+              const errors = fieldErrors as { _errors?: string[] }
+              if (errors._errors?.[0]) {
+                form.setError(field as keyof DugsiRegistrationValues, {
+                  type: 'manual',
+                  message: errors._errors[0],
+                })
+              }
             }
-
-            // Show error toast
-            toast.error(result.error || t('messages.enrollmentError'))
+            toast.error(t('messages.enrollmentError'))
             return
           }
 
-          // Success handling
-          if (result.data?.paymentUrl) {
-            // Show informative message before redirect
-            const childText =
-              formData.children.length === 1
-                ? t('childrenSection.child')
-                : t('childrenSection.children')
-
-            toast.success(
-              `Registration saved for ${formData.children.length} ${childText}. Redirecting to complete payment...`,
-              {
-                duration: 2500,
-              }
-            )
-
-            // Call onSuccess callback if provided
-            if (onSuccess && result.data) {
-              onSuccess(result.data)
-            }
-
-            // Redirect to Stripe payment
-            setTimeout(() => {
-              window.location.href = result.data!.paymentUrl!
-            }, 1500) // Brief delay to show message
-          } else {
-            // Success without payment URL - redirect to success page
-            const familyId = result.data?.familyId
-
-            // Call onSuccess callback if provided
-            if (onSuccess && result.data) {
-              onSuccess(result.data)
-            }
-
-            // Redirect to success page
-            router.push(
-              `/dugsi/register/success${familyId ? `?familyId=${familyId}` : ''}`
-            )
+          if (result?.serverError) {
+            toast.error(result.serverError)
+            return
           }
+
+          if (!result?.data) return
+
+          if (onSuccess) {
+            onSuccess(result.data)
+          }
+
+          router.push(
+            `/dugsi/register/success${result.data.familyId ? `?familyId=${result.data.familyId}` : ''}`
+          )
         } catch (error) {
           logger.error('Unexpected error during registration:', error)
           toast.error(

@@ -21,6 +21,8 @@ import {
   SubscriptionStatus,
 } from '@prisma/client'
 
+import { unstable_cache } from 'next/cache'
+
 import { prisma } from '@/lib/db'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
@@ -244,6 +246,12 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
 
   return profiles.map(transformToStudent)
 }
+
+export const getCachedStudentsWithBatch = unstable_cache(
+  getStudentsWithBatch,
+  ['mahad-students'],
+  { revalidate: 300, tags: ['mahad-students'] }
+)
 
 /**
  * Get students with batch info, filtering, and pagination

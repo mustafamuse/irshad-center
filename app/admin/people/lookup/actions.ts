@@ -70,6 +70,7 @@ export const deletePersonAction = adminActionClient
     revalidatePath('/admin/teachers')
     revalidatePath('/admin/dugsi')
     revalidateTag('mahad-stats')
+    revalidateTag('mahad-students')
     revalidatePath('/admin/mahad')
   })
 
