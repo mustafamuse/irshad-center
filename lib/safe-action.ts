@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { unstable_rethrow } from 'next/navigation'
+
 import { createSafeActionClient } from 'next-safe-action'
 import { z } from 'zod'
 
@@ -34,16 +35,17 @@ export const adminActionClient = actionClient.use(async ({ next }) => {
 export const rateLimitedActionClient = actionClient.use(
   async ({ next, metadata }) => {
     const headersList = await headers()
-    const ip = headersList.get('x-forwarded-for')?.split(',')[0] ?? 'unknown'
-    const key = `${metadata.actionName}:${ip}`
-    const result = await checkRateLimit(key)
-    if (!result.success) {
-      throw new ActionError(
-        'Too many attempts. Please try again later.',
-        ERROR_CODES.RATE_LIMIT_EXCEEDED,
-        undefined,
-        429
-      )
+    const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
+    if (ip) {
+      const result = await checkRateLimit(`${metadata.actionName}:${ip}`)
+      if (!result.success) {
+        throw new ActionError(
+          'Too many attempts. Please try again later.',
+          ERROR_CODES.RATE_LIMIT_EXCEEDED,
+          undefined,
+          429
+        )
+      }
     }
     return next()
   }
@@ -52,16 +54,17 @@ export const rateLimitedActionClient = actionClient.use(
 export const rateLimitedAdminActionClient = adminActionClient.use(
   async ({ next, metadata }) => {
     const headersList = await headers()
-    const ip = headersList.get('x-forwarded-for')?.split(',')[0] ?? 'unknown'
-    const key = `${metadata.actionName}:${ip}`
-    const result = await checkRateLimit(key)
-    if (!result.success) {
-      throw new ActionError(
-        'Too many attempts. Please try again later.',
-        ERROR_CODES.RATE_LIMIT_EXCEEDED,
-        undefined,
-        429
-      )
+    const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
+    if (ip) {
+      const result = await checkRateLimit(`${metadata.actionName}:${ip}`)
+      if (!result.success) {
+        throw new ActionError(
+          'Too many attempts. Please try again later.',
+          ERROR_CODES.RATE_LIMIT_EXCEEDED,
+          undefined,
+          429
+        )
+      }
     }
     return next()
   }

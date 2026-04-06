@@ -1,8 +1,8 @@
 'use server'
 
-import { after } from 'next/server'
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { headers } from 'next/headers'
+import { after } from 'next/server'
 
 import { Prisma } from '@prisma/client'
 import { returnValidationErrors } from 'next-safe-action'
@@ -42,7 +42,10 @@ const _registerStudent = rateLimitedActionClient
         revalidatePath('/admin/mahad')
       })
 
-      logger.info({ profileId: profile.id, name: fullName }, 'Student registration completed')
+      logger.info(
+        { profileId: profile.id, name: fullName },
+        'Student registration completed'
+      )
 
       return { id: profile.id, name: fullName }
     } catch (error) {
@@ -51,10 +54,11 @@ const _registerStudent = rateLimitedActionClient
           returnValidationErrors(mahadRegistrationSchema, {
             phone: { _errors: [error.message] },
           })
+        } else {
+          returnValidationErrors(mahadRegistrationSchema, {
+            email: { _errors: [error.message] },
+          })
         }
-        returnValidationErrors(mahadRegistrationSchema, {
-          email: { _errors: [error.message] },
-        })
       }
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -63,18 +67,21 @@ const _registerStudent = rateLimitedActionClient
         const target = (error.meta?.target as string[]) ?? []
         if (target.includes('phone')) {
           returnValidationErrors(mahadRegistrationSchema, {
-            phone: { _errors: ['This phone is already registered to another student'] },
+            phone: {
+              _errors: ['This phone is already registered to another student'],
+            },
+          })
+        } else {
+          returnValidationErrors(mahadRegistrationSchema, {
+            email: {
+              _errors: [
+                target.includes('email')
+                  ? 'This email is already registered to another student'
+                  : 'A student with this contact information already exists',
+              ],
+            },
           })
         }
-        returnValidationErrors(mahadRegistrationSchema, {
-          email: {
-            _errors: [
-              target.includes('email')
-                ? 'This email is already registered to another student'
-                : 'A student with this contact information already exists',
-            ],
-          },
-        })
       }
       throw error
     }

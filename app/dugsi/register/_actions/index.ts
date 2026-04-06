@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import { returnValidationErrors } from 'next-safe-action'
 
@@ -34,14 +35,22 @@ const _registerDugsiChildren = rateLimitedActionClient
         parent1LastName: validated.parent1LastName,
         parent2Email: validated.isSingleParent ? null : validated.parent2Email,
         parent2Phone: validated.isSingleParent ? null : validated.parent2Phone,
-        parent2FirstName: validated.isSingleParent ? null : validated.parent2FirstName,
-        parent2LastName: validated.isSingleParent ? null : validated.parent2LastName,
-        primaryPayer: validated.isSingleParent ? 'parent1' : validated.primaryPayer,
+        parent2FirstName: validated.isSingleParent
+          ? null
+          : validated.parent2FirstName,
+        parent2LastName: validated.isSingleParent
+          ? null
+          : validated.parent2LastName,
+        primaryPayer: validated.isSingleParent
+          ? 'parent1'
+          : validated.primaryPayer,
         familyReferenceId,
       })
 
-      revalidatePath('/admin/dugsi')
-      revalidateTag('dugsi-registrations')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
 
       return {
         familyId: familyReferenceId,

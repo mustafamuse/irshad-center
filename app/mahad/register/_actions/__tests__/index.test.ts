@@ -65,10 +65,29 @@ vi.mock('@/lib/logger', () => ({
 
 vi.mock('@/lib/safe-action', () => ({
   rateLimitedActionClient: {
-    metadata: () => ({
-      schema: (schema: { safeParse: (input: unknown) => { success: boolean; data?: unknown; error?: { flatten: () => { fieldErrors: Record<string, string[]> } } } }) => ({
-        action: (handler: (opts: { parsedInput: unknown }) => Promise<unknown>) =>
+    metadata: (meta: { actionName: string }) => ({
+      schema: (schema: {
+        safeParse: (input: unknown) => {
+          success: boolean
+          data?: unknown
+          error?: { flatten: () => { fieldErrors: Record<string, string[]> } }
+        }
+      }) => ({
+        action:
+          (handler: (opts: { parsedInput: unknown }) => Promise<unknown>) =>
           async (input: unknown) => {
+            const h = await mockHeaders()
+            const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim()
+            if (ip) {
+              const rateResult = await mockCheckRateLimit(
+                `${meta.actionName}:${ip}`
+              )
+              if (!rateResult.success) {
+                return {
+                  serverError: 'Too many attempts. Please try again later.',
+                }
+              }
+            }
             const parsed = schema.safeParse(input)
             if (!parsed.success) {
               return { validationErrors: parsed.error!.flatten().fieldErrors }
@@ -77,7 +96,10 @@ vi.mock('@/lib/safe-action', () => ({
               return { data: await handler({ parsedInput: parsed.data }) }
             } catch (e) {
               if (e instanceof Error && 'validationErrors' in e) {
-                return { validationErrors: (e as Error & { validationErrors: unknown }).validationErrors }
+                return {
+                  validationErrors: (e as Error & { validationErrors: unknown })
+                    .validationErrors,
+                }
               }
               return { serverError: e instanceof Error ? e.message : String(e) }
             }
@@ -104,7 +126,11 @@ describe('registerStudent', () => {
     vi.clearAllMocks()
     mockAfter.mockImplementation((fn: () => void) => fn())
     mockHeaders.mockResolvedValue(new Headers({ 'x-forwarded-for': '1.2.3.4' }))
-    mockCheckRateLimit.mockResolvedValue({ success: true, remaining: 9, reset: 0 })
+    mockCheckRateLimit.mockResolvedValue({
+      success: true,
+      remaining: 9,
+      reset: 0,
+    })
     mockIsEmailRegistered.mockResolvedValue(false)
   })
 
@@ -150,7 +176,10 @@ describe('registerStudent', () => {
   })
 
   it('should return validationErrors for invalid email', async () => {
-    const result = await registerStudent({ ...validInput, email: 'not-an-email' })
+    const result = await registerStudent({
+      ...validInput,
+      email: 'not-an-email',
+    })
 
     expect(result?.validationErrors?.email).toBeDefined()
   })
@@ -166,7 +195,10 @@ describe('registerStudent', () => {
     const result = await registerStudent(validInput)
 
     expect(result?.validationErrors).toBeDefined()
-    expect((result?.validationErrors as { email?: { _errors: string[] } })?.email?._errors?.[0]).toContain('email')
+    expect(
+      (result?.validationErrors as { email?: { _errors: string[] } })?.email
+        ?._errors?.[0]
+    ).toContain('email')
   })
 
   it('should return validationErrors for P2002 duplicate phone', async () => {
@@ -180,36 +212,51 @@ describe('registerStudent', () => {
     const result = await registerStudent(validInput)
 
     expect(result?.validationErrors).toBeDefined()
-    expect((result?.validationErrors as { phone?: { _errors: string[] } })?.phone?._errors?.[0]).toContain('phone')
+    expect(
+      (result?.validationErrors as { phone?: { _errors: string[] } })?.phone
+        ?._errors?.[0]
+    ).toContain('phone')
   })
 
   it('should return validationErrors for ActionError with email field', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
     mockCreateMahadStudent.mockRejectedValue(
-      new ActionError('Student already registered for Mahad', 'DUPLICATE_CONTACT', 'email', 409)
+      new ActionError(
+        'Student already registered for Mahad',
+        'DUPLICATE_CONTACT',
+        'email',
+        409
+      )
     )
 
     const result = await registerStudent(validInput)
 
     expect(result?.validationErrors).toBeDefined()
-    expect((result?.validationErrors as { email?: { _errors: string[] } })?.email?._errors?.[0]).toBe(
-      'Student already registered for Mahad'
-    )
+    expect(
+      (result?.validationErrors as { email?: { _errors: string[] } })?.email
+        ?._errors?.[0]
+    ).toBe('Student already registered for Mahad')
     expect(result?.serverError).toBeUndefined()
   })
 
   it('should return validationErrors for ActionError with phone field', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
     mockCreateMahadStudent.mockRejectedValue(
-      new ActionError('Student already registered for Mahad', 'DUPLICATE_CONTACT', 'phone', 409)
+      new ActionError(
+        'Student already registered for Mahad',
+        'DUPLICATE_CONTACT',
+        'phone',
+        409
+      )
     )
 
     const result = await registerStudent(validInput)
 
     expect(result?.validationErrors).toBeDefined()
-    expect((result?.validationErrors as { phone?: { _errors: string[] } })?.phone?._errors?.[0]).toBe(
-      'Student already registered for Mahad'
-    )
+    expect(
+      (result?.validationErrors as { phone?: { _errors: string[] } })?.phone
+        ?._errors?.[0]
+    ).toBe('Student already registered for Mahad')
   })
 
   it('should not log ActionError as server error', async () => {
@@ -223,8 +270,23 @@ describe('registerStudent', () => {
     expect(mockLogError).not.toHaveBeenCalled()
   })
 
+  it('should return serverError when rate limited', async () => {
+    mockCheckRateLimit.mockResolvedValue({
+      success: false,
+      remaining: 0,
+      reset: 0,
+    })
+
+    const result = await registerStudent(validInput)
+
+    expect(result?.serverError).toContain('Too many attempts')
+    expect(mockCreateMahadStudent).not.toHaveBeenCalled()
+  })
+
   it('should return serverError for unexpected errors', async () => {
-    mockCreateMahadStudent.mockRejectedValue(new Error('Database connection lost'))
+    mockCreateMahadStudent.mockRejectedValue(
+      new Error('Database connection lost')
+    )
 
     const result = await registerStudent(validInput)
 
@@ -237,7 +299,11 @@ describe('checkEmailExists', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockHeaders.mockResolvedValue(new Headers({ 'x-forwarded-for': '1.2.3.4' }))
-    mockCheckRateLimit.mockResolvedValue({ success: true, remaining: 9, reset: 0 })
+    mockCheckRateLimit.mockResolvedValue({
+      success: true,
+      remaining: 9,
+      reset: 0,
+    })
   })
 
   it('should return true when email is registered', async () => {
@@ -246,7 +312,10 @@ describe('checkEmailExists', () => {
     const result = await checkEmailExists('test@example.com')
 
     expect(result).toBe(true)
-    expect(mockIsEmailRegistered).toHaveBeenCalledWith('test@example.com', 'MAHAD_PROGRAM')
+    expect(mockIsEmailRegistered).toHaveBeenCalledWith(
+      'test@example.com',
+      'MAHAD_PROGRAM'
+    )
   })
 
   it('should return false when email does not exist', async () => {
@@ -277,7 +346,11 @@ describe('checkEmailExists', () => {
   })
 
   it('should return false (fail open) when rate limited', async () => {
-    mockCheckRateLimit.mockResolvedValue({ success: false, remaining: 0, reset: 0 })
+    mockCheckRateLimit.mockResolvedValue({
+      success: false,
+      remaining: 0,
+      reset: 0,
+    })
 
     const result = await checkEmailExists('test@example.com')
 
