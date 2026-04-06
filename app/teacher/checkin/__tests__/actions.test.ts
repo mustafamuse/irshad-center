@@ -1,6 +1,6 @@
 import { Shift } from '@prisma/client'
-import { z } from 'zod'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { z } from 'zod'
 
 import { CHECKIN_ERROR_CODES } from '@/lib/constants/teacher-checkin'
 import { ActionError } from '@/lib/errors/action-error'
@@ -54,6 +54,7 @@ vi.mock('@/lib/safe-action', () => {
 })
 
 const {
+  mockAfter,
   mockRevalidatePath,
   mockGetTeachersForDropdown,
   mockGetTeacherCheckin,
@@ -62,6 +63,7 @@ const {
   mockCalculateDistance,
   mockIsWithinGeofence,
 } = vi.hoisted(() => ({
+  mockAfter: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockGetTeachersForDropdown: vi.fn(),
   mockGetTeacherCheckin: vi.fn(),
@@ -73,6 +75,10 @@ const {
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
+}))
+
+vi.mock('next/server', () => ({
+  after: (fn: () => void) => mockAfter(fn),
 }))
 
 vi.mock('@/lib/db/queries/teacher-checkin', () => ({
@@ -220,6 +226,7 @@ describe('getTeacherCurrentStatus', () => {
 describe('teacherClockInAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAfter.mockImplementation((fn: () => void) => fn())
     mockClockIn.mockResolvedValue({ checkIn: mockCheckin })
     mockGetTeacherCheckin.mockResolvedValue(null)
   })
@@ -357,6 +364,7 @@ describe('teacherClockOutAction', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAfter.mockImplementation((fn: () => void) => fn())
     mockClockOut.mockResolvedValue({ checkIn: clockedOutCheckin })
     mockGetTeacherCheckin.mockResolvedValue(clockedOutCheckin)
   })
