@@ -11,10 +11,7 @@ export async function register() {
     // Guarded by var presence so devs without teacher check-in vars don't crash.
     // lib/env (imported above) already enforces via superRefine that LAT and LNG
     // must both be set or both absent — this adds a semantic check (non-zero values).
-    if (
-      process.env.NODE_ENV !== 'test' &&
-      env.IRSHAD_CENTER_LAT !== undefined
-    ) {
+    if (env.NODE_ENV !== 'test' && env.IRSHAD_CENTER_LAT !== undefined) {
       try {
         const { validateCenterLocationConfig } = await import(
           '@/lib/constants/teacher-checkin'
