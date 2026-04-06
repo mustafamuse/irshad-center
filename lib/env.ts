@@ -17,11 +17,17 @@ const envSchema = z
       .enum(['development', 'production', 'test'])
       .optional()
       .default('development'),
-    VERCEL_ENV: z.string().optional(),
+    VERCEL_ENV: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
 
     // ── Database ─────────────────────────────────────────────────────────────────
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-    DIRECT_URL: z.string().optional(),
+    DIRECT_URL: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
 
     // ── Admin Auth ───────────────────────────────────────────────────────────────
     ADMIN_PIN: z.string().min(1, 'ADMIN_PIN is required'),
@@ -154,9 +160,18 @@ const envSchema = z
       (v) => (v === '' ? undefined : v),
       z.string().url().optional()
     ),
-    SENTRY_ORG: z.string().optional(),
-    SENTRY_PROJECT: z.string().optional(),
-    SENTRY_RELEASE: z.string().optional(),
+    SENTRY_ORG: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
+    SENTRY_PROJECT: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
+    SENTRY_RELEASE: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
     SENTRY_DEBUG: z.preprocess(
       (v) => (v === '' ? undefined : v),
       z.enum(['true', 'false']).optional()
@@ -165,13 +180,22 @@ const envSchema = z
       (v) => (v === '' ? undefined : v),
       z.enum(['true', 'false']).optional()
     ),
-    NEXT_PUBLIC_SENTRY_RELEASE: z.string().optional(),
+    NEXT_PUBLIC_SENTRY_RELEASE: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
 
     // ── Axiom ────────────────────────────────────────────────────────────────────
-    NEXT_PUBLIC_AXIOM_DATASET: z.string().optional(),
+    NEXT_PUBLIC_AXIOM_DATASET: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
     // NEXT_PUBLIC_AXIOM_TOKEN is a write-only credential scoped to this dataset.
     // Intentionally public — required by next-axiom for client-side log forwarding.
-    NEXT_PUBLIC_AXIOM_TOKEN: z.string().optional(),
+    NEXT_PUBLIC_AXIOM_TOKEN: z.preprocess(
+      (v) => (v === '' ? undefined : v),
+      z.string().optional()
+    ),
 
     // ── Logging ──────────────────────────────────────────────────────────────────
     PINO_LOG_LEVEL: z.preprocess(
