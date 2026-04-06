@@ -63,8 +63,7 @@ const _registerDugsiChildren = rateLimitedActionClient
           returnValidationErrors(dugsiRegistrationSchema, {
             parent1Email: { _errors: [error.message] },
           })
-        }
-        if (error.field === 'phone' || error.field === 'parent1Phone') {
+        } else if (error.field === 'phone' || error.field === 'parent1Phone') {
           returnValidationErrors(dugsiRegistrationSchema, {
             parent1Phone: { _errors: [error.message] },
           })

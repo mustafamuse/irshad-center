@@ -77,15 +77,14 @@ vi.mock('@/lib/safe-action', () => ({
           (handler: (opts: { parsedInput: unknown }) => Promise<unknown>) =>
           async (input: unknown) => {
             const h = await mockHeaders()
-            const ip = h.get('x-forwarded-for')?.split(',')[0]?.trim()
-            if (ip) {
-              const rateResult = await mockCheckRateLimit(
-                `${meta.actionName}:${ip}`
-              )
-              if (!rateResult.success) {
-                return {
-                  serverError: 'Too many attempts. Please try again later.',
-                }
+            const ip =
+              h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+            const rateResult = await mockCheckRateLimit(
+              `${meta.actionName}:${ip}`
+            )
+            if (!rateResult.success) {
+              return {
+                serverError: 'Too many attempts. Please try again later.',
               }
             }
             const parsed = schema.safeParse(input)

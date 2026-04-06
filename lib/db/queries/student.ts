@@ -11,6 +11,8 @@
  * - Maintains backward-compatible return types for UI components
  */
 
+import { unstable_cache } from 'next/cache'
+
 import {
   GradeLevel,
   GraduationStatus,
@@ -21,7 +23,6 @@ import {
   SubscriptionStatus,
 } from '@prisma/client'
 
-import { unstable_cache } from 'next/cache'
 
 import { prisma } from '@/lib/db'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
@@ -248,7 +249,7 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
 }
 
 export const getCachedStudentsWithBatch = unstable_cache(
-  getStudentsWithBatch,
+  () => getStudentsWithBatch(),
   ['mahad-students'],
   { revalidate: 300, tags: ['mahad-students'] }
 )
