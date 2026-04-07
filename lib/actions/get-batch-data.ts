@@ -14,6 +14,7 @@ import {
   StudentBillingType,
 } from '@prisma/client'
 
+import { assertAdmin } from '@/lib/auth'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
@@ -80,6 +81,7 @@ export interface DuplicateStudentGroup {
  * Used for batch management and reporting.
  */
 export async function getBatchData(): Promise<BatchStudentData[]> {
+  await assertAdmin()
   // Single query with nested sibling relationships (optimized from 2 queries)
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -310,6 +312,7 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
  * Find persons with multiple active Mahad program profiles (duplicate enrollments)
  */
 export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
+  await assertAdmin()
   const people = await prisma.person.findMany({
     where: {
       programProfiles: {
@@ -356,6 +359,7 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
 export async function deleteDuplicateRecords(
   profileIds: string[]
 ): Promise<{ success: boolean; deleted: number; error?: string }> {
+  await assertAdmin()
   try {
     if (profileIds.length === 0) {
       return { success: true, deleted: 0 }

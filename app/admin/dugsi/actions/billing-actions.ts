@@ -1,6 +1,7 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -23,7 +24,10 @@ const _pauseFamilyBillingAction = adminActionClient
     const { familyReferenceId } = parsedInput
     try {
       const result = await pauseFamilyBillingService(familyReferenceId)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         message: 'Billing paused successfully',
         warning: result.error
@@ -55,7 +59,10 @@ const _resumeFamilyBillingAction = adminActionClient
     const { familyReferenceId } = parsedInput
     try {
       const result = await resumeFamilyBillingService(familyReferenceId)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         message: 'Billing resumed successfully',
         warning: result.error

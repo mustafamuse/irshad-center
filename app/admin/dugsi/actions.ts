@@ -1,6 +1,6 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
 import { after } from 'next/server'
 
 import { GradeLevel, Prisma, Shift } from '@prisma/client'
@@ -512,6 +512,7 @@ const _deleteDugsiFamily = adminActionClient
       const result = await deleteDugsiFamilyService(parsedInput.studentId)
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
 
       await logInfo(logger, 'Dugsi family deleted', {
@@ -559,6 +560,7 @@ const _linkDugsiSubscription = adminActionClient
       )
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
 
       await logInfo(logger, 'Dugsi subscription linked', {
@@ -599,6 +601,7 @@ const _verifyDugsiBankAccount = adminActionClient
       const result = await verifyBankAccount(paymentIntentId, cleanCode)
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
       return result
     } catch (error: unknown) {
@@ -640,6 +643,7 @@ const _updateParentInfo = adminActionClient
       const result = await updateParentInfoService(parsedInput)
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
       return {
         ...result,
@@ -656,6 +660,7 @@ const _addSecondParent = adminActionClient
       const result = await addSecondParentService(parsedInput)
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
       return {
         ...result,
@@ -672,6 +677,7 @@ const _setPrimaryPayer = adminActionClient
       const result = await setPrimaryPayerService(parsedInput)
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
       return {
         ...result,
@@ -713,6 +719,7 @@ const _addChildToFamily = adminActionClient
       const result = await addChildToFamilyService(parsedInput)
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
       return { ...result, message: 'Successfully added child to family' }
     }
@@ -1109,6 +1116,7 @@ const _consolidateDugsiSubscription = adminActionClient
       const result = await consolidateStripeSubscriptionService(parsedInput)
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
 
       await logInfo(logger, 'Dugsi subscription consolidated', {
@@ -1170,6 +1178,7 @@ const _sendPaymentLinkViaWhatsAppAction = adminActionClient
 
       after(() => {
         revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
       })
       return {
         waMessageId: result.waMessageId,

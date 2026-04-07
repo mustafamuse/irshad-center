@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 
 import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
@@ -300,7 +301,7 @@ const _createTeacherAction = adminActionClient
         return newTeacher
       })
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         {
@@ -364,7 +365,7 @@ const _createTeacherWithPersonAction = adminActionClient
         return newTeacher
       })
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         {
@@ -410,7 +411,7 @@ const _deleteTeacherAction = adminActionClient
     const { teacherId } = parsedInput
     await deleteTeacher(teacherId)
 
-    revalidatePath('/admin/teachers')
+    after(() => revalidatePath('/admin/teachers'))
 
     logger.info({ teacherId }, 'Teacher deleted')
   })
@@ -435,7 +436,7 @@ const _updateTeacherDetailsAction = adminActionClient
 
       await updatePersonContact(teacher.personId, personData)
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info({ teacherId, name }, 'Teacher details updated')
 
@@ -502,7 +503,7 @@ const _updateTeacherShiftsAction = adminActionClient
 
     await updateTeacherProgramShifts(teacherProgram.id, shifts)
 
-    revalidatePath('/admin/dugsi/teachers')
+    after(() => revalidatePath('/admin/dugsi/teachers'))
 
     logger.info({ teacherId, shifts }, 'Teacher shifts updated')
 
@@ -549,7 +550,7 @@ const _deactivateTeacherAction = adminActionClient
       })
     })
 
-    revalidatePath('/admin/dugsi/teachers')
+    after(() => revalidatePath('/admin/dugsi/teachers'))
 
     logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
   })
@@ -565,10 +566,12 @@ const _assignTeacherToProgramAction = adminActionClient
     try {
       await assignTeacherToProgram(parsedInput)
 
-      revalidatePath('/admin/teachers')
-      revalidatePath(
-        `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
-      )
+      after(() => {
+        revalidatePath('/admin/teachers')
+        revalidatePath(
+          `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
+        )
+      })
 
       logger.info(
         { teacherId: parsedInput.teacherId, program: parsedInput.program },
@@ -607,10 +610,12 @@ const _removeTeacherFromProgramAction = adminActionClient
 
     await removeTeacherFromProgram(parsedInput)
 
-    revalidatePath('/admin/teachers')
-    revalidatePath(
-      `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
-    )
+    after(() => {
+      revalidatePath('/admin/teachers')
+      revalidatePath(
+        `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
+      )
+    })
 
     logger.info(
       { teacherId: parsedInput.teacherId, program: parsedInput.program },
@@ -625,9 +630,13 @@ const _bulkAssignProgramsAction = adminActionClient
     const { teacherId, programs } = parsedInput
     await bulkAssignPrograms(teacherId, programs)
 
-    revalidatePath('/admin/teachers')
-    programs.forEach((program) => {
-      revalidatePath(`/admin/${program.toLowerCase().replace('_program', '')}`)
+    after(() => {
+      revalidatePath('/admin/teachers')
+      programs.forEach((program) => {
+        revalidatePath(
+          `/admin/${program.toLowerCase().replace('_program', '')}`
+        )
+      })
     })
 
     logger.info(
@@ -862,7 +871,7 @@ const _updateCheckinAction = adminActionClient
       const updated = await updateCheckin(parsedInput)
       const record = mapCheckinToRecord(updated)
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         { checkInId: parsedInput.checkInId },
@@ -885,7 +894,7 @@ const _deleteCheckinAction = adminActionClient
     try {
       await deleteCheckin(parsedInput.checkInId)
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         { checkInId: parsedInput.checkInId },

@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { z } from 'zod'
 
+import { assertAdmin } from '@/lib/auth'
 import { ActionError } from '@/lib/errors/action-error'
 import { createServiceLogger, logError, logWarning } from '@/lib/logger'
 import { createDugsiCheckoutSession } from '@/lib/services/dugsi'
@@ -24,6 +25,8 @@ import { DugsiCheckoutRequestSchema } from '@/lib/validations/dugsi-checkout'
 const logger = createServiceLogger('dugsi-checkout')
 
 export async function POST(request: NextRequest) {
+  await assertAdmin()
+
   let requestContext: Record<string, unknown> = {}
 
   try {

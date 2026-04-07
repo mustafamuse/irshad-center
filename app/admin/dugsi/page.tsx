@@ -3,9 +3,9 @@ import { Suspense } from 'react'
 import { Metadata } from 'next'
 
 import { AppErrorBoundary } from '@/components/error-boundary'
+import { getCachedDugsiRegistrations } from '@/lib/services/dugsi/registration-service'
 import { ShiftFilterSchema } from '@/lib/validations/dugsi'
 
-import { getDugsiRegistrations } from './actions'
 import { DugsiDashboard } from './components/dugsi-dashboard'
 
 function Loading() {
@@ -55,8 +55,10 @@ export default async function DugsiAdminPage({
   const params = await searchParams
   const shift = ShiftFilterSchema.parse(params?.shift)
 
-  const result = await getDugsiRegistrations({ shift })
-  const registrations = result?.data ?? []
+  const registrations = await getCachedDugsiRegistrations(
+    undefined,
+    shift ? { shift } : undefined
+  )
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">

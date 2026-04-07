@@ -155,7 +155,8 @@ async function handleSubscriptionCreatedEvent(
  * Updates subscription status and period dates
  */
 async function handleSubscriptionUpdatedEvent(
-  event: Stripe.Event
+  event: Stripe.Event,
+  accountType: StripeAccountType
 ): Promise<void> {
   const subscription = extractEventData<Stripe.Subscription>(event)
 
@@ -164,7 +165,7 @@ async function handleSubscriptionUpdatedEvent(
     'Processing customer.subscription.updated'
   )
 
-  await handleSubscriptionUpdated(subscription)
+  await handleSubscriptionUpdated(subscription, accountType)
 }
 
 /**
@@ -173,7 +174,8 @@ async function handleSubscriptionUpdatedEvent(
  * Cancels subscription and unlinks from profiles
  */
 async function handleSubscriptionDeletedEvent(
-  event: Stripe.Event
+  event: Stripe.Event,
+  accountType: StripeAccountType
 ): Promise<void> {
   const subscription = extractEventData<Stripe.Subscription>(event)
 
@@ -182,7 +184,7 @@ async function handleSubscriptionDeletedEvent(
     'Processing customer.subscription.deleted'
   )
 
-  await handleSubscriptionDeleted(subscription)
+  await handleSubscriptionDeleted(subscription, accountType)
 }
 
 /**
@@ -191,7 +193,8 @@ async function handleSubscriptionDeletedEvent(
  * Updates paidUntil date on subscription
  */
 async function handleInvoicePaymentSucceededEvent(
-  event: Stripe.Event
+  event: Stripe.Event,
+  accountType: StripeAccountType
 ): Promise<void> {
   const invoice = extractEventData<Stripe.Invoice>(event)
 
@@ -200,7 +203,7 @@ async function handleInvoicePaymentSucceededEvent(
     'Processing invoice.payment_succeeded'
   )
 
-  await handleInvoiceFinalized(invoice)
+  await handleInvoiceFinalized(invoice, accountType)
 }
 
 /**
@@ -235,12 +238,15 @@ async function handleInvoicePaymentFailedEvent(
  *
  * Updates paidUntil date on subscription
  */
-async function handleInvoiceFinalizedEvent(event: Stripe.Event): Promise<void> {
+async function handleInvoiceFinalizedEvent(
+  event: Stripe.Event,
+  accountType: StripeAccountType
+): Promise<void> {
   const invoice = extractEventData<Stripe.Invoice>(event)
 
   logger.info({ invoiceId: invoice.id }, 'Processing invoice.finalized')
 
-  await handleInvoiceFinalized(invoice)
+  await handleInvoiceFinalized(invoice, accountType)
 }
 
 /**
@@ -257,15 +263,19 @@ export function createEventHandlers(accountType: StripeAccountType) {
     'customer.subscription.created': (event: Stripe.Event) =>
       handleSubscriptionCreatedEvent(event, accountType),
 
-    'customer.subscription.updated': handleSubscriptionUpdatedEvent,
+    'customer.subscription.updated': (event: Stripe.Event) =>
+      handleSubscriptionUpdatedEvent(event, accountType),
 
-    'customer.subscription.deleted': handleSubscriptionDeletedEvent,
+    'customer.subscription.deleted': (event: Stripe.Event) =>
+      handleSubscriptionDeletedEvent(event, accountType),
 
-    'invoice.payment_succeeded': handleInvoicePaymentSucceededEvent,
+    'invoice.payment_succeeded': (event: Stripe.Event) =>
+      handleInvoicePaymentSucceededEvent(event, accountType),
 
     'invoice.payment_failed': handleInvoicePaymentFailedEvent,
 
-    'invoice.finalized': handleInvoiceFinalizedEvent,
+    'invoice.finalized': (event: Stripe.Event) =>
+      handleInvoiceFinalizedEvent(event, accountType),
   }
 }
 

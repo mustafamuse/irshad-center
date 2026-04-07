@@ -33,20 +33,31 @@ export async function getBillingAccount(
 
 ### Action Pattern
 
+All actions use next-safe-action v8 clients from `lib/safe-action.ts`:
+
+- `adminActionClient` — admin-only mutations
+- `rateLimitedActionClient` — public-facing mutations (rate limited)
+
 ```typescript
 'use server'
-export async function myAction(input: Input): Promise<ActionResult<Output>> {
-  try {
-    const validated = schema.parse(input)
-    const result = await service(validated)
-    revalidatePath('/path')
-    return { success: true, data: result }
-  } catch (error) {
-    await logError(logger, error, 'Action failed')
-    return { success: false, error: 'User-friendly message' }
-  }
+import { after } from 'next/server'
+import { adminActionClient } from '@/lib/safe-action'
+
+const _myAction = adminActionClient
+  .metadata({ actionName: 'myAction' })
+  .schema(mySchema)
+  .action(async ({ parsedInput }) => {
+    const result = await myService(parsedInput)
+    after(() => revalidatePath('/path'))
+    return result
+  })
+
+export async function myAction(...args: Parameters<typeof _myAction>) {
+  return _myAction(...args)
 }
 ```
+
+Errors: throw `ActionError(message, ERROR_CODES.X)` for domain errors — safe-action's `handleServerError` catches and serializes them. Never return `{ success: false }` manually.
 
 ### Mapper Pattern
 

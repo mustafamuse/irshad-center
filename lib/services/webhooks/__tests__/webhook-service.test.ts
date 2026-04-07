@@ -83,7 +83,7 @@ describe('handleSubscriptionUpdated', () => {
     mockGetSubscriptionByStripeId.mockResolvedValue(null)
 
     const subscription = createMockSubscription({ id: 'sub_legacy_123' })
-    const result = await handleSubscriptionUpdated(subscription)
+    const result = await handleSubscriptionUpdated(subscription, 'MAHAD')
 
     expect(result).toEqual({
       subscriptionId: '',

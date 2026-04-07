@@ -2,6 +2,7 @@ import { Prisma, Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import {
   normalizePhone,
   validateAndNormalizeEmail,
@@ -186,8 +187,28 @@ export async function updatePersonContact(
   data: PersonContactFields,
   client: DatabaseClient = prisma
 ): Promise<void> {
-  await client.person.update({
-    where: { id: personId },
-    data,
-  })
+  try {
+    await client.person.update({
+      where: { id: personId },
+      data,
+    })
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === 'P2025') {
+        throw new ActionError(
+          'Person not found',
+          ERROR_CODES.NOT_FOUND,
+          undefined,
+          404
+        )
+      }
+      if (error.code === 'P2002') {
+        throw new ActionError(
+          'This email or phone is already in use',
+          ERROR_CODES.DUPLICATE_CONTACT
+        )
+      }
+    }
+    throw error
+  }
 }

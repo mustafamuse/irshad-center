@@ -412,7 +412,8 @@ export async function handleSubscriptionCreated(
  * @returns Subscription event result
  */
 export async function handleSubscriptionUpdated(
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
+  accountType: StripeAccountType
 ): Promise<SubscriptionEventResult> {
   const stripeSubscriptionId = subscription.id
 
@@ -447,7 +448,9 @@ export async function handleSubscriptionUpdated(
     paidUntil: periodDates.periodEnd,
   })
 
-  revalidateTag('mahad-students')
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  }
 
   return {
     subscriptionId: dbSubscription.id,
@@ -466,7 +469,8 @@ export async function handleSubscriptionUpdated(
  * @returns Subscription event result
  */
 export async function handleSubscriptionDeleted(
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
+  accountType: StripeAccountType
 ): Promise<SubscriptionEventResult> {
   const stripeSubscriptionId = subscription.id
 
@@ -496,7 +500,9 @@ export async function handleSubscriptionDeleted(
     await unlinkSubscription(dbSubscription.id, tx)
   })
 
-  revalidateTag('mahad-students')
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  }
 
   return {
     subscriptionId: dbSubscription.id,
@@ -515,7 +521,8 @@ export async function handleSubscriptionDeleted(
  * @returns Updated subscription or null
  */
 export async function handleInvoiceFinalized(
-  invoice: Stripe.Invoice
+  invoice: Stripe.Invoice,
+  accountType: StripeAccountType
 ): Promise<{ subscriptionId: string; paidUntil: Date | null } | null> {
   // Extract subscription ID (may be expanded object or just the ID string)
   // Type assertion needed because Stripe's Invoice type doesn't include expanded subscription
@@ -555,6 +562,10 @@ export async function handleInvoiceFinalized(
       paidUntil,
     }
   )
+
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  }
 
   return {
     subscriptionId: dbSubscription.id,
