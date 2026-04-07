@@ -7,7 +7,6 @@ import { after } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { returnValidationErrors } from 'next-safe-action'
 
-
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { ActionError } from '@/lib/errors/action-error'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
