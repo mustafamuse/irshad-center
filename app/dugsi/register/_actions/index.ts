@@ -70,6 +70,10 @@ const _registerDugsiChildren = rateLimitedActionClient
           returnValidationErrors(dugsiRegistrationSchema, {
             parent1Phone: { _errors: [error.message] },
           })
+        } else {
+          returnValidationErrors(dugsiRegistrationSchema, {
+            parent1Email: { _errors: [error.message] },
+          })
         }
       } else if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
