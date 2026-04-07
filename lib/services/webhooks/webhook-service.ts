@@ -393,6 +393,8 @@ export async function handleSubscriptionCreated(
 
   if (accountType === 'MAHAD') {
     revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
   }
 
   return {
@@ -450,6 +452,8 @@ export async function handleSubscriptionUpdated(
 
   if (accountType === 'MAHAD') {
     revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
   }
 
   return {
@@ -502,6 +506,8 @@ export async function handleSubscriptionDeleted(
 
   if (accountType === 'MAHAD') {
     revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
   }
 
   return {
@@ -565,6 +571,8 @@ export async function handleInvoiceFinalized(
 
   if (accountType === 'MAHAD') {
     revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
   }
 
   return {
