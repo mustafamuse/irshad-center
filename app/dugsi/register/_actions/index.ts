@@ -1,10 +1,12 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { headers } from 'next/headers'
 import { after } from 'next/server'
 
 import { returnValidationErrors } from 'next-safe-action'
 
+import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { ActionError } from '@/lib/errors/action-error'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { rateLimitedActionClient } from '@/lib/safe-action'
@@ -81,6 +83,14 @@ export async function registerDugsiChildren(
 
 export async function checkParentEmailExists(email: string): Promise<boolean> {
   try {
+    const headerStore = await headers()
+    const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
+    if (ip) {
+      const rateResult = await checkRateLimit(`parent-email-check:${ip}`, 10)
+      if (!rateResult.success) {
+        return false
+      }
+    }
     const existing = await findGuardianByEmail(email)
     return existing !== null
   } catch {

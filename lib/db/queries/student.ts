@@ -23,7 +23,6 @@ import {
   SubscriptionStatus,
 } from '@prisma/client'
 
-
 import { prisma } from '@/lib/db'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'

@@ -49,7 +49,7 @@ const _registerStudent = rateLimitedActionClient
 
       return { id: profile.id, name: fullName }
     } catch (error) {
-      if (error instanceof ActionError) {
+      if (error instanceof ActionError && error.field) {
         if (error.field === 'phone') {
           returnValidationErrors(mahadRegistrationSchema, {
             phone: { _errors: [error.message] },
