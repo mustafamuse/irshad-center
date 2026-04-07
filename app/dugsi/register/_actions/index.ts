@@ -4,7 +4,9 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { headers } from 'next/headers'
 import { after } from 'next/server'
 
+import { Prisma } from '@prisma/client'
 import { returnValidationErrors } from 'next-safe-action'
+
 
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { ActionError } from '@/lib/errors/action-error'
@@ -68,6 +70,24 @@ const _registerDugsiChildren = rateLimitedActionClient
         } else if (error.field === 'phone' || error.field === 'parent1Phone') {
           returnValidationErrors(dugsiRegistrationSchema, {
             parent1Phone: { _errors: [error.message] },
+          })
+        }
+      } else if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const target = (error.meta?.target as string[]) ?? []
+        if (target.some((f) => f.includes('phone'))) {
+          returnValidationErrors(dugsiRegistrationSchema, {
+            parent1Phone: {
+              _errors: ['This phone is already registered to another family'],
+            },
+          })
+        } else {
+          returnValidationErrors(dugsiRegistrationSchema, {
+            parent1Email: {
+              _errors: ['This email is already registered to another family'],
+            },
           })
         }
       }

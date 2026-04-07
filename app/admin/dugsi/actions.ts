@@ -693,6 +693,7 @@ const _updateChildInfo = adminActionClient
     await updateChildInfoService(parsedInput)
     after(() => {
       revalidatePath('/admin/dugsi')
+      revalidateTag('dugsi-registrations')
     })
     return { message: 'Successfully updated child information' }
   })
@@ -707,6 +708,7 @@ const _updateFamilyShift = adminActionClient
     })
     after(() => {
       revalidatePath('/admin/dugsi')
+      revalidateTag('dugsi-registrations')
     })
     return { message: 'Successfully updated family shift' }
   })
