@@ -110,9 +110,10 @@ export async function checkParentEmailExists(email: string): Promise<boolean> {
         return false
       }
     }
-    const existing = await findGuardianByEmail(email)
-    return existing !== null
   } catch {
-    return false
+    // Fail open if headers/rate-limit unavailable
   }
+
+  const existing = await findGuardianByEmail(email)
+  return existing !== null
 }
