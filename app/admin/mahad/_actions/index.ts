@@ -1023,10 +1023,10 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       try {
         validateBillingCycleAnchor(billingCycleAnchor)
       } catch (error) {
-        await logError(logger, error, 'Invalid billing cycle anchor', {
-          billingCycleAnchor,
-          profileId,
-        })
+        logger.warn(
+          { billingCycleAnchor, profileId },
+          'Invalid billing cycle anchor provided by admin'
+        )
         throw new ActionError(
           error instanceof Error ? error.message : 'Invalid billing start date',
           ERROR_CODES.VALIDATION_ERROR

@@ -548,8 +548,11 @@ const _bulkAssignProgramsAction = adminActionClient
     try {
       await bulkAssignPrograms(teacherId, programs)
     } catch (error) {
-      if (error instanceof ValidationError)
+      if (error instanceof ValidationError) {
+        if (error.code === 'TEACHER_NOT_FOUND')
+          throw new ActionError(error.message, ERROR_CODES.NOT_FOUND)
         throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      }
       throw error
     }
 

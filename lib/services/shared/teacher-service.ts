@@ -18,7 +18,7 @@ import { prisma } from '@/lib/db'
 import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   ValidationError,
   validateTeacherCreation,
@@ -468,7 +468,7 @@ export async function createTeacherAndAssignDugsi(
   } catch (error) {
     if (isPrismaError(error) && error.code === 'P2002') {
       throw new ActionError(
-        'Teacher is already enrolled in this program',
+        'This person is already a teacher or is already enrolled in this program',
         ERROR_CODES.VALIDATION_ERROR
       )
     }
@@ -528,6 +528,15 @@ export async function createPersonTeacherAndAssignDugsi(
         ERROR_CODES.VALIDATION_ERROR
       )
     }
+    await logError(
+      logger,
+      error,
+      'Unexpected error in createPersonTeacherAndAssignDugsi',
+      {
+        hasEmail: !!data.email,
+        hasPhone: !!data.phone,
+      }
+    )
     throw error
   }
 
