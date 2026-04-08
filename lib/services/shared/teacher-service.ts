@@ -18,7 +18,7 @@ import { prisma } from '@/lib/db'
 import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger, logError } from '@/lib/logger'
+import { createServiceLogger } from '@/lib/logger'
 import {
   ValidationError,
   validateTeacherCreation,
@@ -496,10 +496,10 @@ export async function createPersonTeacherAndAssignDugsi(
     })
   } catch (error) {
     if (isPrismaError(error) && error.code === 'P2002') {
-      logError(logger, error, 'Concurrent duplicate person on teacher create', {
-        hasEmail: !!data.email,
-        hasPhone: !!data.phone,
-      })
+      logger.warn(
+        { hasEmail: !!data.email, hasPhone: !!data.phone },
+        'Concurrent duplicate person on teacher create (race condition)'
+      )
       throw new ActionError(
         'A person with this email or phone already exists',
         ERROR_CODES.VALIDATION_ERROR
