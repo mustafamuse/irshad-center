@@ -1,3 +1,6 @@
+import { type SearchParams } from 'nuqs/server'
+
+import { paymentsSearchParamsCache } from '@/app/admin/mahad/payments/search-params'
 import {
   Card,
   CardContent,
@@ -16,7 +19,6 @@ import {
   getMahadStudentsPage,
   getSubscriptionMembersBatch,
 } from '@/lib/db/queries/mahad-payments'
-import { SearchParams } from '@/types'
 
 import { PaymentsPagination } from './payments-pagination'
 import { StudentsDataTable } from './students-data-table'
@@ -31,19 +33,16 @@ export async function StudentsTableShell({
   searchParams,
 }: StudentsTableShellProps) {
   const { page, per_page, sort, studentName, batchId, status, needsBilling } =
-    await searchParams
-
-  const pageNumber = Number(page) || 1
-  const take = Number(per_page) || 10
+    await paymentsSearchParamsCache.parse(searchParams)
 
   const { enrollments, totalCount } = await getMahadStudentsPage({
-    page: pageNumber,
-    take,
-    sort: Array.isArray(sort) ? sort[0] : sort,
-    studentName: Array.isArray(studentName) ? studentName[0] : studentName,
-    batchId: Array.isArray(batchId) ? batchId[0] : batchId,
-    status: Array.isArray(status) ? status[0] : status,
-    needsBilling: Array.isArray(needsBilling) ? needsBilling[0] : needsBilling,
+    page,
+    take: per_page,
+    sort: sort ?? undefined,
+    studentName: studentName ?? undefined,
+    batchId: batchId ?? undefined,
+    status: status ?? undefined,
+    needsBilling: needsBilling ?? undefined,
   })
 
   const subscriptionIds = enrollments
@@ -88,7 +87,7 @@ export async function StudentsTableShell({
     }
   })
 
-  const pageCount = Math.ceil(totalCount / take)
+  const pageCount = Math.ceil(totalCount / per_page)
 
   return (
     <Card className="border-border bg-card">

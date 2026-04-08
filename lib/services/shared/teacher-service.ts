@@ -18,7 +18,7 @@ import { prisma } from '@/lib/db'
 import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   ValidationError,
   validateTeacherCreation,
@@ -496,6 +496,9 @@ export async function createPersonTeacherAndAssignDugsi(
     })
   } catch (error) {
     if (isPrismaError(error) && error.code === 'P2002') {
+      logError(logger, error, 'Concurrent duplicate person on teacher create', {
+        email: data.email,
+      })
       throw new ActionError(
         'A person with this email or phone already exists',
         ERROR_CODES.VALIDATION_ERROR
@@ -516,11 +519,18 @@ export async function deactivateTeacherFromDugsi(
   teacherId: string,
   client: DatabaseClient = prisma
 ) {
-  await client.teacherProgram.updateMany({
+  const { count } = await client.teacherProgram.updateMany({
     where: { teacherId, program: 'DUGSI_PROGRAM', isActive: true },
     data: { shifts: [], isActive: false },
   })
-  logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
+  if (count === 0) {
+    logger.warn(
+      { teacherId },
+      'deactivateTeacherFromDugsi matched 0 rows — already deactivated or not found'
+    )
+  } else {
+    logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
+  }
 }
 
 /**

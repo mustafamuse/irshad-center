@@ -71,6 +71,7 @@ const {
   mockAfter,
   mockGetProfileForPaymentLink,
   mockGetBatchByName,
+  mockSetProfileBillingDefaults,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
   mockUpdateBatch: vi.fn(),
@@ -96,6 +97,7 @@ const {
   mockPersonUpdate: vi.fn(),
   mockAfter: vi.fn((fn: () => void) => fn()),
   mockGetProfileForPaymentLink: vi.fn(),
+  mockSetProfileBillingDefaults: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -149,7 +151,8 @@ vi.mock('@/lib/db/queries/student', () => ({
     mockGetStudentDeleteWarnings(...args),
   getProfileForPaymentLink: (...args: unknown[]) =>
     mockGetProfileForPaymentLink(...args),
-  setProfileBillingDefaults: () => Promise.resolve(true),
+  setProfileBillingDefaults: (...args: unknown[]) =>
+    mockSetProfileBillingDefaults(...args),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -200,6 +203,7 @@ import {
   bulkDeleteStudentsAction,
   getStudentDeleteWarningsAction,
   generatePaymentLinkAction,
+  generatePaymentLinkWithDefaultsAction,
   updateStudentAction,
 } from '../index'
 
@@ -1039,5 +1043,21 @@ describe('Student Update Actions', () => {
 
       expect(result?.serverError).toContain('email or phone')
     })
+  })
+})
+
+describe('generatePaymentLinkWithDefaultsAction', () => {
+  beforeEach(() => {
+    mockSetProfileBillingDefaults.mockResolvedValue(true)
+  })
+
+  it('should return not found error when profile does not exist', async () => {
+    mockSetProfileBillingDefaults.mockResolvedValue(null)
+
+    const result = await generatePaymentLinkWithDefaultsAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.serverError).toBe('Student profile not found')
   })
 })
