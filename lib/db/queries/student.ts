@@ -1146,13 +1146,9 @@ export async function setProfileBillingDefaults(
   },
   client: DatabaseClient = prisma
 ) {
-  const exists = await client.programProfile.findUnique({
-    where: { id: profileId },
-    select: { id: true },
-  })
-  if (!exists) return null
-  return client.programProfile.update({
+  const { count } = await client.programProfile.updateMany({
     where: { id: profileId },
     data: defaults,
   })
+  return count > 0
 }

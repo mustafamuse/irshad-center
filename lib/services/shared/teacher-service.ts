@@ -17,6 +17,7 @@ import { Prisma, Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import {
   ValidationError,
@@ -453,6 +454,24 @@ export async function createPersonTeacherAndAssignDugsi(data: {
   email: string | null
   phone: string | null
 }) {
+  if (data.email || data.phone) {
+    const existing = await prisma.person.findFirst({
+      where: {
+        OR: [
+          ...(data.email ? [{ email: data.email }] : []),
+          ...(data.phone ? [{ phone: data.phone }] : []),
+        ],
+      },
+      select: { id: true },
+    })
+    if (existing) {
+      throw new ActionError(
+        'A person with this email or phone already exists',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
     const person = await tx.person.create({
       data: { name: data.name, email: data.email, phone: data.phone },

@@ -113,7 +113,8 @@ export async function updateStudentProfile(
         },
       })
 
-      if (!profile) throw new Error('Profile not found')
+      if (!profile)
+        throw new ActionError('Student not found', ERROR_CODES.NOT_FOUND)
 
       const personUpdate: Prisma.PersonUpdateInput = {}
       if (data.name !== undefined) personUpdate.name = data.name

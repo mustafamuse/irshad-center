@@ -15,6 +15,7 @@ import {
   createBatch,
   deleteBatch,
   getBatchById,
+  getBatchByName,
   updateBatch,
   assignStudentsToBatch,
   transferStudents,
@@ -152,30 +153,27 @@ const _createBatchAction = adminActionClient
       endDate: parsedInput.endDate ?? undefined,
     })
 
-    let batchName = validated.name
-    try {
-      const batch = await createBatch({
-        name: validated.name,
-        startDate: validated.startDate ?? null,
-        endDate: validated.endDate ?? null,
-      })
-
-      after(() => {
-        revalidateTag('mahad-stats')
-        revalidateTag('mahad-students')
-        revalidatePath('/admin/mahad')
-      })
-
-      return batch
-    } catch (error) {
-      if (isPrismaError(error) && error.code === 'P2002') {
-        throw new ActionError(
-          `A cohort with the name "${batchName}" already exists`,
-          ERROR_CODES.VALIDATION_ERROR
-        )
-      }
-      throw error
+    const existing = await getBatchByName(validated.name)
+    if (existing) {
+      throw new ActionError(
+        `A cohort with the name "${validated.name}" already exists`,
+        ERROR_CODES.VALIDATION_ERROR
+      )
     }
+
+    const batch = await createBatch({
+      name: validated.name,
+      startDate: validated.startDate ?? null,
+      endDate: validated.endDate ?? null,
+    })
+
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
+      revalidatePath('/admin/mahad')
+    })
+
+    return batch
   })
 
 export async function createBatchAction(
@@ -240,33 +238,29 @@ const _updateBatchAction = adminActionClient
       throw new ActionError('Cohort not found', ERROR_CODES.NOT_FOUND)
     }
 
-    let batchName = data.name
-    try {
-      const batch = await updateBatch(id, {
-        name: validated.name,
-        startDate: validated.startDate,
-        endDate: validated.endDate,
-      })
-
-      after(() => {
-        revalidateTag('mahad-stats')
-        revalidateTag('mahad-students')
-        revalidatePath('/admin/mahad')
-      })
-
-      return batch
-    } catch (error) {
-      if (isPrismaError(error)) {
-        if (error.code === 'P2002')
-          throw new ActionError(
-            `A cohort with the name "${batchName}" already exists`,
-            ERROR_CODES.VALIDATION_ERROR
-          )
-        if (error.code === 'P2025')
-          throw new ActionError('Cohort not found', ERROR_CODES.NOT_FOUND)
+    if (validated.name !== undefined) {
+      const conflict = await getBatchByName(validated.name)
+      if (conflict && conflict.id !== id) {
+        throw new ActionError(
+          `A cohort with the name "${validated.name}" already exists`,
+          ERROR_CODES.VALIDATION_ERROR
+        )
       }
-      throw error
     }
+
+    const batch = await updateBatch(id, {
+      name: validated.name,
+      startDate: validated.startDate,
+      endDate: validated.endDate,
+    })
+
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
+      revalidatePath('/admin/mahad')
+    })
+
+    return batch
   })
 
 export async function updateBatchAction(

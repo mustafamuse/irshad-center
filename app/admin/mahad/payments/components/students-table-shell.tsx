@@ -1,5 +1,3 @@
-import { Prisma } from '@prisma/client'
-
 import {
   Card,
   CardContent,
@@ -14,89 +12,16 @@ import {
   TableHead,
   TableBody,
 } from '@/components/ui/table'
-import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
-import { prisma } from '@/lib/db'
+import {
+  getMahadStudentsPage,
+  getSubscriptionMembersBatch,
+} from '@/lib/db/queries/mahad-payments'
 import { SearchParams } from '@/types'
 
 import { PaymentsPagination } from './payments-pagination'
 import { StudentsDataTable } from './students-data-table'
 import { StudentsMobileCards } from './students-mobile-cards'
 import { StudentsTableFilters } from './students-table-filters'
-
-type SubscriptionMember = { id: string; name: string }
-
-/**
- * Batch fetch subscription members for multiple subscriptions.
- * Returns a Map of subscriptionId -> array of other members sharing that subscription.
- * This avoids N+1 queries when loading student lists.
- */
-async function getSubscriptionMembersBatch(
-  subscriptionIds: string[]
-): Promise<Map<string, Map<string, SubscriptionMember[]>>> {
-  if (subscriptionIds.length === 0) {
-    return new Map()
-  }
-
-  // Single query to get all billing assignments for all subscriptions
-  const allAssignments = await prisma.billingAssignment.findMany({
-    where: {
-      subscriptionId: { in: subscriptionIds },
-      isActive: true,
-    },
-    select: {
-      subscriptionId: true,
-      programProfileId: true,
-      programProfile: {
-        select: {
-          id: true,
-          person: {
-            select: {
-              name: true,
-            },
-          },
-        },
-      },
-    },
-  })
-
-  // Step 1: Group assignments by subscriptionId (O(n))
-  const assignmentsBySubscription = new Map<string, typeof allAssignments>()
-  for (const assignment of allAssignments) {
-    if (!assignment.subscriptionId) continue
-
-    const existing = assignmentsBySubscription.get(assignment.subscriptionId)
-    if (existing) {
-      existing.push(assignment)
-    } else {
-      assignmentsBySubscription.set(assignment.subscriptionId, [assignment])
-    }
-  }
-
-  // Step 2: Build member map for each subscription (O(n) total)
-  const subscriptionMap = new Map<string, Map<string, SubscriptionMember[]>>()
-
-  assignmentsBySubscription.forEach(
-    (subscriptionAssignments, subscriptionId) => {
-      const profileMap = new Map<string, SubscriptionMember[]>()
-
-      // For each profile in this subscription, list other members
-      for (const assignment of subscriptionAssignments) {
-        const otherMembers = subscriptionAssignments
-          .filter((a) => a.programProfileId !== assignment.programProfileId)
-          .map((a) => ({
-            id: a.programProfile.id,
-            name: a.programProfile.person.name,
-          }))
-
-        profileMap.set(assignment.programProfileId, otherMembers)
-      }
-
-      subscriptionMap.set(subscriptionId, profileMap)
-    }
-  )
-
-  return subscriptionMap
-}
 
 interface StudentsTableShellProps {
   searchParams: SearchParams
@@ -110,114 +35,21 @@ export async function StudentsTableShell({
 
   const pageNumber = Number(page) || 1
   const take = Number(per_page) || 10
-  const skip = (pageNumber - 1) * take
 
-  const sortString = Array.isArray(sort) ? sort[0] : sort
-  const [column, order] = (sortString?.split('.') || ['name', 'asc']) as [
-    string,
-    'asc' | 'desc',
-  ]
-
-  // Build where clause with proper Prisma typing
-  const whereConditions: Prisma.EnrollmentWhereInput[] = [
-    // Mahad program only
-    { programProfile: { program: MAHAD_PROGRAM } },
-    // Exclude Test batch
-    { batch: { name: { not: 'Test' } } },
-  ]
-
-  // Handle the special "needs billing" filter
-  if (needsBilling === 'true') {
-    whereConditions.push(
-      { status: { not: 'WITHDRAWN' } },
-      // Find profiles without active billing assignments (no subscription linked)
-      // Note: Type assertion to unknown needed due to Prisma limitation with { isNot: null }
-      // See: https://github.com/prisma/prisma/issues/5042
-      {
-        programProfile: {
-          assignments: {
-            none: {
-              isActive: true,
-              subscription: { isNot: null },
-            },
-          },
-        },
-      } as unknown as Prisma.EnrollmentWhereInput
-    )
-  } else {
-    // Regular filters
-    if (studentName) {
-      // Handle case where studentName could be an array
-      const nameFilter = Array.isArray(studentName)
-        ? studentName[0]
-        : studentName
-      if (nameFilter) {
-        whereConditions.push({
-          programProfile: {
-            person: {
-              name: {
-                contains: nameFilter,
-                mode: 'insensitive',
-              },
-            },
-          },
-        })
-      }
-    }
-    if (batchId) {
-      const batchFilter = Array.isArray(batchId) ? batchId[0] : batchId
-      if (batchFilter) {
-        whereConditions.push({ batchId: batchFilter })
-      }
-    }
-    if (status) {
-      const statusValue = Array.isArray(status) ? status[0] : status
-      if (statusValue) {
-        whereConditions.push({
-          status: statusValue.toUpperCase() as
-            | 'REGISTERED'
-            | 'ENROLLED'
-            | 'WITHDRAWN',
-        })
-      }
-    } else {
-      whereConditions.push({ status: { not: 'WITHDRAWN' } })
-    }
-  }
-
-  // Get enrollments with related data
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      AND: whereConditions,
-    },
-    include: {
-      batch: true,
-      programProfile: {
-        include: {
-          person: true,
-          assignments: {
-            where: { isActive: true },
-            include: {
-              subscription: true,
-            },
-          },
-        },
-      },
-    },
-    orderBy:
-      column === 'name'
-        ? { programProfile: { person: { name: order } } }
-        : { [column]: order },
+  const { enrollments, totalCount } = await getMahadStudentsPage({
+    page: pageNumber,
     take,
-    skip,
+    sort: Array.isArray(sort) ? sort[0] : sort,
+    studentName: Array.isArray(studentName) ? studentName[0] : studentName,
+    batchId: Array.isArray(batchId) ? batchId[0] : batchId,
+    status: Array.isArray(status) ? status[0] : status,
+    needsBilling: Array.isArray(needsBilling) ? needsBilling[0] : needsBilling,
   })
 
-  // Collect all subscription IDs for batch query (fixes N+1 query)
   const subscriptionIds = enrollments
     .map((e) => e.programProfile.assignments[0]?.subscription?.id)
     .filter((id): id is string => id !== undefined && id !== null)
 
-  // Single batch query for all subscription members
   const subscriptionMembersMap =
     await getSubscriptionMembersBatch(subscriptionIds)
 
@@ -256,13 +88,7 @@ export async function StudentsTableShell({
     }
   })
 
-  // Get total count
-  const totalStudents = await prisma.enrollment.count({
-    where: {
-      AND: whereConditions,
-    },
-  })
-  const pageCount = Math.ceil(totalStudents / take)
+  const pageCount = Math.ceil(totalCount / take)
 
   return (
     <Card className="border-border bg-card">
