@@ -495,14 +495,14 @@ const _assignTeacherToProgramAction = adminActionClient
         'Teacher assigned to program'
       )
     } catch (error) {
-      if (
-        error instanceof ValidationError &&
-        error.code === 'DUPLICATE_PROGRAM_ENROLLMENT'
-      ) {
-        throw new ActionError(
-          'Teacher is already enrolled in this program',
-          ERROR_CODES.VALIDATION_ERROR
-        )
+      if (error instanceof ValidationError) {
+        if (error.code === 'DUPLICATE_PROGRAM_ENROLLMENT')
+          throw new ActionError(
+            'Teacher is already enrolled in this program',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        if (error.code === 'TEACHER_NOT_FOUND')
+          throw new ActionError('Teacher not found', ERROR_CODES.NOT_FOUND)
       }
       throw error
     }
@@ -545,7 +545,13 @@ const _bulkAssignProgramsAction = adminActionClient
   .schema(bulkProgramAssignmentSchema)
   .action(async ({ parsedInput }) => {
     const { teacherId, programs } = parsedInput
-    await bulkAssignPrograms(teacherId, programs)
+    try {
+      await bulkAssignPrograms(teacherId, programs)
+    } catch (error) {
+      if (error instanceof ValidationError)
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      throw error
+    }
 
     after(() => {
       revalidatePath('/admin/teachers')

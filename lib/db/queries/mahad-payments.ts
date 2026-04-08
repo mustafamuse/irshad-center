@@ -3,6 +3,7 @@ import { EnrollmentStatus, Prisma } from '@prisma/client'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
 // ============================================================================
 // Stats
@@ -134,6 +135,10 @@ export async function getMahadStudentsPage(
 ) {
   const { page, take, sort, studentName, batchId, status, needsBilling } =
     params
+
+  if (page < 1)
+    throw new ActionError('Invalid page number', ERROR_CODES.VALIDATION_ERROR)
+
   const skip = (page - 1) * take
 
   const order: 'asc' | 'desc' = sort === 'name.desc' ? 'desc' : 'asc'

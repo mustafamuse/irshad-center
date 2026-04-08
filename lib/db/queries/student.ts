@@ -26,6 +26,7 @@ import {
 import { prisma } from '@/lib/db'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
 import {
@@ -824,7 +825,10 @@ export async function resolveDuplicateStudents(
       (p) => p.program !== keepProfile.program
     )
     if (invalidPrograms.length > 0) {
-      throw new Error('Cannot merge profiles from different programs')
+      throw new ActionError(
+        'Cannot merge profiles from different programs',
+        ERROR_CODES.VALIDATION_ERROR
+      )
     }
 
     if (mergeData) {
@@ -965,7 +969,7 @@ export async function getStudentCompleteness(
   })
 
   if (!profile) {
-    throw new Error('Student not found')
+    throw new ActionError('Student not found', ERROR_CODES.NOT_FOUND)
   }
 
   const requiredFields = [

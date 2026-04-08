@@ -29,7 +29,7 @@ import {
 } from '@/lib/db/queries/student'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
-import { createActionLogger } from '@/lib/logger'
+import { createActionLogger, logError } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
 import {
   deleteStudentProfile,
@@ -1010,9 +1010,13 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
       try {
         validateBillingCycleAnchor(billingCycleAnchor)
-      } catch {
+      } catch (error) {
+        await logError(logger, error, 'Invalid billing cycle anchor', {
+          billingCycleAnchor,
+          profileId,
+        })
         throw new ActionError(
-          'Invalid billing start date',
+          error instanceof Error ? error.message : 'Invalid billing start date',
           ERROR_CODES.VALIDATION_ERROR
         )
       }

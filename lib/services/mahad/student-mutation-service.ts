@@ -11,7 +11,7 @@ import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { isPrismaError } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('student-mutation')
@@ -63,6 +63,9 @@ export async function deleteStudentProfile(
           ERROR_CODES.VALIDATION_ERROR
         )
     }
+    await logError(logger, error, 'Unexpected error in deleteStudentProfile', {
+      profileId,
+    })
     throw error
   }
 
@@ -73,48 +76,61 @@ export async function bulkDeleteStudentProfiles(
   studentIds: string[],
   client: DatabaseClient = prisma
 ): Promise<{ deletedCount: number; blockedIds: string[] }> {
-  const { deletedCount, blockedIds } = await executeInTransaction(
-    client,
-    async (tx) => {
-      const activeAssignments = await tx.billingAssignment.findMany({
-        where: {
-          programProfileId: { in: studentIds },
-          ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
-        },
-        select: { programProfileId: true },
-      })
-
-      const blockedIdSet = new Set(
-        activeAssignments.map((a) => a.programProfileId)
-      )
-      const safe = studentIds.filter((id) => !blockedIdSet.has(id))
-      const blocked = studentIds.filter((id) => blockedIdSet.has(id))
-
-      let deleted = 0
-      if (safe.length > 0) {
-        const result = await tx.programProfile.deleteMany({
-          where: { id: { in: safe } },
+  try {
+    const { deletedCount, blockedIds } = await executeInTransaction(
+      client,
+      async (tx) => {
+        const activeAssignments = await tx.billingAssignment.findMany({
+          where: {
+            programProfileId: { in: studentIds },
+            ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
+          },
+          select: { programProfileId: true },
         })
-        deleted = result.count
+
+        const blockedIdSet = new Set(
+          activeAssignments.map((a) => a.programProfileId)
+        )
+        const safe = studentIds.filter((id) => !blockedIdSet.has(id))
+        const blocked = studentIds.filter((id) => blockedIdSet.has(id))
+
+        let deleted = 0
+        if (safe.length > 0) {
+          const result = await tx.programProfile.deleteMany({
+            where: { id: { in: safe } },
+          })
+          deleted = result.count
+        }
+
+        return { deletedCount: deleted, blockedIds: blocked }
       }
-
-      return { deletedCount: deleted, blockedIds: blocked }
-    }
-  )
-
-  if (deletedCount === 0 && blockedIds.length > 0) {
-    throw new ActionError(
-      `All ${blockedIds.length} student(s) have active subscriptions and cannot be deleted`,
-      ERROR_CODES.ACTIVE_SUBSCRIPTION
     )
+
+    if (deletedCount === 0 && blockedIds.length > 0) {
+      throw new ActionError(
+        `All ${blockedIds.length} student(s) have active subscriptions and cannot be deleted`,
+        ERROR_CODES.ACTIVE_SUBSCRIPTION
+      )
+    }
+
+    logger.info(
+      { deletedCount, blockedCount: blockedIds.length },
+      'Bulk student profiles deleted'
+    )
+
+    return { deletedCount, blockedIds }
+  } catch (error) {
+    if (error instanceof ActionError) throw error
+    await logError(
+      logger,
+      error,
+      'Unexpected error in bulkDeleteStudentProfiles',
+      {
+        studentIdCount: studentIds.length,
+      }
+    )
+    throw error
   }
-
-  logger.info(
-    { deletedCount, blockedCount: blockedIds.length },
-    'Bulk student profiles deleted'
-  )
-
-  return { deletedCount, blockedIds }
 }
 
 export async function updateStudentProfile(
@@ -206,6 +222,9 @@ export async function updateStudentProfile(
           ERROR_CODES.VALIDATION_ERROR
         )
     }
+    await logError(logger, error, 'Unexpected error in updateStudentProfile', {
+      profileId: id,
+    })
     throw error
   }
 

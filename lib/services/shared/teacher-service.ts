@@ -91,12 +91,18 @@ export async function deleteTeacher(
   teacherId: string,
   client: DatabaseClient = prisma
 ) {
-  await client.teacherProgram.updateMany({
+  const { count } = await client.teacherProgram.updateMany({
     where: { teacherId },
     data: { isActive: false },
   })
-
-  logger.info({ teacherId }, 'Teacher soft deleted')
+  if (count === 0) {
+    logger.warn(
+      { teacherId },
+      'deleteTeacher matched 0 rows — already deleted or not found'
+    )
+  } else {
+    logger.info({ teacherId }, 'Teacher soft deleted')
+  }
 }
 
 // ============================================================================
@@ -194,7 +200,7 @@ export async function removeTeacherFromProgram(
 ) {
   const { teacherId, program } = input
 
-  await client.teacherProgram.updateMany({
+  const { count } = await client.teacherProgram.updateMany({
     where: {
       teacherId,
       program,
@@ -204,8 +210,14 @@ export async function removeTeacherFromProgram(
       isActive: false,
     },
   })
-
-  logger.info({ teacherId, program }, 'Teacher removed from program')
+  if (count === 0) {
+    logger.warn(
+      { teacherId, program },
+      'removeTeacherFromProgram matched 0 rows — not enrolled or already removed'
+    )
+  } else {
+    logger.info({ teacherId, program }, 'Teacher removed from program')
+  }
 }
 
 /**
