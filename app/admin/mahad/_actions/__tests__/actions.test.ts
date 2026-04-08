@@ -1051,6 +1051,32 @@ describe('generatePaymentLinkWithDefaultsAction', () => {
     mockSetProfileBillingDefaults.mockResolvedValue(true)
   })
 
+  it('should set billing defaults then return payment link', async () => {
+    mockGetProfileForPaymentLink.mockResolvedValue({
+      id: VALID_PROFILE_ID,
+      personId: 'person-1',
+      graduationStatus: 'NON_GRADUATE',
+      paymentFrequency: 'MONTHLY',
+      billingType: 'FULL_TIME',
+      person: {
+        name: 'Test Student',
+        email: 'test@example.com',
+        phone: null,
+      },
+    })
+    mockStripeSessionCreate.mockResolvedValue({
+      id: 'sess_defaults',
+      url: 'https://checkout.stripe.com/defaults-test',
+    })
+
+    const result = await generatePaymentLinkWithDefaultsAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.data?.url).toBe('https://checkout.stripe.com/defaults-test')
+    expect(result?.data?.amount).toBe(15000)
+  })
+
   it('should return not found error when profile does not exist', async () => {
     mockSetProfileBillingDefaults.mockResolvedValue(false)
 
