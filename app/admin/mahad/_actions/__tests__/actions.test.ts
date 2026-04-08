@@ -1052,7 +1052,7 @@ describe('generatePaymentLinkWithDefaultsAction', () => {
   })
 
   it('should return not found error when profile does not exist', async () => {
-    mockSetProfileBillingDefaults.mockResolvedValue(null)
+    mockSetProfileBillingDefaults.mockResolvedValue(false)
 
     const result = await generatePaymentLinkWithDefaultsAction({
       profileId: VALID_PROFILE_ID,

@@ -497,7 +497,8 @@ export async function createPersonTeacherAndAssignDugsi(
   } catch (error) {
     if (isPrismaError(error) && error.code === 'P2002') {
       logError(logger, error, 'Concurrent duplicate person on teacher create', {
-        email: data.email,
+        hasEmail: !!data.email,
+        hasPhone: !!data.phone,
       })
       throw new ActionError(
         'A person with this email or phone already exists',

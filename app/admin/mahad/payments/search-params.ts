@@ -1,5 +1,6 @@
 import {
   createSearchParamsCache,
+  parseAsBoolean,
   parseAsInteger,
   parseAsString,
   parseAsStringLiteral,
@@ -22,5 +23,5 @@ export const paymentsSearchParamsCache = createSearchParamsCache({
   studentName: parseAsString,
   batchId: parseAsString,
   status: parseAsStringLiteral(STATUS_OPTIONS),
-  needsBilling: parseAsString,
+  needsBilling: parseAsBoolean,
 })

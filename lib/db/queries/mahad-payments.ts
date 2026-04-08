@@ -125,7 +125,7 @@ export interface MahadStudentsPageParams {
   studentName?: string
   batchId?: string
   status?: string
-  needsBilling?: string
+  needsBilling?: boolean
 }
 
 export async function getMahadStudentsPage(
@@ -136,23 +136,22 @@ export async function getMahadStudentsPage(
     params
   const skip = (page - 1) * take
 
-  const sortParts = sort?.split('.') ?? []
-  const column = sortParts[0] ?? 'name'
-  const order: 'asc' | 'desc' = sortParts[1] === 'desc' ? 'desc' : 'asc'
+  const order: 'asc' | 'desc' = sort === 'name.desc' ? 'desc' : 'asc'
 
   const whereConditions: Prisma.EnrollmentWhereInput[] = [
     { programProfile: { program: MAHAD_PROGRAM } },
     { batch: { name: { not: 'Test' } } },
   ]
 
-  if (needsBilling === 'true') {
-    whereConditions.push({ status: { not: 'WITHDRAWN' } }, {
-      programProfile: {
-        assignments: {
-          none: { isActive: true, subscription: { isNot: null } },
+  if (needsBilling) {
+    whereConditions.push(
+      { status: { not: EnrollmentStatus.WITHDRAWN } },
+      {
+        programProfile: {
+          assignments: { none: { isActive: true } },
         },
-      },
-    } as unknown as Prisma.EnrollmentWhereInput)
+      }
+    )
   } else {
     if (studentName) {
       whereConditions.push({
@@ -165,12 +164,13 @@ export async function getMahadStudentsPage(
       whereConditions.push({ batchId })
     }
     if (status) {
-      const upperStatus = status.toUpperCase() as EnrollmentStatus
-      if ((Object.values(EnrollmentStatus) as string[]).includes(upperStatus)) {
-        whereConditions.push({ status: upperStatus })
+      const upperStatus = status.toUpperCase()
+      const enumValues = Object.values(EnrollmentStatus) as string[]
+      if (enumValues.includes(upperStatus)) {
+        whereConditions.push({ status: upperStatus as EnrollmentStatus })
       }
     } else {
-      whereConditions.push({ status: { not: 'WITHDRAWN' } })
+      whereConditions.push({ status: { not: EnrollmentStatus.WITHDRAWN } })
     }
   }
 
@@ -192,10 +192,7 @@ export async function getMahadStudentsPage(
           },
         },
       },
-      orderBy:
-        column === 'name'
-          ? { programProfile: { person: { name: order } } }
-          : { [column]: order },
+      orderBy: { programProfile: { person: { name: order } } },
       take,
       skip,
     }),
