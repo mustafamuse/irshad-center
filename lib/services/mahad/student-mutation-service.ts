@@ -7,9 +7,14 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
+import { DatabaseClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger } from '@/lib/logger'
 import { isPrismaError } from '@/lib/utils/type-guards'
+
+const logger = createServiceLogger('student-mutation')
 
 export interface UpdateStudentData {
   name?: string
@@ -25,9 +30,12 @@ export interface UpdateStudentData {
   batchId?: string | null
 }
 
-export async function deleteStudentProfile(profileId: string): Promise<void> {
+export async function deleteStudentProfile(
+  profileId: string,
+  client: DatabaseClient = prisma
+): Promise<void> {
   try {
-    await prisma.$transaction(async (tx) => {
+    await executeInTransaction(client, async (tx) => {
       const liveAssignment = await tx.billingAssignment.findFirst({
         where: {
           programProfileId: profileId,
@@ -57,36 +65,42 @@ export async function deleteStudentProfile(profileId: string): Promise<void> {
     }
     throw error
   }
+
+  logger.info({ profileId }, 'Student profile deleted')
 }
 
 export async function bulkDeleteStudentProfiles(
-  studentIds: string[]
+  studentIds: string[],
+  client: DatabaseClient = prisma
 ): Promise<{ deletedCount: number; blockedIds: string[] }> {
-  const { deletedCount, blockedIds } = await prisma.$transaction(async (tx) => {
-    const activeAssignments = await tx.billingAssignment.findMany({
-      where: {
-        programProfileId: { in: studentIds },
-        ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
-      },
-      select: { programProfileId: true },
-    })
-
-    const blockedIdSet = new Set(
-      activeAssignments.map((a) => a.programProfileId)
-    )
-    const safe = studentIds.filter((id) => !blockedIdSet.has(id))
-    const blocked = studentIds.filter((id) => blockedIdSet.has(id))
-
-    let deleted = 0
-    if (safe.length > 0) {
-      const result = await tx.programProfile.deleteMany({
-        where: { id: { in: safe } },
+  const { deletedCount, blockedIds } = await executeInTransaction(
+    client,
+    async (tx) => {
+      const activeAssignments = await tx.billingAssignment.findMany({
+        where: {
+          programProfileId: { in: studentIds },
+          ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
+        },
+        select: { programProfileId: true },
       })
-      deleted = result.count
-    }
 
-    return { deletedCount: deleted, blockedIds: blocked }
-  })
+      const blockedIdSet = new Set(
+        activeAssignments.map((a) => a.programProfileId)
+      )
+      const safe = studentIds.filter((id) => !blockedIdSet.has(id))
+      const blocked = studentIds.filter((id) => blockedIdSet.has(id))
+
+      let deleted = 0
+      if (safe.length > 0) {
+        const result = await tx.programProfile.deleteMany({
+          where: { id: { in: safe } },
+        })
+        deleted = result.count
+      }
+
+      return { deletedCount: deleted, blockedIds: blocked }
+    }
+  )
 
   if (deletedCount === 0 && blockedIds.length > 0) {
     throw new ActionError(
@@ -95,15 +109,21 @@ export async function bulkDeleteStudentProfiles(
     )
   }
 
+  logger.info(
+    { deletedCount, blockedCount: blockedIds.length },
+    'Bulk student profiles deleted'
+  )
+
   return { deletedCount, blockedIds }
 }
 
 export async function updateStudentProfile(
   id: string,
-  data: UpdateStudentData
+  data: UpdateStudentData,
+  client: DatabaseClient = prisma
 ): Promise<void> {
   try {
-    await prisma.$transaction(async (tx) => {
+    await executeInTransaction(client, async (tx) => {
       const profile = await tx.programProfile.findUnique({
         where: { id },
         relationLoadStrategy: 'join',
@@ -188,4 +208,6 @@ export async function updateStudentProfile(
     }
     throw error
   }
+
+  logger.info({ profileId: id }, 'Student profile updated')
 }

@@ -161,11 +161,22 @@ const _createBatchAction = adminActionClient
       )
     }
 
-    const batch = await createBatch({
-      name: validated.name,
-      startDate: validated.startDate ?? null,
-      endDate: validated.endDate ?? null,
-    })
+    let batch
+    try {
+      batch = await createBatch({
+        name: validated.name,
+        startDate: validated.startDate ?? null,
+        endDate: validated.endDate ?? null,
+      })
+    } catch (error) {
+      if (isPrismaError(error) && error.code === 'P2002') {
+        throw new ActionError(
+          `A cohort with the name "${validated.name}" already exists`,
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+      throw error
+    }
 
     after(() => {
       revalidateTag('mahad-stats')
@@ -248,11 +259,22 @@ const _updateBatchAction = adminActionClient
       }
     }
 
-    const batch = await updateBatch(id, {
-      name: validated.name,
-      startDate: validated.startDate,
-      endDate: validated.endDate,
-    })
+    let batch
+    try {
+      batch = await updateBatch(id, {
+        name: validated.name,
+        startDate: validated.startDate,
+        endDate: validated.endDate,
+      })
+    } catch (error) {
+      if (isPrismaError(error) && error.code === 'P2002') {
+        throw new ActionError(
+          `A cohort with the name "${validated.name}" already exists`,
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+      throw error
+    }
 
     after(() => {
       revalidateTag('mahad-stats')

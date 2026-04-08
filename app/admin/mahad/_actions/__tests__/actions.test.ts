@@ -159,6 +159,12 @@ vi.mock('@/lib/logger', () => ({
     info: vi.fn(),
     debug: vi.fn(),
   })),
+  createServiceLogger: vi.fn(() => ({
+    error: mockLoggerError,
+    warn: mockLoggerWarn,
+    info: vi.fn(),
+    debug: vi.fn(),
+  })),
   logError: (...args: unknown[]) => mockLogError(...args),
 }))
 

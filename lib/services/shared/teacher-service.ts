@@ -439,23 +439,32 @@ export async function getTeachersByProgram(
 // Teacher + Program Creation Workflows
 // ============================================================================
 
-export async function createTeacherAndAssignDugsi(personId: string) {
-  return prisma.$transaction(async (tx) => {
-    const teacher = await createTeacher(personId, tx)
+export async function createTeacherAndAssignDugsi(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  const teacher = await executeInTransaction(client, async (tx) => {
+    const newTeacher = await createTeacher(personId, tx)
     await tx.teacherProgram.create({
-      data: { teacherId: teacher.id, program: 'DUGSI_PROGRAM' },
+      data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
     })
-    return teacher
+    return newTeacher
   })
+
+  logger.info(
+    { teacherId: teacher.id, personId, program: 'DUGSI_PROGRAM' },
+    'Teacher created and assigned to Dugsi'
+  )
+
+  return teacher
 }
 
-export async function createPersonTeacherAndAssignDugsi(data: {
-  name: string
-  email: string | null
-  phone: string | null
-}) {
+export async function createPersonTeacherAndAssignDugsi(
+  data: { name: string; email: string | null; phone: string | null },
+  client: DatabaseClient = prisma
+) {
   if (data.email || data.phone) {
-    const existing = await prisma.person.findFirst({
+    const existing = await client.person.findFirst({
       where: {
         OR: [
           ...(data.email ? [{ email: data.email }] : []),
@@ -472,20 +481,30 @@ export async function createPersonTeacherAndAssignDugsi(data: {
     }
   }
 
-  return prisma.$transaction(async (tx) => {
+  const teacher = await executeInTransaction(client, async (tx) => {
     const person = await tx.person.create({
       data: { name: data.name, email: data.email, phone: data.phone },
     })
-    const teacher = await createTeacher(person.id, tx)
+    const newTeacher = await createTeacher(person.id, tx)
     await tx.teacherProgram.create({
-      data: { teacherId: teacher.id, program: 'DUGSI_PROGRAM' },
+      data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
     })
-    return teacher
+    return newTeacher
   })
+
+  logger.info(
+    { teacherId: teacher.id, program: 'DUGSI_PROGRAM' },
+    'Person, teacher, and Dugsi assignment created'
+  )
+
+  return teacher
 }
 
-export async function deactivateTeacherFromDugsi(teacherId: string) {
-  await prisma.teacherProgram.updateMany({
+export async function deactivateTeacherFromDugsi(
+  teacherId: string,
+  client: DatabaseClient = prisma
+) {
+  await client.teacherProgram.updateMany({
     where: { teacherId, program: 'DUGSI_PROGRAM', isActive: true },
     data: { shifts: [], isActive: false },
   })

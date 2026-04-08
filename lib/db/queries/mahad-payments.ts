@@ -73,6 +73,7 @@ export async function getSubscriptionMembersBatch(
 
   const allAssignments = await client.billingAssignment.findMany({
     where: { subscriptionId: { in: subscriptionIds }, isActive: true },
+    relationLoadStrategy: 'join',
     select: {
       subscriptionId: true,
       programProfileId: true,
@@ -191,6 +192,7 @@ export async function getMahadStudentsPage(
   const [enrollments, totalCount] = await Promise.all([
     client.enrollment.findMany({
       where,
+      relationLoadStrategy: 'join',
       include: {
         batch: true,
         programProfile: {
