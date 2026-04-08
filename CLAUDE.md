@@ -39,7 +39,7 @@ Claude should refuse to write code violating these rules.
 3. **Minimize client components** - extract interactive parts into small client components, keep data fetching server-side
 4. **Never reset production database** - forbidden: `prisma migrate reset`, `DROP TABLE`, `TRUNCATE`
 5. **Use transactions for multi-table operations** - `prisma.$transaction()`
-6. **Handle P2002 race conditions** - use upsert or read-first inside a transaction. Never try-catch P2002 inside `$transaction()` — PostgreSQL aborts the transaction on constraint violations, making recovery code dead
+6. **Explicit pre-validation over constraint-catching** - use a `findFirst` check before writes for user-facing uniqueness validation (email, phone, name). Database constraints (P2002) are safety nets for bugs and race conditions, not primary error reporters. Never try to recover or run additional queries after catching a constraint error inside `$transaction()` — PostgreSQL aborts the transaction on violations. For truly concurrent public flows, use `upsert` (`INSERT ... ON CONFLICT`) instead of check-then-insert.
 7. **Never use `any` type** - always use specific types
 8. **Validate ALL external input with Zod** before database operations
 9. **Always create new files as `.ts`/`.tsx`**, never `.js`/`.jsx`

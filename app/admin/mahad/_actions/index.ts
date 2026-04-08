@@ -4,7 +4,6 @@ import { revalidatePath, revalidateTag } from 'next/cache'
 import { after } from 'next/server'
 
 import {
-  Prisma,
   GraduationStatus,
   PaymentFrequency,
   StudentBillingType,
@@ -12,25 +11,31 @@ import {
 import { z } from 'zod'
 
 import { featureFlags } from '@/lib/config/feature-flags'
-import { prisma } from '@/lib/db'
 import {
   createBatch,
   deleteBatch,
   getBatchById,
+  getBatchByName,
   updateBatch,
   assignStudentsToBatch,
   transferStudents,
 } from '@/lib/db/queries/batch'
 import {
   getStudentById,
+  getProfileForPaymentLink,
+  setProfileBillingDefaults,
   resolveDuplicateStudents,
   getStudentDeleteWarnings,
 } from '@/lib/db/queries/student'
-import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { getMahadKeys } from '@/lib/keys/stripe'
-import { createActionLogger } from '@/lib/logger'
+import { createActionLogger, logError } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
+import {
+  deleteStudentProfile,
+  bulkDeleteStudentProfiles,
+  updateStudentProfile,
+} from '@/lib/services/mahad/student-mutation-service'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
 import { validateBillingCycleAnchor } from '@/lib/utils/billing-date'
 import {
@@ -148,30 +153,38 @@ const _createBatchAction = adminActionClient
       endDate: parsedInput.endDate ?? undefined,
     })
 
-    let batchName = validated.name
+    const existing = await getBatchByName(validated.name)
+    if (existing) {
+      throw new ActionError(
+        `A cohort with the name "${validated.name}" already exists`,
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+
+    let batch
     try {
-      const batch = await createBatch({
+      batch = await createBatch({
         name: validated.name,
         startDate: validated.startDate ?? null,
         endDate: validated.endDate ?? null,
       })
-
-      after(() => {
-        revalidateTag('mahad-stats')
-        revalidateTag('mahad-students')
-        revalidatePath('/admin/mahad')
-      })
-
-      return batch
     } catch (error) {
       if (isPrismaError(error) && error.code === 'P2002') {
         throw new ActionError(
-          `A cohort with the name "${batchName}" already exists`,
+          `A cohort with the name "${validated.name}" already exists`,
           ERROR_CODES.VALIDATION_ERROR
         )
       }
       throw error
     }
+
+    after(() => {
+      revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
+      revalidatePath('/admin/mahad')
+    })
+
+    return batch
   })
 
 export async function createBatchAction(
@@ -236,7 +249,16 @@ const _updateBatchAction = adminActionClient
       throw new ActionError('Cohort not found', ERROR_CODES.NOT_FOUND)
     }
 
-    let batchName = data.name
+    if (validated.name !== undefined) {
+      const conflict = await getBatchByName(validated.name)
+      if (conflict && conflict.id !== id) {
+        throw new ActionError(
+          `A cohort with the name "${validated.name}" already exists`,
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+    }
+
     try {
       const batch = await updateBatch(id, {
         name: validated.name,
@@ -252,14 +274,14 @@ const _updateBatchAction = adminActionClient
 
       return batch
     } catch (error) {
-      if (isPrismaError(error)) {
-        if (error.code === 'P2002')
-          throw new ActionError(
-            `A cohort with the name "${batchName}" already exists`,
-            ERROR_CODES.VALIDATION_ERROR
-          )
-        if (error.code === 'P2025')
-          throw new ActionError('Cohort not found', ERROR_CODES.NOT_FOUND)
+      if (isPrismaError(error) && error.code === 'P2002') {
+        throw new ActionError(
+          `A cohort with the name "${validated.name}" already exists`,
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+      if (isPrismaError(error) && error.code === 'P2025') {
+        throw new ActionError('Cohort not found', ERROR_CODES.NOT_FOUND)
       }
       throw error
     }
@@ -496,38 +518,7 @@ const _deleteStudentAction = adminActionClient
     // Best-effort guard under READ COMMITTED — not serializable, but
     // sufficient for admin-only tooling where concurrent subscription
     // creation targeting the same profile is operationally negligible.
-    try {
-      await prisma.$transaction(async (tx) => {
-        const liveAssignment = await tx.billingAssignment.findFirst({
-          where: {
-            programProfileId: parsedInput.id,
-            ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
-          },
-        })
-        if (liveAssignment) {
-          throw new ActionError(
-            'Cannot delete student with active billing subscription. Cancel the subscription first.',
-            ERROR_CODES.ACTIVE_SUBSCRIPTION,
-            undefined,
-            403
-          )
-        }
-
-        await tx.programProfile.delete({ where: { id: parsedInput.id } })
-      })
-    } catch (error) {
-      if (error instanceof ActionError) throw error
-      if (isPrismaError(error)) {
-        if (error.code === 'P2025')
-          throw new ActionError('Student not found', ERROR_CODES.NOT_FOUND)
-        if (error.code === 'P2003')
-          throw new ActionError(
-            'Cannot delete student with related records',
-            ERROR_CODES.VALIDATION_ERROR
-          )
-      }
-      throw error
-    }
+    await deleteStudentProfile(parsedInput.id)
 
     after(() => {
       revalidateTag('mahad-stats')
@@ -548,37 +539,8 @@ const _bulkDeleteStudentsAction = adminActionClient
   .action(async ({ parsedInput }): Promise<BulkDeleteResult> => {
     const { studentIds } = parsedInput
 
-    const { deletedCount, blockedIds } = await prisma.$transaction(
-      async (tx) => {
-        const activeAssignments = await tx.billingAssignment.findMany({
-          where: {
-            programProfileId: { in: studentIds },
-            ...ACTIVE_BILLING_ASSIGNMENT_WHERE,
-          },
-          select: { programProfileId: true },
-        })
-
-        const blockedIdSet = new Set(
-          activeAssignments.map((a) => a.programProfileId)
-        )
-        const safe = studentIds.filter((id) => !blockedIdSet.has(id))
-        const blocked = studentIds.filter((id) => blockedIdSet.has(id))
-
-        let deleted = 0
-
-        if (safe.length > 0) {
-          const result = await tx.programProfile.deleteMany({
-            where: { id: { in: safe } },
-          })
-          deleted = result.count
-        }
-
-        return {
-          deletedCount: deleted,
-          blockedIds: blocked,
-        }
-      }
-    )
+    const { deletedCount, blockedIds } =
+      await bulkDeleteStudentProfiles(studentIds)
 
     if (deletedCount > 0) {
       after(() => {
@@ -586,13 +548,6 @@ const _bulkDeleteStudentsAction = adminActionClient
         revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
-    }
-
-    if (deletedCount === 0 && blockedIds.length > 0) {
-      throw new ActionError(
-        `All ${blockedIds.length} student(s) have active subscriptions and cannot be deleted`,
-        ERROR_CODES.ACTIVE_SUBSCRIPTION
-      )
     }
 
     return { deletedCount, blockedIds }
@@ -632,100 +587,45 @@ const _updateStudentAction = adminActionClient
       )
     }
 
-    try {
-      await prisma.$transaction(async (tx) => {
-        const profile = await tx.programProfile.findUnique({
-          where: { id },
-          relationLoadStrategy: 'join',
-          include: {
-            person: true,
-            enrollments: { orderBy: { startDate: 'desc' }, take: 1 },
-          },
-        })
-
-        if (!profile) throw new Error('Profile not found')
-
-        const personUpdate: Prisma.PersonUpdateInput = {}
-        if (validated.name !== undefined) personUpdate.name = validated.name
-        if (validated.dateOfBirth !== undefined)
-          personUpdate.dateOfBirth = validated.dateOfBirth || null
-        if (validated.email !== undefined)
-          personUpdate.email = normalizeEmail(validated.email)
-        if (validated.phone !== undefined)
-          personUpdate.phone = normalizedPhone || null
-
-        if (Object.keys(personUpdate).length > 0) {
-          await tx.person.update({
-            where: { id: profile.personId },
-            data: personUpdate,
-          })
-        }
-
-        const profileFields = {
-          ...(validated.gradeLevel !== undefined && {
-            gradeLevel: validated.gradeLevel || null,
-          }),
-          ...(validated.schoolName !== undefined && {
-            schoolName: validated.schoolName || null,
-          }),
-          ...(validated.graduationStatus !== undefined && {
-            graduationStatus: validated.graduationStatus || null,
-          }),
-          ...(validated.paymentFrequency !== undefined && {
-            paymentFrequency: validated.paymentFrequency || null,
-          }),
-          ...(validated.billingType !== undefined && {
-            billingType: validated.billingType || null,
-          }),
-          ...(validated.paymentNotes !== undefined && {
-            paymentNotes: validated.paymentNotes || null,
-          }),
-        }
-
-        if (Object.keys(profileFields).length > 0) {
-          await tx.programProfile.update({
-            where: { id },
-            data: profileFields,
-          })
-        }
-
-        if (validated.batchId !== undefined) {
-          const latestEnrollment = profile.enrollments[0]
-          if (latestEnrollment) {
-            await tx.enrollment.update({
-              where: { id: latestEnrollment.id },
-              data: { batchId: validated.batchId || null },
-            })
-          } else if (validated.batchId) {
-            await tx.enrollment.create({
-              data: {
-                programProfileId: id,
-                batchId: validated.batchId,
-                status: 'REGISTERED',
-                startDate: new Date(),
-              },
-            })
-          }
-        }
-      })
-    } catch (error) {
-      if (error instanceof ActionError) throw error
-      if (isPrismaError(error)) {
-        if (error.code === 'P2002')
-          throw new ActionError(
-            'This email or phone is already associated with another student',
-            ERROR_CODES.VALIDATION_ERROR
-          )
-        if (error.code === 'P2025')
-          throw new ActionError('Student not found', ERROR_CODES.NOT_FOUND)
-        if (error.code === 'P2003')
-          throw new ActionError(
-            'Invalid batch or related record reference',
-            ERROR_CODES.VALIDATION_ERROR
-          )
-      }
-      throw error
-    }
+    await updateStudentProfile(id, {
+      name: validated.name,
+      dateOfBirth:
+        validated.dateOfBirth !== undefined
+          ? validated.dateOfBirth || null
+          : undefined,
+      email:
+        validated.email !== undefined
+          ? normalizeEmail(validated.email)
+          : undefined,
+      phone:
+        validated.phone !== undefined ? normalizedPhone || null : undefined,
+      gradeLevel:
+        validated.gradeLevel !== undefined
+          ? validated.gradeLevel || null
+          : undefined,
+      schoolName:
+        validated.schoolName !== undefined
+          ? validated.schoolName || null
+          : undefined,
+      graduationStatus:
+        validated.graduationStatus !== undefined
+          ? validated.graduationStatus || null
+          : undefined,
+      paymentFrequency:
+        validated.paymentFrequency !== undefined
+          ? validated.paymentFrequency || null
+          : undefined,
+      billingType:
+        validated.billingType !== undefined
+          ? validated.billingType || null
+          : undefined,
+      paymentNotes:
+        validated.paymentNotes !== undefined
+          ? validated.paymentNotes || null
+          : undefined,
+      batchId:
+        validated.batchId !== undefined ? validated.batchId || null : undefined,
+    })
 
     after(() => {
       revalidateTag('mahad-stats')
@@ -764,13 +664,7 @@ async function createPaymentLinkSession(
   profileId: string
 ): Promise<PaymentLinkData> {
   // 1. Fetch profile with billing config and contact info
-  const profile = await prisma.programProfile.findUnique({
-    where: { id: profileId },
-    relationLoadStrategy: 'join',
-    include: {
-      person: true,
-    },
-  })
+  const profile = await getProfileForPaymentLink(profileId)
 
   if (!profile) {
     throw new ActionError('Student profile not found', ERROR_CODES.NOT_FOUND)
@@ -849,48 +743,60 @@ async function createPaymentLinkSession(
   const stripe = getMahadStripeClient()
   const intervalConfig = getStripeInterval(profile.paymentFrequency)
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    // Feature flag: Toggle card payments to manage transaction fees
-    // ACH only: Lower fees for the organization
-    // Card + ACH: More convenience for families
-    payment_method_types: featureFlags.mahadCardPayments()
-      ? ['card', 'us_bank_account']
-      : ['us_bank_account'],
-    customer_email: email,
-    line_items: [
-      {
-        price_data: {
-          currency: 'usd',
-          product: productId,
-          unit_amount: amount,
-          recurring: intervalConfig,
+  let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      // Feature flag: Toggle card payments to manage transaction fees
+      // ACH only: Lower fees for the organization
+      // Card + ACH: More convenience for families
+      payment_method_types: featureFlags.mahadCardPayments()
+        ? ['card', 'us_bank_account']
+        : ['us_bank_account'],
+      customer_email: email,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product: productId,
+            unit_amount: amount,
+            recurring: intervalConfig,
+          },
+          quantity: 1,
         },
-        quantity: 1,
+      ],
+      subscription_data: {
+        metadata: {
+          profileId: profile.id,
+          personId: profile.personId,
+          studentName: profile.person.name,
+          graduationStatus: profile.graduationStatus,
+          paymentFrequency: profile.paymentFrequency,
+          billingType: profile.billingType,
+          calculatedRate: amount.toString(),
+          source: 'admin-generated-link',
+        },
       },
-    ],
-    subscription_data: {
       metadata: {
         profileId: profile.id,
         personId: profile.personId,
         studentName: profile.person.name,
-        graduationStatus: profile.graduationStatus,
-        paymentFrequency: profile.paymentFrequency,
-        billingType: profile.billingType,
-        calculatedRate: amount.toString(),
         source: 'admin-generated-link',
       },
-    },
-    metadata: {
-      profileId: profile.id,
-      personId: profile.personId,
-      studentName: profile.person.name,
-      source: 'admin-generated-link',
-    },
-    success_url: `${appUrl}/mahad/payment-complete?payment=success`,
-    cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
-    allow_promotion_codes: true,
-  })
+      success_url: `${appUrl}/mahad/payment-complete?payment=success`,
+      cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
+      allow_promotion_codes: true,
+    })
+  } catch (error) {
+    await logError(logger, error, 'Stripe checkout session creation failed', {
+      profileId,
+      amount,
+    })
+    throw new ActionError(
+      'Failed to create payment session. Please try again.',
+      ERROR_CODES.SERVER_ERROR
+    )
+  }
 
   const billingPeriod =
     profile.paymentFrequency === 'BI_MONTHLY' ? '/2 months' : '/month'
@@ -932,31 +838,14 @@ const _generatePaymentLinkWithDefaultsAction = adminActionClient
   .action(async ({ parsedInput }): Promise<PaymentLinkData> => {
     const { profileId } = parsedInput
 
-    // Use transaction to ensure check + update are atomic
-    await prisma.$transaction(async (tx) => {
-      // 1. Check student exists
-      const profile = await tx.programProfile.findUnique({
-        where: { id: profileId },
-        select: { id: true },
-      })
-
-      if (!profile) {
-        throw new ActionError(
-          'Student profile not found',
-          ERROR_CODES.NOT_FOUND
-        )
-      }
-
-      // 2. Update billing config with defaults
-      await tx.programProfile.update({
-        where: { id: profileId },
-        data: {
-          graduationStatus: DEFAULT_BILLING_CONFIG.graduationStatus,
-          billingType: DEFAULT_BILLING_CONFIG.billingType,
-          paymentFrequency: DEFAULT_BILLING_CONFIG.paymentFrequency,
-        },
-      })
-    })
+    // Set defaults atomically; returns null if profile not found
+    const updated = await setProfileBillingDefaults(
+      profileId,
+      DEFAULT_BILLING_CONFIG
+    )
+    if (!updated) {
+      throw new ActionError('Student profile not found', ERROR_CODES.NOT_FOUND)
+    }
 
     after(() => {
       revalidateTag('mahad-stats')
@@ -1032,13 +921,7 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
     }
 
     // 1. Fetch profile with billing config and contact info
-    const profile = await prisma.programProfile.findUnique({
-      where: { id: profileId },
-      relationLoadStrategy: 'join',
-      include: {
-        person: true,
-      },
-    })
+    const profile = await getProfileForPaymentLink(profileId)
 
     if (!profile) {
       throw new ActionError('Student profile not found', ERROR_CODES.NOT_FOUND)
@@ -1138,9 +1021,13 @@ const _generatePaymentLinkWithOverrideAction = adminActionClient
       billingCycleAnchor = Math.floor(startDate.getTime() / 1000)
       try {
         validateBillingCycleAnchor(billingCycleAnchor)
-      } catch {
+      } catch (error) {
+        logger.warn(
+          { billingCycleAnchor, profileId },
+          'Invalid billing cycle anchor provided by admin'
+        )
         throw new ActionError(
-          'Invalid billing start date',
+          error instanceof Error ? error.message : 'Invalid billing start date',
           ERROR_CODES.VALIDATION_ERROR
         )
       }

@@ -154,7 +154,7 @@ export async function getSiblingDetails(
  * @param client - Optional database client (for transaction support)
  */
 export async function getSiblingGroupsByProgram(
-  program?: string,
+  program?: Program,
   client: DatabaseClient = prisma
 ) {
   const relationships = await client.siblingRelationship.findMany({
@@ -166,9 +166,7 @@ export async function getSiblingGroupsByProgram(
       person1: {
         include: {
           programProfiles: {
-            ...(program
-              ? { where: { program: program as unknown as Program } }
-              : {}),
+            ...(program ? { where: { program } } : {}),
             include: {
               enrollments: {
                 where: {
@@ -184,9 +182,7 @@ export async function getSiblingGroupsByProgram(
       person2: {
         include: {
           programProfiles: {
-            ...(program
-              ? { where: { program: program as unknown as Program } }
-              : {}),
+            ...(program ? { where: { program } } : {}),
             include: {
               enrollments: {
                 where: {

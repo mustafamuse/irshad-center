@@ -69,11 +69,15 @@ const {
   mockPrismaDeleteMany,
   mockPersonUpdate,
   mockAfter,
+  mockGetProfileForPaymentLink,
+  mockGetBatchByName,
+  mockSetProfileBillingDefaults,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
   mockUpdateBatch: vi.fn(),
   mockDeleteBatch: vi.fn(),
   mockGetBatchById: vi.fn(),
+  mockGetBatchByName: vi.fn(),
   mockAssignStudentsToBatch: vi.fn(),
   mockTransferStudents: vi.fn(),
   mockGetStudentById: vi.fn(),
@@ -92,6 +96,8 @@ const {
   mockBillingAssignmentFindFirst: vi.fn(),
   mockPersonUpdate: vi.fn(),
   mockAfter: vi.fn((fn: () => void) => fn()),
+  mockGetProfileForPaymentLink: vi.fn(),
+  mockSetProfileBillingDefaults: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -131,6 +137,7 @@ vi.mock('@/lib/db/queries/batch', () => ({
   updateBatch: (...args: unknown[]) => mockUpdateBatch(...args),
   deleteBatch: (...args: unknown[]) => mockDeleteBatch(...args),
   getBatchById: (...args: unknown[]) => mockGetBatchById(...args),
+  getBatchByName: (...args: unknown[]) => mockGetBatchByName(...args),
   assignStudentsToBatch: (...args: unknown[]) =>
     mockAssignStudentsToBatch(...args),
   transferStudents: (...args: unknown[]) => mockTransferStudents(...args),
@@ -142,10 +149,20 @@ vi.mock('@/lib/db/queries/student', () => ({
     mockResolveDuplicateStudents(...args),
   getStudentDeleteWarnings: (...args: unknown[]) =>
     mockGetStudentDeleteWarnings(...args),
+  getProfileForPaymentLink: (...args: unknown[]) =>
+    mockGetProfileForPaymentLink(...args),
+  setProfileBillingDefaults: (...args: unknown[]) =>
+    mockSetProfileBillingDefaults(...args),
 }))
 
 vi.mock('@/lib/logger', () => ({
   createActionLogger: vi.fn(() => ({
+    error: mockLoggerError,
+    warn: mockLoggerWarn,
+    info: vi.fn(),
+    debug: vi.fn(),
+  })),
+  createServiceLogger: vi.fn(() => ({
     error: mockLoggerError,
     warn: mockLoggerWarn,
     info: vi.fn(),
@@ -186,6 +203,7 @@ import {
   bulkDeleteStudentsAction,
   getStudentDeleteWarningsAction,
   generatePaymentLinkAction,
+  generatePaymentLinkWithDefaultsAction,
   updateStudentAction,
 } from '../index'
 
@@ -204,6 +222,7 @@ describe('Batch Actions', () => {
   describe('createBatchAction', () => {
     it('should create a batch with valid data', async () => {
       const mockBatch = { id: 'batch-1', name: 'Test Cohort' }
+      mockGetBatchByName.mockResolvedValue(null)
       mockCreateBatch.mockResolvedValue(mockBatch)
 
       const result = await createBatchAction({
@@ -227,9 +246,11 @@ describe('Batch Actions', () => {
     })
 
     it('should handle duplicate name error', async () => {
-      const prismaError = new Error('Unique constraint failed')
-      Object.assign(prismaError, { code: 'P2002' })
-      mockCreateBatch.mockRejectedValue(prismaError)
+      mockGetBatchByName.mockResolvedValue({
+        id: 'other-batch',
+        name: 'Existing Cohort',
+        studentCount: 0,
+      })
 
       const result = await createBatchAction({ name: 'Existing Cohort' })
 
@@ -284,6 +305,7 @@ describe('Batch Actions', () => {
         startDate: null,
         endDate: null,
       })
+      mockGetBatchByName.mockResolvedValue(null)
       const mockUpdatedBatch = {
         id: VALID_BATCH_ID,
         name: 'Updated Name',
@@ -312,6 +334,7 @@ describe('Batch Actions', () => {
         id: VALID_BATCH_ID,
         name: 'Original Name',
       })
+      mockGetBatchByName.mockResolvedValue(null)
       const mockUpdatedBatch = { id: VALID_BATCH_ID, name: 'New Name' }
       mockUpdateBatch.mockResolvedValue(mockUpdatedBatch)
 
@@ -345,10 +368,11 @@ describe('Batch Actions', () => {
         id: VALID_BATCH_ID,
         name: 'Original Name',
       })
-
-      const prismaError = new Error('Unique constraint failed')
-      Object.assign(prismaError, { code: 'P2002' })
-      mockUpdateBatch.mockRejectedValue(prismaError)
+      mockGetBatchByName.mockResolvedValue({
+        id: 'other-batch',
+        name: 'Existing Cohort',
+        studentCount: 0,
+      })
 
       const result = await updateBatchAction({
         id: VALID_BATCH_ID,
@@ -740,7 +764,7 @@ describe('Payment Link Actions', () => {
 
   describe('generatePaymentLinkAction', () => {
     it('should generate payment link for valid profile', async () => {
-      mockPrismaFindUnique.mockResolvedValue({
+      mockGetProfileForPaymentLink.mockResolvedValue({
         id: 'profile-1',
         personId: 'person-1',
         graduationStatus: 'NON_GRADUATE',
@@ -766,7 +790,7 @@ describe('Payment Link Actions', () => {
     })
 
     it('should reject profile without billing config', async () => {
-      mockPrismaFindUnique.mockResolvedValue({
+      mockGetProfileForPaymentLink.mockResolvedValue({
         id: 'profile-1',
         personId: 'person-1',
         graduationStatus: null,
@@ -787,7 +811,7 @@ describe('Payment Link Actions', () => {
     })
 
     it('should reject exempt students', async () => {
-      mockPrismaFindUnique.mockResolvedValue({
+      mockGetProfileForPaymentLink.mockResolvedValue({
         id: 'profile-1',
         personId: 'person-1',
         graduationStatus: 'NON_GRADUATE',
@@ -810,7 +834,7 @@ describe('Payment Link Actions', () => {
     })
 
     it('should reject profile without email', async () => {
-      mockPrismaFindUnique.mockResolvedValue({
+      mockGetProfileForPaymentLink.mockResolvedValue({
         id: 'profile-1',
         personId: 'person-1',
         graduationStatus: 'NON_GRADUATE',
@@ -831,7 +855,7 @@ describe('Payment Link Actions', () => {
     })
 
     it('should return error for non-existent profile', async () => {
-      mockPrismaFindUnique.mockResolvedValue(null)
+      mockGetProfileForPaymentLink.mockResolvedValue(null)
       const nonExistentId = '550e8400-e29b-41d4-a716-446655449999'
 
       const result = await generatePaymentLinkAction({
@@ -864,7 +888,7 @@ describe('Payment Link Actions', () => {
       }
 
       beforeEach(() => {
-        mockPrismaFindUnique.mockResolvedValue(mockProfile)
+        mockGetProfileForPaymentLink.mockResolvedValue(mockProfile)
         mockStripeSessionCreate.mockResolvedValue({
           id: 'sess_123',
           url: 'https://checkout.stripe.com/test',
@@ -1019,5 +1043,51 @@ describe('Student Update Actions', () => {
 
       expect(result?.serverError).toContain('email or phone')
     })
+  })
+})
+
+describe('generatePaymentLinkWithDefaultsAction', () => {
+  beforeEach(() => {
+    mockSetProfileBillingDefaults.mockResolvedValue(true)
+  })
+
+  it('should set billing defaults then return payment link', async () => {
+    mockGetProfileForPaymentLink.mockResolvedValue({
+      id: VALID_PROFILE_ID,
+      personId: 'person-1',
+      graduationStatus: 'NON_GRADUATE',
+      paymentFrequency: 'MONTHLY',
+      billingType: 'FULL_TIME',
+      person: {
+        name: 'Test Student',
+        email: 'test@example.com',
+        phone: null,
+      },
+    })
+    mockStripeSessionCreate.mockResolvedValue({
+      id: 'sess_defaults',
+      url: 'https://checkout.stripe.com/defaults-test',
+    })
+
+    const result = await generatePaymentLinkWithDefaultsAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.data?.url).toBe('https://checkout.stripe.com/defaults-test')
+    expect(result?.data?.amount).toBe(15000)
+    expect(mockSetProfileBillingDefaults).toHaveBeenCalledWith(
+      VALID_PROFILE_ID,
+      expect.objectContaining({ graduationStatus: expect.any(String) })
+    )
+  })
+
+  it('should return not found error when profile does not exist', async () => {
+    mockSetProfileBillingDefaults.mockResolvedValueOnce(false)
+
+    const result = await generatePaymentLinkWithDefaultsAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.serverError).toBe('Student profile not found')
   })
 })

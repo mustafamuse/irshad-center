@@ -17,11 +17,13 @@ import { Prisma, Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { executeInTransaction } from '@/lib/db/prisma-helpers'
 import { DatabaseClient } from '@/lib/db/types'
-import { createServiceLogger } from '@/lib/logger'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   ValidationError,
   validateTeacherCreation,
 } from '@/lib/services/validation-service'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('teacher')
 
@@ -89,12 +91,18 @@ export async function deleteTeacher(
   teacherId: string,
   client: DatabaseClient = prisma
 ) {
-  await client.teacherProgram.updateMany({
+  const { count } = await client.teacherProgram.updateMany({
     where: { teacherId },
     data: { isActive: false },
   })
-
-  logger.info({ teacherId }, 'Teacher soft deleted')
+  if (count === 0) {
+    logger.warn(
+      { teacherId },
+      'deleteTeacher matched 0 rows — already deleted or not found'
+    )
+  } else {
+    logger.info({ teacherId }, 'Teacher soft deleted')
+  }
 }
 
 // ============================================================================
@@ -192,7 +200,7 @@ export async function removeTeacherFromProgram(
 ) {
   const { teacherId, program } = input
 
-  await client.teacherProgram.updateMany({
+  const { count } = await client.teacherProgram.updateMany({
     where: {
       teacherId,
       program,
@@ -202,8 +210,14 @@ export async function removeTeacherFromProgram(
       isActive: false,
     },
   })
-
-  logger.info({ teacherId, program }, 'Teacher removed from program')
+  if (count === 0) {
+    logger.warn(
+      { teacherId, program },
+      'removeTeacherFromProgram matched 0 rows — not enrolled or already removed'
+    )
+  } else {
+    logger.info({ teacherId, program }, 'Teacher removed from program')
+  }
 }
 
 /**
@@ -433,6 +447,124 @@ export async function getTeachersByProgram(
 // ============================================================================
 // Program Authorization
 // ============================================================================
+
+// ============================================================================
+// Teacher + Program Creation Workflows
+// ============================================================================
+
+export async function createTeacherAndAssignDugsi(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  let teacher
+  try {
+    teacher = await executeInTransaction(client, async (tx) => {
+      const newTeacher = await createTeacher(personId, tx)
+      await tx.teacherProgram.create({
+        data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
+      })
+      return newTeacher
+    })
+  } catch (error) {
+    if (isPrismaError(error) && error.code === 'P2002') {
+      throw new ActionError(
+        'This person is already a teacher or is already enrolled in this program',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+    throw error
+  }
+
+  logger.info(
+    { teacherId: teacher.id, personId, program: 'DUGSI_PROGRAM' },
+    'Teacher created and assigned to Dugsi'
+  )
+
+  return teacher
+}
+
+export async function createPersonTeacherAndAssignDugsi(
+  data: { name: string; email: string | null; phone: string | null },
+  client: DatabaseClient = prisma
+) {
+  if (data.email || data.phone) {
+    const existing = await client.person.findFirst({
+      where: {
+        OR: [
+          ...(data.email ? [{ email: data.email }] : []),
+          ...(data.phone ? [{ phone: data.phone }] : []),
+        ],
+      },
+      select: { id: true },
+    })
+    if (existing) {
+      throw new ActionError(
+        'A person with this email or phone already exists',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+  }
+
+  let teacher
+  try {
+    teacher = await executeInTransaction(client, async (tx) => {
+      const person = await tx.person.create({
+        data: { name: data.name, email: data.email, phone: data.phone },
+      })
+      const newTeacher = await createTeacher(person.id, tx)
+      await tx.teacherProgram.create({
+        data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
+      })
+      return newTeacher
+    })
+  } catch (error) {
+    if (isPrismaError(error) && error.code === 'P2002') {
+      logger.warn(
+        { hasEmail: !!data.email, hasPhone: !!data.phone },
+        'Concurrent duplicate person on teacher create (race condition)'
+      )
+      throw new ActionError(
+        'A person with this email or phone already exists',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+    await logError(
+      logger,
+      error,
+      'Unexpected error in createPersonTeacherAndAssignDugsi',
+      {
+        hasEmail: !!data.email,
+        hasPhone: !!data.phone,
+      }
+    )
+    throw error
+  }
+
+  logger.info(
+    { teacherId: teacher.id, program: 'DUGSI_PROGRAM' },
+    'Person, teacher, and Dugsi assignment created'
+  )
+
+  return teacher
+}
+
+export async function deactivateTeacherFromDugsi(
+  teacherId: string,
+  client: DatabaseClient = prisma
+) {
+  const { count } = await client.teacherProgram.updateMany({
+    where: { teacherId, program: 'DUGSI_PROGRAM', isActive: true },
+    data: { shifts: [], isActive: false },
+  })
+  if (count === 0) {
+    logger.warn(
+      { teacherId },
+      'deactivateTeacherFromDugsi matched 0 rows — already deactivated or not found'
+    )
+  } else {
+    logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
+  }
+}
 
 /**
  * Validate teacher is authorized for a program.

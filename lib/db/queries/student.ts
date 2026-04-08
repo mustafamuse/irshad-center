@@ -26,6 +26,7 @@ import {
 import { prisma } from '@/lib/db'
 import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
 import {
@@ -824,7 +825,10 @@ export async function resolveDuplicateStudents(
       (p) => p.program !== keepProfile.program
     )
     if (invalidPrograms.length > 0) {
-      throw new Error('Cannot merge profiles from different programs')
+      throw new ActionError(
+        'Cannot merge profiles from different programs',
+        ERROR_CODES.VALIDATION_ERROR
+      )
     }
 
     if (mergeData) {
@@ -965,7 +969,7 @@ export async function getStudentCompleteness(
   })
 
   if (!profile) {
-    throw new Error('Student not found')
+    throw new ActionError('Student not found', ERROR_CODES.NOT_FOUND)
   }
 
   const requiredFields = [
@@ -1111,4 +1115,44 @@ export async function exportStudents(
     subscriptionStatus: student.subscription?.status || 'none',
     createdAt: student.createdAt.toISOString(),
   }))
+}
+
+export async function getProfileForPaymentLink(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findUnique({
+    where: { id: profileId },
+    relationLoadStrategy: 'join',
+    select: {
+      id: true,
+      personId: true,
+      graduationStatus: true,
+      paymentFrequency: true,
+      billingType: true,
+      person: {
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  })
+}
+
+export async function setProfileBillingDefaults(
+  profileId: string,
+  defaults: {
+    graduationStatus: GraduationStatus
+    billingType: StudentBillingType
+    paymentFrequency: PaymentFrequency
+  },
+  client: DatabaseClient = prisma
+) {
+  const { count } = await client.programProfile.updateMany({
+    where: { id: profileId },
+    data: defaults,
+  })
+  return count > 0
 }
