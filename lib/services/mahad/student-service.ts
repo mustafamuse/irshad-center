@@ -269,23 +269,23 @@ export async function getMahadStudentSiblings(studentId: string) {
  * @returns Deleted profile
  */
 export async function deleteMahadStudent(studentId: string) {
-  // Withdraw from active enrollments
-  await prisma.enrollment.updateMany({
-    where: {
-      programProfileId: studentId,
-      status: { not: 'WITHDRAWN' },
-    },
-    data: {
-      status: 'WITHDRAWN',
-      endDate: new Date(),
-    },
-  })
+  return await prisma.$transaction(async (tx) => {
+    await tx.enrollment.updateMany({
+      where: {
+        programProfileId: studentId,
+        status: { not: 'WITHDRAWN' },
+      },
+      data: {
+        status: 'WITHDRAWN',
+        endDate: new Date(),
+      },
+    })
 
-  // Mark program profile as withdrawn
-  return await prisma.programProfile.update({
-    where: { id: studentId },
-    data: {
-      status: 'WITHDRAWN',
-    },
+    return tx.programProfile.update({
+      where: { id: studentId },
+      data: {
+        status: 'WITHDRAWN',
+      },
+    })
   })
 }

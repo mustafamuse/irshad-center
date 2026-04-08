@@ -1,6 +1,7 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -18,12 +19,15 @@ const logger = createServiceLogger('dugsi-billing-actions')
 
 const _pauseFamilyBillingAction = adminActionClient
   .metadata({ actionName: 'pauseFamilyBillingAction' })
-  .inputSchema(PauseFamilyBillingSchema)
+  .schema(PauseFamilyBillingSchema)
   .action(async ({ parsedInput }) => {
     const { familyReferenceId } = parsedInput
     try {
       const result = await pauseFamilyBillingService(familyReferenceId)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         message: 'Billing paused successfully',
         warning: result.error
@@ -50,12 +54,15 @@ export async function pauseFamilyBillingAction(
 
 const _resumeFamilyBillingAction = adminActionClient
   .metadata({ actionName: 'resumeFamilyBillingAction' })
-  .inputSchema(ResumeFamilyBillingSchema)
+  .schema(ResumeFamilyBillingSchema)
   .action(async ({ parsedInput }) => {
     const { familyReferenceId } = parsedInput
     try {
       const result = await resumeFamilyBillingService(familyReferenceId)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         message: 'Billing resumed successfully',
         warning: result.error

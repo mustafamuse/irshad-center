@@ -1,6 +1,7 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import { GradeLevel, Prisma, Shift } from '@prisma/client'
 import { z } from 'zod'
@@ -235,7 +236,7 @@ export interface WhatsAppSendResult {
 
 const _getDugsiRegistrations = adminActionClient
   .metadata({ actionName: 'getDugsiRegistrations' })
-  .inputSchema(ShiftFilterSchema)
+  .schema(ShiftFilterSchema)
   .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
     return await getAllDugsiRegistrations(undefined, parsedInput)
   })
@@ -402,14 +403,14 @@ const _getAllTeachersForClassAssignmentAction = adminActionClient
 
 const _getFamilyMembers = adminActionClient
   .metadata({ actionName: 'getFamilyMembers' })
-  .inputSchema(StudentIdSchema)
+  .schema(StudentIdSchema)
   .action(async ({ parsedInput }): Promise<DugsiRegistration[]> => {
     return await getFamilyMembersService(parsedInput.studentId)
   })
 
 const _getDeleteFamilyPreview = adminActionClient
   .metadata({ actionName: 'getDeleteFamilyPreview' })
-  .inputSchema(StudentIdSchema)
+  .schema(StudentIdSchema)
   .action(
     async ({
       parsedInput,
@@ -423,21 +424,21 @@ const _getDeleteFamilyPreview = adminActionClient
 
 const _validateDugsiSubscription = adminActionClient
   .metadata({ actionName: 'validateDugsiSubscription' })
-  .inputSchema(SubscriptionIdSchema)
+  .schema(SubscriptionIdSchema)
   .action(async ({ parsedInput }): Promise<SubscriptionValidationData> => {
     return await validateDugsiSubscriptionService(parsedInput.subscriptionId)
   })
 
 const _getDugsiPaymentStatus = adminActionClient
   .metadata({ actionName: 'getDugsiPaymentStatus' })
-  .inputSchema(ParentEmailSchema)
+  .schema(ParentEmailSchema)
   .action(async ({ parsedInput }): Promise<PaymentStatusData> => {
     return await getPaymentStatus(parsedInput.parentEmail)
   })
 
 const _getFamilyPaymentHistory = adminActionClient
   .metadata({ actionName: 'getFamilyPaymentHistory' })
-  .inputSchema(PaymentHistorySchema)
+  .schema(PaymentHistorySchema)
   .action(async ({ parsedInput }): Promise<StripePaymentHistoryItem[]> => {
     const stripe = getDugsiStripeClient()
     const invoices = await stripe.invoices.list({
@@ -468,14 +469,14 @@ const _getFamilyPaymentHistory = adminActionClient
 
 const _getAvailableStudentsForClassAction = adminActionClient
   .metadata({ actionName: 'getAvailableStudentsForClassAction' })
-  .inputSchema(z.object({ shift: z.nativeEnum(Shift) }))
+  .schema(z.object({ shift: z.nativeEnum(Shift) }))
   .action(async ({ parsedInput }): Promise<StudentForEnrollment[]> => {
     return await getAvailableStudentsForClass(parsedInput.shift)
   })
 
 const _getClassDeletePreviewAction = adminActionClient
   .metadata({ actionName: 'getClassDeletePreviewAction' })
-  .inputSchema(ClassIdSchema)
+  .schema(ClassIdSchema)
   .action(
     async ({
       parsedInput,
@@ -499,7 +500,7 @@ const _getClassDeletePreviewAction = adminActionClient
 
 const _deleteDugsiFamily = adminActionClient
   .metadata({ actionName: 'deleteDugsiFamily' })
-  .inputSchema(StudentIdSchema)
+  .schema(StudentIdSchema)
   .action(
     async ({
       parsedInput,
@@ -509,7 +510,10 @@ const _deleteDugsiFamily = adminActionClient
       message: string
     }> => {
       const result = await deleteDugsiFamilyService(parsedInput.studentId)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
 
       await logInfo(logger, 'Dugsi family deleted', {
         studentId: parsedInput.studentId,
@@ -536,7 +540,7 @@ const _deleteDugsiFamily = adminActionClient
 
 const _linkDugsiSubscription = adminActionClient
   .metadata({ actionName: 'linkDugsiSubscription' })
-  .inputSchema(LinkSubscriptionSchema)
+  .schema(LinkSubscriptionSchema)
   .action(
     async ({
       parsedInput,
@@ -554,7 +558,10 @@ const _linkDugsiSubscription = adminActionClient
         parentEmail,
         subscriptionId
       )
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
 
       await logInfo(logger, 'Dugsi subscription linked', {
         parentEmail,
@@ -571,7 +578,7 @@ const _linkDugsiSubscription = adminActionClient
 
 const _verifyDugsiBankAccount = adminActionClient
   .metadata({ actionName: 'verifyDugsiBankAccount' })
-  .inputSchema(VerifyBankSchema)
+  .schema(VerifyBankSchema)
   .action(async ({ parsedInput }): Promise<BankVerificationData> => {
     const { paymentIntentId, descriptorCode } = parsedInput
 
@@ -592,7 +599,10 @@ const _verifyDugsiBankAccount = adminActionClient
 
     try {
       const result = await verifyBankAccount(paymentIntentId, cleanCode)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return result
     } catch (error: unknown) {
       if (
@@ -627,11 +637,14 @@ const _verifyDugsiBankAccount = adminActionClient
 
 const _updateParentInfo = adminActionClient
   .metadata({ actionName: 'updateParentInfo' })
-  .inputSchema(UpdateParentInfoSchema)
+  .schema(UpdateParentInfoSchema)
   .action(
     async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
       const result = await updateParentInfoService(parsedInput)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         ...result,
         message: `Successfully updated parent information for ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
@@ -641,11 +654,14 @@ const _updateParentInfo = adminActionClient
 
 const _addSecondParent = adminActionClient
   .metadata({ actionName: 'addSecondParent' })
-  .inputSchema(AddSecondParentSchema)
+  .schema(AddSecondParentSchema)
   .action(
     async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
       const result = await addSecondParentService(parsedInput)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         ...result,
         message: `Successfully added second parent to ${result.updated} ${result.updated === 1 ? 'student' : 'students'}`,
@@ -655,11 +671,14 @@ const _addSecondParent = adminActionClient
 
 const _setPrimaryPayer = adminActionClient
   .metadata({ actionName: 'setPrimaryPayer' })
-  .inputSchema(SetPrimaryPayerSchema)
+  .schema(SetPrimaryPayerSchema)
   .action(
     async ({ parsedInput }): Promise<{ updated: number; message: string }> => {
       const result = await setPrimaryPayerService(parsedInput)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         ...result,
         message: `Parent ${parsedInput.parentNumber} is now the primary payer`,
@@ -669,39 +688,48 @@ const _setPrimaryPayer = adminActionClient
 
 const _updateChildInfo = adminActionClient
   .metadata({ actionName: 'updateChildInfo' })
-  .inputSchema(UpdateChildInfoSchema)
+  .schema(UpdateChildInfoSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     await updateChildInfoService(parsedInput)
-    revalidatePath('/admin/dugsi')
+    after(() => {
+      revalidatePath('/admin/dugsi')
+      revalidateTag('dugsi-registrations')
+    })
     return { message: 'Successfully updated child information' }
   })
 
 const _updateFamilyShift = adminActionClient
   .metadata({ actionName: 'updateFamilyShift' })
-  .inputSchema(UpdateFamilyShiftSchema)
+  .schema(UpdateFamilyShiftSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     await updateFamilyShiftService({
       familyReferenceId: parsedInput.familyReferenceId,
       shift: parsedInput.shift,
     })
-    revalidatePath('/admin/dugsi')
+    after(() => {
+      revalidatePath('/admin/dugsi')
+      revalidateTag('dugsi-registrations')
+    })
     return { message: 'Successfully updated family shift' }
   })
 
 const _addChildToFamily = adminActionClient
   .metadata({ actionName: 'addChildToFamily' })
-  .inputSchema(AddChildToFamilySchema)
+  .schema(AddChildToFamilySchema)
   .action(
     async ({ parsedInput }): Promise<{ childId: string; message: string }> => {
       const result = await addChildToFamilyService(parsedInput)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return { ...result, message: 'Successfully added child to family' }
     }
   )
 
 const _generateFamilyPaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generateFamilyPaymentLinkAction' })
-  .inputSchema(GenerateFamilyPaymentLinkSchema)
+  .schema(GenerateFamilyPaymentLinkSchema)
   .action(async ({ parsedInput }): Promise<FamilyPaymentLinkData> => {
     const { familyId, overrideAmount, billingStartDate } = parsedInput
     const result = await createDugsiCheckoutSession({
@@ -732,7 +760,7 @@ const _generateFamilyPaymentLinkAction = adminActionClient
 
 const _bulkGeneratePaymentLinksAction = adminActionClient
   .metadata({ actionName: 'bulkGeneratePaymentLinksAction' })
-  .inputSchema(BulkPaymentLinksSchema)
+  .schema(BulkPaymentLinksSchema)
   .action(
     async ({
       parsedInput,
@@ -820,7 +848,7 @@ const _bulkGeneratePaymentLinksAction = adminActionClient
 
 const _assignTeacherToClassAction = adminActionClient
   .metadata({ actionName: 'assignTeacherToClassAction' })
-  .inputSchema(AssignTeacherToClassSchema)
+  .schema(AssignTeacherToClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId, teacherId } = parsedInput
     try {
@@ -850,27 +878,31 @@ const _assignTeacherToClassAction = adminActionClient
       throw error
     }
 
-    revalidatePath('/admin/dugsi/classes')
-    revalidatePath('/teacher/checkin')
+    after(() => {
+      revalidatePath('/admin/dugsi/classes')
+      revalidatePath('/teacher/checkin')
+    })
     logger.info({ classId, teacherId }, 'Teacher assigned to class')
     return { message: 'Teacher assigned to class' }
   })
 
 const _removeTeacherFromClassAction = adminActionClient
   .metadata({ actionName: 'removeTeacherFromClassAction' })
-  .inputSchema(RemoveTeacherFromClassSchema)
+  .schema(RemoveTeacherFromClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId, teacherId } = parsedInput
     await removeTeacherFromClass(classId, teacherId)
-    revalidatePath('/admin/dugsi/classes')
-    revalidatePath('/teacher/checkin')
+    after(() => {
+      revalidatePath('/admin/dugsi/classes')
+      revalidatePath('/teacher/checkin')
+    })
     logger.info({ classId, teacherId }, 'Teacher removed from class')
     return { message: 'Teacher removed from class' }
   })
 
 const _enrollStudentInClassAction = adminActionClient
   .metadata({ actionName: 'enrollStudentInClassAction' })
-  .inputSchema(EnrollStudentInClassSchema)
+  .schema(EnrollStudentInClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId, programProfileId } = parsedInput
     try {
@@ -889,32 +921,38 @@ const _enrollStudentInClassAction = adminActionClient
       }
       throw error
     }
-    revalidatePath('/admin/dugsi/classes')
+    after(() => {
+      revalidatePath('/admin/dugsi/classes')
+    })
     logger.info({ classId, programProfileId }, 'Student enrolled in class')
     return { message: 'Student enrolled in class' }
   })
 
 const _removeStudentFromClassAction = adminActionClient
   .metadata({ actionName: 'removeStudentFromClassAction' })
-  .inputSchema(RemoveStudentFromClassSchema)
+  .schema(RemoveStudentFromClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { programProfileId } = parsedInput
     await removeStudentFromClass(programProfileId)
-    revalidatePath('/admin/dugsi/classes')
+    after(() => {
+      revalidatePath('/admin/dugsi/classes')
+    })
     logger.info({ programProfileId }, 'Student removed from class')
     return { message: 'Student removed from class' }
   })
 
 const _bulkEnrollStudentsAction = adminActionClient
   .metadata({ actionName: 'bulkEnrollStudentsAction' })
-  .inputSchema(BulkEnrollStudentsSchema)
+  .schema(BulkEnrollStudentsSchema)
   .action(
     async ({
       parsedInput,
     }): Promise<{ enrolled: number; moved: number; message: string }> => {
       const { classId, programProfileIds } = parsedInput
       const result = await bulkEnrollStudents(classId, programProfileIds)
-      revalidatePath('/admin/dugsi/classes')
+      after(() => {
+        revalidatePath('/admin/dugsi/classes')
+      })
       logger.info(
         { classId, enrolled: result.enrolled, moved: result.moved },
         'Bulk enrollment completed'
@@ -928,7 +966,7 @@ const _bulkEnrollStudentsAction = adminActionClient
 
 const _createClassAction = adminActionClient
   .metadata({ actionName: 'createClassAction' })
-  .inputSchema(CreateClassSchema)
+  .schema(CreateClassSchema)
   .action(
     async ({
       parsedInput,
@@ -936,8 +974,10 @@ const _createClassAction = adminActionClient
       const { name, shift, description } = parsedInput
       try {
         const newClass = await createClass(name, shift as Shift, description)
-        revalidatePath('/admin/dugsi/classes')
-        revalidatePath('/teacher/checkin')
+        after(() => {
+          revalidatePath('/admin/dugsi/classes')
+          revalidatePath('/teacher/checkin')
+        })
         logger.info({ classId: newClass.id, name, shift }, 'Class created')
         return {
           id: newClass.id,
@@ -968,7 +1008,7 @@ const _createClassAction = adminActionClient
 
 const _updateClassAction = adminActionClient
   .metadata({ actionName: 'updateClassAction' })
-  .inputSchema(UpdateClassSchema)
+  .schema(UpdateClassSchema)
   .action(
     async ({
       parsedInput,
@@ -1007,8 +1047,10 @@ const _updateClassAction = adminActionClient
         )
       }
 
-      revalidatePath('/admin/dugsi/classes')
-      revalidatePath('/teacher/checkin')
+      after(() => {
+        revalidatePath('/admin/dugsi/classes')
+        revalidatePath('/teacher/checkin')
+      })
       logger.info({ classId, name }, 'Class updated')
 
       return {
@@ -1030,7 +1072,7 @@ const _updateClassAction = adminActionClient
 
 const _deleteClassAction = adminActionClient
   .metadata({ actionName: 'deleteClassAction' })
-  .inputSchema(DeleteClassSchema)
+  .schema(DeleteClassSchema)
   .action(async ({ parsedInput }): Promise<{ message: string }> => {
     const { classId } = parsedInput
     try {
@@ -1044,8 +1086,10 @@ const _deleteClassAction = adminActionClient
       }
       throw error
     }
-    revalidatePath('/admin/dugsi/classes')
-    revalidatePath('/teacher/checkin')
+    after(() => {
+      revalidatePath('/admin/dugsi/classes')
+      revalidatePath('/teacher/checkin')
+    })
     logger.info({ classId }, 'Class deleted')
     return { message: 'Class deleted successfully' }
   })
@@ -1056,7 +1100,7 @@ const _deleteClassAction = adminActionClient
 
 const _previewStripeSubscriptionForConsolidation = adminActionClient
   .metadata({ actionName: 'previewStripeSubscriptionForConsolidation' })
-  .inputSchema(previewSubscriptionInputSchema)
+  .schema(previewSubscriptionInputSchema)
   .action(async ({ parsedInput }): Promise<StripeSubscriptionPreview> => {
     return await previewStripeSubscriptionService(
       parsedInput.subscriptionId,
@@ -1066,13 +1110,16 @@ const _previewStripeSubscriptionForConsolidation = adminActionClient
 
 const _consolidateDugsiSubscription = adminActionClient
   .metadata({ actionName: 'consolidateDugsiSubscription' })
-  .inputSchema(consolidateSubscriptionInputSchema)
+  .schema(consolidateSubscriptionInputSchema)
   .action(
     async ({
       parsedInput,
     }): Promise<ConsolidateSubscriptionResult & { message: string }> => {
       const result = await consolidateStripeSubscriptionService(parsedInput)
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
 
       await logInfo(logger, 'Dugsi subscription consolidated', {
         subscriptionId: parsedInput.stripeSubscriptionId,
@@ -1108,7 +1155,7 @@ const _consolidateDugsiSubscription = adminActionClient
 
 const _sendPaymentLinkViaWhatsAppAction = adminActionClient
   .metadata({ actionName: 'sendPaymentLinkViaWhatsAppAction' })
-  .inputSchema(SendPaymentLinkViaWhatsAppSchema)
+  .schema(SendPaymentLinkViaWhatsAppSchema)
   .action(
     async ({
       parsedInput,
@@ -1131,7 +1178,10 @@ const _sendPaymentLinkViaWhatsAppAction = adminActionClient
         )
       }
 
-      revalidatePath('/admin/dugsi')
+      after(() => {
+        revalidatePath('/admin/dugsi')
+        revalidateTag('dugsi-registrations')
+      })
       return {
         waMessageId: result.waMessageId,
         message: 'Payment link sent via WhatsApp',

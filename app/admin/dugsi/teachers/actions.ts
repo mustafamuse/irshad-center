@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 
 import { Prisma, Program, Shift } from '@prisma/client'
 import { z } from 'zod'
@@ -194,7 +195,7 @@ const checkinHistoryInputSchema = z.object({
 
 const _getTeachers = adminActionClient
   .metadata({ actionName: 'getTeachers' })
-  .inputSchema(getTeachersSchema)
+  .schema(getTeachersSchema)
   .action(async ({ parsedInput }) => {
     const { program } = parsedInput
     if (program === 'DUGSI_PROGRAM') {
@@ -283,7 +284,7 @@ const _getTeachers = adminActionClient
 
 const _createTeacherAction = adminActionClient
   .metadata({ actionName: 'createTeacherAction' })
-  .inputSchema(createTeacherSchema)
+  .schema(createTeacherSchema)
   .action(async ({ parsedInput }) => {
     const { personId } = parsedInput
     try {
@@ -300,7 +301,7 @@ const _createTeacherAction = adminActionClient
         return newTeacher
       })
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         {
@@ -337,7 +338,7 @@ const _createTeacherAction = adminActionClient
 
 const _createTeacherWithPersonAction = adminActionClient
   .metadata({ actionName: 'createTeacherWithPersonAction' })
-  .inputSchema(createTeacherWithPersonSchema)
+  .schema(createTeacherWithPersonSchema)
   .action(async ({ parsedInput }) => {
     const { name, email, phone } = parsedInput
     try {
@@ -364,7 +365,7 @@ const _createTeacherWithPersonAction = adminActionClient
         return newTeacher
       })
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         {
@@ -405,19 +406,19 @@ const _createTeacherWithPersonAction = adminActionClient
 
 const _deleteTeacherAction = adminActionClient
   .metadata({ actionName: 'deleteTeacherAction' })
-  .inputSchema(deleteTeacherSchema)
+  .schema(deleteTeacherSchema)
   .action(async ({ parsedInput }) => {
     const { teacherId } = parsedInput
     await deleteTeacher(teacherId)
 
-    revalidatePath('/admin/teachers')
+    after(() => revalidatePath('/admin/teachers'))
 
     logger.info({ teacherId }, 'Teacher deleted')
   })
 
 const _updateTeacherDetailsAction = adminActionClient
   .metadata({ actionName: 'updateTeacherDetailsAction' })
-  .inputSchema(updateTeacherDetailsSchema)
+  .schema(updateTeacherDetailsSchema)
   .action(async ({ parsedInput }) => {
     const { teacherId, name, email, phone } = parsedInput
     try {
@@ -435,7 +436,7 @@ const _updateTeacherDetailsAction = adminActionClient
 
       await updatePersonContact(teacher.personId, personData)
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info({ teacherId, name }, 'Teacher details updated')
 
@@ -488,7 +489,7 @@ const _updateTeacherDetailsAction = adminActionClient
 
 const _updateTeacherShiftsAction = adminActionClient
   .metadata({ actionName: 'updateTeacherShiftsAction' })
-  .inputSchema(updateTeacherShiftsSchema)
+  .schema(updateTeacherShiftsSchema)
   .action(async ({ parsedInput }) => {
     const { teacherId, shifts } = parsedInput
     const teacherProgram = await getTeacherDugsiProgram(teacherId)
@@ -502,7 +503,7 @@ const _updateTeacherShiftsAction = adminActionClient
 
     await updateTeacherProgramShifts(teacherProgram.id, shifts)
 
-    revalidatePath('/admin/dugsi/teachers')
+    after(() => revalidatePath('/admin/dugsi/teachers'))
 
     logger.info({ teacherId, shifts }, 'Teacher shifts updated')
 
@@ -511,7 +512,7 @@ const _updateTeacherShiftsAction = adminActionClient
 
 const _getTeacherShiftsAction = adminActionClient
   .metadata({ actionName: 'getTeacherShiftsAction' })
-  .inputSchema(z.object({ teacherId: uuidSchema }))
+  .schema(z.object({ teacherId: uuidSchema }))
   .action(async ({ parsedInput }) => {
     const { teacherId } = parsedInput
     const teacherProgram = await getTeacherDugsiProgram(teacherId)
@@ -520,7 +521,7 @@ const _getTeacherShiftsAction = adminActionClient
 
 const _deactivateTeacherAction = adminActionClient
   .metadata({ actionName: 'deactivateTeacherAction' })
-  .inputSchema(z.object({ teacherId: z.string().uuid() }))
+  .schema(z.object({ teacherId: z.string().uuid() }))
   .action(async ({ parsedInput }) => {
     const { teacherId } = parsedInput
     const activeClasses = await getActiveClassesForTeacher(teacherId)
@@ -549,7 +550,7 @@ const _deactivateTeacherAction = adminActionClient
       })
     })
 
-    revalidatePath('/admin/dugsi/teachers')
+    after(() => revalidatePath('/admin/dugsi/teachers'))
 
     logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
   })
@@ -560,15 +561,17 @@ const _deactivateTeacherAction = adminActionClient
 
 const _assignTeacherToProgramAction = adminActionClient
   .metadata({ actionName: 'assignTeacherToProgramAction' })
-  .inputSchema(programAssignmentSchema)
+  .schema(programAssignmentSchema)
   .action(async ({ parsedInput }) => {
     try {
       await assignTeacherToProgram(parsedInput)
 
-      revalidatePath('/admin/teachers')
-      revalidatePath(
-        `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
-      )
+      after(() => {
+        revalidatePath('/admin/teachers')
+        revalidatePath(
+          `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
+        )
+      })
 
       logger.info(
         { teacherId: parsedInput.teacherId, program: parsedInput.program },
@@ -590,7 +593,7 @@ const _assignTeacherToProgramAction = adminActionClient
 
 const _removeTeacherFromProgramAction = adminActionClient
   .metadata({ actionName: 'removeTeacherFromProgramAction' })
-  .inputSchema(programAssignmentSchema)
+  .schema(programAssignmentSchema)
   .action(async ({ parsedInput }) => {
     if (parsedInput.program === 'DUGSI_PROGRAM') {
       const activeClasses = await countActiveClassesForTeacher(
@@ -607,10 +610,12 @@ const _removeTeacherFromProgramAction = adminActionClient
 
     await removeTeacherFromProgram(parsedInput)
 
-    revalidatePath('/admin/teachers')
-    revalidatePath(
-      `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
-    )
+    after(() => {
+      revalidatePath('/admin/teachers')
+      revalidatePath(
+        `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
+      )
+    })
 
     logger.info(
       { teacherId: parsedInput.teacherId, program: parsedInput.program },
@@ -620,14 +625,18 @@ const _removeTeacherFromProgramAction = adminActionClient
 
 const _bulkAssignProgramsAction = adminActionClient
   .metadata({ actionName: 'bulkAssignProgramsAction' })
-  .inputSchema(bulkProgramAssignmentSchema)
+  .schema(bulkProgramAssignmentSchema)
   .action(async ({ parsedInput }) => {
     const { teacherId, programs } = parsedInput
     await bulkAssignPrograms(teacherId, programs)
 
-    revalidatePath('/admin/teachers')
-    programs.forEach((program) => {
-      revalidatePath(`/admin/${program.toLowerCase().replace('_program', '')}`)
+    after(() => {
+      revalidatePath('/admin/teachers')
+      programs.forEach((program) => {
+        revalidatePath(
+          `/admin/${program.toLowerCase().replace('_program', '')}`
+        )
+      })
     })
 
     logger.info(
@@ -638,7 +647,7 @@ const _bulkAssignProgramsAction = adminActionClient
 
 const _getTeacherProgramsAction = adminActionClient
   .metadata({ actionName: 'getTeacherProgramsAction' })
-  .inputSchema(getTeacherProgramsSchema)
+  .schema(getTeacherProgramsSchema)
   .action(async ({ parsedInput }) => {
     const { teacherId } = parsedInput
     const programs = await getTeacherPrograms(teacherId)
@@ -647,7 +656,7 @@ const _getTeacherProgramsAction = adminActionClient
 
 const _searchPeopleAction = adminActionClient
   .metadata({ actionName: 'searchPeopleAction' })
-  .inputSchema(z.object({ query: z.string() }))
+  .schema(z.object({ query: z.string() }))
   .action(async ({ parsedInput }) => {
     const { query } = parsedInput
     if (!query || query.trim().length < SEARCH_MIN_LENGTH) {
@@ -744,7 +753,7 @@ export interface CheckinHistoryResult {
 
 const _getTeacherCheckinHistoryAction = adminActionClient
   .metadata({ actionName: 'getTeacherCheckinHistoryAction' })
-  .inputSchema(checkinHistoryInputSchema)
+  .schema(checkinHistoryInputSchema)
   .action(async ({ parsedInput }) => {
     const { teacherId, page } = parsedInput
     const thirtyDaysAgo = new Date()
@@ -814,7 +823,7 @@ function mapCheckinToRecord(
 
 const _getCheckinsForDateAction = adminActionClient
   .metadata({ actionName: 'getCheckinsForDateAction' })
-  .inputSchema(DateCheckinFiltersSchema)
+  .schema(DateCheckinFiltersSchema)
   .action(async ({ parsedInput }) => {
     const checkins = await getCheckinsForDate(parsedInput)
     return checkins.map(mapCheckinToRecord)
@@ -822,7 +831,7 @@ const _getCheckinsForDateAction = adminActionClient
 
 const _getCheckinHistoryWithFiltersAction = adminActionClient
   .metadata({ actionName: 'getCheckinHistoryWithFiltersAction' })
-  .inputSchema(CheckinHistoryFiltersSchema)
+  .schema(CheckinHistoryFiltersSchema)
   .action(async ({ parsedInput }) => {
     const { page, limit, ...queryFilters } = parsedInput
     const result = await getCheckinHistory(queryFilters, { page, limit })
@@ -838,7 +847,7 @@ const _getCheckinHistoryWithFiltersAction = adminActionClient
 
 const _getLateArrivalsAction = adminActionClient
   .metadata({ actionName: 'getLateArrivalsAction' })
-  .inputSchema(LateReportFiltersSchema)
+  .schema(LateReportFiltersSchema)
   .action(async ({ parsedInput }) => {
     const checkins = await getLateArrivals(parsedInput)
     return checkins.map(mapCheckinToRecord)
@@ -856,13 +865,13 @@ const _getTeachersForDropdownAction = adminActionClient
 
 const _updateCheckinAction = adminActionClient
   .metadata({ actionName: 'updateCheckinAction' })
-  .inputSchema(UpdateCheckinSchema)
+  .schema(UpdateCheckinSchema)
   .action(async ({ parsedInput }) => {
     try {
       const updated = await updateCheckin(parsedInput)
       const record = mapCheckinToRecord(updated)
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         { checkInId: parsedInput.checkInId },
@@ -880,12 +889,12 @@ const _updateCheckinAction = adminActionClient
 
 const _deleteCheckinAction = adminActionClient
   .metadata({ actionName: 'deleteCheckinAction' })
-  .inputSchema(DeleteCheckinSchema)
+  .schema(DeleteCheckinSchema)
   .action(async ({ parsedInput }) => {
     try {
       await deleteCheckin(parsedInput.checkInId)
 
-      revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
       logger.info(
         { checkInId: parsedInput.checkInId },

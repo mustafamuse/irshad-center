@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import { Program } from '@prisma/client'
 import { z } from 'zod'
@@ -61,21 +62,25 @@ export interface PersonLookupResult {
 
 export const deletePersonAction = adminActionClient
   .metadata({ actionName: 'deletePersonAction' })
-  .inputSchema(z.object({ personId: z.string().uuid('Invalid person ID') }))
+  .schema(z.object({ personId: z.string().uuid('Invalid person ID') }))
   .action(async ({ parsedInput: { personId } }) => {
     await deletePerson(personId)
 
-    revalidatePath('/admin/people/lookup')
-    revalidatePath('/admin/people')
-    revalidatePath('/admin/teachers')
-    revalidatePath('/admin/dugsi')
-    revalidateTag('mahad-stats')
-    revalidatePath('/admin/mahad')
+    after(() => {
+      revalidatePath('/admin/people/lookup')
+      revalidatePath('/admin/people')
+      revalidatePath('/admin/teachers')
+      revalidatePath('/admin/dugsi')
+      revalidateTag('dugsi-registrations')
+      revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
+      revalidatePath('/admin/mahad')
+    })
   })
 
 export const lookupPersonAction = adminActionClient
   .metadata({ actionName: 'lookupPersonAction' })
-  .inputSchema(z.object({ query: z.string().min(1) }))
+  .schema(z.object({ query: z.string().min(1) }))
   .action(async ({ parsedInput: { query } }) => {
     if (query.trim().length < 2) {
       return null

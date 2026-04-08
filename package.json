@@ -18,7 +18,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "prepare": "husky install",
+    "prepare": "sh -c 'if [ -z \"$VERCEL\" ] && [ -z \"$CI\" ]; then husky install; fi'",
     "cleanup": "bun run format && bun run lint -- --fix && bun run type-check",
     "cleanup-stripe": "tsx scripts/cleanup-stripe.ts",
     "see-active": "ts-node scripts/see-active.ts",

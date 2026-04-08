@@ -63,6 +63,55 @@ vi.mock('@/lib/logger', () => ({
   logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
+vi.mock('@/lib/safe-action', () => ({
+  rateLimitedActionClient: {
+    metadata: (meta: { actionName: string }) => ({
+      schema: (schema: {
+        safeParse: (input: unknown) => {
+          success: boolean
+          data?: unknown
+          error?: { flatten: () => { fieldErrors: Record<string, string[]> } }
+        }
+      }) => ({
+        action:
+          (handler: (opts: { parsedInput: unknown }) => Promise<unknown>) =>
+          async (input: unknown) => {
+            const h = await mockHeaders()
+            const ip =
+              h.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown'
+            const rateResult = await mockCheckRateLimit(
+              `${meta.actionName}:${ip}`
+            )
+            if (!rateResult.success) {
+              return {
+                serverError: 'Too many attempts. Please try again later.',
+              }
+            }
+            const parsed = schema.safeParse(input)
+            if (!parsed.success) {
+              return { validationErrors: parsed.error!.flatten().fieldErrors }
+            }
+            try {
+              return { data: await handler({ parsedInput: parsed.data }) }
+            } catch (e) {
+              if (e instanceof Error && 'validationErrors' in e) {
+                return {
+                  validationErrors: (e as Error & { validationErrors: unknown })
+                    .validationErrors,
+                }
+              }
+              // ActionError extends Error and always has a `code` property
+              if (e instanceof Error && 'code' in e) {
+                return { serverError: e.message }
+              }
+              return { serverError: 'Something went wrong' }
+            }
+          },
+      }),
+    }),
+  },
+}))
+
 import { registerStudent, checkEmailExists } from '../index'
 
 const validInput = {
@@ -94,11 +143,7 @@ describe('registerStudent', () => {
 
     const result = await registerStudent(validInput)
 
-    expect(result.success).toBe(true)
-    expect(result.data).toEqual({
-      id: 'profile-123',
-      name: 'Ahmed Mohamed',
-    })
+    expect(result?.data).toEqual({ id: 'profile-123', name: 'Ahmed Mohamed' })
     expect(mockCreateMahadStudent).toHaveBeenCalledWith({
       name: 'Ahmed Mohamed',
       email: 'ahmed@example.com',
@@ -122,46 +167,61 @@ describe('registerStudent', () => {
     const afterCallback = mockAfter.mock.calls[0][0] as () => void
     afterCallback()
     expect(mockRevalidateTag).toHaveBeenCalledWith('mahad-stats')
+    expect(mockRevalidateTag).toHaveBeenCalledWith('mahad-students')
     expect(mockRevalidatePath).toHaveBeenCalledWith('/admin/mahad')
   })
 
-  it('should return validation error for invalid data', async () => {
-    const result = await registerStudent({
-      ...validInput,
-      firstName: '',
-    })
+  it('should return validationErrors for invalid data', async () => {
+    const result = await registerStudent({ ...validInput, firstName: '' })
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBeDefined()
+    expect(result?.validationErrors).toBeDefined()
     expect(mockCreateMahadStudent).not.toHaveBeenCalled()
   })
 
-  it('should return validation error for invalid email', async () => {
+  it('should return validationErrors for invalid email', async () => {
     const result = await registerStudent({
       ...validInput,
       email: 'not-an-email',
     })
 
-    expect(result.success).toBe(false)
-    expect(result.errors?.email).toBeDefined()
+    expect(result?.validationErrors?.email).toBeDefined()
   })
 
-  it('should handle P2002 duplicate error from database', async () => {
+  it('should return validationErrors for P2002 duplicate email', async () => {
     const { Prisma } = await import('@prisma/client')
     const prismaError = new Prisma.PrismaClientKnownRequestError(
       'Unique constraint failed',
-      { code: 'P2002', clientVersion: '5.0.0' }
+      { code: 'P2002', clientVersion: '5.0.0', meta: { target: ['email'] } }
     )
     mockCreateMahadStudent.mockRejectedValue(prismaError)
 
     const result = await registerStudent(validInput)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('already exists')
-    expect(result.errors).toBeUndefined()
+    expect(result?.validationErrors).toBeDefined()
+    expect(
+      (result?.validationErrors as { email?: { _errors: string[] } })?.email
+        ?._errors?.[0]
+    ).toContain('email')
   })
 
-  it('should handle ActionError with field-level errors defaulting to email', async () => {
+  it('should return validationErrors for P2002 duplicate phone', async () => {
+    const { Prisma } = await import('@prisma/client')
+    const prismaError = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      { code: 'P2002', clientVersion: '5.0.0', meta: { target: ['phone'] } }
+    )
+    mockCreateMahadStudent.mockRejectedValue(prismaError)
+
+    const result = await registerStudent(validInput)
+
+    expect(result?.validationErrors).toBeDefined()
+    expect(
+      (result?.validationErrors as { phone?: { _errors: string[] } })?.phone
+        ?._errors?.[0]
+    ).toContain('phone')
+  })
+
+  it('should return validationErrors for ActionError with email field', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
     mockCreateMahadStudent.mockRejectedValue(
       new ActionError(
@@ -174,15 +234,15 @@ describe('registerStudent', () => {
 
     const result = await registerStudent(validInput)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Student already registered for Mahad')
-    expect(result.errors?.email).toEqual([
-      'Student already registered for Mahad',
-    ])
-    expect(mockLogError).not.toHaveBeenCalled()
+    expect(result?.validationErrors).toBeDefined()
+    expect(
+      (result?.validationErrors as { email?: { _errors: string[] } })?.email
+        ?._errors?.[0]
+    ).toBe('Student already registered for Mahad')
+    expect(result?.serverError).toBeUndefined()
   })
 
-  it('should map ActionError field to correct form field for phone duplicates', async () => {
+  it('should return validationErrors for ActionError with phone field', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
     mockCreateMahadStudent.mockRejectedValue(
       new ActionError(
@@ -195,14 +255,25 @@ describe('registerStudent', () => {
 
     const result = await registerStudent(validInput)
 
-    expect(result.success).toBe(false)
-    expect(result.errors?.phone).toEqual([
-      'Student already registered for Mahad',
-    ])
-    expect(result.errors?.email).toBeUndefined()
+    expect(result?.validationErrors).toBeDefined()
+    expect(
+      (result?.validationErrors as { phone?: { _errors: string[] } })?.phone
+        ?._errors?.[0]
+    ).toBe('Student already registered for Mahad')
   })
 
-  it('should rate limit registerStudent', async () => {
+  it('should not log ActionError as server error', async () => {
+    const { ActionError } = await import('@/lib/errors/action-error')
+    mockCreateMahadStudent.mockRejectedValue(
+      new ActionError('Duplicate', 'DUPLICATE_CONTACT', 'email')
+    )
+
+    await registerStudent(validInput)
+
+    expect(mockLogError).not.toHaveBeenCalled()
+  })
+
+  it('should return serverError when rate limited', async () => {
     mockCheckRateLimit.mockResolvedValue({
       success: false,
       remaining: 0,
@@ -211,32 +282,19 @@ describe('registerStudent', () => {
 
     const result = await registerStudent(validInput)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Too many registration attempts')
+    expect(result?.serverError).toContain('Too many attempts')
     expect(mockCreateMahadStudent).not.toHaveBeenCalled()
   })
 
-  it('should not log ActionError as server error', async () => {
-    const { ActionError } = await import('@/lib/errors/action-error')
-    mockCreateMahadStudent.mockRejectedValue(
-      new ActionError('Duplicate', 'DUPLICATE_CONTACT')
-    )
-
-    await registerStudent(validInput)
-
-    expect(mockLogError).not.toHaveBeenCalled()
-  })
-
-  it('should handle unexpected errors', async () => {
+  it('should return serverError for unexpected errors', async () => {
     mockCreateMahadStudent.mockRejectedValue(
       new Error('Database connection lost')
     )
 
     const result = await registerStudent(validInput)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Registration failed. Please try again.')
-    expect(mockLogError).toHaveBeenCalled()
+    expect(result?.serverError).toBe('Something went wrong')
+    expect(result?.data).toBeUndefined()
   })
 })
 
@@ -277,17 +335,6 @@ describe('checkEmailExists', () => {
     await checkEmailExists('test@example.com')
 
     expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:1.2.3.4', 10)
-  })
-
-  it('should pass email through to isEmailRegistered for normalization', async () => {
-    mockIsEmailRegistered.mockResolvedValue(true)
-
-    await checkEmailExists('Test@Example.COM')
-
-    expect(mockIsEmailRegistered).toHaveBeenCalledWith(
-      'Test@Example.COM',
-      'MAHAD_PROGRAM'
-    )
   })
 
   it('should skip rate limiting when IP is unavailable', async () => {

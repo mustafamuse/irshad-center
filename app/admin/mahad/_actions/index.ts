@@ -140,7 +140,7 @@ const paymentLinkWithOverrideInputSchema = z.object({
 
 const _createBatchAction = adminActionClient
   .metadata({ actionName: 'createBatchAction' })
-  .inputSchema(createBatchInputSchema)
+  .schema(createBatchInputSchema)
   .action(async ({ parsedInput }) => {
     const validated = CreateBatchSchema.parse({
       name: parsedInput.name,
@@ -158,6 +158,7 @@ const _createBatchAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -181,7 +182,7 @@ export async function createBatchAction(
 
 const _deleteBatchAction = adminActionClient
   .metadata({ actionName: 'deleteBatchAction' })
-  .inputSchema(deleteBatchInputSchema)
+  .schema(deleteBatchInputSchema)
   .action(async ({ parsedInput }) => {
     const batch = await getBatchById(parsedInput.id)
     if (!batch) {
@@ -212,6 +213,7 @@ const _deleteBatchAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -224,7 +226,7 @@ export async function deleteBatchAction(
 
 const _updateBatchAction = adminActionClient
   .metadata({ actionName: 'updateBatchAction' })
-  .inputSchema(updateBatchInputSchema)
+  .schema(updateBatchInputSchema)
   .action(async ({ parsedInput }) => {
     const { id, ...data } = parsedInput
     const validated = UpdateBatchSchema.parse(data)
@@ -244,6 +246,7 @@ const _updateBatchAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -274,7 +277,7 @@ export async function updateBatchAction(
 
 const _assignStudentsAction = adminActionClient
   .metadata({ actionName: 'assignStudentsAction' })
-  .inputSchema(BatchAssignmentSchema)
+  .schema(BatchAssignmentSchema)
   .action(async ({ parsedInput }) => {
     const batch = await getBatchById(parsedInput.batchId)
     if (!batch) {
@@ -289,6 +292,7 @@ const _assignStudentsAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -321,7 +325,7 @@ export async function assignStudentsAction(
 
 const _transferStudentsAction = adminActionClient
   .metadata({ actionName: 'transferStudentsAction' })
-  .inputSchema(BatchTransferSchema)
+  .schema(BatchTransferSchema)
   .action(async ({ parsedInput }) => {
     const [fromBatch, toBatch] = await Promise.all([
       getBatchById(parsedInput.fromBatchId),
@@ -362,6 +366,7 @@ const _transferStudentsAction = adminActionClient
 
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
 
@@ -399,7 +404,7 @@ export async function transferStudentsAction(
 
 const _resolveDuplicatesAction = adminActionClient
   .metadata({ actionName: 'resolveDuplicatesAction' })
-  .inputSchema(resolveDuplicatesInputSchema)
+  .schema(resolveDuplicatesInputSchema)
   .action(async ({ parsedInput }) => {
     const { keepId, deleteIds, mergeData } = parsedInput
 
@@ -450,6 +455,7 @@ const _resolveDuplicatesAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -466,7 +472,7 @@ export async function resolveDuplicatesAction(
 
 const _getStudentDeleteWarningsAction = adminActionClient
   .metadata({ actionName: 'getStudentDeleteWarningsAction' })
-  .inputSchema(studentIdInputSchema)
+  .schema(studentIdInputSchema)
   .action(async ({ parsedInput }): Promise<DeleteWarnings> => {
     const warnings = await getStudentDeleteWarnings(parsedInput.id)
     return warnings
@@ -480,7 +486,7 @@ export async function getStudentDeleteWarningsAction(
 
 const _deleteStudentAction = adminActionClient
   .metadata({ actionName: 'deleteStudentAction' })
-  .inputSchema(studentIdInputSchema)
+  .schema(studentIdInputSchema)
   .action(async ({ parsedInput }) => {
     const student = await getStudentById(parsedInput.id)
     if (!student) {
@@ -525,6 +531,7 @@ const _deleteStudentAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -537,7 +544,7 @@ export async function deleteStudentAction(
 
 const _bulkDeleteStudentsAction = adminActionClient
   .metadata({ actionName: 'bulkDeleteStudentsAction' })
-  .inputSchema(bulkDeleteInputSchema)
+  .schema(bulkDeleteInputSchema)
   .action(async ({ parsedInput }): Promise<BulkDeleteResult> => {
     const { studentIds } = parsedInput
 
@@ -576,6 +583,7 @@ const _bulkDeleteStudentsAction = adminActionClient
     if (deletedCount > 0) {
       after(() => {
         revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
         revalidatePath('/admin/mahad')
       })
     }
@@ -598,7 +606,7 @@ export async function bulkDeleteStudentsAction(
 
 const _updateStudentAction = adminActionClient
   .metadata({ actionName: 'updateStudentAction' })
-  .inputSchema(updateStudentInputSchema)
+  .schema(updateStudentInputSchema)
   .action(async ({ parsedInput }) => {
     const { id, ...data } = parsedInput
     const validated = UpdateStudentSchema.parse(data)
@@ -721,6 +729,7 @@ const _updateStudentAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
   })
@@ -906,7 +915,7 @@ async function createPaymentLinkSession(
  */
 const _generatePaymentLinkAction = adminActionClient
   .metadata({ actionName: 'generatePaymentLinkAction' })
-  .inputSchema(paymentLinkInputSchema)
+  .schema(paymentLinkInputSchema)
   .action(async ({ parsedInput }): Promise<PaymentLinkData> => {
     return createPaymentLinkSession(parsedInput.profileId)
   })
@@ -919,7 +928,7 @@ export async function generatePaymentLinkAction(
 
 const _generatePaymentLinkWithDefaultsAction = adminActionClient
   .metadata({ actionName: 'generatePaymentLinkWithDefaultsAction' })
-  .inputSchema(paymentLinkInputSchema)
+  .schema(paymentLinkInputSchema)
   .action(async ({ parsedInput }): Promise<PaymentLinkData> => {
     const { profileId } = parsedInput
 
@@ -951,6 +960,7 @@ const _generatePaymentLinkWithDefaultsAction = adminActionClient
 
     after(() => {
       revalidateTag('mahad-stats')
+      revalidateTag('mahad-students')
       revalidatePath('/admin/mahad')
     })
 
@@ -995,7 +1005,7 @@ export interface PaymentLinkWithOverrideData {
  */
 const _generatePaymentLinkWithOverrideAction = adminActionClient
   .metadata({ actionName: 'generatePaymentLinkWithOverrideAction' })
-  .inputSchema(paymentLinkWithOverrideInputSchema)
+  .schema(paymentLinkWithOverrideInputSchema)
   .action(async ({ parsedInput }): Promise<PaymentLinkWithOverrideData> => {
     const { profileId, overrideAmount, billingStartDate } = parsedInput
 

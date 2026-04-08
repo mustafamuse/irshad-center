@@ -1,5 +1,5 @@
-import { z } from 'zod'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { z } from 'zod'
 
 const {
   mockPauseFamilyBilling,
@@ -45,6 +45,11 @@ vi.mock('@/lib/safe-action', () => {
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
+  revalidateTag: vi.fn(),
+}))
+
+vi.mock('next/server', () => ({
+  after: vi.fn((cb: () => void) => cb()),
 }))
 
 vi.mock('@/lib/services/dugsi', () => ({

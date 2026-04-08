@@ -1,5 +1,8 @@
 'use server'
 
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
+
 import {
   GradeLevel,
   GraduationStatus,
@@ -27,8 +30,13 @@ const updateStudentSchema = z.object({
 
 export const updateStudent = adminActionClient
   .metadata({ actionName: 'updateStudent' })
-  .inputSchema(updateStudentSchema)
+  .schema(updateStudentSchema)
   .action(async ({ parsedInput }) => {
     const { studentId, ...data } = parsedInput
     await updateMahadStudent(studentId, data)
+    after(() => {
+      revalidateTag('mahad-students')
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
   })

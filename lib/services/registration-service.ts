@@ -528,9 +528,10 @@ export async function createProgramProfileWithEnrollment(
         },
         'Person already has an active enrollment for this program'
       )
-      throw new Error(
+      throw new ActionError(
         `This person already has an active ${program} enrollment. ` +
-          'Withdraw the existing enrollment first before re-registering.'
+          'Withdraw the existing enrollment first before re-registering.',
+        ERROR_CODES.VALIDATION_ERROR
       )
     }
 
@@ -798,9 +799,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                   errorRef: generateErrorRef(familyReferenceId),
                 }
               )
-              throw new Error(
+              throw new ActionError(
                 `Registration temporarily unavailable for ${childFullName}. ` +
-                  `Please retry. If the problem persists, contact support with reference: ${generateErrorRef(familyReferenceId)}`
+                  `Please retry. If the problem persists, contact support with reference: ${generateErrorRef(familyReferenceId)}`,
+                ERROR_CODES.SERVER_ERROR
               )
             }
           } else {
@@ -851,9 +853,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           existingProfile.familyReferenceId &&
           existingProfile.familyReferenceId !== familyReferenceId
         ) {
-          throw new Error(
+          throw new ActionError(
             `Child ${childFullName} is already registered under a different family. ` +
-              `Contact support to update family relationships.`
+              `Contact support to update family relationships.`,
+            ERROR_CODES.VALIDATION_ERROR
           )
         }
 
@@ -927,9 +930,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                   errorRef: generateErrorRef(familyReferenceId),
                 }
               )
-              throw new Error(
+              throw new ActionError(
                 `Unable to register ${childFullName}. This may indicate a data conflict. ` +
-                  `Please contact support with reference: ${generateErrorRef(familyReferenceId)}`
+                  `Please contact support with reference: ${generateErrorRef(familyReferenceId)}`,
+                ERROR_CODES.SERVER_ERROR
               )
             }
           } else {
@@ -1444,9 +1448,10 @@ async function validateFamilyConflicts(
     const childFullName = `${child.firstName} ${child.lastName}`
     const lookupKey = getChildLookupKey(childFullName, child.dateOfBirth)
     if (seenChildren.has(lookupKey)) {
-      throw new Error(
+      throw new ActionError(
         `Duplicate child in submission: ${child.firstName} ${child.lastName}. ` +
-          `Each child can only be registered once per submission.`
+          `Each child can only be registered once per submission.`,
+        ERROR_CODES.VALIDATION_ERROR
       )
     }
     seenChildren.add(lookupKey)
@@ -1482,9 +1487,10 @@ async function validateFamilyConflicts(
         profile?.familyReferenceId &&
         profile.familyReferenceId !== familyReferenceId
       ) {
-        throw new Error(
+        throw new ActionError(
           `Child ${child.firstName} ${child.lastName} is already registered ` +
-            `under a different family. Contact support to update family relationships.`
+            `under a different family. Contact support to update family relationships.`,
+          ERROR_CODES.VALIDATION_ERROR
         )
       }
     }

@@ -41,6 +41,15 @@ export const CheckoutRequestSchema = z.object({
       (url) => url.startsWith('http://') || url.startsWith('https://'),
       'Success URL must use HTTP or HTTPS protocol'
     )
+    .refine((url) => {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL
+      if (!appUrl) return false
+      try {
+        return new URL(url).origin === new URL(appUrl).origin
+      } catch {
+        return false
+      }
+    }, 'Redirect URL must be on this domain')
     .optional(),
   cancelUrl: z
     .string()
@@ -49,6 +58,15 @@ export const CheckoutRequestSchema = z.object({
       (url) => url.startsWith('http://') || url.startsWith('https://'),
       'Cancel URL must use HTTP or HTTPS protocol'
     )
+    .refine((url) => {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL
+      if (!appUrl) return false
+      try {
+        return new URL(url).origin === new URL(appUrl).origin
+      } catch {
+        return false
+      }
+    }, 'Redirect URL must be on this domain')
     .optional(),
 })
 

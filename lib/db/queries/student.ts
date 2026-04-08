@@ -11,6 +11,8 @@
  * - Maintains backward-compatible return types for UI components
  */
 
+import { unstable_cache } from 'next/cache'
+
 import {
   GradeLevel,
   GraduationStatus,
@@ -244,6 +246,12 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
 
   return profiles.map(transformToStudent)
 }
+
+export const getCachedStudentsWithBatch = unstable_cache(
+  () => getStudentsWithBatch(),
+  ['mahad-students'],
+  { revalidate: 300, tags: ['mahad-students'] }
+)
 
 /**
  * Get students with batch info, filtering, and pagination

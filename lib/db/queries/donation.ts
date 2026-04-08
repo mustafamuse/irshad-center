@@ -1,3 +1,5 @@
+import { unstable_cache } from 'next/cache'
+
 import { DonationStatus, Prisma, type Donation } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
@@ -167,6 +169,12 @@ export async function getDonationStats(
     recurringPaymentCount: recurringCount,
   }
 }
+
+export const getCachedDonationStats = unstable_cache(
+  (options?: DonationStatsOptions) => getDonationStats(options),
+  ['donation-stats'],
+  { revalidate: 300, tags: ['donations'] }
+)
 
 export interface ZakatFitrStats {
   totalCollectedCents: number

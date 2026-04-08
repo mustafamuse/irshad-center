@@ -7,7 +7,7 @@ import { ZakatFitrCheckoutSchema } from '@/lib/validations/zakat-fitr'
 
 const _createZakatFitrAction = rateLimitedActionClient
   .metadata({ actionName: 'createZakatFitrAction' })
-  .inputSchema(ZakatFitrCheckoutSchema)
+  .schema(ZakatFitrCheckoutSchema)
   .action(async ({ parsedInput }) => {
     const session = await createZakatFitrCheckoutSession(parsedInput)
     if (!session.url) {

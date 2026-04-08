@@ -7,7 +7,7 @@ import { DonationCheckoutSchema } from '@/lib/validations/donation'
 
 const _createDonationAction = rateLimitedActionClient
   .metadata({ actionName: 'createDonationAction' })
-  .inputSchema(DonationCheckoutSchema)
+  .schema(DonationCheckoutSchema)
   .action(async ({ parsedInput }) => {
     const session = await createDonationCheckoutSession(parsedInput)
     if (!session.url) {

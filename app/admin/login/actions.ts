@@ -17,7 +17,7 @@ const logger = createActionLogger('admin-auth')
 
 const _validateAdminPin = rateLimitedActionClient
   .metadata({ actionName: 'validateAdminPin' })
-  .inputSchema(adminPinSchema)
+  .schema(adminPinSchema)
   .action(async ({ parsedInput: { pin, redirectTo } }) => {
     const expectedPin = process.env.ADMIN_PIN
 

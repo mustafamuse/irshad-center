@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 
 import { Shift } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -70,12 +71,14 @@ export async function getTeacherCurrentStatus(
 
 const _teacherClockInAction = rateLimitedActionClient
   .metadata({ actionName: 'teacherClockInAction' })
-  .inputSchema(ClockInSchema)
+  .schema(ClockInSchema)
   .action(async ({ parsedInput }) => {
     try {
       const result = await clockIn(parsedInput)
-      revalidatePath('/teacher/checkin')
-      revalidatePath('/admin/dugsi/teacher-checkins')
+      after(() => {
+        revalidatePath('/teacher/checkin')
+        revalidatePath('/admin/dugsi/teacher-checkins')
+      })
 
       const status = await getTeacherCurrentStatus(parsedInput.teacherId)
 
@@ -108,12 +111,14 @@ export async function teacherClockInAction(
 
 const _teacherClockOutAction = rateLimitedActionClient
   .metadata({ actionName: 'teacherClockOutAction' })
-  .inputSchema(ClockOutSchema)
+  .schema(ClockOutSchema)
   .action(async ({ parsedInput }) => {
     try {
       await clockOut(parsedInput)
-      revalidatePath('/teacher/checkin')
-      revalidatePath('/admin/dugsi/teacher-checkins')
+      after(() => {
+        revalidatePath('/teacher/checkin')
+        revalidatePath('/admin/dugsi/teacher-checkins')
+      })
 
       const status = await getTeacherCurrentStatus(parsedInput.teacherId)
 
