@@ -744,48 +744,60 @@ async function createPaymentLinkSession(
   const stripe = getMahadStripeClient()
   const intervalConfig = getStripeInterval(profile.paymentFrequency)
 
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    // Feature flag: Toggle card payments to manage transaction fees
-    // ACH only: Lower fees for the organization
-    // Card + ACH: More convenience for families
-    payment_method_types: featureFlags.mahadCardPayments()
-      ? ['card', 'us_bank_account']
-      : ['us_bank_account'],
-    customer_email: email,
-    line_items: [
-      {
-        price_data: {
-          currency: 'usd',
-          product: productId,
-          unit_amount: amount,
-          recurring: intervalConfig,
+  let session: Awaited<ReturnType<typeof stripe.checkout.sessions.create>>
+  try {
+    session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      // Feature flag: Toggle card payments to manage transaction fees
+      // ACH only: Lower fees for the organization
+      // Card + ACH: More convenience for families
+      payment_method_types: featureFlags.mahadCardPayments()
+        ? ['card', 'us_bank_account']
+        : ['us_bank_account'],
+      customer_email: email,
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product: productId,
+            unit_amount: amount,
+            recurring: intervalConfig,
+          },
+          quantity: 1,
         },
-        quantity: 1,
+      ],
+      subscription_data: {
+        metadata: {
+          profileId: profile.id,
+          personId: profile.personId,
+          studentName: profile.person.name,
+          graduationStatus: profile.graduationStatus,
+          paymentFrequency: profile.paymentFrequency,
+          billingType: profile.billingType,
+          calculatedRate: amount.toString(),
+          source: 'admin-generated-link',
+        },
       },
-    ],
-    subscription_data: {
       metadata: {
         profileId: profile.id,
         personId: profile.personId,
         studentName: profile.person.name,
-        graduationStatus: profile.graduationStatus,
-        paymentFrequency: profile.paymentFrequency,
-        billingType: profile.billingType,
-        calculatedRate: amount.toString(),
         source: 'admin-generated-link',
       },
-    },
-    metadata: {
-      profileId: profile.id,
-      personId: profile.personId,
-      studentName: profile.person.name,
-      source: 'admin-generated-link',
-    },
-    success_url: `${appUrl}/mahad/payment-complete?payment=success`,
-    cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
-    allow_promotion_codes: true,
-  })
+      success_url: `${appUrl}/mahad/payment-complete?payment=success`,
+      cancel_url: `${appUrl}/mahad/payment-complete?payment=canceled`,
+      allow_promotion_codes: true,
+    })
+  } catch (error) {
+    await logError(logger, error, 'Stripe checkout session creation failed', {
+      profileId,
+      amount,
+    })
+    throw new ActionError(
+      'Failed to create payment session. Please try again.',
+      ERROR_CODES.SERVER_ERROR
+    )
+  }
 
   const billingPeriod =
     profile.paymentFrequency === 'BI_MONTHLY' ? '/2 months' : '/month'
