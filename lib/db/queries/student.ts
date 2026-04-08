@@ -1112,3 +1112,47 @@ export async function exportStudents(
     createdAt: student.createdAt.toISOString(),
   }))
 }
+
+export async function getProfileForPaymentLink(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findUnique({
+    where: { id: profileId },
+    relationLoadStrategy: 'join',
+    select: {
+      id: true,
+      personId: true,
+      graduationStatus: true,
+      paymentFrequency: true,
+      billingType: true,
+      person: {
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  })
+}
+
+export async function setProfileBillingDefaults(
+  profileId: string,
+  defaults: {
+    graduationStatus: GraduationStatus
+    billingType: StudentBillingType
+    paymentFrequency: PaymentFrequency
+  },
+  client: DatabaseClient = prisma
+) {
+  const exists = await client.programProfile.findUnique({
+    where: { id: profileId },
+    select: { id: true },
+  })
+  if (!exists) return null
+  return client.programProfile.update({
+    where: { id: profileId },
+    data: defaults,
+  })
+}

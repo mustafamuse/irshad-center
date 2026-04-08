@@ -3,10 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 
-import { Prisma, Program, Shift } from '@prisma/client'
+import { Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
-import { prisma } from '@/lib/db'
 import {
   countActiveClassesForTeacher,
   getActiveClassesForTeacher,
@@ -29,6 +28,7 @@ import {
   getDugsiTeachersForDropdown,
   TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
+import { searchPeopleWithRoles } from '@/lib/db/queries/teacher-management'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import {
@@ -41,7 +41,9 @@ import {
   deleteCheckin,
 } from '@/lib/services/dugsi/teacher-checkin-service'
 import {
-  createTeacher,
+  createTeacherAndAssignDugsi,
+  createPersonTeacherAndAssignDugsi,
+  deactivateTeacherFromDugsi,
   deleteTeacher,
   assignTeacherToProgram,
   removeTeacherFromProgram,
@@ -53,8 +55,8 @@ import { ValidationError } from '@/lib/services/validation-service'
 import {
   normalizeEmail,
   normalizePhone,
-  validateAndNormalizeEmail,
 } from '@/lib/utils/contact-normalization'
+import { isPrismaError } from '@/lib/utils/type-guards'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -288,18 +290,7 @@ const _createTeacherAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { personId } = parsedInput
     try {
-      const teacher = await prisma.$transaction(async (tx) => {
-        const newTeacher = await createTeacher(personId, tx)
-
-        await tx.teacherProgram.create({
-          data: {
-            teacherId: newTeacher.id,
-            program: 'DUGSI_PROGRAM',
-          },
-        })
-
-        return newTeacher
-      })
+      const teacher = await createTeacherAndAssignDugsi(personId)
 
       after(() => revalidatePath('/admin/dugsi/teachers'))
 
@@ -323,15 +314,6 @@ const _createTeacherAction = adminActionClient
           ERROR_CODES.VALIDATION_ERROR
         )
       }
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ActionError(
-          'A person with this email or phone already exists',
-          ERROR_CODES.VALIDATION_ERROR
-        )
-      }
       throw error
     }
   })
@@ -342,27 +324,10 @@ const _createTeacherWithPersonAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { name, email, phone } = parsedInput
     try {
-      const normalizedPhone = phone ? normalizePhone(phone) : null
-
-      const teacher = await prisma.$transaction(async (tx) => {
-        const person = await tx.person.create({
-          data: {
-            name,
-            email: normalizeEmail(email),
-            phone: normalizedPhone,
-          },
-        })
-
-        const newTeacher = await createTeacher(person.id, tx)
-
-        await tx.teacherProgram.create({
-          data: {
-            teacherId: newTeacher.id,
-            program: 'DUGSI_PROGRAM',
-          },
-        })
-
-        return newTeacher
+      const teacher = await createPersonTeacherAndAssignDugsi({
+        name,
+        email: normalizeEmail(email),
+        phone: phone ? normalizePhone(phone) : null,
       })
 
       after(() => revalidatePath('/admin/dugsi/teachers'))
@@ -378,19 +343,6 @@ const _createTeacherWithPersonAction = adminActionClient
 
       return { teacherId: teacher.id }
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        logger.warn(
-          { hasEmail: !!email, hasPhone: !!phone },
-          'Duplicate contact on teacher create'
-        )
-        throw new ActionError(
-          'A person with this email or phone already exists',
-          ERROR_CODES.VALIDATION_ERROR
-        )
-      }
       if (
         error instanceof ValidationError &&
         error.code === 'TEACHER_ALREADY_EXISTS'
@@ -473,10 +425,7 @@ const _updateTeacherDetailsAction = adminActionClient
       } satisfies TeacherWithDetails
     } catch (error) {
       if (error instanceof ActionError) throw error
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
+      if (isPrismaError(error) && error.code === 'P2002') {
         logger.warn({ teacherId }, 'Duplicate contact on teacher update')
         throw new ActionError(
           'This email or phone is already in use',
@@ -536,23 +485,9 @@ const _deactivateTeacherAction = adminActionClient
       )
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.teacherProgram.updateMany({
-        where: {
-          teacherId,
-          program: 'DUGSI_PROGRAM',
-          isActive: true,
-        },
-        data: {
-          shifts: [],
-          isActive: false,
-        },
-      })
-    })
+    await deactivateTeacherFromDugsi(teacherId)
 
     after(() => revalidatePath('/admin/dugsi/teachers'))
-
-    logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
   })
 
 // ============================================================================
@@ -663,70 +598,7 @@ const _searchPeopleAction = adminActionClient
       return [] as PersonSearchResult[]
     }
 
-    const searchTerm = query.trim().toLowerCase()
-    const normalizedSearchTerm = normalizePhone(query.trim())
-
-    const people = await prisma.person.findMany({
-      where: {
-        OR: [
-          { name: { contains: searchTerm, mode: 'insensitive' } },
-          {
-            email: {
-              contains: validateAndNormalizeEmail(query.trim()) ?? searchTerm,
-              mode: 'insensitive',
-            },
-          },
-          ...(normalizedSearchTerm ? [{ phone: normalizedSearchTerm }] : []),
-        ],
-      },
-      relationLoadStrategy: 'join',
-      include: {
-        teacher: {
-          include: {
-            programs: {
-              where: { isActive: true },
-            },
-          },
-        },
-        guardianRelationships: {
-          where: { isActive: true },
-          include: {
-            dependent: {
-              include: {
-                programProfiles: {
-                  select: { program: true },
-                },
-              },
-            },
-          },
-        },
-        programProfiles: {
-          where: {
-            enrollments: {
-              some: {
-                status: { in: ['REGISTERED', 'ENROLLED'] },
-                endDate: null,
-              },
-            },
-          },
-          include: {
-            enrollments: {
-              where: {
-                status: { in: ['REGISTERED', 'ENROLLED'] },
-                endDate: null,
-              },
-              select: {
-                status: true,
-              },
-              take: 1,
-            },
-          },
-        },
-      },
-      take: SEARCH_MAX_RESULTS,
-      orderBy: { name: 'asc' },
-    })
-
+    const people = await searchPeopleWithRoles(query, SEARCH_MAX_RESULTS)
     return people.map((person) => mapPersonToSearchResult(person))
   })
 

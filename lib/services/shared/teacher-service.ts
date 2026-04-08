@@ -434,6 +434,45 @@ export async function getTeachersByProgram(
 // Program Authorization
 // ============================================================================
 
+// ============================================================================
+// Teacher + Program Creation Workflows
+// ============================================================================
+
+export async function createTeacherAndAssignDugsi(personId: string) {
+  return prisma.$transaction(async (tx) => {
+    const teacher = await createTeacher(personId, tx)
+    await tx.teacherProgram.create({
+      data: { teacherId: teacher.id, program: 'DUGSI_PROGRAM' },
+    })
+    return teacher
+  })
+}
+
+export async function createPersonTeacherAndAssignDugsi(data: {
+  name: string
+  email: string | null
+  phone: string | null
+}) {
+  return prisma.$transaction(async (tx) => {
+    const person = await tx.person.create({
+      data: { name: data.name, email: data.email, phone: data.phone },
+    })
+    const teacher = await createTeacher(person.id, tx)
+    await tx.teacherProgram.create({
+      data: { teacherId: teacher.id, program: 'DUGSI_PROGRAM' },
+    })
+    return teacher
+  })
+}
+
+export async function deactivateTeacherFromDugsi(teacherId: string) {
+  await prisma.teacherProgram.updateMany({
+    where: { teacherId, program: 'DUGSI_PROGRAM', isActive: true },
+    data: { shifts: [], isActive: false },
+  })
+  logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
+}
+
 /**
  * Validate teacher is authorized for a program.
  *
