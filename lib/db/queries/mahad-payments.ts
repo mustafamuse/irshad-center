@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client'
+import { EnrollmentStatus, Prisma } from '@prisma/client'
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
@@ -136,10 +136,9 @@ export async function getMahadStudentsPage(
     params
   const skip = (page - 1) * take
 
-  const [column, order] = (sort?.split('.') ?? ['name', 'asc']) as [
-    string,
-    'asc' | 'desc',
-  ]
+  const sortParts = sort?.split('.') ?? []
+  const column = sortParts[0] ?? 'name'
+  const order: 'asc' | 'desc' = sortParts[1] === 'desc' ? 'desc' : 'asc'
 
   const whereConditions: Prisma.EnrollmentWhereInput[] = [
     { programProfile: { program: MAHAD_PROGRAM } },
@@ -166,9 +165,10 @@ export async function getMahadStudentsPage(
       whereConditions.push({ batchId })
     }
     if (status) {
-      whereConditions.push({
-        status: status.toUpperCase() as 'REGISTERED' | 'ENROLLED' | 'WITHDRAWN',
-      })
+      const upperStatus = status.toUpperCase() as EnrollmentStatus
+      if ((Object.values(EnrollmentStatus) as string[]).includes(upperStatus)) {
+        whereConditions.push({ status: upperStatus })
+      }
     } else {
       whereConditions.push({ status: { not: 'WITHDRAWN' } })
     }
