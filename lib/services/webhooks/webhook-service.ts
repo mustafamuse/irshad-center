@@ -183,7 +183,6 @@ export async function handleSubscriptionCreated(
         paymentMethodCapturedAt: new Date(),
       })
     } else {
-      // Path 3: find by customer ID already linked to a billing account
       const existingPerson = await prisma.person.findFirst({
         where: {
           billingAccounts: {
@@ -204,11 +203,10 @@ export async function handleSubscriptionCreated(
           stripeCustomerId: customerId,
         })
       } else if (accountType === 'DUGSI') {
-        // Path 4: Dugsi-only fallback for subscriptions created manually in the Stripe dashboard.
-        // Resolves the person via Stripe customer email, derives family profiles from DB,
-        // then patches the subscription metadata so future webhook events work normally.
-        const stripeCustomer =
-          await getDugsiStripeClient().customers.retrieve(customerId)
+        // Fallback for subscriptions created manually in Stripe dashboard — no metadata was set.
+        // Resolves the guardian via Stripe customer email and patches metadata for future events.
+        const dugsiStripe = getDugsiStripeClient()
+        const stripeCustomer = await dugsiStripe.customers.retrieve(customerId)
         const customerEmail = stripeCustomer.deleted
           ? null
           : stripeCustomer.email
@@ -251,8 +249,10 @@ export async function handleSubscriptionCreated(
               paymentMethodCapturedAt: new Date(),
             })
 
-            if (familyProfiles.length > 0) {
-              profileIds = familyProfiles.map((p) => p.id)
+            const resolvedProfileIds =
+              familyProfiles.length > 0 ? familyProfiles.map((p) => p.id) : null
+            if (resolvedProfileIds) {
+              profileIds = resolvedProfileIds
             }
 
             const childCount = familyProfiles.length
@@ -262,21 +262,20 @@ export async function handleSubscriptionCreated(
               subscription.items.data[0]?.price?.unit_amount ?? standardRate
 
             try {
-              await getDugsiStripeClient().subscriptions.update(
-                subscription.id,
-                {
-                  metadata: {
-                    guardianPersonId: guardianPerson.id,
-                    familyId: familyId ?? '',
-                    childCount: String(childCount),
-                    profileIds: (profileIds ?? []).join(','),
-                    calculatedRate: String(standardRate),
-                    overrideUsed: String(actualAmount !== standardRate),
-                    Family: guardianPerson.name,
-                    source: 'dugsi-webhook-fallback-recovery',
-                  },
-                }
-              )
+              await dugsiStripe.subscriptions.update(subscription.id, {
+                metadata: {
+                  guardianPersonId: guardianPerson.id,
+                  familyId: familyId ?? '',
+                  childCount: String(childCount),
+                  ...(resolvedProfileIds && {
+                    profileIds: resolvedProfileIds.join(','),
+                  }),
+                  calculatedRate: String(standardRate),
+                  overrideUsed: String(actualAmount !== standardRate),
+                  Family: guardianPerson.name,
+                  source: 'dugsi-webhook-fallback-recovery',
+                },
+              })
             } catch (metadataErr) {
               await logError(
                 logger,
