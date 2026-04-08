@@ -456,13 +456,24 @@ export async function createTeacherAndAssignDugsi(
   personId: string,
   client: DatabaseClient = prisma
 ) {
-  const teacher = await executeInTransaction(client, async (tx) => {
-    const newTeacher = await createTeacher(personId, tx)
-    await tx.teacherProgram.create({
-      data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
+  let teacher
+  try {
+    teacher = await executeInTransaction(client, async (tx) => {
+      const newTeacher = await createTeacher(personId, tx)
+      await tx.teacherProgram.create({
+        data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
+      })
+      return newTeacher
     })
-    return newTeacher
-  })
+  } catch (error) {
+    if (isPrismaError(error) && error.code === 'P2002') {
+      throw new ActionError(
+        'Teacher is already enrolled in this program',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+    throw error
+  }
 
   logger.info(
     { teacherId: teacher.id, personId, program: 'DUGSI_PROGRAM' },

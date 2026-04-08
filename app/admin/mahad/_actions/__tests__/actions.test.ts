@@ -1075,10 +1075,14 @@ describe('generatePaymentLinkWithDefaultsAction', () => {
 
     expect(result?.data?.url).toBe('https://checkout.stripe.com/defaults-test')
     expect(result?.data?.amount).toBe(15000)
+    expect(mockSetProfileBillingDefaults).toHaveBeenCalledWith(
+      VALID_PROFILE_ID,
+      expect.objectContaining({ graduationStatus: expect.any(String) })
+    )
   })
 
   it('should return not found error when profile does not exist', async () => {
-    mockSetProfileBillingDefaults.mockResolvedValue(false)
+    mockSetProfileBillingDefaults.mockResolvedValueOnce(false)
 
     const result = await generatePaymentLinkWithDefaultsAction({
       profileId: VALID_PROFILE_ID,
