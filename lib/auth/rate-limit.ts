@@ -1,5 +1,5 @@
-import { Redis } from '@upstash/redis'
 import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
 
 const DEFAULT_MAX_ATTEMPTS = 5
 const WINDOW = '15 m' as const
@@ -7,12 +7,15 @@ const WINDOW = '15 m' as const
 let _redis: Redis | undefined
 let _defaultRatelimit: Ratelimit | undefined
 
+function isRedisConfigured(): boolean {
+  return !!(
+    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
+  )
+}
+
 function getRedis(): Redis {
   if (!_redis) {
-    _redis = new Redis({
-      url: process.env.KV_REST_API_URL!,
-      token: process.env.KV_REST_API_TOKEN!,
-    })
+    _redis = Redis.fromEnv()
   }
   return _redis
 }
@@ -33,6 +36,10 @@ export async function checkRateLimit(
   identifier: string,
   maxAttempts: number = DEFAULT_MAX_ATTEMPTS
 ): Promise<{ success: boolean; remaining: number; reset: number }> {
+  if (!isRedisConfigured()) {
+    return { success: true, remaining: maxAttempts, reset: 0 }
+  }
+
   const client =
     maxAttempts !== DEFAULT_MAX_ATTEMPTS
       ? new Ratelimit({
