@@ -259,13 +259,20 @@ const _updateBatchAction = adminActionClient
       }
     }
 
-    let batch
     try {
-      batch = await updateBatch(id, {
+      const batch = await updateBatch(id, {
         name: validated.name,
         startDate: validated.startDate,
         endDate: validated.endDate,
       })
+
+      after(() => {
+        revalidateTag('mahad-stats')
+        revalidateTag('mahad-students')
+        revalidatePath('/admin/mahad')
+      })
+
+      return batch
     } catch (error) {
       if (isPrismaError(error) && error.code === 'P2002') {
         throw new ActionError(
@@ -278,14 +285,6 @@ const _updateBatchAction = adminActionClient
       }
       throw error
     }
-
-    after(() => {
-      revalidateTag('mahad-stats')
-      revalidateTag('mahad-students')
-      revalidatePath('/admin/mahad')
-    })
-
-    return batch
   })
 
 export async function updateBatchAction(
