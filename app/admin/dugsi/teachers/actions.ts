@@ -294,15 +294,6 @@ const _createTeacherAction = adminActionClient
 
       after(() => revalidatePath('/admin/dugsi/teachers'))
 
-      logger.info(
-        {
-          teacherId: teacher.id,
-          personId,
-          name: teacher.person.name,
-        },
-        'Teacher created and enrolled in Dugsi'
-      )
-
       return { teacherId: teacher.id }
     } catch (error) {
       if (
@@ -331,15 +322,6 @@ const _createTeacherWithPersonAction = adminActionClient
       })
 
       after(() => revalidatePath('/admin/dugsi/teachers'))
-
-      logger.info(
-        {
-          teacherId: teacher.id,
-          personId: teacher.personId,
-          name: teacher.person.name,
-        },
-        'Teacher created with new person'
-      )
 
       return { teacherId: teacher.id }
     } catch (error) {

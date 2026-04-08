@@ -23,6 +23,7 @@ import {
   ValidationError,
   validateTeacherCreation,
 } from '@/lib/services/validation-service'
+import { isPrismaError } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('teacher')
 
@@ -481,16 +482,27 @@ export async function createPersonTeacherAndAssignDugsi(
     }
   }
 
-  const teacher = await executeInTransaction(client, async (tx) => {
-    const person = await tx.person.create({
-      data: { name: data.name, email: data.email, phone: data.phone },
+  let teacher
+  try {
+    teacher = await executeInTransaction(client, async (tx) => {
+      const person = await tx.person.create({
+        data: { name: data.name, email: data.email, phone: data.phone },
+      })
+      const newTeacher = await createTeacher(person.id, tx)
+      await tx.teacherProgram.create({
+        data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
+      })
+      return newTeacher
     })
-    const newTeacher = await createTeacher(person.id, tx)
-    await tx.teacherProgram.create({
-      data: { teacherId: newTeacher.id, program: 'DUGSI_PROGRAM' },
-    })
-    return newTeacher
-  })
+  } catch (error) {
+    if (isPrismaError(error) && error.code === 'P2002') {
+      throw new ActionError(
+        'A person with this email or phone already exists',
+        ERROR_CODES.VALIDATION_ERROR
+      )
+    }
+    throw error
+  }
 
   logger.info(
     { teacherId: teacher.id, program: 'DUGSI_PROGRAM' },

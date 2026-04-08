@@ -136,8 +136,7 @@ export async function getMahadStudentsPage(
     params
   const skip = (page - 1) * take
 
-  const sortString = Array.isArray(sort) ? sort[0] : sort
-  const [column, order] = (sortString?.split('.') ?? ['name', 'asc']) as [
+  const [column, order] = (sort?.split('.') ?? ['name', 'asc']) as [
     string,
     'asc' | 'desc',
   ]
@@ -157,31 +156,19 @@ export async function getMahadStudentsPage(
     } as unknown as Prisma.EnrollmentWhereInput)
   } else {
     if (studentName) {
-      const nameFilter = Array.isArray(studentName)
-        ? studentName[0]
-        : studentName
-      if (nameFilter) {
-        whereConditions.push({
-          programProfile: {
-            person: { name: { contains: nameFilter, mode: 'insensitive' } },
-          },
-        })
-      }
+      whereConditions.push({
+        programProfile: {
+          person: { name: { contains: studentName, mode: 'insensitive' } },
+        },
+      })
     }
     if (batchId) {
-      const batchFilter = Array.isArray(batchId) ? batchId[0] : batchId
-      if (batchFilter) whereConditions.push({ batchId: batchFilter })
+      whereConditions.push({ batchId })
     }
     if (status) {
-      const statusValue = Array.isArray(status) ? status[0] : status
-      if (statusValue) {
-        whereConditions.push({
-          status: statusValue.toUpperCase() as
-            | 'REGISTERED'
-            | 'ENROLLED'
-            | 'WITHDRAWN',
-        })
-      }
+      whereConditions.push({
+        status: status.toUpperCase() as 'REGISTERED' | 'ENROLLED' | 'WITHDRAWN',
+      })
     } else {
       whereConditions.push({ status: { not: 'WITHDRAWN' } })
     }

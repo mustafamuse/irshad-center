@@ -273,6 +273,9 @@ const _updateBatchAction = adminActionClient
           ERROR_CODES.VALIDATION_ERROR
         )
       }
+      if (isPrismaError(error) && error.code === 'P2025') {
+        throw new ActionError('Cohort not found', ERROR_CODES.NOT_FOUND)
+      }
       throw error
     }
 
