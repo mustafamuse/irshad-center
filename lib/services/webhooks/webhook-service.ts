@@ -22,7 +22,7 @@ import type {
   StudentBillingType,
 } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
-import type Stripe from 'stripe'
+import Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
 import {
@@ -149,7 +149,6 @@ interface DugsiRecoveryMetadata {
   guardianPersonId: string
   familyName: string
   familyId: string | null
-  effectiveProfileIds: string[]
   standardRate: number
   actualAmount: number
 }
@@ -340,7 +339,6 @@ async function resolveDugsiFallbackFromCustomerEmail(
       guardianPersonId: guardian.id,
       familyName: guardian.name,
       familyId,
-      effectiveProfileIds,
       standardRate,
       actualAmount,
     },
@@ -398,7 +396,7 @@ async function resolveSubscriptionContext(
         accountType,
         stripeCustomerId: customerId,
         paymentMethodCaptured: true,
-        paymentMethodCapturedAt: new Date(),
+        paymentMethodCapturedAt: new Date(subscription.created * 1000),
       })
 
       const effectiveProfileIds =
@@ -448,11 +446,12 @@ async function resolveSubscriptionContext(
 async function patchRecoveredDugsiMetadata(
   subscriptionId: string,
   customerId: string,
-  recovery: DugsiRecoveryMetadata
+  recovery: DugsiRecoveryMetadata,
+  effectiveProfileIds: string[]
 ): Promise<void> {
   const dugsiStripe = getDugsiStripeClient()
 
-  const childCount = recovery.effectiveProfileIds.length
+  const childCount = effectiveProfileIds.length
 
   try {
     await dugsiStripe.subscriptions.update(subscriptionId, {
@@ -460,7 +459,7 @@ async function patchRecoveredDugsiMetadata(
         guardianPersonId: recovery.guardianPersonId,
         ...(recovery.familyId ? { familyId: recovery.familyId } : {}),
         childCount: String(childCount),
-        profileIds: recovery.effectiveProfileIds.join(','),
+        profileIds: effectiveProfileIds.join(','),
         calculatedRate: String(recovery.standardRate),
         overrideUsed: String(recovery.actualAmount !== recovery.standardRate),
         familyName: recovery.familyName,
@@ -477,7 +476,7 @@ async function patchRecoveredDugsiMetadata(
           subscriptionId,
           guardianPersonId: recovery.guardianPersonId,
           childCount,
-          derivedProfileIds: recovery.effectiveProfileIds,
+          derivedProfileIds: effectiveProfileIds,
         },
       }
     )
@@ -493,10 +492,7 @@ async function patchRecoveredDugsiMetadata(
     )
   } catch (metadataErr) {
     const isAuthError =
-      metadataErr !== null &&
-      typeof metadataErr === 'object' &&
-      'type' in metadataErr &&
-      (metadataErr as { type: unknown }).type === 'StripeAuthenticationError'
+      metadataErr instanceof Stripe.errors.StripeAuthenticationError
 
     if (isAuthError) {
       await logError(
@@ -758,7 +754,8 @@ export async function handleSubscriptionCreated(
     await patchRecoveredDugsiMetadata(
       subscription.id,
       customerId,
-      resolved.dugsiRecoveryMetadata
+      resolved.dugsiRecoveryMetadata,
+      resolved.effectiveProfileIds
     )
   }
 
