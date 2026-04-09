@@ -15,12 +15,7 @@
 
 import { revalidateTag } from 'next/cache'
 
-import {
-  EnrollmentStatus,
-  Program,
-  StripeAccountType,
-  SubscriptionStatus,
-} from '@prisma/client'
+import { StripeAccountType, SubscriptionStatus } from '@prisma/client'
 import type {
   GraduationStatus,
   PaymentFrequency,
@@ -36,7 +31,11 @@ import {
   getBillingAssignmentsBySubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
-import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
+import {
+  findGuardianWithBillableDugsiChildren,
+  verifyDugsiProfileIdsForGuardian,
+  findBillableDugsiProfileIdsForGuardian,
+} from '@/lib/db/queries/dugsi-profiles'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -46,6 +45,7 @@ import {
 } from '@/lib/services/shared/billing-service'
 import { createSubscriptionFromStripe } from '@/lib/services/shared/subscription-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 import {
@@ -135,6 +135,527 @@ export async function handlePaymentMethodCapture(
   }
 }
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+type RecoverySource =
+  | 'existing_billing_account'
+  | 'metadata_person_id'
+  | 'existing_person_by_customer'
+  | 'dugsi_email_fallback'
+
+interface DugsiRecoveryMetadata {
+  guardianPersonId: string
+  familyName: string
+  familyId: string | null
+  childCount: number
+  effectiveProfileIds: string[]
+  standardRate: number
+  actualAmount: number
+}
+
+interface ResolvedSubscriptionContext {
+  billingAccount: { id: string; personId: string | null }
+  effectiveProfileIds: string[]
+  recoverySource: RecoverySource
+  dugsiRecoveryMetadata?: DugsiRecoveryMetadata
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function buildNoPersonFoundError(customerId: string): Error {
+  return new Error(
+    `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
+  )
+}
+
+function extractMetadataProfileIdHints(
+  subscription: Stripe.Subscription
+): string[] {
+  const metadata = subscription.metadata ?? {}
+  if (metadata.profileIds) {
+    return metadata.profileIds
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  }
+  if (metadata.profileId) {
+    return [metadata.profileId]
+  }
+  return []
+}
+
+async function resolveDugsiProfileIds(
+  billingAccount: { personId: string | null },
+  subscription: Stripe.Subscription
+): Promise<string[]> {
+  const personId = billingAccount.personId
+  if (!personId) return []
+
+  const hints = extractMetadataProfileIdHints(subscription)
+
+  if (hints.length > 0) {
+    const verified = await verifyDugsiProfileIdsForGuardian(personId, hints)
+
+    if (verified.length !== hints.length) {
+      logger.warn(
+        {
+          personId,
+          subscriptionId: subscription.id,
+          metadataProfileIds: hints,
+          verifiedProfileIds: verified,
+        },
+        'Ignoring unverified Dugsi profileIds from Stripe metadata'
+      )
+    }
+
+    if (verified.length > 0) return verified
+  }
+
+  return findBillableDugsiProfileIdsForGuardian(personId)
+}
+
+async function resolveDugsiFallbackFromCustomerEmail(
+  subscription: Stripe.Subscription,
+  customerId: string
+): Promise<ResolvedSubscriptionContext> {
+  const dugsiStripe = getDugsiStripeClient()
+
+  let stripeCustomer: Stripe.Customer | Stripe.DeletedCustomer
+  try {
+    stripeCustomer = await dugsiStripe.customers.retrieve(customerId)
+  } catch (stripeErr) {
+    await logError(
+      logger,
+      stripeErr,
+      'Path 4 fallback: Failed to retrieve Stripe customer',
+      { customerId, subscriptionId: subscription.id }
+    )
+    throw stripeErr
+  }
+
+  const customerEmail = stripeCustomer.deleted ? null : stripeCustomer.email
+  const normalizedEmail = normalizeEmail(customerEmail)
+
+  if (!normalizedEmail) {
+    logger.warn(
+      {
+        customerId,
+        subscriptionId: subscription.id,
+        isDeleted: stripeCustomer.deleted ?? false,
+      },
+      'Path 4 fallback: Stripe customer has no email address, cannot resolve guardian'
+    )
+    throw buildNoPersonFoundError(customerId)
+  }
+
+  const guardian = await findGuardianWithBillableDugsiChildren(normalizedEmail)
+
+  if (!guardian) {
+    logger.warn(
+      {
+        customerId,
+        customerEmail: normalizedEmail,
+        subscriptionId: subscription.id,
+      },
+      'Path 4 fallback: Stripe customer email found but no matching Person record'
+    )
+    throw buildNoPersonFoundError(customerId)
+  }
+
+  const rawProfiles = guardian.guardianRelationships.flatMap(
+    (rel) => rel.dependent.programProfiles
+  )
+  const familyProfiles = Array.from(
+    new Map(rawProfiles.map((p) => [p.id, p])).values()
+  )
+
+  if (familyProfiles.length === 0) {
+    logger.warn(
+      {
+        customerId,
+        guardianPersonId: guardian.id,
+        subscriptionId: subscription.id,
+      },
+      'Path 4 fallback: Cannot create billing account — guardian has no enrolled Dugsi children'
+    )
+    throw buildNoPersonFoundError(customerId)
+  }
+
+  const billingAccount = await createOrUpdateBillingAccount({
+    personId: guardian.id,
+    accountType: StripeAccountType.DUGSI,
+    stripeCustomerId: customerId,
+    paymentMethodCaptured: true,
+    paymentMethodCapturedAt: new Date(subscription.created * 1000),
+  })
+
+  const effectiveProfileIds = familyProfiles.map((p) => p.id)
+  const childCount = familyProfiles.length
+  const familyId = familyProfiles[0]?.familyReferenceId ?? null
+
+  const uniqueFamilyIds = new Set(
+    familyProfiles.map((p) => p.familyReferenceId).filter(Boolean)
+  )
+  if (uniqueFamilyIds.size > 1) {
+    logger.warn(
+      {
+        guardianPersonId: guardian.id,
+        familyIds: [...uniqueFamilyIds],
+      },
+      'Path 4 fallback: guardian spans multiple families — using first family ID'
+    )
+  }
+
+  const standardRate = calculateDugsiRate(childCount)
+  const actualAmount =
+    subscription.items.data[0]?.price?.unit_amount ?? standardRate
+
+  return {
+    billingAccount,
+    effectiveProfileIds,
+    recoverySource: 'dugsi_email_fallback',
+    dugsiRecoveryMetadata: {
+      guardianPersonId: guardian.id,
+      familyName: guardian.name,
+      familyId,
+      childCount,
+      effectiveProfileIds,
+      standardRate,
+      actualAmount,
+    },
+  }
+}
+
+async function resolveSubscriptionContext(
+  subscription: Stripe.Subscription,
+  accountType: StripeAccountType,
+  customerId: string
+): Promise<ResolvedSubscriptionContext> {
+  // Path 1: billing account already exists for this Stripe customer
+  const existingBillingAccount = await getBillingAccountByStripeCustomerId(
+    customerId,
+    accountType
+  )
+
+  if (existingBillingAccount) {
+    const effectiveProfileIds =
+      accountType === StripeAccountType.DUGSI
+        ? await resolveDugsiProfileIds(existingBillingAccount, subscription)
+        : extractMetadataProfileIdHints(subscription)
+
+    return {
+      billingAccount: existingBillingAccount,
+      effectiveProfileIds,
+      recoverySource: 'existing_billing_account',
+    }
+  }
+
+  // Path 2: personId or guardianPersonId present in Stripe subscription metadata
+  const metadataPersonId =
+    subscription.metadata?.personId || subscription.metadata?.guardianPersonId
+
+  if (metadataPersonId) {
+    logger.info(
+      {
+        customerId,
+        personId: metadataPersonId,
+        subscriptionId: subscription.id,
+      },
+      'Creating billing account from subscription metadata'
+    )
+
+    const billingAccount = await createOrUpdateBillingAccount({
+      personId: metadataPersonId,
+      accountType,
+      stripeCustomerId: customerId,
+      paymentMethodCaptured: true,
+      paymentMethodCapturedAt: new Date(),
+    })
+
+    const effectiveProfileIds =
+      accountType === StripeAccountType.DUGSI
+        ? await resolveDugsiProfileIds(billingAccount, subscription)
+        : extractMetadataProfileIdHints(subscription)
+
+    return {
+      billingAccount,
+      effectiveProfileIds,
+      recoverySource: 'metadata_person_id',
+    }
+  }
+
+  // Path 3: person already linked to this Stripe customer ID via an existing billing account
+  const existingPerson = await prisma.person.findFirst({
+    where: {
+      billingAccounts: {
+        some: {
+          OR: [
+            { stripeCustomerIdMahad: customerId },
+            { stripeCustomerIdDugsi: customerId },
+          ],
+        },
+      },
+    },
+  })
+
+  if (existingPerson) {
+    const billingAccount = await createOrUpdateBillingAccount({
+      personId: existingPerson.id,
+      accountType,
+      stripeCustomerId: customerId,
+    })
+
+    const effectiveProfileIds =
+      accountType === StripeAccountType.DUGSI
+        ? await resolveDugsiProfileIds(billingAccount, subscription)
+        : extractMetadataProfileIdHints(subscription)
+
+    return {
+      billingAccount,
+      effectiveProfileIds,
+      recoverySource: 'existing_person_by_customer',
+    }
+  }
+
+  // Path 4: Dugsi-only email fallback for subscriptions manually created in the Stripe dashboard
+  if (accountType === StripeAccountType.DUGSI) {
+    return resolveDugsiFallbackFromCustomerEmail(subscription, customerId)
+  }
+
+  throw buildNoPersonFoundError(customerId)
+}
+
+async function patchRecoveredDugsiMetadata(
+  subscriptionId: string,
+  customerId: string,
+  recovery: DugsiRecoveryMetadata
+): Promise<void> {
+  const dugsiStripe = getDugsiStripeClient()
+
+  try {
+    await dugsiStripe.subscriptions.update(subscriptionId, {
+      metadata: {
+        guardianPersonId: recovery.guardianPersonId,
+        ...(recovery.familyId ? { familyId: recovery.familyId } : {}),
+        childCount: String(recovery.childCount),
+        profileIds: recovery.effectiveProfileIds.join(','),
+        calculatedRate: String(recovery.standardRate),
+        overrideUsed: String(recovery.actualAmount !== recovery.standardRate),
+        familyName: recovery.familyName,
+        source: 'dugsi-webhook-fallback-recovery',
+      },
+    })
+
+    Sentry.captureMessage(
+      'Dugsi subscription resolved via customer email fallback',
+      {
+        level: 'warning',
+        extra: {
+          customerId,
+          subscriptionId,
+          guardianPersonId: recovery.guardianPersonId,
+          childCount: recovery.childCount,
+          derivedProfileIds: recovery.effectiveProfileIds,
+        },
+      }
+    )
+
+    logger.warn(
+      {
+        customerId,
+        subscriptionId,
+        guardianPersonId: recovery.guardianPersonId,
+        childCount: recovery.childCount,
+      },
+      'Subscription created without metadata — resolved via Stripe customer email fallback'
+    )
+  } catch (metadataErr) {
+    await logError(
+      logger,
+      metadataErr,
+      'Path 4 fallback: Failed to patch Stripe subscription metadata — manual update required',
+      {
+        subscriptionId,
+        customerId,
+        guardianPersonId: recovery.guardianPersonId,
+      }
+    )
+    Sentry.captureMessage(
+      'Dugsi subscription metadata patch failed — manual intervention required',
+      {
+        level: 'error',
+        extra: {
+          subscriptionId,
+          customerId,
+          guardianPersonId: recovery.guardianPersonId,
+        },
+      }
+    )
+  }
+}
+
+function validateMahadRateIfPresent(subscription: Stripe.Subscription): void {
+  const metadata = subscription.metadata || {}
+  if (
+    !metadata.calculatedRate ||
+    !metadata.graduationStatus ||
+    !metadata.paymentFrequency ||
+    !metadata.billingType
+  ) {
+    return
+  }
+
+  const priceAmount = subscription.items?.data?.[0]?.price?.unit_amount
+  const expectedRate = parseInt(metadata.calculatedRate, 10)
+
+  const actualCalculatedRate = calculateMahadRate(
+    metadata.graduationStatus as GraduationStatus,
+    metadata.paymentFrequency as PaymentFrequency,
+    metadata.billingType as StudentBillingType
+  )
+
+  if (priceAmount !== expectedRate) {
+    logger.warn(
+      {
+        subscriptionId: subscription.id,
+        stripeAmount: priceAmount,
+        expectedRate,
+        graduationStatus: metadata.graduationStatus,
+        paymentFrequency: metadata.paymentFrequency,
+        billingType: metadata.billingType,
+      },
+      'Rate mismatch: Stripe amount differs from expected calculated rate'
+    )
+  }
+
+  if (actualCalculatedRate !== expectedRate) {
+    logger.warn(
+      {
+        subscriptionId: subscription.id,
+        metadataRate: expectedRate,
+        recalculatedRate: actualCalculatedRate,
+        graduationStatus: metadata.graduationStatus,
+        paymentFrequency: metadata.paymentFrequency,
+        billingType: metadata.billingType,
+      },
+      'Rate calculation mismatch: Stored metadata rate differs from recalculated rate'
+    )
+  }
+
+  logger.info(
+    {
+      subscriptionId: subscription.id,
+      profileId: metadata.profileId,
+      studentName: metadata.studentName,
+      stripeAmount: priceAmount,
+      expectedRate,
+      graduationStatus: metadata.graduationStatus,
+      paymentFrequency: metadata.paymentFrequency,
+      billingType: metadata.billingType,
+      rateValid: priceAmount === expectedRate,
+    },
+    'Mahad subscription rate validation completed'
+  )
+}
+
+function validateDugsiRateIfPresent(subscription: Stripe.Subscription): void {
+  const metadata = subscription.metadata || {}
+  if (!metadata.calculatedRate || !metadata.childCount) return
+
+  const priceAmount = subscription.items?.data?.[0]?.price?.unit_amount
+  const expectedRate = parseInt(metadata.calculatedRate, 10)
+  const childCount = parseInt(metadata.childCount, 10)
+
+  const actualCalculatedRate = calculateDugsiRate(childCount)
+
+  if (priceAmount !== expectedRate) {
+    logger.warn(
+      {
+        subscriptionId: subscription.id,
+        stripeAmount: priceAmount,
+        expectedRate,
+        childCount,
+      },
+      'Rate mismatch: Stripe amount differs from expected calculated rate'
+    )
+  }
+
+  if (actualCalculatedRate !== expectedRate) {
+    logger.warn(
+      {
+        subscriptionId: subscription.id,
+        metadataRate: expectedRate,
+        recalculatedRate: actualCalculatedRate,
+        childCount,
+      },
+      'Rate calculation mismatch: Stored metadata rate differs from recalculated rate'
+    )
+  }
+
+  logger.info(
+    {
+      subscriptionId: subscription.id,
+      stripeAmount: priceAmount,
+      expectedRate,
+      childCount,
+      rateValid: priceAmount === expectedRate,
+    },
+    'Dugsi subscription rate validation completed'
+  )
+}
+
+async function linkProfilesIfPresent(
+  dbSubscriptionId: string,
+  profileIds: string[],
+  subscription: Stripe.Subscription
+): Promise<void> {
+  if (profileIds.length === 0) return
+
+  if (!subscription.items?.data?.length) {
+    const error = new Error('Subscription has no items')
+    await logError(
+      logger,
+      error,
+      'Subscription has no items - cannot link to profiles',
+      { subscriptionId: subscription.id }
+    )
+    throw error
+  }
+
+  const priceAmount = subscription.items.data[0]?.price?.unit_amount
+  if (priceAmount === null || priceAmount === undefined || priceAmount <= 0) {
+    const error = new Error('Subscription has invalid amount')
+    await logError(
+      logger,
+      error,
+      'Subscription has invalid amount - cannot link to profiles',
+      { subscriptionId: subscription.id, priceAmount }
+    )
+    throw error
+  }
+
+  await Sentry.startSpan(
+    {
+      name: 'subscription.link_profiles',
+      op: 'db.transaction',
+      attributes: {
+        subscription_id: dbSubscriptionId,
+        num_profiles: profileIds.length,
+        amount: priceAmount,
+      },
+    },
+    async () =>
+      await linkSubscriptionToProfiles(
+        dbSubscriptionId,
+        profileIds,
+        priceAmount,
+        'Linked automatically via webhook'
+      )
+  )
+}
+
+// ─── Orchestrator ────────────────────────────────────────────────────────────
+
 /**
  * Handle subscription creation event.
  *
@@ -143,13 +664,11 @@ export async function handlePaymentMethodCapture(
  *
  * @param subscription - Stripe subscription object
  * @param accountType - Stripe account type
- * @param profileIds - Program profile IDs to link (optional)
  * @returns Subscription event result
  */
 export async function handleSubscriptionCreated(
   subscription: Stripe.Subscription,
-  accountType: StripeAccountType,
-  profileIds?: string[]
+  accountType: StripeAccountType
 ): Promise<SubscriptionEventResult> {
   const customerId = extractCustomerId(subscription.customer)
 
@@ -157,272 +676,12 @@ export async function handleSubscriptionCreated(
     throw new Error('Invalid customer ID in subscription')
   }
 
-  // Get or create billing account
-  let billingAccount = await getBillingAccountByStripeCustomerId(
-    customerId,
-    accountType
+  const resolved = await resolveSubscriptionContext(
+    subscription,
+    accountType,
+    customerId
   )
 
-  if (!billingAccount) {
-    // Check for personId (Mahad) or guardianPersonId (Dugsi) in subscription metadata
-    const metadataPersonId =
-      subscription.metadata?.personId || subscription.metadata?.guardianPersonId // Mahad // Dugsi
-
-    if (metadataPersonId) {
-      // Use person ID from metadata to create billing account
-      // Handles race condition where subscription.created arrives before checkout.completed
-      logger.info(
-        {
-          customerId,
-          personId: metadataPersonId,
-          subscriptionId: subscription.id,
-        },
-        'Creating billing account from subscription metadata'
-      )
-
-      billingAccount = await createOrUpdateBillingAccount({
-        personId: metadataPersonId,
-        accountType,
-        stripeCustomerId: customerId,
-        paymentMethodCaptured: true,
-        paymentMethodCapturedAt: new Date(),
-      })
-    } else {
-      const existingPerson = await prisma.person.findFirst({
-        where: {
-          billingAccounts: {
-            some: {
-              OR: [
-                { stripeCustomerIdMahad: customerId },
-                { stripeCustomerIdDugsi: customerId },
-              ],
-            },
-          },
-        },
-      })
-
-      if (existingPerson) {
-        billingAccount = await createOrUpdateBillingAccount({
-          personId: existingPerson.id,
-          accountType,
-          stripeCustomerId: customerId,
-        })
-      } else if (accountType === StripeAccountType.DUGSI) {
-        // Fallback for subscriptions created manually in Stripe dashboard — no metadata was set.
-        // Resolves the guardian via Stripe customer email and patches metadata for future events.
-        const dugsiStripe = getDugsiStripeClient()
-
-        let stripeCustomer: Stripe.Customer | Stripe.DeletedCustomer
-        try {
-          stripeCustomer = await dugsiStripe.customers.retrieve(customerId)
-        } catch (stripeErr) {
-          await logError(
-            logger,
-            stripeErr,
-            'Path 4 fallback: Failed to retrieve Stripe customer',
-            { customerId, subscriptionId: subscription.id }
-          )
-          throw stripeErr
-        }
-
-        const customerEmail = stripeCustomer.deleted
-          ? null
-          : stripeCustomer.email
-
-        // Early return on each failure branch — intent is explicit at every fork
-        if (!customerEmail) {
-          logger.warn(
-            {
-              customerId,
-              subscriptionId: subscription.id,
-              isDeleted: stripeCustomer.deleted ?? false,
-            },
-            'Path 4 fallback: Stripe customer has no email address, cannot resolve guardian'
-          )
-          throw new Error(
-            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
-          )
-        }
-
-        const guardianPerson = await findPersonByActiveContact(customerEmail)
-
-        if (!guardianPerson) {
-          logger.warn(
-            { customerId, customerEmail, subscriptionId: subscription.id },
-            'Path 4 fallback: Stripe customer email found but no matching Person record'
-          )
-          throw new Error(
-            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
-          )
-        }
-
-        const guardianWithChildren = await prisma.person.findFirst({
-          where: { id: guardianPerson.id },
-          include: {
-            guardianRelationships: {
-              where: { isActive: true },
-              include: {
-                dependent: {
-                  include: {
-                    programProfiles: {
-                      where: {
-                        program: Program.DUGSI_PROGRAM,
-                        // Restrict to billable statuses only (matches checkout-service)
-                        status: {
-                          in: [
-                            EnrollmentStatus.REGISTERED,
-                            EnrollmentStatus.ENROLLED,
-                          ],
-                        },
-                      },
-                      select: { id: true, familyReferenceId: true },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        })
-
-        if (!guardianWithChildren) {
-          logger.warn(
-            { guardianPersonId: guardianPerson.id, customerId },
-            'Path 4 fallback: Second person lookup returned null — possible concurrent deletion'
-          )
-          throw new Error(
-            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
-          )
-        }
-
-        const rawProfiles = guardianWithChildren.guardianRelationships.flatMap(
-          (rel) => rel.dependent.programProfiles
-        )
-
-        // Deduplicate by profile ID — a guardian can have multiple active roles
-        // per dependent (e.g., PARENT + SPONSOR), which would double-count the child
-        const familyProfiles = Array.from(
-          new Map(rawProfiles.map((p) => [p.id, p])).values()
-        )
-
-        if (familyProfiles.length === 0) {
-          logger.warn(
-            {
-              customerId,
-              guardianPersonId: guardianPerson.id,
-              subscriptionId: subscription.id,
-            },
-            'Path 4 fallback: Cannot create billing account — guardian has no enrolled Dugsi children'
-          )
-          throw new Error(
-            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
-          )
-        }
-
-        billingAccount = await createOrUpdateBillingAccount({
-          personId: guardianPerson.id,
-          accountType,
-          stripeCustomerId: customerId,
-          paymentMethodCaptured: true,
-          paymentMethodCapturedAt: new Date(),
-        })
-
-        const resolvedProfileIds = familyProfiles.map((p) => p.id)
-        // Prefer caller-supplied profile IDs; fall back to DB-derived ones
-        const effectiveProfileIds = profileIds?.length
-          ? profileIds
-          : resolvedProfileIds
-        profileIds = effectiveProfileIds
-
-        const childCount = familyProfiles.length
-        const familyId = familyProfiles[0]?.familyReferenceId ?? null
-
-        // Warn when a guardian spans multiple families — first family wins
-        const uniqueFamilyIds = new Set(
-          familyProfiles.map((p) => p.familyReferenceId).filter(Boolean)
-        )
-        if (uniqueFamilyIds.size > 1) {
-          logger.warn(
-            {
-              guardianPersonId: guardianPerson.id,
-              familyIds: [...uniqueFamilyIds],
-            },
-            'Path 4 fallback: guardian spans multiple families — using first family ID'
-          )
-        }
-
-        const standardRate = calculateDugsiRate(childCount)
-        const actualAmount =
-          subscription.items.data[0]?.price?.unit_amount ?? standardRate
-
-        try {
-          await dugsiStripe.subscriptions.update(subscription.id, {
-            metadata: {
-              guardianPersonId: guardianPerson.id,
-              ...(familyId ? { familyId } : {}),
-              childCount: String(childCount),
-              profileIds: effectiveProfileIds.join(','),
-              calculatedRate: String(standardRate),
-              overrideUsed: String(actualAmount !== standardRate),
-              familyName: guardianPerson.name,
-              source: 'dugsi-webhook-fallback-recovery',
-            },
-          })
-
-          Sentry.captureMessage(
-            'Dugsi subscription resolved via customer email fallback',
-            {
-              level: 'warning',
-              extra: {
-                customerId,
-                subscriptionId: subscription.id,
-                guardianPersonId: guardianPerson.id,
-                childCount,
-                derivedProfileIds: effectiveProfileIds,
-              },
-            }
-          )
-
-          logger.warn(
-            {
-              customerId,
-              subscriptionId: subscription.id,
-              guardianPersonId: guardianPerson.id,
-              childCount,
-            },
-            'Subscription created without metadata — resolved via Stripe customer email fallback'
-          )
-        } catch (metadataErr) {
-          await logError(
-            logger,
-            metadataErr,
-            'Path 4 fallback: Failed to patch Stripe subscription metadata — manual update required',
-            {
-              subscriptionId: subscription.id,
-              customerId,
-              guardianPersonId: guardianPerson.id,
-            }
-          )
-          Sentry.captureMessage(
-            'Dugsi subscription metadata patch failed — manual intervention required',
-            {
-              level: 'error',
-              extra: {
-                subscriptionId: subscription.id,
-                customerId,
-                guardianPersonId: guardianPerson.id,
-              },
-            }
-          )
-        }
-      } else {
-        throw new Error(
-          `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
-        )
-      }
-    }
-  }
-
-  // Create subscription in database
   const dbSubscription = await Sentry.startSpan(
     {
       name: 'subscription.create_from_stripe',
@@ -430,183 +689,45 @@ export async function handleSubscriptionCreated(
       attributes: {
         account_type: accountType,
         stripe_subscription_id: subscription.id,
-        billing_account_id: billingAccount.id,
+        billing_account_id: resolved.billingAccount.id,
       },
     },
     async () =>
       await createSubscriptionFromStripe(
         subscription,
-        billingAccount.id,
+        resolved.billingAccount.id,
         accountType
       )
   )
 
-  // Validate rate against calculated rate if metadata is present (Mahad checkout)
-  const subscriptionMetadata = subscription.metadata || {}
+  if (accountType === StripeAccountType.MAHAD) {
+    validateMahadRateIfPresent(subscription)
+  }
+
+  if (accountType === StripeAccountType.DUGSI) {
+    validateDugsiRateIfPresent(subscription)
+  }
+
+  await linkProfilesIfPresent(
+    dbSubscription.id,
+    resolved.effectiveProfileIds,
+    subscription
+  )
+
   if (
-    accountType === 'MAHAD' &&
-    subscriptionMetadata.calculatedRate &&
-    subscriptionMetadata.graduationStatus &&
-    subscriptionMetadata.paymentFrequency &&
-    subscriptionMetadata.billingType
+    accountType === StripeAccountType.DUGSI &&
+    resolved.dugsiRecoveryMetadata
   ) {
-    const priceAmount = subscription.items?.data?.[0]?.price?.unit_amount
-    const expectedRate = parseInt(subscriptionMetadata.calculatedRate, 10)
-
-    // Validate that the checkout session calculated rate matches the actual rate
-    const actualCalculatedRate = calculateMahadRate(
-      subscriptionMetadata.graduationStatus as GraduationStatus,
-      subscriptionMetadata.paymentFrequency as PaymentFrequency,
-      subscriptionMetadata.billingType as StudentBillingType
-    )
-
-    if (priceAmount !== expectedRate) {
-      logger.warn(
-        {
-          subscriptionId: subscription.id,
-          stripeAmount: priceAmount,
-          expectedRate,
-          graduationStatus: subscriptionMetadata.graduationStatus,
-          paymentFrequency: subscriptionMetadata.paymentFrequency,
-          billingType: subscriptionMetadata.billingType,
-        },
-        'Rate mismatch: Stripe amount differs from expected calculated rate'
-      )
-    }
-
-    if (actualCalculatedRate !== expectedRate) {
-      logger.warn(
-        {
-          subscriptionId: subscription.id,
-          metadataRate: expectedRate,
-          recalculatedRate: actualCalculatedRate,
-          graduationStatus: subscriptionMetadata.graduationStatus,
-          paymentFrequency: subscriptionMetadata.paymentFrequency,
-          billingType: subscriptionMetadata.billingType,
-        },
-        'Rate calculation mismatch: Stored metadata rate differs from recalculated rate'
-      )
-    }
-
-    logger.info(
-      {
-        subscriptionId: subscription.id,
-        profileId: subscriptionMetadata.profileId,
-        studentName: subscriptionMetadata.studentName,
-        stripeAmount: priceAmount,
-        expectedRate,
-        graduationStatus: subscriptionMetadata.graduationStatus,
-        paymentFrequency: subscriptionMetadata.paymentFrequency,
-        billingType: subscriptionMetadata.billingType,
-        rateValid: priceAmount === expectedRate,
-      },
-      'Mahad subscription rate validation completed'
+    await patchRecoveredDugsiMetadata(
+      subscription.id,
+      customerId,
+      resolved.dugsiRecoveryMetadata
     )
   }
 
-  // Validate rate for Dugsi subscriptions
-  if (
-    accountType === 'DUGSI' &&
-    subscriptionMetadata.calculatedRate &&
-    subscriptionMetadata.childCount
-  ) {
-    const priceAmount = subscription.items?.data?.[0]?.price?.unit_amount
-    const expectedRate = parseInt(subscriptionMetadata.calculatedRate, 10)
-    const childCount = parseInt(subscriptionMetadata.childCount, 10)
-
-    const actualCalculatedRate = calculateDugsiRate(childCount)
-
-    if (priceAmount !== expectedRate) {
-      logger.warn(
-        {
-          subscriptionId: subscription.id,
-          stripeAmount: priceAmount,
-          expectedRate,
-          childCount,
-        },
-        'Rate mismatch: Stripe amount differs from expected calculated rate'
-      )
-    }
-
-    if (actualCalculatedRate !== expectedRate) {
-      logger.warn(
-        {
-          subscriptionId: subscription.id,
-          metadataRate: expectedRate,
-          recalculatedRate: actualCalculatedRate,
-          childCount,
-        },
-        'Rate calculation mismatch: Stored metadata rate differs from recalculated rate'
-      )
-    }
-
-    logger.info(
-      {
-        subscriptionId: subscription.id,
-        stripeAmount: priceAmount,
-        expectedRate,
-        childCount,
-        rateValid: priceAmount === expectedRate,
-      },
-      'Dugsi subscription rate validation completed'
-    )
-  }
-
-  // Link to profiles if provided
-  if (profileIds && profileIds.length > 0) {
-    // Validate subscription has items with valid pricing
-    if (!subscription.items?.data?.length) {
-      const error = new Error('Subscription has no items')
-      await logError(
-        logger,
-        error,
-        'Subscription has no items - cannot link to profiles',
-        {
-          subscriptionId: subscription.id,
-        }
-      )
-      throw error
-    }
-
-    const priceAmount = subscription.items.data[0]?.price?.unit_amount
-    if (priceAmount === null || priceAmount === undefined || priceAmount <= 0) {
-      const error = new Error('Subscription has invalid amount')
-      await logError(
-        logger,
-        error,
-        'Subscription has invalid amount - cannot link to profiles',
-        {
-          subscriptionId: subscription.id,
-          priceAmount,
-        }
-      )
-      throw error
-    }
-
-    const amount = priceAmount
-    await Sentry.startSpan(
-      {
-        name: 'subscription.link_profiles',
-        op: 'db.transaction',
-        attributes: {
-          subscription_id: dbSubscription.id,
-          num_profiles: profileIds.length,
-          amount,
-        },
-      },
-      async () =>
-        await linkSubscriptionToProfiles(
-          dbSubscription.id,
-          profileIds,
-          amount,
-          'Linked automatically via webhook'
-        )
-    )
-  }
-
-  if (accountType === 'MAHAD') {
+  if (accountType === StripeAccountType.MAHAD) {
     revalidateTag('mahad-students')
-  } else if (accountType === 'DUGSI') {
+  } else if (accountType === StripeAccountType.DUGSI) {
     revalidateTag('dugsi-registrations')
   }
 
