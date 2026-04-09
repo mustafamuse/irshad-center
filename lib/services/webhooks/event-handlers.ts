@@ -139,14 +139,7 @@ async function handleSubscriptionCreatedEvent(
     'Processing customer.subscription.created'
   )
 
-  // Extract profile IDs from subscription metadata if available
-  const profileIds = subscription.metadata?.profileIds
-    ? subscription.metadata.profileIds.split(',').filter(Boolean)
-    : subscription.metadata?.profileId
-      ? [subscription.metadata.profileId]
-      : undefined
-
-  await handleSubscriptionCreated(subscription, accountType, profileIds)
+  await handleSubscriptionCreated(subscription, accountType)
 }
 
 /**
