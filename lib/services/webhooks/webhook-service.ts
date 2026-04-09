@@ -380,7 +380,7 @@ async function resolveSubscriptionContext(
 
   // Path 2: personId or guardianPersonId present in Stripe subscription metadata
   const metadataPersonId =
-    subscription.metadata?.personId || subscription.metadata?.guardianPersonId
+    subscription.metadata?.personId ?? subscription.metadata?.guardianPersonId
 
   if (metadataPersonId) {
     const verifiedPerson = await findPersonById(metadataPersonId)
@@ -507,10 +507,21 @@ async function patchRecoveredDugsiMetadata(
       await logError(
         logger,
         metadataErr,
-        'Path 4 fallback: Stripe API key invalid — metadata patch cannot proceed',
+        'Path 4 fallback: Stripe API key invalid — metadata patch skipped, subscription saved successfully',
         { subscriptionId, customerId }
       )
-      throw metadataErr
+      Sentry.captureMessage(
+        'Dugsi subscription metadata patch failed (auth error) — manual update required',
+        {
+          level: 'error',
+          extra: {
+            subscriptionId,
+            customerId,
+            guardianPersonId: recovery.guardianPersonId,
+          },
+        }
+      )
+      return
     }
 
     await logError(

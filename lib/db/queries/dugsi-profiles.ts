@@ -24,7 +24,7 @@ export async function findGuardianWithBillableDugsiChildren(
         where: { isActive: true },
         include: {
           dependent: {
-            include: {
+            select: {
               programProfiles: {
                 where: {
                   program: Program.DUGSI_PROGRAM,
@@ -85,7 +85,7 @@ export async function findBillableDugsiProfileIdsForGuardian(
         where: { isActive: true },
         include: {
           dependent: {
-            include: {
+            select: {
               programProfiles: {
                 where: {
                   program: Program.DUGSI_PROGRAM,
