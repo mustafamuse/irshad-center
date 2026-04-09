@@ -46,12 +46,14 @@ vi.mock('@/lib/db/queries/billing', () => ({
   getSubscriptionByStripeId: mockGetSubscriptionByStripeId,
   getBillingAssignmentsBySubscription: vi.fn(),
   updateSubscriptionStatus: vi.fn(),
+}))
+
+vi.mock('@/lib/db/queries/person', () => ({
+  findPersonById: mockFindPersonById,
   findPersonByStripeCustomerId: mockFindPersonByStripeCustomerId,
 }))
 
-vi.mock('@/lib/db/queries/program-profile', () => ({
-  findPersonById: mockFindPersonById,
-}))
+vi.mock('@/lib/db/queries/program-profile', () => ({}))
 
 vi.mock('@/lib/db/queries/dugsi-profiles', () => ({
   findGuardianWithBillableDugsiChildren:

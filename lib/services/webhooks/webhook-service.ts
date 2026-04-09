@@ -30,14 +30,16 @@ import {
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
-  findPersonByStripeCustomerId,
 } from '@/lib/db/queries/billing'
 import {
   findGuardianWithBillableDugsiChildren,
   verifyDugsiProfileIdsForGuardian,
   findBillableDugsiProfileIdsForGuardian,
 } from '@/lib/db/queries/dugsi-profiles'
-import { findPersonById } from '@/lib/db/queries/program-profile'
+import {
+  findPersonById,
+  findPersonByStripeCustomerId,
+} from '@/lib/db/queries/person'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -483,6 +485,32 @@ async function patchRecoveredDugsiMetadata(
 
   const childCount = effectiveProfileIds.length
 
+  // Emit observability signals unconditionally — DB writes are already committed at this point.
+  // The Stripe metadata patch below is best-effort; these signals must not depend on its success.
+  Sentry.captureMessage(
+    'Dugsi subscription resolved via customer email fallback',
+    {
+      level: 'info',
+      extra: {
+        customerId,
+        subscriptionId,
+        guardianPersonId: recovery.guardianPersonId,
+        childCount,
+        derivedProfileIds: effectiveProfileIds,
+      },
+    }
+  )
+
+  logger.warn(
+    {
+      customerId,
+      subscriptionId,
+      guardianPersonId: recovery.guardianPersonId,
+      childCount,
+    },
+    'Subscription created without metadata — resolved via Stripe customer email fallback'
+  )
+
   try {
     await dugsiStripe.subscriptions.update(subscriptionId, {
       metadata: {
@@ -496,30 +524,6 @@ async function patchRecoveredDugsiMetadata(
         source: 'dugsi-webhook-fallback-recovery',
       },
     })
-
-    Sentry.captureMessage(
-      'Dugsi subscription resolved via customer email fallback',
-      {
-        level: 'info',
-        extra: {
-          customerId,
-          subscriptionId,
-          guardianPersonId: recovery.guardianPersonId,
-          childCount,
-          derivedProfileIds: effectiveProfileIds,
-        },
-      }
-    )
-
-    logger.warn(
-      {
-        customerId,
-        subscriptionId,
-        guardianPersonId: recovery.guardianPersonId,
-        childCount,
-      },
-      'Subscription created without metadata — resolved via Stripe customer email fallback'
-    )
   } catch (metadataErr) {
     const isAuthError =
       metadataErr instanceof Stripe.errors.StripeAuthenticationError
