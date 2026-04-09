@@ -347,6 +347,20 @@ async function resolveDugsiFallbackFromCustomerEmail(
   const actualAmount =
     subscription.items.data[0]?.price?.unit_amount ?? standardRate
 
+  if (actualAmount !== standardRate) {
+    logger.warn(
+      {
+        subscriptionId: subscription.id,
+        customerId,
+        guardianPersonId: guardian.id,
+        stripeAmount: actualAmount,
+        calculatedRate: standardRate,
+        childCount,
+      },
+      'Path 4 fallback: Stripe amount differs from calculated Dugsi rate — custom rate in use'
+    )
+  }
+
   return {
     billingAccount,
     effectiveProfileIds,
