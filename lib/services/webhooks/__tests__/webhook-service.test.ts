@@ -10,10 +10,12 @@ const {
   mockSubscriptionsUpdate,
   mockPrismaPersonFindFirst,
   mockCreateOrUpdateBillingAccount,
+  mockLinkSubscriptionToProfiles,
   mockCreateSubscriptionFromStripe,
   mockSentrycaptureMessage,
   mockCalculateDugsiRate,
   mockExtractCustomerId,
+  mockLogError,
 } = vi.hoisted(() => ({
   mockGetSubscriptionByStripeId: vi.fn(),
   mockGetBillingAccountByStripeCustomerId: vi.fn(),
@@ -23,10 +25,12 @@ const {
   mockSubscriptionsUpdate: vi.fn(),
   mockPrismaPersonFindFirst: vi.fn(),
   mockCreateOrUpdateBillingAccount: vi.fn(),
+  mockLinkSubscriptionToProfiles: vi.fn(),
   mockCreateSubscriptionFromStripe: vi.fn(),
   mockSentrycaptureMessage: vi.fn(),
   mockCalculateDugsiRate: vi.fn(),
   mockExtractCustomerId: vi.fn(),
+  mockLogError: vi.fn(),
 }))
 
 vi.mock('@/lib/db/queries/billing', () => ({
@@ -47,7 +51,7 @@ vi.mock('@/lib/logger', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   })),
-  logError: vi.fn(),
+  logError: mockLogError,
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -63,7 +67,7 @@ vi.mock('@sentry/nextjs', () => ({
 
 vi.mock('@/lib/services/shared/billing-service', () => ({
   createOrUpdateBillingAccount: mockCreateOrUpdateBillingAccount,
-  linkSubscriptionToProfiles: vi.fn(),
+  linkSubscriptionToProfiles: mockLinkSubscriptionToProfiles,
   unlinkSubscription: vi.fn(),
 }))
 
@@ -195,6 +199,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockPrismaPersonFindFirst.mockReset()
     mockExtractCustomerId.mockReturnValue(CUSTOMER_ID)
     mockGetBillingAccountByStripeCustomerId.mockResolvedValue(null)
     mockPrismaPersonFindFirst
@@ -311,7 +316,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     )
   })
 
-  it('still succeeds when Stripe metadata update fails', async () => {
+  it('still succeeds when Stripe metadata update fails and emits Sentry error', async () => {
     mockSubscriptionsUpdate.mockRejectedValue(new Error('Stripe API timeout'))
 
     const subscription = createMockSubscription({
@@ -323,9 +328,48 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
 
     expect(result.created).toBe(true)
     expect(mockCreateOrUpdateBillingAccount).toHaveBeenCalled()
+    expect(mockLogError).toHaveBeenCalled()
+    expect(mockSentrycaptureMessage).toHaveBeenCalledWith(
+      'Dugsi subscription metadata patch failed — manual intervention required',
+      expect.objectContaining({ level: 'error' })
+    )
   })
 
-  it('throws when Stripe customer is deleted', async () => {
+  it('includes Family name in Stripe metadata patch', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockSubscriptionsUpdate).toHaveBeenCalledWith(
+      'sub_test_123',
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          Family: mockGuardianPerson.name,
+        }),
+      })
+    )
+  })
+
+  it('links derived profile IDs to the created subscription', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockLinkSubscriptionToProfiles).toHaveBeenCalledWith(
+      DB_SUBSCRIPTION_ID,
+      [PROFILE_ID_1, PROFILE_ID_2],
+      5000,
+      'Linked automatically via webhook'
+    )
+  })
+
+  it('throws when Stripe customer is deleted and does not call email lookup', async () => {
     mockCustomersRetrieve.mockResolvedValue({ id: CUSTOMER_ID, deleted: true })
 
     const subscription = createMockSubscription({
@@ -336,6 +380,25 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     await expect(
       handleSubscriptionCreated(subscription, 'DUGSI')
     ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
+    expect(mockFindPersonByActiveContact).not.toHaveBeenCalled()
+  })
+
+  it('throws when Stripe customer has no email (not deleted)', async () => {
+    mockCustomersRetrieve.mockResolvedValue({
+      id: CUSTOMER_ID,
+      deleted: false,
+      email: null,
+    })
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'DUGSI')
+    ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
+    expect(mockFindPersonByActiveContact).not.toHaveBeenCalled()
   })
 
   it('throws when email lookup finds no person in DB', async () => {
@@ -352,6 +415,28 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
   })
 
+  it('throws when guardian has no active Dugsi children', async () => {
+    const guardianNoChildren = {
+      ...mockGuardianPerson,
+      guardianRelationships: [],
+    }
+    mockPrismaPersonFindFirst
+      .mockReset()
+      .mockResolvedValueOnce(null) // Path 3
+      .mockResolvedValueOnce(guardianNoChildren) // Path 4: guardian but no children
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'DUGSI')
+    ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
+    expect(mockCreateOrUpdateBillingAccount).not.toHaveBeenCalled()
+    expect(mockLogError).toHaveBeenCalled()
+  })
+
   it('throws without attempting fallback for non-DUGSI account type', async () => {
     const subscription = createMockSubscription({
       customer: CUSTOMER_ID,
@@ -361,6 +446,64 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     await expect(
       handleSubscriptionCreated(subscription, 'MAHAD')
     ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
+    expect(mockCustomersRetrieve).not.toHaveBeenCalled()
+  })
+})
+
+describe('handleSubscriptionCreated — Path 3 (existing billing account person)', () => {
+  const CUSTOMER_ID = 'cus_existing_123'
+  const EXISTING_PERSON_ID = 'existing-person-id'
+  const BILLING_ACCOUNT_ID = 'billing-account-id'
+  const DB_SUBSCRIPTION_ID = 'db-sub-id'
+
+  const mockExistingPerson = {
+    id: EXISTING_PERSON_ID,
+    name: 'Existing Person',
+    email: 'existing@example.com',
+    phone: '6125550000',
+  }
+
+  const mockBillingAccount = {
+    id: BILLING_ACCOUNT_ID,
+    personId: EXISTING_PERSON_ID,
+  }
+
+  const mockDbSubscription = {
+    id: DB_SUBSCRIPTION_ID,
+    status: 'active',
+    stripeSubscriptionId: 'sub_existing_123',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPrismaPersonFindFirst.mockReset()
+    mockExtractCustomerId.mockReturnValue(CUSTOMER_ID)
+    mockGetBillingAccountByStripeCustomerId.mockResolvedValue(null)
+    mockPrismaPersonFindFirst.mockResolvedValueOnce(mockExistingPerson)
+    mockCreateOrUpdateBillingAccount.mockResolvedValue(mockBillingAccount)
+    mockCreateSubscriptionFromStripe.mockResolvedValue(mockDbSubscription)
+    mockCalculateDugsiRate.mockReturnValue(5000)
+  })
+
+  it('creates billing account for person found via existing billing account link', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    const result = await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockCreateOrUpdateBillingAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personId: EXISTING_PERSON_ID,
+        accountType: 'DUGSI',
+        stripeCustomerId: CUSTOMER_ID,
+      })
+    )
+    expect(mockCreateOrUpdateBillingAccount).not.toHaveBeenCalledWith(
+      expect.objectContaining({ paymentMethodCaptured: true })
+    )
+    expect(result.created).toBe(true)
     expect(mockCustomersRetrieve).not.toHaveBeenCalled()
   })
 })
