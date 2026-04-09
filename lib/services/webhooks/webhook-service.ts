@@ -47,7 +47,7 @@ import {
 } from '@/lib/services/shared/billing-service'
 import { createSubscriptionFromStripe } from '@/lib/services/shared/subscription-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
-import { normalizeEmail } from '@/lib/utils/contact-normalization'
+import { validateAndNormalizeEmail } from '@/lib/utils/contact-normalization'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 import {
@@ -265,7 +265,7 @@ async function resolveDugsiFallbackFromCustomerEmail(
   }
 
   const customerEmail = stripeCustomer.deleted ? null : stripeCustomer.email
-  const normalizedEmail = normalizeEmail(customerEmail)
+  const normalizedEmail = validateAndNormalizeEmail(customerEmail)
 
   if (!normalizedEmail) {
     logger.warn(
@@ -479,7 +479,7 @@ async function patchRecoveredDugsiMetadata(
     Sentry.captureMessage(
       'Dugsi subscription resolved via customer email fallback',
       {
-        level: 'warning',
+        level: 'info',
         extra: {
           customerId,
           subscriptionId,

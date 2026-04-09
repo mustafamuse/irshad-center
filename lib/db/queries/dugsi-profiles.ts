@@ -80,7 +80,7 @@ export async function findBillableDugsiProfileIdsForGuardian(
 ) {
   const guardian = await client.person.findFirst({
     where: { id: guardianPersonId },
-    include: {
+    select: {
       guardianRelationships: {
         where: { isActive: true },
         include: {

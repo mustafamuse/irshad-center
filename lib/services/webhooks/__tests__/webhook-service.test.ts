@@ -373,7 +373,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
 
     expect(mockSentrycaptureMessage).toHaveBeenCalledWith(
       'Dugsi subscription resolved via customer email fallback',
-      expect.objectContaining({ level: 'warning' })
+      expect.objectContaining({ level: 'info' })
     )
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ guardianPersonId: GUARDIAN_ID, childCount: 2 }),
