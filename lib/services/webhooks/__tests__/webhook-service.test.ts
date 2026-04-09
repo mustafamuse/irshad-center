@@ -335,7 +335,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     )
   })
 
-  it('includes Family name in Stripe metadata patch', async () => {
+  it('includes familyName in Stripe metadata patch', async () => {
     const subscription = createMockSubscription({
       customer: CUSTOMER_ID,
       metadata: {},
@@ -347,7 +347,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
       'sub_test_123',
       expect.objectContaining({
         metadata: expect.objectContaining({
-          Family: mockGuardianPerson.name,
+          familyName: mockGuardianPerson.name,
         }),
       })
     )
@@ -399,6 +399,23 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
       handleSubscriptionCreated(subscription, 'DUGSI')
     ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
     expect(mockFindPersonByActiveContact).not.toHaveBeenCalled()
+  })
+
+  it('throws immediately when second person lookup returns null (concurrent deletion)', async () => {
+    mockPrismaPersonFindFirst
+      .mockReset()
+      .mockResolvedValueOnce(null) // Path 3
+      .mockResolvedValueOnce(null) // Path 4: guardianWithChildren lookup
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'DUGSI')
+    ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
+    expect(mockCreateOrUpdateBillingAccount).not.toHaveBeenCalled()
   })
 
   it('throws when email lookup finds no person in DB', async () => {

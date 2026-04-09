@@ -207,7 +207,7 @@ export async function handleSubscriptionCreated(
           accountType,
           stripeCustomerId: customerId,
         })
-      } else if (accountType === 'DUGSI') {
+      } else if (accountType === StripeAccountType.DUGSI) {
         // Fallback for subscriptions created manually in Stripe dashboard — no metadata was set.
         // Resolves the guardian via Stripe customer email and patches metadata for future events.
         const dugsiStripe = getDugsiStripeClient()
@@ -289,11 +289,14 @@ export async function handleSubscriptionCreated(
             { guardianPersonId: guardianPerson.id, customerId },
             'Path 4 fallback: Second person lookup returned null — possible concurrent deletion'
           )
+          throw new Error(
+            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
+          )
         }
 
-        const rawProfiles = (
-          guardianWithChildren?.guardianRelationships ?? []
-        ).flatMap((rel) => rel.dependent.programProfiles)
+        const rawProfiles = guardianWithChildren.guardianRelationships.flatMap(
+          (rel) => rel.dependent.programProfiles
+        )
 
         // Issue 2: deduplicate by profile ID — a guardian can have multiple active roles
         // per dependent (e.g., PARENT + SPONSOR), which would double-count the child
@@ -356,16 +359,39 @@ export async function handleSubscriptionCreated(
           await dugsiStripe.subscriptions.update(subscription.id, {
             metadata: {
               guardianPersonId: guardianPerson.id,
-              // Issue 3: omit familyId from metadata when null rather than writing ''
               ...(familyId ? { familyId } : {}),
               childCount: String(childCount),
-              profileIds: resolvedProfileIds.join(','),
+              profileIds: (profileIds ?? resolvedProfileIds).join(','),
               calculatedRate: String(standardRate),
               overrideUsed: String(actualAmount !== standardRate),
-              Family: guardianPerson.name,
+              familyName: guardianPerson.name,
               source: 'dugsi-webhook-fallback-recovery',
             },
           })
+
+          Sentry.captureMessage(
+            'Dugsi subscription resolved via customer email fallback',
+            {
+              level: 'warning',
+              extra: {
+                customerId,
+                subscriptionId: subscription.id,
+                guardianPersonId: guardianPerson.id,
+                childCount,
+                derivedProfileIds: profileIds,
+              },
+            }
+          )
+
+          logger.warn(
+            {
+              customerId,
+              subscriptionId: subscription.id,
+              guardianPersonId: guardianPerson.id,
+              childCount,
+            },
+            'Subscription created without metadata — resolved via Stripe customer email fallback'
+          )
         } catch (metadataErr) {
           await logError(
             logger,
@@ -389,30 +415,6 @@ export async function handleSubscriptionCreated(
             }
           )
         }
-
-        Sentry.captureMessage(
-          'Dugsi subscription resolved via customer email fallback',
-          {
-            level: 'warning',
-            extra: {
-              customerId,
-              subscriptionId: subscription.id,
-              guardianPersonId: guardianPerson.id,
-              childCount,
-              derivedProfileIds: profileIds,
-            },
-          }
-        )
-
-        logger.warn(
-          {
-            customerId,
-            subscriptionId: subscription.id,
-            guardianPersonId: guardianPerson.id,
-            childCount,
-          },
-          'Subscription created without metadata — resolved via Stripe customer email fallback'
-        )
       } else {
         throw new Error(
           `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
