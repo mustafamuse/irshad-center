@@ -523,6 +523,7 @@ export async function findPersonByStripeCustomerId(
         },
       },
     },
+    select: { id: true },
   })
 }
 

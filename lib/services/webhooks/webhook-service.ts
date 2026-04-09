@@ -208,19 +208,29 @@ async function resolveDugsiProfileIds(
   if (hints.length > 0) {
     const verified = await verifyDugsiProfileIdsForGuardian(personId, hints)
 
-    if (verified.length !== hints.length) {
-      logger.warn(
-        {
-          personId,
-          subscriptionId: subscription.id,
-          metadataProfileIds: hints,
-          verifiedProfileIds: verified,
-        },
-        'Ignoring unverified Dugsi profileIds from Stripe metadata'
-      )
+    if (verified.length > 0) {
+      if (verified.length < hints.length) {
+        logger.warn(
+          {
+            personId,
+            subscriptionId: subscription.id,
+            metadataProfileIds: hints,
+            verifiedProfileIds: verified,
+          },
+          'Partial Dugsi profileId verification: some metadata IDs failed — using verified subset'
+        )
+      }
+      return verified
     }
 
-    if (verified.length > 0) return verified
+    logger.warn(
+      {
+        personId,
+        subscriptionId: subscription.id,
+        metadataProfileIds: hints,
+      },
+      'All Dugsi profileIds from Stripe metadata failed verification — falling back to DB derivation'
+    )
   }
 
   const fallbackIds = await findBillableDugsiProfileIdsForGuardian(personId)
@@ -275,7 +285,6 @@ async function resolveDugsiFallbackFromCustomerEmail(
     logger.warn(
       {
         customerId,
-        customerEmail: normalizedEmail,
         subscriptionId: subscription.id,
       },
       'Path 4 fallback: Stripe customer email found but no matching Person record'

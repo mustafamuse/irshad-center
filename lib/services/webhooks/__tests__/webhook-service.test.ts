@@ -845,9 +845,8 @@ describe('handleSubscriptionCreated — Dugsi profile ID verification (Paths 1/2
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({
         metadataProfileIds: [FAKE_PROFILE_ID],
-        verifiedProfileIds: [],
       }),
-      'Ignoring unverified Dugsi profileIds from Stripe metadata'
+      'All Dugsi profileIds from Stripe metadata failed verification — falling back to DB derivation'
     )
     expect(mockLinkSubscriptionToProfiles).toHaveBeenCalledWith(
       DB_SUBSCRIPTION_ID,
