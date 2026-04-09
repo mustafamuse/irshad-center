@@ -229,6 +229,7 @@ export async function handleSubscriptionCreated(
           ? null
           : stripeCustomer.email
 
+        // Issue 5: early return on each failure branch — intent is explicit at every fork
         if (!customerEmail) {
           logger.warn(
             {
@@ -238,146 +239,180 @@ export async function handleSubscriptionCreated(
             },
             'Path 4 fallback: Stripe customer has no email address, cannot resolve guardian'
           )
-        } else {
-          const guardianPerson = await findPersonByActiveContact(customerEmail)
-
-          if (!guardianPerson) {
-            logger.warn(
-              { customerId, customerEmail, subscriptionId: subscription.id },
-              'Path 4 fallback: Stripe customer email found but no matching Person record'
-            )
-          } else {
-            const guardianWithChildren = await prisma.person.findFirst({
-              where: { id: guardianPerson.id },
-              include: {
-                guardianRelationships: {
-                  where: { isActive: true },
-                  include: {
-                    dependent: {
-                      include: {
-                        programProfiles: {
-                          where: {
-                            program: Program.DUGSI_PROGRAM,
-                            status: { not: EnrollmentStatus.WITHDRAWN },
-                          },
-                          select: { id: true, familyReferenceId: true },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            })
-
-            if (!guardianWithChildren) {
-              logger.warn(
-                { guardianPersonId: guardianPerson.id, customerId },
-                'Path 4 fallback: Second person lookup returned null — possible concurrent deletion'
-              )
-            }
-
-            const familyProfiles = (
-              guardianWithChildren?.guardianRelationships ?? []
-            ).flatMap((rel) => rel.dependent.programProfiles)
-
-            if (familyProfiles.length === 0) {
-              await logError(
-                logger,
-                new Error('Guardian has no active Dugsi program profiles'),
-                'Path 4 fallback: Cannot create billing account — guardian has no enrolled dependents',
-                {
-                  customerId,
-                  guardianPersonId: guardianPerson.id,
-                  subscriptionId: subscription.id,
-                }
-              )
-            } else {
-              billingAccount = await createOrUpdateBillingAccount({
-                personId: guardianPerson.id,
-                accountType,
-                stripeCustomerId: customerId,
-                paymentMethodCaptured: true,
-                paymentMethodCapturedAt: new Date(),
-              })
-
-              const resolvedProfileIds = familyProfiles.map((p) => p.id)
-              profileIds = resolvedProfileIds
-
-              const childCount = familyProfiles.length
-              const familyId = familyProfiles[0]?.familyReferenceId ?? null
-              const standardRate = calculateDugsiRate(childCount)
-              const actualAmount =
-                subscription.items.data[0]?.price?.unit_amount ?? standardRate
-
-              try {
-                await dugsiStripe.subscriptions.update(subscription.id, {
-                  metadata: {
-                    guardianPersonId: guardianPerson.id,
-                    familyId: familyId ?? '',
-                    childCount: String(childCount),
-                    profileIds: resolvedProfileIds.join(','),
-                    calculatedRate: String(standardRate),
-                    overrideUsed: String(actualAmount !== standardRate),
-                    Family: guardianPerson.name,
-                    source: 'dugsi-webhook-fallback-recovery',
-                  },
-                })
-              } catch (metadataErr) {
-                await logError(
-                  logger,
-                  metadataErr,
-                  'Path 4 fallback: Failed to patch Stripe subscription metadata — manual update required',
-                  {
-                    subscriptionId: subscription.id,
-                    customerId,
-                    guardianPersonId: guardianPerson.id,
-                  }
-                )
-                Sentry.captureMessage(
-                  'Dugsi subscription metadata patch failed — manual intervention required',
-                  {
-                    level: 'error',
-                    extra: {
-                      subscriptionId: subscription.id,
-                      customerId,
-                      guardianPersonId: guardianPerson.id,
-                    },
-                  }
-                )
-              }
-
-              Sentry.captureMessage(
-                'Dugsi subscription resolved via customer email fallback',
-                {
-                  level: 'warning',
-                  extra: {
-                    customerId,
-                    subscriptionId: subscription.id,
-                    guardianPersonId: guardianPerson.id,
-                    childCount,
-                    derivedProfileIds: profileIds,
-                  },
-                }
-              )
-
-              logger.warn(
-                {
-                  customerId,
-                  subscriptionId: subscription.id,
-                  guardianPersonId: guardianPerson.id,
-                  childCount,
-                },
-                'Subscription created without metadata — resolved via Stripe customer email fallback'
-              )
-            }
-          }
-        }
-
-        if (!billingAccount) {
           throw new Error(
             `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
           )
         }
+
+        const guardianPerson = await findPersonByActiveContact(customerEmail)
+
+        if (!guardianPerson) {
+          logger.warn(
+            { customerId, customerEmail, subscriptionId: subscription.id },
+            'Path 4 fallback: Stripe customer email found but no matching Person record'
+          )
+          throw new Error(
+            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
+          )
+        }
+
+        const guardianWithChildren = await prisma.person.findFirst({
+          where: { id: guardianPerson.id },
+          include: {
+            guardianRelationships: {
+              where: { isActive: true },
+              include: {
+                dependent: {
+                  include: {
+                    programProfiles: {
+                      where: {
+                        program: Program.DUGSI_PROGRAM,
+                        // Issue 1: restrict to billable statuses only (matches checkout-service)
+                        status: {
+                          in: [
+                            EnrollmentStatus.REGISTERED,
+                            EnrollmentStatus.ENROLLED,
+                          ],
+                        },
+                      },
+                      select: { id: true, familyReferenceId: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        if (!guardianWithChildren) {
+          logger.warn(
+            { guardianPersonId: guardianPerson.id, customerId },
+            'Path 4 fallback: Second person lookup returned null — possible concurrent deletion'
+          )
+        }
+
+        const rawProfiles = (
+          guardianWithChildren?.guardianRelationships ?? []
+        ).flatMap((rel) => rel.dependent.programProfiles)
+
+        // Issue 2: deduplicate by profile ID — a guardian can have multiple active roles
+        // per dependent (e.g., PARENT + SPONSOR), which would double-count the child
+        const familyProfiles = Array.from(
+          new Map(rawProfiles.map((p) => [p.id, p])).values()
+        )
+
+        if (familyProfiles.length === 0) {
+          await logError(
+            logger,
+            new Error('Guardian has no active Dugsi program profiles'),
+            'Path 4 fallback: Cannot create billing account — guardian has no enrolled dependents',
+            {
+              customerId,
+              guardianPersonId: guardianPerson.id,
+              subscriptionId: subscription.id,
+            }
+          )
+          throw new Error(
+            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
+          )
+        }
+
+        billingAccount = await createOrUpdateBillingAccount({
+          personId: guardianPerson.id,
+          accountType,
+          stripeCustomerId: customerId,
+          paymentMethodCaptured: true,
+          paymentMethodCapturedAt: new Date(),
+        })
+
+        const resolvedProfileIds = familyProfiles.map((p) => p.id)
+        // Issue 4: only set profileIds if the caller didn't supply them
+        if (!profileIds?.length) {
+          profileIds = resolvedProfileIds
+        }
+
+        const childCount = familyProfiles.length
+        const familyId = familyProfiles[0]?.familyReferenceId ?? null
+
+        // Issue 6: warn when a guardian spans multiple families — first family wins
+        const uniqueFamilyIds = new Set(
+          familyProfiles.map((p) => p.familyReferenceId).filter(Boolean)
+        )
+        if (uniqueFamilyIds.size > 1) {
+          logger.warn(
+            {
+              guardianPersonId: guardianPerson.id,
+              familyIds: [...uniqueFamilyIds],
+            },
+            'Path 4 fallback: guardian spans multiple families — using first family ID'
+          )
+        }
+
+        const standardRate = calculateDugsiRate(childCount)
+        const actualAmount =
+          subscription.items.data[0]?.price?.unit_amount ?? standardRate
+
+        try {
+          await dugsiStripe.subscriptions.update(subscription.id, {
+            metadata: {
+              guardianPersonId: guardianPerson.id,
+              // Issue 3: omit familyId from metadata when null rather than writing ''
+              ...(familyId ? { familyId } : {}),
+              childCount: String(childCount),
+              profileIds: resolvedProfileIds.join(','),
+              calculatedRate: String(standardRate),
+              overrideUsed: String(actualAmount !== standardRate),
+              Family: guardianPerson.name,
+              source: 'dugsi-webhook-fallback-recovery',
+            },
+          })
+        } catch (metadataErr) {
+          await logError(
+            logger,
+            metadataErr,
+            'Path 4 fallback: Failed to patch Stripe subscription metadata — manual update required',
+            {
+              subscriptionId: subscription.id,
+              customerId,
+              guardianPersonId: guardianPerson.id,
+            }
+          )
+          Sentry.captureMessage(
+            'Dugsi subscription metadata patch failed — manual intervention required',
+            {
+              level: 'error',
+              extra: {
+                subscriptionId: subscription.id,
+                customerId,
+                guardianPersonId: guardianPerson.id,
+              },
+            }
+          )
+        }
+
+        Sentry.captureMessage(
+          'Dugsi subscription resolved via customer email fallback',
+          {
+            level: 'warning',
+            extra: {
+              customerId,
+              subscriptionId: subscription.id,
+              guardianPersonId: guardianPerson.id,
+              childCount,
+              derivedProfileIds: profileIds,
+            },
+          }
+        )
+
+        logger.warn(
+          {
+            customerId,
+            subscriptionId: subscription.id,
+            guardianPersonId: guardianPerson.id,
+            childCount,
+          },
+          'Subscription created without metadata — resolved via Stripe customer email fallback'
+        )
       } else {
         throw new Error(
           `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`

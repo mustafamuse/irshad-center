@@ -448,6 +448,129 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
     expect(mockCustomersRetrieve).not.toHaveBeenCalled()
   })
+
+  it('deduplicates profile IDs when guardian has multiple active roles for the same child', async () => {
+    const DUPLICATE_PROFILE_ID = 'profile-id-shared'
+    const guardianWithDuplicateRoles = {
+      ...mockGuardianPerson,
+      guardianRelationships: [
+        // Same child appears via PARENT role and SPONSOR role
+        {
+          dependent: {
+            programProfiles: [
+              { id: DUPLICATE_PROFILE_ID, familyReferenceId: FAMILY_ID },
+            ],
+          },
+        },
+        {
+          dependent: {
+            programProfiles: [
+              { id: DUPLICATE_PROFILE_ID, familyReferenceId: FAMILY_ID },
+            ],
+          },
+        },
+      ],
+    }
+    mockPrismaPersonFindFirst
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(guardianWithDuplicateRoles)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    // childCount should be 1 (not 2) and metadata should have deduplicated profileIds
+    expect(mockCalculateDugsiRate).toHaveBeenCalledWith(1)
+    expect(mockSubscriptionsUpdate).toHaveBeenCalledWith(
+      'sub_test_123',
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          childCount: '1',
+          profileIds: DUPLICATE_PROFILE_ID,
+        }),
+      })
+    )
+  })
+
+  it('omits familyId from Stripe metadata when familyReferenceId is null', async () => {
+    const guardianWithNullFamily = {
+      ...mockGuardianPerson,
+      guardianRelationships: [
+        {
+          dependent: {
+            programProfiles: [{ id: PROFILE_ID_1, familyReferenceId: null }],
+          },
+        },
+      ],
+    }
+    mockPrismaPersonFindFirst
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(guardianWithNullFamily)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    const metadataArg = mockSubscriptionsUpdate.mock.calls[0][1].metadata
+    expect(metadataArg).not.toHaveProperty('familyId')
+  })
+
+  it('warns when guardian spans multiple families and uses first family ID', async () => {
+    const FAMILY_ID_2 = 'family-ref-id-2'
+    const guardianMultiFamily = {
+      ...mockGuardianPerson,
+      guardianRelationships: [
+        {
+          dependent: {
+            programProfiles: [
+              { id: PROFILE_ID_1, familyReferenceId: FAMILY_ID },
+            ],
+          },
+        },
+        {
+          dependent: {
+            programProfiles: [
+              { id: PROFILE_ID_2, familyReferenceId: FAMILY_ID_2 },
+            ],
+          },
+        },
+      ],
+    }
+    mockPrismaPersonFindFirst
+      .mockReset()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(guardianMultiFamily)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guardianPersonId: GUARDIAN_ID,
+        familyIds: expect.arrayContaining([FAMILY_ID, FAMILY_ID_2]),
+      }),
+      'Path 4 fallback: guardian spans multiple families — using first family ID'
+    )
+    // First family ID wins
+    expect(mockSubscriptionsUpdate).toHaveBeenCalledWith(
+      'sub_test_123',
+      expect.objectContaining({
+        metadata: expect.objectContaining({ familyId: FAMILY_ID }),
+      })
+    )
+  })
 })
 
 describe('handleSubscriptionCreated — Path 3 (existing billing account person)', () => {
