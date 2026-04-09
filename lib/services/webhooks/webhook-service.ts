@@ -229,7 +229,7 @@ export async function handleSubscriptionCreated(
           ? null
           : stripeCustomer.email
 
-        // Issue 5: early return on each failure branch — intent is explicit at every fork
+        // Early return on each failure branch — intent is explicit at every fork
         if (!customerEmail) {
           logger.warn(
             {
@@ -267,7 +267,7 @@ export async function handleSubscriptionCreated(
                     programProfiles: {
                       where: {
                         program: Program.DUGSI_PROGRAM,
-                        // Issue 1: restrict to billable statuses only (matches checkout-service)
+                        // Restrict to billable statuses only (matches checkout-service)
                         status: {
                           in: [
                             EnrollmentStatus.REGISTERED,
@@ -298,22 +298,20 @@ export async function handleSubscriptionCreated(
           (rel) => rel.dependent.programProfiles
         )
 
-        // Issue 2: deduplicate by profile ID — a guardian can have multiple active roles
+        // Deduplicate by profile ID — a guardian can have multiple active roles
         // per dependent (e.g., PARENT + SPONSOR), which would double-count the child
         const familyProfiles = Array.from(
           new Map(rawProfiles.map((p) => [p.id, p])).values()
         )
 
         if (familyProfiles.length === 0) {
-          await logError(
-            logger,
-            new Error('Guardian has no active Dugsi program profiles'),
-            'Path 4 fallback: Cannot create billing account — guardian has no enrolled dependents',
+          logger.warn(
             {
               customerId,
               guardianPersonId: guardianPerson.id,
               subscriptionId: subscription.id,
-            }
+            },
+            'Path 4 fallback: Cannot create billing account — guardian has no enrolled Dugsi children'
           )
           throw new Error(
             `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
@@ -329,15 +327,16 @@ export async function handleSubscriptionCreated(
         })
 
         const resolvedProfileIds = familyProfiles.map((p) => p.id)
-        // Issue 4: only set profileIds if the caller didn't supply them
-        if (!profileIds?.length) {
-          profileIds = resolvedProfileIds
-        }
+        // Prefer caller-supplied profile IDs; fall back to DB-derived ones
+        const effectiveProfileIds = profileIds?.length
+          ? profileIds
+          : resolvedProfileIds
+        profileIds = effectiveProfileIds
 
         const childCount = familyProfiles.length
         const familyId = familyProfiles[0]?.familyReferenceId ?? null
 
-        // Issue 6: warn when a guardian spans multiple families — first family wins
+        // Warn when a guardian spans multiple families — first family wins
         const uniqueFamilyIds = new Set(
           familyProfiles.map((p) => p.familyReferenceId).filter(Boolean)
         )
@@ -361,7 +360,7 @@ export async function handleSubscriptionCreated(
               guardianPersonId: guardianPerson.id,
               ...(familyId ? { familyId } : {}),
               childCount: String(childCount),
-              profileIds: (profileIds ?? resolvedProfileIds).join(','),
+              profileIds: effectiveProfileIds.join(','),
               calculatedRate: String(standardRate),
               overrideUsed: String(actualAmount !== standardRate),
               familyName: guardianPerson.name,
@@ -378,7 +377,7 @@ export async function handleSubscriptionCreated(
                 subscriptionId: subscription.id,
                 guardianPersonId: guardianPerson.id,
                 childCount,
-                derivedProfileIds: profileIds,
+                derivedProfileIds: effectiveProfileIds,
               },
             }
           )

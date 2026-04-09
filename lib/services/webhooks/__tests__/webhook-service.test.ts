@@ -369,6 +369,22 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     )
   })
 
+  it('throws and logs when customers.retrieve rejects (Stripe API error)', async () => {
+    const apiError = new Error('Stripe network timeout')
+    mockCustomersRetrieve.mockRejectedValue(apiError)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'DUGSI')
+    ).rejects.toThrow('Stripe network timeout')
+    expect(mockLogError).toHaveBeenCalled()
+    expect(mockFindPersonByActiveContact).not.toHaveBeenCalled()
+  })
+
   it('throws when Stripe customer is deleted and does not call email lookup', async () => {
     mockCustomersRetrieve.mockResolvedValue({ id: CUSTOMER_ID, deleted: true })
 
@@ -451,7 +467,10 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
       handleSubscriptionCreated(subscription, 'DUGSI')
     ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
     expect(mockCreateOrUpdateBillingAccount).not.toHaveBeenCalled()
-    expect(mockLogError).toHaveBeenCalled()
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ guardianPersonId: GUARDIAN_ID }),
+      'Path 4 fallback: Cannot create billing account — guardian has no enrolled Dugsi children'
+    )
   })
 
   it('throws without attempting fallback for non-DUGSI account type', async () => {
