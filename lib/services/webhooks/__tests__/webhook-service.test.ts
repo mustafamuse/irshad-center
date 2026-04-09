@@ -18,6 +18,8 @@ const {
   mockCalculateDugsiRate,
   mockExtractCustomerId,
   mockLogError,
+  mockFindPersonByStripeCustomerId,
+  mockFindPersonById,
 } = vi.hoisted(() => ({
   mockGetSubscriptionByStripeId: vi.fn(),
   mockGetBillingAccountByStripeCustomerId: vi.fn(),
@@ -35,6 +37,8 @@ const {
   mockCalculateDugsiRate: vi.fn(),
   mockExtractCustomerId: vi.fn(),
   mockLogError: vi.fn(),
+  mockFindPersonByStripeCustomerId: vi.fn(),
+  mockFindPersonById: vi.fn(),
 }))
 
 vi.mock('@/lib/db/queries/billing', () => ({
@@ -42,6 +46,11 @@ vi.mock('@/lib/db/queries/billing', () => ({
   getSubscriptionByStripeId: mockGetSubscriptionByStripeId,
   getBillingAssignmentsBySubscription: vi.fn(),
   updateSubscriptionStatus: vi.fn(),
+  findPersonByStripeCustomerId: mockFindPersonByStripeCustomerId,
+}))
+
+vi.mock('@/lib/db/queries/program-profile', () => ({
+  findPersonById: mockFindPersonById,
 }))
 
 vi.mock('@/lib/db/queries/dugsi-profiles', () => ({
@@ -208,11 +217,11 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockPrismaPersonFindFirst.mockReset()
     mockExtractCustomerId.mockReturnValue(CUSTOMER_ID)
     mockGetBillingAccountByStripeCustomerId.mockResolvedValue(null)
+    mockFindPersonById.mockResolvedValue(null)
     // Path 3: no existing person linked to this customer ID
-    mockPrismaPersonFindFirst.mockResolvedValueOnce(null)
+    mockFindPersonByStripeCustomerId.mockResolvedValue(null)
     // Path 4: guardian found by email with billable children
     mockFindGuardianWithBillableDugsiChildren.mockResolvedValue(
       mockGuardianWithChildren
@@ -487,20 +496,6 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     expect(mockCreateOrUpdateBillingAccount).not.toHaveBeenCalled()
   })
 
-  it('throws when email lookup finds no person in DB', async () => {
-    mockPrismaPersonFindFirst.mockReset().mockResolvedValueOnce(null)
-    mockFindGuardianWithBillableDugsiChildren.mockResolvedValue(null)
-
-    const subscription = createMockSubscription({
-      customer: CUSTOMER_ID,
-      metadata: {},
-    })
-
-    await expect(
-      handleSubscriptionCreated(subscription, 'DUGSI')
-    ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
-  })
-
   it('throws when guardian has no active Dugsi children', async () => {
     const guardianNoChildren = {
       ...mockGuardianPerson,
@@ -681,10 +676,10 @@ describe('handleSubscriptionCreated — Path 3 (existing billing account person)
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockPrismaPersonFindFirst.mockReset()
     mockExtractCustomerId.mockReturnValue(CUSTOMER_ID)
     mockGetBillingAccountByStripeCustomerId.mockResolvedValue(null)
-    mockPrismaPersonFindFirst.mockResolvedValueOnce(mockExistingPerson)
+    mockFindPersonById.mockResolvedValue(null)
+    mockFindPersonByStripeCustomerId.mockResolvedValue(mockExistingPerson)
     mockCreateOrUpdateBillingAccount.mockResolvedValue(mockBillingAccount)
     mockCreateSubscriptionFromStripe.mockResolvedValue(mockDbSubscription)
     mockCalculateDugsiRate.mockReturnValue(5000)
@@ -715,6 +710,88 @@ describe('handleSubscriptionCreated — Path 3 (existing billing account person)
   })
 })
 
+describe('handleSubscriptionCreated — Path 2 (subscription metadata personId)', () => {
+  const CUSTOMER_ID = 'cus_path2_123'
+  const PERSON_ID = 'person-id-from-metadata'
+  const BILLING_ACCOUNT_ID = 'billing-account-id'
+  const DB_SUBSCRIPTION_ID = 'db-sub-id'
+
+  const mockBillingAccount = { id: BILLING_ACCOUNT_ID, personId: PERSON_ID }
+  const mockDbSubscription = {
+    id: DB_SUBSCRIPTION_ID,
+    status: 'active',
+    stripeSubscriptionId: 'sub_path2_123',
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockExtractCustomerId.mockReturnValue(CUSTOMER_ID)
+    mockGetBillingAccountByStripeCustomerId.mockResolvedValue(null)
+    mockFindPersonById.mockResolvedValue({ id: PERSON_ID })
+    mockCreateOrUpdateBillingAccount.mockResolvedValue(mockBillingAccount)
+    mockCreateSubscriptionFromStripe.mockResolvedValue(mockDbSubscription)
+    mockFindBillableDugsiProfileIdsForGuardian.mockResolvedValue([])
+    mockVerifyDugsiProfileIdsForGuardian.mockResolvedValue([])
+    mockCalculateDugsiRate.mockReturnValue(5000)
+  })
+
+  it('creates billing account from metadata.guardianPersonId', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: { guardianPersonId: PERSON_ID },
+    })
+
+    const result = await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockFindPersonById).toHaveBeenCalledWith(PERSON_ID)
+    expect(mockCreateOrUpdateBillingAccount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        personId: PERSON_ID,
+        accountType: 'DUGSI',
+        stripeCustomerId: CUSTOMER_ID,
+        paymentMethodCaptured: true,
+      })
+    )
+    expect(result.created).toBe(true)
+    expect(mockCustomersRetrieve).not.toHaveBeenCalled()
+  })
+
+  it('creates billing account from metadata.personId (Mahad-style key)', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: { personId: PERSON_ID },
+    })
+
+    const result = await handleSubscriptionCreated(subscription, 'MAHAD')
+
+    expect(mockFindPersonById).toHaveBeenCalledWith(PERSON_ID)
+    expect(mockCreateOrUpdateBillingAccount).toHaveBeenCalledWith(
+      expect.objectContaining({ personId: PERSON_ID, accountType: 'MAHAD' })
+    )
+    expect(result.created).toBe(true)
+  })
+
+  it('falls through to Path 3 and throws when metadata personId not found in DB', async () => {
+    mockFindPersonById.mockResolvedValue(null)
+    mockFindPersonByStripeCustomerId.mockResolvedValue(null)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: { guardianPersonId: 'nonexistent-person-id' },
+    })
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'MAHAD')
+    ).rejects.toThrow(`No person found for customer ${CUSTOMER_ID}`)
+
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.objectContaining({ metadataPersonId: 'nonexistent-person-id' }),
+      'Path 2: metadataPersonId not found in DB — falling through to Path 3'
+    )
+    expect(mockCreateOrUpdateBillingAccount).not.toHaveBeenCalled()
+  })
+})
+
 describe('handleSubscriptionCreated — Dugsi profile ID verification (Paths 1/2/3)', () => {
   const CUSTOMER_ID = 'cus_common_123'
   const GUARDIAN_ID = 'guardian-person-id'
@@ -736,12 +813,13 @@ describe('handleSubscriptionCreated — Dugsi profile ID verification (Paths 1/2
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockPrismaPersonFindFirst.mockReset()
     mockExtractCustomerId.mockReturnValue(CUSTOMER_ID)
     // Path 1: billing account exists
     mockGetBillingAccountByStripeCustomerId.mockResolvedValue(
       mockBillingAccount
     )
+    mockFindPersonById.mockResolvedValue(null)
+    mockFindPersonByStripeCustomerId.mockResolvedValue(null)
     mockCreateOrUpdateBillingAccount.mockResolvedValue(mockBillingAccount)
     mockCreateSubscriptionFromStripe.mockResolvedValue(mockDbSubscription)
     mockCalculateDugsiRate.mockReturnValue(5000)
@@ -828,5 +906,45 @@ describe('handleSubscriptionCreated — Dugsi profile ID verification (Paths 1/2
 
     expect(mockSubscriptionsUpdate).not.toHaveBeenCalled()
     expect(mockSentrycaptureMessage).not.toHaveBeenCalled()
+  })
+
+  it('uses metadata profile ID hints without Dugsi DB lookup for Mahad subscriptions', async () => {
+    const MAHAD_PROFILE_ID = 'mahad-profile-id'
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: { profileId: MAHAD_PROFILE_ID },
+    })
+
+    await handleSubscriptionCreated(subscription, 'MAHAD')
+
+    expect(mockVerifyDugsiProfileIdsForGuardian).not.toHaveBeenCalled()
+    expect(mockFindBillableDugsiProfileIdsForGuardian).not.toHaveBeenCalled()
+    expect(mockLinkSubscriptionToProfiles).toHaveBeenCalledWith(
+      DB_SUBSCRIPTION_ID,
+      [MAHAD_PROFILE_ID],
+      5000,
+      'Linked automatically via webhook'
+    )
+  })
+
+  it('throws and logs when subscription amount is zero and profiles are present', async () => {
+    mockFindBillableDugsiProfileIdsForGuardian.mockResolvedValue([PROFILE_ID_1])
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+      items: {
+        object: 'list',
+        data: [{ price: { unit_amount: 0 } } as Stripe.SubscriptionItem],
+        has_more: false,
+        url: '',
+      },
+    })
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'DUGSI')
+    ).rejects.toThrow('Subscription has invalid amount')
+    expect(mockLogError).toHaveBeenCalled()
+    expect(mockLinkSubscriptionToProfiles).not.toHaveBeenCalled()
   })
 })

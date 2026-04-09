@@ -30,12 +30,14 @@ import {
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
+  findPersonByStripeCustomerId,
 } from '@/lib/db/queries/billing'
 import {
   findGuardianWithBillableDugsiChildren,
   verifyDugsiProfileIdsForGuardian,
   findBillableDugsiProfileIdsForGuardian,
 } from '@/lib/db/queries/dugsi-profiles'
+import { findPersonById } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -147,18 +149,23 @@ interface DugsiRecoveryMetadata {
   guardianPersonId: string
   familyName: string
   familyId: string | null
-  childCount: number
   effectiveProfileIds: string[]
   standardRate: number
   actualAmount: number
 }
 
-interface ResolvedSubscriptionContext {
-  billingAccount: { id: string; personId: string | null }
-  effectiveProfileIds: string[]
-  recoverySource: RecoverySource
-  dugsiRecoveryMetadata?: DugsiRecoveryMetadata
-}
+type ResolvedSubscriptionContext =
+  | {
+      billingAccount: { id: string; personId: string | null }
+      effectiveProfileIds: string[]
+      recoverySource: Exclude<RecoverySource, 'dugsi_email_fallback'>
+    }
+  | {
+      billingAccount: { id: string; personId: string | null }
+      effectiveProfileIds: string[]
+      recoverySource: 'dugsi_email_fallback'
+      dugsiRecoveryMetadata: DugsiRecoveryMetadata
+    }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -189,7 +196,13 @@ async function resolveDugsiProfileIds(
   subscription: Stripe.Subscription
 ): Promise<string[]> {
   const personId = billingAccount.personId
-  if (!personId) return []
+  if (!personId) {
+    logger.warn(
+      { subscriptionId: subscription.id },
+      'resolveDugsiProfileIds: billing account has no personId — cannot resolve profile IDs'
+    )
+    return []
+  }
 
   const hints = extractMetadataProfileIdHints(subscription)
 
@@ -211,7 +224,16 @@ async function resolveDugsiProfileIds(
     if (verified.length > 0) return verified
   }
 
-  return findBillableDugsiProfileIdsForGuardian(personId)
+  const fallbackIds = await findBillableDugsiProfileIdsForGuardian(personId)
+
+  if (fallbackIds.length === 0) {
+    logger.warn(
+      { personId, subscriptionId: subscription.id },
+      'resolveDugsiProfileIds: no billable Dugsi profiles found via metadata or DB fallback — subscription will be created without profile links'
+    )
+  }
+
+  return fallbackIds
 }
 
 async function resolveDugsiFallbackFromCustomerEmail(
@@ -318,7 +340,6 @@ async function resolveDugsiFallbackFromCustomerEmail(
       guardianPersonId: guardian.id,
       familyName: guardian.name,
       familyId,
-      childCount,
       effectiveProfileIds,
       standardRate,
       actualAmount,
@@ -355,48 +376,47 @@ async function resolveSubscriptionContext(
     subscription.metadata?.personId || subscription.metadata?.guardianPersonId
 
   if (metadataPersonId) {
-    logger.info(
-      {
-        customerId,
+    const verifiedPerson = await findPersonById(metadataPersonId)
+
+    if (!verifiedPerson) {
+      logger.warn(
+        { customerId, metadataPersonId, subscriptionId: subscription.id },
+        'Path 2: metadataPersonId not found in DB — falling through to Path 3'
+      )
+    } else {
+      logger.info(
+        {
+          customerId,
+          personId: metadataPersonId,
+          subscriptionId: subscription.id,
+        },
+        'Creating billing account from subscription metadata'
+      )
+
+      const billingAccount = await createOrUpdateBillingAccount({
         personId: metadataPersonId,
-        subscriptionId: subscription.id,
-      },
-      'Creating billing account from subscription metadata'
-    )
+        accountType,
+        stripeCustomerId: customerId,
+        paymentMethodCaptured: true,
+        paymentMethodCapturedAt: new Date(),
+      })
 
-    const billingAccount = await createOrUpdateBillingAccount({
-      personId: metadataPersonId,
-      accountType,
-      stripeCustomerId: customerId,
-      paymentMethodCaptured: true,
-      paymentMethodCapturedAt: new Date(),
-    })
+      const effectiveProfileIds =
+        accountType === StripeAccountType.DUGSI
+          ? await resolveDugsiProfileIds(billingAccount, subscription)
+          : extractMetadataProfileIdHints(subscription)
 
-    const effectiveProfileIds =
-      accountType === StripeAccountType.DUGSI
-        ? await resolveDugsiProfileIds(billingAccount, subscription)
-        : extractMetadataProfileIdHints(subscription)
-
-    return {
-      billingAccount,
-      effectiveProfileIds,
-      recoverySource: 'metadata_person_id',
+      return {
+        billingAccount,
+        effectiveProfileIds,
+        recoverySource: 'metadata_person_id',
+      }
     }
   }
 
-  // Path 3: person already linked to this Stripe customer ID via an existing billing account
-  const existingPerson = await prisma.person.findFirst({
-    where: {
-      billingAccounts: {
-        some: {
-          OR: [
-            { stripeCustomerIdMahad: customerId },
-            { stripeCustomerIdDugsi: customerId },
-          ],
-        },
-      },
-    },
-  })
+  // Path 3: cross-program person lookup — finds a person via any billing account already
+  // linked to this Stripe customer ID (searches both Mahad and Dugsi customer ID columns)
+  const existingPerson = await findPersonByStripeCustomerId(customerId)
 
   if (existingPerson) {
     const billingAccount = await createOrUpdateBillingAccount({
@@ -432,12 +452,14 @@ async function patchRecoveredDugsiMetadata(
 ): Promise<void> {
   const dugsiStripe = getDugsiStripeClient()
 
+  const childCount = recovery.effectiveProfileIds.length
+
   try {
     await dugsiStripe.subscriptions.update(subscriptionId, {
       metadata: {
         guardianPersonId: recovery.guardianPersonId,
         ...(recovery.familyId ? { familyId: recovery.familyId } : {}),
-        childCount: String(recovery.childCount),
+        childCount: String(childCount),
         profileIds: recovery.effectiveProfileIds.join(','),
         calculatedRate: String(recovery.standardRate),
         overrideUsed: String(recovery.actualAmount !== recovery.standardRate),
@@ -454,7 +476,7 @@ async function patchRecoveredDugsiMetadata(
           customerId,
           subscriptionId,
           guardianPersonId: recovery.guardianPersonId,
-          childCount: recovery.childCount,
+          childCount,
           derivedProfileIds: recovery.effectiveProfileIds,
         },
       }
@@ -465,11 +487,27 @@ async function patchRecoveredDugsiMetadata(
         customerId,
         subscriptionId,
         guardianPersonId: recovery.guardianPersonId,
-        childCount: recovery.childCount,
+        childCount,
       },
       'Subscription created without metadata — resolved via Stripe customer email fallback'
     )
   } catch (metadataErr) {
+    const isAuthError =
+      metadataErr !== null &&
+      typeof metadataErr === 'object' &&
+      'type' in metadataErr &&
+      (metadataErr as { type: unknown }).type === 'StripeAuthenticationError'
+
+    if (isAuthError) {
+      await logError(
+        logger,
+        metadataErr,
+        'Path 4 fallback: Stripe API key invalid — metadata patch cannot proceed',
+        { subscriptionId, customerId }
+      )
+      throw metadataErr
+    }
+
     await logError(
       logger,
       metadataErr,
@@ -542,20 +580,21 @@ function validateMahadRateIfPresent(subscription: Stripe.Subscription): void {
     )
   }
 
-  logger.info(
-    {
-      subscriptionId: subscription.id,
-      profileId: metadata.profileId,
-      studentName: metadata.studentName,
-      stripeAmount: priceAmount,
-      expectedRate,
-      graduationStatus: metadata.graduationStatus,
-      paymentFrequency: metadata.paymentFrequency,
-      billingType: metadata.billingType,
-      rateValid: priceAmount === expectedRate,
-    },
-    'Mahad subscription rate validation completed'
-  )
+  if (priceAmount === expectedRate && actualCalculatedRate === expectedRate) {
+    logger.info(
+      {
+        subscriptionId: subscription.id,
+        profileId: metadata.profileId,
+        studentName: metadata.studentName,
+        stripeAmount: priceAmount,
+        expectedRate,
+        graduationStatus: metadata.graduationStatus,
+        paymentFrequency: metadata.paymentFrequency,
+        billingType: metadata.billingType,
+      },
+      'Mahad subscription rate validation completed'
+    )
+  }
 }
 
 function validateDugsiRateIfPresent(subscription: Stripe.Subscription): void {
@@ -592,16 +631,17 @@ function validateDugsiRateIfPresent(subscription: Stripe.Subscription): void {
     )
   }
 
-  logger.info(
-    {
-      subscriptionId: subscription.id,
-      stripeAmount: priceAmount,
-      expectedRate,
-      childCount,
-      rateValid: priceAmount === expectedRate,
-    },
-    'Dugsi subscription rate validation completed'
-  )
+  if (priceAmount === expectedRate && actualCalculatedRate === expectedRate) {
+    logger.info(
+      {
+        subscriptionId: subscription.id,
+        stripeAmount: priceAmount,
+        expectedRate,
+        childCount,
+      },
+      'Dugsi subscription rate validation completed'
+    )
+  }
 }
 
 async function linkProfilesIfPresent(
@@ -714,10 +754,7 @@ export async function handleSubscriptionCreated(
     subscription
   )
 
-  if (
-    accountType === StripeAccountType.DUGSI &&
-    resolved.dugsiRecoveryMetadata
-  ) {
+  if (resolved.recoverySource === 'dugsi_email_fallback') {
     await patchRecoveredDugsiMetadata(
       subscription.id,
       customerId,
@@ -753,7 +790,6 @@ export async function handleSubscriptionUpdated(
 ): Promise<SubscriptionEventResult> {
   const stripeSubscriptionId = subscription.id
 
-  // Get subscription from database
   const dbSubscription = await getSubscriptionByStripeId(stripeSubscriptionId)
 
   if (!dbSubscription) {
@@ -768,25 +804,22 @@ export async function handleSubscriptionUpdated(
     }
   }
 
-  // Validate status
   const status = subscription.status as SubscriptionStatus
   if (!isValidSubscriptionStatus(status)) {
     throw new Error(`Invalid subscription status: ${status}`)
   }
 
-  // Extract period dates
   const periodDates = extractPeriodDates(subscription)
 
-  // Update subscription
   await updateSubscriptionStatusQuery(dbSubscription.id, status, {
     currentPeriodStart: periodDates.periodStart,
     currentPeriodEnd: periodDates.periodEnd,
     paidUntil: periodDates.periodEnd,
   })
 
-  if (accountType === 'MAHAD') {
+  if (accountType === StripeAccountType.MAHAD) {
     revalidateTag('mahad-students')
-  } else if (accountType === 'DUGSI') {
+  } else if (accountType === StripeAccountType.DUGSI) {
     revalidateTag('dugsi-registrations')
   }
 
@@ -812,7 +845,6 @@ export async function handleSubscriptionDeleted(
 ): Promise<SubscriptionEventResult> {
   const stripeSubscriptionId = subscription.id
 
-  // Get subscription from database
   const dbSubscription = await getSubscriptionByStripeId(stripeSubscriptionId)
 
   if (!dbSubscription) {
@@ -827,7 +859,6 @@ export async function handleSubscriptionDeleted(
     }
   }
 
-  // Update subscription to canceled and unlink from all profiles atomically
   await prisma.$transaction(async (tx) => {
     await updateSubscriptionStatusQuery(
       dbSubscription.id,
@@ -838,9 +869,9 @@ export async function handleSubscriptionDeleted(
     await unlinkSubscription(dbSubscription.id, tx)
   })
 
-  if (accountType === 'MAHAD') {
+  if (accountType === StripeAccountType.MAHAD) {
     revalidateTag('mahad-students')
-  } else if (accountType === 'DUGSI') {
+  } else if (accountType === StripeAccountType.DUGSI) {
     revalidateTag('dugsi-registrations')
   }
 
@@ -879,7 +910,6 @@ export async function handleInvoiceFinalized(
     return null
   }
 
-  // Get subscription from database
   const dbSubscription = await getSubscriptionByStripeId(subscriptionId)
 
   if (!dbSubscription) {
@@ -890,7 +920,6 @@ export async function handleInvoiceFinalized(
     return null
   }
 
-  // Update paid_until to the period_end of the invoice
   const paidUntil = invoice.period_end
     ? new Date(invoice.period_end * 1000)
     : null
@@ -903,9 +932,9 @@ export async function handleInvoiceFinalized(
     }
   )
 
-  if (accountType === 'MAHAD') {
+  if (accountType === StripeAccountType.MAHAD) {
     revalidateTag('mahad-students')
-  } else if (accountType === 'DUGSI') {
+  } else if (accountType === StripeAccountType.DUGSI) {
     revalidateTag('dugsi-registrations')
   }
 

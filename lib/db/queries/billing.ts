@@ -504,6 +504,29 @@ export async function getBillingAssignmentsByProfile(
 }
 
 /**
+ * Find a person via any billing account already linked to this Stripe customer ID.
+ * Searches both Mahad and Dugsi customer ID columns — used for cross-program re-subscribers
+ * where the program-specific billing account has not been created yet.
+ */
+export async function findPersonByStripeCustomerId(
+  customerId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      billingAccounts: {
+        some: {
+          OR: [
+            { stripeCustomerIdMahad: customerId },
+            { stripeCustomerIdDugsi: customerId },
+          ],
+        },
+      },
+    },
+  })
+}
+
+/**
  * Get billing assignments by subscription
  * @param client - Optional database client (for transaction support)
  */

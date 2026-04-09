@@ -1,10 +1,3 @@
-/**
- * Dugsi Profile Query Functions
- *
- * Queries for resolving and verifying Dugsi billing profile assignments.
- * Used by the webhook service for authoritative profile ID derivation.
- */
-
 import { EnrollmentStatus, Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
@@ -16,8 +9,9 @@ const BILLABLE_DUGSI_STATUSES = [
 ]
 
 /**
- * Find a guardian by normalized email with all their billable Dugsi children.
- * Used by the Path 4 email fallback when a subscription has no metadata.
+ * Find a guardian by normalized email. Includes only active guardian relationships
+ * and their billable Dugsi program profiles. The guardian may be returned with empty
+ * profile arrays if no billable children exist — callers must check.
  */
 export async function findGuardianWithBillableDugsiChildren(
   normalizedEmail: string,
@@ -47,9 +41,9 @@ export async function findGuardianWithBillableDugsiChildren(
 }
 
 /**
- * Verify that profile IDs from Stripe metadata are valid:
- * they must exist, be DUGSI_PROGRAM, have a billable status,
- * and belong to a dependent of the guardian.
+ * Verify that profile IDs from Stripe metadata are valid: they must exist,
+ * be DUGSI_PROGRAM, have a billable status, and be owned by someone who has
+ * guardianPersonId as their active guardian.
  *
  * Returns only the IDs that pass all checks.
  */
@@ -77,7 +71,8 @@ export async function verifyDugsiProfileIdsForGuardian(
 /**
  * Derive all billable Dugsi profile IDs for a guardian's active dependents.
  * Used as a fallback when metadata hints are absent or fail verification.
- * Deduplicates by profile ID (a child can appear via multiple guardian roles).
+ * Deduplicates by profile ID — the same child can appear twice in flatMap
+ * if they have multiple active guardian relationships (e.g. two parents).
  */
 export async function findBillableDugsiProfileIdsForGuardian(
   guardianPersonId: string,

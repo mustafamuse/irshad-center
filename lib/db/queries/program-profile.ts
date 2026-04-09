@@ -628,6 +628,20 @@ export async function searchProgramProfilesByNameOrContact(
 }
 
 /**
+ * Verify that a person ID exists in the database.
+ * Used to validate person IDs sourced from Stripe metadata before creating billing records.
+ */
+export async function findPersonById(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUnique({
+    where: { id: personId },
+    select: { id: true },
+  })
+}
+
+/**
  * Update shift for all program profiles in a family
  * @param client - Optional database client (for transaction support)
  */
