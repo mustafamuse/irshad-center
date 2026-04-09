@@ -21,8 +21,8 @@ import {
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
-import { createServiceLogger, logError } from '@/lib/logger'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
@@ -236,7 +236,13 @@ export async function createSubscriptionFromStripe(
   // Extract period dates
   const periodDates = extractPeriodDates(stripeSubscription)
 
-  // Create subscription
+  // Idempotent: if the row already exists (webhook retry after partial failure),
+  // return it rather than throwing P2002 on stripeSubscriptionId unique constraint.
+  const existing = await getSubscriptionByStripeId(stripeSubscription.id)
+  if (existing) {
+    return existing
+  }
+
   return await createSubscription({
     billingAccountId,
     stripeAccountType: accountType,
