@@ -1,4 +1,4 @@
-import type Stripe from 'stripe'
+import Stripe from 'stripe'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
@@ -381,7 +381,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     )
   })
 
-  it('still succeeds when Stripe metadata update fails and emits Sentry error', async () => {
+  it('still succeeds when Stripe metadata update fails', async () => {
     mockSubscriptionsUpdate.mockRejectedValue(new Error('Stripe API timeout'))
 
     const subscription = createMockSubscription({
@@ -394,8 +394,31 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     expect(result.created).toBe(true)
     expect(mockCreateOrUpdateBillingAccount).toHaveBeenCalled()
     expect(mockLogError).toHaveBeenCalled()
-    expect(mockSentrycaptureMessage).toHaveBeenCalledWith(
-      'Dugsi subscription metadata patch failed — manual intervention required',
+  })
+
+  it('still succeeds when Stripe auth error occurs during metadata patch', async () => {
+    const authError = new Stripe.errors.StripeAuthenticationError({
+      message: 'No such API key',
+      type: 'api_error',
+    })
+    mockSubscriptionsUpdate.mockRejectedValue(authError)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    const result = await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(result.created).toBe(true)
+    expect(mockLogError).toHaveBeenCalledWith(
+      expect.anything(),
+      authError,
+      'Path 4 fallback: Stripe API key invalid — metadata patch skipped, subscription saved successfully',
+      expect.any(Object)
+    )
+    expect(mockSentrycaptureMessage).not.toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({ level: 'error' })
     )
   })

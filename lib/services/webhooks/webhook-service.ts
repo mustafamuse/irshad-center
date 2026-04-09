@@ -240,6 +240,13 @@ async function resolveDugsiProfileIds(
       { personId, subscriptionId: subscription.id },
       'resolveDugsiProfileIds: no billable Dugsi profiles found via metadata or DB fallback — subscription will be created without profile links'
     )
+    Sentry.captureMessage(
+      'Dugsi subscription created without profile links — manual review required',
+      {
+        level: 'warning',
+        extra: { personId, subscriptionId: subscription.id },
+      }
+    )
   }
 
   return fallbackIds
@@ -510,17 +517,6 @@ async function patchRecoveredDugsiMetadata(
         'Path 4 fallback: Stripe API key invalid — metadata patch skipped, subscription saved successfully',
         { subscriptionId, customerId }
       )
-      Sentry.captureMessage(
-        'Dugsi subscription metadata patch failed (auth error) — manual update required',
-        {
-          level: 'error',
-          extra: {
-            subscriptionId,
-            customerId,
-            guardianPersonId: recovery.guardianPersonId,
-          },
-        }
-      )
       return
     }
 
@@ -532,17 +528,6 @@ async function patchRecoveredDugsiMetadata(
         subscriptionId,
         customerId,
         guardianPersonId: recovery.guardianPersonId,
-      }
-    )
-    Sentry.captureMessage(
-      'Dugsi subscription metadata patch failed — manual intervention required',
-      {
-        level: 'error',
-        extra: {
-          subscriptionId,
-          customerId,
-          guardianPersonId: recovery.guardianPersonId,
-        },
       }
     )
   }
