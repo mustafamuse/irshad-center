@@ -83,7 +83,24 @@ export async function markDateClosed(
     return { closure, closedCount: closedCount + autoMarkedCount }
   }
 
-  return isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client)
+  // Catch P2002 outside the transaction: two admins both passing the getSchoolClosure
+  // guard (READ COMMITTED) race to create — the loser's tx is aborted by PostgreSQL.
+  // The P2002 bubbles out of $transaction and is remapped here to a clean 409.
+  let result: Awaited<ReturnType<typeof doWrites>>
+  try {
+    result = isPrismaClient(client) ? await client.$transaction(doWrites) : await doWrites(client)
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ActionError(
+        `School is already marked closed on ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
+        ERROR_CODES.CLOSURE_EXISTS,
+        undefined,
+        409
+      )
+    }
+    throw error
+  }
+  return result
 }
 
 export async function removeClosure(

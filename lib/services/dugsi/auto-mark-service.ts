@@ -45,6 +45,16 @@ export async function autoMarkLateForShift(
   // this guard ensures the cron breaks loudly rather than silently doing nothing.
   assertValidTransition('EXPECTED', 'LATE')
 
+  // getAttendanceConfig throws if given a transaction client (P2002 catch is unsafe
+  // inside a tx). Guard here so the error fires at the callsite rather than deep inside
+  // the function — autoMarkBothShifts always pre-fetches config and forwards it.
+  if (!prefetchedConfig && !isPrismaClient(client)) {
+    throw new Error(
+      'autoMarkLateForShift: prefetchedConfig is required when client is a transaction — ' +
+      'use autoMarkBothShifts or pass prefetchedConfig explicitly'
+    )
+  }
+
   const config = prefetchedConfig ?? await getAttendanceConfig(client)
   const offsetMinutes =
     shift === 'MORNING'

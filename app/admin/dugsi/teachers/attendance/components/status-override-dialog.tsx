@@ -52,7 +52,8 @@ export function StatusOverrideDialog({
   // (markDateClosed) have dedicated flows and must not appear in the manual override dialog.
   const allowedTransitions = getAllowedTransitions(currentStatus)
     .filter((s): s is OverrideAttendanceStatusInput['toStatus'] =>
-      s === 'PRESENT' || s === 'LATE' || s === 'ABSENT' || s === 'EXCUSED'
+      (s === 'PRESENT' || s === 'LATE' || s === 'ABSENT' || s === 'EXCUSED') &&
+      s !== currentStatus
     )
 
   function handleSubmit() {

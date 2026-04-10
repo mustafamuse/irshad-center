@@ -213,23 +213,11 @@ async function main() {
   // Write to DB
   console.log(`\nWriting ${rows.filter((r) => r.action !== 'SKIP').length} records...`)
 
-  // Upsert closure rows in SchoolClosure table (parallel — independent writes)
-  await Promise.all(
-    Array.from(CLOSURE_DATES).map((d) => {
-      const date = new Date(d)
-      return prisma.schoolClosure.upsert({
-        where: { date },
-        create: { date, reason: 'School closed (backfill)', createdBy: 'backfill-script' },
-        update: {},
-      })
-    })
-  )
-
   let dbUpdated = 0
-  // Wrap the entire loop + createMany in a single transaction so a crash or
-  // SIGTERM mid-loop doesn't leave a partial view on the production DB.
-  // Re-running is always safe (WHERE status='EXPECTED' guard prevents double-updates),
-  // but the transaction eliminates the transient inconsistency window entirely.
+  // Wrap closure upserts + attendance writes in one transaction so a crash or
+  // SIGTERM mid-run doesn't leave SchoolClosure rows without the corresponding
+  // CLOSED attendance records (or vice versa).
+  // Re-running is always safe (skipDuplicates + WHERE status='EXPECTED' guard).
   type RowData = {
     teacherId: string; date: Date; shift: Shift
     status: Exclude<Row['action'], 'SKIP'>; source: AttendanceSource
@@ -241,6 +229,19 @@ async function main() {
   // but avoids false timeouts on a cold or loaded DB connection.
   console.time('transaction')
   const { dbCreated, dbUnchanged } = await prisma.$transaction(async (tx) => {
+    // Upsert SchoolClosure rows inside the transaction so closures and CLOSED
+    // attendance records are written atomically.
+    await Promise.all(
+      Array.from(CLOSURE_DATES).map((d) => {
+        const date = new Date(d)
+        return tx.schoolClosure.upsert({
+          where: { date },
+          create: { date, reason: 'School closed (backfill)', createdBy: 'backfill-script' },
+          update: {},
+        })
+      })
+    )
+
     const toCreate: RowData[] = []
 
     for (const r of rows) {
