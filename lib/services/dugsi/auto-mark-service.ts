@@ -96,24 +96,17 @@ export async function autoMarkLateForShift(
       await generateExpectedSlots(teachersForShift, dateObj, tx)
     }
 
-    // Use offsetMinutes (the configured threshold) rather than `now - classStart` —
-    // the cron fires at 21:00 UTC, so `now - classStart` would produce ~360 min for
-    // morning and ~90 min for afternoon, making the displayed value misleading.
-    // The configured offset is the most honest value: it's exactly how late
-    // the auto-mark window was set when the records were created.
-    // Store null — offsetMinutes reflects the configured threshold, not actual lateness.
-    // A teacher auto-marked at 21:00 UTC would otherwise show "+15m" when they never
-    // showed up at all. AttendanceStatusBadge renders "Late (auto)" for AUTO_MARKED records.
-    //
-    // CONTRACT: minutesLate is always null for source=AUTO_MARKED LATE records.
-    // Callers reading minutesLate on any LATE record must check
-    // source !== 'AUTO_MARKED' before treating null as "lateness unknown" —
-    // for AUTO_MARKED the teacher simply never arrived.
-    const minutesLate = null
-
     const result = await tx.teacherAttendanceRecord.updateMany({
       where: { date: dateObj, shift, status: 'EXPECTED' },
-      data: { status: 'LATE', source: 'AUTO_MARKED', minutesLate, changedBy: 'cron' },
+      // minutesLate is intentionally null for AUTO_MARKED records. The cron fires at
+      // 21:00 UTC, so `now - classStart` would produce a misleading offset (~360 min
+      // morning, ~90 min afternoon). The configured threshold reflects *when* the window
+      // was set, not actual lateness. AttendanceStatusBadge renders "Late (auto)" for
+      // source=AUTO_MARKED records to distinguish this case.
+      // CONTRACT: callers reading minutesLate on LATE records must check
+      // source !== 'AUTO_MARKED' before treating null as "lateness unknown" —
+      // for AUTO_MARKED the teacher simply never arrived.
+      data: { status: 'LATE', source: 'AUTO_MARKED', minutesLate: null, changedBy: 'cron' },
     })
 
     return { kind: 'marked', count: result.count }
