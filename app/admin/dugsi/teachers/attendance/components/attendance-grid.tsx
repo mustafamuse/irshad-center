@@ -137,6 +137,7 @@ export function AttendanceGrid({ records, weekendDates, closureDates }: Props) {
                         >
                           <AttendanceStatusBadge
                             status={record.status}
+                            source={record.source}
                             minutesLate={record.minutesLate}
                           />
                         </button>

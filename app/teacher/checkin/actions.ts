@@ -278,13 +278,13 @@ const _submitExcuseAction = rateLimitedActionClient
   .action(async ({ parsedInput }) => {
     const { attendanceRecordId, teacherId, reason } = parsedInput
 
-    // SECURITY — ownership boundary:
+    // SECURITY — ownership boundary (BLOCKING pre-production: see #225):
     // The teacher app has no session; teachers identify only by UI selection.
-    // Attack surface: both attendanceRecordId and teacherId are in the rendered HTML
-    // (from getTeacherAttendanceHistory). A teacher who selects another teacher from
-    // the dropdown already has their teacherId. The check below only validates
-    // self-consistency of the two supplied values — it does NOT prove the requester
-    // IS that teacher. Both values could be harvested from another teacher's page.
+    // Concrete risk: Teacher A selects Teacher B in the dropdown, copies
+    // attendanceRecordId from the DOM, and submits an excuse for Teacher B's record.
+    // The teacherId cross-check below only proves the two supplied values are
+    // self-consistent — both are unauthenticated HTML values from the same page.
+    // This feature MUST NOT ship to production until #225 is resolved.
     // Full fix (tracked in #225):
     //   - Sign (attendanceRecordId, teacherId, action, exp) with EXCUSE_TOKEN_SECRET on page render
     //     (include the action type so the token can't be replayed against a different endpoint)

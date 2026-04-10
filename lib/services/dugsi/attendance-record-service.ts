@@ -191,6 +191,11 @@ export async function adminCheckIn(
     }
 
     if (existingRecord) {
+      // Idempotent: teacher already checked in (e.g. self-checkin before admin action)
+      if (existingRecord.status === 'PRESENT') {
+        logger.info({ event: 'ADMIN_CHECK_IN_NOOP', teacherId, shift, date }, 'Teacher already PRESENT — skipping')
+        return { checkIn }
+      }
       assertValidTransition(existingRecord.status, 'PRESENT')
       // Optimistic lock: include current status in WHERE, mirroring transitionStatus.
       // Prevents a concurrent auto-mark/override from being silently overwritten.
