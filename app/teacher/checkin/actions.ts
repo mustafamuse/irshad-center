@@ -20,6 +20,7 @@ import {
 import {
   getTeacherAttendanceSummary,
   getMonthlyExcuseCount,
+  getAttendanceRecordById,
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -275,6 +276,17 @@ const _submitExcuseAction = rateLimitedActionClient
   .schema(SubmitExcuseSchema)
   .action(async ({ parsedInput }) => {
     const { attendanceRecordId, teacherId, reason } = parsedInput
+
+    // Authorization: verify the record belongs to the claimed teacher before writing.
+    // The teacher app has no session — teachers identify via dropdown — so we must
+    // explicitly check ownership here to prevent cross-teacher excuse submissions.
+    const record = await getAttendanceRecordById(attendanceRecordId)
+    if (!record) {
+      throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
+    }
+    if (record.teacherId !== teacherId) {
+      throw new ActionError('You can only submit excuses for your own attendance records', ERROR_CODES.FORBIDDEN, undefined, 403)
+    }
 
     const excuse = await submitExcuse({ attendanceRecordId, teacherId, reason })
 

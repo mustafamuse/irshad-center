@@ -37,10 +37,12 @@ export type ExcuseRequestWithRelations = Prisma.ExcuseRequestGetPayload<{
 // ============================================================================
 
 export async function getAttendanceConfig(client: DatabaseClient = prisma) {
-  return client.dugsiAttendanceConfig.upsert({
-    where: { id: 'singleton' },
-    create: { id: 'singleton', morningAutoMarkMinutes: 15, afternoonAutoMarkMinutes: 15 },
-    update: {},
+  // Use findUnique + lazy create to avoid an unconditional UPDATE on every read.
+  // The singleton row is created once on first use; subsequent reads are pure SELECTs.
+  const config = await client.dugsiAttendanceConfig.findUnique({ where: { id: 'singleton' } })
+  if (config) return config
+  return client.dugsiAttendanceConfig.create({
+    data: { id: 'singleton', morningAutoMarkMinutes: 15, afternoonAutoMarkMinutes: 15 },
   })
 }
 

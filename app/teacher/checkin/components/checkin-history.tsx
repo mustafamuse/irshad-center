@@ -60,22 +60,28 @@ export function CheckinHistory({ teacherId }: Props) {
     setExcuseOpenId(null)
   }, [teacherId])
 
-  const loadHistory = useCallback(() => {
-    if (!teacherId || hasLoaded) return
-    const requestTeacherId = teacherId
-
+  // Unconditional fetch — used by both the initial load and post-excuse reload.
+  // Separated from loadHistory so handleExcuseSuccess doesn't rely on hasLoaded state
+  // (which is async and would still be true when the stale closure runs).
+  function fetchHistory(id: string) {
     startTransition(async () => {
       try {
-        const result = await getTeacherAttendanceHistory(requestTeacherId)
-        if (currentTeacherRef.current !== requestTeacherId) return
+        const result = await getTeacherAttendanceHistory(id)
+        if (currentTeacherRef.current !== id) return
         setHistory(result)
         setError(null)
       } catch (err) {
-        if (currentTeacherRef.current !== requestTeacherId) return
+        if (currentTeacherRef.current !== id) return
         setError(err instanceof Error ? err.message : 'Failed to load history')
       }
       setHasLoaded(true)
     })
+  }
+
+  const loadHistory = useCallback(() => {
+    if (!teacherId || hasLoaded) return
+    fetchHistory(teacherId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [teacherId, hasLoaded])
 
   function handleOpenChange(open: boolean) {
@@ -85,9 +91,8 @@ export function CheckinHistory({ teacherId }: Props) {
 
   function handleExcuseSuccess() {
     setExcuseOpenId(null)
-    // Reload to reflect updated pending state
-    setHasLoaded(false)
-    loadHistory()
+    // Bypass the hasLoaded guard — we need a fresh fetch regardless of prior load state
+    if (teacherId) fetchHistory(teacherId)
   }
 
   if (!teacherId) return null

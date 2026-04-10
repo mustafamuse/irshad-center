@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -79,14 +79,14 @@ export function AttendanceGrid({ records, weekendDates }: Props) {
             <tr className="border-b bg-muted/30">
               <th className="sticky left-0 bg-muted/30 px-3 py-1" />
               {weekendDates.map((date) => (
-                <>
-                  <th key={`${date}-m`} className="px-1 py-1 text-center text-xs text-muted-foreground font-normal">
+                <Fragment key={date}>
+                  <th className="px-1 py-1 text-center text-xs text-muted-foreground font-normal">
                     AM
                   </th>
-                  <th key={`${date}-a`} className="px-1 py-1 text-center text-xs text-muted-foreground font-normal">
+                  <th className="px-1 py-1 text-center text-xs text-muted-foreground font-normal">
                     PM
                   </th>
-                </>
+                </Fragment>
               ))}
             </tr>
           </thead>

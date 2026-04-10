@@ -98,21 +98,27 @@ export async function rejectExcuse(
 ) {
   const { excuseRequestId, adminNote, reviewedBy } = params
 
-  const excuseRequest = await getExcuseRequestById(excuseRequestId, client)
-  if (!excuseRequest) throw new Error(`Excuse request not found: ${excuseRequestId}`)
-  if (excuseRequest.status !== 'PENDING') {
-    throw new Error(`Excuse request is already ${excuseRequest.status}`)
+  // Wrap in transaction for the same reason as approveExcuse: prevent
+  // two concurrent admin actions both passing the PENDING check.
+  const doWrites = async (tx: DatabaseClient) => {
+    const excuseRequest = await getExcuseRequestById(excuseRequestId, tx)
+    if (!excuseRequest) throw new Error(`Excuse request not found: ${excuseRequestId}`)
+    if (excuseRequest.status !== 'PENDING') {
+      throw new Error(`Excuse request is already ${excuseRequest.status}`)
+    }
+
+    const updated = await tx.excuseRequest.update({
+      where: { id: excuseRequestId },
+      data: { status: 'REJECTED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
+    })
+
+    logger.info(
+      { event: 'EXCUSE_REJECTED', excuseRequestId, reviewedBy },
+      'Admin rejected excuse request'
+    )
+
+    return updated
   }
 
-  const updated = await client.excuseRequest.update({
-    where: { id: excuseRequestId },
-    data: { status: 'REJECTED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
-  })
-
-  logger.info(
-    { event: 'EXCUSE_REJECTED', excuseRequestId, reviewedBy },
-    'Admin rejected excuse request'
-  )
-
-  return updated
+  return isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client)
 }

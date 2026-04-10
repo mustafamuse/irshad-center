@@ -9,7 +9,7 @@
 import type { TeacherAttendanceStatus } from '@prisma/client'
 
 const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStatus[]> = {
-  EXPECTED: ['PRESENT', 'LATE', 'CLOSED'],
+  EXPECTED: ['PRESENT', 'LATE', 'ABSENT', 'CLOSED'],
   PRESENT: ['ABSENT', 'EXCUSED', 'CLOSED', 'LATE'],
   LATE: ['ABSENT', 'EXCUSED', 'CLOSED', 'PRESENT'],
   ABSENT: ['LATE', 'EXCUSED', 'CLOSED'],

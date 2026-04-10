@@ -12,10 +12,10 @@ import { Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
-import { DatabaseClient } from '@/lib/db/types'
+import { DatabaseClient, TransactionClient } from '@/lib/db/types'
 import { CLASS_START_TIMES, SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { createServiceLogger } from '@/lib/logger'
-import { getAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
+import { getAttendanceConfig, getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
 import { generateExpectedSlots } from './attendance-record-service'
 
 const logger = createServiceLogger('auto-mark')
@@ -24,7 +24,7 @@ export interface AutoMarkResult {
   shift: Shift
   date: string
   marked: number
-  skippedReason?: 'window_not_passed' | 'no_expected_records'
+  skippedReason?: 'window_not_passed' | 'no_expected_records' | 'school_closed'
 }
 
 export async function autoMarkLateForShift(
@@ -53,8 +53,15 @@ export async function autoMarkLateForShift(
     return { shift, date, marked: 0, skippedReason: 'window_not_passed' }
   }
 
-  // Ensure EXPECTED slots exist before trying to mark them
+  // Guard: skip if the school is closed on this date.
+  // markDateClosed only flips existing EXPECTED rows; if the cron runs first, it would
+  // generate EXPECTED slots and incorrectly mark them LATE on a closed day.
   const dateObj = new Date(date)
+  const closure = await client.schoolClosure.findUnique({ where: { date: dateObj } })
+  if (closure) {
+    logger.debug({ shift, date, reason: closure.reason }, 'School closed — skipping auto-mark')
+    return { shift, date, marked: 0, skippedReason: 'school_closed' }
+  }
   const activeTeachers = await client.teacherProgram.findMany({
     where: { program: 'DUGSI_PROGRAM', isActive: true },
     select: { teacherId: true, shifts: true },
@@ -64,26 +71,31 @@ export async function autoMarkLateForShift(
     .filter((tp) => tp.shifts.includes(shift))
     .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] }))
 
-  if (teachersForShift.length > 0) {
-    await generateExpectedSlots(teachersForShift, dateObj, client)
-  }
+  // Wrap slot generation + updateMany in one transaction so a concurrent self-checkin
+  // can't slip in between the two writes and get immediately auto-marked LATE.
+  const marked = await prisma.$transaction(async (tx: TransactionClient) => {
+    if (teachersForShift.length > 0) {
+      await generateExpectedSlots(teachersForShift, dateObj, tx)
+    }
 
-  // Mark all still-EXPECTED records for this date+shift as LATE
-  const result = await client.teacherAttendanceRecord.updateMany({
-    where: { date: dateObj, shift, status: 'EXPECTED' },
-    data: { status: 'LATE', source: 'AUTO_MARKED' },
+    const result = await tx.teacherAttendanceRecord.updateMany({
+      where: { date: dateObj, shift, status: 'EXPECTED' },
+      data: { status: 'LATE', source: 'AUTO_MARKED' },
+    })
+
+    return result.count
   })
 
-  if (result.count === 0) {
+  if (marked === 0) {
     return { shift, date, marked: 0, skippedReason: 'no_expected_records' }
   }
 
   logger.info(
-    { event: 'AUTO_MARK_LATE', shift, date, marked: result.count, thresholdUtc },
-    `Auto-marked ${result.count} EXPECTED records as LATE`
+    { event: 'AUTO_MARK_LATE', shift, date, marked, thresholdUtc },
+    `Auto-marked ${marked} EXPECTED records as LATE`
   )
 
-  return { shift, date, marked: result.count }
+  return { shift, date, marked }
 }
 
 /**
