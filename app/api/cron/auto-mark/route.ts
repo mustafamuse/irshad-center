@@ -31,6 +31,7 @@ export async function GET() {
 
   const cronSecret = process.env.CRON_SECRET
   if (!cronSecret) {
+    logger.error({ event: 'CRON_SECRET_MISSING' }, 'CRON_SECRET env var is not set — auto-mark cron will not run')
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
   // Hash both sides to a fixed-length digest before comparing so that

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 
 import { formatInTimeZone } from 'date-fns-tz'
 
@@ -18,6 +18,12 @@ interface Props {
 export function ExcuseQueue({ initialRequests }: Props) {
   const [, startTransition] = useTransition()
   const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
+  // Sync when the Server Component re-renders with fresh data (e.g. after revalidatePath
+  // fires via after()). Without this, newly submitted requests won't appear until
+  // the admin navigates away and back.
+  useEffect(() => {
+    setRequests(initialRequests)
+  }, [initialRequests])
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, string | null>>({})
   // Set of in-flight request IDs so multiple rows can be independently disabled

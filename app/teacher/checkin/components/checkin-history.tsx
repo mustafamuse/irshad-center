@@ -167,6 +167,7 @@ export function CheckinHistory({ teacherId }: Props) {
 
                       {canRequestExcuse && !isExcuseOpen && (
                         <button
+                          type="button"
                           className="mt-1 text-xs text-[#007078] underline-offset-2 hover:underline"
                           onClick={() => setExcuseOpenId(item.id)}
                         >
