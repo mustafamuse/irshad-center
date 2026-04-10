@@ -55,7 +55,7 @@ export function AttendanceGrid({ records, weekendDates }: Props) {
   }, [records])
 
   function formatDateHeader(dateStr: string) {
-    const d = new Date(`${dateStr}T12:00:00`)
+    const d = new Date(`${dateStr}T12:00:00Z`)
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`
