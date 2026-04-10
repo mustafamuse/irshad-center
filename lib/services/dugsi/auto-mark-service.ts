@@ -95,7 +95,10 @@ export async function autoMarkLateForShift(
     // morning and ~90 min for afternoon, making the displayed value misleading.
     // The configured offset is the most honest value: it's exactly how late
     // the auto-mark window was set when the records were created.
-    const minutesLate = offsetMinutes
+    // Store null — offsetMinutes reflects the configured threshold, not actual lateness.
+    // A teacher auto-marked at 21:00 UTC would otherwise show "+15m" when they never
+    // showed up at all. UI should display "Late (auto)" for source=AUTO_MARKED records.
+    const minutesLate = null
 
     const result = await tx.teacherAttendanceRecord.updateMany({
       where: { date: dateObj, shift, status: 'EXPECTED' },

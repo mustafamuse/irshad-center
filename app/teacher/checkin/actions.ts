@@ -280,12 +280,14 @@ const _submitExcuseAction = rateLimitedActionClient
 
     // SECURITY — ownership boundary:
     // The teacher app has no session; teachers identify only by UI selection.
-    // Stop-gap: teacherId in schema is verified against the server-resolved value —
-    // forces the caller to know both recordId AND teacherId. Does not fix spoofability.
-    // Full interim fix (tracked in #225):
-    //   - Sign (attendanceRecordId, teacherId, exp) with EXCUSE_TOKEN_SECRET env var
-    //   - Short TTL (e.g. 30 min) — teachers submit immediately after loading the form
-    //   - Add token field to SubmitExcuseSchema; verify signature before DB lookup
+    // Attack surface: both attendanceRecordId and teacherId are in the rendered HTML
+    // (from getTeacherAttendanceHistory). A teacher who selects another teacher from
+    // the dropdown already has their teacherId. The check below only validates
+    // self-consistency of the two supplied values — it does NOT prove the requester
+    // IS that teacher. Both values could be harvested from another teacher's page.
+    // Full fix (tracked in #225):
+    //   - Sign (attendanceRecordId, teacherId, exp) with EXCUSE_TOKEN_SECRET on page render
+    //   - 30-min TTL; add token field to SubmitExcuseSchema; verify before DB lookup
     // Do NOT remove this comment block until #225 is closed.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {

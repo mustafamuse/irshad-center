@@ -12,7 +12,7 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import {
-  getAttendanceRecordById,
+  getAttendanceRecordStatus,
   getExcuseRequestById,
   getExistingActiveExcuse,
 } from '@/lib/db/queries/teacher-attendance'
@@ -28,12 +28,21 @@ export async function submitExcuse(
   // All reads and the write happen inside a single transaction so that:
   // - The status check is atomic with the duplicate-excuse check.
   // - An admin override can't change eligibility between check and insert.
-  // Note: the action layer (submitExcuseAction) already validates ownership
-  // before calling here, so we skip a redundant pre-flight ownership check.
+  // - Ownership is re-verified inside the transaction (service is authoritative;
+  //   callers such as tests or future actions can't bypass this check).
   const doWrites = async (tx: DatabaseClient) => {
-    const record = await getAttendanceRecordById(attendanceRecordId, tx)
+    const record = await getAttendanceRecordStatus(attendanceRecordId, tx)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND)
+    }
+
+    if (record.teacherId !== teacherId) {
+      throw new ActionError(
+        'Attendance record does not belong to this teacher',
+        ERROR_CODES.EXCUSE_NOT_ELIGIBLE,
+        undefined,
+        403
+      )
     }
 
     if (record.status !== 'LATE' && record.status !== 'ABSENT') {

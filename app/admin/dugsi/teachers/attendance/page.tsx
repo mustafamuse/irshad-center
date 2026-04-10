@@ -35,12 +35,14 @@ function getRecentWeekendDates(weeksBack: number): string[] {
 export default async function TeacherAttendancePage() {
   const WEEKS_BACK = 8
   const weekendDates = getRecentWeekendDates(WEEKS_BACK)
-  const today = new Date()
-  const from = new Date(today)
-  from.setDate(from.getDate() - WEEKS_BACK * 7)
+  // Derive bounds from weekendDates (already timezone-correct) rather than raw UTC new Date().
+  // Near UTC midnight, raw Date diverges from SCHOOL_TIMEZONE by a calendar day, which
+  // would produce column headers outside the fetched record window.
+  const from = new Date(`${weekendDates[weekendDates.length - 1]}T00:00:00Z`)
+  const to = new Date(`${weekendDates[0]}T23:59:59Z`)
   const [records, closures] = await Promise.all([
-    getAttendanceGrid(from, today),
-    listSchoolClosures(from, today),
+    getAttendanceGrid(from, to),
+    listSchoolClosures(from, to),
   ])
 
   const closureSet = new Set(

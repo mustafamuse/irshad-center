@@ -16,6 +16,7 @@ import { createServiceLogger } from '@/lib/logger'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import {
   getAttendanceRecordById,
+  getAttendanceRecordStatus,
   getAttendanceRecord,
 } from '@/lib/db/queries/teacher-attendance'
 
@@ -87,7 +88,7 @@ export async function transitionStatus(
 ) {
   const { recordId, toStatus, source, clockInTime, minutesLate, notes, changedBy } = params
 
-  const record = await getAttendanceRecordById(recordId, client)
+  const record = await getAttendanceRecordStatus(recordId, client)
   if (!record) {
     throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
   }
@@ -132,14 +133,6 @@ export async function transitionStatus(
     },
     `Attendance status: ${record.status} → ${toStatus}`
   )
-
-  return {
-    ...record,
-    status: toStatus,
-    minutesLate: toStatus === 'LATE' ? (minutesLate ?? null) : null,
-    notes: notes ?? null,
-    changedBy: changedBy ?? null,
-  }
 }
 
 // ============================================================================
@@ -208,7 +201,7 @@ export async function adminCheckIn(
       if (updateResult.count === 0) {
         throw new ActionError(
           'Record was modified concurrently — please refresh and try again',
-          ERROR_CODES.INVALID_TRANSITION,
+          ERROR_CODES.CONCURRENT_MODIFICATION,
           undefined,
           409
         )

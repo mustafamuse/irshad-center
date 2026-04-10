@@ -83,6 +83,21 @@ export async function getAttendanceRecordById(
   })
 }
 
+/**
+ * Narrow fetch for service-layer ownership/status checks.
+ * Avoids the teacher+person+excuses joins that getAttendanceRecordById pulls in
+ * when all we need is id, teacherId, and status.
+ */
+export async function getAttendanceRecordStatus(
+  id: string,
+  client: DatabaseClient = prisma
+) {
+  return client.teacherAttendanceRecord.findUnique({
+    where: { id },
+    select: { id: true, teacherId: true, status: true },
+  })
+}
+
 export interface AttendanceRecordFilters {
   teacherId?: string
   dateFrom?: Date
@@ -181,13 +196,13 @@ export async function listSchoolClosures(
   to?: Date,
   client: DatabaseClient = prisma
 ) {
-  // Default lower bound: 2 years back — prevents unbounded full-table scans
-  // when called with no arguments (e.g. closures/page.tsx).
+  // Default lower bound: 2 years back — prevents unbounded full-table scans.
+  // Use `from || to` so a caller supplying only `to` doesn't silently drop the upper bound.
   const defaultFrom = new Date(Date.UTC(new Date().getUTCFullYear() - 2, 0, 1))
   return client.schoolClosure.findMany({
-    where: from && to
-      ? { date: { gte: from, lte: to } }
-      : { date: { gte: from ?? defaultFrom } },
+    where: from || to
+      ? { date: { ...(from ? { gte: from } : { gte: defaultFrom }), ...(to ? { lte: to } : {}) } }
+      : { date: { gte: defaultFrom } },
     orderBy: { date: 'desc' },
   })
 }

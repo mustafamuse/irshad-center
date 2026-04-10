@@ -13,6 +13,7 @@
  * set CRON_SECRET env var and pass: Authorization: Bearer <secret>
  */
 
+import crypto from 'node:crypto'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -28,7 +29,14 @@ export async function GET() {
   const headersList = await headers()
   const authHeader = headersList.get('authorization')
 
-  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  const expected = Buffer.from(`Bearer ${cronSecret}`)
+  const received = Buffer.from(authHeader ?? '')
+  const valid = expected.length === received.length && crypto.timingSafeEqual(expected, received)
+  if (!valid) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
