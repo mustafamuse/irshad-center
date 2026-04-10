@@ -350,6 +350,7 @@ async function resolveDugsiFallbackFromCustomerEmail(
       {
         guardianPersonId: guardian.id,
         familyIds: [...uniqueFamilyIds],
+        subscriptionId: subscription.id,
       },
       'Path 4 fallback: guardian spans multiple families — using first family ID'
     )
@@ -561,6 +562,8 @@ async function patchRecoveredDugsiMetadata(
       return
     }
 
+    // Non-transient errors are also swallowed — billing data is already committed
+    // and the metadata patch is best-effort. Sentry alert fires so on-call can investigate.
     Sentry.captureException(metadataErr, {
       extra: {
         subscriptionId,
