@@ -33,6 +33,10 @@ function makeTx() {
     excuseRequest: {
       create: (...args: unknown[]) => mockExcuseCreate(...args),
       update: (...args: unknown[]) => mockExcuseUpdate(...args),
+      // approveExcuse and rejectExcuse use tx.excuseRequest.findUnique directly
+      // (narrow select — no joins). mockGetExcuseById is reused so existing test
+      // setups (mockGetExcuseById.mockResolvedValue(...)) need no changes.
+      findUnique: (...args: unknown[]) => mockGetExcuseById(...args),
     },
     teacherAttendanceRecord: {
       findUnique: (...args: unknown[]) => mockFindUniqueRecord(...args),
@@ -52,7 +56,6 @@ vi.mock('@/lib/db/queries/teacher-attendance', async (importOriginal) => {
   return {
     ...actual,
     getAttendanceRecordStatus: (...args: unknown[]) => mockGetRecordStatus(...args),
-    getExcuseRequestById: (...args: unknown[]) => mockGetExcuseById(...args),
     getExistingActiveExcuse: (...args: unknown[]) => mockGetExistingActiveExcuse(...args),
   }
 })

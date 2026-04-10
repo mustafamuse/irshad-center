@@ -5,6 +5,7 @@ import { after } from 'next/server'
 
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
+import { z } from 'zod'
 
 import {
   GEOFENCE_RADIUS_METERS,
@@ -288,7 +289,7 @@ async function fetchAttendanceHistory(
 
 const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
   .metadata({ actionName: 'getTeacherAttendanceHistoryAction' })
-  .schema(SubmitExcuseSchema.pick({ teacherId: true }))
+  .schema(z.object({ teacherId: z.string().uuid() }))
   .action(async ({ parsedInput }) => {
     return fetchAttendanceHistory(parsedInput.teacherId)
   })

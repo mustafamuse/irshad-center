@@ -15,7 +15,6 @@ import { createServiceLogger } from '@/lib/logger'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import {
   getAttendanceRecordStatus,
-  getExcuseRequestById,
   getExistingActiveExcuse,
 } from '@/lib/db/queries/teacher-attendance'
 
@@ -111,7 +110,10 @@ export async function approveExcuse(
   const { excuseRequestId, adminNote, reviewedBy } = params
 
   const doWrites = async (tx: DatabaseClient) => {
-    const excuseRequest = await getExcuseRequestById(excuseRequestId, tx)
+    const excuseRequest = await tx.excuseRequest.findUnique({
+      where: { id: excuseRequestId },
+      select: { id: true, attendanceRecordId: true, status: true },
+    })
     if (!excuseRequest) {
       throw new ActionError('Excuse request not found', ERROR_CODES.EXCUSE_REQUEST_NOT_FOUND)
     }
@@ -175,7 +177,10 @@ export async function rejectExcuse(
 
   // Wrap in transaction: prevent two concurrent admin actions both passing the PENDING check.
   const doWrites = async (tx: DatabaseClient) => {
-    const excuseRequest = await getExcuseRequestById(excuseRequestId, tx)
+    const excuseRequest = await tx.excuseRequest.findUnique({
+      where: { id: excuseRequestId },
+      select: { id: true, status: true },
+    })
     if (!excuseRequest) {
       throw new ActionError('Excuse request not found', ERROR_CODES.EXCUSE_REQUEST_NOT_FOUND)
     }

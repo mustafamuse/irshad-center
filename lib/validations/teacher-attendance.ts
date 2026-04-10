@@ -43,7 +43,7 @@ export const RemoveClosureSchema = z.object({
 
 export const UpdateAttendanceConfigSchema = z.object({
   morningAutoMarkMinutes: z.number().int().min(0).max(120),
-  afternoonAutoMarkMinutes: z.number().int().min(0).max(120),
+  afternoonAutoMarkMinutes: z.number().int().min(0).max(89),
 })
 
 export const GenerateExpectedSlotsSchema = z.object({
