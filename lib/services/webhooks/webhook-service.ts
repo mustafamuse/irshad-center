@@ -512,7 +512,7 @@ async function patchRecoveredDugsiMetadata(
   // Emit observability signals unconditionally — DB writes are already committed at this point.
   // The Stripe metadata patch below is best-effort; these signals must not depend on its success.
   Sentry.captureMessage(
-    'Dugsi subscription resolved via customer email fallback',
+    'Path 4: billing account and subscription record created via email fallback — linking profiles',
     {
       level: 'info',
       extra: {

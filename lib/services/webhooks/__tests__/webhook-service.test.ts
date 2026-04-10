@@ -369,7 +369,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     await handleSubscriptionCreated(subscription, 'DUGSI')
 
     expect(mockSentrycaptureMessage).toHaveBeenCalledWith(
-      'Dugsi subscription resolved via customer email fallback',
+      'Path 4: billing account and subscription record created via email fallback — linking profiles',
       expect.objectContaining({ level: 'info' })
     )
     expect(mockLoggerWarn).toHaveBeenCalledWith(
@@ -378,8 +378,8 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     )
   })
 
-  it('still succeeds when Stripe metadata update fails', async () => {
-    mockSubscriptionsUpdate.mockRejectedValue(new Error('Stripe API timeout'))
+  it('still succeeds and fires captureException when non-transient error occurs during metadata patch', async () => {
+    mockSubscriptionsUpdate.mockRejectedValue(new Error('unexpected failure'))
 
     const subscription = createMockSubscription({
       customer: CUSTOMER_ID,
@@ -392,6 +392,25 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     expect(mockCreateOrUpdateBillingAccount).toHaveBeenCalled()
     expect(mockLogError).toHaveBeenCalled()
     expect(mockSentrycaptureException).toHaveBeenCalledOnce()
+  })
+
+  it('still succeeds and skips captureException when transient Stripe error occurs during metadata patch', async () => {
+    const connectionError = new Stripe.errors.StripeConnectionError({
+      message: 'Connection timeout',
+      type: 'api_error',
+    })
+    mockSubscriptionsUpdate.mockRejectedValue(connectionError)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    const result = await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(result.created).toBe(true)
+    expect(mockLogError).toHaveBeenCalled()
+    expect(mockSentrycaptureException).not.toHaveBeenCalled()
   })
 
   it('still succeeds when Stripe auth error occurs during metadata patch', async () => {

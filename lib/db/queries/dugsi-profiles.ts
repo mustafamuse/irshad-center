@@ -3,7 +3,7 @@ import { EnrollmentStatus, Program } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
 
-const BILLABLE_DUGSI_STATUSES = [
+export const BILLABLE_DUGSI_STATUSES = [
   EnrollmentStatus.REGISTERED,
   EnrollmentStatus.ENROLLED,
 ]
@@ -17,7 +17,7 @@ export async function findGuardianWithBillableDugsiChildren(
   normalizedEmail: string,
   client: DatabaseClient = prisma
 ) {
-  return client.person.findFirst({
+  return client.person.findUnique({
     where: { email: normalizedEmail },
     select: {
       id: true,
@@ -80,7 +80,7 @@ export async function findBillableDugsiProfileIdsForGuardian(
   guardianPersonId: string,
   client: DatabaseClient = prisma
 ) {
-  const guardian = await client.person.findFirst({
+  const guardian = await client.person.findUnique({
     where: { id: guardianPersonId },
     select: {
       guardianRelationships: {
