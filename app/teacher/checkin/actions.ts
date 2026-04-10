@@ -239,6 +239,8 @@ export type AttendanceHistoryResult = {
   monthlyExcuseCount: number
 }
 
+// TODO(#225): DEPLOY BLOCKER — this action must not reach production until the
+// signed session token auth fix in #225 is deployed (see risk description below).
 // SECURITY NOTE (tracked in #225 — BROADER risk than submitExcuseAction):
 // teacherId is a client-supplied, unauthenticated parameter. This function has
 // NO cross-reference anchor: a teacher only needs to know or guess another
