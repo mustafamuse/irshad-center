@@ -41,6 +41,8 @@ export function ExcuseQueue({ initialRequests }: Props) {
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
+      setAdminNotes((prev) => { const n = { ...prev }; delete n[id]; return n })
+      setErrors((prev) => { const n = { ...prev }; delete n[id]; return n })
     })
   }
 
@@ -55,6 +57,8 @@ export function ExcuseQueue({ initialRequests }: Props) {
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
+      setAdminNotes((prev) => { const n = { ...prev }; delete n[id]; return n })
+      setErrors((prev) => { const n = { ...prev }; delete n[id]; return n })
     })
   }
 
