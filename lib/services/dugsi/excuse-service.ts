@@ -6,6 +6,8 @@
  * Constraint: a record can only have one PENDING or APPROVED request at a time.
  */
 
+import { Prisma } from '@prisma/client'
+
 import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
@@ -65,14 +67,34 @@ export async function submitExcuse(
     // The ownership check above validates they match, but there is no DB-level
     // CHECK constraint — a direct insert with a mismatched teacherId would silently
     // succeed. Track a future migration to add the constraint if this becomes a concern.
+    //
+    // The partial unique index on (attendanceRecordId) WHERE status IN ('PENDING','APPROVED')
+    // is the true concurrency guard — getExistingActiveExcuse is a fast-path guard only.
+    // P2002 from the index is caught OUTSIDE the transaction (project rule: never
+    // try-catch P2002 inside $transaction) and remapped to ALREADY_EXCUSED.
     return tx.excuseRequest.create({
       data: { attendanceRecordId, teacherId, reason, status: 'PENDING' },
     })
   }
 
-  const excuseRequest = isPrismaClient(client)
-    ? await client.$transaction(doWrites)
-    : await doWrites(client)
+  let excuseRequest
+  try {
+    excuseRequest = isPrismaClient(client)
+      ? await client.$transaction(doWrites)
+      : await doWrites(client)
+  } catch (error) {
+    // The partial unique index on (attendanceRecordId) WHERE status IN ('PENDING','APPROVED')
+    // catches concurrent submissions that both passed the getExistingActiveExcuse guard.
+    // PostgreSQL aborts the transaction on the constraint violation — catch it here, outside
+    // the transaction boundary, and remap to a user-facing error.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ActionError(
+        'An excuse request is already pending or approved for this record',
+        ERROR_CODES.ALREADY_EXCUSED
+      )
+    }
+    throw error
+  }
 
   logger.info(
     { event: 'EXCUSE_SUBMITTED', excuseRequestId: excuseRequest.id, resolvedTeacherId: teacherId, attendanceRecordId },

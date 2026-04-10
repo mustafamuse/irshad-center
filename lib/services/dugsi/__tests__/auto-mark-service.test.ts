@@ -73,7 +73,6 @@ const BASE_CONFIG = {
   id: 'singleton',
   morningAutoMarkMinutes: 15,
   afternoonAutoMarkMinutes: 15,
-  backfillFromDate: new Date('2026-01-17'),
   updatedAt: new Date(),
   updatedBy: null,
 }

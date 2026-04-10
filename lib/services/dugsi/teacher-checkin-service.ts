@@ -323,7 +323,7 @@ export async function deleteCheckin(
     // so count > 1 would indicate a data integrity problem.
     const revertResult = await tx.teacherAttendanceRecord.updateMany({
       where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
-      data: { status: 'ABSENT', source: 'ADMIN_OVERRIDE', checkInId: null, clockInTime: null, minutesLate: null },
+      data: { status: 'ABSENT', source: 'SYSTEM', checkInId: null, clockInTime: null, minutesLate: null },
     })
     if (revertResult.count > 1) {
       logger.warn({ teacherId, date, shift }, 'deleteCheckin: unexpectedly reverted multiple attendance records')
