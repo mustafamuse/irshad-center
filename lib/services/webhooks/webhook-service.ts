@@ -340,7 +340,8 @@ async function resolveDugsiFallbackFromCustomerEmail(
 
   const effectiveProfileIds = familyProfiles.map((p) => p.id)
   const childCount = familyProfiles.length
-  const familyId = familyProfiles[0]?.familyReferenceId ?? null
+  const familyId =
+    familyProfiles.find((p) => p.familyReferenceId)?.familyReferenceId ?? null
 
   const uniqueFamilyIds = new Set(
     familyProfiles.map((p) => p.familyReferenceId).filter(Boolean)
