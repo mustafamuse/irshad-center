@@ -293,6 +293,11 @@ const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
   .metadata({ actionName: 'getTeacherAttendanceHistoryAction' })
   .schema(z.object({ teacherId: z.string().uuid() }))
   .action(async ({ parsedInput }) => {
+    // Runtime deploy guard — see TODO(#225) above.
+    // Remove this check only when PHASE2_AUTH_ENABLED=true is set in production env.
+    if (!process.env.PHASE2_AUTH_ENABLED) {
+      throw new ActionError('Phase 2 auth not ready — see #225', ERROR_CODES.UNAUTHORIZED, undefined, 503)
+    }
     return fetchAttendanceHistory(parsedInput.teacherId)
   })
 
@@ -307,6 +312,11 @@ const _submitExcuseAction = rateLimitedActionClient
   .schema(SubmitExcuseSchema)
   .action(async ({ parsedInput }) => {
     const { attendanceRecordId, teacherId, reason } = parsedInput
+
+    // Runtime deploy guard — remove only when PHASE2_AUTH_ENABLED=true is set in prod.
+    if (!process.env.PHASE2_AUTH_ENABLED) {
+      throw new ActionError('Phase 2 auth not ready — see #225', ERROR_CODES.UNAUTHORIZED, undefined, 503)
+    }
 
     // SECURITY — ownership boundary (BLOCKING pre-production: see #225):
     // The teacher app has no session; teachers identify only by UI selection.

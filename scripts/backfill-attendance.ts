@@ -235,6 +235,10 @@ async function main() {
     checkInId: string | null; minutesLate: number | null
   }
 
+  // Expected row count: ~10 teachers × 2 shifts × ~20 weekend dates ≈ 400 rows.
+  // Per-row updateMany loop issues one round-trip each; 30 s timeout is conservative
+  // but avoids false timeouts on a cold or loaded DB connection.
+  console.time('transaction')
   const { dbCreated, dbUnchanged } = await prisma.$transaction(async (tx) => {
     const toCreate: RowData[] = []
 
@@ -262,7 +266,8 @@ async function main() {
       : 0
 
     return { dbCreated: created, dbUnchanged: toCreate.length - created }
-  })
+  }, { timeout: 30_000 })
+  console.timeEnd('transaction')
 
   console.log(`Done. ${dbCreated} created, ${dbUpdated} updated, ${dbUnchanged} unchanged (non-EXPECTED — skipped).`)
 }
