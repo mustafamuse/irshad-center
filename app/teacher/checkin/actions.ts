@@ -20,7 +20,7 @@ import {
 } from '@/lib/db/queries/teacher-checkin'
 import {
   getTeacherAttendanceSummary,
-  getMonthlyExcuseCount,
+  getMonthlyExcusedCount,
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -271,7 +271,7 @@ async function fetchAttendanceHistory(
 
   const [records, monthlyExcuseCount] = await Promise.all([
     getTeacherAttendanceSummary(teacherId, from, todayAnchor),
-    getMonthlyExcuseCount(teacherId, year, month),
+    getMonthlyExcusedCount(teacherId, year, month),
   ])
 
   return {

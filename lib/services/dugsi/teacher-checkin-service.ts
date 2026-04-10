@@ -155,6 +155,16 @@ export async function clockIn(
         )
       }
     } else {
+      // No pre-existing record: guard against a closed date where generateExpectedSlots
+      // was never run (so there's no CLOSED record to trigger the check above).
+      const closure = await tx.schoolClosure.findUnique({ where: { date: dateOnly } })
+      if (closure) {
+        throw new ValidationError(
+          'School is closed today — please contact an admin to record your attendance',
+          CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+          { teacherId, shift }
+        )
+      }
       await tx.teacherAttendanceRecord.create({
         data: { teacherId, date: dateOnly, shift, ...attendanceData },
       })

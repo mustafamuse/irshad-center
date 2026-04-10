@@ -150,19 +150,17 @@ export async function autoMarkLateForShift(
 /**
  * Convenience: run both shifts for a given date. Used by the cron route.
  *
- * Both shifts run inside a single outer $transaction so a concurrent
- * `markDateClosed` call cannot sneak in between them and produce a
- * split state (MORNING=LATE, AFTERNOON=CLOSED). Each `autoMarkLateForShift`
- * call detects `isPrismaClient(tx) === false` and executes its `doWrites`
- * directly on the shared tx rather than opening a nested transaction.
+ * Each shift runs in its own independent $transaction. This prevents a failure in
+ * AFTERNOON from rolling back MORNING marks and producing a misleading `marked=0`
+ * in the log. The two shifts write to disjoint rows (different `shift` value),
+ * so there is no shared state to protect with a common transaction. Each shift
+ * fetches its own teacher roster inside its own transaction; a teacher deactivated
+ * between the two calls is a one-run edge case that self-corrects on the next run.
  */
 export async function autoMarkBothShifts(
   date: string,
   client: DatabaseClient = prisma
 ): Promise<{ morning: AutoMarkResult; afternoon: AutoMarkResult }> {
-  // getAttendanceConfig throws if given a transaction client (see its isPrismaClient guard).
-  // Fail loudly here so the error fires at the correct callsite rather than deep inside
-  // the function with a message that mentions getAttendanceConfig, not autoMarkBothShifts.
   if (!isPrismaClient(client)) {
     throw new Error(
       'autoMarkBothShifts: must be called with the root prisma client, not a transaction — ' +
@@ -170,24 +168,14 @@ export async function autoMarkBothShifts(
     )
   }
 
-  // Fetch config once outside the transaction — intentional: acceptable one-invocation
-  // staleness. If an admin updates morningAutoMarkMinutes/afternoonAutoMarkMinutes at
-  // exactly the same second the cron fires, this run uses the previous threshold.
-  // The window is bounded to a single invocation; the next cron run reads the new value.
-  // Moving the fetch inside doWrites would close the window at the cost of a per-run
-  // DB read, which is not justified given the low probability of the race.
+  // Fetch config once — acceptable one-invocation staleness (same rationale as before).
   const config = await getAttendanceConfig(client)
 
-  const doWrites = async (tx: DatabaseClient) => {
-    // Fetch the teacher roster once inside the transaction — atomicity guarantee:
-    // a teacher deactivated between this read and the updateMany won't get a slot.
-    const activeTeachers = await getActiveDugsiTeacherShifts(tx)
-    const morning = await autoMarkLateForShift(date, 'MORNING', tx, config, activeTeachers)
-    const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', tx, config, activeTeachers)
-    return { morning, afternoon }
-  }
+  // Run independently: each shift opens its own $transaction via autoMarkLateForShift.
+  const [morning, afternoon] = await Promise.all([
+    autoMarkLateForShift(date, 'MORNING', client, config),
+    autoMarkLateForShift(date, 'AFTERNOON', client, config),
+  ])
 
-  return isPrismaClient(client)
-    ? client.$transaction(doWrites)
-    : doWrites(client)
+  return { morning, afternoon }
 }

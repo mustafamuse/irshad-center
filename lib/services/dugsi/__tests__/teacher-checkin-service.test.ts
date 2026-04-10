@@ -23,6 +23,7 @@ const {
   mockFindUniqueAttendance,
   mockUpdateManyAttendance,
   mockCreateAttendance,
+  mockFindUniqueClosure,
 } = vi.hoisted(() => ({
   mockIsEnrolled: vi.fn(),
   mockGetShifts: vi.fn(),
@@ -35,6 +36,7 @@ const {
   mockFindUniqueAttendance: vi.fn(),
   mockUpdateManyAttendance: vi.fn(),
   mockCreateAttendance: vi.fn(),
+  mockFindUniqueClosure: vi.fn(),
 }))
 
 // Build the tx object that is passed into every $transaction callback.
@@ -52,6 +54,11 @@ function makeTx() {
       findUnique: (...args: unknown[]) => mockFindUniqueAttendance(...args),
       updateMany: (...args: unknown[]) => mockUpdateManyAttendance(...args),
       create: (...args: unknown[]) => mockCreateAttendance(...args),
+    },
+    // Required for the else branch (no pre-existing record): clockIn checks for
+    // a school closure before creating a new attendance record.
+    schoolClosure: {
+      findUnique: (...args: unknown[]) => mockFindUniqueClosure(...args),
     },
   }
 }
@@ -171,6 +178,8 @@ describe('clockIn', () => {
     mockFindUniqueAttendance.mockResolvedValue(null)
     mockCreateAttendance.mockResolvedValue({})
     mockUpdateManyAttendance.mockResolvedValue({ count: 1 })
+    // No school closure by default (happy path); override in closure-specific tests.
+    mockFindUniqueClosure.mockResolvedValue(null)
     // $transaction calls the doWrites callback with a tx object
     mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
       fn(makeTx())

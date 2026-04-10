@@ -189,8 +189,12 @@ export async function getAttendanceGrid(
   })
 }
 
-// Monthly excuse count for a teacher (shown to teacher, not enforced in code)
-export async function getMonthlyExcuseCount(
+// Counts attendance records with status=EXCUSED for a teacher in a given month.
+// NOTE: this counts any EXCUSED record — including admin-overridden ones — not just
+// excuse requests. Renamed from getMonthlyExcuseCount to clarify what's measured.
+// If this ever drives an enforcement rule (max N per month), switch to counting
+// ExcuseRequest rows with status=APPROVED instead.
+export async function getMonthlyExcusedCount(
   teacherId: string,
   year: number,
   month: number, // 1-based
