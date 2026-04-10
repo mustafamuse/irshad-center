@@ -24,7 +24,6 @@ import {
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
-import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { submitExcuse } from '@/lib/services/dugsi/excuse-service'
@@ -248,9 +247,8 @@ export async function getTeacherAttendanceHistory(
   const from = new Date(today)
   from.setDate(from.getDate() - weeksBack * 7)
 
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
+  const year = today.getFullYear()
+  const month = today.getMonth() + 1
 
   const [records, monthlyExcuseCount] = await Promise.all([
     getTeacherAttendanceSummary(teacherId, from, today),
@@ -276,33 +274,21 @@ const _submitExcuseAction = rateLimitedActionClient
   .metadata({ actionName: 'submitExcuseAction' })
   .schema(SubmitExcuseSchema)
   .action(async ({ parsedInput }) => {
-    const { attendanceRecordId, teacherId, reason } = parsedInput
+    const { attendanceRecordId, reason } = parsedInput
 
-    // Per-teacherId rate limit (on top of the IP limit from rateLimitedActionClient).
-    // A teacher can submit at most 3 excuse requests per 15-minute window per teacherId,
-    // making bulk enumeration of other teachers' records impractical.
-    // Note: teacherId is still client-supplied so this isn't a hard auth boundary —
-    // full protection requires session tokens (tracked in issue #225).
-    const teacherRateLimit = await checkRateLimit(`submitExcuse:teacher:${teacherId}`, 3)
-    if (!teacherRateLimit.success) {
-      throw new ActionError(
-        'Too many excuse requests. Please try again later.',
-        ERROR_CODES.RATE_LIMIT_EXCEEDED,
-        undefined,
-        429
-      )
-    }
-
-    // Ownership check: prevents accidental client bugs (e.g. mismatched IDs).
+    // Resolve teacher identity server-side from the record — `teacherId` is NOT accepted
+    // from the client. Previously both sides of the ownership check were client-supplied,
+    // making it trivially bypassable. Now the attacker must know a valid attendanceRecordId
+    // UUID (non-predictable) to submit an excuse for any record.
+    // Residual risk: UUID enumeration from network traffic. Tracked in issue #225 for a
+    // session-token fix. The IP-based rate limit from rateLimitedActionClient still applies.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
     }
-    if (record.teacherId !== teacherId) {
-      throw new ActionError('You can only submit excuses for your own attendance records', ERROR_CODES.FORBIDDEN, undefined, 403)
-    }
+    const resolvedTeacherId = record.teacherId
 
-    const excuse = await submitExcuse({ attendanceRecordId, teacherId, reason })
+    const excuse = await submitExcuse({ attendanceRecordId, teacherId: resolvedTeacherId, reason })
 
     after(() => revalidatePath('/teacher/checkin'))
     return { excuseRequestId: excuse.id }

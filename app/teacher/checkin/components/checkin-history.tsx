@@ -188,10 +188,9 @@ export function CheckinHistory({ teacherId }: Props) {
                         </button>
                       )}
 
-                      {isExcuseOpen && teacherId && (
+                      {isExcuseOpen && (
                         <ExcuseForm
                           attendanceRecordId={item.id}
-                          teacherId={teacherId}
                           onSuccess={handleExcuseSuccess}
                         />
                       )}

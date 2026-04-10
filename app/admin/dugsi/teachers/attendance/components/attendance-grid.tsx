@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -28,27 +28,31 @@ export function AttendanceGrid({ records, weekendDates }: Props) {
   } | null>(null)
 
   // Build lookup: "teacherId|date|shift" → record
-  const recordMap = new Map<CellKey, AttendanceRecordWithRelations>()
-  const teacherMap = new Map<string, { id: string; name: string; shifts: Shift[] }>()
+  const { recordMap, teachers } = useMemo(() => {
+    const recordMap = new Map<CellKey, AttendanceRecordWithRelations>()
+    const teacherMap = new Map<string, { id: string; name: string; shifts: Shift[] }>()
 
-  for (const r of records) {
-    const dateStr = formatInTimeZone(r.date, 'UTC', 'yyyy-MM-dd')
-    const key: CellKey = `${r.teacherId}|${dateStr}|${r.shift}`
-    recordMap.set(key, r)
-    if (!teacherMap.has(r.teacherId)) {
-      teacherMap.set(r.teacherId, {
-        id: r.teacherId,
-        name: r.teacher.person.name,
-        shifts: [],
-      })
+    for (const r of records) {
+      const dateStr = formatInTimeZone(r.date, 'UTC', 'yyyy-MM-dd')
+      const key: CellKey = `${r.teacherId}|${dateStr}|${r.shift}`
+      recordMap.set(key, r)
+      if (!teacherMap.has(r.teacherId)) {
+        teacherMap.set(r.teacherId, {
+          id: r.teacherId,
+          name: r.teacher.person.name,
+          shifts: [],
+        })
+      }
+      const t = teacherMap.get(r.teacherId)!
+      if (!t.shifts.includes(r.shift)) t.shifts.push(r.shift)
     }
-    const t = teacherMap.get(r.teacherId)!
-    if (!t.shifts.includes(r.shift)) t.shifts.push(r.shift)
-  }
 
-  const teachers = Array.from(teacherMap.values()).sort((a, b) =>
-    a.name.localeCompare(b.name)
-  )
+    const teachers = Array.from(teacherMap.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
+
+    return { recordMap, teachers }
+  }, [records])
 
   function formatDateHeader(dateStr: string) {
     const d = new Date(`${dateStr}T12:00:00`)

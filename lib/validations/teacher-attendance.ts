@@ -37,10 +37,10 @@ export const GenerateExpectedSlotsSchema = z.object({
   date: dateString,
 })
 
-// teacherId is required because the teacher app has no auth — teachers identify via dropdown
+// teacherId intentionally omitted — resolved server-side from the attendanceRecordId
+// so the server never trusts client-supplied identity
 export const SubmitExcuseSchema = z.object({
   attendanceRecordId: z.string().uuid(),
-  teacherId: z.string().uuid(),
   reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000),
 })
 
