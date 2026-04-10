@@ -296,7 +296,7 @@ const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
     // Runtime deploy guard — see TODO(#225) above.
     // Remove this check only when PHASE2_AUTH_ENABLED=true is set in production env.
     if (!process.env.PHASE2_AUTH_ENABLED) {
-      throw new ActionError('Phase 2 auth not ready — see #225', ERROR_CODES.UNAUTHORIZED, undefined, 503)
+      throw new ActionError('This feature is not yet available', ERROR_CODES.UNAUTHORIZED, undefined, 503)
     }
     return fetchAttendanceHistory(parsedInput.teacherId)
   })
@@ -315,7 +315,7 @@ const _submitExcuseAction = rateLimitedActionClient
 
     // Runtime deploy guard — remove only when PHASE2_AUTH_ENABLED=true is set in prod.
     if (!process.env.PHASE2_AUTH_ENABLED) {
-      throw new ActionError('Phase 2 auth not ready — see #225', ERROR_CODES.UNAUTHORIZED, undefined, 503)
+      throw new ActionError('This feature is not yet available', ERROR_CODES.UNAUTHORIZED, undefined, 503)
     }
 
     // SECURITY — ownership boundary (BLOCKING pre-production: see #225):

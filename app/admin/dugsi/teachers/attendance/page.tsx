@@ -39,7 +39,11 @@ export default async function TeacherAttendancePage() {
   // Near UTC midnight, raw Date diverges from SCHOOL_TIMEZONE by a calendar day, which
   // would produce column headers outside the fetched record window.
   const from = new Date(`${weekendDates[weekendDates.length - 1]}T00:00:00Z`)
-  const to = new Date(`${weekendDates[0]}T23:59:59Z`)
+  // Exclusive upper bound: start of the day *after* the last weekend date.
+  // Using `lt` (not `lte`) in queries avoids the implicit DATE→TIMESTAMP cast ambiguity
+  // of T23:59:59Z and is consistent with the `from` boundary style.
+  const to = new Date(`${weekendDates[0]}T00:00:00Z`)
+  to.setUTCDate(to.getUTCDate() + 1)
   const [records, closures] = await Promise.all([
     getAttendanceGrid(from, to),
     listSchoolClosures(from, to),

@@ -18,7 +18,9 @@ export function AttendanceStatusBadge({ status, source, minutesLate, className }
       ? 'Late (auto)'
       : status === 'LATE' && minutesLate
         ? `Late +${minutesLate}m`
-        : config.label
+        : status === 'EXCUSED' && source === 'EXCUSE_APPROVED'
+          ? 'Excused (approved)'
+          : config.label
 
   return (
     <Badge

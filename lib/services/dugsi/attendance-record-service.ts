@@ -308,10 +308,15 @@ export async function bulkTransitionStatus(
 
 /**
  * Reverts all CLOSED records on a date back to EXPECTED.
- * This is the only legitimate CLOSED → EXPECTED path — the caller (removeClosure)
- * atomically deletes the SchoolClosure row in the same transaction.
- * Kept as a named function rather than a `skipValidation` escape hatch so that
- * this intent is self-documenting and impossible to misuse from other call sites.
+ *
+ * @internal — only `removeClosure` in `school-closure-service.ts` should call this.
+ * Calling it from any other site risks leaving the `SchoolClosure` row in place while
+ * attendance records show EXPECTED, producing an inconsistent state (grid shows "open"
+ * but the closure row still exists). `removeClosure` atomically deletes the SchoolClosure
+ * row inside the same `$transaction` before calling this function.
+ *
+ * Kept exported (rather than module-private) only because TypeScript has no
+ * package-private visibility — the JSDoc @internal is the enforcement mechanism.
  */
 export async function bulkReopenDate(
   params: { date: Date; source: AttendanceSource; changedBy?: string },

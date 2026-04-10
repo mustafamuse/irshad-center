@@ -112,10 +112,11 @@ enum TeacherAttendanceStatus {
 }
 
 enum AttendanceSource {
-  SELF_CHECKIN // teacher GPS clock-in
-  ADMIN_OVERRIDE // admin manual action
-  AUTO_MARKED // cron job
-  SYSTEM // expectation generation, closure propagation, backfill
+  SELF_CHECKIN    // teacher GPS clock-in
+  ADMIN_OVERRIDE  // admin manual action
+  AUTO_MARKED     // cron job
+  SYSTEM          // expectation generation, closure propagation, backfill
+  EXCUSE_APPROVED // excuse approved by admin → record flipped to EXCUSED
 }
 
 enum ExcuseRequestStatus {

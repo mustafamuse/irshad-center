@@ -16,6 +16,7 @@ const {
   mockCreateCheckIn,
   mockCreateAttendance,
   mockUpdateManyAttendanceInner,
+  mockExcuseUpdateMany,
   mockFindUniqueClosure,
   mockTransaction,
 } = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ const {
   mockCreateCheckIn: vi.fn(),
   mockCreateAttendance: vi.fn(),
   mockUpdateManyAttendanceInner: vi.fn(),
+  mockExcuseUpdateMany: vi.fn(),
   mockFindUniqueClosure: vi.fn(),
   mockTransaction: vi.fn(),
 }))
@@ -40,6 +42,11 @@ function makeTx() {
       findUnique: (...args: unknown[]) => mockFindUniqueAttendance(...args),
       updateMany: (...args: unknown[]) => mockUpdateManyAttendanceInner(...args),
       create: (...args: unknown[]) => mockCreateAttendance(...args),
+    },
+    // Required for EXCUSED → LATE/ABSENT: transitionStatus auto-rejects APPROVED excuses
+    // when reverting from EXCUSED. Missing this mock causes a TypeError on future tests.
+    excuseRequest: {
+      updateMany: (...args: unknown[]) => mockExcuseUpdateMany(...args),
     },
   }
 }
@@ -122,6 +129,35 @@ describe('transitionStatus', () => {
     await expect(
       transitionStatus({ recordId: 'rec-1', toStatus: 'PRESENT', source: 'ADMIN_OVERRIDE' })
     ).rejects.toMatchObject({ code: ERROR_CODES.CONCURRENT_MODIFICATION })
+  })
+
+  it('auto-rejects APPROVED excuses when reverting EXCUSED → LATE', async () => {
+    // transitionStatus calls tx.excuseRequest.updateMany to close the orphaned APPROVED
+    // excuse before flipping the status — without this the teacher hits a dead-end
+    // (can't submit a new excuse, no UI to reject an already-approved one).
+    mockGetRecordStatus.mockResolvedValue({ id: 'rec-1', teacherId: 't-1', status: 'EXCUSED' })
+    mockUpdateManyAttendanceInner.mockResolvedValue({ count: 1 })
+    mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
+
+    await transitionStatus({
+      recordId: 'rec-1',
+      toStatus: 'LATE',
+      source: 'ADMIN_OVERRIDE',
+      changedBy: 'admin-user',
+    })
+
+    expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          attendanceRecordId: 'rec-1',
+          status: 'APPROVED',
+        }),
+        data: expect.objectContaining({ status: 'REJECTED' }),
+      })
+    )
+    expect(mockUpdateManyAttendanceInner).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ status: 'EXCUSED' }) })
+    )
   })
 })
 

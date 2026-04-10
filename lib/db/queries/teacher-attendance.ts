@@ -183,7 +183,7 @@ export async function getAttendanceGrid(
   client: DatabaseClient = prisma
 ): Promise<AttendanceRecordGridWithRelations[]> {
   return client.teacherAttendanceRecord.findMany({
-    where: { date: { gte: fromDate, lte: toDate } },
+    where: { date: { gte: fromDate, lt: toDate } },
     include: attendanceRecordGridInclude,
     orderBy: [{ date: 'desc' }, { shift: 'asc' }, { teacher: { person: { name: 'asc' } } }],
   })
@@ -231,7 +231,7 @@ export async function listSchoolClosures(
   const defaultFrom = new Date(Date.UTC(new Date().getUTCFullYear() - 2, 0, 1))
   return client.schoolClosure.findMany({
     where: from || to
-      ? { date: { ...(from ? { gte: from } : { gte: defaultFrom }), ...(to ? { lte: to } : {}) } }
+      ? { date: { ...(from ? { gte: from } : { gte: defaultFrom }), ...(to ? { lt: to } : {}) } }
       : { date: { gte: defaultFrom } },
     orderBy: { date: 'desc' },
   })
