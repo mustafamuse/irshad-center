@@ -246,11 +246,12 @@ export type AttendanceHistoryResult = {
 // excuse IDs. submitExcuseAction at least requires a self-consistent pair of
 // (attendanceRecordId, teacherId), raising the bar slightly; this endpoint has
 // no such requirement and is a realistic information-disclosure risk.
+// Stop-gap: wrapped in rateLimitedActionClient to prevent tight-loop scraping.
 // Full fix in #225:
 //   - Replace teacherId param with a signed session token
 //   - Resolve the caller's identity server-side; discard the client-supplied value
 // Do NOT remove this comment block until #225 is closed.
-export async function getTeacherAttendanceHistory(
+async function fetchAttendanceHistory(
   teacherId: string,
   weeksBack = 8
 ): Promise<AttendanceHistoryResult> {
@@ -283,6 +284,19 @@ export async function getTeacherAttendanceHistory(
     })),
     monthlyExcuseCount,
   }
+}
+
+const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
+  .metadata({ actionName: 'getTeacherAttendanceHistoryAction' })
+  .schema(SubmitExcuseSchema.pick({ teacherId: true }))
+  .action(async ({ parsedInput }) => {
+    return fetchAttendanceHistory(parsedInput.teacherId)
+  })
+
+export async function getTeacherAttendanceHistory(
+  ...args: Parameters<typeof _getTeacherAttendanceHistoryAction>
+) {
+  return _getTeacherAttendanceHistoryAction(...args)
 }
 
 const _submitExcuseAction = rateLimitedActionClient

@@ -131,8 +131,13 @@ const _removeClosureAction = adminActionClient
   .schema(RemoveClosureSchema)
   .action(async ({ parsedInput }) => {
     const dateObj = new Date(parsedInput.date)
-    const result = await removeClosure({ date: dateObj })
-
+    let result
+    try {
+      result = await removeClosure({ date: dateObj })
+    } catch (error) {
+      await logError(logger, error, 'removeClosure', { date: parsedInput.date })
+      throw error
+    }
     after(revalidateAll)
     return { reopenedCount: result.reopenedCount }
   })

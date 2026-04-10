@@ -51,10 +51,13 @@ export function CheckinHistory({ teacherId }: Props) {
   const fetchHistory = useCallback((id: string) => {
     startTransition(async () => {
       try {
-        const result = await getTeacherAttendanceHistory(id)
+        const result = await getTeacherAttendanceHistory({ teacherId: id })
         if (currentTeacherRef.current !== id) return
-        setHistory(result)
-        setError(null)
+        if (result?.serverError) throw new Error(result.serverError)
+        if (result?.data) {
+          setHistory(result.data)
+          setError(null)
+        }
       } catch (err) {
         if (currentTeacherRef.current !== id) return
         setError(err instanceof Error ? err.message : 'Failed to load history')

@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react'
 
+import { useRouter } from 'next/navigation'
+
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 
 import { Button } from '@/components/ui/button'
@@ -39,6 +41,7 @@ export function StatusOverrideDialog({
   shift,
   currentStatus,
 }: Props) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [toStatus, setToStatus] = useState<TeacherAttendanceStatus | null>(null)
   const [notes, setNotes] = useState('')
@@ -63,6 +66,10 @@ export function StatusOverrideDialog({
       onOpenChange(false)
       setToStatus(null)
       setNotes('')
+      // after(revalidateAll) defers the cache invalidation to after the HTTP response,
+      // so the Server Component grid won't re-render automatically. router.refresh()
+      // triggers a fresh fetch of the current route's Server Component data.
+      router.refresh()
     })
   }
 
