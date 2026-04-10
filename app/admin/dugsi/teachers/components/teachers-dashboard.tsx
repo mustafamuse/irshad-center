@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import { TeacherWithDetails } from '../actions'
 import { CheckinOverview } from './checkin-overview'
 import { CreateTeacherDialog } from './create-teacher-dialog'
+import { ExcuseQueue } from './excuse-queue'
 import { LateReport } from './late-report'
 import { TeacherList } from './teacher-list'
 
@@ -47,6 +48,7 @@ export function TeachersDashboard({ teachers }: Props) {
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
           <TabsTrigger value="checkins">Check-ins</TabsTrigger>
           <TabsTrigger value="late-report">Late Report</TabsTrigger>
+          <TabsTrigger value="excuses">Excuses</TabsTrigger>
         </TabsList>
 
         <TabsContent
@@ -62,6 +64,10 @@ export function TeachersDashboard({ teachers }: Props) {
 
         <TabsContent value="late-report">
           <LateReport />
+        </TabsContent>
+
+        <TabsContent value="excuses">
+          <ExcuseQueue />
         </TabsContent>
       </Tabs>
     </>

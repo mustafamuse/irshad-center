@@ -20,10 +20,11 @@ import {
   getCheckinById,
   isTeacherEnrolledInDugsi,
   getTeacherShifts,
+  getTeacherCheckin,
   teacherCheckinInclude,
   TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
-import { DatabaseClient } from '@/lib/db/types'
+import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
 import type {
@@ -88,12 +89,21 @@ export async function clockIn(
     )
   }
 
-  const { isLate } = evaluateCheckIn({ clockInTimeUtc: now, shift })
+  const { isLate, minutesLate } = evaluateCheckIn({ clockInTimeUtc: now, shift })
 
-  let checkIn: TeacherCheckinWithRelations
+  // Pre-validate duplicate before opening the transaction (project rule: check before write)
+  const existingCheckin = await getTeacherCheckin(teacherId, dateOnly, shift, client)
+  if (existingCheckin) {
+    throw new ValidationError(
+      'Teacher has already checked in for this shift today',
+      CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+      { teacherId, shift, date: dateOnly.toISOString() }
+    )
+  }
 
-  try {
-    checkIn = await client.dugsiTeacherCheckIn.create({
+  // Atomically write both the fact-log row and the attendance record
+  const doWrites = async (tx: DatabaseClient) => {
+    const checkInRecord = await tx.dugsiTeacherCheckIn.create({
       data: {
         teacherId,
         date: dateOnly,
@@ -106,19 +116,35 @@ export async function clockIn(
       },
       include: teacherCheckinInclude,
     })
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      throw new ValidationError(
-        'Teacher has already checked in for this shift today',
-        CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
-        { teacherId, shift, date: dateOnly.toISOString() }
-      )
-    }
-    throw error
+
+    await tx.teacherAttendanceRecord.upsert({
+      where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
+      create: {
+        teacherId,
+        date: dateOnly,
+        shift,
+        status: isLate ? 'LATE' : 'PRESENT',
+        source: 'SELF_CHECKIN',
+        checkInId: checkInRecord.id,
+        clockInTime: now,
+        minutesLate: isLate ? minutesLate : null,
+      },
+      update: {
+        status: isLate ? 'LATE' : 'PRESENT',
+        source: 'SELF_CHECKIN',
+        checkInId: checkInRecord.id,
+        clockInTime: now,
+        minutesLate: isLate ? minutesLate : null,
+      },
+    })
+
+    return checkInRecord
   }
+
+  let checkIn: TeacherCheckinWithRelations
+  checkIn = isPrismaClient(client)
+    ? await client.$transaction(doWrites)
+    : await doWrites(client)
 
   logger.info(
     {

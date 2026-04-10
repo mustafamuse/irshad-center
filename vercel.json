@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/auto-mark",
+      "schedule": "*/15 * * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/api/webhook",

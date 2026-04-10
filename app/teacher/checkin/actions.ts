@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 
-import { Shift } from '@prisma/client'
+import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import {
@@ -17,16 +17,22 @@ import {
   getDugsiTeachersForDropdown,
   getTeacherCheckin,
 } from '@/lib/db/queries/teacher-checkin'
+import {
+  getTeacherAttendanceSummary,
+  getMonthlyExcuseCount,
+} from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
+import { submitExcuse } from '@/lib/services/dugsi/excuse-service'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 import { ValidationError } from '@/lib/services/validation-service'
 import {
   ClockInSchema,
   ClockOutSchema,
 } from '@/lib/validations/teacher-checkin'
+import { SubmitExcuseSchema } from '@/lib/validations/teacher-attendance'
 
 const logger = createServiceLogger('teacher-checkin-actions')
 
@@ -211,4 +217,73 @@ export async function getTeacherCheckinHistory(
     })),
     total: result.total,
   }
+}
+
+// ============================================================================
+// PHASE 2: ATTENDANCE STATUS HISTORY + EXCUSE SUBMISSION
+// ============================================================================
+
+export type AttendanceHistoryItem = {
+  id: string
+  date: string
+  shift: Shift
+  status: TeacherAttendanceStatus
+  minutesLate: number | null
+  clockInTime: Date | null
+  pendingExcuseId: string | null // non-null if there's a PENDING excuse request
+}
+
+export type AttendanceHistoryResult = {
+  records: AttendanceHistoryItem[]
+  monthlyExcuseCount: number
+}
+
+export async function getTeacherAttendanceHistory(
+  teacherId: string,
+  weeksBack = 8
+): Promise<AttendanceHistoryResult> {
+  const today = new Date()
+  const from = new Date(today)
+  from.setDate(from.getDate() - weeksBack * 7)
+
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 1
+
+  const [records, monthlyExcuseCount] = await Promise.all([
+    getTeacherAttendanceSummary(teacherId, from, today),
+    getMonthlyExcuseCount(teacherId, year, month),
+  ])
+
+  return {
+    records: records.map((r) => ({
+      id: r.id,
+      date: formatInTimeZone(r.date, 'UTC', 'yyyy-MM-dd'),
+      shift: r.shift,
+      status: r.status,
+      minutesLate: r.minutesLate,
+      clockInTime: r.clockInTime,
+      pendingExcuseId:
+        r.excuses.find((e) => e.status === 'PENDING')?.id ?? null,
+    })),
+    monthlyExcuseCount,
+  }
+}
+
+const _submitExcuseAction = rateLimitedActionClient
+  .metadata({ actionName: 'submitExcuseAction' })
+  .schema(SubmitExcuseSchema)
+  .action(async ({ parsedInput }) => {
+    const { attendanceRecordId, teacherId, reason } = parsedInput
+
+    const excuse = await submitExcuse({ attendanceRecordId, teacherId, reason })
+
+    after(() => revalidatePath('/teacher/checkin'))
+    return { excuseRequestId: excuse.id }
+  })
+
+export async function submitExcuseAction(
+  ...args: Parameters<typeof _submitExcuseAction>
+) {
+  return _submitExcuseAction(...args)
 }
