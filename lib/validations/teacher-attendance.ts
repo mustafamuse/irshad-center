@@ -43,7 +43,7 @@ export const RemoveClosureSchema = z.object({
 
 export const UpdateAttendanceConfigSchema = z.object({
   morningAutoMarkMinutes: z.number().int().min(0).max(120),
-  afternoonAutoMarkMinutes: z.number().int().min(0).max(89),
+  afternoonAutoMarkMinutes: z.number().int().min(0).max(89), // 1:30 PM + 89 min = 3:00 PM CST ≤ 21:00 UTC (cron time)
 })
 
 export const GenerateExpectedSlotsSchema = z.object({

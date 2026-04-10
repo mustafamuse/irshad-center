@@ -65,7 +65,9 @@ export async function submitExcuse(
     // to support fast lookups by teacher without joining through the record.
     // The ownership check above validates they match, but there is no DB-level
     // CHECK constraint — a direct insert with a mismatched teacherId would silently
-    // succeed. Track a future migration to add the constraint if this becomes a concern.
+    // succeed.
+    // TODO: add a deferred trigger or application-level migration to enforce
+    // ExcuseRequest.teacherId = TeacherAttendanceRecord.teacherId at the DB level.
     //
     // The partial unique index on (attendanceRecordId) WHERE status IN ('PENDING','APPROVED')
     // is the true concurrency guard — getExistingActiveExcuse is a fast-path guard only.

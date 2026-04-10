@@ -43,7 +43,10 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
   }
 
   return (
-    <div className="mt-2 space-y-2 rounded-md border bg-white p-3">
+    <form
+      onSubmit={(e) => { e.preventDefault(); handleSubmit() }}
+      className="mt-2 space-y-2 rounded-md border bg-white p-3"
+    >
       <p className="text-xs font-medium text-muted-foreground">Request excuse</p>
 
       <Textarea
@@ -62,6 +65,7 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
         </span>
         <div className="flex gap-2">
           <Button
+            type="button"
             size="sm"
             variant="ghost"
             onClick={onCancel}
@@ -70,9 +74,9 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
             Cancel
           </Button>
           <Button
+            type="submit"
             size="sm"
             disabled={!isValid || isPending}
-            onClick={handleSubmit}
           >
             {isPending ? 'Submitting...' : 'Submit'}
           </Button>
@@ -80,6 +84,6 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}
-    </div>
+    </form>
   )
 }
