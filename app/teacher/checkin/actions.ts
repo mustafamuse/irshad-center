@@ -20,7 +20,7 @@ import {
 import {
   getTeacherAttendanceSummary,
   getMonthlyExcuseCount,
-  getAttendanceRecordById,
+  getAttendanceRecordStatus,
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -286,10 +286,11 @@ const _submitExcuseAction = rateLimitedActionClient
     // self-consistency of the two supplied values — it does NOT prove the requester
     // IS that teacher. Both values could be harvested from another teacher's page.
     // Full fix (tracked in #225):
-    //   - Sign (attendanceRecordId, teacherId, exp) with EXCUSE_TOKEN_SECRET on page render
+    //   - Sign (attendanceRecordId, teacherId, action, exp) with EXCUSE_TOKEN_SECRET on page render
+    //     (include the action type so the token can't be replayed against a different endpoint)
     //   - 30-min TTL; add token field to SubmitExcuseSchema; verify before DB lookup
     // Do NOT remove this comment block until #225 is closed.
-    const record = await getAttendanceRecordById(attendanceRecordId)
+    const record = await getAttendanceRecordStatus(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
     }

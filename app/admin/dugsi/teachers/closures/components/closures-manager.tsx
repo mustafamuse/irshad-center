@@ -32,7 +32,8 @@ interface Props {
 }
 
 export function ClosuresManager({ initialClosures }: Props) {
-  const [isPending, startTransition] = useTransition()
+  const [isAddPending, startAddTransition] = useTransition()
+  const [isRemovePending, startRemoveTransition] = useTransition()
   const [closures, setClosures] = useState<Closure[]>(initialClosures)
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
@@ -42,7 +43,7 @@ export function ClosuresManager({ initialClosures }: Props) {
   function handleAdd() {
     if (!date || !reason.trim()) return
     setError(null)
-    startTransition(async () => {
+    startAddTransition(async () => {
       const result = await markDateClosedAction({ date, reason })
       if (result?.serverError) {
         setError(result.serverError)
@@ -62,7 +63,7 @@ export function ClosuresManager({ initialClosures }: Props) {
   function handleRemove(closure: Closure) {
     const dateStr = formatInTimeZone(closure.date, 'UTC', 'yyyy-MM-dd')
     setError(null)
-    startTransition(async () => {
+    startRemoveTransition(async () => {
       const result = await removeClosureAction({ date: dateStr })
       if (result?.serverError) {
         setError(result.serverError)
@@ -101,8 +102,8 @@ export function ClosuresManager({ initialClosures }: Props) {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <Button onClick={handleAdd} disabled={!date || !reason.trim() || isPending}>
-          {isPending ? 'Saving...' : 'Mark Closed'}
+        <Button onClick={handleAdd} disabled={!date || !reason.trim() || isAddPending}>
+          {isAddPending ? 'Saving...' : 'Mark Closed'}
         </Button>
       </div>
 
@@ -124,7 +125,7 @@ export function ClosuresManager({ initialClosures }: Props) {
                   variant="ghost"
                   size="icon"
                   onClick={() => setPendingRemoval(c)}
-                  disabled={isPending}
+                  disabled={isRemovePending}
                   aria-label={`Remove closure for ${formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')}`}
                 >
                   <Trash2 className="h-4 w-4 text-red-500" />
@@ -155,12 +156,12 @@ export function ClosuresManager({ initialClosures }: Props) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isRemovePending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => pendingRemoval && handleRemove(pendingRemoval)}
-              disabled={isPending}
+              disabled={isRemovePending}
             >
-              {isPending ? 'Removing...' : 'Remove'}
+              {isRemovePending ? 'Removing...' : 'Remove'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

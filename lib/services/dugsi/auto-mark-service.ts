@@ -98,6 +98,11 @@ export async function autoMarkLateForShift(
     // Store null — offsetMinutes reflects the configured threshold, not actual lateness.
     // A teacher auto-marked at 21:00 UTC would otherwise show "+15m" when they never
     // showed up at all. UI should display "Late (auto)" for source=AUTO_MARKED records.
+    //
+    // CONTRACT: minutesLate is always null for source=AUTO_MARKED LATE records.
+    // Callers reading minutesLate on any LATE record must check
+    // source !== 'AUTO_MARKED' before treating null as "lateness unknown" —
+    // for AUTO_MARKED the teacher simply never arrived.
     const minutesLate = null
 
     const result = await tx.teacherAttendanceRecord.updateMany({
