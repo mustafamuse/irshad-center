@@ -30,7 +30,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
       const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
       setPendingId(null)
       if (result?.serverError) {
-        setErrors((prev) => ({ ...prev, [id]: result.serverError ?? null }))
+        setErrors((prev) => ({ ...prev, [id]: `${result.serverError} — refresh to see latest.` }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
@@ -44,7 +44,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
       const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
       setPendingId(null)
       if (result?.serverError) {
-        setErrors((prev) => ({ ...prev, [id]: result.serverError ?? null }))
+        setErrors((prev) => ({ ...prev, [id]: `${result.serverError} — refresh to see latest.` }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))

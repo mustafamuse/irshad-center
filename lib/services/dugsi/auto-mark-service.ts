@@ -107,7 +107,7 @@ export async function autoMarkLateForShift(
 
     const result = await tx.teacherAttendanceRecord.updateMany({
       where: { date: dateObj, shift, status: 'EXPECTED' },
-      data: { status: 'LATE', source: 'AUTO_MARKED', minutesLate },
+      data: { status: 'LATE', source: 'AUTO_MARKED', minutesLate, changedBy: 'cron' },
     })
 
     return { kind: 'marked', count: result.count }

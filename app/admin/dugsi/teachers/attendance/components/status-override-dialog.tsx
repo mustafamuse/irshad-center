@@ -54,7 +54,9 @@ export function StatusOverrideDialog({
       const result = await overrideAttendanceStatusAction({ recordId, toStatus, notes: notes || undefined })
 
       if (result?.serverError) {
-        setError(result.serverError)
+        // A concurrent override or auto-mark cron may have changed the status
+        // since this dialog opened — the displayed options may no longer apply.
+        setError(`${result.serverError} Please close and reopen the dialog to see the current status.`)
         return
       }
 

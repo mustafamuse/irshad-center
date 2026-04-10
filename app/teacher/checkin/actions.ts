@@ -239,6 +239,11 @@ export type AttendanceHistoryResult = {
   monthlyExcuseCount: number
 }
 
+// SECURITY NOTE (tracked in #225 — same risk as submitExcuseAction):
+// teacherId is a client-supplied, unauthenticated parameter. Any teacher can pass
+// a different teacher's ID and read their full attendance history and excuse records.
+// The stop-gap ownership check in submitExcuseAction does not apply here since this
+// is a read-only path with no cross-reference anchor. Full fix in #225.
 export async function getTeacherAttendanceHistory(
   teacherId: string,
   weeksBack = 8

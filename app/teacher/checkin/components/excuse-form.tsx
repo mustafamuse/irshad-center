@@ -32,8 +32,8 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
         reason: reason.trim(),
       })
 
-      if (result?.serverError) {
-        setError(result.serverError)
+      if (result?.serverError || result?.validationErrors) {
+        setError(result.serverError ?? 'Invalid request. Please try again.')
         return
       }
 

@@ -1,11 +1,17 @@
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
+import { format, isValid, parseISO } from 'date-fns'
 import { z } from 'zod'
 
-// Validates format AND semantic correctness (e.g. rejects 2026-13-99)
+// Validates format AND semantic correctness, including overflow dates.
+// `new Date('2026-02-29')` silently becomes 2026-03-01 — the round-trip check
+// via date-fns rejects it because format(parseISO(d)) !== d.
 const dateString = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
-  .refine((d) => !isNaN(new Date(d).getTime()), 'Invalid date')
+  .refine((d) => {
+    const p = parseISO(d)
+    return isValid(p) && format(p, 'yyyy-MM-dd') === d
+  }, 'Invalid date')
 
 // School runs Saturday (6) and Sunday (0) only.
 // T12:00:00Z anchors the parse to UTC noon to avoid timezone edge cases.

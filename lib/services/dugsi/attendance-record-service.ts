@@ -239,10 +239,11 @@ export async function bulkTransitionStatus(
     where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus; source?: AttendanceSource }
     toStatus: TeacherAttendanceStatus
     source: AttendanceSource
+    changedBy?: string   // recorded per-row for audit; 'cron' for auto-mark, admin name for closures
   },
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const { where, toStatus, source } = params
+  const { where, toStatus, source, changedBy } = params
 
   assertValidTransition(where.status, toStatus)
 
@@ -253,7 +254,14 @@ export async function bulkTransitionStatus(
       status: where.status,
       ...(where.source ? { source: where.source } : {}),
     },
-    data: { status: toStatus, source },
+    data: {
+      status: toStatus,
+      source,
+      // Clear minutesLate on non-LATE transitions (parity with transitionStatus).
+      // Callers transitioning to LATE must set minutesLate themselves via a direct updateMany.
+      minutesLate: toStatus === 'LATE' ? undefined : null,
+      ...(changedBy !== undefined ? { changedBy } : {}),
+    },
   })
 
   return result.count

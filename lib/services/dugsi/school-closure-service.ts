@@ -47,12 +47,12 @@ export async function markDateClosed(
     // dialog should never close a teacher who showed up), so we use updateMany directly
     // here rather than bulkTransitionStatus — same pattern as bulkReopenDate.
     const closedCount = await bulkTransitionStatus(
-      { where: { date, status: 'EXPECTED' }, toStatus: 'CLOSED', source: 'SYSTEM' },
+      { where: { date, status: 'EXPECTED' }, toStatus: 'CLOSED', source: 'SYSTEM', changedBy: createdBy },
       tx
     )
     const autoMarkResult = await tx.teacherAttendanceRecord.updateMany({
       where: { date, status: 'LATE', source: 'AUTO_MARKED' },
-      data: { status: 'CLOSED', source: 'SYSTEM' },
+      data: { status: 'CLOSED', source: 'SYSTEM', changedBy: createdBy ?? null },
     })
     const autoMarkedCount = autoMarkResult.count
 
