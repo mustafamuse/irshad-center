@@ -254,6 +254,10 @@ export type AttendanceHistoryResult = {
 //   - Replace teacherId param with a signed session token
 //   - Resolve the caller's identity server-side; discard the client-supplied value
 // Do NOT remove this comment block until #225 is closed.
+// IMPORTANT: keep this function unexported. All callers must go through
+// _getTeacherAttendanceHistoryAction so the rate-limit + session auth (#225)
+// wrapper is always enforced — exporting it directly would let a future
+// refactor bypass the auth guard without any compiler warning.
 async function fetchAttendanceHistory(
   teacherId: string,
   weeksBack = 8

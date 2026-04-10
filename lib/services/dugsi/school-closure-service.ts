@@ -114,8 +114,12 @@ export async function markDateClosed(
 // auto-mark cron only runs for today's date, those historical records will remain
 // EXPECTED and never be re-marked LATE automatically. An admin would need to
 // manually override them via the attendance grid.
-// Fixing this properly would require storing the pre-closure status in a separate
-// column so it can be restored here; that schema change is deferred.
+// Audit-trail gap: source is reset to 'SYSTEM' for all reverted records — a record
+// that was originally AUTO_MARKED/LATE before the closure is now indistinguishable
+// from one that was genuinely EXPECTED and never acted on. There is no in-DB way to
+// recover the pre-closure state.
+// Both gaps would be solved by storing pre-closure status in a column; that schema
+// change is deferred.
 async function reopenClosedRecords(
   params: { date: Date; changedBy?: string },
   tx: DatabaseClient

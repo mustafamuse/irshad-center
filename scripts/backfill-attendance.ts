@@ -85,7 +85,7 @@ function pad(s: string | number, len: number) {
 async function main() {
   const isDryRun = !process.argv.includes('--commit')
 
-  if (!isDryRun && !SKIP_TEACHER_ID) {
+  if (!isDryRun && process.env.SKIP_TEACHER_ID === undefined) {
     console.error('ERROR: SKIP_TEACHER_ID is not set.')
     console.error('  Re-run with SKIP_TEACHER_ID=<uuid> to exclude the intended teacher,')
     console.error('  or set it to an empty string to include everyone intentionally:')

@@ -48,10 +48,13 @@ export const RemoveClosureSchema = z.object({
 
 export const UpdateAttendanceConfigSchema = z.object({
   morningAutoMarkMinutes: z.number().int().min(0).max(120),
-  // max(89): afternoon class start (1:30 PM CST) + 89 min = 2:59 PM CST.
-  // Must remain strictly less than the cron fire time in CST.
-  // COUPLING: this cap is derived from the cron schedule in vercel.json ("0 21 * * 0,6"
-  // = 3:00 PM CST). If that schedule changes, update this max() to match.
+  // max(89): derived from the cron schedule in vercel.json ("0 21 * * 0,6" = 21:00 UTC).
+  // Formula: max = (cron_fire_CST_minutes_from_midnight) - (class_start_CST_minutes_from_midnight) - 1
+  //        = (15 * 60 + 0) - (13 * 60 + 30) - 1 = 900 - 810 - 1 = 89
+  // Result: 13:30 CST + 89 min = 14:59 CST = 20:59 UTC — 1 minute before the cron fires.
+  // Note: the 1-minute margin is CST-only (winter). In CDT the cron fires at 16:00 CDT,
+  // giving a 61-minute margin — but always derive from CST (UTC-6) for worst-case safety.
+  // COUPLING: if the cron schedule in vercel.json changes, recalculate using the formula above.
   afternoonAutoMarkMinutes: z.number().int().min(0).max(89),
 })
 
