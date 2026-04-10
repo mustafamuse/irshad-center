@@ -49,6 +49,11 @@ export function ClosuresManager({ initialClosures }: Props) {
         setError(result.serverError)
         return
       }
+      if (result?.validationErrors) {
+        // Surface the first field-level error (e.g. "School days are Saturday and Sunday only")
+        const first = Object.values(result.validationErrors).flat().find(Boolean)
+        if (first) { setError(String(first)); return }
+      }
       // Optimistically append — id is a temp placeholder since dates are unique
       // and removal uses the date string, not the id.
       setClosures((prev) => [

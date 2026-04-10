@@ -330,17 +330,25 @@ export async function deleteCheckin(
   const { teacherId, date, shift } = existingCheckin
 
   const doWrites = async (tx: DatabaseClient) => {
-    // RESTRICT FK: null out checkInId on the attendance record BEFORE deleting
-    // the check-in row — the DB will reject the delete if the FK is still live.
-    // Intentional bypass of assertValidTransition — PRESENT→ABSENT and LATE→ABSENT
-    // are both valid in the transition table, so the revert is always legal.
-    // If the record was already overridden (EXCUSED, ABSENT, etc.) the updateMany
-    // matches nothing and leaves it untouched, which is the desired behaviour.
+    // Step 1: Release the RESTRICT FK on ANY record still pointing at this check-in,
+    // regardless of status.  EXCUSED and admin-overridden ABSENT records legitimately
+    // carry a non-null checkInId (neither approveExcuse nor transitionStatus clears it),
+    // so the status-filtered updateMany below would leave their FK live and the DELETE
+    // would throw P2003.  clockInTime and minutesLate originate from the check-in row
+    // and are meaningless once it's gone, so clear them here too.
+    await tx.teacherAttendanceRecord.updateMany({
+      where: { checkInId },
+      data: { checkInId: null, clockInTime: null, minutesLate: null, changedBy: changedBy ?? null },
+    })
+
+    // Step 2: Revert PRESENT/LATE → ABSENT.  EXCUSED and overridden-ABSENT records are
+    // intentionally left at their current status — the teacher did show up, and an admin
+    // action already determined the outcome.
     // The @@unique([teacherId, date, shift]) constraint guarantees at most one row,
     // so count > 1 would indicate a data integrity problem.
     const revertResult = await tx.teacherAttendanceRecord.updateMany({
       where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
-      data: { status: 'ABSENT', source: 'SYSTEM', checkInId: null, clockInTime: null, minutesLate: null, changedBy: changedBy ?? null },
+      data: { status: 'ABSENT', source: 'SYSTEM' },
     })
     if (revertResult.count > 1) {
       logger.warn({ teacherId, date, shift }, 'deleteCheckin: unexpectedly reverted multiple attendance records')

@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { getAllowedTransitions } from '@/lib/utils/attendance-transitions'
+import type { OverrideAttendanceStatusInput } from '@/lib/validations/teacher-attendance'
 
 import { overrideAttendanceStatusAction } from '../actions'
 import { AttendanceStatusBadge } from './status-badge'
@@ -43,11 +44,16 @@ export function StatusOverrideDialog({
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [toStatus, setToStatus] = useState<TeacherAttendanceStatus | null>(null)
+  const [toStatus, setToStatus] = useState<OverrideAttendanceStatusInput['toStatus'] | null>(null)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Filter to overrideable statuses only — EXPECTED (slot generation) and CLOSED
+  // (markDateClosed) have dedicated flows and must not appear in the manual override dialog.
   const allowedTransitions = getAllowedTransitions(currentStatus)
+    .filter((s): s is OverrideAttendanceStatusInput['toStatus'] =>
+      s === 'PRESENT' || s === 'LATE' || s === 'ABSENT' || s === 'EXCUSED'
+    )
 
   function handleSubmit() {
     if (!toStatus) return

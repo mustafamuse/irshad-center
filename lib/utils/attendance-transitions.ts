@@ -19,7 +19,9 @@ const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStat
   //   be reverted to CLOSED via the override dialog. Use removeClosure() + the
   //   natural record if the whole day needs to be reopened.
   PRESENT: ['ABSENT', 'EXCUSED', 'LATE'],
-  LATE: ['ABSENT', 'EXCUSED', 'PRESENT'],
+  // LATE → LATE: self-checkin can update clockInTime/source on an auto-marked LATE record
+  //   without changing the displayed status.
+  LATE: ['ABSENT', 'EXCUSED', 'PRESENT', 'LATE'],
   // ABSENT → PRESENT: admin corrects an auto-marked absence when the teacher
   //   physically showed up after the auto-mark window fired.
   ABSENT: ['LATE', 'EXCUSED', 'PRESENT'],

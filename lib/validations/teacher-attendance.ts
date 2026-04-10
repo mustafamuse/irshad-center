@@ -1,4 +1,4 @@
-import { Shift, TeacherAttendanceStatus } from '@prisma/client'
+import { Shift } from '@prisma/client'
 import { format, isValid, parseISO } from 'date-fns'
 import { z } from 'zod'
 
@@ -20,9 +20,14 @@ const weekendDateString = dateString.refine(
   'School days are Saturday and Sunday only'
 )
 
+// Only statuses that are legitimate override targets from the admin dialog.
+// EXPECTED (slot generation) and CLOSED (markDateClosed) have dedicated flows
+// and should never appear as manual override targets.
+const OVERRIDEABLE_STATUSES = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'] as const
+
 export const OverrideAttendanceStatusSchema = z.object({
   recordId: z.string().uuid(),
-  toStatus: z.nativeEnum(TeacherAttendanceStatus),
+  toStatus: z.enum(OVERRIDEABLE_STATUSES),
   notes: z.string().max(500).optional(),
 })
 
