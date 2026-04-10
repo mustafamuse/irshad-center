@@ -31,6 +31,11 @@ const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStat
   // getExistingActiveExcuse would find the orphaned APPROVED row).
   EXCUSED: ['LATE', 'ABSENT'],
   // CLOSED → PRESENT: admin confirms teacher physically showed up on a closed day.
+  // This transition goes through transitionStatus (override dialog), which only updates
+  // TeacherAttendanceRecord — no DugsiTeacherCheckIn fact-log row is created. The result
+  // is a PRESENT record with checkInId = null and clockInTime = null. The ADMIN_OVERRIDE
+  // source distinguishes these fact-log-less records from SELF_CHECKIN entries in the
+  // audit trail. If a clock-in fact-log is required, use adminCheckIn instead.
   // CLOSED → EXPECTED is excluded: it would leave the record in EXPECTED while the
   //   SchoolClosure row still exists. Use removeClosure() to revert the whole date.
   CLOSED: ['PRESENT'],

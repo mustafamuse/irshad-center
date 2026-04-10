@@ -46,6 +46,9 @@ function makeTx() {
   return {
     dugsiTeacherCheckIn: {
       create: (...args: unknown[]) => mockCreate(...args),
+      // update needed by updateCheckin, which now syncs TeacherAttendanceRecord inside
+      // the same $transaction.
+      update: (...args: unknown[]) => mockUpdate(...args),
       // delete must be present: deleteCheckin first nulls checkInId on the attendance
       // record, then deletes the check-in row (RESTRICT FK — delete must come last).
       delete: (...args: unknown[]) => mockDelete(...args),
@@ -445,6 +448,10 @@ describe('updateCheckin', () => {
       isLate: true,
       notes: 'Updated by admin',
     })
+    // updateCheckin now wraps writes in a $transaction — mirror the same setup
+    // used in the clockIn/deleteCheckin describe blocks.
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+    mockUpdateManyAttendance.mockResolvedValue({ count: 1 })
   })
 
   it('should update check-in fields', async () => {

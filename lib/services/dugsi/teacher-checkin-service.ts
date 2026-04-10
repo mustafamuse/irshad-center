@@ -310,24 +310,54 @@ export async function updateCheckin(
     )
   }
 
-  const checkIn = await client.dugsiTeacherCheckIn.update({
-    where: { id: checkInId },
-    data: updateData,
-    include: teacherCheckinInclude,
-  })
+  const doWrites = async (tx: DatabaseClient) => {
+    const checkIn = await tx.dugsiTeacherCheckIn.update({
+      where: { id: checkInId },
+      data: updateData,
+      include: teacherCheckinInclude,
+    })
 
-  logger.info(
-    {
-      event: 'CHECKIN_UPDATED',
-      checkInId,
-      teacherId: checkIn.teacherId,
-      teacherName: checkIn.teacher.person.name,
-      changes: Object.keys(updateData),
-    },
-    'Check-in record updated by admin'
-  )
+    // Sync the linked TeacherAttendanceRecord when clockInTime or isLate changes.
+    // The record may not exist (e.g. backfill hasn't run), so updateMany is used —
+    // 0 matched rows is silently acceptable; we're not creating a new record here.
+    // Status guard (PRESENT, LATE) prevents touching EXCUSED/ABSENT records where
+    // the clock-in is no longer the authoritative source of status.
+    const syncClockIn = clockInTime !== undefined
+    const syncStatus = isLate !== undefined
+    if (syncClockIn || syncStatus) {
+      const effectiveIsLate = isLate ?? existingCheckin.isLate
+      await tx.teacherAttendanceRecord.updateMany({
+        where: { checkInId, status: { in: ['PRESENT', 'LATE'] } },
+        data: {
+          ...(syncClockIn ? { clockInTime } : {}),
+          ...(syncStatus
+            ? {
+                status: effectiveIsLate ? 'LATE' : 'PRESENT',
+                minutesLate: null,
+                source: 'ADMIN_OVERRIDE',
+              }
+            : {}),
+        },
+      })
+    }
 
-  return checkIn
+    logger.info(
+      {
+        event: 'CHECKIN_UPDATED',
+        checkInId,
+        teacherId: checkIn.teacherId,
+        teacherName: checkIn.teacher.person.name,
+        changes: Object.keys(updateData),
+      },
+      'Check-in record updated by admin'
+    )
+
+    return checkIn
+  }
+
+  return isPrismaClient(client)
+    ? client.$transaction(doWrites)
+    : doWrites(client)
 }
 
 export async function deleteCheckin(

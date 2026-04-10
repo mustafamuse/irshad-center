@@ -241,9 +241,15 @@ export async function adminCheckIn(
       }
     } else {
       // No pre-existing record — admin check-in always wins regardless of closure status.
-      // If the date is marked closed, this is an intentional override: the SchoolClosure row
-      // remains, the grid shows a PRESENT cell on a strikethrough header, which is correct.
-      // To block admin check-ins on closed dates, add a SchoolClosure guard here.
+      // If the date is marked closed, this is treated as an intentional override: the
+      // SchoolClosure row remains, and the grid shows a PRESENT cell on a strikethrough
+      // header, which correctly reflects the exceptional attendance.
+      // TODO(phase-2-followup): the self-checkin clockIn path guards against closed dates
+      // at this branch (schoolClosure.findUnique check). Without the same guard here an
+      // admin can create a PRESENT record on a closed date with no prior slot — the
+      // SchoolClosure row and the PRESENT record then co-exist with no reconciliation path.
+      // Add a SchoolClosure guard here, or explicitly document "admin override wins over
+      // closure regardless" as the intended behaviour before lifting the draft status.
       await tx.teacherAttendanceRecord.create({
         data: { teacherId, date, shift, ...recordData },
       })

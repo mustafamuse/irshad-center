@@ -734,7 +734,11 @@ const _updateCheckinAction = adminActionClient
       const updated = await updateCheckin(parsedInput)
       const record = mapCheckinToRecord(updated)
 
-      after(() => revalidatePath('/admin/dugsi/teachers'))
+      after(() => {
+        revalidatePath('/admin/dugsi/teachers')
+        revalidatePath('/admin/dugsi/teachers/attendance')
+        revalidatePath('/teacher/checkin')
+      })
 
       logger.info(
         { checkInId: parsedInput.checkInId },
@@ -757,7 +761,11 @@ const _deleteCheckinAction = adminActionClient
     try {
       await deleteCheckin(parsedInput.checkInId, 'admin')
 
-      after(() => revalidatePath('/admin/dugsi/teachers'))
+      after(() => {
+        revalidatePath('/admin/dugsi/teachers')
+        revalidatePath('/admin/dugsi/teachers/attendance')
+        revalidatePath('/teacher/checkin')
+      })
 
       logger.info(
         { checkInId: parsedInput.checkInId },
