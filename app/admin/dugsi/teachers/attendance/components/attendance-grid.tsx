@@ -5,14 +5,14 @@ import { Fragment, useMemo, useState } from 'react'
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
-import { AttendanceRecordWithRelations } from '@/lib/db/queries/teacher-attendance'
+import { AttendanceRecordGridWithRelations } from '@/lib/db/queries/teacher-attendance'
 import { cn } from '@/lib/utils'
 
 import { StatusOverrideDialog } from './status-override-dialog'
 import { AttendanceStatusBadge } from './status-badge'
 
 interface Props {
-  records: AttendanceRecordWithRelations[]
+  records: AttendanceRecordGridWithRelations[]
   weekendDates: string[] // YYYY-MM-DD, descending
 }
 
@@ -29,7 +29,7 @@ export function AttendanceGrid({ records, weekendDates }: Props) {
 
   // Build lookup: "teacherId|date|shift" → record
   const { recordMap, teachers } = useMemo(() => {
-    const recordMap = new Map<CellKey, AttendanceRecordWithRelations>()
+    const recordMap = new Map<CellKey, AttendanceRecordGridWithRelations>()
     const teacherMap = new Map<string, { id: string; name: string; shifts: Shift[] }>()
 
     for (const r of records) {

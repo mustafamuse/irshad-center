@@ -324,18 +324,32 @@ export async function deleteCheckin(
     )
   }
 
-  await client.dugsiTeacherCheckIn.delete({
-    where: { id: checkInId },
-  })
+  const { teacherId, date, shift } = existingCheckin
+
+  const doWrites = async (tx: DatabaseClient) => {
+    await tx.dugsiTeacherCheckIn.delete({ where: { id: checkInId } })
+
+    // Atomically revert the linked attendance record to ABSENT so it isn't
+    // left silently at PRESENT/LATE with a null checkInId (ON DELETE SET NULL
+    // nullifies the FK but doesn't revert the status).
+    // Only reverts PRESENT/LATE — if an admin already overrode the record to
+    // EXCUSED or ABSENT, leave it untouched.
+    await tx.teacherAttendanceRecord.updateMany({
+      where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
+      data: { status: 'ABSENT', source: 'ADMIN_OVERRIDE', checkInId: null, clockInTime: null, minutesLate: null },
+    })
+  }
+
+  await (isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client))
 
   logger.info(
     {
       event: 'CHECKIN_DELETED',
       checkInId,
-      teacherId: existingCheckin.teacherId,
+      teacherId,
       teacherName: existingCheckin.teacher.person.name,
-      date: existingCheckin.date.toISOString(),
-      shift: existingCheckin.shift,
+      date: date.toISOString(),
+      shift,
     },
     'Check-in record deleted by admin'
   )

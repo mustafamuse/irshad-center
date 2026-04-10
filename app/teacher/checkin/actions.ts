@@ -247,8 +247,10 @@ export async function getTeacherAttendanceHistory(
   const from = new Date(today)
   from.setDate(from.getDate() - weeksBack * 7)
 
-  const year = today.getFullYear()
-  const month = today.getMonth() + 1
+  // Extract year/month in school timezone — server runs UTC; at 7 PM CST Vercel's
+  // clock already reads the next calendar day, which would query the wrong month.
+  const todayInTz = formatInTimeZone(today, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+  const [year, month] = todayInTz.split('-').map(Number)
 
   const [records, monthlyExcuseCount] = await Promise.all([
     getTeacherAttendanceSummary(teacherId, from, today),
@@ -280,11 +282,14 @@ const _submitExcuseAction = rateLimitedActionClient
     // The teacher app has no session; teachers identify only by UI selection.
     // teacherId is intentionally NOT in the schema — we resolve it server-side
     // from the record so both sides of the cross-teacher check cannot be spoofed.
-    // Residual risk: a caller who knows (or enumerates) a valid attendanceRecordId
-    // UUID can submit on behalf of any teacher. Mitigated by:
+    // Residual risk: a caller who knows a valid attendanceRecordId UUID can submit
+    // on behalf of any teacher. Mitigated by:
     //   1. Non-predictable UUIDs (random v4 — not sequential)
     //   2. IP-based rate limiting from rateLimitedActionClient
-    // A full fix (assert ctx.teacherId === resolvedTeacherId) requires session auth,
+    // Interim hardening option (no sessions required): embed a short-lived HMAC
+    // token in the excuse form encoding (teacherId, recordId, timestamp) and verify
+    // server-side — ties submissions to the teacher who loaded the page.
+    // Full fix (assert ctx.teacherId === resolvedTeacherId) requires session auth,
     // tracked in issue #225. Do NOT remove this comment without closing that issue.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {

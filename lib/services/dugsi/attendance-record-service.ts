@@ -241,21 +241,12 @@ export async function bulkTransitionStatus(
     where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus }
     toStatus: TeacherAttendanceStatus
     source: AttendanceSource
-    /**
-     * Opt-in to skip the transition guard. Required for system-managed transitions
-     * that are intentionally excluded from the admin override UI
-     * (e.g. CLOSED → EXPECTED via removeClosure, which also deletes the SchoolClosure row).
-     * Do NOT pass this from admin-facing code paths.
-     */
-    skipValidation?: true
   },
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const { where, toStatus, source, skipValidation } = params
+  const { where, toStatus, source } = params
 
-  if (!skipValidation) {
-    assertValidTransition(where.status, toStatus)
-  }
+  assertValidTransition(where.status, toStatus)
 
   const result = await client.teacherAttendanceRecord.updateMany({
     where: {
@@ -266,5 +257,23 @@ export async function bulkTransitionStatus(
     data: { status: toStatus, source },
   })
 
+  return result.count
+}
+
+/**
+ * Reverts all CLOSED records on a date back to EXPECTED.
+ * This is the only legitimate CLOSED → EXPECTED path — the caller (removeClosure)
+ * atomically deletes the SchoolClosure row in the same transaction.
+ * Kept as a named function rather than a `skipValidation` escape hatch so that
+ * this intent is self-documenting and impossible to misuse from other call sites.
+ */
+export async function bulkReopenDate(
+  params: { date: Date; source: AttendanceSource },
+  client: DatabaseClient = prisma
+): Promise<number> {
+  const result = await client.teacherAttendanceRecord.updateMany({
+    where: { date: params.date, status: 'CLOSED' },
+    data: { status: 'EXPECTED', source: params.source },
+  })
   return result.count
 }

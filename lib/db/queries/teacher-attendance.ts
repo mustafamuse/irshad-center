@@ -24,6 +24,15 @@ export type AttendanceRecordWithRelations = Prisma.TeacherAttendanceRecordGetPay
   include: typeof attendanceRecordInclude
 }>
 
+// Grid view only needs teacher name + status — no excuses join
+export const attendanceRecordGridInclude = {
+  teacher: { include: { person: true } },
+} as const satisfies Prisma.TeacherAttendanceRecordInclude
+
+export type AttendanceRecordGridWithRelations = Prisma.TeacherAttendanceRecordGetPayload<{
+  include: typeof attendanceRecordGridInclude
+}>
+
 export const excuseRequestInclude = {
   attendanceRecord: { include: { teacher: { include: { person: true } } } },
 } as const satisfies Prisma.ExcuseRequestInclude
@@ -127,10 +136,10 @@ export async function getAttendanceGrid(
   fromDate: Date,
   toDate: Date,
   client: DatabaseClient = prisma
-): Promise<AttendanceRecordWithRelations[]> {
+): Promise<AttendanceRecordGridWithRelations[]> {
   return client.teacherAttendanceRecord.findMany({
     where: { date: { gte: fromDate, lte: toDate } },
-    include: attendanceRecordInclude,
+    include: attendanceRecordGridInclude,
     orderBy: [{ date: 'desc' }, { shift: 'asc' }, { teacher: { person: { name: 'asc' } } }],
   })
 }

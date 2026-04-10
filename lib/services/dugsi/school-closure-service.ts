@@ -12,7 +12,7 @@ import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
-import { bulkTransitionStatus } from './attendance-record-service'
+import { bulkTransitionStatus, bulkReopenDate } from './attendance-record-service'
 
 const logger = createServiceLogger('school-closure')
 
@@ -74,13 +74,9 @@ export async function removeClosure(
     await tx.schoolClosure.delete({ where: { date } })
 
     // Revert: only CLOSED records go back to EXPECTED.
-    // skipValidation: CLOSED → EXPECTED is excluded from ALLOWED_TRANSITIONS to prevent
-    // admin override (SchoolClosure row would still exist). This is the only legitimate
-    // path for that transition — the closure row is deleted atomically above.
-    const reopenedCount = await bulkTransitionStatus(
-      { where: { date, status: 'CLOSED' }, toStatus: 'EXPECTED', source: 'SYSTEM', skipValidation: true },
-      tx
-    )
+    // Uses bulkReopenDate — the only code path that may transition CLOSED → EXPECTED,
+    // since the SchoolClosure row is deleted atomically above in the same transaction.
+    const reopenedCount = await bulkReopenDate({ date, source: 'SYSTEM' }, tx)
 
     logger.info(
       { event: 'SCHOOL_REOPENED', date, reopenedCount },
