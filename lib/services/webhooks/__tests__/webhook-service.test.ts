@@ -736,6 +736,39 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
       })
     )
   })
+
+  it('uses standard rate when Stripe unit_amount is null — no infinite retry loop', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+      items: {
+        object: 'list',
+        data: [
+          {
+            price: { unit_amount: null },
+          } as unknown as Stripe.SubscriptionItem,
+        ],
+        has_more: false,
+        url: '',
+      },
+    })
+
+    const result = await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(result.created).toBe(true)
+    expect(mockCreateSubscriptionFromStripe).toHaveBeenCalledWith(
+      expect.anything(),
+      BILLING_ACCOUNT_ID,
+      'DUGSI',
+      STANDARD_RATE
+    )
+    expect(mockLinkSubscriptionToProfiles).toHaveBeenCalledWith(
+      DB_SUBSCRIPTION_ID,
+      expect.any(Array),
+      STANDARD_RATE,
+      'Linked automatically via webhook'
+    )
+  })
 })
 
 describe('handleSubscriptionCreated — Path 3 (existing billing account person)', () => {

@@ -700,7 +700,8 @@ function validateDugsiRateIfPresent(subscription: Stripe.Subscription): void {
 async function linkProfilesIfPresent(
   dbSubscriptionId: string,
   profileIds: string[],
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
+  overrideAmount?: number
 ): Promise<void> {
   if (profileIds.length === 0) return
 
@@ -715,7 +716,8 @@ async function linkProfilesIfPresent(
     throw error
   }
 
-  const priceAmount = subscription.items.data[0]?.price?.unit_amount
+  const priceAmount =
+    overrideAmount ?? subscription.items.data[0]?.price?.unit_amount
   if (priceAmount === null || priceAmount === undefined || priceAmount <= 0) {
     const error = new Error('Subscription has invalid amount')
     Sentry.captureException(error, {
@@ -779,6 +781,11 @@ export async function handleSubscriptionCreated(
     customerId
   )
 
+  const dugsiActualAmount =
+    resolved.recoverySource === 'dugsi_email_fallback'
+      ? resolved.dugsiRecoveryMetadata.actualAmount
+      : undefined
+
   const dbSubscription = await Sentry.startSpan(
     {
       name: 'subscription.create_from_stripe',
@@ -793,7 +800,8 @@ export async function handleSubscriptionCreated(
       await createSubscriptionFromStripe(
         subscription,
         resolved.billingAccount.id,
-        accountType
+        accountType,
+        dugsiActualAmount
       )
   )
 
@@ -819,7 +827,8 @@ export async function handleSubscriptionCreated(
   await linkProfilesIfPresent(
     dbSubscription.id,
     resolved.effectiveProfileIds,
-    subscription
+    subscription,
+    dugsiActualAmount
   )
 
   if (accountType === StripeAccountType.MAHAD) {

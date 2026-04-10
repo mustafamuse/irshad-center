@@ -215,7 +215,8 @@ export async function syncSubscriptionFromStripe(
 export async function createSubscriptionFromStripe(
   stripeSubscription: Stripe.Subscription,
   billingAccountId: string,
-  accountType: StripeAccountType
+  accountType: StripeAccountType,
+  overrideAmount?: number
 ) {
   // Extract customer ID
   const customerId =
@@ -245,7 +246,7 @@ export async function createSubscriptionFromStripe(
   }
 
   const priceData = stripeSubscription.items.data[0]?.price
-  const amount = priceData?.unit_amount || 0
+  const amount = overrideAmount ?? priceData?.unit_amount ?? 0
   const currency = stripeSubscription.currency || 'usd'
   const interval = priceData?.recurring?.interval || 'month'
   const periodDates = extractPeriodDates(stripeSubscription)
