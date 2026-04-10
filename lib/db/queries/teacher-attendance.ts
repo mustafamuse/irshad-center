@@ -186,20 +186,30 @@ export async function getTeacherAttendanceSummary(
   })
 }
 
-// Grid data for admin attendance overview: all teachers × recent weekend dates
-// NOTE: No take limit — at ~10 teachers × 2 shifts × 16 dates ≈ 320 rows the result
-// set is small. If the roster grows beyond 30+ teachers, add server-side pagination
-// here (cursor-based) and a matching `after` param before this becomes a slow page load.
+// Grid data for admin attendance overview: all teachers × recent weekend dates.
+// Cap at 1000: at 2 shifts × 16 dates ≈ 32 rows per teacher, this supports ~31
+// teachers before truncation. If the roster grows beyond that, add cursor-based
+// pagination here and a matching `after` param before this becomes a slow page load.
 export async function getAttendanceGrid(
   fromDate: Date,
   toDate: Date,
   client: DatabaseClient = prisma
 ): Promise<AttendanceRecordGridWithRelations[]> {
-  return client.teacherAttendanceRecord.findMany({
+  const rows = await client.teacherAttendanceRecord.findMany({
     where: { date: { gte: fromDate, lt: toDate } },
     include: attendanceRecordGridInclude,
     orderBy: [{ date: 'desc' }, { shift: 'asc' }, { teacher: { person: { name: 'asc' } } }],
+    take: 1000,
   })
+
+  if (rows.length === 1000) {
+    logger.warn(
+      { event: 'ATTENDANCE_GRID_CAP_HIT', fromDate, toDate },
+      'getAttendanceGrid hit the 1000-row cap — results may be incomplete; add pagination'
+    )
+  }
+
+  return rows
 }
 
 // Counts attendance records with status=EXCUSED for a teacher in a given month.

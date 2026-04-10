@@ -8,7 +8,7 @@
  * Also ensures EXPECTED slots exist for the date before marking.
  */
 
-import { DugsiAttendanceConfig, Shift } from '@prisma/client'
+import { DugsiAttendanceConfig, PrismaClient, Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
@@ -146,15 +146,8 @@ export async function autoMarkLateForShift(
  */
 export async function autoMarkBothShifts(
   date: string,
-  client: DatabaseClient = prisma
+  client: PrismaClient = prisma
 ): Promise<{ morning: AutoMarkResult | null; afternoon: AutoMarkResult | null }> {
-  if (!isPrismaClient(client)) {
-    throw new Error(
-      'autoMarkBothShifts: must be called with the root prisma client, not a transaction — ' +
-      'getAttendanceConfig cannot run inside a $transaction'
-    )
-  }
-
   // Fetch config once — acceptable one-invocation staleness (same rationale as before).
   const config = await getAttendanceConfig(client)
 

@@ -398,6 +398,10 @@ export async function deleteCheckin(
     // UI callers should warn the admin before confirming the delete.
     // The @@unique([teacherId, date, shift]) constraint guarantees at most one row,
     // so count > 1 would indicate a data integrity problem.
+    // Assert both reachable transitions are still valid — guards against silent
+    // breakage if ALLOWED_TRANSITIONS is tightened in the future.
+    assertValidTransition('PRESENT', 'ABSENT')
+    assertValidTransition('LATE', 'ABSENT')
     const revertResult = await tx.teacherAttendanceRecord.updateMany({
       where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
       data: { status: 'ABSENT', source: 'ADMIN_OVERRIDE', changedBy: changedBy ?? null },

@@ -49,8 +49,9 @@ export const RemoveClosureSchema = z.object({
 export const UpdateAttendanceConfigSchema = z.object({
   morningAutoMarkMinutes: z.number().int().min(0).max(120),
   // max(89): afternoon class start (1:30 PM CST) + 89 min = 2:59 PM CST.
-  // This must remain < (cron fire time in CST) — currently 3:00 PM CST (21:00 UTC in vercel.json).
-  // If the cron schedule in vercel.json changes, update this cap to match.
+  // Must remain strictly less than the cron fire time in CST.
+  // COUPLING: this cap is derived from the cron schedule in vercel.json ("0 21 * * 0,6"
+  // = 3:00 PM CST). If that schedule changes, update this max() to match.
   afternoonAutoMarkMinutes: z.number().int().min(0).max(89),
 })
 
