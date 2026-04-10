@@ -370,7 +370,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
 
     expect(mockSentrycaptureMessage).toHaveBeenCalledWith(
       'Path 4: billing account and subscription record created via email fallback — linking profiles',
-      expect.objectContaining({ level: 'info' })
+      expect.objectContaining({ level: 'warning' })
     )
     expect(mockLoggerWarn).toHaveBeenCalledWith(
       expect.objectContaining({ guardianPersonId: GUARDIAN_ID, childCount: 2 }),
@@ -400,6 +400,26 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
       type: 'api_error',
     })
     mockSubscriptionsUpdate.mockRejectedValue(connectionError)
+
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    const result = await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(result.created).toBe(true)
+    expect(mockLogError).toHaveBeenCalled()
+    expect(mockSentrycaptureException).not.toHaveBeenCalled()
+  })
+
+  it('still succeeds and skips captureException when Stripe 5xx error occurs during metadata patch', async () => {
+    const serverError = new Stripe.errors.StripeAPIError({
+      message: 'Service unavailable',
+      type: 'api_error',
+      statusCode: 503,
+    })
+    mockSubscriptionsUpdate.mockRejectedValue(serverError)
 
     const subscription = createMockSubscription({
       customer: CUSTOMER_ID,

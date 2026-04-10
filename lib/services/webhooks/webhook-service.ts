@@ -358,6 +358,10 @@ async function resolveDugsiFallbackFromCustomerEmail(
   }
 
   const standardRate = calculateDugsiRate(childCount)
+  // Use || not ?? so that an explicit $0 also falls back to standardRate.
+  // A $0 unit_amount in Path 4 is a data-entry error in the Stripe dashboard;
+  // using standardRate prevents an infinite retry loop where linkProfilesIfPresent
+  // throws on every delivery.
   const actualAmount =
     subscription.items.data[0]?.price?.unit_amount || standardRate
 
@@ -514,7 +518,7 @@ async function patchRecoveredDugsiMetadata(
   Sentry.captureMessage(
     'Path 4: billing account and subscription record created via email fallback — linking profiles',
     {
-      level: 'info',
+      level: 'warning',
       extra: {
         customerId,
         subscriptionId,
@@ -551,7 +555,9 @@ async function patchRecoveredDugsiMetadata(
   } catch (metadataErr) {
     const isTransientError =
       metadataErr instanceof Stripe.errors.StripeConnectionError ||
-      metadataErr instanceof Stripe.errors.StripeRateLimitError
+      metadataErr instanceof Stripe.errors.StripeRateLimitError ||
+      (metadataErr instanceof Stripe.errors.StripeAPIError &&
+        (metadataErr.statusCode ?? 0) >= 500)
 
     if (isTransientError) {
       await logError(

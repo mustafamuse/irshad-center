@@ -1,7 +1,7 @@
 import { EnrollmentStatus, Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { DatabaseClient } from '@/lib/db/types'
+import type { DatabaseClient } from '@/lib/db/types'
 
 export const BILLABLE_DUGSI_STATUSES = [
   EnrollmentStatus.REGISTERED,
