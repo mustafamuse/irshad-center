@@ -14,6 +14,7 @@ const {
   mockCreateClosure,
   mockDeleteClosure,
   mockUpdateMany,
+  mockExcuseUpdateMany,
   mockBulkTransitionStatus,
   mockBulkReopenDate,
   mockTransaction,
@@ -22,6 +23,7 @@ const {
   mockCreateClosure: vi.fn(),
   mockDeleteClosure: vi.fn(),
   mockUpdateMany: vi.fn(),
+  mockExcuseUpdateMany: vi.fn(),
   mockBulkTransitionStatus: vi.fn(),
   mockBulkReopenDate: vi.fn(),
   mockTransaction: vi.fn(),
@@ -35,6 +37,9 @@ function makeTx() {
     },
     teacherAttendanceRecord: {
       updateMany: (...args: unknown[]) => mockUpdateMany(...args),
+    },
+    excuseRequest: {
+      updateMany: (...args: unknown[]) => mockExcuseUpdateMany(...args),
     },
   }
 }
@@ -84,6 +89,7 @@ describe('markDateClosed', () => {
     mockCreateClosure.mockResolvedValue(FAKE_CLOSURE)
     mockBulkTransitionStatus.mockResolvedValue(0)
     mockUpdateMany.mockResolvedValue({ count: 0 })
+    mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
   })
 
   it('flips EXPECTED records to CLOSED and returns closedCount', async () => {
@@ -145,6 +151,27 @@ describe('markDateClosed', () => {
     ).rejects.toMatchObject({ code: 'CLOSURE_EXISTS' })
     expect(mockCreateClosure).not.toHaveBeenCalled()
   })
+
+  it('cancels PENDING/APPROVED excuses on AUTO_MARKED LATE records before flipping them', async () => {
+    mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
+    mockUpdateMany.mockResolvedValue({ count: 1 })
+
+    await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+
+    expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['PENDING', 'APPROVED'] },
+          attendanceRecord: expect.objectContaining({ date: TEST_DATE, status: 'LATE', source: 'AUTO_MARKED' }),
+        }),
+        data: expect.objectContaining({ status: 'REJECTED' }),
+      })
+    )
+    // Excuse cancel must precede the attendance flip so the filter still matches LATE
+    const excuseCallOrder = mockExcuseUpdateMany.mock.invocationCallOrder[0]
+    const attendanceCallOrder = mockUpdateMany.mock.invocationCallOrder[0]
+    expect(excuseCallOrder).toBeLessThan(attendanceCallOrder)
+  })
 })
 
 describe('removeClosure', () => {
@@ -154,6 +181,7 @@ describe('removeClosure', () => {
     mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
     mockDeleteClosure.mockResolvedValue(undefined)
     mockBulkReopenDate.mockResolvedValue(0)
+    mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
   })
 
   it('reverts CLOSED records to EXPECTED and returns reopenedCount', async () => {
@@ -174,5 +202,22 @@ describe('removeClosure', () => {
 
     await expect(removeClosure({ date: TEST_DATE })).rejects.toMatchObject({ code: 'NOT_FOUND' })
     expect(mockDeleteClosure).not.toHaveBeenCalled()
+  })
+
+  it('cancels PENDING/APPROVED excuses on CLOSED records before reopening', async () => {
+    mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
+    mockBulkReopenDate.mockResolvedValue(2)
+
+    await removeClosure({ date: TEST_DATE, changedBy: 'admin' })
+
+    expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: ['PENDING', 'APPROVED'] },
+          attendanceRecord: expect.objectContaining({ date: TEST_DATE, status: 'CLOSED' }),
+        }),
+        data: expect.objectContaining({ status: 'REJECTED', reviewedBy: 'admin' }),
+      })
+    )
   })
 })

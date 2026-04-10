@@ -54,7 +54,7 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
           value={morning}
           onChange={(e) => {
             const n = Number(e.target.value)
-            setMorning(e.target.value === '' ? initialMorning : Number.isFinite(n) ? n : morning)
+            setMorning(e.target.value === '' ? 0 : Number.isFinite(n) ? n : morning)
           }}
           step={1}
         />
@@ -73,7 +73,7 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
           value={afternoon}
           onChange={(e) => {
             const n = Number(e.target.value)
-            setAfternoon(e.target.value === '' ? initialAfternoon : Number.isFinite(n) ? n : afternoon)
+            setAfternoon(e.target.value === '' ? 0 : Number.isFinite(n) ? n : afternoon)
           }}
         />
       </div>

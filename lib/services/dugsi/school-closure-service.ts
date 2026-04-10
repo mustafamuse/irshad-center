@@ -50,6 +50,23 @@ export async function markDateClosed(
       { where: { date, status: 'EXPECTED' }, toStatus: 'CLOSED', source: 'SYSTEM', changedBy: createdBy },
       tx
     )
+    // Cancel active excuses on AUTO_MARKED LATE records before flipping them to CLOSED.
+    // Must run BEFORE the attendance updateMany below so the attendanceRecord.status filter
+    // still matches LATE. Without this, CLOSED → EXCUSED (invalid transition) would leave
+    // the excuse permanently un-actionable in the admin queue.
+    await tx.excuseRequest.updateMany({
+      where: {
+        status: { in: ['PENDING', 'APPROVED'] },
+        attendanceRecord: { date, status: 'LATE', source: 'AUTO_MARKED' },
+      },
+      data: {
+        status: 'REJECTED',
+        adminNote: 'Auto-rejected: school marked closed',
+        reviewedBy: createdBy ?? 'system',
+        reviewedAt: new Date(),
+      },
+    })
+
     const autoMarkResult = await tx.teacherAttendanceRecord.updateMany({
       where: { date, status: 'LATE', source: 'AUTO_MARKED' },
       data: { status: 'CLOSED', source: 'SYSTEM', changedBy: createdBy ?? null },
@@ -85,6 +102,23 @@ export async function removeClosure(
     }
 
     await tx.schoolClosure.delete({ where: { date } })
+
+    // Cancel active excuses on CLOSED records before reverting them to EXPECTED.
+    // Possible if a teacher had an AUTO_MARKED LATE excuse pending when the date was
+    // closed: the record flipped CLOSED but the ExcuseRequest remained PENDING.
+    // Clearing it here prevents a ghost entry in the queue after reopening.
+    await tx.excuseRequest.updateMany({
+      where: {
+        status: { in: ['PENDING', 'APPROVED'] },
+        attendanceRecord: { date, status: 'CLOSED' },
+      },
+      data: {
+        status: 'REJECTED',
+        adminNote: 'Auto-rejected: school closure removed',
+        reviewedBy: changedBy ?? 'system',
+        reviewedAt: new Date(),
+      },
+    })
 
     // Revert: only CLOSED records go back to EXPECTED.
     // Uses bulkReopenDate — the only code path that may transition CLOSED → EXPECTED,

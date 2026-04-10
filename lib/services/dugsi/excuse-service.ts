@@ -63,16 +63,9 @@ export async function submitExcuse(
 
     // NOTE: ExcuseRequest.teacherId denormalizes TeacherAttendanceRecord.teacherId
     // to support fast lookups by teacher without joining through the record.
-    // The ownership check above validates they match, but there is no DB-level
-    // CHECK constraint — a direct insert with a mismatched teacherId would silently
-    // succeed.
-    // TODO: before the feature exits draft status, add a migration to enforce this at the
-    // DB level (a subquery CHECK is PostgreSQL-specific but zero-overhead for inserts):
-    //   ALTER TABLE "ExcuseRequest"
-    //     ADD CONSTRAINT "ExcuseRequest_teacherId_matches_record"
-    //     CHECK ("teacherId" = (
-    //       SELECT "teacherId" FROM "TeacherAttendanceRecord" WHERE "id" = "attendanceRecordId"
-    //     ));
+    // The ownership check above validates they match at runtime; the DB-level
+    // CHECK constraint in migration 20260410000005 enforces it permanently so a
+    // direct insert with a mismatched teacherId is rejected at the database layer.
     //
     // The partial unique index on (attendanceRecordId) WHERE status IN ('PENDING','APPROVED')
     // is the true concurrency guard — getExistingActiveExcuse is a fast-path guard only.
