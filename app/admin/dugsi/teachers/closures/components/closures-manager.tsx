@@ -97,6 +97,7 @@ export function ClosuresManager({ initialClosures }: Props) {
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. Spring break, Holiday..."
             rows={2}
+            maxLength={500}
           />
         </div>
 

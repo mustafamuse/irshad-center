@@ -66,7 +66,7 @@ vi.mock('@/lib/logger', () => ({
   }),
 }))
 
-import { submitExcuse, approveExcuse } from '../excuse-service'
+import { submitExcuse, approveExcuse, rejectExcuse } from '../excuse-service'
 
 describe('submitExcuse', () => {
   beforeEach(() => {
@@ -189,5 +189,42 @@ describe('approveExcuse', () => {
       })
     )
     expect(result).toBe(approvedExcuse)
+  })
+})
+
+describe('rejectExcuse', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+  })
+
+  it('throws EXCUSE_REQUEST_NOT_FOUND when excuse is missing', async () => {
+    mockGetExcuseById.mockResolvedValue(null)
+
+    await expect(
+      rejectExcuse({ excuseRequestId: 'ex-x', reviewedBy: 'admin' })
+    ).rejects.toMatchObject({ code: ERROR_CODES.EXCUSE_REQUEST_NOT_FOUND })
+  })
+
+  it('throws INVALID_TRANSITION when excuse is already non-PENDING', async () => {
+    mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'APPROVED', attendanceRecordId: 'rec-1' })
+
+    await expect(
+      rejectExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
+    ).rejects.toMatchObject({ code: ERROR_CODES.INVALID_TRANSITION })
+  })
+
+  it('rejects a PENDING excuse without touching the attendance record', async () => {
+    mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
+    const rejectedExcuse = { id: 'ex-1', status: 'REJECTED' }
+    mockExcuseUpdate.mockResolvedValue(rejectedExcuse)
+
+    const result = await rejectExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
+
+    expect(mockExcuseUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'REJECTED' }) })
+    )
+    expect(mockUpdateManyRecord).not.toHaveBeenCalled()
+    expect(result).toBe(rejectedExcuse)
   })
 })

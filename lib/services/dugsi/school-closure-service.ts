@@ -68,10 +68,10 @@ export async function markDateClosed(
 }
 
 export async function removeClosure(
-  params: { date: Date },
+  params: { date: Date; changedBy?: string },
   client: DatabaseClient = prisma
 ): Promise<{ reopenedCount: number }> {
-  const { date } = params
+  const { date, changedBy } = params
 
   const doWrites = async (tx: DatabaseClient) => {
     const existing = await getSchoolClosure(date, tx)
@@ -89,7 +89,7 @@ export async function removeClosure(
     // Revert: only CLOSED records go back to EXPECTED.
     // Uses bulkReopenDate — the only code path that may transition CLOSED → EXPECTED,
     // since the SchoolClosure row is deleted atomically above in the same transaction.
-    const reopenedCount = await bulkReopenDate({ date, source: 'SYSTEM' }, tx)
+    const reopenedCount = await bulkReopenDate({ date, source: 'SYSTEM', changedBy }, tx)
 
     logger.info(
       { event: 'SCHOOL_REOPENED', date, reopenedCount },

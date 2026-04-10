@@ -133,7 +133,7 @@ const _removeClosureAction = adminActionClient
     const dateObj = new Date(parsedInput.date)
     let result
     try {
-      result = await removeClosure({ date: dateObj })
+      result = await removeClosure({ date: dateObj, changedBy: ADMIN_IDENTITY })
     } catch (error) {
       await logError(logger, error, 'removeClosure', { date: parsedInput.date })
       throw error

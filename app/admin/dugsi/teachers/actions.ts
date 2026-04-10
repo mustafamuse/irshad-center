@@ -755,7 +755,7 @@ const _deleteCheckinAction = adminActionClient
   .schema(DeleteCheckinSchema)
   .action(async ({ parsedInput }) => {
     try {
-      await deleteCheckin(parsedInput.checkInId)
+      await deleteCheckin(parsedInput.checkInId, 'admin')
 
       after(() => revalidatePath('/admin/dugsi/teachers'))
 

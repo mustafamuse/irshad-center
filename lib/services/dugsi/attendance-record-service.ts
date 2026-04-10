@@ -314,12 +314,12 @@ export async function bulkTransitionStatus(
  * this intent is self-documenting and impossible to misuse from other call sites.
  */
 export async function bulkReopenDate(
-  params: { date: Date; source: AttendanceSource },
+  params: { date: Date; source: AttendanceSource; changedBy?: string },
   client: DatabaseClient = prisma
 ): Promise<number> {
   const result = await client.teacherAttendanceRecord.updateMany({
     where: { date: params.date, status: 'CLOSED' },
-    data: { status: 'EXPECTED', source: params.source },
+    data: { status: 'EXPECTED', source: params.source, ...(params.changedBy !== undefined ? { changedBy: params.changedBy } : {}) },
   })
   return result.count
 }
