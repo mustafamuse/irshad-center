@@ -6,7 +6,7 @@ import { TeachersDashboard } from './components/teachers-dashboard'
 export default async function TeachersPage() {
   const [result, pendingExcuses] = await Promise.all([
     getTeachers({ program: 'DUGSI_PROGRAM' }),
-    getPendingExcuseRequests(),
+    getPendingExcuseRequests().catch(() => [] as Awaited<ReturnType<typeof getPendingExcuseRequests>>),
   ])
 
   if (!result?.data) {

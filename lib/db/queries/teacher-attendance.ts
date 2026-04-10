@@ -176,14 +176,24 @@ export async function getTeacherAttendanceSummary(
   toDate: Date,
   client: DatabaseClient = prisma
 ): Promise<AttendanceRecordSummaryWithRelations[]> {
-  return client.teacherAttendanceRecord.findMany({
+  const rows = await client.teacherAttendanceRecord.findMany({
     where: {
       teacherId,
       date: { gte: fromDate, lte: toDate },
     },
     include: attendanceSummaryInclude,
     orderBy: [{ date: 'desc' }, { shift: 'asc' }],
+    take: 100,
   })
+
+  if (rows.length === 100) {
+    logger.warn(
+      { event: 'ATTENDANCE_SUMMARY_CAP_HIT', teacherId, fromDate, toDate },
+      'getTeacherAttendanceSummary hit the 100-row cap — results may be incomplete; narrow the date range'
+    )
+  }
+
+  return rows
 }
 
 // Grid data for admin attendance overview: all teachers × recent weekend dates.

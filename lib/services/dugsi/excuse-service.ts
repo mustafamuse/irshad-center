@@ -152,7 +152,6 @@ export async function approveExcuse(
         409
       )
     }
-    const updated = await tx.excuseRequest.findUniqueOrThrow({ where: { id: excuseRequestId } })
     // Optimistic lock: include current status in WHERE so a concurrent override
     // that already changed the record (e.g. another excuse approved first) produces
     // count=0 instead of silently overwriting the new state.
@@ -178,8 +177,6 @@ export async function approveExcuse(
       { event: 'EXCUSE_APPROVED', excuseRequestId, reviewedBy },
       'Admin approved excuse request'
     )
-
-    return updated
   }
 
   return isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client)
@@ -223,14 +220,10 @@ export async function rejectExcuse(
         409
       )
     }
-    const updated = await tx.excuseRequest.findUniqueOrThrow({ where: { id: excuseRequestId } })
-
     logger.info(
       { event: 'EXCUSE_REJECTED', excuseRequestId, reviewedBy },
       'Admin rejected excuse request'
     )
-
-    return updated
   }
 
   return isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client)

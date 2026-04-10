@@ -193,12 +193,10 @@ describe('approveExcuse', () => {
   it('approves excuse and flips attendance to EXCUSED', async () => {
     mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
     mockFindUniqueRecord.mockResolvedValue({ status: 'LATE' })
-    const approvedExcuse = { id: 'ex-1', status: 'APPROVED' }
     mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
-    mockExcuseFindUniqueOrThrow.mockResolvedValue(approvedExcuse)
     mockUpdateManyRecord.mockResolvedValue({ count: 1 })
 
-    const result = await approveExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
+    await approveExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
 
     expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -211,7 +209,6 @@ describe('approveExcuse', () => {
         data: expect.objectContaining({ status: 'EXCUSED' }),
       })
     )
-    expect(result).toBe(approvedExcuse)
   })
 })
 
@@ -248,11 +245,9 @@ describe('rejectExcuse', () => {
 
   it('rejects a PENDING excuse without touching the attendance record', async () => {
     mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
-    const rejectedExcuse = { id: 'ex-1', status: 'REJECTED' }
     mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
-    mockExcuseFindUniqueOrThrow.mockResolvedValue(rejectedExcuse)
 
-    const result = await rejectExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
+    await rejectExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
 
     expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -261,6 +256,5 @@ describe('rejectExcuse', () => {
       })
     )
     expect(mockUpdateManyRecord).not.toHaveBeenCalled()
-    expect(result).toBe(rejectedExcuse)
   })
 })
