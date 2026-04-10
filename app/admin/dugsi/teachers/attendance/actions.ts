@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db'
 import {
   getAttendanceConfig,
   getActiveDugsiTeacherShifts,
+  getSchoolClosure,
   updateAttendanceConfig,
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
@@ -153,8 +154,12 @@ const _updateAttendanceConfigAction = adminActionClient
   .metadata({ actionName: 'updateAttendanceConfigAction' })
   .schema(UpdateAttendanceConfigSchema)
   .action(async ({ parsedInput }) => {
-    await updateAttendanceConfig({ ...parsedInput, updatedBy: ADMIN_IDENTITY })
-
+    try {
+      await updateAttendanceConfig({ ...parsedInput, updatedBy: ADMIN_IDENTITY })
+    } catch (error) {
+      await logError(logger, error, 'updateAttendanceConfig', {})
+      throw error
+    }
     after(() => revalidatePath('/admin/dugsi/teachers/settings'))
     return { success: true }
   })
@@ -173,19 +178,23 @@ const _generateExpectedSlotsAction = adminActionClient
 
     let result
     try {
-      const teacherShifts = await getActiveDugsiTeacherShifts()
-      const closure = await prisma.schoolClosure.findUnique({ where: { date: dateObj } })
-      if (closure) {
-        throw new ActionError(
-          `Cannot generate slots for ${parsedInput.date} — school is already marked closed`,
-          ERROR_CODES.CLOSURE_EXISTS,
-          undefined,
-          409
-        )
-      }
-      result = await generateExpectedSlots(teacherShifts, dateObj)
+      result = await prisma.$transaction(async (tx) => {
+        const closure = await getSchoolClosure(dateObj, tx)
+        if (closure) {
+          throw new ActionError(
+            `Cannot generate slots for ${parsedInput.date} — school is already marked closed`,
+            ERROR_CODES.CLOSURE_EXISTS,
+            undefined,
+            409
+          )
+        }
+        const teacherShifts = await getActiveDugsiTeacherShifts(tx)
+        return generateExpectedSlots(teacherShifts, dateObj, tx)
+      })
     } catch (error) {
-      await logError(logger, error, 'generateExpectedSlots', { date: parsedInput.date })
+      if (!(error instanceof ActionError)) {
+        await logError(logger, error, 'generateExpectedSlots', { date: parsedInput.date })
+      }
       throw error
     }
 
