@@ -13,7 +13,8 @@ const {
   mockGetExcuseById,
   mockGetExistingActiveExcuse,
   mockExcuseCreate,
-  mockExcuseUpdate,
+  mockExcuseUpdateMany,
+  mockExcuseFindUniqueOrThrow,
   mockFindUniqueRecord,
   mockUpdateManyRecord,
   mockTransaction,
@@ -22,7 +23,8 @@ const {
   mockGetExcuseById: vi.fn(),
   mockGetExistingActiveExcuse: vi.fn(),
   mockExcuseCreate: vi.fn(),
-  mockExcuseUpdate: vi.fn(),
+  mockExcuseUpdateMany: vi.fn(),
+  mockExcuseFindUniqueOrThrow: vi.fn(),
   mockFindUniqueRecord: vi.fn(),
   mockUpdateManyRecord: vi.fn(),
   mockTransaction: vi.fn(),
@@ -32,10 +34,9 @@ function makeTx() {
   return {
     excuseRequest: {
       create: (...args: unknown[]) => mockExcuseCreate(...args),
-      update: (...args: unknown[]) => mockExcuseUpdate(...args),
-      // approveExcuse and rejectExcuse use tx.excuseRequest.findUnique directly
-      // (narrow select — no joins). mockGetExcuseById is reused so existing test
-      // setups (mockGetExcuseById.mockResolvedValue(...)) need no changes.
+      // approve/reject use updateMany (optimistic status guard) + findUniqueOrThrow
+      updateMany: (...args: unknown[]) => mockExcuseUpdateMany(...args),
+      findUniqueOrThrow: (...args: unknown[]) => mockExcuseFindUniqueOrThrow(...args),
       findUnique: (...args: unknown[]) => mockGetExcuseById(...args),
     },
     teacherAttendanceRecord: {
@@ -163,13 +164,25 @@ describe('approveExcuse', () => {
     ).rejects.toMatchObject({ code: ERROR_CODES.INVALID_TRANSITION })
   })
 
-  it('throws CONCURRENT_MODIFICATION when attendance updateMany count === 0', async () => {
-    // Simulates a concurrent admin override that changed the attendance record
-    // between excuse submission and this approval attempt.
+  it('throws CONCURRENT_MODIFICATION when excuse request was modified concurrently', async () => {
+    // Simulates a concurrent rejectExcuse that committed between the findUnique read
+    // and the excuseRequest updateMany — the updateMany finds no PENDING row (count=0).
     mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
-    // Record is LATE (valid for EXCUSED transition), but the optimistic lock fails
     mockFindUniqueRecord.mockResolvedValue({ status: 'LATE' })
-    mockExcuseUpdate.mockResolvedValue({ id: 'ex-1', status: 'APPROVED' })
+    mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
+
+    await expect(
+      approveExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
+    ).rejects.toMatchObject({ code: ERROR_CODES.CONCURRENT_MODIFICATION })
+  })
+
+  it('throws CONCURRENT_MODIFICATION when attendance record was modified concurrently', async () => {
+    // Simulates a concurrent admin override on the attendance record — the excuse
+    // request write succeeds (count=1) but the attendance updateMany finds no matching row.
+    mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
+    mockFindUniqueRecord.mockResolvedValue({ status: 'LATE' })
+    mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
+    mockExcuseFindUniqueOrThrow.mockResolvedValue({ id: 'ex-1', status: 'APPROVED' })
     mockUpdateManyRecord.mockResolvedValue({ count: 0 })
 
     await expect(
@@ -181,11 +194,18 @@ describe('approveExcuse', () => {
     mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
     mockFindUniqueRecord.mockResolvedValue({ status: 'LATE' })
     const approvedExcuse = { id: 'ex-1', status: 'APPROVED' }
-    mockExcuseUpdate.mockResolvedValue(approvedExcuse)
+    mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
+    mockExcuseFindUniqueOrThrow.mockResolvedValue(approvedExcuse)
     mockUpdateManyRecord.mockResolvedValue({ count: 1 })
 
     const result = await approveExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
 
+    expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'PENDING' }),
+        data: expect.objectContaining({ status: 'APPROVED' }),
+      })
+    )
     expect(mockUpdateManyRecord).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'EXCUSED' }),
@@ -217,15 +237,28 @@ describe('rejectExcuse', () => {
     ).rejects.toMatchObject({ code: ERROR_CODES.INVALID_TRANSITION })
   })
 
+  it('throws CONCURRENT_MODIFICATION when excuse request was modified concurrently', async () => {
+    mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
+    mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
+
+    await expect(
+      rejectExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
+    ).rejects.toMatchObject({ code: ERROR_CODES.CONCURRENT_MODIFICATION })
+  })
+
   it('rejects a PENDING excuse without touching the attendance record', async () => {
     mockGetExcuseById.mockResolvedValue({ id: 'ex-1', status: 'PENDING', attendanceRecordId: 'rec-1' })
     const rejectedExcuse = { id: 'ex-1', status: 'REJECTED' }
-    mockExcuseUpdate.mockResolvedValue(rejectedExcuse)
+    mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
+    mockExcuseFindUniqueOrThrow.mockResolvedValue(rejectedExcuse)
 
     const result = await rejectExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
 
-    expect(mockExcuseUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: 'REJECTED' }) })
+    expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'PENDING' }),
+        data: expect.objectContaining({ status: 'REJECTED' }),
+      })
     )
     expect(mockUpdateManyRecord).not.toHaveBeenCalled()
     expect(result).toBe(rejectedExcuse)

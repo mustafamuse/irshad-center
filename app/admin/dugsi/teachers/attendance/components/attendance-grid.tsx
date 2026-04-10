@@ -105,9 +105,9 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
             {teachers.map((teacher, idx) => (
               <tr
                 key={teacher.id}
-                className={cn('border-b', idx % 2 === 0 ? 'bg-white' : 'bg-muted/20')}
+                className={cn('border-b', idx % 2 === 0 ? 'bg-background' : 'bg-muted/20')}
               >
-                <td className={cn('sticky left-0 px-3 py-2 font-medium', idx % 2 === 0 ? 'bg-white' : 'bg-muted/20')}>
+                <td className={cn('sticky left-0 px-3 py-2 font-medium', idx % 2 === 0 ? 'bg-background' : 'bg-muted/20')}>
                   {teacher.name}
                 </td>
                 {weekendDates.map((date) => (

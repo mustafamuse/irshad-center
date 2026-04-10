@@ -136,10 +136,23 @@ export async function approveExcuse(
     }
     assertValidTransition(currentRecord.status, 'EXCUSED')
 
-    const updated = await tx.excuseRequest.update({
-      where: { id: excuseRequestId },
+    const excuseUpdateResult = await tx.excuseRequest.updateMany({
+      where: { id: excuseRequestId, status: 'PENDING' },
       data: { status: 'APPROVED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
     })
+    // Optimistic lock on the ExcuseRequest: a concurrent rejectExcuse that committed
+    // between the findUnique above and this write would have changed status → REJECTED.
+    // count=0 here means we'd silently overwrite REJECTED → APPROVED and then flip the
+    // attendance record to EXCUSED, producing an orphaned approval. Fail fast instead.
+    if (excuseUpdateResult.count === 0) {
+      throw new ActionError(
+        'Excuse request was modified concurrently — please refresh and try again',
+        ERROR_CODES.CONCURRENT_MODIFICATION,
+        undefined,
+        409
+      )
+    }
+    const updated = await tx.excuseRequest.findUniqueOrThrow({ where: { id: excuseRequestId } })
     // Optimistic lock: include current status in WHERE so a concurrent override
     // that already changed the record (e.g. another excuse approved first) produces
     // count=0 instead of silently overwriting the new state.
@@ -191,10 +204,23 @@ export async function rejectExcuse(
       )
     }
 
-    const updated = await tx.excuseRequest.update({
-      where: { id: excuseRequestId },
+    const rejectUpdateResult = await tx.excuseRequest.updateMany({
+      where: { id: excuseRequestId, status: 'PENDING' },
       data: { status: 'REJECTED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
     })
+    // Optimistic lock: a concurrent approveExcuse between the findUnique read and this
+    // write would have changed status → APPROVED and flipped the attendance record.
+    // Without this guard, we'd silently overwrite APPROVED → REJECTED leaving attendance
+    // stuck at EXCUSED with no live excuse to explain it.
+    if (rejectUpdateResult.count === 0) {
+      throw new ActionError(
+        'Excuse request was modified concurrently — please refresh and try again',
+        ERROR_CODES.CONCURRENT_MODIFICATION,
+        undefined,
+        409
+      )
+    }
+    const updated = await tx.excuseRequest.findUniqueOrThrow({ where: { id: excuseRequestId } })
 
     logger.info(
       { event: 'EXCUSE_REJECTED', excuseRequestId, reviewedBy },
