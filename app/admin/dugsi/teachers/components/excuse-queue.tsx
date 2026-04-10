@@ -30,8 +30,8 @@ export function ExcuseQueue({ initialRequests }: Props) {
     startTransition(async () => {
       const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
       setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
-      if (result?.serverError) {
-        setErrors((prev) => ({ ...prev, [id]: `${result.serverError} — refresh to see latest.` }))
+      if (result?.serverError || result?.validationErrors) {
+        setErrors((prev) => ({ ...prev, [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.` }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
@@ -44,8 +44,8 @@ export function ExcuseQueue({ initialRequests }: Props) {
     startTransition(async () => {
       const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
       setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
-      if (result?.serverError) {
-        setErrors((prev) => ({ ...prev, [id]: `${result.serverError} — refresh to see latest.` }))
+      if (result?.serverError || result?.validationErrors) {
+        setErrors((prev) => ({ ...prev, [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.` }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))

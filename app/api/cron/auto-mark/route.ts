@@ -33,9 +33,12 @@ export async function GET() {
   if (!cronSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  const expected = Buffer.from(`Bearer ${cronSecret}`)
-  const received = Buffer.from(authHeader ?? '')
-  const valid = expected.length === received.length && crypto.timingSafeEqual(expected, received)
+  // Hash both sides to a fixed-length digest before comparing so that
+  // timingSafeEqual is always called on equal-length inputs — no length
+  // short-circuit, and the expected token length is never leaked via timing.
+  const expectedHash = crypto.createHash('sha256').update(`Bearer ${cronSecret}`).digest()
+  const receivedHash = crypto.createHash('sha256').update(authHeader ?? '').digest()
+  const valid = crypto.timingSafeEqual(expectedHash, receivedHash)
   if (!valid) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

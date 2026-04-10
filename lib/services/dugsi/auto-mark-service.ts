@@ -149,8 +149,12 @@ export async function autoMarkBothShifts(
   date: string,
   client: DatabaseClient = prisma
 ): Promise<{ morning: AutoMarkResult; afternoon: AutoMarkResult }> {
-  // Fetch config once outside the transaction — it's the singleton read and
-  // doesn't need to be atomic with the writes.
+  // Fetch config once outside the transaction — intentional: acceptable one-invocation
+  // staleness. If an admin updates morningAutoMarkMinutes/afternoonAutoMarkMinutes at
+  // exactly the same second the cron fires, this run uses the previous threshold.
+  // The window is bounded to a single invocation; the next cron run reads the new value.
+  // Moving the fetch inside doWrites would close the window at the cost of a per-run
+  // DB read, which is not justified given the low probability of the race.
   const config = await getAttendanceConfig(client)
 
   const doWrites = async (tx: DatabaseClient) => {

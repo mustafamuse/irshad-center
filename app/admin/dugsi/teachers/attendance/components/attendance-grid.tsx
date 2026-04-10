@@ -136,6 +136,7 @@ export function AttendanceGrid({ records, weekendDates, closureDates }: Props) {
                             }
                             className="transition-opacity hover:opacity-70"
                             title="Click to override"
+                            aria-label={`Override ${teacher.name} ${date} ${shift === 'MORNING' ? 'Morning' : 'Afternoon'}`}
                           >
                             <AttendanceStatusBadge
                               status={record.status}
