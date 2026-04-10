@@ -420,14 +420,10 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     expect(mockLogError).toHaveBeenCalledWith(
       expect.anything(),
       authError,
-      'Path 4 fallback: transient/auth Stripe error — metadata patch skipped, subscription saved successfully',
+      'Path 4 fallback: Failed to patch Stripe subscription metadata — manual update required',
       expect.any(Object)
     )
-    expect(mockSentrycaptureMessage).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ level: 'error' })
-    )
-    expect(mockSentrycaptureException).not.toHaveBeenCalled()
+    expect(mockSentrycaptureException).toHaveBeenCalledOnce()
   })
 
   it('includes familyName in Stripe metadata patch', async () => {

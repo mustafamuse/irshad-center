@@ -413,7 +413,7 @@ async function resolveSubscriptionContext(
 
   // Path 2: personId or guardianPersonId present in Stripe subscription metadata
   const metadataPersonId =
-    subscription.metadata?.personId ?? subscription.metadata?.guardianPersonId
+    subscription.metadata?.personId || subscription.metadata?.guardianPersonId
 
   if (metadataPersonId) {
     const verifiedPerson = await findPersonById(metadataPersonId)
@@ -547,16 +547,15 @@ async function patchRecoveredDugsiMetadata(
       },
     })
   } catch (metadataErr) {
-    const isOperationalError =
-      metadataErr instanceof Stripe.errors.StripeAuthenticationError ||
+    const isTransientError =
       metadataErr instanceof Stripe.errors.StripeConnectionError ||
       metadataErr instanceof Stripe.errors.StripeRateLimitError
 
-    if (isOperationalError) {
+    if (isTransientError) {
       await logError(
         logger,
         metadataErr,
-        'Path 4 fallback: transient/auth Stripe error — metadata patch skipped, subscription saved successfully',
+        'Path 4 fallback: transient Stripe error — metadata patch skipped, subscription saved successfully',
         { subscriptionId, customerId }
       )
       return
