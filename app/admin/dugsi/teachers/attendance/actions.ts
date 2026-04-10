@@ -3,12 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 
-import { formatInTimeZone } from 'date-fns-tz'
-
-import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { prisma } from '@/lib/db'
 import {
-  getAttendanceConfig,
   getActiveDugsiTeacherShifts,
   getSchoolClosure,
   updateAttendanceConfig,

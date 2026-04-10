@@ -33,6 +33,17 @@ export type AttendanceRecordGridWithRelations = Prisma.TeacherAttendanceRecordGe
   include: typeof attendanceRecordGridInclude
 }>
 
+// Teacher-facing history: only needs excuses for the "Request Excuse" button.
+// Skips the teacher → person join since the caller (fetchAttendanceHistory) never
+// accesses r.teacher and the teacherId filter already scopes the query.
+export const attendanceSummaryInclude = {
+  excuses: { orderBy: { createdAt: 'desc' as const } },
+} as const satisfies Prisma.TeacherAttendanceRecordInclude
+
+export type AttendanceRecordSummaryWithRelations = Prisma.TeacherAttendanceRecordGetPayload<{
+  include: typeof attendanceSummaryInclude
+}>
+
 export const excuseRequestInclude = {
   attendanceRecord: { include: { teacher: { include: { person: true } } } },
 } as const satisfies Prisma.ExcuseRequestInclude
@@ -146,19 +157,21 @@ export async function getAttendanceRecords(
   })
 }
 
-// All records for a teacher across a date range — used for admin detail view + teacher history
+// All records for a teacher across a date range — used for teacher-facing history.
+// Uses the slim attendanceSummaryInclude (excuses only) since callers never access
+// r.teacher. Admin detail views query directly with attendanceRecordInclude.
 export async function getTeacherAttendanceSummary(
   teacherId: string,
   fromDate: Date,
   toDate: Date,
   client: DatabaseClient = prisma
-): Promise<AttendanceRecordWithRelations[]> {
+): Promise<AttendanceRecordSummaryWithRelations[]> {
   return client.teacherAttendanceRecord.findMany({
     where: {
       teacherId,
       date: { gte: fromDate, lte: toDate },
     },
-    include: attendanceRecordInclude,
+    include: attendanceSummaryInclude,
     orderBy: [{ date: 'desc' }, { shift: 'asc' }],
   })
 }

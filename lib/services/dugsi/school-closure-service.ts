@@ -122,9 +122,9 @@ export async function removeClosure(
 
     // P2025 guard: two admins removing the same closure concurrently both pass the
     // getSchoolClosure check (READ COMMITTED), then race to delete. The loser gets P2025
-    // ("Record to delete does not exist"). Remap to the same NOT_FOUND response so the
-    // second admin sees a clean 404 rather than a raw 500. P2025 does not abort the
-    // PostgreSQL transaction (unlike P2002), so catching it here is safe.
+    // ("Record to delete does not exist"). The catch re-throws as ActionError, which
+    // causes the interactive transaction to roll back cleanly — the second admin sees
+    // a clean 404 rather than an unhandled 500.
     try {
       await tx.schoolClosure.delete({ where: { date } })
     } catch (err) {

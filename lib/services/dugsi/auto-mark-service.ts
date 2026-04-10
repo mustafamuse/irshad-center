@@ -158,6 +158,16 @@ export async function autoMarkBothShifts(
   date: string,
   client: DatabaseClient = prisma
 ): Promise<{ morning: AutoMarkResult; afternoon: AutoMarkResult }> {
+  // getAttendanceConfig throws if given a transaction client (see its isPrismaClient guard).
+  // Fail loudly here so the error fires at the correct callsite rather than deep inside
+  // the function with a message that mentions getAttendanceConfig, not autoMarkBothShifts.
+  if (!isPrismaClient(client)) {
+    throw new Error(
+      'autoMarkBothShifts: must be called with the root prisma client, not a transaction — ' +
+      'getAttendanceConfig cannot run inside a $transaction'
+    )
+  }
+
   // Fetch config once outside the transaction — intentional: acceptable one-invocation
   // staleness. If an admin updates morningAutoMarkMinutes/afternoonAutoMarkMinutes at
   // exactly the same second the cron fires, this run uses the previous threshold.
