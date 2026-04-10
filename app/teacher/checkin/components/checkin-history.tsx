@@ -13,24 +13,14 @@ import {
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { cn } from '@/lib/utils'
 
+import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
+
 import {
   type AttendanceHistoryItem,
   type AttendanceHistoryResult,
   getTeacherAttendanceHistory,
 } from '../actions'
 import { ExcuseForm } from './excuse-form'
-
-const STATUS_BADGE: Record<
-  AttendanceHistoryItem['status'],
-  { label: string; className: string }
-> = {
-  EXPECTED: { label: 'Expected', className: 'border-gray-200 bg-gray-100 text-gray-500' },
-  PRESENT: { label: 'Present', className: 'border-green-200 bg-green-100 text-green-800' },
-  LATE: { label: 'Late', className: 'border-orange-200 bg-orange-100 text-orange-800' },
-  ABSENT: { label: 'Absent', className: 'border-red-200 bg-red-100 text-red-800' },
-  EXCUSED: { label: 'Excused', className: 'border-blue-200 bg-blue-100 text-blue-800' },
-  CLOSED: { label: 'Closed', className: 'border-slate-200 bg-slate-100 text-slate-400' },
-}
 
 function formatDateLabel(dateStr: string) {
   const d = new Date(`${dateStr}T12:00:00Z`)
@@ -138,7 +128,7 @@ export function CheckinHistory({ teacherId }: Props) {
               {/* Status rows */}
               <div className="divide-y">
                 {history.records.map((item) => {
-                  const badgeConfig = STATUS_BADGE[item.status]
+                  const badgeConfig = ATTENDANCE_STATUS_CONFIG[item.status]
                   const canRequestExcuse =
                     (item.status === 'LATE' || item.status === 'ABSENT') &&
                     !item.pendingExcuseId
@@ -190,6 +180,7 @@ export function CheckinHistory({ teacherId }: Props) {
                       {isExcuseOpen && (
                         <ExcuseForm
                           attendanceRecordId={item.id}
+                          teacherId={teacherId}
                           onSuccess={handleExcuseSuccess}
                           onCancel={() => setExcuseOpenId(null)}
                         />

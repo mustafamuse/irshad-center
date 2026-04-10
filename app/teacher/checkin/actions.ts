@@ -276,28 +276,27 @@ const _submitExcuseAction = rateLimitedActionClient
   .metadata({ actionName: 'submitExcuseAction' })
   .schema(SubmitExcuseSchema)
   .action(async ({ parsedInput }) => {
-    const { attendanceRecordId, reason } = parsedInput
+    const { attendanceRecordId, teacherId, reason } = parsedInput
 
     // SECURITY — ownership boundary:
     // The teacher app has no session; teachers identify only by UI selection.
-    // teacherId is intentionally NOT in the schema — we resolve it server-side
-    // from the record so both sides of the cross-teacher check cannot be spoofed.
-    // Residual risk: a caller who knows a valid attendanceRecordId UUID can submit
-    // on behalf of any teacher. Mitigated by:
-    //   1. Non-predictable UUIDs (random v4 — not sequential)
-    //   2. IP-based rate limiting from rateLimitedActionClient
-    // Interim hardening (no sessions required): embed a short-lived HMAC token
-    // encoding (teacherId, recordId, exp) in the excuse form render and verify
-    // server-side — ties submissions to the teacher who loaded the page.
-    // SECURITY TASK: tracked in issue #225 — treat as security debt, not just
-    // tech debt. Do NOT remove this comment without closing that issue.
+    // Stop-gap (until session auth in #225): teacherId is included in the schema and
+    // verified against the server-resolved value — forces the caller to know both
+    // the recordId AND the correct teacherId, adding a small layer of defense.
+    // This does NOT fix spoofability (both values could be obtained by a motivated
+    // attacker), but ensures self-consistency.
+    // Full fix: HMAC token encoding (teacherId, recordId, exp) signed on page render,
+    // verified here before calling submitExcuse — or full session auth in #225.
+    // SECURITY TASK — Do NOT remove this comment without closing issue #225.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
     }
-    const resolvedTeacherId = record.teacherId
+    if (record.teacherId !== teacherId) {
+      throw new ActionError('Attendance record does not belong to this teacher', ERROR_CODES.EXCUSE_NOT_ELIGIBLE, undefined, 403)
+    }
 
-    const excuse = await submitExcuse({ attendanceRecordId, teacherId: resolvedTeacherId, reason })
+    const excuse = await submitExcuse({ attendanceRecordId, teacherId, reason })
 
     after(() => revalidatePath('/teacher/checkin'))
     return { excuseRequestId: excuse.id }

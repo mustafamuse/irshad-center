@@ -54,11 +54,6 @@ export async function autoMarkLateForShift(
   }
 
   const dateObj = new Date(date)
-  const activeTeachers = await getActiveDugsiTeacherShifts(client)
-
-  const teachersForShift = activeTeachers
-    .filter((tp) => tp.shifts.includes(shift))
-    .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] as Shift[] }))
 
   // Wrap slot generation + updateMany in one transaction so:
   // - A concurrent self-checkin can't slip between the slot write and the auto-mark.
@@ -74,13 +69,24 @@ export async function autoMarkLateForShift(
       return { kind: 'closed' }
     }
 
+    // Read active teachers inside the transaction so the slot generation is atomic
+    // with the auto-mark write: a teacher deactivated between the outer read and the
+    // updateMany could otherwise get a spurious LATE slot created inside the tx.
+    const activeTeachers = await getActiveDugsiTeacherShifts(tx)
+    const teachersForShift = activeTeachers
+      .filter((tp) => tp.shifts.includes(shift))
+      .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] as Shift[] }))
+
     if (teachersForShift.length > 0) {
       await generateExpectedSlots(teachersForShift, dateObj, tx)
     }
 
-    // minutesLate is approximate (same value for all records in this batch),
-    // computed from cron invocation time vs class start. Good enough for display.
-    const minutesLate = Math.round((now.getTime() - classStartUtc.getTime()) / 60_000)
+    // Use offsetMinutes (the configured threshold) rather than `now - classStart` —
+    // the cron fires at 21:00 UTC, so `now - classStart` would produce ~360 min for
+    // morning and ~90 min for afternoon, making the displayed value misleading.
+    // The configured offset is the most honest value: it's exactly how late
+    // the auto-mark window was set when the records were created.
+    const minutesLate = offsetMinutes
 
     const result = await tx.teacherAttendanceRecord.updateMany({
       where: { date: dateObj, shift, status: 'EXPECTED' },

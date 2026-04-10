@@ -9,11 +9,12 @@ import { submitExcuseAction } from '../actions'
 
 interface Props {
   attendanceRecordId: string
+  teacherId: string
   onSuccess: () => void
   onCancel: () => void
 }
 
-export function ExcuseForm({ attendanceRecordId, onSuccess, onCancel }: Props) {
+export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel }: Props) {
   const [isPending, startTransition] = useTransition()
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +28,7 @@ export function ExcuseForm({ attendanceRecordId, onSuccess, onCancel }: Props) {
     startTransition(async () => {
       const result = await submitExcuseAction({
         attendanceRecordId,
+        teacherId,
         reason: reason.trim(),
       })
 
