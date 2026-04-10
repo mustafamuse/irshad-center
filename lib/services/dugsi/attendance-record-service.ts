@@ -321,6 +321,20 @@ export async function bulkTransitionStatus(
     },
   })
 
+  logger.info(
+    {
+      event: 'BULK_STATUS_TRANSITION',
+      date: where.date,
+      shift: where.shift ?? 'ALL',
+      from: where.status,
+      to: toStatus,
+      source,
+      count: result.count,
+      changedBy,
+    },
+    `Bulk transition ${where.status} → ${toStatus}: ${result.count} records`
+  )
+
   return result.count
 }
 

@@ -163,7 +163,8 @@ export function ClosuresManager({ initialClosures }: Props) {
                   <span className="font-medium">
                     {formatInTimeZone(pendingRemoval.date, 'UTC', 'EEE MMM d, yyyy')}
                   </span>
-                  ? All CLOSED records for this date will revert to EXPECTED.
+                  ? All CLOSED records for this date will revert to EXPECTED.{' '}
+                  Any teachers that were auto-marked LATE before this date was closed will also revert to EXPECTED — you may need to manually correct them in the attendance grid.
                 </>
               )}
             </AlertDialogDescription>

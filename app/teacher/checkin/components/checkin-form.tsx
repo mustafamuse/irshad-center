@@ -59,9 +59,10 @@ function formatDistance(meters: number): string {
 
 interface CheckinFormProps {
   teachers: TeacherForDropdown[]
+  showHistory?: boolean
 }
 
-export function CheckinForm({ teachers }: CheckinFormProps) {
+export function CheckinForm({ teachers, showHistory = false }: CheckinFormProps) {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(
     null
   )
@@ -615,7 +616,7 @@ export function CheckinForm({ teachers }: CheckinFormProps) {
         </>
       )}
 
-      <CheckinHistory teacherId={selectedTeacherId} />
+      {showHistory && <CheckinHistory teacherId={selectedTeacherId} />}
 
       <OnboardingModal open={showOnboarding} onDismiss={dismissOnboarding} />
     </div>

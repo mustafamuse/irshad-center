@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function TeacherCheckinPage() {
   const teachers = await getDugsiTeachers()
+  const showHistory = process.env.PHASE2_AUTH_ENABLED === 'true'
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#007078]/5 via-white to-gray-50/50">
@@ -34,7 +35,7 @@ export default async function TeacherCheckinPage() {
           </p>
         </div>
 
-        <CheckinForm teachers={teachers} />
+        <CheckinForm teachers={teachers} showHistory={showHistory} />
       </div>
     </div>
   )

@@ -10,6 +10,9 @@ import { Prisma, PrismaClient, Program, Shift, TeacherAttendanceStatus } from '@
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger } from '@/lib/logger'
+
+const logger = createServiceLogger('teacher-attendance-queries')
 
 // ============================================================================
 // INCLUDES
@@ -147,12 +150,21 @@ export async function getAttendanceRecords(
     if (dateTo) where.date.lte = dateTo
   }
 
-  return client.teacherAttendanceRecord.findMany({
+  const rows = await client.teacherAttendanceRecord.findMany({
     where,
     include: attendanceRecordInclude,
     orderBy: [{ date: 'desc' }, { shift: 'asc' }],
     take: 200,
   })
+
+  if (rows.length === 200) {
+    logger.warn(
+      { event: 'ATTENDANCE_RECORDS_CAP_HIT', filters },
+      'getAttendanceRecords hit the 200-row cap — results may be incomplete; tighten the date range'
+    )
+  }
+
+  return rows
 }
 
 // All records for a teacher across a date range — used for teacher-facing history.
