@@ -718,6 +718,10 @@ async function linkProfilesIfPresent(
   const priceAmount = subscription.items.data[0]?.price?.unit_amount
   if (priceAmount === null || priceAmount === undefined || priceAmount <= 0) {
     const error = new Error('Subscription has invalid amount')
+    Sentry.captureException(error, {
+      level: 'error',
+      extra: { subscriptionId: subscription.id, priceAmount },
+    })
     await logError(
       logger,
       error,

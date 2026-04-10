@@ -280,22 +280,30 @@ export async function createSubscription(
   },
   client: DatabaseClient = prisma
 ) {
-  return client.subscription.create({
-    data: {
-      billingAccountId: data.billingAccountId,
-      stripeAccountType: data.stripeAccountType,
-      stripeSubscriptionId: data.stripeSubscriptionId,
-      stripeCustomerId: data.stripeCustomerId,
-      status: data.status || 'incomplete',
-      amount: data.amount,
-      currency: data.currency || 'usd',
-      interval: data.interval || 'month',
-      currentPeriodStart: data.currentPeriodStart,
-      currentPeriodEnd: data.currentPeriodEnd,
-      paidUntil: data.paidUntil,
-      lastPaymentDate: data.lastPaymentDate,
-      previousSubscriptionIds: data.previousSubscriptionIds || [],
-    },
+  const subscriptionData = {
+    billingAccountId: data.billingAccountId,
+    stripeAccountType: data.stripeAccountType,
+    stripeSubscriptionId: data.stripeSubscriptionId,
+    stripeCustomerId: data.stripeCustomerId,
+    status: data.status || 'incomplete',
+    amount: data.amount,
+    currency: data.currency || 'usd',
+    interval: data.interval || 'month',
+    currentPeriodStart: data.currentPeriodStart,
+    currentPeriodEnd: data.currentPeriodEnd,
+    paidUntil: data.paidUntil,
+    lastPaymentDate: data.lastPaymentDate,
+    previousSubscriptionIds: data.previousSubscriptionIds || [],
+  }
+
+  // upsert is used instead of create to be safe against concurrent Stripe webhook
+  // deliveries — two simultaneous calls with the same stripeSubscriptionId would
+  // both pass the idempotency check in createSubscriptionFromStripe and race to
+  // insert, causing P2002. The empty update: {} is a no-op on conflict.
+  return client.subscription.upsert({
+    where: { stripeSubscriptionId: data.stripeSubscriptionId },
+    create: subscriptionData,
+    update: {},
     include: {
       billingAccount: {
         include: {

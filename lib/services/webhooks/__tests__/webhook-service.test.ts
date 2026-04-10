@@ -10,7 +10,6 @@ const {
   mockFindBillableDugsiProfileIdsForGuardian,
   mockCustomersRetrieve,
   mockSubscriptionsUpdate,
-  mockPrismaPersonFindFirst,
   mockCreateOrUpdateBillingAccount,
   mockLinkSubscriptionToProfiles,
   mockCreateSubscriptionFromStripe,
@@ -30,7 +29,6 @@ const {
   mockFindBillableDugsiProfileIdsForGuardian: vi.fn(),
   mockCustomersRetrieve: vi.fn(),
   mockSubscriptionsUpdate: vi.fn(),
-  mockPrismaPersonFindFirst: vi.fn(),
   mockCreateOrUpdateBillingAccount: vi.fn(),
   mockLinkSubscriptionToProfiles: vi.fn(),
   mockCreateSubscriptionFromStripe: vi.fn(),
@@ -73,12 +71,6 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn(),
   })),
   logError: mockLogError,
-}))
-
-vi.mock('@/lib/db', () => ({
-  prisma: {
-    person: { findFirst: mockPrismaPersonFindFirst },
-  },
 }))
 
 vi.mock('@sentry/nextjs', () => ({
