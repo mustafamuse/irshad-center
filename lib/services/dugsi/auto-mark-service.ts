@@ -16,6 +16,7 @@ import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { CLASS_START_TIMES, SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { createServiceLogger } from '@/lib/logger'
 import { getAttendanceConfig, getActiveDugsiTeacherShifts } from '@/lib/db/queries/teacher-attendance'
+import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import { generateExpectedSlots } from './attendance-record-service'
 
 const logger = createServiceLogger('auto-mark')
@@ -35,6 +36,11 @@ export async function autoMarkLateForShift(
   // duplicate singleton read per shift. When omitted, fetched from the database.
   prefetchedConfig?: DugsiAttendanceConfig
 ): Promise<AutoMarkResult> {
+  // Fast-fail if the transition table ever removes EXPECTED → LATE.
+  // The updateMany inside doWrites bypasses assertValidTransition directly;
+  // this guard ensures the cron breaks loudly rather than silently doing nothing.
+  assertValidTransition('EXPECTED', 'LATE')
+
   const config = prefetchedConfig ?? await getAttendanceConfig(client)
   const offsetMinutes =
     shift === 'MORNING'

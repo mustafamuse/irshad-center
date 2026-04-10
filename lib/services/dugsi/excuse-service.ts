@@ -114,7 +114,7 @@ export async function approveExcuse(
     if (statusResult.count === 0) {
       throw new ActionError(
         'Record was modified concurrently — please refresh and try again',
-        ERROR_CODES.INVALID_TRANSITION,
+        ERROR_CODES.CONCURRENT_MODIFICATION,
         undefined,
         409
       )

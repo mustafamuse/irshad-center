@@ -181,8 +181,13 @@ export async function listSchoolClosures(
   to?: Date,
   client: DatabaseClient = prisma
 ) {
+  // Default lower bound: 2 years back — prevents unbounded full-table scans
+  // when called with no arguments (e.g. closures/page.tsx).
+  const defaultFrom = new Date(Date.UTC(new Date().getUTCFullYear() - 2, 0, 1))
   return client.schoolClosure.findMany({
-    where: from && to ? { date: { gte: from, lte: to } } : undefined,
+    where: from && to
+      ? { date: { gte: from, lte: to } }
+      : { date: { gte: from ?? defaultFrom } },
     orderBy: { date: 'desc' },
   })
 }

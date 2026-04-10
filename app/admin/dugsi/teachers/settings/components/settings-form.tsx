@@ -66,6 +66,7 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
           type="number"
           min={0}
           max={120}
+          step={1}
           value={afternoon}
           onChange={(e) => setAfternoon(Number(e.target.value))}
         />
