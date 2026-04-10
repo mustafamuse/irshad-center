@@ -33,6 +33,7 @@ interface Props {
 
 export function ClosuresManager({ initialClosures }: Props) {
   const [isPending, startTransition] = useTransition()
+  const [closures, setClosures] = useState<Closure[]>(initialClosures)
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -47,6 +48,12 @@ export function ClosuresManager({ initialClosures }: Props) {
         setError(result.serverError)
         return
       }
+      // Optimistically append — id is a temp placeholder since dates are unique
+      // and removal uses the date string, not the id.
+      setClosures((prev) => [
+        ...prev,
+        { id: `_new-${date}`, date: new Date(`${date}T00:00:00.000Z`), reason },
+      ])
       setDate('')
       setReason('')
     })
@@ -61,6 +68,7 @@ export function ClosuresManager({ initialClosures }: Props) {
         setError(result.serverError)
         return
       }
+      setClosures((prev) => prev.filter((c) => c.id !== closure.id))
       setPendingRemoval(null)
     })
   }
@@ -100,11 +108,11 @@ export function ClosuresManager({ initialClosures }: Props) {
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Existing Closures</h2>
-        {initialClosures.length === 0 ? (
+        {closures.length === 0 ? (
           <p className="text-sm text-muted-foreground">No closures recorded.</p>
         ) : (
           <div className="divide-y rounded-lg border">
-            {initialClosures.map((c) => (
+            {closures.map((c) => (
               <div key={c.id} className="flex items-center justify-between px-4 py-3">
                 <div>
                   <p className="text-sm font-medium">

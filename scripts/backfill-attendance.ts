@@ -219,7 +219,9 @@ async function main() {
     })
   }
 
-  let written = 0
+  let dbCreated = 0
+  let dbUpdated = 0
+  let dbUnchanged = 0
   for (const r of rows) {
     if (r.action === 'SKIP') continue
 
@@ -240,18 +242,24 @@ async function main() {
       where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
       data: { status: r.action, source: 'SYSTEM', checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
     })
-    if (updated.count === 0) {
+    if (updated.count > 0) {
+      dbUpdated++
+    } else {
       // Either record doesn't exist yet or an admin changed the status — create if
       // missing, skip silently if present with a non-EXPECTED status.
-      await prisma.teacherAttendanceRecord.createMany({
+      const created = await prisma.teacherAttendanceRecord.createMany({
         data: [rowData],
         skipDuplicates: true,
       })
+      if (created.count > 0) {
+        dbCreated++
+      } else {
+        dbUnchanged++ // record exists with a non-EXPECTED status — left untouched
+      }
     }
-    written++
   }
 
-  console.log(`Done. ${written} records written.`)
+  console.log(`Done. ${dbCreated} created, ${dbUpdated} updated, ${dbUnchanged} unchanged (non-EXPECTED — skipped).`)
 }
 
 main()

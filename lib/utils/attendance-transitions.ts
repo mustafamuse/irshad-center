@@ -11,16 +11,20 @@ import type { TeacherAttendanceStatus } from '@prisma/client'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
 const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStatus[]> = {
+  // EXPECTED → CLOSED: markDateClosed propagates this in bulk; admin can also
+  //   close a single slot that was missed by the bulk operation.
   EXPECTED: ['PRESENT', 'LATE', 'ABSENT', 'CLOSED'],
-  PRESENT: ['ABSENT', 'EXCUSED', 'CLOSED', 'LATE'],
-  LATE: ['ABSENT', 'EXCUSED', 'CLOSED', 'PRESENT'],
-  ABSENT: ['LATE', 'EXCUSED', 'CLOSED'],
-  EXCUSED: ['LATE', 'ABSENT', 'CLOSED'],
-  // CLOSED → PRESENT: admin confirms teacher showed up on a closed day.
-  // CLOSED → EXPECTED is intentionally excluded: it would leave the record
-  // in EXPECTED while the SchoolClosure row still exists, causing the cron
-  // to skip auto-mark and leaving the slot stuck. Use removeClosure() to
-  // revert CLOSED records to EXPECTED for the whole date.
+  // PRESENT/LATE/ABSENT/EXCUSED → CLOSED intentionally excluded: a teacher who
+  //   already has concrete attendance data (showed up, was excused, etc.) cannot
+  //   be reverted to CLOSED via the override dialog. Use removeClosure() + the
+  //   natural record if the whole day needs to be reopened.
+  PRESENT: ['ABSENT', 'EXCUSED', 'LATE'],
+  LATE: ['ABSENT', 'EXCUSED', 'PRESENT'],
+  ABSENT: ['LATE', 'EXCUSED'],
+  EXCUSED: ['LATE', 'ABSENT'],
+  // CLOSED → PRESENT: admin confirms teacher physically showed up on a closed day.
+  // CLOSED → EXPECTED is excluded: it would leave the record in EXPECTED while the
+  //   SchoolClosure row still exists. Use removeClosure() to revert the whole date.
   CLOSED: ['PRESENT'],
 }
 

@@ -276,12 +276,16 @@ const _submitExcuseAction = rateLimitedActionClient
   .action(async ({ parsedInput }) => {
     const { attendanceRecordId, reason } = parsedInput
 
-    // Resolve teacher identity server-side from the record — `teacherId` is NOT accepted
-    // from the client. Previously both sides of the ownership check were client-supplied,
-    // making it trivially bypassable. Now the attacker must know a valid attendanceRecordId
-    // UUID (non-predictable) to submit an excuse for any record.
-    // Residual risk: UUID enumeration from network traffic. Tracked in issue #225 for a
-    // session-token fix. The IP-based rate limit from rateLimitedActionClient still applies.
+    // SECURITY — ownership boundary:
+    // The teacher app has no session; teachers identify only by UI selection.
+    // teacherId is intentionally NOT in the schema — we resolve it server-side
+    // from the record so both sides of the cross-teacher check cannot be spoofed.
+    // Residual risk: a caller who knows (or enumerates) a valid attendanceRecordId
+    // UUID can submit on behalf of any teacher. Mitigated by:
+    //   1. Non-predictable UUIDs (random v4 — not sequential)
+    //   2. IP-based rate limiting from rateLimitedActionClient
+    // A full fix (assert ctx.teacherId === resolvedTeacherId) requires session auth,
+    // tracked in issue #225. Do NOT remove this comment without closing that issue.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
