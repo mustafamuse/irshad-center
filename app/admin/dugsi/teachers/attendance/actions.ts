@@ -6,13 +6,7 @@ import { after } from 'next/server'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
-import {
-  getAttendanceConfig,
-  getAttendanceGrid,
-  getPendingExcuseRequests,
-  listSchoolClosures,
-  getTeacherAttendanceSummary,
-} from '@/lib/db/queries/teacher-attendance'
+import { getAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
@@ -46,42 +40,6 @@ function revalidateAll() {
   for (const path of REVALIDATE_PATHS) {
     revalidatePath(path)
   }
-}
-
-// ============================================================================
-// QUERIES (plain async functions — no safe-action needed)
-// ============================================================================
-
-export async function getAttendanceOverview(weeksBack = 8) {
-  const today = new Date()
-  const from = new Date(today)
-  from.setDate(from.getDate() - weeksBack * 7)
-
-  const [records, closures] = await Promise.all([
-    getAttendanceGrid(from, today),
-    listSchoolClosures(),
-  ])
-
-  return { records, closures }
-}
-
-export async function getAdminTeacherHistory(teacherId: string, weeksBack = 12) {
-  const today = new Date()
-  const from = new Date(today)
-  from.setDate(from.getDate() - weeksBack * 7)
-  return getTeacherAttendanceSummary(teacherId, from, today)
-}
-
-export async function getExcuseQueue() {
-  return getPendingExcuseRequests()
-}
-
-export async function getAdminAttendanceConfig() {
-  return getAttendanceConfig()
-}
-
-export async function getAdminClosures() {
-  return listSchoolClosures()
 }
 
 // ============================================================================

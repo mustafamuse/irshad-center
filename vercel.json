@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/auto-mark",
-      "schedule": "*/15 * * * *"
+      "schedule": "*/15 13-20 * * 0,6"
     }
   ],
   "headers": [

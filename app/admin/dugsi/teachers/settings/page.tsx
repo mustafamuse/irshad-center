@@ -1,10 +1,11 @@
-import { getAdminAttendanceConfig } from '../attendance/actions'
+import { getAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
+
 import { SettingsForm } from './components/settings-form'
 
 export const dynamic = 'force-dynamic'
 
 export default async function AttendanceSettingsPage() {
-  const config = await getAdminAttendanceConfig()
+  const config = await getAttendanceConfig()
 
   return (
     <div className="max-w-sm space-y-6">

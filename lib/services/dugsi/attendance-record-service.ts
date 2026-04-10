@@ -11,6 +11,7 @@ import { Shift, TeacherAttendanceStatus, AttendanceSource } from '@prisma/client
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import {
@@ -88,7 +89,7 @@ export async function transitionStatus(
 
   const record = await getAttendanceRecordById(recordId, client)
   if (!record) {
-    throw new Error(`Attendance record not found: ${recordId}`)
+    throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
   }
 
   assertValidTransition(record.status, toStatus)
@@ -159,6 +160,16 @@ export async function adminCheckIn(
         notes: `Checked in by admin: ${changedBy}`,
       },
     })
+
+    // Validate transition if a record already exists — prevents silently overwriting
+    // statuses like EXCUSED that are not allowed to transition to PRESENT.
+    const existingRecord = await tx.teacherAttendanceRecord.findUnique({
+      where: { teacherId_date_shift: { teacherId, date, shift } },
+      select: { status: true },
+    })
+    if (existingRecord) {
+      assertValidTransition(existingRecord.status, 'PRESENT')
+    }
 
     // Upsert the attendance record
     const record = await tx.teacherAttendanceRecord.upsert({

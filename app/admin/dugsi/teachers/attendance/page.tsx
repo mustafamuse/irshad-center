@@ -1,8 +1,8 @@
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
+import { getAttendanceGrid, listSchoolClosures } from '@/lib/db/queries/teacher-attendance'
 
-import { getAttendanceOverview } from './actions'
 import { AttendanceGrid } from './components/attendance-grid'
 
 export const dynamic = 'force-dynamic'
@@ -35,7 +35,13 @@ function getRecentWeekendDates(weeksBack: number): string[] {
 export default async function TeacherAttendancePage() {
   const WEEKS_BACK = 8
   const weekendDates = getRecentWeekendDates(WEEKS_BACK)
-  const { records, closures } = await getAttendanceOverview(WEEKS_BACK)
+  const today = new Date()
+  const from = new Date(today)
+  from.setDate(from.getDate() - WEEKS_BACK * 7)
+  const [records, closures] = await Promise.all([
+    getAttendanceGrid(from, today),
+    listSchoolClosures(),
+  ])
 
   const closureSet = new Set(
     closures.map((c) => formatInTimeZone(c.date, 'UTC', 'yyyy-MM-dd'))

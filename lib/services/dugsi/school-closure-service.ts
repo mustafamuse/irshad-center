@@ -9,6 +9,7 @@
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
 import { bulkTransitionStatus } from './attendance-record-service'
@@ -24,7 +25,12 @@ export async function markDateClosed(
   const doWrites = async (tx: DatabaseClient) => {
     const existing = await getSchoolClosure(date, tx)
     if (existing) {
-      throw new Error(`School is already marked closed on ${date.toISOString().split('T')[0]}`)
+      throw new ActionError(
+        `School is already marked closed on ${date.toISOString().split('T')[0]}`,
+        ERROR_CODES.CLOSURE_EXISTS,
+        undefined,
+        409
+      )
     }
 
     const closure = await tx.schoolClosure.create({
@@ -57,7 +63,12 @@ export async function removeClosure(
   const doWrites = async (tx: DatabaseClient) => {
     const existing = await getSchoolClosure(date, tx)
     if (!existing) {
-      throw new Error(`No school closure found for ${date.toISOString().split('T')[0]}`)
+      throw new ActionError(
+        `No school closure found for ${date.toISOString().split('T')[0]}`,
+        ERROR_CODES.NOT_FOUND,
+        undefined,
+        404
+      )
     }
 
     await tx.schoolClosure.delete({ where: { date } })

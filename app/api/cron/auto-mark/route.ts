@@ -15,7 +15,7 @@ import { NextResponse } from 'next/server'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { autoMarkBothShifts } from '@/lib/services/dugsi/auto-mark-service'
 
 const logger = createServiceLogger('cron-auto-mark')
@@ -54,7 +54,7 @@ export async function GET() {
       afternoon: result.afternoon,
     })
   } catch (error) {
-    logger.error({ err: error }, 'Auto-mark cron failed')
+    logError(logger, error, 'Auto-mark cron failed', { date: todayStr })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
