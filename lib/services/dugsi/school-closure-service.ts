@@ -73,9 +73,12 @@ export async function removeClosure(
 
     await tx.schoolClosure.delete({ where: { date } })
 
-    // Revert: only CLOSED records go back to EXPECTED
+    // Revert: only CLOSED records go back to EXPECTED.
+    // skipValidation: CLOSED → EXPECTED is excluded from ALLOWED_TRANSITIONS to prevent
+    // admin override (SchoolClosure row would still exist). This is the only legitimate
+    // path for that transition — the closure row is deleted atomically above.
     const reopenedCount = await bulkTransitionStatus(
-      { where: { date, status: 'CLOSED' }, toStatus: 'EXPECTED', source: 'SYSTEM' },
+      { where: { date, status: 'CLOSED' }, toStatus: 'EXPECTED', source: 'SYSTEM', skipValidation: true },
       tx
     )
 

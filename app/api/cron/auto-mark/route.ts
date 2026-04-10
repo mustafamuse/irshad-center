@@ -8,8 +8,9 @@
  *
  * Note: Vercel hobby plan only supports daily cron jobs (once per day max).
  *
- * Auth: Vercel validates CRON_SECRET automatically in production.
- * In development, set CRON_SECRET env var and pass: Authorization: Bearer <secret>
+ * Auth: Vercel cron jobs send CRON_SECRET in the Authorization header.
+ * The application validates it on every request (line 32). In development,
+ * set CRON_SECRET env var and pass: Authorization: Bearer <secret>
  */
 
 import { headers } from 'next/headers'
@@ -27,8 +28,6 @@ export async function GET() {
   const headersList = await headers()
   const authHeader = headersList.get('authorization')
 
-  // Vercel injects the CRON_SECRET automatically in production.
-  // In development, pass it manually: Authorization: Bearer <CRON_SECRET>
   if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }

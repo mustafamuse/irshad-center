@@ -18,14 +18,14 @@ function getRecentWeekendDates(weeksBack: number): string[] {
   let daysBack = 0
 
   while (dates.length < weeksBack * 2 && daysBack < weeksBack * 7 + 14) {
-    const day = cursor.getDay()
+    const day = cursor.getUTCDay()
     if (day === 0 || day === 6) {
-      const y = cursor.getFullYear()
-      const m = String(cursor.getMonth() + 1).padStart(2, '0')
-      const d = String(cursor.getDate()).padStart(2, '0')
+      const y = cursor.getUTCFullYear()
+      const m = String(cursor.getUTCMonth() + 1).padStart(2, '0')
+      const d = String(cursor.getUTCDate()).padStart(2, '0')
       dates.push(`${y}-${m}-${d}`)
     }
-    cursor.setDate(cursor.getDate() - 1)
+    cursor.setUTCDate(cursor.getUTCDate() - 1)
     daysBack++
   }
 

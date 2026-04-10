@@ -28,9 +28,10 @@ import { prisma } from '@/lib/db'
 // ============================================================================
 
 const BACKFILL_FROM = '2026-01-17'
-// Excluded teacher — will start fresh. Fill in the actual UUID before running.
-// Find it with: SELECT t.id FROM "Teacher" t JOIN "Person" p ON p.id = t."personId" WHERE p.name = 'Hamza Hassan';
-const SKIP_TEACHER_ID = 'TODO_REPLACE_WITH_HAMZA_HASSAN_TEACHER_UUID'
+// Excluded teacher — set SKIP_TEACHER_ID env var before running with --commit.
+// Find the UUID: SELECT t.id FROM "Teacher" t JOIN "Person" p ON p.id = t."personId" WHERE p.name = 'Hamza Hassan';
+// Example: SKIP_TEACHER_ID=<uuid> bun run scripts/backfill-attendance.ts --commit
+const SKIP_TEACHER_ID = process.env.SKIP_TEACHER_ID ?? ''
 
 // Dates to mark as CLOSED (school was closed)
 const CLOSURE_DATES = new Set([
@@ -84,18 +85,15 @@ function pad(s: string | number, len: number) {
 async function main() {
   const isDryRun = !process.argv.includes('--commit')
 
-  // Guard: fail fast if the UUID placeholder hasn't been replaced before a real commit run.
-  if (!isDryRun && SKIP_TEACHER_ID.startsWith('TODO_')) {
-    console.error('ERROR: SKIP_TEACHER_ID is still a placeholder. Replace it with the real UUID before committing.')
-    console.error('Run this query to find it:')
-    console.error('  SELECT t.id FROM "Teacher" t JOIN "Person" p ON p.id = t."personId" WHERE p.name = \'Hamza Hassan\';')
-    process.exit(1)
+  if (!isDryRun && !SKIP_TEACHER_ID) {
+    console.warn('WARNING: SKIP_TEACHER_ID env var is not set — all active teachers will be included.')
+    console.warn('To exclude a teacher, set: SKIP_TEACHER_ID=<uuid> bun run scripts/backfill-attendance.ts --commit')
   }
 
   console.log(`\n${'='.repeat(60)}`)
   console.log(`  DUGSI ATTENDANCE BACKFILL${isDryRun ? ' [DRY RUN]' : ' [COMMITTING]'}`)
   console.log(`${'='.repeat(60)}`)
-  console.log(`From: ${BACKFILL_FROM}  |  Skip teacher ID: ${SKIP_TEACHER_ID}`)
+  console.log(`From: ${BACKFILL_FROM}  |  Skip teacher ID: ${SKIP_TEACHER_ID || '(none)'}`)
   console.log()
 
   // Load active teachers

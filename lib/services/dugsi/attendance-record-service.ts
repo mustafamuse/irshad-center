@@ -229,10 +229,21 @@ export async function bulkTransitionStatus(
     where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus }
     toStatus: TeacherAttendanceStatus
     source: AttendanceSource
+    /**
+     * Opt-in to skip the transition guard. Required for system-managed transitions
+     * that are intentionally excluded from the admin override UI
+     * (e.g. CLOSED → EXPECTED via removeClosure, which also deletes the SchoolClosure row).
+     * Do NOT pass this from admin-facing code paths.
+     */
+    skipValidation?: true
   },
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const { where, toStatus, source } = params
+  const { where, toStatus, source, skipValidation } = params
+
+  if (!skipValidation) {
+    assertValidTransition(where.status, toStatus)
+  }
 
   const result = await client.teacherAttendanceRecord.updateMany({
     where: {
