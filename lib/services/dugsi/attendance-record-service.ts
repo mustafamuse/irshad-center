@@ -184,7 +184,26 @@ export async function adminCheckIn(
   const now = new Date()
 
   const doWrites = async (tx: DatabaseClient) => {
-    // Check for existing check-in (pre-validate before writes per project rules)
+    // Check attendance record status FIRST so the NOOP path never creates an orphaned
+    // fact-log row. The previous order (create check-in, then check status) would create
+    // a DugsiTeacherCheckIn row even when the record was already PRESENT with checkInId=null
+    // (set via override dialog), leaving the new row stranded with no attendance reference.
+    const existingRecord = await tx.teacherAttendanceRecord.findUnique({
+      where: { teacherId_date_shift: { teacherId, date, shift } },
+      select: { status: true },
+    })
+
+    if (existingRecord?.status === 'PRESENT') {
+      // Idempotent: teacher already PRESENT. Look up any existing fact-log for the
+      // return value, but do NOT create a new row — the record is already in its final state.
+      const existingCheckIn = await tx.dugsiTeacherCheckIn.findUnique({
+        where: { teacherId_date_shift: { teacherId, date, shift } },
+      })
+      logger.info({ event: 'ADMIN_CHECK_IN_NOOP', teacherId, shift, date }, 'Teacher already PRESENT — skipping')
+      return { checkIn: existingCheckIn }
+    }
+
+    // Check for existing check-in before writing — project rule: pre-validate before writes.
     const existingCheckIn = await tx.dugsiTeacherCheckIn.findUnique({
       where: { teacherId_date_shift: { teacherId, date, shift } },
     })
@@ -202,13 +221,6 @@ export async function adminCheckIn(
       },
     })
 
-    // Validate transition if a record already exists — prevents silently overwriting
-    // statuses like EXCUSED that are not allowed to transition to PRESENT.
-    const existingRecord = await tx.teacherAttendanceRecord.findUnique({
-      where: { teacherId_date_shift: { teacherId, date, shift } },
-      select: { status: true },
-    })
-
     const recordData = {
       status: TeacherAttendanceStatus.PRESENT,
       source: AttendanceSource.ADMIN_OVERRIDE,
@@ -219,11 +231,6 @@ export async function adminCheckIn(
     }
 
     if (existingRecord) {
-      // Idempotent: teacher already checked in (e.g. self-checkin before admin action)
-      if (existingRecord.status === 'PRESENT') {
-        logger.info({ event: 'ADMIN_CHECK_IN_NOOP', teacherId, shift, date }, 'Teacher already PRESENT — skipping')
-        return { checkIn }
-      }
       assertValidTransition(existingRecord.status, 'PRESENT')
       // Optimistic lock: include current status in WHERE, mirroring transitionStatus.
       // Prevents a concurrent auto-mark/override from being silently overwritten.

@@ -62,11 +62,18 @@ export async function GET() {
       'Auto-mark cron completed'
     )
 
-    return NextResponse.json({
-      date: todayStr,
-      morning: result.morning,
-      afternoon: result.afternoon,
-    })
+    // 207 when one shift failed (null): Vercel Cron treats any 2xx as success, so a
+    // 200 with a null shift would be invisible in the cron dashboard. 207 surfaces the
+    // partial failure in any monitor keying on HTTP status while still counting as
+    // "completed" (not a dead 500) for the working shift.
+    return NextResponse.json(
+      {
+        date: todayStr,
+        morning: result.morning,
+        afternoon: result.afternoon,
+      },
+      { status: result.morning && result.afternoon ? 200 : 207 }
+    )
   } catch (error) {
     await logError(logger, error, 'Auto-mark cron failed — both shifts errored', { date: todayStr })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

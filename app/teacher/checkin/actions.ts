@@ -266,7 +266,10 @@ async function fetchAttendanceHistory(
   const todayInTz = formatInTimeZone(today, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
   const [year, month] = todayInTz.split('-').map(Number)
   const todayAnchor = new Date(`${todayInTz}T12:00:00Z`)
-  const from = new Date(todayAnchor)
+  // Lower bound uses T00:00:00Z (not todayAnchor's T12:00:00Z): DATE columns store
+  // midnight UTC, so a noon lower bound would exclude the oldest Saturday's record
+  // when today is also a Saturday — 2026-02-14T00:00:00Z >= T12:00:00Z is false.
+  const from = new Date(`${todayInTz}T00:00:00Z`)
   from.setUTCDate(from.getUTCDate() - weeksBack * 7)
 
   const [records, monthlyExcuseCount] = await Promise.all([

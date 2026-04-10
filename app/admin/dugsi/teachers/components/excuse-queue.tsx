@@ -7,6 +7,7 @@ import { formatInTimeZone } from 'date-fns-tz'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { ExcuseRequestWithRelations } from '@/lib/db/queries/teacher-attendance'
 
@@ -84,7 +85,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
                 <p className="font-medium text-sm">{teacherName}</p>
                 <p className="text-xs text-muted-foreground">
                   {dateStr} · {shiftLabel} · was{' '}
-                  <span className="font-medium">{record.status}</span>
+                  <span className="font-medium">{ATTENDANCE_STATUS_CONFIG[record.status].label}</span>
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
