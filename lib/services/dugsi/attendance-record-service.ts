@@ -88,51 +88,61 @@ export async function transitionStatus(
 ) {
   const { recordId, toStatus, source, clockInTime, minutesLate, notes, changedBy } = params
 
-  const record = await getAttendanceRecordStatus(recordId, client)
-  if (!record) {
-    throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
-  }
+  // Wrap read + write in the same transaction so the status we validate against
+  // (assertValidTransition) is the same row the updateMany commits — callers that
+  // compose transitionStatus inside their own $transaction benefit from this
+  // atomicity automatically (isPrismaClient(tx) === false → doWrites(tx) directly).
+  const doWrites = async (tx: DatabaseClient) => {
+    const record = await getAttendanceRecordStatus(recordId, tx)
+    if (!record) {
+      throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
+    }
 
-  assertValidTransition(record.status, toStatus)
+    assertValidTransition(record.status, toStatus)
 
-  // Optimistic lock: include current status in WHERE so a concurrent override that
-  // already changed the status produces count=0 rather than silently overwriting
-  // a state we never validated against.
-  const result = await client.teacherAttendanceRecord.updateMany({
-    where: { id: recordId, status: record.status },
-    data: {
-      status: toStatus,
-      source,
-      // Only overwrite clockInTime when explicitly supplied — omitting it leaves the
-      // existing value intact (e.g. admin LATE→EXCUSED override keeps the clock-in time)
-      ...(clockInTime !== undefined ? { clockInTime } : {}),
-      minutesLate: toStatus === 'LATE' ? (minutesLate ?? null) : null,
-      notes: notes ?? null,
-      changedBy: changedBy ?? null,
-    },
-  })
+    // Optimistic lock: include current status in WHERE so a concurrent override that
+    // already changed the status produces count=0 rather than silently overwriting
+    // a state we never validated against.
+    const result = await tx.teacherAttendanceRecord.updateMany({
+      where: { id: recordId, status: record.status },
+      data: {
+        status: toStatus,
+        source,
+        // Only overwrite clockInTime when explicitly supplied — omitting it leaves the
+        // existing value intact (e.g. admin LATE→EXCUSED override keeps the clock-in time)
+        ...(clockInTime !== undefined ? { clockInTime } : {}),
+        minutesLate: toStatus === 'LATE' ? (minutesLate ?? null) : null,
+        notes: notes ?? null,
+        changedBy: changedBy ?? null,
+      },
+    })
 
-  if (result.count === 0) {
-    throw new ActionError(
-      'Record was modified concurrently — please refresh and try again',
-      ERROR_CODES.CONCURRENT_MODIFICATION,
-      undefined,
-      409
+    if (result.count === 0) {
+      throw new ActionError(
+        'Record was modified concurrently — please refresh and try again',
+        ERROR_CODES.CONCURRENT_MODIFICATION,
+        undefined,
+        409
+      )
+    }
+
+    logger.info(
+      {
+        event: 'ATTENDANCE_STATUS_TRANSITION',
+        recordId,
+        teacherId: record.teacherId,
+        from: record.status,
+        to: toStatus,
+        source,
+        changedBy,
+      },
+      `Attendance status: ${record.status} → ${toStatus}`
     )
   }
 
-  logger.info(
-    {
-      event: 'ATTENDANCE_STATUS_TRANSITION',
-      recordId,
-      teacherId: record.teacherId,
-      from: record.status,
-      to: toStatus,
-      source,
-      changedBy,
-    },
-    `Attendance status: ${record.status} → ${toStatus}`
-  )
+  return isPrismaClient(client)
+    ? client.$transaction(doWrites)
+    : doWrites(client)
 }
 
 // ============================================================================
@@ -234,6 +244,17 @@ export async function adminCheckIn(
 // BULK STATUS UPDATE (used by auto-mark and closure propagation)
 // ============================================================================
 
+/**
+ * Bulk-transition attendance records matching `where` to `toStatus`.
+ *
+ * CONTRACT — minutesLate on LATE transitions:
+ *   When `toStatus === 'LATE'`, `minutesLate` is intentionally omitted from the
+ *   UPDATE (Prisma treats `undefined` as "don't touch this field"), preserving
+ *   whatever value is already stored. Callers that need to set `minutesLate` on
+ *   a LATE transition (e.g. auto-mark setting it to null, or an override supplying
+ *   the actual delay) must issue their own `updateMany` with the explicit value.
+ *   Non-LATE transitions always clear `minutesLate` to null.
+ */
 export async function bulkTransitionStatus(
   params: {
     where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus; source?: AttendanceSource }

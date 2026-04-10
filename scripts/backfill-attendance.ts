@@ -224,38 +224,44 @@ async function main() {
   )
 
   let dbUpdated = 0
-  // Collect rows that weren't updated (no EXPECTED record exists) for a single batched create.
-  // Per-row updateMany is still needed because checkInId/minutesLate differ per row.
+  // Wrap the entire loop + createMany in a single transaction so a crash or
+  // SIGTERM mid-loop doesn't leave a partial view on the production DB.
+  // Re-running is always safe (WHERE status='EXPECTED' guard prevents double-updates),
+  // but the transaction eliminates the transient inconsistency window entirely.
   type RowData = {
     teacherId: string; date: Date; shift: Shift
     status: Exclude<Row['action'], 'SKIP'>; source: AttendanceSource
     checkInId: string | null; minutesLate: number | null
   }
-  const toCreate: RowData[] = []
 
-  for (const r of rows) {
-    if (r.action === 'SKIP') continue
-    const dateObj = new Date(r.date)
+  const { dbCreated, dbUnchanged } = await prisma.$transaction(async (tx) => {
+    const toCreate: RowData[] = []
 
-    // Only overwrite if the record is still EXPECTED — preserves admin manual
-    // changes (overrides, excuse approvals) when the script is re-run.
-    const updated = await prisma.teacherAttendanceRecord.updateMany({
-      where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
-      data: { status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
-    })
-    if (updated.count > 0) {
-      dbUpdated++
-    } else {
-      toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null })
+    for (const r of rows) {
+      if (r.action === 'SKIP') continue
+      const dateObj = new Date(r.date)
+
+      // Only overwrite if the record is still EXPECTED — preserves admin manual
+      // changes (overrides, excuse approvals) when the script is re-run.
+      const updated = await tx.teacherAttendanceRecord.updateMany({
+        where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
+        data: { status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
+      })
+      if (updated.count > 0) {
+        dbUpdated++
+      } else {
+        toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null })
+      }
     }
-  }
 
-  // Batch all creates in one query — skipDuplicates silently ignores rows with
-  // a non-EXPECTED status (admin overrides) that already exist in the table.
-  const dbCreated = toCreate.length > 0
-    ? (await prisma.teacherAttendanceRecord.createMany({ data: toCreate, skipDuplicates: true })).count
-    : 0
-  const dbUnchanged = toCreate.length - dbCreated
+    // Batch all creates in one query — skipDuplicates silently ignores rows with
+    // a non-EXPECTED status (admin overrides) that already exist in the table.
+    const created = toCreate.length > 0
+      ? (await tx.teacherAttendanceRecord.createMany({ data: toCreate, skipDuplicates: true })).count
+      : 0
+
+    return { dbCreated: created, dbUnchanged: toCreate.length - created }
+  })
 
   console.log(`Done. ${dbCreated} created, ${dbUpdated} updated, ${dbUnchanged} unchanged (non-EXPECTED — skipped).`)
 }

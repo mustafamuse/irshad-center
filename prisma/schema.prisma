@@ -744,7 +744,7 @@ model TeacherAttendanceRecord {
   updatedAt   DateTime                @updatedAt
 
   teacher Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  checkIn DugsiTeacherCheckIn? @relation(fields: [checkInId], references: [id], onDelete: SetNull)
+  checkIn DugsiTeacherCheckIn? @relation(fields: [checkInId], references: [id], onDelete: Restrict)
   excuses ExcuseRequest[]
 
   @@unique([teacherId, date, shift])

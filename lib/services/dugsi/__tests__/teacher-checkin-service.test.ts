@@ -44,6 +44,9 @@ function makeTx() {
   return {
     dugsiTeacherCheckIn: {
       create: (...args: unknown[]) => mockCreate(...args),
+      // delete must be present: deleteCheckin first nulls checkInId on the attendance
+      // record, then deletes the check-in row (RESTRICT FK — delete must come last).
+      delete: (...args: unknown[]) => mockDelete(...args),
     },
     teacherAttendanceRecord: {
       findUnique: (...args: unknown[]) => mockFindUniqueAttendance(...args),

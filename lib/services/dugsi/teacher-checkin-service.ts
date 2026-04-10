@@ -156,9 +156,25 @@ export async function clockIn(
     return checkInRecord
   }
 
-  const checkIn: TeacherCheckinWithRelations = isPrismaClient(client)
-    ? await client.$transaction(doWrites)
-    : await doWrites(client)
+  let checkIn: TeacherCheckinWithRelations
+  try {
+    checkIn = isPrismaClient(client)
+      ? await client.$transaction(doWrites)
+      : await doWrites(client)
+  } catch (error) {
+    // A concurrent clockIn that slipped through the pre-flight check will cause a
+    // P2002 unique-constraint violation on DugsiTeacherCheckIn(teacherId, date, shift).
+    // Catch it OUTSIDE the transaction (project rule: never catch P2002 inside $transaction)
+    // and remap to the user-facing DUPLICATE_CHECKIN error.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ValidationError(
+        'Teacher has already checked in for this shift today',
+        CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+        { teacherId, shift }
+      )
+    }
+    throw error
+  }
 
   logger.info(
     {
@@ -313,8 +329,8 @@ export async function deleteCheckin(
   const { teacherId, date, shift } = existingCheckin
 
   const doWrites = async (tx: DatabaseClient) => {
-    await tx.dugsiTeacherCheckIn.delete({ where: { id: checkInId } })
-
+    // RESTRICT FK: null out checkInId on the attendance record BEFORE deleting
+    // the check-in row — the DB will reject the delete if the FK is still live.
     // Intentional bypass of assertValidTransition — PRESENT→ABSENT and LATE→ABSENT
     // are both valid in the transition table, so the revert is always legal.
     // If the record was already overridden (EXCUSED, ABSENT, etc.) the updateMany
@@ -328,6 +344,8 @@ export async function deleteCheckin(
     if (revertResult.count > 1) {
       logger.warn({ teacherId, date, shift }, 'deleteCheckin: unexpectedly reverted multiple attendance records')
     }
+
+    await tx.dugsiTeacherCheckIn.delete({ where: { id: checkInId } })
   }
 
   await (isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client))

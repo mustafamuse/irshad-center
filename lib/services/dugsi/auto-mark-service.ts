@@ -138,18 +138,28 @@ export async function autoMarkLateForShift(
 
 /**
  * Convenience: run both shifts for a given date. Used by the cron route.
+ *
+ * Both shifts run inside a single outer $transaction so a concurrent
+ * `markDateClosed` call cannot sneak in between them and produce a
+ * split state (MORNING=LATE, AFTERNOON=CLOSED). Each `autoMarkLateForShift`
+ * call detects `isPrismaClient(tx) === false` and executes its `doWrites`
+ * directly on the shared tx rather than opening a nested transaction.
  */
 export async function autoMarkBothShifts(
   date: string,
   client: DatabaseClient = prisma
 ): Promise<{ morning: AutoMarkResult; afternoon: AutoMarkResult }> {
-  // Fetch config once — both shifts share the same singleton row.
+  // Fetch config once outside the transaction — it's the singleton read and
+  // doesn't need to be atomic with the writes.
   const config = await getAttendanceConfig(client)
 
-  // Sequential (not parallel): if an admin creates a closure between the two
-  // transactions, parallel execution would produce an inconsistent state where
-  // MORNING records are LATE but AFTERNOON records are correctly CLOSED.
-  const morning = await autoMarkLateForShift(date, 'MORNING', client, config)
-  const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', client, config)
-  return { morning, afternoon }
+  const doWrites = async (tx: DatabaseClient) => {
+    const morning = await autoMarkLateForShift(date, 'MORNING', tx, config)
+    const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', tx, config)
+    return { morning, afternoon }
+  }
+
+  return isPrismaClient(client)
+    ? client.$transaction(doWrites)
+    : doWrites(client)
 }

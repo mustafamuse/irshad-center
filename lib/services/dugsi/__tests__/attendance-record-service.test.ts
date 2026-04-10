@@ -77,15 +77,21 @@ import { transitionStatus, adminCheckIn } from '../attendance-record-service'
 describe('transitionStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // transitionStatus now wraps read + write in a $transaction — set up the
+    // pass-through so doWrites runs against makeTx() (which routes calls to the
+    // hoisted mocks). mockGetRecordStatus is a module-level mock so it works
+    // regardless of which client (tx or prisma) is passed to it.
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
   })
 
   it('transitions EXPECTED → PRESENT successfully', async () => {
     mockGetRecordStatus.mockResolvedValue({ id: 'rec-1', teacherId: 't-1', status: 'EXPECTED' })
-    mockUpdateManyAttendance.mockResolvedValue({ count: 1 })
+    // transitionStatus calls tx.teacherAttendanceRecord.updateMany (the tx-level mock)
+    mockUpdateManyAttendanceInner.mockResolvedValue({ count: 1 })
 
     await transitionStatus({ recordId: 'rec-1', toStatus: 'PRESENT', source: 'ADMIN_OVERRIDE' })
 
-    expect(mockUpdateManyAttendance).toHaveBeenCalledWith(
+    expect(mockUpdateManyAttendanceInner).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id: 'rec-1', status: 'EXPECTED' }) })
     )
   })
@@ -110,7 +116,8 @@ describe('transitionStatus', () => {
     // Simulates a concurrent override that already changed the status between
     // the getAttendanceRecordStatus read and the updateMany write.
     mockGetRecordStatus.mockResolvedValue({ id: 'rec-1', teacherId: 't-1', status: 'EXPECTED' })
-    mockUpdateManyAttendance.mockResolvedValue({ count: 0 })
+    // Concurrent write already changed the row — updateMany finds no matching EXPECTED row.
+    mockUpdateManyAttendanceInner.mockResolvedValue({ count: 0 })
 
     await expect(
       transitionStatus({ recordId: 'rec-1', toStatus: 'PRESENT', source: 'ADMIN_OVERRIDE' })
