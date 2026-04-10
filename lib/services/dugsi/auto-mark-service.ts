@@ -15,7 +15,7 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { CLASS_START_TIMES, SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { createServiceLogger } from '@/lib/logger'
-import { getAttendanceConfig, getActiveDugsiTeacherShifts } from '@/lib/db/queries/teacher-attendance'
+import { getAttendanceConfig, getActiveDugsiTeacherShifts, TeacherShift } from '@/lib/db/queries/teacher-attendance'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import { generateExpectedSlots } from './attendance-record-service'
 
@@ -34,7 +34,11 @@ export async function autoMarkLateForShift(
   client: DatabaseClient = prisma,
   // Optional pre-fetched config — autoMarkBothShifts passes this to avoid a
   // duplicate singleton read per shift. When omitted, fetched from the database.
-  prefetchedConfig?: DugsiAttendanceConfig
+  prefetchedConfig?: DugsiAttendanceConfig,
+  // Optional pre-fetched teacher roster — autoMarkBothShifts fetches this once
+  // inside the shared transaction and forwards it here to avoid a duplicate query
+  // per shift. When omitted, fetched inside doWrites (maintains atomicity).
+  prefetchedTeachers?: TeacherShift[]
 ): Promise<AutoMarkResult> {
   // Fast-fail if the transition table ever removes EXPECTED → LATE.
   // The updateMany inside doWrites bypasses assertValidTransition directly;
@@ -81,7 +85,9 @@ export async function autoMarkLateForShift(
     // Read active teachers inside the transaction so the slot generation is atomic
     // with the auto-mark write: a teacher deactivated between the outer read and the
     // updateMany could otherwise get a spurious LATE slot created inside the tx.
-    const activeTeachers = await getActiveDugsiTeacherShifts(tx)
+    // autoMarkBothShifts pre-fetches once inside the shared tx and passes it here to
+    // avoid a duplicate query per shift; direct callers omit it and fetch here.
+    const activeTeachers = prefetchedTeachers ?? await getActiveDugsiTeacherShifts(tx)
     const teachersForShift = activeTeachers
       .filter((tp) => tp.shifts.includes(shift))
       .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] as Shift[] }))
@@ -158,8 +164,11 @@ export async function autoMarkBothShifts(
   const config = await getAttendanceConfig(client)
 
   const doWrites = async (tx: DatabaseClient) => {
-    const morning = await autoMarkLateForShift(date, 'MORNING', tx, config)
-    const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', tx, config)
+    // Fetch the teacher roster once inside the transaction — atomicity guarantee:
+    // a teacher deactivated between this read and the updateMany won't get a slot.
+    const activeTeachers = await getActiveDugsiTeacherShifts(tx)
+    const morning = await autoMarkLateForShift(date, 'MORNING', tx, config, activeTeachers)
+    const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', tx, config, activeTeachers)
     return { morning, afternoon }
   }
 

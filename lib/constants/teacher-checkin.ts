@@ -139,4 +139,7 @@ export const CHECKIN_ERROR_CODES = {
   // Fired when a concurrent admin override or auto-mark changed the attendance
   // record status between our read and our updateMany write (optimistic lock).
   CONCURRENT_MODIFICATION: 'CONCURRENT_MODIFICATION',
+  // Fired when a teacher tries to clock in on a date the school is closed.
+  // Tells the teacher to contact an admin rather than retrying GPS.
+  SCHOOL_CLOSED: 'SCHOOL_CLOSED',
 } as const

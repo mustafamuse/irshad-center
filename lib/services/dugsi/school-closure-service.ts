@@ -7,6 +7,7 @@
  * Both operations are atomic via $transaction.
  */
 
+import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
@@ -108,7 +109,24 @@ export async function removeClosure(
       )
     }
 
-    await tx.schoolClosure.delete({ where: { date } })
+    // P2025 guard: two admins removing the same closure concurrently both pass the
+    // getSchoolClosure check (READ COMMITTED), then race to delete. The loser gets P2025
+    // ("Record to delete does not exist"). Remap to the same NOT_FOUND response so the
+    // second admin sees a clean 404 rather than a raw 500. P2025 does not abort the
+    // PostgreSQL transaction (unlike P2002), so catching it here is safe.
+    try {
+      await tx.schoolClosure.delete({ where: { date } })
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new ActionError(
+          `No school closure found for ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
+          ERROR_CODES.NOT_FOUND,
+          undefined,
+          404
+        )
+      }
+      throw err
+    }
 
     // Cancel active excuses on CLOSED records before reverting them to EXPECTED.
     // Possible if a teacher had an AUTO_MARKED LATE excuse pending when the date was

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 
+import { useRouter } from 'next/navigation'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { Button } from '@/components/ui/button'
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function ExcuseQueue({ initialRequests }: Props) {
+  const router = useRouter()
   const [, startTransition] = useTransition()
   const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
   // Sync when the Server Component re-renders with fresh data (e.g. after revalidatePath
@@ -43,6 +45,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
       setRequests((prev) => prev.filter((r) => r.id !== id))
       setAdminNotes((prev) => { const n = { ...prev }; delete n[id]; return n })
       setErrors((prev) => { const n = { ...prev }; delete n[id]; return n })
+      router.refresh()
     })
   }
 
@@ -59,6 +62,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
       setRequests((prev) => prev.filter((r) => r.id !== id))
       setAdminNotes((prev) => { const n = { ...prev }; delete n[id]; return n })
       setErrors((prev) => { const n = { ...prev }; delete n[id]; return n })
+      router.refresh()
     })
   }
 

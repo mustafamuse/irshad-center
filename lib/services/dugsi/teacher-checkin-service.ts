@@ -133,6 +133,13 @@ export async function clockIn(
     }
 
     if (existingAttendanceRecord) {
+      if (existingAttendanceRecord.status === 'CLOSED') {
+        throw new ValidationError(
+          'School is closed today — please contact an admin to record your attendance',
+          CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+          { teacherId, shift }
+        )
+      }
       assertValidTransition(existingAttendanceRecord.status, attendanceData.status)
       // Include current status in WHERE: if a concurrent override already changed
       // the status, count=0 → throw rather than silently stomp the new state.
