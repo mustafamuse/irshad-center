@@ -142,16 +142,16 @@ export async function getMonthlyExcuseCount(
   month: number, // 1-based
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const from = new Date(`${year}-${String(month).padStart(2, '0')}-01`)
-  // Use ISO string for `to` so both sides parse as UTC midnight (consistent with `from`)
-  const lastDay = new Date(year, month, 0).getDate()
-  const to = new Date(`${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`)
+  // Use Date.UTC to avoid local-timezone shifts when constructing midnight boundaries.
+  // `lt` on first-of-next-month is unambiguous and avoids last-day-of-month edge cases.
+  const from = new Date(Date.UTC(year, month - 1, 1))
+  const to = new Date(Date.UTC(year, month, 1)) // exclusive upper bound (first of next month)
 
   return client.teacherAttendanceRecord.count({
     where: {
       teacherId,
       status: 'EXCUSED',
-      date: { gte: from, lte: to },
+      date: { gte: from, lt: to },
     },
   })
 }

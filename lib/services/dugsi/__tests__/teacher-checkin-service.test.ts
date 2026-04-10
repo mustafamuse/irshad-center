@@ -2,6 +2,7 @@
  * Teacher Check-in Service Tests
  *
  * Tests for clock-in, clock-out, update, and delete operations.
+ * clockIn wraps fact-log + attendance record writes in a $transaction.
  */
 
 import { Prisma, Shift } from '@prisma/client'
@@ -14,24 +15,57 @@ const {
   mockIsEnrolled,
   mockGetShifts,
   mockGetCheckinById,
+  mockGetTeacherCheckin,
   mockCreate,
   mockUpdate,
   mockDelete,
+  mockTransaction,
+  mockFindUniqueAttendance,
+  mockUpdateManyAttendance,
+  mockCreateAttendance,
 } = vi.hoisted(() => ({
   mockIsEnrolled: vi.fn(),
   mockGetShifts: vi.fn(),
   mockGetCheckinById: vi.fn(),
+  mockGetTeacherCheckin: vi.fn(),
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
+  mockTransaction: vi.fn(),
+  mockFindUniqueAttendance: vi.fn(),
+  mockUpdateManyAttendance: vi.fn(),
+  mockCreateAttendance: vi.fn(),
 }))
+
+// Build the tx object that is passed into every $transaction callback.
+// Both dugsiTeacherCheckIn and teacherAttendanceRecord must be present
+// because clockIn reads and writes both tables inside the transaction.
+function makeTx() {
+  return {
+    dugsiTeacherCheckIn: {
+      create: (...args: unknown[]) => mockCreate(...args),
+    },
+    teacherAttendanceRecord: {
+      findUnique: (...args: unknown[]) => mockFindUniqueAttendance(...args),
+      updateMany: (...args: unknown[]) => mockUpdateManyAttendance(...args),
+      create: (...args: unknown[]) => mockCreateAttendance(...args),
+    },
+  }
+}
 
 vi.mock('@/lib/db', () => ({
   prisma: {
+    // isPrismaClient() checks '$transaction' in client — must be present here.
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
     dugsiTeacherCheckIn: {
       create: (...args: unknown[]) => mockCreate(...args),
       update: (...args: unknown[]) => mockUpdate(...args),
       delete: (...args: unknown[]) => mockDelete(...args),
+    },
+    teacherAttendanceRecord: {
+      findUnique: (...args: unknown[]) => mockFindUniqueAttendance(...args),
+      updateMany: (...args: unknown[]) => mockUpdateManyAttendance(...args),
+      create: (...args: unknown[]) => mockCreateAttendance(...args),
     },
   },
 }))
@@ -44,6 +78,7 @@ vi.mock('@/lib/db/queries/teacher-checkin', async (importOriginal) => {
     isTeacherEnrolledInDugsi: (...args: unknown[]) => mockIsEnrolled(...args),
     getTeacherShifts: (...args: unknown[]) => mockGetShifts(...args),
     getCheckinById: (...args: unknown[]) => mockGetCheckinById(...args),
+    getTeacherCheckin: (...args: unknown[]) => mockGetTeacherCheckin(...args),
   }
 })
 
@@ -124,9 +159,19 @@ describe('clockIn', () => {
     vi.clearAllMocks()
     mockIsEnrolled.mockResolvedValue(true)
     mockGetShifts.mockResolvedValue([Shift.MORNING, Shift.AFTERNOON])
-    mockCreate.mockResolvedValue(mockCheckin)
     mockIsWithinGeofence.mockReturnValue(true)
     mockIsGeofenceConfigured.mockReturnValue(true)
+    // Pre-flight check: no existing checkin (happy path)
+    mockGetTeacherCheckin.mockResolvedValue(null)
+    // Transaction: checkin create returns fixture, attendance record doesn't exist yet
+    mockCreate.mockResolvedValue(mockCheckin)
+    mockFindUniqueAttendance.mockResolvedValue(null)
+    mockCreateAttendance.mockResolvedValue({})
+    mockUpdateManyAttendance.mockResolvedValue({ count: 1 })
+    // $transaction calls the doWrites callback with a tx object
+    mockTransaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
   })
 
   it('should create check-in for enrolled teacher', async () => {
@@ -147,7 +192,24 @@ describe('clockIn', () => {
     )
   })
 
-  it('should pass isLate: true from evaluator to database record', async () => {
+  it('should write PRESENT attendance record when teacher is on time', async () => {
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await clockIn(input)
+
+    expect(mockCreateAttendance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'PRESENT', source: 'SELF_CHECKIN' }),
+      })
+    )
+  })
+
+  it('should write LATE attendance record when teacher is late', async () => {
     vi.mocked(evaluateCheckIn).mockReturnValueOnce({
       isLate: true,
       minutesLate: 5,
@@ -169,6 +231,87 @@ describe('clockIn', () => {
         data: expect.objectContaining({ isLate: true }),
       })
     )
+    expect(mockCreateAttendance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'LATE' }),
+      })
+    )
+  })
+
+  it('should update existing EXPECTED attendance record instead of creating a new one', async () => {
+    mockFindUniqueAttendance.mockResolvedValue({ status: 'EXPECTED' })
+
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await clockIn(input)
+
+    expect(mockUpdateManyAttendance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'EXPECTED' }),
+        data: expect.objectContaining({ status: 'PRESENT' }),
+      })
+    )
+    expect(mockCreateAttendance).not.toHaveBeenCalled()
+  })
+
+  it('should throw DUPLICATE_CHECKIN when pre-flight check finds existing checkin', async () => {
+    mockGetTeacherCheckin.mockResolvedValue(mockCheckin)
+
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await expect(clockIn(input)).rejects.toThrow(ValidationError)
+    await expect(clockIn(input)).rejects.toMatchObject({
+      code: CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+    })
+    // Transaction should not be entered when pre-flight fails
+    expect(mockTransaction).not.toHaveBeenCalled()
+  })
+
+  it('should throw DUPLICATE_CHECKIN on P2002 (race condition between pre-flight and insert)', async () => {
+    const prismaError = new Prisma.PrismaClientKnownRequestError(
+      'Unique constraint failed',
+      { code: 'P2002', clientVersion: '5.0.0' }
+    )
+    mockCreate.mockRejectedValue(prismaError)
+
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await expect(clockIn(input)).rejects.toThrow(ValidationError)
+    await expect(clockIn(input)).rejects.toMatchObject({
+      code: CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+    })
+  })
+
+  it('should throw CONCURRENT_MODIFICATION when updateMany returns count 0', async () => {
+    mockFindUniqueAttendance.mockResolvedValue({ status: 'EXPECTED' })
+    mockUpdateManyAttendance.mockResolvedValue({ count: 0 })
+
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await expect(clockIn(input)).rejects.toThrow(ValidationError)
+    await expect(clockIn(input)).rejects.toMatchObject({
+      code: CHECKIN_ERROR_CODES.CONCURRENT_MODIFICATION,
+    })
   })
 
   it('should throw error if teacher is not enrolled in Dugsi', async () => {
@@ -200,26 +343,6 @@ describe('clockIn', () => {
     await expect(clockIn(input)).rejects.toThrow(ValidationError)
     await expect(clockIn(input)).rejects.toMatchObject({
       code: CHECKIN_ERROR_CODES.INVALID_SHIFT,
-    })
-  })
-
-  it('should throw error if teacher already checked in for this shift (P2002)', async () => {
-    const prismaError = new Prisma.PrismaClientKnownRequestError(
-      'Unique constraint failed',
-      { code: 'P2002', clientVersion: '5.0.0' }
-    )
-    mockCreate.mockRejectedValue(prismaError)
-
-    const input = {
-      teacherId: 'teacher-1',
-      shift: Shift.MORNING,
-      latitude: 44.9778,
-      longitude: -93.265,
-    }
-
-    await expect(clockIn(input)).rejects.toThrow(ValidationError)
-    await expect(clockIn(input)).rejects.toMatchObject({
-      code: CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
     })
   })
 

@@ -136,4 +136,7 @@ export const CHECKIN_ERROR_CODES = {
   SYSTEM_NOT_CONFIGURED: 'SYSTEM_NOT_CONFIGURED',
   OUTSIDE_GEOFENCE: 'OUTSIDE_GEOFENCE',
   INVALID_TIME_ORDER: 'INVALID_TIME_ORDER',
+  // Fired when a concurrent admin override or auto-mark changed the attendance
+  // record status between our read and our updateMany write (optimistic lock).
+  CONCURRENT_MODIFICATION: 'CONCURRENT_MODIFICATION',
 } as const

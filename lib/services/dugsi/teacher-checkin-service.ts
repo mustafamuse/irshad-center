@@ -157,7 +157,7 @@ export async function clockIn(
       if (updateResult.count === 0) {
         throw new ValidationError(
           'Attendance record was modified concurrently — please try again',
-          CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+          CHECKIN_ERROR_CODES.CONCURRENT_MODIFICATION,
           { teacherId, shift }
         )
       }

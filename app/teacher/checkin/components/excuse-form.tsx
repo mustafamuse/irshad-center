@@ -10,9 +10,10 @@ import { submitExcuseAction } from '../actions'
 interface Props {
   attendanceRecordId: string
   onSuccess: () => void
+  onCancel: () => void
 }
 
-export function ExcuseForm({ attendanceRecordId, onSuccess }: Props) {
+export function ExcuseForm({ attendanceRecordId, onSuccess, onCancel }: Props) {
   const [isPending, startTransition] = useTransition()
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -53,17 +54,27 @@ export function ExcuseForm({ attendanceRecordId, onSuccess }: Props) {
         className="text-sm"
       />
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">
           {reason.trim().length}/1000{reason.trim().length < 10 && ` (${10 - reason.trim().length} more needed)`}
         </span>
-        <Button
-          size="sm"
-          disabled={!isValid || isPending}
-          onClick={handleSubmit}
-        >
-          {isPending ? 'Submitting...' : 'Submit'}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onCancel}
+            disabled={isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            disabled={!isValid || isPending}
+            onClick={handleSubmit}
+          >
+            {isPending ? 'Submitting...' : 'Submit'}
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-xs text-red-600">{error}</p>}

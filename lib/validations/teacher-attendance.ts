@@ -7,6 +7,13 @@ const dateString = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
   .refine((d) => !isNaN(new Date(d).getTime()), 'Invalid date')
 
+// School runs Saturday (6) and Sunday (0) only.
+// T12:00:00Z anchors the parse to UTC noon to avoid timezone edge cases.
+const weekendDateString = dateString.refine(
+  (d) => [0, 6].includes(new Date(`${d}T12:00:00Z`).getUTCDay()),
+  'School days are Saturday and Sunday only'
+)
+
 export const OverrideAttendanceStatusSchema = z.object({
   recordId: z.string().uuid(),
   toStatus: z.nativeEnum(TeacherAttendanceStatus),
@@ -16,11 +23,11 @@ export const OverrideAttendanceStatusSchema = z.object({
 export const AdminCheckInSchema = z.object({
   teacherId: z.string().uuid(),
   shift: z.nativeEnum(Shift),
-  date: dateString,
+  date: weekendDateString,
 })
 
 export const MarkDateClosedSchema = z.object({
-  date: dateString,
+  date: weekendDateString,
   reason: z.string().min(3).max(500),
 })
 

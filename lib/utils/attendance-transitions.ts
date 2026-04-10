@@ -20,7 +20,9 @@ const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStat
   //   natural record if the whole day needs to be reopened.
   PRESENT: ['ABSENT', 'EXCUSED', 'LATE'],
   LATE: ['ABSENT', 'EXCUSED', 'PRESENT'],
-  ABSENT: ['LATE', 'EXCUSED'],
+  // ABSENT → PRESENT: admin corrects an auto-marked absence when the teacher
+  //   physically showed up after the auto-mark window fired.
+  ABSENT: ['LATE', 'EXCUSED', 'PRESENT'],
   EXCUSED: ['LATE', 'ABSENT'],
   // CLOSED → PRESENT: admin confirms teacher physically showed up on a closed day.
   // CLOSED → EXPECTED is excluded: it would leave the record in EXPECTED while the

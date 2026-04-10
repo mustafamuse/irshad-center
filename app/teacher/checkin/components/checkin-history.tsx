@@ -191,6 +191,7 @@ export function CheckinHistory({ teacherId }: Props) {
                         <ExcuseForm
                           attendanceRecordId={item.id}
                           onSuccess={handleExcuseSuccess}
+                          onCancel={() => setExcuseOpenId(null)}
                         />
                       )}
                     </div>
