@@ -420,7 +420,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     expect(mockLogError).toHaveBeenCalledWith(
       expect.anything(),
       authError,
-      'Path 4 fallback: Stripe API key invalid — metadata patch skipped, subscription saved successfully',
+      'Path 4 fallback: transient/auth Stripe error — metadata patch skipped, subscription saved successfully',
       expect.any(Object)
     )
     expect(mockSentrycaptureMessage).not.toHaveBeenCalledWith(

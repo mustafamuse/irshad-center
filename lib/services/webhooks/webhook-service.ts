@@ -205,7 +205,7 @@ async function resolveDugsiProfileIds(
     Sentry.captureMessage(
       'Dugsi subscription created without profile links — billing account has no personId',
       {
-        level: 'warning',
+        level: 'error',
         extra: { subscriptionId: subscription.id },
       }
     )
@@ -418,23 +418,7 @@ async function resolveSubscriptionContext(
   if (metadataPersonId) {
     const verifiedPerson = await findPersonById(metadataPersonId)
 
-    if (!verifiedPerson) {
-      logger.warn(
-        { customerId, metadataPersonId, subscriptionId: subscription.id },
-        'Path 2: metadataPersonId not found in DB — falling through to Path 3'
-      )
-      Sentry.captureMessage(
-        'Subscription metadata contains personId not found in database',
-        {
-          level: 'warning',
-          extra: {
-            customerId,
-            metadataPersonId,
-            subscriptionId: subscription.id,
-          },
-        }
-      )
-    } else {
+    if (verifiedPerson) {
       logger.info(
         {
           customerId,
@@ -463,6 +447,23 @@ async function resolveSubscriptionContext(
         recoverySource: 'metadata_person_id',
       }
     }
+
+    // Person ID in metadata not found in DB — fall through to Path 3
+    logger.warn(
+      { customerId, metadataPersonId, subscriptionId: subscription.id },
+      'Path 2: metadataPersonId not found in DB — falling through to Path 3'
+    )
+    Sentry.captureMessage(
+      'Subscription metadata contains personId not found in database',
+      {
+        level: 'warning',
+        extra: {
+          customerId,
+          metadataPersonId,
+          subscriptionId: subscription.id,
+        },
+      }
+    )
   }
 
   // Path 3: cross-program person lookup — finds a person via any billing account already
@@ -546,14 +547,16 @@ async function patchRecoveredDugsiMetadata(
       },
     })
   } catch (metadataErr) {
-    const isAuthError =
-      metadataErr instanceof Stripe.errors.StripeAuthenticationError
+    const isOperationalError =
+      metadataErr instanceof Stripe.errors.StripeAuthenticationError ||
+      metadataErr instanceof Stripe.errors.StripeConnectionError ||
+      metadataErr instanceof Stripe.errors.StripeRateLimitError
 
-    if (isAuthError) {
+    if (isOperationalError) {
       await logError(
         logger,
         metadataErr,
-        'Path 4 fallback: Stripe API key invalid — metadata patch skipped, subscription saved successfully',
+        'Path 4 fallback: transient/auth Stripe error — metadata patch skipped, subscription saved successfully',
         { subscriptionId, customerId }
       )
       return
