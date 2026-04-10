@@ -671,7 +671,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     expect(mockSubscriptionsUpdate).not.toHaveBeenCalled()
   })
 
-  it('Stripe metadata is patched before linkProfilesIfPresent when link step throws', async () => {
+  it('falls back to standard rate when Stripe unit_amount is 0', async () => {
     const subscription = createMockSubscription({
       customer: CUSTOMER_ID,
       metadata: {},
@@ -683,11 +683,15 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
       },
     })
 
-    await expect(
-      handleSubscriptionCreated(subscription, 'DUGSI')
-    ).rejects.toThrow('Subscription has invalid amount')
+    const result = await handleSubscriptionCreated(subscription, 'DUGSI')
 
-    expect(mockSubscriptionsUpdate).toHaveBeenCalledOnce()
+    expect(result.created).toBe(true)
+    expect(mockLinkSubscriptionToProfiles).toHaveBeenCalledWith(
+      DB_SUBSCRIPTION_ID,
+      expect.any(Array),
+      STANDARD_RATE,
+      'Linked automatically via webhook'
+    )
   })
 
   it('warns when guardian spans multiple families and uses first family ID', async () => {

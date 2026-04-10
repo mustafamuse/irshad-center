@@ -359,7 +359,7 @@ async function resolveDugsiFallbackFromCustomerEmail(
 
   const standardRate = calculateDugsiRate(childCount)
   const actualAmount =
-    subscription.items.data[0]?.price?.unit_amount ?? standardRate
+    subscription.items.data[0]?.price?.unit_amount || standardRate
 
   if (actualAmount !== standardRate) {
     logger.warn(
