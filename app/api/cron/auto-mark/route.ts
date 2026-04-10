@@ -26,7 +26,7 @@ export async function GET() {
 
   // Vercel injects the CRON_SECRET automatically in production.
   // In development, pass it manually: Authorization: Bearer <CRON_SECRET>
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
