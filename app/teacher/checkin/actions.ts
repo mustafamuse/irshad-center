@@ -280,14 +280,13 @@ const _submitExcuseAction = rateLimitedActionClient
 
     // SECURITY — ownership boundary:
     // The teacher app has no session; teachers identify only by UI selection.
-    // Stop-gap (until session auth in #225): teacherId is included in the schema and
-    // verified against the server-resolved value — forces the caller to know both
-    // the recordId AND the correct teacherId, adding a small layer of defense.
-    // This does NOT fix spoofability (both values could be obtained by a motivated
-    // attacker), but ensures self-consistency.
-    // Full fix: HMAC token encoding (teacherId, recordId, exp) signed on page render,
-    // verified here before calling submitExcuse — or full session auth in #225.
-    // SECURITY TASK — Do NOT remove this comment without closing issue #225.
+    // Stop-gap: teacherId in schema is verified against the server-resolved value —
+    // forces the caller to know both recordId AND teacherId. Does not fix spoofability.
+    // Full interim fix (tracked in #225):
+    //   - Sign (attendanceRecordId, teacherId, exp) with EXCUSE_TOKEN_SECRET env var
+    //   - Short TTL (e.g. 30 min) — teachers submit immediately after loading the form
+    //   - Add token field to SubmitExcuseSchema; verify signature before DB lookup
+    // Do NOT remove this comment block until #225 is closed.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)

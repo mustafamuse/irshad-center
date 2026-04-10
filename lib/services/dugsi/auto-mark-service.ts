@@ -8,7 +8,7 @@
  * Also ensures EXPECTED slots exist for the date before marking.
  */
 
-import { Shift } from '@prisma/client'
+import { DugsiAttendanceConfig, Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
@@ -30,9 +30,12 @@ export interface AutoMarkResult {
 export async function autoMarkLateForShift(
   date: string,
   shift: Shift,
-  client: DatabaseClient = prisma
+  client: DatabaseClient = prisma,
+  // Optional pre-fetched config — autoMarkBothShifts passes this to avoid a
+  // duplicate singleton read per shift. When omitted, fetched from the database.
+  prefetchedConfig?: DugsiAttendanceConfig
 ): Promise<AutoMarkResult> {
-  const config = await getAttendanceConfig(client)
+  const config = prefetchedConfig ?? await getAttendanceConfig(client)
   const offsetMinutes =
     shift === 'MORNING'
       ? config.morningAutoMarkMinutes
@@ -126,10 +129,13 @@ export async function autoMarkBothShifts(
   date: string,
   client: DatabaseClient = prisma
 ): Promise<{ morning: AutoMarkResult; afternoon: AutoMarkResult }> {
+  // Fetch config once — both shifts share the same singleton row.
+  const config = await getAttendanceConfig(client)
+
   // Sequential (not parallel): if an admin creates a closure between the two
   // transactions, parallel execution would produce an inconsistent state where
   // MORNING records are LATE but AFTERNOON records are correctly CLOSED.
-  const morning = await autoMarkLateForShift(date, 'MORNING', client)
-  const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', client)
+  const morning = await autoMarkLateForShift(date, 'MORNING', client, config)
+  const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', client, config)
   return { morning, afternoon }
 }
