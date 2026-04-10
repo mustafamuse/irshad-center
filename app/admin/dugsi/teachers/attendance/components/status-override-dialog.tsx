@@ -63,10 +63,10 @@ export function StatusOverrideDialog({
     startTransition(async () => {
       const result = await overrideAttendanceStatusAction({ recordId, toStatus, notes: notes || undefined })
 
-      if (result?.serverError) {
+      if (result?.serverError || result?.validationErrors) {
         // A concurrent override or auto-mark cron may have changed the status
         // since this dialog opened — the displayed options may no longer apply.
-        setError(`${result.serverError} Please close and reopen the dialog to see the current status.`)
+        setError(`${result.serverError ?? 'Invalid request.'} Please close and reopen the dialog to see the current status.`)
         return
       }
 

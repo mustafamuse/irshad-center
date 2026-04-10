@@ -15,7 +15,7 @@ import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
-import { bulkTransitionStatus, bulkReopenDate } from './attendance-record-service'
+import { bulkTransitionStatus } from './attendance-record-service'
 
 const logger = createServiceLogger('school-closure')
 
@@ -103,6 +103,25 @@ export async function markDateClosed(
   return result
 }
 
+// Private — only called by removeClosure below, inside the same $transaction.
+// Keeping this here (rather than in attendance-record-service) makes the coupling
+// compiler-enforced: nothing outside this file can accidentally skip the SchoolClosure
+// row deletion that must accompany the status revert.
+async function reopenClosedRecords(
+  params: { date: Date; changedBy?: string },
+  tx: DatabaseClient
+): Promise<number> {
+  const result = await tx.teacherAttendanceRecord.updateMany({
+    where: { date: params.date, status: 'CLOSED' },
+    data: {
+      status: 'EXPECTED',
+      source: 'SYSTEM',
+      ...(params.changedBy !== undefined ? { changedBy: params.changedBy } : {}),
+    },
+  })
+  return result.count
+}
+
 export async function removeClosure(
   params: { date: Date; changedBy?: string },
   client: DatabaseClient = prisma
@@ -140,9 +159,9 @@ export async function removeClosure(
     })
 
     // Revert: only CLOSED records go back to EXPECTED.
-    // Uses bulkReopenDate — the only code path that may transition CLOSED → EXPECTED,
-    // since the SchoolClosure row is deleted atomically above in the same transaction.
-    const reopenedCount = await bulkReopenDate({ date, source: 'SYSTEM', changedBy }, tx)
+    // Uses the module-private reopenClosedRecords — the only code path that may transition
+    // CLOSED → EXPECTED, since the SchoolClosure row is deleted atomically above.
+    const reopenedCount = await reopenClosedRecords({ date, changedBy }, tx)
 
     logger.info(
       { event: 'SCHOOL_REOPENED', date, reopenedCount },

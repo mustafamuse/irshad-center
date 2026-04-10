@@ -16,7 +16,6 @@ const {
   mockUpdateMany,
   mockExcuseUpdateMany,
   mockBulkTransitionStatus,
-  mockBulkReopenDate,
   mockTransaction,
 } = vi.hoisted(() => ({
   mockGetSchoolClosure: vi.fn(),
@@ -25,7 +24,6 @@ const {
   mockUpdateMany: vi.fn(),
   mockExcuseUpdateMany: vi.fn(),
   mockBulkTransitionStatus: vi.fn(),
-  mockBulkReopenDate: vi.fn(),
   mockTransaction: vi.fn(),
 }))
 
@@ -63,7 +61,6 @@ vi.mock('../attendance-record-service', async (importOriginal) => {
   return {
     ...actual,
     bulkTransitionStatus: (...args: unknown[]) => mockBulkTransitionStatus(...args),
-    bulkReopenDate: (...args: unknown[]) => mockBulkReopenDate(...args),
   }
 })
 
@@ -180,20 +177,24 @@ describe('removeClosure', () => {
     mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
     mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
     mockDeleteClosure.mockResolvedValue(undefined)
-    mockBulkReopenDate.mockResolvedValue(0)
+    // reopenClosedRecords is now a module-private helper; it delegates to
+    // tx.teacherAttendanceRecord.updateMany — same mock as the LATE→CLOSED sweep.
+    mockUpdateMany.mockResolvedValue({ count: 0 })
     mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
   })
 
   it('reverts CLOSED records to EXPECTED and returns reopenedCount', async () => {
-    mockBulkReopenDate.mockResolvedValue(4)
+    mockUpdateMany.mockResolvedValue({ count: 4 })
 
     const result = await removeClosure({ date: TEST_DATE })
 
     expect(result.reopenedCount).toBe(4)
     expect(mockDeleteClosure).toHaveBeenCalledWith({ where: { date: TEST_DATE } })
-    expect(mockBulkReopenDate).toHaveBeenCalledWith(
-      expect.objectContaining({ date: TEST_DATE, source: 'SYSTEM' }),
-      expect.anything()
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ date: TEST_DATE, status: 'CLOSED' }),
+        data: expect.objectContaining({ status: 'EXPECTED', source: 'SYSTEM' }),
+      })
     )
   })
 
@@ -206,7 +207,7 @@ describe('removeClosure', () => {
 
   it('cancels PENDING/APPROVED excuses on CLOSED records before reopening', async () => {
     mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
-    mockBulkReopenDate.mockResolvedValue(2)
+    mockUpdateMany.mockResolvedValue({ count: 2 })
 
     await removeClosure({ date: TEST_DATE, changedBy: 'admin' })
 

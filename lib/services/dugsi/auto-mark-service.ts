@@ -8,7 +8,7 @@
  * Also ensures EXPECTED slots exist for the date before marking.
  */
 
-import { DugsiAttendanceConfig, PrismaClient, Shift } from '@prisma/client'
+import { DugsiAttendanceConfig, Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
@@ -31,13 +31,13 @@ export interface AutoMarkResult {
 export async function autoMarkLateForShift(
   date: string,
   shift: Shift,
+  // Config is required: callers must fetch it via getAttendanceConfig (a PrismaClient-only
+  // call) before entering any transaction. autoMarkBothShifts fetches once and forwards it
+  // to both shifts; direct callers must do the same. This eliminates the PrismaClient cast
+  // and the runtime guard that was needed when config was optional.
+  config: DugsiAttendanceConfig,
   client: DatabaseClient = prisma,
-  // Optional pre-fetched config — autoMarkBothShifts passes this to avoid a
-  // duplicate singleton read per shift. When omitted, fetched from the database.
-  prefetchedConfig?: DugsiAttendanceConfig,
-  // Optional pre-fetched teacher roster — autoMarkBothShifts fetches this once
-  // inside the shared transaction and forwards it here to avoid a duplicate query
-  // per shift. When omitted, fetched inside doWrites (maintains atomicity).
+  // Optional pre-fetched teacher roster — when omitted, fetched inside doWrites.
   prefetchedTeachers?: TeacherShift[]
 ): Promise<AutoMarkResult> {
   // Fast-fail if the transition table ever removes EXPECTED → LATE.
@@ -45,19 +45,6 @@ export async function autoMarkLateForShift(
   // this guard ensures the cron breaks loudly rather than silently doing nothing.
   assertValidTransition('EXPECTED', 'LATE')
 
-  // getAttendanceConfig throws if given a transaction client (P2002 catch is unsafe
-  // inside a tx). Guard here so the error fires at the callsite rather than deep inside
-  // the function — autoMarkBothShifts always pre-fetches config and forwards it.
-  if (!prefetchedConfig && !isPrismaClient(client)) {
-    throw new Error(
-      'autoMarkLateForShift: prefetchedConfig is required when client is a transaction — ' +
-      'use autoMarkBothShifts or pass prefetchedConfig explicitly'
-    )
-  }
-
-  // The guard above ensures client is PrismaClient when getAttendanceConfig is invoked.
-  // TypeScript cannot narrow DatabaseClient through the combined &&-guard, so cast here.
-  const config = prefetchedConfig ?? await getAttendanceConfig(client as PrismaClient)
   const offsetMinutes =
     shift === 'MORNING'
       ? config.morningAutoMarkMinutes
@@ -177,8 +164,8 @@ export async function autoMarkBothShifts(
   // between the outer fetch and the updateMany would otherwise get a spurious LATE slot).
   // See the class docstring above for the full trade-off rationale.
   const [morning, afternoon] = await Promise.all([
-    autoMarkLateForShift(date, 'MORNING', client, config),
-    autoMarkLateForShift(date, 'AFTERNOON', client, config),
+    autoMarkLateForShift(date, 'MORNING', config, client),
+    autoMarkLateForShift(date, 'AFTERNOON', config, client),
   ])
 
   return { morning, afternoon }

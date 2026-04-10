@@ -314,25 +314,3 @@ export async function bulkTransitionStatus(
   return result.count
 }
 
-/**
- * Reverts all CLOSED records on a date back to EXPECTED.
- *
- * @internal — only `removeClosure` in `school-closure-service.ts` should call this.
- * Calling it from any other site risks leaving the `SchoolClosure` row in place while
- * attendance records show EXPECTED, producing an inconsistent state (grid shows "open"
- * but the closure row still exists). `removeClosure` atomically deletes the SchoolClosure
- * row inside the same `$transaction` before calling this function.
- *
- * Kept exported (rather than module-private) only because TypeScript has no
- * package-private visibility — the JSDoc @internal is the enforcement mechanism.
- */
-export async function bulkReopenDate(
-  params: { date: Date; source: AttendanceSource; changedBy?: string },
-  client: DatabaseClient = prisma
-): Promise<number> {
-  const result = await client.teacherAttendanceRecord.updateMany({
-    where: { date: params.date, status: 'CLOSED' },
-    data: { status: 'EXPECTED', source: params.source, ...(params.changedBy !== undefined ? { changedBy: params.changedBy } : {}) },
-  })
-  return result.count
-}

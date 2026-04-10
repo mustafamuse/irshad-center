@@ -88,7 +88,7 @@ describe('autoMarkLateForShift', () => {
   it('skips when the auto-mark window has not yet passed', async () => {
     // Morning class starts 9:00 AM CT; threshold is 9:15 AM CT.
     // Use a date far in the future — `new Date()` will always be before the threshold.
-    const result = await autoMarkLateForShift('2099-06-07', 'MORNING')
+    const result = await autoMarkLateForShift('2099-06-07', 'MORNING', BASE_CONFIG)
 
     expect(result.skippedReason).toBe('window_not_passed')
     expect(result.marked).toBe(0)
@@ -99,7 +99,7 @@ describe('autoMarkLateForShift', () => {
     // Past date — window has definitely passed.
     mockFindUniqueClosure.mockResolvedValue({ id: 'cl-1', date: new Date('2026-02-01') })
 
-    const result = await autoMarkLateForShift('2026-02-01', 'MORNING')
+    const result = await autoMarkLateForShift('2026-02-01', 'MORNING', BASE_CONFIG)
 
     expect(result.skippedReason).toBe('school_closed')
     expect(result.marked).toBe(0)
@@ -111,7 +111,7 @@ describe('autoMarkLateForShift', () => {
     mockGetActiveTeachers.mockResolvedValue([])
     mockUpdateMany.mockResolvedValue({ count: 3 })
 
-    const result = await autoMarkLateForShift('2026-02-07', 'MORNING')
+    const result = await autoMarkLateForShift('2026-02-07', 'MORNING', BASE_CONFIG)
 
     expect(result.marked).toBe(3)
     expect(result.skippedReason).toBeUndefined()
@@ -128,7 +128,7 @@ describe('autoMarkLateForShift', () => {
     mockFindUniqueClosure.mockResolvedValue(null)
     mockUpdateMany.mockResolvedValue({ count: 0 })
 
-    const result = await autoMarkLateForShift('2026-02-07', 'MORNING')
+    const result = await autoMarkLateForShift('2026-02-07', 'MORNING', BASE_CONFIG)
 
     expect(result.marked).toBe(0)
     expect(result.skippedReason).toBe('no_expected_records')
