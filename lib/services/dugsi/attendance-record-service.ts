@@ -131,7 +131,7 @@ export async function transitionStatus(
     // REJECTED is the correct terminal state — the admin override implicitly revokes
     // the approval.
     if (record.status === 'EXCUSED' && (toStatus === 'LATE' || toStatus === 'ABSENT')) {
-      await tx.excuseRequest.updateMany({
+      const rejectionResult = await tx.excuseRequest.updateMany({
         where: { attendanceRecordId: recordId, status: 'APPROVED' },
         data: {
           status: 'REJECTED',
@@ -140,6 +140,12 @@ export async function transitionStatus(
           reviewedAt: new Date(),
         },
       })
+      if (rejectionResult.count > 0) {
+        logger.info(
+          { event: 'EXCUSE_AUTO_REJECTED', recordId, revokedBy: changedBy, count: rejectionResult.count },
+          `Auto-rejected ${rejectionResult.count} APPROVED excuse(s) on EXCUSED→${toStatus} revert`
+        )
+      }
     }
 
     logger.info(

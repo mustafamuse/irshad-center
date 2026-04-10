@@ -372,18 +372,21 @@ export async function deleteCheckin(
   changedBy?: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
-  const existingCheckin = await getCheckinById(checkInId, client)
-  if (!existingCheckin) {
-    throw new ValidationError(
-      'Check-in record not found',
-      CHECKIN_ERROR_CODES.CHECKIN_NOT_FOUND,
-      { checkInId }
-    )
-  }
-
-  const { teacherId, date, shift } = existingCheckin
-
+  // Read + delete inside the same transaction so a concurrent delete by another admin
+  // produces a clean ValidationError (from getCheckinById returning null) rather than
+  // an uncaught P2025 from tx.dugsiTeacherCheckIn.delete.
   const doWrites = async (tx: DatabaseClient) => {
+    const existingCheckin = await getCheckinById(checkInId, tx)
+    if (!existingCheckin) {
+      throw new ValidationError(
+        'Check-in record not found',
+        CHECKIN_ERROR_CODES.CHECKIN_NOT_FOUND,
+        { checkInId }
+      )
+    }
+
+    const { teacherId, date, shift } = existingCheckin
+
     // Step 1: Release the RESTRICT FK on ANY record still pointing at this check-in,
     // regardless of status.  EXCUSED and admin-overridden ABSENT records legitimately
     // carry a non-null checkInId (neither approveExcuse nor transitionStatus clears it),
@@ -418,18 +421,19 @@ export async function deleteCheckin(
     }
 
     await tx.dugsiTeacherCheckIn.delete({ where: { id: checkInId } })
+    return existingCheckin
   }
 
-  await (isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client))
+  const checkin = await (isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client))
 
   logger.info(
     {
       event: 'CHECKIN_DELETED',
       checkInId,
-      teacherId,
-      teacherName: existingCheckin.teacher.person.name,
-      date: date.toISOString(),
-      shift,
+      teacherId: checkin.teacherId,
+      teacherName: checkin.teacher.person.name,
+      date: checkin.date.toISOString(),
+      shift: checkin.shift,
     },
     'Check-in record deleted by admin'
   )

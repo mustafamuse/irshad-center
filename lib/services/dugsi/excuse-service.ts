@@ -6,7 +6,7 @@
  * Constraint: a record can only have one PENDING or APPROVED request at a time.
  */
 
-import { Prisma } from '@prisma/client'
+import { AttendanceSource, ExcuseRequestStatus, Prisma, TeacherAttendanceStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
@@ -72,7 +72,7 @@ export async function submitExcuse(
     // P2002 from the index is caught OUTSIDE the transaction (project rule: never
     // try-catch P2002 inside $transaction) and remapped to ALREADY_EXCUSED.
     return tx.excuseRequest.create({
-      data: { attendanceRecordId, teacherId, reason, status: 'PENDING' },
+      data: { attendanceRecordId, teacherId, reason, status: ExcuseRequestStatus.PENDING },
     })
   }
 
@@ -117,7 +117,7 @@ export async function approveExcuse(
     if (!excuseRequest) {
       throw new ActionError('Excuse request not found', ERROR_CODES.EXCUSE_REQUEST_NOT_FOUND)
     }
-    if (excuseRequest.status !== 'PENDING') {
+    if (excuseRequest.status !== ExcuseRequestStatus.PENDING) {
       throw new ActionError(
         `Excuse request is already ${excuseRequest.status}`,
         ERROR_CODES.INVALID_TRANSITION
@@ -134,11 +134,11 @@ export async function approveExcuse(
     if (!currentRecord) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND)
     }
-    assertValidTransition(currentRecord.status, 'EXCUSED')
+    assertValidTransition(currentRecord.status, TeacherAttendanceStatus.EXCUSED)
 
     const excuseUpdateResult = await tx.excuseRequest.updateMany({
-      where: { id: excuseRequestId, status: 'PENDING' },
-      data: { status: 'APPROVED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
+      where: { id: excuseRequestId, status: ExcuseRequestStatus.PENDING },
+      data: { status: ExcuseRequestStatus.APPROVED, adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
     })
     // Optimistic lock on the ExcuseRequest: a concurrent rejectExcuse that committed
     // between the findUnique above and this write would have changed status → REJECTED.
@@ -159,7 +159,7 @@ export async function approveExcuse(
     // connection and cannot process concurrent queries on the same tx client.
     const statusResult = await tx.teacherAttendanceRecord.updateMany({
       where: { id: excuseRequest.attendanceRecordId, status: currentRecord.status },
-      data: { status: 'EXCUSED', source: 'EXCUSE_APPROVED', changedBy: reviewedBy },
+      data: { status: TeacherAttendanceStatus.EXCUSED, source: AttendanceSource.EXCUSE_APPROVED, changedBy: reviewedBy },
     })
     if (statusResult.count === 0) {
       // The transaction is rolled back entirely by this throw — neither the excuse
@@ -197,7 +197,7 @@ export async function rejectExcuse(
     if (!excuseRequest) {
       throw new ActionError('Excuse request not found', ERROR_CODES.EXCUSE_REQUEST_NOT_FOUND)
     }
-    if (excuseRequest.status !== 'PENDING') {
+    if (excuseRequest.status !== ExcuseRequestStatus.PENDING) {
       throw new ActionError(
         `Excuse request is already ${excuseRequest.status}`,
         ERROR_CODES.INVALID_TRANSITION
@@ -205,8 +205,8 @@ export async function rejectExcuse(
     }
 
     const rejectUpdateResult = await tx.excuseRequest.updateMany({
-      where: { id: excuseRequestId, status: 'PENDING' },
-      data: { status: 'REJECTED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
+      where: { id: excuseRequestId, status: ExcuseRequestStatus.PENDING },
+      data: { status: ExcuseRequestStatus.REJECTED, adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
     })
     // Optimistic lock: a concurrent approveExcuse between the findUnique read and this
     // write would have changed status → APPROVED and flipped the attendance record.
