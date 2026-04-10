@@ -67,7 +67,7 @@ export const SubmitExcuseSchema = z.object({
 
 export const ReviewExcuseSchema = z.object({
   excuseRequestId: z.string().uuid(),
-  adminNote: z.string().max(500).optional(),
+  adminNote: z.string().min(1).max(500).optional(),
 })
 
 export type OverrideAttendanceStatusInput = z.infer<typeof OverrideAttendanceStatusSchema>

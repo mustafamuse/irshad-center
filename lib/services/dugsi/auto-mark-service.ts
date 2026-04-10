@@ -172,6 +172,10 @@ export async function autoMarkBothShifts(
   const config = await getAttendanceConfig(client)
 
   // Run independently: each shift opens its own $transaction via autoMarkLateForShift.
+  // prefetchedTeachers is deliberately NOT forwarded — each shift fetches its own roster
+  // inside its transaction, preserving the atomicity guarantee (a teacher deactivated
+  // between the outer fetch and the updateMany would otherwise get a spurious LATE slot).
+  // See the class docstring above for the full trade-off rationale.
   const [morning, afternoon] = await Promise.all([
     autoMarkLateForShift(date, 'MORNING', client, config),
     autoMarkLateForShift(date, 'AFTERNOON', client, config),

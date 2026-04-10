@@ -294,20 +294,24 @@ export async function getExistingActiveExcuse(
 
 export interface TeacherShift {
   teacherId: string
+  name: string  // teacher's person.name — included for grid display without a second join
   shifts: Shift[]
 }
 
 /**
  * Returns all active Dugsi teachers with their assigned shifts.
- * Used by auto-mark and expected-slot generation — extracted from the action/service
- * layers so the query is defined once and testable in isolation.
+ * Used by auto-mark, expected-slot generation, and the attendance grid.
  */
 export async function getActiveDugsiTeacherShifts(
   client: DatabaseClient = prisma
 ): Promise<TeacherShift[]> {
   const rows = await client.teacherProgram.findMany({
     where: { program: Program.DUGSI_PROGRAM, isActive: true },
-    select: { teacherId: true, shifts: true },
+    select: {
+      teacherId: true,
+      shifts: true,
+      teacher: { select: { person: { select: { name: true } } } },
+    },
   })
-  return rows
+  return rows.map((r) => ({ teacherId: r.teacherId, name: r.teacher.person.name, shifts: r.shifts }))
 }

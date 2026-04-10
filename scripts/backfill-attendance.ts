@@ -147,6 +147,7 @@ async function main() {
     action: 'SKIP' | 'CLOSED' | 'PRESENT' | 'LATE' | 'ABSENT'
     source: AttendanceSource
     checkInId?: string
+    clockInTime?: Date
     minutesLate?: number
   }
 
@@ -175,6 +176,7 @@ async function main() {
             action: checkin.isLate ? 'LATE' : 'PRESENT',
             source: AttendanceSource.SELF_CHECKIN,
             checkInId: checkin.id,
+            clockInTime: checkin.clockInTime,
             minutesLate: undefined, // we don't have minutesLate on the fact log; leave null
           })
         } else {
@@ -221,7 +223,7 @@ async function main() {
   type RowData = {
     teacherId: string; date: Date; shift: Shift
     status: Exclude<Row['action'], 'SKIP'>; source: AttendanceSource
-    checkInId: string | null; minutesLate: number | null
+    checkInId: string | null; clockInTime: Date | null; minutesLate: number | null
   }
 
   // Expected row count: ~10 teachers × 2 shifts × ~20 weekend dates ≈ 400 rows.
@@ -252,12 +254,12 @@ async function main() {
       // changes (overrides, excuse approvals) when the script is re-run.
       const updated = await tx.teacherAttendanceRecord.updateMany({
         where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
-        data: { status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
+        data: { status: r.action, source: r.source, checkInId: r.checkInId ?? null, clockInTime: r.clockInTime ?? null, minutesLate: r.minutesLate ?? null },
       })
       if (updated.count > 0) {
         dbUpdated++
       } else {
-        toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null })
+        toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: r.source, checkInId: r.checkInId ?? null, clockInTime: r.clockInTime ?? null, minutesLate: r.minutesLate ?? null })
       }
     }
 

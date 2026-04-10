@@ -1,7 +1,7 @@
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
-import { getAttendanceGrid, listSchoolClosures } from '@/lib/db/queries/teacher-attendance'
+import { getAttendanceGrid, getActiveDugsiTeacherShifts, listSchoolClosures } from '@/lib/db/queries/teacher-attendance'
 
 import { AttendanceGrid } from './components/attendance-grid'
 
@@ -44,9 +44,11 @@ export default async function TeacherAttendancePage() {
   // of T23:59:59Z and is consistent with the `from` boundary style.
   const to = new Date(`${weekendDates[0]}T00:00:00Z`)
   to.setUTCDate(to.getUTCDate() + 1)
-  const [records, closures] = await Promise.all([
+  const [records, closures, activeTeachers] = await Promise.all([
     getAttendanceGrid(from, to),
     listSchoolClosures(from, to),
+    // Fetch full active roster so teachers with no records in the window still get a grid row.
+    getActiveDugsiTeacherShifts(),
   ])
 
   const closureSet = new Set(
@@ -74,7 +76,7 @@ export default async function TeacherAttendancePage() {
         </div>
       )}
 
-      <AttendanceGrid records={records} weekendDates={weekendDates} closureDates={closureSet} />
+      <AttendanceGrid records={records} weekendDates={weekendDates} closureDates={closureSet} allTeachers={activeTeachers} />
     </div>
   )
 }

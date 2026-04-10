@@ -240,6 +240,10 @@ export async function adminCheckIn(
         )
       }
     } else {
+      // No pre-existing record — admin check-in always wins regardless of closure status.
+      // If the date is marked closed, this is an intentional override: the SchoolClosure row
+      // remains, the grid shows a PRESENT cell on a strikethrough header, which is correct.
+      // To block admin check-ins on closed dates, add a SchoolClosure guard here.
       await tx.teacherAttendanceRecord.create({
         data: { teacherId, date, shift, ...recordData },
       })
