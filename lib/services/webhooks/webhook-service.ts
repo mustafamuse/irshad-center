@@ -202,6 +202,13 @@ async function resolveDugsiProfileIds(
       { subscriptionId: subscription.id },
       'resolveDugsiProfileIds: billing account has no personId — cannot resolve profile IDs'
     )
+    Sentry.captureMessage(
+      'Dugsi subscription created without profile links — billing account has no personId',
+      {
+        level: 'warning',
+        extra: { subscriptionId: subscription.id },
+      }
+    )
     return []
   }
 
@@ -412,6 +419,17 @@ async function resolveSubscriptionContext(
       logger.warn(
         { customerId, metadataPersonId, subscriptionId: subscription.id },
         'Path 2: metadataPersonId not found in DB — falling through to Path 3'
+      )
+      Sentry.captureMessage(
+        'Subscription metadata contains personId not found in database',
+        {
+          level: 'warning',
+          extra: {
+            customerId,
+            metadataPersonId,
+            subscriptionId: subscription.id,
+          },
+        }
       )
     } else {
       logger.info(

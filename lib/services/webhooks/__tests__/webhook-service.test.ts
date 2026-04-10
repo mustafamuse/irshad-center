@@ -313,7 +313,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     )
   })
 
-  it('patches metadata after DB subscription is created and profiles are linked', async () => {
+  it('patches metadata before linking profiles so Stripe is updated even if link step throws', async () => {
     const subscription = createMockSubscription({
       customer: CUSTOMER_ID,
       metadata: {},
@@ -336,8 +336,8 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
 
     expect(callOrder).toEqual([
       'createSubscription',
-      'linkProfiles',
       'patchMetadata',
+      'linkProfiles',
     ])
   })
 
@@ -625,6 +625,57 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
 
     const metadataArg = mockSubscriptionsUpdate.mock.calls[0][1].metadata
     expect(metadataArg).not.toHaveProperty('familyId')
+  })
+
+  it('on retry via Path 1 does not re-patch Stripe metadata or look up guardian again', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+    })
+
+    // First delivery: Path 4 runs (no billing account yet)
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+    expect(mockSubscriptionsUpdate).toHaveBeenCalledOnce()
+    expect(mockFindGuardianWithBillableDugsiChildren).toHaveBeenCalledOnce()
+
+    vi.clearAllMocks()
+    mockExtractCustomerId.mockReturnValue(CUSTOMER_ID)
+    mockCreateSubscriptionFromStripe.mockResolvedValue(mockDbSubscription)
+    mockCalculateDugsiRate.mockReturnValue(STANDARD_RATE)
+    mockFindBillableDugsiProfileIdsForGuardian.mockResolvedValue([
+      PROFILE_ID_1,
+      PROFILE_ID_2,
+    ])
+    mockVerifyDugsiProfileIdsForGuardian.mockResolvedValue([])
+    // Retry: billing account now exists → Path 1
+    mockGetBillingAccountByStripeCustomerId.mockResolvedValue(
+      mockBillingAccount
+    )
+
+    await handleSubscriptionCreated(subscription, 'DUGSI')
+
+    expect(mockCustomersRetrieve).not.toHaveBeenCalled()
+    expect(mockFindGuardianWithBillableDugsiChildren).not.toHaveBeenCalled()
+    expect(mockSubscriptionsUpdate).not.toHaveBeenCalled()
+  })
+
+  it('Stripe metadata is patched before linkProfilesIfPresent when link step throws', async () => {
+    const subscription = createMockSubscription({
+      customer: CUSTOMER_ID,
+      metadata: {},
+      items: {
+        object: 'list',
+        data: [{ price: { unit_amount: 0 } } as Stripe.SubscriptionItem],
+        has_more: false,
+        url: '',
+      },
+    })
+
+    await expect(
+      handleSubscriptionCreated(subscription, 'DUGSI')
+    ).rejects.toThrow('Subscription has invalid amount')
+
+    expect(mockSubscriptionsUpdate).toHaveBeenCalledOnce()
   })
 
   it('warns when guardian spans multiple families and uses first family ID', async () => {

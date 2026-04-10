@@ -240,6 +240,16 @@ export async function createSubscriptionFromStripe(
   // return it rather than throwing P2002 on stripeSubscriptionId unique constraint.
   const existing = await getSubscriptionByStripeId(stripeSubscription.id)
   if (existing) {
+    if (existing.billingAccountId !== billingAccountId) {
+      logger.warn(
+        {
+          stripeSubscriptionId: stripeSubscription.id,
+          storedBillingAccountId: existing.billingAccountId,
+          requestedBillingAccountId: billingAccountId,
+        },
+        'createSubscriptionFromStripe: idempotency return — billing account mismatch between retry invocations'
+      )
+    }
     return existing
   }
 
