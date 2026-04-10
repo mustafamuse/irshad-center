@@ -322,7 +322,7 @@ export async function deleteCheckin(
     // The @@unique([teacherId, date, shift]) constraint guarantees at most one row,
     // so count > 1 would indicate a data integrity problem.
     const revertResult = await tx.teacherAttendanceRecord.updateMany({
-      where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
+      where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE', 'EXPECTED'] } },
       data: { status: 'ABSENT', source: 'ADMIN_OVERRIDE', checkInId: null, clockInTime: null, minutesLate: null },
     })
     if (revertResult.count > 1) {

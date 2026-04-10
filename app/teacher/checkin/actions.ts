@@ -245,7 +245,7 @@ export async function getTeacherAttendanceHistory(
 ): Promise<AttendanceHistoryResult> {
   const today = new Date()
   const from = new Date(today)
-  from.setDate(from.getDate() - weeksBack * 7)
+  from.setUTCDate(from.getUTCDate() - weeksBack * 7)
 
   // Extract year/month in school timezone — server runs UTC; at 7 PM CST Vercel's
   // clock already reads the next calendar day, which would query the wrong month.

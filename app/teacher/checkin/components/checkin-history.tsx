@@ -112,7 +112,7 @@ export function CheckinHistory({ teacherId }: Props) {
               {/* Monthly excuse count */}
               <div className="border-b px-4 py-2">
                 <p className="text-xs text-muted-foreground">
-                  Excuses this month:{' '}
+                  Approved excuses this month:{' '}
                   <span className="font-semibold text-foreground">
                     {history.monthlyExcuseCount}
                   </span>

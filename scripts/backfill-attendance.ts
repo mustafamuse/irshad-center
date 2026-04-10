@@ -143,6 +143,7 @@ async function main() {
     date: string
     shift: Shift
     action: 'SKIP' | 'CLOSED' | 'PRESENT' | 'LATE' | 'ABSENT'
+    source: AttendanceSource
     checkInId?: string
     minutesLate?: number
   }
@@ -153,12 +154,12 @@ async function main() {
     for (const date of weekendDates) {
       for (const shift of teacher.shifts) {
         if (GRACE_DATES.has(date)) {
-          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'SKIP' })
+          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'SKIP', source: AttendanceSource.SYSTEM })
           continue
         }
 
         if (CLOSURE_DATES.has(date)) {
-          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'CLOSED' })
+          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'CLOSED', source: AttendanceSource.SYSTEM })
           continue
         }
 
@@ -170,11 +171,12 @@ async function main() {
             date,
             shift,
             action: checkin.isLate ? 'LATE' : 'PRESENT',
+            source: AttendanceSource.SELF_CHECKIN,
             checkInId: checkin.id,
             minutesLate: undefined, // we don't have minutesLate on the fact log; leave null
           })
         } else {
-          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'ABSENT' })
+          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'ABSENT', source: AttendanceSource.SYSTEM })
         }
       }
     }
@@ -239,12 +241,12 @@ async function main() {
     // changes (overrides, excuse approvals) when the script is re-run.
     const updated = await prisma.teacherAttendanceRecord.updateMany({
       where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
-      data: { status: r.action, source: AttendanceSource.SYSTEM, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
+      data: { status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
     })
     if (updated.count > 0) {
       dbUpdated++
     } else {
-      toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: AttendanceSource.SYSTEM, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null })
+      toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: r.source, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null })
     }
   }
 
