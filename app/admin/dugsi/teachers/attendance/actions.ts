@@ -33,6 +33,7 @@ const logger = createServiceLogger('admin-attendance-actions')
 const REVALIDATE_PATHS = [
   '/admin/dugsi/teachers',
   '/admin/dugsi/teachers/attendance',
+  '/admin/dugsi/teachers/closures',
   '/teacher/checkin',
 ]
 

@@ -15,9 +15,7 @@ import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import {
-  getAttendanceRecordById,
   getAttendanceRecordStatus,
-  getAttendanceRecord,
 } from '@/lib/db/queries/teacher-attendance'
 
 const logger = createServiceLogger('attendance-record')

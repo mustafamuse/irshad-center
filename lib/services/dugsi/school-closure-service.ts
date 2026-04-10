@@ -177,6 +177,15 @@ export async function removeClosure(
       `Removed school closure (${reopenedCount} CLOSED records → EXPECTED)`
     )
 
+    if (reopenedCount > 0) {
+      logger.warn(
+        { event: 'CLOSURE_REOPEN_MANUAL_REVIEW_NEEDED', date, reopenedCount },
+        `Closure removed: ${reopenedCount} records reverted to EXPECTED. ` +
+          'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
+          'an admin should review and manually correct affected records in the attendance grid.'
+      )
+    }
+
     return { reopenedCount }
   }
 

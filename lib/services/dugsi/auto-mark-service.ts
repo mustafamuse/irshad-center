@@ -173,13 +173,13 @@ export async function autoMarkBothShifts(
 
   if (morningSettled.status === 'rejected') {
     logger.error(
-      { event: 'MORNING_SHIFT_FAILED', date, error: String(morningSettled.reason) },
+      { event: 'MORNING_SHIFT_FAILED', date, err: morningSettled.reason },
       'Morning shift auto-mark failed'
     )
   }
   if (afternoonSettled.status === 'rejected') {
     logger.error(
-      { event: 'AFTERNOON_SHIFT_FAILED', date, error: String(afternoonSettled.reason) },
+      { event: 'AFTERNOON_SHIFT_FAILED', date, err: afternoonSettled.reason },
       'Afternoon shift auto-mark failed'
     )
   }
