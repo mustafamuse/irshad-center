@@ -326,6 +326,13 @@ export async function updateCheckin(
     const syncStatus = isLate !== undefined
     if (syncClockIn || syncStatus) {
       const effectiveIsLate = isLate ?? existingCheckin.isLate
+      const effectiveClockInTime = clockInTime ?? existingCheckin.clockInTime
+      // Re-derive minutesLate from the effective clock-in time — avoids silently erasing
+      // precise lateness (e.g. 12 min) when an admin edits a field other than isLate.
+      const { minutesLate: recomputedMinutesLate } = evaluateCheckIn({
+        clockInTimeUtc: effectiveClockInTime,
+        shift: existingCheckin.shift,
+      })
       await tx.teacherAttendanceRecord.updateMany({
         where: { checkInId, status: { in: ['PRESENT', 'LATE'] } },
         data: {
@@ -333,7 +340,7 @@ export async function updateCheckin(
           ...(syncStatus
             ? {
                 status: effectiveIsLate ? 'LATE' : 'PRESENT',
-                minutesLate: null,
+                minutesLate: effectiveIsLate ? recomputedMinutesLate : null,
                 source: 'ADMIN_OVERRIDE',
               }
             : {}),

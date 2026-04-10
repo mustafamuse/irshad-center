@@ -301,7 +301,7 @@ const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
     // Use !== 'true': env vars are strings; PHASE2_AUTH_ENABLED=false would satisfy
     // !process.env.PHASE2_AUTH_ENABLED (it's a truthy string) and bypass this guard.
     if (process.env.PHASE2_AUTH_ENABLED !== 'true') {
-      throw new ActionError('This feature is not yet available', ERROR_CODES.UNAUTHORIZED, undefined, 503)
+      throw new ActionError('This feature is not yet available', ERROR_CODES.FEATURE_NOT_ENABLED, undefined, 503)
     }
     return fetchAttendanceHistory(parsedInput.teacherId)
   })
@@ -320,7 +320,7 @@ const _submitExcuseAction = rateLimitedActionClient
 
     // Runtime deploy guard — remove only when PHASE2_AUTH_ENABLED=true is set in prod.
     if (process.env.PHASE2_AUTH_ENABLED !== 'true') {
-      throw new ActionError('This feature is not yet available', ERROR_CODES.UNAUTHORIZED, undefined, 503)
+      throw new ActionError('This feature is not yet available', ERROR_CODES.FEATURE_NOT_ENABLED, undefined, 503)
     }
 
     // SECURITY — ownership boundary (BLOCKING pre-production: see #225):

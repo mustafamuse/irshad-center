@@ -43,6 +43,7 @@ export function ClosuresManager({ initialClosures }: Props) {
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pendingRemoval, setPendingRemoval] = useState<Closure | null>(null)
+  const [reopenWarning, setReopenWarning] = useState<string | null>(null)
 
   function handleAdd() {
     if (!date || !reason.trim()) return
@@ -73,12 +74,24 @@ export function ClosuresManager({ initialClosures }: Props) {
   function handleRemove(closure: Closure) {
     const dateStr = formatInTimeZone(closure.date, 'UTC', 'yyyy-MM-dd')
     setError(null)
+    setReopenWarning(null)
     startRemoveTransition(async () => {
       const result = await removeClosureAction({ date: dateStr })
       if (result?.serverError) {
         setError(result.serverError)
         setPendingRemoval(null)
         return
+      }
+      const reopenedCount = result?.data?.reopenedCount ?? 0
+      // Warn when a historical closure is removed and EXPECTED records may be stranded:
+      // the auto-mark cron only runs for today, so formerly AUTO_MARKED LATE records
+      // that were flipped CLOSED will now sit as EXPECTED with no automatic correction.
+      if (reopenedCount > 0 && closure.date < new Date()) {
+        setReopenWarning(
+          `${reopenedCount} record${reopenedCount === 1 ? '' : 's'} reverted to EXPECTED. ` +
+          'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
+          'review and correct them in the attendance grid.'
+        )
       }
       setClosures((prev) => prev.filter((c) => c.id !== closure.id))
       setPendingRemoval(null)
@@ -114,6 +127,7 @@ export function ClosuresManager({ initialClosures }: Props) {
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {reopenWarning && <p className="text-sm text-amber-700 bg-amber-50 rounded-md px-3 py-2">{reopenWarning}</p>}
 
         <Button onClick={handleAdd} disabled={!date || !reason.trim() || isAddPending}>
           {isAddPending ? 'Saving...' : 'Mark Closed'}
