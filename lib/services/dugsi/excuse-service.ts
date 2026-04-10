@@ -163,8 +163,11 @@ export async function approveExcuse(
       data: { status: 'EXCUSED', source: 'EXCUSE_APPROVED', changedBy: reviewedBy },
     })
     if (statusResult.count === 0) {
+      // The transaction is rolled back entirely by this throw — neither the excuse
+      // status nor the attendance record was changed. The admin can safely retry the
+      // approval from the pending excuse list without refreshing first.
       throw new ActionError(
-        'Record was modified concurrently — please refresh and try again',
+        'Attendance record was modified by another action — no changes were made. Please retry the approval.',
         ERROR_CODES.CONCURRENT_MODIFICATION,
         undefined,
         409

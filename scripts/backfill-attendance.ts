@@ -86,10 +86,11 @@ async function main() {
   const isDryRun = !process.argv.includes('--commit')
 
   if (!isDryRun && !SKIP_TEACHER_ID) {
-    console.warn('WARN: SKIP_TEACHER_ID is not set — all active teachers will be included.')
-    console.warn('  To exclude a teacher: SKIP_TEACHER_ID=<uuid> bun run scripts/backfill-attendance.ts --commit')
-    console.warn('  Continuing in 3 seconds...')
-    await new Promise((resolve) => setTimeout(resolve, 3000))
+    console.error('ERROR: SKIP_TEACHER_ID is not set.')
+    console.error('  Re-run with SKIP_TEACHER_ID=<uuid> to exclude the intended teacher,')
+    console.error('  or set it to an empty string to include everyone intentionally:')
+    console.error('    SKIP_TEACHER_ID="" bun run scripts/backfill-attendance.ts --commit')
+    process.exit(1)
   }
 
   console.log(`\n${'='.repeat(60)}`)
