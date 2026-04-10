@@ -60,10 +60,8 @@ export async function submitExcuse(
     ? await client.$transaction(doWrites)
     : await doWrites(client)
 
-  // Log claimedTeacherId (not just teacherId) to make clear this is client-supplied
-  // and aids auditing if fraudulent submissions are suspected (no session auth).
   logger.info(
-    { event: 'EXCUSE_SUBMITTED', excuseRequestId: excuseRequest.id, claimedTeacherId: teacherId, attendanceRecordId },
+    { event: 'EXCUSE_SUBMITTED', excuseRequestId: excuseRequest.id, resolvedTeacherId: teacherId, attendanceRecordId },
     'Teacher submitted excuse request'
   )
 
@@ -100,16 +98,27 @@ export async function approveExcuse(
     }
     assertValidTransition(currentRecord.status, 'EXCUSED')
 
-    const [updated] = await Promise.all([
+    const [updated, statusResult] = await Promise.all([
       tx.excuseRequest.update({
         where: { id: excuseRequestId },
         data: { status: 'APPROVED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
       }),
-      tx.teacherAttendanceRecord.update({
-        where: { id: excuseRequest.attendanceRecordId },
+      // Optimistic lock: include current status in WHERE so a concurrent override
+      // that already changed the record (e.g. another excuse approved first) produces
+      // count=0 instead of silently overwriting the new state.
+      tx.teacherAttendanceRecord.updateMany({
+        where: { id: excuseRequest.attendanceRecordId, status: currentRecord.status },
         data: { status: 'EXCUSED', source: 'ADMIN_OVERRIDE', changedBy: reviewedBy },
       }),
     ])
+    if (statusResult.count === 0) {
+      throw new ActionError(
+        'Record was modified concurrently — please refresh and try again',
+        ERROR_CODES.INVALID_TRANSITION,
+        undefined,
+        409
+      )
+    }
 
     logger.info(
       { event: 'EXCUSE_APPROVED', excuseRequestId, reviewedBy },

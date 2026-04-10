@@ -6,7 +6,7 @@ import { after } from 'next/server'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
-import { getAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
+import { getAttendanceConfig, updateAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
@@ -135,11 +135,7 @@ const _updateAttendanceConfigAction = adminActionClient
   .metadata({ actionName: 'updateAttendanceConfigAction' })
   .schema(UpdateAttendanceConfigSchema)
   .action(async ({ parsedInput }) => {
-    await prisma.dugsiAttendanceConfig.upsert({
-      where: { id: 'singleton' },
-      create: { id: 'singleton', ...parsedInput, updatedBy: ADMIN_IDENTITY },
-      update: { ...parsedInput, updatedBy: ADMIN_IDENTITY },
-    })
+    await updateAttendanceConfig({ ...parsedInput, updatedBy: ADMIN_IDENTITY })
 
     after(() => revalidatePath('/admin/dugsi/teachers/settings'))
     return { success: true }

@@ -105,18 +105,6 @@ export async function getAttendanceRecords(
   })
 }
 
-// Returns all EXPECTED records for a given date+shift (used by auto-mark cron)
-export async function getExpectedRecordsForAutoMark(
-  date: Date,
-  shift: Shift,
-  client: DatabaseClient = prisma
-): Promise<{ id: string; teacherId: string }[]> {
-  return client.teacherAttendanceRecord.findMany({
-    where: { date, shift, status: 'EXPECTED' },
-    select: { id: true, teacherId: true },
-  })
-}
-
 // All records for a teacher across a date range — used for admin detail view + teacher history
 export async function getTeacherAttendanceSummary(
   teacherId: string,
@@ -179,8 +167,26 @@ export async function getSchoolClosure(
   return client.schoolClosure.findUnique({ where: { date } })
 }
 
-export async function listSchoolClosures(client: DatabaseClient = prisma) {
-  return client.schoolClosure.findMany({ orderBy: { date: 'desc' } })
+export async function listSchoolClosures(
+  from?: Date,
+  to?: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.schoolClosure.findMany({
+    where: from && to ? { date: { gte: from, lte: to } } : undefined,
+    orderBy: { date: 'desc' },
+  })
+}
+
+export async function updateAttendanceConfig(
+  data: { morningAutoMarkMinutes: number; afternoonAutoMarkMinutes: number; updatedBy?: string },
+  client: DatabaseClient = prisma
+) {
+  return client.dugsiAttendanceConfig.upsert({
+    where: { id: 'singleton' },
+    create: { id: 'singleton', ...data },
+    update: data,
+  })
 }
 
 // ============================================================================

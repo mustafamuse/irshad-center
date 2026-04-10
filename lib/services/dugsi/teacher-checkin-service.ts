@@ -132,36 +132,40 @@ export async function clockIn(
         throw error
       })
 
-    // Validate transition if a record already exists (e.g. CLOSED — school was closed
-    // but teacher showed up). Mirrors the guard in adminCheckIn.
+    // Validate transition and write attendance record with optimistic lock — mirrors adminCheckIn.
     const existingAttendanceRecord = await tx.teacherAttendanceRecord.findUnique({
       where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
       select: { status: true },
     })
-    if (existingAttendanceRecord) {
-      assertValidTransition(existingAttendanceRecord.status, isLate ? 'LATE' : 'PRESENT')
+
+    const attendanceData = {
+      status: (isLate ? 'LATE' : 'PRESENT') as 'LATE' | 'PRESENT',
+      source: 'SELF_CHECKIN' as const,
+      checkInId: checkInRecord.id,
+      clockInTime: now,
+      minutesLate: isLate ? minutesLate : null,
     }
 
-    await tx.teacherAttendanceRecord.upsert({
-      where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
-      create: {
-        teacherId,
-        date: dateOnly,
-        shift,
-        status: isLate ? 'LATE' : 'PRESENT',
-        source: 'SELF_CHECKIN',
-        checkInId: checkInRecord.id,
-        clockInTime: now,
-        minutesLate: isLate ? minutesLate : null,
-      },
-      update: {
-        status: isLate ? 'LATE' : 'PRESENT',
-        source: 'SELF_CHECKIN',
-        checkInId: checkInRecord.id,
-        clockInTime: now,
-        minutesLate: isLate ? minutesLate : null,
-      },
-    })
+    if (existingAttendanceRecord) {
+      assertValidTransition(existingAttendanceRecord.status, attendanceData.status)
+      // Include current status in WHERE: if a concurrent override already changed
+      // the status, count=0 → throw rather than silently stomp the new state.
+      const updateResult = await tx.teacherAttendanceRecord.updateMany({
+        where: { teacherId, date: dateOnly, shift, status: existingAttendanceRecord.status },
+        data: attendanceData,
+      })
+      if (updateResult.count === 0) {
+        throw new ValidationError(
+          'Attendance record was modified concurrently — please try again',
+          CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+          { teacherId, shift }
+        )
+      }
+    } else {
+      await tx.teacherAttendanceRecord.create({
+        data: { teacherId, date: dateOnly, shift, ...attendanceData },
+      })
+    }
 
     return checkInRecord
   }

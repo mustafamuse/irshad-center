@@ -40,7 +40,7 @@ export default async function TeacherAttendancePage() {
   from.setDate(from.getDate() - WEEKS_BACK * 7)
   const [records, closures] = await Promise.all([
     getAttendanceGrid(from, today),
-    listSchoolClosures(),
+    listSchoolClosures(from, today),
   ])
 
   const closureSet = new Set(
