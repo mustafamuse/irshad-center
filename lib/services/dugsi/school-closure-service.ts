@@ -7,6 +7,8 @@
  * Both operations are atomic via $transaction.
  */
 
+import { formatInTimeZone } from 'date-fns-tz'
+
 import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
@@ -26,7 +28,7 @@ export async function markDateClosed(
     const existing = await getSchoolClosure(date, tx)
     if (existing) {
       throw new ActionError(
-        `School is already marked closed on ${date.toISOString().split('T')[0]}`,
+        `School is already marked closed on ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
         ERROR_CODES.CLOSURE_EXISTS,
         undefined,
         409
@@ -64,7 +66,7 @@ export async function removeClosure(
     const existing = await getSchoolClosure(date, tx)
     if (!existing) {
       throw new ActionError(
-        `No school closure found for ${date.toISOString().split('T')[0]}`,
+        `No school closure found for ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
         ERROR_CODES.NOT_FOUND,
         undefined,
         404

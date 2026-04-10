@@ -221,22 +221,19 @@ async function main() {
     })
   )
 
-  let dbCreated = 0
   let dbUpdated = 0
-  let dbUnchanged = 0
+  // Collect rows that weren't updated (no EXPECTED record exists) for a single batched create.
+  // Per-row updateMany is still needed because checkInId/minutesLate differ per row.
+  type RowData = {
+    teacherId: string; date: Date; shift: Shift
+    status: Exclude<Row['action'], 'SKIP'>; source: AttendanceSource
+    checkInId: string | null; minutesLate: number | null
+  }
+  const toCreate: RowData[] = []
+
   for (const r of rows) {
     if (r.action === 'SKIP') continue
-
     const dateObj = new Date(r.date)
-    const rowData = {
-      teacherId: r.teacherId,
-      date: dateObj,
-      shift: r.shift,
-      status: r.action,
-      source: AttendanceSource.SYSTEM,
-      checkInId: r.checkInId ?? null,
-      minutesLate: r.minutesLate ?? null,
-    }
 
     // Only overwrite if the record is still EXPECTED — preserves admin manual
     // changes (overrides, excuse approvals) when the script is re-run.
@@ -247,19 +244,16 @@ async function main() {
     if (updated.count > 0) {
       dbUpdated++
     } else {
-      // Either record doesn't exist yet or an admin changed the status — create if
-      // missing, skip silently if present with a non-EXPECTED status.
-      const created = await prisma.teacherAttendanceRecord.createMany({
-        data: [rowData],
-        skipDuplicates: true,
-      })
-      if (created.count > 0) {
-        dbCreated++
-      } else {
-        dbUnchanged++ // record exists with a non-EXPECTED status — left untouched
-      }
+      toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: AttendanceSource.SYSTEM, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null })
     }
   }
+
+  // Batch all creates in one query — skipDuplicates silently ignores rows with
+  // a non-EXPECTED status (admin overrides) that already exist in the table.
+  const dbCreated = toCreate.length > 0
+    ? (await prisma.teacherAttendanceRecord.createMany({ data: toCreate, skipDuplicates: true })).count
+    : 0
+  const dbUnchanged = toCreate.length - dbCreated
 
   console.log(`Done. ${dbCreated} created, ${dbUpdated} updated, ${dbUnchanged} unchanged (non-EXPECTED — skipped).`)
 }

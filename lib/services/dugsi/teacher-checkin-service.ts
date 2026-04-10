@@ -329,15 +329,19 @@ export async function deleteCheckin(
   const doWrites = async (tx: DatabaseClient) => {
     await tx.dugsiTeacherCheckIn.delete({ where: { id: checkInId } })
 
-    // Atomically revert the linked attendance record to ABSENT so it isn't
-    // left silently at PRESENT/LATE with a null checkInId (ON DELETE SET NULL
-    // nullifies the FK but doesn't revert the status).
-    // Only reverts PRESENT/LATE — if an admin already overrode the record to
-    // EXCUSED or ABSENT, leave it untouched.
-    await tx.teacherAttendanceRecord.updateMany({
+    // Intentional bypass of assertValidTransition — PRESENT→ABSENT and LATE→ABSENT
+    // are both valid in the transition table, so the revert is always legal.
+    // If the record was already overridden (EXCUSED, ABSENT, etc.) the updateMany
+    // matches nothing and leaves it untouched, which is the desired behaviour.
+    // The @@unique([teacherId, date, shift]) constraint guarantees at most one row,
+    // so count > 1 would indicate a data integrity problem.
+    const revertResult = await tx.teacherAttendanceRecord.updateMany({
       where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
       data: { status: 'ABSENT', source: 'ADMIN_OVERRIDE', checkInId: null, clockInTime: null, minutesLate: null },
     })
+    if (revertResult.count > 1) {
+      logger.warn({ teacherId, date, shift }, 'deleteCheckin: unexpectedly reverted multiple attendance records')
+    }
   }
 
   await (isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client))

@@ -68,7 +68,7 @@ export default async function TeacherAttendancePage() {
         </div>
       )}
 
-      <AttendanceGrid records={records} weekendDates={weekendDates} />
+      <AttendanceGrid records={records} weekendDates={weekendDates} closureDates={closureSet} />
     </div>
   )
 }

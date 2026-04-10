@@ -14,11 +14,12 @@ import { AttendanceStatusBadge } from './status-badge'
 interface Props {
   records: AttendanceRecordGridWithRelations[]
   weekendDates: string[] // YYYY-MM-DD, descending
+  closureDates: Set<string>
 }
 
 type CellKey = `${string}|${string}|${Shift}`
 
-export function AttendanceGrid({ records, weekendDates }: Props) {
+export function AttendanceGrid({ records, weekendDates, closureDates }: Props) {
   const [overrideCell, setOverrideCell] = useState<{
     recordId: string
     teacherName: string
@@ -70,15 +71,24 @@ export function AttendanceGrid({ records, weekendDates }: Props) {
               <th className="sticky left-0 bg-muted/50 px-3 py-2 text-left font-medium text-muted-foreground">
                 Teacher
               </th>
-              {weekendDates.map((date) => (
-                <th
-                  key={date}
-                  className="min-w-[110px] px-2 py-2 text-center font-medium text-muted-foreground"
-                  colSpan={2}
-                >
-                  {formatDateHeader(date)}
-                </th>
-              ))}
+              {weekendDates.map((date) => {
+                const isClosed = closureDates.has(date)
+                return (
+                  <th
+                    key={date}
+                    className={cn(
+                      'min-w-[110px] px-2 py-2 text-center font-medium',
+                      isClosed
+                        ? 'text-muted-foreground/40 line-through'
+                        : 'text-muted-foreground'
+                    )}
+                    colSpan={2}
+                    title={isClosed ? 'School closed' : undefined}
+                  >
+                    {formatDateHeader(date)}
+                  </th>
+                )
+              })}
             </tr>
             <tr className="border-b bg-muted/30">
               <th className="sticky left-0 bg-muted/30 px-3 py-1" />
