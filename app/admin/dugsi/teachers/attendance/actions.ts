@@ -46,6 +46,12 @@ function revalidateAll() {
 // MUTATIONS (safe-action with adminActionClient)
 // ============================================================================
 
+// Identity note: the admin auth token is a PIN-based HMAC (timestamp + signature) with
+// no embedded user identity. changedBy/createdBy/reviewedBy are hardcoded to 'admin'
+// because the app is designed for a single admin. If multiple admins are added,
+// the token format must be extended to carry an identity (e.g. email or name).
+const ADMIN_IDENTITY = 'admin'
+
 const _overrideAttendanceStatusAction = adminActionClient
   .metadata({ actionName: 'overrideAttendanceStatusAction' })
   .schema(OverrideAttendanceStatusSchema)
@@ -57,7 +63,7 @@ const _overrideAttendanceStatusAction = adminActionClient
       toStatus,
       source: 'ADMIN_OVERRIDE',
       notes,
-      changedBy: 'admin',
+      changedBy: ADMIN_IDENTITY,
     })
 
     after(revalidateAll)
@@ -77,7 +83,7 @@ const _adminCheckInAction = adminActionClient
     const { teacherId, shift, date } = parsedInput
     const dateObj = new Date(date)
 
-    await adminCheckIn({ teacherId, shift, date: dateObj, changedBy: 'admin' })
+    await adminCheckIn({ teacherId, shift, date: dateObj, changedBy: ADMIN_IDENTITY })
 
     after(revalidateAll)
     return { success: true }
@@ -96,7 +102,7 @@ const _markDateClosedAction = adminActionClient
     const { date, reason } = parsedInput
     const dateObj = new Date(date)
 
-    const result = await markDateClosed({ date: dateObj, reason, createdBy: 'admin' })
+    const result = await markDateClosed({ date: dateObj, reason, createdBy: ADMIN_IDENTITY })
 
     after(revalidateAll)
     return { closedCount: result.closedCount }
@@ -131,8 +137,8 @@ const _updateAttendanceConfigAction = adminActionClient
   .action(async ({ parsedInput }) => {
     await prisma.dugsiAttendanceConfig.upsert({
       where: { id: 'singleton' },
-      create: { id: 'singleton', ...parsedInput, updatedBy: 'admin' },
-      update: { ...parsedInput, updatedBy: 'admin' },
+      create: { id: 'singleton', ...parsedInput, updatedBy: ADMIN_IDENTITY },
+      update: { ...parsedInput, updatedBy: ADMIN_IDENTITY },
     })
 
     after(() => revalidatePath('/admin/dugsi/teachers/settings'))
@@ -178,7 +184,7 @@ const _approveExcuseAction = adminActionClient
   .schema(ReviewExcuseSchema)
   .action(async ({ parsedInput }) => {
     const { excuseRequestId, adminNote } = parsedInput
-    await approveExcuse({ excuseRequestId, adminNote, reviewedBy: 'admin' })
+    await approveExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
 
     after(revalidateAll)
     return { success: true }
@@ -195,7 +201,7 @@ const _rejectExcuseAction = adminActionClient
   .schema(ReviewExcuseSchema)
   .action(async ({ parsedInput }) => {
     const { excuseRequestId, adminNote } = parsedInput
-    await rejectExcuse({ excuseRequestId, adminNote, reviewedBy: 'admin' })
+    await rejectExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
 
     after(revalidateAll)
     return { success: true }

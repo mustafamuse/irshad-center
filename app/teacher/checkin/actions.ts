@@ -280,9 +280,12 @@ const _submitExcuseAction = rateLimitedActionClient
     // Ownership check: prevents accidental client bugs (e.g. mismatched IDs).
     // Threat model note: this is NOT adversarial protection. Because the teacher app
     // has no session, both `teacherId` and `attendanceRecordId` are client-supplied.
-    // A malicious user who knows another teacher's ID and record ID can bypass this
-    // check by supplying a matching pair. Proper defense requires session tokens
-    // (future work). For now, mutual trust among the small teacher cohort is assumed.
+    // Attack vector: a teacher who observes their own network requests can enumerate
+    // UUID IDs for other teachers or records and submit excuses on their behalf.
+    // Proper defense requires per-teacher session tokens so the server can resolve
+    // identity server-side without trusting the client-supplied `teacherId`.
+    // Alternatively, add per-teacherId rate limiting on `submitExcuseAction`.
+    // For now, mutual trust within the small teacher cohort is the accepted trade-off.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)

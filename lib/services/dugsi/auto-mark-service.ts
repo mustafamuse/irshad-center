@@ -15,7 +15,7 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { CLASS_START_TIMES, SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { createServiceLogger } from '@/lib/logger'
-import { getAttendanceConfig, getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
+import { getAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
 import { generateExpectedSlots } from './attendance-record-service'
 
 const logger = createServiceLogger('auto-mark')
@@ -79,9 +79,13 @@ export async function autoMarkLateForShift(
       await generateExpectedSlots(teachersForShift, dateObj, tx)
     }
 
+    // minutesLate is approximate (same value for all records in this batch),
+    // computed from cron invocation time vs class start. Good enough for display.
+    const minutesLate = Math.round((now.getTime() - classStartUtc.getTime()) / 60_000)
+
     const result = await tx.teacherAttendanceRecord.updateMany({
       where: { date: dateObj, shift, status: 'EXPECTED' },
-      data: { status: 'LATE', source: 'AUTO_MARKED' },
+      data: { status: 'LATE', source: 'AUTO_MARKED', minutesLate },
     })
 
     return result.count
@@ -117,9 +121,10 @@ export async function autoMarkBothShifts(
   date: string,
   client: DatabaseClient = prisma
 ): Promise<{ morning: AutoMarkResult; afternoon: AutoMarkResult }> {
-  const [morning, afternoon] = await Promise.all([
-    autoMarkLateForShift(date, 'MORNING', client),
-    autoMarkLateForShift(date, 'AFTERNOON', client),
-  ])
+  // Sequential (not parallel): if an admin creates a closure between the two
+  // transactions, parallel execution would produce an inconsistent state where
+  // MORNING records are LATE but AFTERNOON records are correctly CLOSED.
+  const morning = await autoMarkLateForShift(date, 'MORNING', client)
+  const afternoon = await autoMarkLateForShift(date, 'AFTERNOON', client)
   return { morning, afternoon }
 }
