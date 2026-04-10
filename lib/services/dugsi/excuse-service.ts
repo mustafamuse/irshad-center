@@ -38,16 +38,22 @@ export async function submitExcuse(
     )
   }
 
-  const existing = await getExistingActiveExcuse(attendanceRecordId, client)
-  if (existing) {
-    throw new Error(
-      'An excuse request is already pending or approved for this record'
-    )
+  // Wrap check + create in a transaction: two concurrent submissions for the same
+  // record could both pass the duplicate check before either write commits.
+  const doWrites = async (tx: DatabaseClient) => {
+    const existing = await getExistingActiveExcuse(attendanceRecordId, tx)
+    if (existing) {
+      throw new Error('An excuse request is already pending or approved for this record')
+    }
+
+    return tx.excuseRequest.create({
+      data: { attendanceRecordId, teacherId, reason, status: 'PENDING' },
+    })
   }
 
-  const excuseRequest = await client.excuseRequest.create({
-    data: { attendanceRecordId, teacherId, reason, status: 'PENDING' },
-  })
+  const excuseRequest = isPrismaClient(client)
+    ? await client.$transaction(doWrites)
+    : await doWrites(client)
 
   logger.info(
     { event: 'EXCUSE_SUBMITTED', excuseRequestId: excuseRequest.id, teacherId, attendanceRecordId },

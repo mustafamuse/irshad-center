@@ -37,12 +37,14 @@ export type ExcuseRequestWithRelations = Prisma.ExcuseRequestGetPayload<{
 // ============================================================================
 
 export async function getAttendanceConfig(client: DatabaseClient = prisma) {
-  // Use findUnique + lazy create to avoid an unconditional UPDATE on every read.
-  // The singleton row is created once on first use; subsequent reads are pure SELECTs.
-  const config = await client.dugsiAttendanceConfig.findUnique({ where: { id: 'singleton' } })
-  if (config) return config
-  return client.dugsiAttendanceConfig.create({
-    data: { id: 'singleton', morningAutoMarkMinutes: 15, afternoonAutoMarkMinutes: 15 },
+  // upsert with update:{} is the correct singleton pattern: atomic at the DB level
+  // (INSERT ... ON CONFLICT DO UPDATE SET id='singleton' is a no-op update).
+  // findUnique + create is cheaper on steady state but not atomic — two concurrent callers
+  // (e.g. both shifts from autoMarkBothShifts) can both get null and then both try to create.
+  return client.dugsiAttendanceConfig.upsert({
+    where: { id: 'singleton' },
+    create: { id: 'singleton', morningAutoMarkMinutes: 15, afternoonAutoMarkMinutes: 15 },
+    update: {},
   })
 }
 

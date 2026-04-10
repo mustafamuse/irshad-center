@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -9,40 +9,34 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ExcuseRequestWithRelations } from '@/lib/db/queries/teacher-attendance'
 
-import { getExcuseQueue, approveExcuseAction, rejectExcuseAction } from '../attendance/actions'
+import { approveExcuseAction, rejectExcuseAction } from '../attendance/actions'
 
-export function ExcuseQueue() {
+interface Props {
+  initialRequests: ExcuseRequestWithRelations[]
+}
+
+export function ExcuseQueue({ initialRequests }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>([])
+  const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState(true)
-
-  async function reload() {
-    const data = await getExcuseQueue()
-    setRequests(data)
-    setIsLoading(false)
-  }
-
-  useEffect(() => { reload() }, [])
 
   function handleApprove(id: string) {
     startTransition(async () => {
       await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      setRequests((prev) => prev.filter((r) => r.id !== id))
       router.refresh()
-      reload()
     })
   }
 
   function handleReject(id: string) {
     startTransition(async () => {
       await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      setRequests((prev) => prev.filter((r) => r.id !== id))
       router.refresh()
-      reload()
     })
   }
 
-  if (isLoading) return <p className="text-sm text-muted-foreground">Loading...</p>
   if (requests.length === 0)
     return <p className="text-sm text-muted-foreground">No pending excuse requests.</p>
 

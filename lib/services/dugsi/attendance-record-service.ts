@@ -30,35 +30,37 @@ export interface GenerateExpectedSlotsResult {
 }
 
 /**
- * Idempotent: upsert EXPECTED records for each teacher × shift on a given date.
- * Only creates if status is EXPECTED (won't overwrite a PRESENT/LATE/etc record).
+ * Idempotent: insert EXPECTED records for each teacher × shift on a given date.
+ * Uses createMany + skipDuplicates (ON CONFLICT DO NOTHING) — single round-trip
+ * regardless of teacher count. Existing rows (any status) are left untouched.
  */
 export async function generateExpectedSlots(
   params: { teacherId: string; shifts: Shift[] }[],
   date: Date,
   client: DatabaseClient = prisma
 ): Promise<GenerateExpectedSlotsResult> {
-  let created = 0
-  let skipped = 0
+  const slots = params.flatMap(({ teacherId, shifts }) =>
+    shifts.map((shift) => ({
+      teacherId,
+      date,
+      shift,
+      status: 'EXPECTED' as const,
+      source: 'SYSTEM' as const,
+    }))
+  )
 
-  for (const { teacherId, shifts } of params) {
-    for (const shift of shifts) {
-      const existing = await client.teacherAttendanceRecord.findUnique({
-        where: { teacherId_date_shift: { teacherId, date, shift } },
-        select: { status: true },
-      })
-
-      if (existing) {
-        skipped++
-        continue
-      }
-
-      await client.teacherAttendanceRecord.create({
-        data: { teacherId, date, shift, status: 'EXPECTED', source: 'SYSTEM' },
-      })
-      created++
-    }
+  if (slots.length === 0) {
+    logger.info({ event: 'EXPECTED_SLOTS_GENERATED', created: 0, skipped: 0, date }, 'Generated expected slots')
+    return { created: 0, skipped: 0 }
   }
+
+  const result = await client.teacherAttendanceRecord.createMany({
+    data: slots,
+    skipDuplicates: true,
+  })
+
+  const created = result.count
+  const skipped = slots.length - created
 
   logger.info({ event: 'EXPECTED_SLOTS_GENERATED', created, skipped, date }, 'Generated expected slots')
   return { created, skipped }

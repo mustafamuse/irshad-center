@@ -277,9 +277,12 @@ const _submitExcuseAction = rateLimitedActionClient
   .action(async ({ parsedInput }) => {
     const { attendanceRecordId, teacherId, reason } = parsedInput
 
-    // Authorization: verify the record belongs to the claimed teacher before writing.
-    // The teacher app has no session — teachers identify via dropdown — so we must
-    // explicitly check ownership here to prevent cross-teacher excuse submissions.
+    // Ownership check: prevents accidental client bugs (e.g. mismatched IDs).
+    // Threat model note: this is NOT adversarial protection. Because the teacher app
+    // has no session, both `teacherId` and `attendanceRecordId` are client-supplied.
+    // A malicious user who knows another teacher's ID and record ID can bypass this
+    // check by supplying a matching pair. Proper defense requires session tokens
+    // (future work). For now, mutual trust among the small teacher cohort is assumed.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)

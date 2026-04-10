@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
+import { ExcuseRequestWithRelations } from '@/lib/db/queries/teacher-attendance'
+
 import { TeacherWithDetails } from '../actions'
 import { CheckinOverview } from './checkin-overview'
 import { CreateTeacherDialog } from './create-teacher-dialog'
@@ -17,9 +19,10 @@ import { TeacherList } from './teacher-list'
 
 interface Props {
   teachers: TeacherWithDetails[]
+  pendingExcuses: ExcuseRequestWithRelations[]
 }
 
-export function TeachersDashboard({ teachers }: Props) {
+export function TeachersDashboard({ teachers, pendingExcuses }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -67,7 +70,7 @@ export function TeachersDashboard({ teachers }: Props) {
         </TabsContent>
 
         <TabsContent value="excuses">
-          <ExcuseQueue />
+          <ExcuseQueue initialRequests={pendingExcuses} />
         </TabsContent>
       </Tabs>
     </>

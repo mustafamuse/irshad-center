@@ -12,7 +12,7 @@ import { Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
-import { DatabaseClient, TransactionClient } from '@/lib/db/types'
+import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { CLASS_START_TIMES, SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { createServiceLogger } from '@/lib/logger'
 import { getAttendanceConfig, getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
@@ -73,7 +73,8 @@ export async function autoMarkLateForShift(
 
   // Wrap slot generation + updateMany in one transaction so a concurrent self-checkin
   // can't slip in between the two writes and get immediately auto-marked LATE.
-  const marked = await prisma.$transaction(async (tx: TransactionClient) => {
+  // Use isPrismaClient so the injected client is honoured (testability + correctness).
+  const doWrites = async (tx: DatabaseClient) => {
     if (teachersForShift.length > 0) {
       await generateExpectedSlots(teachersForShift, dateObj, tx)
     }
@@ -84,7 +85,11 @@ export async function autoMarkLateForShift(
     })
 
     return result.count
-  })
+  }
+
+  const marked = isPrismaClient(client)
+    ? await client.$transaction(doWrites)
+    : await doWrites(client)
 
   if (marked === 0) {
     return { shift, date, marked: 0, skippedReason: 'no_expected_records' }
