@@ -1,7 +1,8 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useTransition, useState, useEffect } from 'react'
 
+import { useRouter } from 'next/navigation'
 import { formatInTimeZone } from 'date-fns-tz'
 import { Trash2 } from 'lucide-react'
 
@@ -32,9 +33,12 @@ interface Props {
 }
 
 export function ClosuresManager({ initialClosures }: Props) {
+  const router = useRouter()
   const [isAddPending, startAddTransition] = useTransition()
   const [isRemovePending, startRemoveTransition] = useTransition()
   const [closures, setClosures] = useState<Closure[]>(initialClosures)
+  // Sync when the Server Component re-renders with fresh data (e.g. after router.refresh())
+  useEffect(() => { setClosures(initialClosures) }, [initialClosures])
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -62,6 +66,7 @@ export function ClosuresManager({ initialClosures }: Props) {
       ])
       setDate('')
       setReason('')
+      router.refresh()
     })
   }
 

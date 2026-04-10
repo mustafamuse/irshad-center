@@ -9,7 +9,7 @@
 import { Prisma, Shift, TeacherAttendanceStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { DatabaseClient } from '@/lib/db/types'
+import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 
 // ============================================================================
 // INCLUDES
@@ -46,6 +46,13 @@ export type ExcuseRequestWithRelations = Prisma.ExcuseRequestGetPayload<{
 // ============================================================================
 
 export async function getAttendanceConfig(client: DatabaseClient = prisma) {
+  // P2002 catch in the slow path is only safe outside a $transaction — PostgreSQL
+  // aborts the entire transaction on constraint violations, making the catch's
+  // findUniqueOrThrow run on an already-dead connection.
+  if (!isPrismaClient(client)) {
+    throw new Error('getAttendanceConfig must not be called inside a $transaction')
+  }
+
   // Fast path: the singleton exists on every invocation after first use.
   const existing = await client.dugsiAttendanceConfig.findUnique({ where: { id: 'singleton' } })
   if (existing) return existing
