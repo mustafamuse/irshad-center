@@ -107,6 +107,15 @@ export async function markDateClosed(
 // Keeping this here (rather than in attendance-record-service) makes the coupling
 // compiler-enforced: nothing outside this file can accidentally skip the SchoolClosure
 // row deletion that must accompany the status revert.
+//
+// Known trade-off: this reverts ALL CLOSED records to EXPECTED indiscriminately —
+// including records that were AUTO_MARKED LATE before the closure was created
+// (markDateClosed flips AUTO_MARKED LATE → CLOSED as a side-effect). Since the
+// auto-mark cron only runs for today's date, those historical records will remain
+// EXPECTED and never be re-marked LATE automatically. An admin would need to
+// manually override them via the attendance grid.
+// Fixing this properly would require storing the pre-closure status in a separate
+// column so it can be restored here; that schema change is deferred.
 async function reopenClosedRecords(
   params: { date: Date; changedBy?: string },
   tx: DatabaseClient

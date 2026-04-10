@@ -147,7 +147,7 @@ export async function autoMarkLateForShift(
 export async function autoMarkBothShifts(
   date: string,
   client: DatabaseClient = prisma
-): Promise<{ morning: AutoMarkResult; afternoon: AutoMarkResult }> {
+): Promise<{ morning: AutoMarkResult | null; afternoon: AutoMarkResult | null }> {
   if (!isPrismaClient(client)) {
     throw new Error(
       'autoMarkBothShifts: must be called with the root prisma client, not a transaction — ' +
@@ -158,15 +158,36 @@ export async function autoMarkBothShifts(
   // Fetch config once — acceptable one-invocation staleness (same rationale as before).
   const config = await getAttendanceConfig(client)
 
-  // Run independently: each shift opens its own $transaction via autoMarkLateForShift.
+  // Promise.allSettled — not Promise.all — so a failure in one shift doesn't discard
+  // the other's committed result. Each shift runs in its own independent $transaction;
+  // they write to disjoint rows (different `shift` value), so there is no shared state.
   // prefetchedTeachers is deliberately NOT forwarded — each shift fetches its own roster
-  // inside its transaction, preserving the atomicity guarantee (a teacher deactivated
-  // between the outer fetch and the updateMany would otherwise get a spurious LATE slot).
-  // See the class docstring above for the full trade-off rationale.
-  const [morning, afternoon] = await Promise.all([
+  // inside its transaction, preserving the atomicity guarantee.
+  const [morningSettled, afternoonSettled] = await Promise.allSettled([
     autoMarkLateForShift(date, 'MORNING', config, client),
     autoMarkLateForShift(date, 'AFTERNOON', config, client),
   ])
+
+  const morning = morningSettled.status === 'fulfilled' ? morningSettled.value : null
+  const afternoon = afternoonSettled.status === 'fulfilled' ? afternoonSettled.value : null
+
+  if (morningSettled.status === 'rejected') {
+    logger.error(
+      { event: 'MORNING_SHIFT_FAILED', date, error: String(morningSettled.reason) },
+      'Morning shift auto-mark failed'
+    )
+  }
+  if (afternoonSettled.status === 'rejected') {
+    logger.error(
+      { event: 'AFTERNOON_SHIFT_FAILED', date, error: String(afternoonSettled.reason) },
+      'Afternoon shift auto-mark failed'
+    )
+  }
+
+  // Both shifts failed — surface as a single rejection so the cron route returns 500.
+  if (!morning && !afternoon) {
+    throw new Error('Both MORNING and AFTERNOON auto-mark shifts failed — see per-shift error logs above')
+  }
 
   return { morning, afternoon }
 }
