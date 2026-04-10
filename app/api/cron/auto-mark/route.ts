@@ -56,7 +56,7 @@ export async function GET() {
       afternoon: result.afternoon,
     })
   } catch (error) {
-    logError(logger, error, 'Auto-mark cron failed', { date: todayStr })
+    await logError(logger, error, 'Auto-mark cron failed', { date: todayStr })
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

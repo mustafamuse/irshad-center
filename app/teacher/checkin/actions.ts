@@ -286,11 +286,11 @@ const _submitExcuseAction = rateLimitedActionClient
     // on behalf of any teacher. Mitigated by:
     //   1. Non-predictable UUIDs (random v4 — not sequential)
     //   2. IP-based rate limiting from rateLimitedActionClient
-    // Interim hardening option (no sessions required): embed a short-lived HMAC
-    // token in the excuse form encoding (teacherId, recordId, timestamp) and verify
+    // Interim hardening (no sessions required): embed a short-lived HMAC token
+    // encoding (teacherId, recordId, exp) in the excuse form render and verify
     // server-side — ties submissions to the teacher who loaded the page.
-    // Full fix (assert ctx.teacherId === resolvedTeacherId) requires session auth,
-    // tracked in issue #225. Do NOT remove this comment without closing that issue.
+    // SECURITY TASK: tracked in issue #225 — treat as security debt, not just
+    // tech debt. Do NOT remove this comment without closing that issue.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)

@@ -209,15 +209,17 @@ async function main() {
   // Write to DB
   console.log(`\nWriting ${rows.filter((r) => r.action !== 'SKIP').length} records...`)
 
-  // Upsert closure rows in SchoolClosure table
-  const closureDateObjs = Array.from(CLOSURE_DATES).map((d) => new Date(d))
-  for (const date of closureDateObjs) {
-    await prisma.schoolClosure.upsert({
-      where: { date },
-      create: { date, reason: 'School closed (backfill)', createdBy: 'backfill-script' },
-      update: {},
+  // Upsert closure rows in SchoolClosure table (parallel — independent writes)
+  await Promise.all(
+    Array.from(CLOSURE_DATES).map((d) => {
+      const date = new Date(d)
+      return prisma.schoolClosure.upsert({
+        where: { date },
+        create: { date, reason: 'School closed (backfill)', createdBy: 'backfill-script' },
+        update: {},
+      })
     })
-  }
+  )
 
   let dbCreated = 0
   let dbUpdated = 0

@@ -32,7 +32,7 @@ export const MarkDateClosedSchema = z.object({
 })
 
 export const RemoveClosureSchema = z.object({
-  date: dateString,
+  date: weekendDateString,
 })
 
 export const UpdateAttendanceConfigSchema = z.object({
@@ -41,7 +41,7 @@ export const UpdateAttendanceConfigSchema = z.object({
 })
 
 export const GenerateExpectedSlotsSchema = z.object({
-  date: dateString,
+  date: weekendDateString,
 })
 
 // teacherId intentionally omitted — resolved server-side from the attendanceRecordId
