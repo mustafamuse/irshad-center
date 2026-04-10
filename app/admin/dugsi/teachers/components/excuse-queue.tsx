@@ -20,15 +20,16 @@ export function ExcuseQueue({ initialRequests }: Props) {
   const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
   const [errors, setErrors] = useState<Record<string, string | null>>({})
-  // Per-request pending state so only the clicked row is disabled, not the whole list
-  const [pendingId, setPendingId] = useState<string | null>(null)
+  // Set of in-flight request IDs so multiple rows can be independently disabled
+  // (a single string would re-enable a row when a different row's action completes)
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
 
   function handleApprove(id: string) {
     setErrors((prev) => ({ ...prev, [id]: null }))
-    setPendingId(id)
+    setPendingIds((prev) => new Set(prev).add(id))
     startTransition(async () => {
       const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
-      setPendingId(null)
+      setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
       if (result?.serverError) {
         setErrors((prev) => ({ ...prev, [id]: `${result.serverError} — refresh to see latest.` }))
         return
@@ -39,10 +40,10 @@ export function ExcuseQueue({ initialRequests }: Props) {
 
   function handleReject(id: string) {
     setErrors((prev) => ({ ...prev, [id]: null }))
-    setPendingId(id)
+    setPendingIds((prev) => new Set(prev).add(id))
     startTransition(async () => {
       const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
-      setPendingId(null)
+      setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
       if (result?.serverError) {
         setErrors((prev) => ({ ...prev, [id]: `${result.serverError} — refresh to see latest.` }))
         return
@@ -99,7 +100,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
               <Button
                 size="sm"
                 onClick={() => handleApprove(req.id)}
-                disabled={pendingId === req.id}
+                disabled={pendingIds.has(req.id)}
               >
                 Approve
               </Button>
@@ -107,7 +108,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
                 size="sm"
                 variant="outline"
                 onClick={() => handleReject(req.id)}
-                disabled={pendingId === req.id}
+                disabled={pendingIds.has(req.id)}
               >
                 Reject
               </Button>

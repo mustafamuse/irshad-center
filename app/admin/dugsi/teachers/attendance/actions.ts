@@ -170,8 +170,14 @@ const _generateExpectedSlotsAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const dateObj = new Date(parsedInput.date)
 
-    const teacherShifts = await getActiveDugsiTeacherShifts()
-    const result = await generateExpectedSlots(teacherShifts, dateObj)
+    let result
+    try {
+      const teacherShifts = await getActiveDugsiTeacherShifts()
+      result = await generateExpectedSlots(teacherShifts, dateObj)
+    } catch (error) {
+      await logError(logger, error, 'generateExpectedSlots', { date: parsedInput.date })
+      throw error
+    }
 
     after(revalidateAll)
     return result

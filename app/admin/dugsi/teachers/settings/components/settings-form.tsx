@@ -52,7 +52,7 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
           min={0}
           max={120}
           value={morning}
-          onChange={(e) => setMorning(Number(e.target.value))}
+          onChange={(e) => setMorning(e.target.value === '' ? initialMorning : Number(e.target.value))}
           step={1}
         />
       </div>
@@ -68,7 +68,7 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
           max={120}
           step={1}
           value={afternoon}
-          onChange={(e) => setAfternoon(Number(e.target.value))}
+          onChange={(e) => setAfternoon(e.target.value === '' ? initialAfternoon : Number(e.target.value))}
         />
       </div>
 

@@ -23,6 +23,10 @@ const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStat
   // ABSENT → PRESENT: admin corrects an auto-marked absence when the teacher
   //   physically showed up after the auto-mark window fired.
   ABSENT: ['LATE', 'EXCUSED', 'PRESENT'],
+  // EXCUSED → LATE/ABSENT: admin reverts an erroneously approved excuse.
+  // transitionStatus atomically rejects any APPROVED ExcuseRequest in the same
+  // transaction so the teacher isn't left in a dead-end (can't resubmit because
+  // getExistingActiveExcuse would find the orphaned APPROVED row).
   EXCUSED: ['LATE', 'ABSENT'],
   // CLOSED → PRESENT: admin confirms teacher physically showed up on a closed day.
   // CLOSED → EXPECTED is excluded: it would leave the record in EXPECTED while the

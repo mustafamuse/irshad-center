@@ -126,6 +126,24 @@ export async function transitionStatus(
       )
     }
 
+    // When reverting from EXCUSED to LATE or ABSENT, close any APPROVED excuse request
+    // in the same transaction. Without this the teacher hits a dead-end: they can't
+    // submit a new excuse (getExistingActiveExcuse returns the orphaned APPROVED row)
+    // and there's no admin UI to reject an already-approved request.
+    // REJECTED is the correct terminal state — the admin override implicitly revokes
+    // the approval.
+    if (record.status === 'EXCUSED' && (toStatus === 'LATE' || toStatus === 'ABSENT')) {
+      await tx.excuseRequest.updateMany({
+        where: { attendanceRecordId: recordId, status: 'APPROVED' },
+        data: {
+          status: 'REJECTED',
+          adminNote: `Auto-rejected: record reverted to ${toStatus} by admin override`,
+          reviewedBy: changedBy ?? 'system',
+          reviewedAt: new Date(),
+        },
+      })
+    }
+
     logger.info(
       {
         event: 'ATTENDANCE_STATUS_TRANSITION',
