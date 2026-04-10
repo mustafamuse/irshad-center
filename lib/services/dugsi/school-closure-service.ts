@@ -120,24 +120,7 @@ export async function removeClosure(
       )
     }
 
-    // P2025 guard: two admins removing the same closure concurrently both pass the
-    // getSchoolClosure check (READ COMMITTED), then race to delete. The loser gets P2025
-    // ("Record to delete does not exist"). The catch re-throws as ActionError, which
-    // causes the interactive transaction to roll back cleanly — the second admin sees
-    // a clean 404 rather than an unhandled 500.
-    try {
-      await tx.schoolClosure.delete({ where: { date } })
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-        throw new ActionError(
-          `No school closure found for ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
-          ERROR_CODES.NOT_FOUND,
-          undefined,
-          404
-        )
-      }
-      throw err
-    }
+    await tx.schoolClosure.delete({ where: { date } })
 
     // Cancel active excuses on CLOSED records before reverting them to EXPECTED.
     // Possible if a teacher had an AUTO_MARKED LATE excuse pending when the date was
@@ -169,5 +152,23 @@ export async function removeClosure(
     return { reopenedCount }
   }
 
-  return isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client)
+  // Catch P2025 outside the transaction: two admins both passing the getSchoolClosure
+  // guard (READ COMMITTED) race to delete the same closure row — the loser gets P2025
+  // ("Record to delete does not exist"). Catching inside $transaction would run additional
+  // queries on an already-aborted PostgreSQL transaction. Same pattern as P2002 in markDateClosed.
+  let result: Awaited<ReturnType<typeof doWrites>>
+  try {
+    result = isPrismaClient(client) ? await client.$transaction(doWrites) : await doWrites(client)
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      throw new ActionError(
+        `No school closure found for ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
+        ERROR_CODES.NOT_FOUND,
+        undefined,
+        404
+      )
+    }
+    throw error
+  }
+  return result
 }

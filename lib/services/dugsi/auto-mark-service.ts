@@ -8,7 +8,7 @@
  * Also ensures EXPECTED slots exist for the date before marking.
  */
 
-import { DugsiAttendanceConfig, Shift } from '@prisma/client'
+import { DugsiAttendanceConfig, PrismaClient, Shift } from '@prisma/client'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
@@ -55,7 +55,9 @@ export async function autoMarkLateForShift(
     )
   }
 
-  const config = prefetchedConfig ?? await getAttendanceConfig(client)
+  // The guard above ensures client is PrismaClient when getAttendanceConfig is invoked.
+  // TypeScript cannot narrow DatabaseClient through the combined &&-guard, so cast here.
+  const config = prefetchedConfig ?? await getAttendanceConfig(client as PrismaClient)
   const offsetMinutes =
     shift === 'MORNING'
       ? config.morningAutoMarkMinutes

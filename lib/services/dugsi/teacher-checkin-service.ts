@@ -351,6 +351,11 @@ export async function deleteCheckin(
     // Step 2: Revert PRESENT/LATE → ABSENT.  EXCUSED and overridden-ABSENT records are
     // intentionally left at their current status — the teacher did show up, and an admin
     // action already determined the outcome.
+    // ABSENT (not EXPECTED) is intentional: the check-in existed, proving the teacher
+    // attempted to sign in. Deleting it means the attendance outcome is now unknown —
+    // ABSENT is the conservative fallback. EXPECTED would imply the window is still open
+    // for a fresh clock-in, which may no longer be true (e.g. post-cutoff deletion).
+    // UI callers should warn the admin before confirming the delete.
     // The @@unique([teacherId, date, shift]) constraint guarantees at most one row,
     // so count > 1 would indicate a data integrity problem.
     const revertResult = await tx.teacherAttendanceRecord.updateMany({

@@ -106,6 +106,14 @@ export function StatusOverrideDialog({
             <AttendanceStatusBadge status={currentStatus} />
           </div>
 
+          {currentStatus === 'CLOSED' && (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              This date is marked as a school closure. Overriding changes only this
+              teacher&apos;s record — the school-wide closure and all other CLOSED records
+              remain unchanged. Use the Closures page to remove the closure entirely.
+            </p>
+          )}
+
           <div className="space-y-2">
             <Label className="text-sm font-medium">Change to</Label>
             <div className="flex flex-wrap gap-2">
