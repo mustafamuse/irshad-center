@@ -43,21 +43,25 @@ export async function markDateClosed(
     // Also flip AUTO_MARKED LATE → CLOSED: the 21:00 UTC cron may have fired before
     // the admin called markDateClosed, leaving records as LATE even though school was
     // closed. Self-checkin LATE teachers who physically showed up are left as-is.
+    // Note: LATE → CLOSED is intentionally excluded from ALLOWED_TRANSITIONS (override
+    // dialog should never close a teacher who showed up), so we use updateMany directly
+    // here rather than bulkTransitionStatus — same pattern as bulkReopenDate.
     const closedCount = await bulkTransitionStatus(
       { where: { date, status: 'EXPECTED' }, toStatus: 'CLOSED', source: 'SYSTEM' },
       tx
     )
-    const autoMarkedCount = await bulkTransitionStatus(
-      { where: { date, status: 'LATE', source: 'AUTO_MARKED' }, toStatus: 'CLOSED', source: 'SYSTEM' },
-      tx
-    )
+    const autoMarkResult = await tx.teacherAttendanceRecord.updateMany({
+      where: { date, status: 'LATE', source: 'AUTO_MARKED' },
+      data: { status: 'CLOSED', source: 'SYSTEM' },
+    })
+    const autoMarkedCount = autoMarkResult.count
 
     logger.info(
       { event: 'SCHOOL_CLOSED', date, reason, closedCount, autoMarkedCount, createdBy },
       `Marked school closed (${closedCount} EXPECTED + ${autoMarkedCount} AUTO_MARKED → CLOSED)`
     )
 
-    return { closure, closedCount }
+    return { closure, closedCount: closedCount + autoMarkedCount }
   }
 
   return isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client)
