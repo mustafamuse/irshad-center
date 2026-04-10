@@ -98,19 +98,19 @@ export async function approveExcuse(
     }
     assertValidTransition(currentRecord.status, 'EXCUSED')
 
-    const [updated, statusResult] = await Promise.all([
-      tx.excuseRequest.update({
-        where: { id: excuseRequestId },
-        data: { status: 'APPROVED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
-      }),
-      // Optimistic lock: include current status in WHERE so a concurrent override
-      // that already changed the record (e.g. another excuse approved first) produces
-      // count=0 instead of silently overwriting the new state.
-      tx.teacherAttendanceRecord.updateMany({
-        where: { id: excuseRequest.attendanceRecordId, status: currentRecord.status },
-        data: { status: 'EXCUSED', source: 'ADMIN_OVERRIDE', changedBy: reviewedBy },
-      }),
-    ])
+    const updated = await tx.excuseRequest.update({
+      where: { id: excuseRequestId },
+      data: { status: 'APPROVED', adminNote: adminNote ?? null, reviewedBy, reviewedAt: new Date() },
+    })
+    // Optimistic lock: include current status in WHERE so a concurrent override
+    // that already changed the record (e.g. another excuse approved first) produces
+    // count=0 instead of silently overwriting the new state.
+    // Sequential (not Promise.all): Prisma interactive transactions use a single
+    // connection and cannot process concurrent queries on the same tx client.
+    const statusResult = await tx.teacherAttendanceRecord.updateMany({
+      where: { id: excuseRequest.attendanceRecordId, status: currentRecord.status },
+      data: { status: 'EXCUSED', source: 'ADMIN_OVERRIDE', changedBy: reviewedBy },
+    })
     if (statusResult.count === 0) {
       throw new ActionError(
         'Record was modified concurrently — please refresh and try again',

@@ -6,7 +6,11 @@ import { after } from 'next/server'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
-import { getAttendanceConfig, updateAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
+import {
+  getAttendanceConfig,
+  getActiveDugsiTeacherShifts,
+  updateAttendanceConfig,
+} from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
@@ -26,8 +30,6 @@ import {
   GenerateExpectedSlotsSchema,
   ReviewExcuseSchema,
 } from '@/lib/validations/teacher-attendance'
-import { prisma } from '@/lib/db'
-
 const logger = createServiceLogger('admin-attendance-actions')
 
 const REVALIDATE_PATHS = [
@@ -153,16 +155,7 @@ const _generateExpectedSlotsAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const dateObj = new Date(parsedInput.date)
 
-    const activeTeachers = await prisma.teacherProgram.findMany({
-      where: { program: 'DUGSI_PROGRAM', isActive: true },
-      select: { teacherId: true, shifts: true },
-    })
-
-    const teacherShifts = activeTeachers.map((tp) => ({
-      teacherId: tp.teacherId,
-      shifts: tp.shifts,
-    }))
-
+    const teacherShifts = await getActiveDugsiTeacherShifts()
     const result = await generateExpectedSlots(teacherShifts, dateObj)
 
     after(revalidateAll)

@@ -15,7 +15,7 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { CLASS_START_TIMES, SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { createServiceLogger } from '@/lib/logger'
-import { getAttendanceConfig } from '@/lib/db/queries/teacher-attendance'
+import { getAttendanceConfig, getActiveDugsiTeacherShifts } from '@/lib/db/queries/teacher-attendance'
 import { generateExpectedSlots } from './attendance-record-service'
 
 const logger = createServiceLogger('auto-mark')
@@ -54,14 +54,11 @@ export async function autoMarkLateForShift(
   }
 
   const dateObj = new Date(date)
-  const activeTeachers = await client.teacherProgram.findMany({
-    where: { program: 'DUGSI_PROGRAM', isActive: true },
-    select: { teacherId: true, shifts: true },
-  })
+  const activeTeachers = await getActiveDugsiTeacherShifts(client)
 
   const teachersForShift = activeTeachers
     .filter((tp) => tp.shifts.includes(shift))
-    .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] }))
+    .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] as Shift[] }))
 
   // Wrap slot generation + updateMany in one transaction so:
   // - A concurrent self-checkin can't slip between the slot write and the auto-mark.

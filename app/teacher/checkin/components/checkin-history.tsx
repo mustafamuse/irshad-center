@@ -80,13 +80,13 @@ export function CheckinHistory({ teacherId }: Props) {
   }, [])
 
   const loadHistory = useCallback(() => {
-    if (!teacherId || hasLoaded) return
+    if (!teacherId || (hasLoaded && !error)) return
     fetchHistory(teacherId)
-  }, [teacherId, hasLoaded, fetchHistory])
+  }, [teacherId, hasLoaded, error, fetchHistory])
 
   function handleOpenChange(open: boolean) {
     setIsOpen(open)
-    if (open && !hasLoaded) loadHistory()
+    if (open && (!hasLoaded || error)) loadHistory()
   }
 
   function handleExcuseSuccess() {

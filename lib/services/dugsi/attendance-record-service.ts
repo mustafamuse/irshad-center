@@ -133,7 +133,13 @@ export async function transitionStatus(
     `Attendance status: ${record.status} → ${toStatus}`
   )
 
-  return { ...record, status: toStatus }
+  return {
+    ...record,
+    status: toStatus,
+    minutesLate: toStatus === 'LATE' ? (minutesLate ?? null) : null,
+    notes: notes ?? null,
+    changedBy: changedBy ?? null,
+  }
 }
 
 // ============================================================================

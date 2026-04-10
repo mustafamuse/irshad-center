@@ -17,7 +17,7 @@
  * Idempotent: uses upsert on (teacherId, date, shift) unique constraint.
  */
 
-import { Program, Shift } from '@prisma/client'
+import { AttendanceSource, Program, Shift } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
@@ -231,7 +231,7 @@ async function main() {
       date: dateObj,
       shift: r.shift,
       status: r.action,
-      source: 'SYSTEM' as const,
+      source: AttendanceSource.SYSTEM,
       checkInId: r.checkInId ?? null,
       minutesLate: r.minutesLate ?? null,
     }
@@ -240,7 +240,7 @@ async function main() {
     // changes (overrides, excuse approvals) when the script is re-run.
     const updated = await prisma.teacherAttendanceRecord.updateMany({
       where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
-      data: { status: r.action, source: 'SYSTEM', checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
+      data: { status: r.action, source: AttendanceSource.SYSTEM, checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
     })
     if (updated.count > 0) {
       dbUpdated++

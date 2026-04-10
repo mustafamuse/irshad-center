@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 
-import { TeacherAttendanceStatus } from '@prisma/client'
+import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -25,7 +25,7 @@ interface Props {
   recordId: string
   teacherName: string
   date: string
-  shift: string
+  shift: Shift
   currentStatus: TeacherAttendanceStatus
 }
 
