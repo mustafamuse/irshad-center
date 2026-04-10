@@ -244,16 +244,18 @@ export async function getTeacherAttendanceHistory(
   weeksBack = 8
 ): Promise<AttendanceHistoryResult> {
   const today = new Date()
-  const from = new Date(today)
-  from.setUTCDate(from.getUTCDate() - weeksBack * 7)
 
-  // Extract year/month in school timezone — server runs UTC; at 7 PM CST Vercel's
-  // clock already reads the next calendar day, which would query the wrong month.
+  // Anchor to school timezone — at 11 PM CST (5 AM Saturday UTC) `new Date()` is
+  // already Saturday UTC, so a raw date arithmetic would shift the window one day
+  // forward and include a future EXPECTED record. UTC noon anchor corrects this.
   const todayInTz = formatInTimeZone(today, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
   const [year, month] = todayInTz.split('-').map(Number)
+  const todayAnchor = new Date(`${todayInTz}T12:00:00Z`)
+  const from = new Date(todayAnchor)
+  from.setUTCDate(from.getUTCDate() - weeksBack * 7)
 
   const [records, monthlyExcuseCount] = await Promise.all([
-    getTeacherAttendanceSummary(teacherId, from, today),
+    getTeacherAttendanceSummary(teacherId, from, todayAnchor),
     getMonthlyExcuseCount(teacherId, year, month),
   ])
 

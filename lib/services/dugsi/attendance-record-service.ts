@@ -236,7 +236,7 @@ export async function adminCheckIn(
 
 export async function bulkTransitionStatus(
   params: {
-    where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus }
+    where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus; source?: AttendanceSource }
     toStatus: TeacherAttendanceStatus
     source: AttendanceSource
   },
@@ -251,6 +251,7 @@ export async function bulkTransitionStatus(
       date: where.date,
       ...(where.shift ? { shift: where.shift } : {}),
       status: where.status,
+      ...(where.source ? { source: where.source } : {}),
     },
     data: { status: toStatus, source },
   })

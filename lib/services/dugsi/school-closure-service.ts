@@ -2,7 +2,7 @@
  * School Closure Service
  *
  * Manages school closure dates and propagates status changes to attendance records.
- * - markDateClosed: creates SchoolClosure + flips EXPECTED → CLOSED
+ * - markDateClosed: creates SchoolClosure + flips EXPECTED → CLOSED and AUTO_MARKED LATE → CLOSED
  * - removeClosure: deletes SchoolClosure + reverts CLOSED → EXPECTED
  * Both operations are atomic via $transaction.
  */
@@ -39,15 +39,22 @@ export async function markDateClosed(
       data: { date, reason, createdBy: createdBy ?? null },
     })
 
-    // Propagate: only flip EXPECTED records — PRESENT/LATE teachers who showed up are unaffected
+    // Propagate: flip EXPECTED → CLOSED for all no-shows.
+    // Also flip AUTO_MARKED LATE → CLOSED: the 21:00 UTC cron may have fired before
+    // the admin called markDateClosed, leaving records as LATE even though school was
+    // closed. Self-checkin LATE teachers who physically showed up are left as-is.
     const closedCount = await bulkTransitionStatus(
       { where: { date, status: 'EXPECTED' }, toStatus: 'CLOSED', source: 'SYSTEM' },
       tx
     )
+    const autoMarkedCount = await bulkTransitionStatus(
+      { where: { date, status: 'LATE', source: 'AUTO_MARKED' }, toStatus: 'CLOSED', source: 'SYSTEM' },
+      tx
+    )
 
     logger.info(
-      { event: 'SCHOOL_CLOSED', date, reason, closedCount, createdBy },
-      `Marked school closed (${closedCount} EXPECTED records → CLOSED)`
+      { event: 'SCHOOL_CLOSED', date, reason, closedCount, autoMarkedCount, createdBy },
+      `Marked school closed (${closedCount} EXPECTED + ${autoMarkedCount} AUTO_MARKED → CLOSED)`
     )
 
     return { closure, closedCount }
