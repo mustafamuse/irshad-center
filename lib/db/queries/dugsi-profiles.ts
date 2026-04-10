@@ -19,10 +19,12 @@ export async function findGuardianWithBillableDugsiChildren(
 ) {
   return client.person.findFirst({
     where: { email: normalizedEmail },
-    include: {
+    select: {
+      id: true,
+      name: true,
       guardianRelationships: {
         where: { isActive: true },
-        include: {
+        select: {
           dependent: {
             select: {
               programProfiles: {

@@ -767,12 +767,6 @@ export async function handleSubscriptionCreated(
     validateDugsiRateIfPresent(subscription)
   }
 
-  await linkProfilesIfPresent(
-    dbSubscription.id,
-    resolved.effectiveProfileIds,
-    subscription
-  )
-
   if (resolved.recoverySource === 'dugsi_email_fallback') {
     await patchRecoveredDugsiMetadata(
       subscription.id,
@@ -781,6 +775,12 @@ export async function handleSubscriptionCreated(
       resolved.effectiveProfileIds
     )
   }
+
+  await linkProfilesIfPresent(
+    dbSubscription.id,
+    resolved.effectiveProfileIds,
+    subscription
+  )
 
   if (accountType === StripeAccountType.MAHAD) {
     revalidateTag('mahad-students')
