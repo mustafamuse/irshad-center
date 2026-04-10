@@ -131,7 +131,7 @@ export async function transitionStatus(
     `Attendance status: ${record.status} → ${toStatus}`
   )
 
-  return record
+  return { ...record, status: toStatus }
 }
 
 // ============================================================================
@@ -179,40 +179,44 @@ export async function adminCheckIn(
       where: { teacherId_date_shift: { teacherId, date, shift } },
       select: { status: true },
     })
-    if (existingRecord) {
-      assertValidTransition(existingRecord.status, 'PRESENT')
+
+    const recordData = {
+      status: 'PRESENT' as const,
+      source: 'ADMIN_OVERRIDE' as const,
+      checkInId: checkIn.id,
+      clockInTime: checkIn.clockInTime,
+      minutesLate: null,
+      changedBy,
     }
 
-    // Upsert the attendance record
-    const record = await tx.teacherAttendanceRecord.upsert({
-      where: { teacherId_date_shift: { teacherId, date, shift } },
-      create: {
-        teacherId,
-        date,
-        shift,
-        status: 'PRESENT',
-        source: 'ADMIN_OVERRIDE',
-        checkInId: checkIn.id,
-        clockInTime: checkIn.clockInTime,
-        minutesLate: null,
-        changedBy,
-      },
-      update: {
-        status: 'PRESENT',
-        source: 'ADMIN_OVERRIDE',
-        checkInId: checkIn.id,
-        clockInTime: checkIn.clockInTime,
-        minutesLate: null,
-        changedBy,
-      },
-    })
+    if (existingRecord) {
+      assertValidTransition(existingRecord.status, 'PRESENT')
+      // Optimistic lock: include current status in WHERE, mirroring transitionStatus.
+      // Prevents a concurrent auto-mark/override from being silently overwritten.
+      const updateResult = await tx.teacherAttendanceRecord.updateMany({
+        where: { teacherId, date, shift, status: existingRecord.status },
+        data: recordData,
+      })
+      if (updateResult.count === 0) {
+        throw new ActionError(
+          'Record was modified concurrently — please refresh and try again',
+          ERROR_CODES.INVALID_TRANSITION,
+          undefined,
+          409
+        )
+      }
+    } else {
+      await tx.teacherAttendanceRecord.create({
+        data: { teacherId, date, shift, ...recordData },
+      })
+    }
 
     logger.info(
       { event: 'ADMIN_CHECK_IN', teacherId, shift, date, changedBy },
       'Admin checked in teacher'
     )
 
-    return { record, checkIn }
+    return { checkIn }
   }
 
   return isPrismaClient(client)

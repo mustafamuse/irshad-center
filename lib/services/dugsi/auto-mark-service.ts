@@ -67,12 +67,14 @@ export async function autoMarkLateForShift(
   // - A concurrent self-checkin can't slip between the slot write and the auto-mark.
   // - A concurrent markDateClosed can't create a closure between the guard and the updateMany.
   // Use isPrismaClient so the injected client is honoured (testability + correctness).
-  const doWrites = async (tx: DatabaseClient) => {
+  type DoWritesResult = { kind: 'closed' } | { kind: 'marked'; count: number }
+
+  const doWrites = async (tx: DatabaseClient): Promise<DoWritesResult> => {
     // Guard inside the transaction: a concurrent markDateClosed could create a closure
     // between an outer check and this updateMany, so we re-check here at commit time.
     const closure = await tx.schoolClosure.findUnique({ where: { date: dateObj } })
     if (closure) {
-      return -1 // sentinel: school closed
+      return { kind: 'closed' }
     }
 
     if (teachersForShift.length > 0) {
@@ -88,19 +90,19 @@ export async function autoMarkLateForShift(
       data: { status: 'LATE', source: 'AUTO_MARKED', minutesLate },
     })
 
-    return result.count
+    return { kind: 'marked', count: result.count }
   }
 
-  const count = isPrismaClient(client)
+  const writeResult = isPrismaClient(client)
     ? await client.$transaction(doWrites)
     : await doWrites(client)
 
-  if (count === -1) {
+  if (writeResult.kind === 'closed') {
     logger.debug({ shift, date }, 'School closed — skipping auto-mark (checked in-tx)')
     return { shift, date, marked: 0, skippedReason: 'school_closed' }
   }
 
-  const marked = count
+  const marked = writeResult.count
 
   if (marked === 0) {
     return { shift, date, marked: 0, skippedReason: 'no_expected_records' }

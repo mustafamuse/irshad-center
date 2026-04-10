@@ -155,7 +155,9 @@ export async function getMonthlyExcuseCount(
   client: DatabaseClient = prisma
 ): Promise<number> {
   const from = new Date(`${year}-${String(month).padStart(2, '0')}-01`)
-  const to = new Date(year, month, 0) // last day of month
+  // Use ISO string for `to` so both sides parse as UTC midnight (consistent with `from`)
+  const lastDay = new Date(year, month, 0).getDate()
+  const to = new Date(`${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`)
 
   return client.teacherAttendanceRecord.count({
     where: {

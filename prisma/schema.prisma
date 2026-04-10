@@ -751,9 +751,8 @@ model TeacherAttendanceRecord {
   @@index([teacherId])
   @@index([date])
   @@index([status])
-  @@index([date, shift])
   @@index([teacherId, date])
-  @@index([status, date]) // cron: find EXPECTED records for a date
+  @@index([date, shift, status]) // covers auto-mark (date+shift+status=EXPECTED) and grid view (date range)
 }
 
 // Singleton config row for auto-mark behavior.

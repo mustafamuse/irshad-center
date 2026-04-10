@@ -24,6 +24,7 @@ import {
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { submitExcuse } from '@/lib/services/dugsi/excuse-service'
@@ -277,15 +278,22 @@ const _submitExcuseAction = rateLimitedActionClient
   .action(async ({ parsedInput }) => {
     const { attendanceRecordId, teacherId, reason } = parsedInput
 
+    // Per-teacherId rate limit (on top of the IP limit from rateLimitedActionClient).
+    // A teacher can submit at most 3 excuse requests per 15-minute window per teacherId,
+    // making bulk enumeration of other teachers' records impractical.
+    // Note: teacherId is still client-supplied so this isn't a hard auth boundary —
+    // full protection requires session tokens (tracked in issue #225).
+    const teacherRateLimit = await checkRateLimit(`submitExcuse:teacher:${teacherId}`, 3)
+    if (!teacherRateLimit.success) {
+      throw new ActionError(
+        'Too many excuse requests. Please try again later.',
+        ERROR_CODES.RATE_LIMIT_EXCEEDED,
+        undefined,
+        429
+      )
+    }
+
     // Ownership check: prevents accidental client bugs (e.g. mismatched IDs).
-    // Threat model note: this is NOT adversarial protection. Because the teacher app
-    // has no session, both `teacherId` and `attendanceRecordId` are client-supplied.
-    // Attack vector: a teacher who observes their own network requests can enumerate
-    // UUID IDs for other teachers or records and submit excuses on their behalf.
-    // Proper defense requires per-teacher session tokens so the server can resolve
-    // identity server-side without trusting the client-supplied `teacherId`.
-    // Alternatively, add per-teacherId rate limiting on `submitExcuseAction`.
-    // For now, mutual trust within the small teacher cohort is the accepted trade-off.
     const record = await getAttendanceRecordById(attendanceRecordId)
     if (!record) {
       throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)

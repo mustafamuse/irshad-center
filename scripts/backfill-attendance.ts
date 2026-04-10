@@ -224,27 +224,30 @@ async function main() {
     if (r.action === 'SKIP') continue
 
     const dateObj = new Date(r.date)
-    await prisma.teacherAttendanceRecord.upsert({
-      where: { teacherId_date_shift: { teacherId: r.teacherId, date: dateObj, shift: r.shift } },
-      create: {
-        teacherId: r.teacherId,
-        date: dateObj,
-        shift: r.shift,
-        status: r.action,
-        source: 'SYSTEM',
-        checkInId: r.checkInId ?? null,
-        minutesLate: r.minutesLate ?? null,
-      },
-      update: {
-        // Only set if currently EXPECTED (don't overwrite existing manual changes)
-        // We achieve this by re-upsert only if status is EXPECTED
-        // Simpler: always update — backfill is run once before any admin changes
-        status: r.action,
-        source: 'SYSTEM',
-        checkInId: r.checkInId ?? null,
-        minutesLate: r.minutesLate ?? null,
-      },
+    const rowData = {
+      teacherId: r.teacherId,
+      date: dateObj,
+      shift: r.shift,
+      status: r.action,
+      source: 'SYSTEM' as const,
+      checkInId: r.checkInId ?? null,
+      minutesLate: r.minutesLate ?? null,
+    }
+
+    // Only overwrite if the record is still EXPECTED — preserves admin manual
+    // changes (overrides, excuse approvals) when the script is re-run.
+    const updated = await prisma.teacherAttendanceRecord.updateMany({
+      where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
+      data: { status: r.action, source: 'SYSTEM', checkInId: r.checkInId ?? null, minutesLate: r.minutesLate ?? null },
     })
+    if (updated.count === 0) {
+      // Either record doesn't exist yet or an admin changed the status — create if
+      // missing, skip silently if present with a non-EXPECTED status.
+      await prisma.teacherAttendanceRecord.createMany({
+        data: [rowData],
+        skipDuplicates: true,
+      })
+    }
     written++
   }
 
