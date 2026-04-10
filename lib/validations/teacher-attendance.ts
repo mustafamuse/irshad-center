@@ -55,6 +55,10 @@ export const UpdateAttendanceConfigSchema = z.object({
   // Note: the 1-minute margin is CST-only (winter). In CDT the cron fires at 16:00 CDT,
   // giving a 61-minute margin — but always derive from CST (UTC-6) for worst-case safety.
   // COUPLING: if the cron schedule in vercel.json changes, recalculate using the formula above.
+  // MIGRATION NOTE: max(89) prevents *saving* an out-of-range value but does not fix an already-
+  // stored value that becomes invalid after a schedule change. DugsiAttendanceConfig is a
+  // singleton that persists across deploys — pair any cron schedule change with a migration
+  // that clamps afternoonAutoMarkMinutes to the new maximum.
   afternoonAutoMarkMinutes: z.number().int().min(0).max(89),
 })
 

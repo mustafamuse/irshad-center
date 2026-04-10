@@ -11,8 +11,9 @@ import type { TeacherAttendanceStatus } from '@prisma/client'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
 const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStatus[]> = {
-  // EXPECTED → CLOSED: markDateClosed propagates this in bulk; admin can also
-  //   close a single slot that was missed by the bulk operation.
+  // EXPECTED → CLOSED: markDateClosed propagates this in bulk via bulkTransitionStatus.
+  //   This transition is system-only — intentionally excluded from the admin override
+  //   dialog (OverrideAttendanceStatusSchema limits toStatus to non-CLOSED values).
   EXPECTED: ['PRESENT', 'LATE', 'ABSENT', 'CLOSED'],
   // PRESENT/LATE/ABSENT/EXCUSED → CLOSED intentionally excluded: a teacher who
   //   already has concrete attendance data (showed up, was excused, etc.) cannot

@@ -130,6 +130,7 @@ export function CheckinHistory({ teacherId }: Props) {
                     (item.status === 'LATE' || item.status === 'ABSENT') &&
                     !item.pendingExcuseId
                   const hasPendingExcuse = !!item.pendingExcuseId
+                  const wasRejected = item.wasExcuseRejected
                   const isExcuseOpen = excuseOpenId === item.id
 
                   return (
@@ -165,13 +166,17 @@ export function CheckinHistory({ teacherId }: Props) {
                         <p className="mt-1 text-xs text-blue-600">Excuse pending review</p>
                       )}
 
+                      {wasRejected && !hasPendingExcuse && !isExcuseOpen && (
+                        <p className="mt-1 text-xs text-amber-700">Previous excuse rejected</p>
+                      )}
+
                       {canRequestExcuse && !isExcuseOpen && (
                         <button
                           type="button"
                           className="mt-1 text-xs text-[#007078] underline-offset-2 hover:underline"
                           onClick={() => setExcuseOpenId(item.id)}
                         >
-                          Request excuse
+                          {wasRejected ? 'Resubmit excuse' : 'Request excuse'}
                         </button>
                       )}
 

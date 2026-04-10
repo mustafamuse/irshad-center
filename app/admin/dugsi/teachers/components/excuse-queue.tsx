@@ -37,7 +37,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
     setErrors((prev) => ({ ...prev, [id]: null }))
     setPendingIds((prev) => new Set(prev).add(id))
     startTransition(async () => {
-      const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] || undefined })
       setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
       if (result?.serverError || result?.validationErrors) {
         setErrors((prev) => ({ ...prev, [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.` }))
@@ -54,7 +54,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
     setErrors((prev) => ({ ...prev, [id]: null }))
     setPendingIds((prev) => new Set(prev).add(id))
     startTransition(async () => {
-      const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] || undefined })
       setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
       if (result?.serverError || result?.validationErrors) {
         setErrors((prev) => ({ ...prev, [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.` }))

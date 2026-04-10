@@ -232,6 +232,7 @@ export type AttendanceHistoryItem = {
   minutesLate: number | null
   clockInTime: Date | null
   pendingExcuseId: string | null // non-null if there's a PENDING excuse request
+  wasExcuseRejected: boolean     // true if the most recent excuse was REJECTED (teacher should resubmit)
 }
 
 export type AttendanceHistoryResult = {
@@ -291,6 +292,9 @@ async function fetchAttendanceHistory(
       clockInTime: r.clockInTime,
       pendingExcuseId:
         r.excuses.find((e) => e.status === 'PENDING')?.id ?? null,
+      wasExcuseRejected:
+        !r.excuses.some((e) => e.status === 'PENDING' || e.status === 'APPROVED') &&
+        r.excuses.some((e) => e.status === 'REJECTED'),
     })),
     monthlyExcuseCount,
   }

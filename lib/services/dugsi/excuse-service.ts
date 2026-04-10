@@ -159,7 +159,7 @@ export async function approveExcuse(
     // connection and cannot process concurrent queries on the same tx client.
     const statusResult = await tx.teacherAttendanceRecord.updateMany({
       where: { id: excuseRequest.attendanceRecordId, status: currentRecord.status },
-      data: { status: TeacherAttendanceStatus.EXCUSED, source: AttendanceSource.EXCUSE_APPROVED, changedBy: reviewedBy },
+      data: { status: TeacherAttendanceStatus.EXCUSED, source: AttendanceSource.EXCUSE_APPROVED, minutesLate: null, changedBy: reviewedBy },
     })
     if (statusResult.count === 0) {
       // The transaction is rolled back entirely by this throw — neither the excuse

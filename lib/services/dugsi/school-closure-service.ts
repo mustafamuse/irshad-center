@@ -188,6 +188,11 @@ export async function removeClosure(
           'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
           'an admin should review and manually correct affected records in the attendance grid.'
       )
+      // Future improvement: surface a persistent banner on the attendance page
+      // (e.g. "N records reverted to EXPECTED — review manually") so admins who
+      // navigate away from the closures page after removal are still notified.
+      // Requires storing the flag in the DB (e.g. a DugsiAttendanceAlert table)
+      // or a query-param hand-off between the closures and attendance pages.
     }
 
     return { reopenedCount }
