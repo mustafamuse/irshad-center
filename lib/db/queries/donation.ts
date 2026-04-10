@@ -136,14 +136,14 @@ export async function getDonationStats(
           SELECT DISTINCT ON (d."stripeSubscriptionId") d.amount
           FROM "Donation" d
           WHERE d."isRecurring" = true
-            AND d.status = ${DonationStatus.succeeded}
+            AND d.status = ${DonationStatus.succeeded}::"DonationStatus"
             AND d."stripeSubscriptionId" IS NOT NULL
             ${dateFrom ? Prisma.sql`AND d."paidAt" >= ${dateFrom}` : Prisma.empty}
             ${dateTo ? Prisma.sql`AND d."paidAt" < ${dateTo}` : Prisma.empty}
             AND NOT EXISTS (
               SELECT 1 FROM "Donation" c
               WHERE c."stripeSubscriptionId" = d."stripeSubscriptionId"
-                AND c.status = ${DonationStatus.cancelled}
+                AND c.status = ${DonationStatus.cancelled}::"DonationStatus"
             )
           ORDER BY d."stripeSubscriptionId", d."paidAt" DESC NULLS LAST
         ) lps
@@ -151,7 +151,7 @@ export async function getDonationStats(
       client.$queryRaw<CountRow[]>`
         SELECT COUNT(DISTINCT d."donorEmail") AS count
         FROM "Donation" d
-        WHERE d.status = ${DonationStatus.succeeded}
+        WHERE d.status = ${DonationStatus.succeeded}::"DonationStatus"
           AND d."donorEmail" IS NOT NULL
           ${dateFrom ? Prisma.sql`AND d."paidAt" >= ${dateFrom}` : Prisma.empty}
           ${dateTo ? Prisma.sql`AND d."paidAt" < ${dateTo}` : Prisma.empty}
