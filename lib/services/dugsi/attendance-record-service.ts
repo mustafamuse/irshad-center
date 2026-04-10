@@ -272,15 +272,20 @@ export async function adminCheckIn(
  * CONTRACT — minutesLate on LATE transitions:
  *   When `toStatus === 'LATE'`, `minutesLate` is intentionally omitted from the
  *   UPDATE (Prisma treats `undefined` as "don't touch this field"), preserving
- *   whatever value is already stored. Callers that need to set `minutesLate` on
- *   a LATE transition (e.g. auto-mark setting it to null, or an override supplying
- *   the actual delay) must issue their own `updateMany` with the explicit value.
+ *   whatever value is already stored. However, this silently carries over stale
+ *   minutesLate if the record already has a value — a footgun for future callers.
+ *   For this reason, `toStatus === 'LATE'` is BANNED here at runtime.
+ *   Callers that need to mark records as LATE (e.g. auto-mark setting minutesLate=null)
+ *   must issue their own `updateMany` with the explicit `minutesLate` value.
  *   Non-LATE transitions always clear `minutesLate` to null.
  */
 export async function bulkTransitionStatus(
   params: {
     where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus; source?: AttendanceSource }
-    toStatus: TeacherAttendanceStatus
+    // LATE is excluded: minutesLate cannot be safely omitted (Prisma `undefined` = "don't
+    // touch", silently preserving stale values). Use a direct updateMany with an explicit
+    // minutesLate value for LATE transitions — see JSDoc above.
+    toStatus: Exclude<TeacherAttendanceStatus, 'LATE'>
     source: AttendanceSource
     changedBy?: string   // recorded per-row for audit; 'cron' for auto-mark, admin name for closures
   },
@@ -300,9 +305,8 @@ export async function bulkTransitionStatus(
     data: {
       status: toStatus,
       source,
-      // Clear minutesLate on non-LATE transitions (parity with transitionStatus).
-      // Callers transitioning to LATE must set minutesLate themselves via a direct updateMany.
-      minutesLate: toStatus === 'LATE' ? undefined : null,
+      // Always clear minutesLate — LATE is excluded from toStatus (see parameter type).
+      minutesLate: null,
       ...(changedBy !== undefined ? { changedBy } : {}),
     },
   })

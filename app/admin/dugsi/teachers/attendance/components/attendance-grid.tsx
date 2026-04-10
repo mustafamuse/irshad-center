@@ -33,12 +33,13 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
   // Build lookup: "teacherId|date|shift" → record
   const { recordMap, teachers } = useMemo(() => {
     const recordMap = new Map<CellKey, AttendanceRecordGridWithRelations>()
-    const teacherMap = new Map<string, { id: string; name: string; shifts: Shift[] }>()
+    // shifts is omitted — the render loop always iterates ['MORNING','AFTERNOON'] directly.
+    const teacherMap = new Map<string, { id: string; name: string }>()
 
     // Seed from active roster first — teachers with no records in this window
     // still get a row with '—' cells, making them visible rather than silently absent.
     for (const t of allTeachers) {
-      teacherMap.set(t.teacherId, { id: t.teacherId, name: t.name, shifts: [] })
+      teacherMap.set(t.teacherId, { id: t.teacherId, name: t.name })
     }
 
     for (const r of records) {
@@ -47,14 +48,8 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
       recordMap.set(key, r)
       if (!teacherMap.has(r.teacherId)) {
         // Inactive teacher with historical records — not in allTeachers but still shown.
-        teacherMap.set(r.teacherId, {
-          id: r.teacherId,
-          name: r.teacher.person.name,
-          shifts: [],
-        })
+        teacherMap.set(r.teacherId, { id: r.teacherId, name: r.teacher.person.name })
       }
-      const t = teacherMap.get(r.teacherId)!
-      if (!t.shifts.includes(r.shift)) t.shifts.push(r.shift)
     }
 
     const teachers = Array.from(teacherMap.values()).sort((a, b) =>
