@@ -60,6 +60,11 @@ export async function submitExcuse(
       )
     }
 
+    // NOTE: ExcuseRequest.teacherId denormalizes TeacherAttendanceRecord.teacherId
+    // to support fast lookups by teacher without joining through the record.
+    // The ownership check above validates they match, but there is no DB-level
+    // CHECK constraint — a direct insert with a mismatched teacherId would silently
+    // succeed. Track a future migration to add the constraint if this becomes a concern.
     return tx.excuseRequest.create({
       data: { attendanceRecordId, teacherId, reason, status: 'PENDING' },
     })

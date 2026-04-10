@@ -19,18 +19,18 @@ export function ExcuseQueue({ initialRequests }: Props) {
   const [, startTransition] = useTransition()
   const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Record<string, string | null>>({})
   // Per-request pending state so only the clicked row is disabled, not the whole list
   const [pendingId, setPendingId] = useState<string | null>(null)
 
   function handleApprove(id: string) {
-    setError(null)
+    setErrors((prev) => ({ ...prev, [id]: null }))
     setPendingId(id)
     startTransition(async () => {
       const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
       setPendingId(null)
       if (result?.serverError) {
-        setError(result.serverError)
+        setErrors((prev) => ({ ...prev, [id]: result.serverError ?? null }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
@@ -38,13 +38,13 @@ export function ExcuseQueue({ initialRequests }: Props) {
   }
 
   function handleReject(id: string) {
-    setError(null)
+    setErrors((prev) => ({ ...prev, [id]: null }))
     setPendingId(id)
     startTransition(async () => {
       const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
       setPendingId(null)
       if (result?.serverError) {
-        setError(result.serverError)
+        setErrors((prev) => ({ ...prev, [id]: result.serverError ?? null }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
@@ -56,8 +56,6 @@ export function ExcuseQueue({ initialRequests }: Props) {
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
       {requests.map((req) => {
         const record = req.attendanceRecord
         const teacherName = record.teacher.person.name
@@ -92,6 +90,10 @@ export function ExcuseQueue({ initialRequests }: Props) {
                 onChange={(e) => setAdminNotes((prev) => ({ ...prev, [req.id]: e.target.value }))}
               />
             </div>
+
+            {errors[req.id] && (
+              <p className="text-sm text-red-600">{errors[req.id]}</p>
+            )}
 
             <div className="flex gap-2">
               <Button

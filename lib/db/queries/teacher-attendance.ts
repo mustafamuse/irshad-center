@@ -147,6 +147,9 @@ export async function getTeacherAttendanceSummary(
 }
 
 // Grid data for admin attendance overview: all teachers × recent weekend dates
+// NOTE: No take limit — at ~10 teachers × 2 shifts × 16 dates ≈ 320 rows the result
+// set is small. If the roster grows beyond 30+ teachers, add server-side pagination
+// here (cursor-based) and a matching `after` param before this becomes a slow page load.
 export async function getAttendanceGrid(
   fromDate: Date,
   toDate: Date,
