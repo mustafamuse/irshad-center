@@ -67,6 +67,7 @@ export function ClosuresManager({ initialClosures }: Props) {
       const result = await removeClosureAction({ date: dateStr })
       if (result?.serverError) {
         setError(result.serverError)
+        setPendingRemoval(null)
         return
       }
       setClosures((prev) => prev.filter((c) => c.id !== closure.id))

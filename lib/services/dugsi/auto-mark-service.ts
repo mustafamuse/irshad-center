@@ -62,7 +62,7 @@ export async function autoMarkLateForShift(
     return { shift, date, marked: 0, skippedReason: 'window_not_passed' }
   }
 
-  const dateObj = new Date(date)
+  const dateObj = new Date(`${date}T00:00:00Z`)
 
   // Wrap slot generation + updateMany in one transaction so:
   // - A concurrent self-checkin can't slip between the slot write and the auto-mark.

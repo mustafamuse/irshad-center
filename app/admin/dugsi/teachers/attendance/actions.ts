@@ -6,6 +6,7 @@ import { after } from 'next/server'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
+import { prisma } from '@/lib/db'
 import {
   getAttendanceConfig,
   getActiveDugsiTeacherShifts,
@@ -173,6 +174,15 @@ const _generateExpectedSlotsAction = adminActionClient
     let result
     try {
       const teacherShifts = await getActiveDugsiTeacherShifts()
+      const closure = await prisma.schoolClosure.findUnique({ where: { date: dateObj } })
+      if (closure) {
+        throw new ActionError(
+          `Cannot generate slots for ${parsedInput.date} — school is already marked closed`,
+          ERROR_CODES.CLOSURE_EXISTS,
+          undefined,
+          409
+        )
+      }
       result = await generateExpectedSlots(teacherShifts, dateObj)
     } catch (error) {
       await logError(logger, error, 'generateExpectedSlots', { date: parsedInput.date })
