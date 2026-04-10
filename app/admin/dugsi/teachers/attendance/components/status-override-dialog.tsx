@@ -14,10 +14,11 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { getAllowedTransitions } from '@/lib/utils/attendance-transitions'
 
 import { overrideAttendanceStatusAction } from '../actions'
-import { AttendanceStatusBadge, STATUS_CONFIG } from './status-badge'
+import { AttendanceStatusBadge } from './status-badge'
 
 interface Props {
   open: boolean
@@ -100,9 +101,9 @@ export function StatusOverrideDialog({
                     toStatus === s
                       ? 'ring-2 ring-ring ring-offset-1'
                       : 'hover:bg-accent'
-                  } ${STATUS_CONFIG[s].className}`}
+                  } ${ATTENDANCE_STATUS_CONFIG[s].className}`}
                 >
-                  {STATUS_CONFIG[s].label}
+                  {ATTENDANCE_STATUS_CONFIG[s].label}
                 </button>
               ))}
             </div>

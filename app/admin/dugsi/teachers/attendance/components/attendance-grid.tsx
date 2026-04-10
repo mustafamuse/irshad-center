@@ -6,6 +6,7 @@ import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { AttendanceRecordGridWithRelations } from '@/lib/db/queries/teacher-attendance'
+import { formatWeekendDate } from '@/lib/utils/format-date'
 import { cn } from '@/lib/utils'
 
 import { StatusOverrideDialog } from './status-override-dialog'
@@ -55,13 +56,6 @@ export function AttendanceGrid({ records, weekendDates, closureDates }: Props) {
     return { recordMap, teachers }
   }, [records])
 
-  function formatDateHeader(dateStr: string) {
-    const d = new Date(`${dateStr}T12:00:00Z`)
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`
-  }
-
   return (
     <>
       <div className="overflow-x-auto rounded-lg border">
@@ -85,7 +79,7 @@ export function AttendanceGrid({ records, weekendDates, closureDates }: Props) {
                     colSpan={2}
                     title={isClosed ? 'School closed' : undefined}
                   >
-                    {formatDateHeader(date)}
+                    {formatWeekendDate(date)}
                   </th>
                 )
               })}

@@ -104,33 +104,19 @@ export async function clockIn(
 
   // Atomically write both the fact-log row and the attendance record
   const doWrites = async (tx: DatabaseClient) => {
-    const checkInRecord = await tx.dugsiTeacherCheckIn
-      .create({
-        data: {
-          teacherId,
-          date: dateOnly,
-          shift,
-          clockInTime: now,
-          clockInLat: latitude,
-          clockInLng: longitude,
-          clockInValid,
-          isLate,
-        },
-        include: teacherCheckinInclude,
-      })
-      .catch((error) => {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          throw new ValidationError(
-            'Teacher has already checked in for this shift today',
-            CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
-            { teacherId, shift, date: dateOnly.toISOString() }
-          )
-        }
-        throw error
-      })
+    const checkInRecord = await tx.dugsiTeacherCheckIn.create({
+      data: {
+        teacherId,
+        date: dateOnly,
+        shift,
+        clockInTime: now,
+        clockInLat: latitude,
+        clockInLng: longitude,
+        clockInValid,
+        isLate,
+      },
+      include: teacherCheckinInclude,
+    })
 
     // Validate transition and write attendance record with optimistic lock — mirrors adminCheckIn.
     const existingAttendanceRecord = await tx.teacherAttendanceRecord.findUnique({

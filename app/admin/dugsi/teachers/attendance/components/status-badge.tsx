@@ -4,8 +4,6 @@ import { Badge } from '@/components/ui/badge'
 import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { cn } from '@/lib/utils'
 
-const STATUS_CONFIG = ATTENDANCE_STATUS_CONFIG
-
 interface Props {
   status: TeacherAttendanceStatus
   minutesLate?: number | null
@@ -13,7 +11,7 @@ interface Props {
 }
 
 export function AttendanceStatusBadge({ status, minutesLate, className }: Props) {
-  const config = STATUS_CONFIG[status]
+  const config = ATTENDANCE_STATUS_CONFIG[status]
   const label =
     status === 'LATE' && minutesLate
       ? `Late +${minutesLate}m`
@@ -28,5 +26,3 @@ export function AttendanceStatusBadge({ status, minutesLate, className }: Props)
     </Badge>
   )
 }
-
-export { STATUS_CONFIG }

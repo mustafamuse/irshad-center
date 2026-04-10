@@ -14,6 +14,7 @@ import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { cn } from '@/lib/utils'
 
 import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
+import { formatWeekendDate } from '@/lib/utils/format-date'
 
 import {
   type AttendanceHistoryItem,
@@ -21,13 +22,6 @@ import {
   getTeacherAttendanceHistory,
 } from '../actions'
 import { ExcuseForm } from './excuse-form'
-
-function formatDateLabel(dateStr: string) {
-  const d = new Date(`${dateStr}T12:00:00Z`)
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  return `${days[d.getDay()]} ${months[d.getMonth()]} ${d.getDate()}`
-}
 
 interface Props {
   teacherId: string | null
@@ -139,7 +133,7 @@ export function CheckinHistory({ teacherId }: Props) {
                     <div key={item.id} className="px-4 py-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium">{formatDateLabel(item.date)}</p>
+                          <p className="text-sm font-medium">{formatWeekendDate(item.date)}</p>
                           <p className="text-xs text-muted-foreground">
                             {item.shift === 'MORNING' ? 'Morning' : 'Afternoon'}
                             {item.clockInTime && (
