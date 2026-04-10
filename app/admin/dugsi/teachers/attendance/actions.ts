@@ -13,7 +13,6 @@ import {
   listSchoolClosures,
   getTeacherAttendanceSummary,
 } from '@/lib/db/queries/teacher-attendance'
-import { getTeacherShifts } from '@/lib/db/queries/teacher-checkin'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'

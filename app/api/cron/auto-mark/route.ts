@@ -33,8 +33,9 @@ export async function GET() {
   const now = new Date()
   const todayStr = formatInTimeZone(now, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
 
-  // Only run on weekends (school runs Sat + Sun only)
-  const dayOfWeek = new Date(`${todayStr}T12:00:00`).getDay()
+  // Only run on weekends (school runs Sat + Sun only).
+  // Use T12:00:00Z + getUTCDay() to avoid local-timezone ambiguity on the server.
+  const dayOfWeek = new Date(`${todayStr}T12:00:00Z`).getUTCDay()
   if (dayOfWeek !== 0 && dayOfWeek !== 6) {
     return NextResponse.json({ skipped: 'not_a_school_day' })
   }

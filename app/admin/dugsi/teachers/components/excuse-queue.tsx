@@ -7,6 +7,7 @@ import { formatInTimeZone } from 'date-fns-tz'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { ExcuseRequestWithRelations } from '@/lib/db/queries/teacher-attendance'
 
 import { approveExcuseAction, rejectExcuseAction } from '../attendance/actions'
@@ -20,18 +21,29 @@ export function ExcuseQueue({ initialRequests }: Props) {
   const [isPending, startTransition] = useTransition()
   const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
+  const [error, setError] = useState<string | null>(null)
 
   function handleApprove(id: string) {
+    setError(null)
     startTransition(async () => {
-      await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      if (result?.serverError) {
+        setError(result.serverError)
+        return
+      }
       setRequests((prev) => prev.filter((r) => r.id !== id))
       router.refresh()
     })
   }
 
   function handleReject(id: string) {
+    setError(null)
     startTransition(async () => {
-      await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      if (result?.serverError) {
+        setError(result.serverError)
+        return
+      }
       setRequests((prev) => prev.filter((r) => r.id !== id))
       router.refresh()
     })
@@ -42,6 +54,8 @@ export function ExcuseQueue({ initialRequests }: Props) {
 
   return (
     <div className="space-y-4">
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
       {requests.map((req) => {
         const record = req.attendanceRecord
         const teacherName = record.teacher.person.name
@@ -59,7 +73,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                {formatInTimeZone(req.createdAt, 'America/Chicago', 'MMM d, h:mm a')}
+                {formatInTimeZone(req.createdAt, SCHOOL_TIMEZONE, 'MMM d, h:mm a')}
               </p>
             </div>
 

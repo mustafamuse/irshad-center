@@ -25,7 +25,7 @@ export async function submitExcuse(
 
   const record = await getAttendanceRecordById(attendanceRecordId, client)
   if (!record) {
-    throw new Error(`Attendance record not found: ${attendanceRecordId}`)
+    throw new Error('Attendance record not found')
   }
 
   if (record.teacherId !== teacherId) {

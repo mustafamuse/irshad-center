@@ -46,8 +46,13 @@ export function ClosuresManager({ initialClosures }: Props) {
 
   function handleRemove(closureDate: Date) {
     const dateStr = formatInTimeZone(closureDate, 'UTC', 'yyyy-MM-dd')
+    setError(null)
     startTransition(async () => {
-      await removeClosureAction({ date: dateStr })
+      const result = await removeClosureAction({ date: dateStr })
+      if (result?.serverError) {
+        setError(result.serverError)
+        return
+      }
       router.refresh()
     })
   }

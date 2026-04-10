@@ -1,6 +1,12 @@
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { z } from 'zod'
 
+// Validates format AND semantic correctness (e.g. rejects 2026-13-99)
+const dateString = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD')
+  .refine((d) => !isNaN(new Date(d).getTime()), 'Invalid date')
+
 export const OverrideAttendanceStatusSchema = z.object({
   recordId: z.string().uuid(),
   toStatus: z.nativeEnum(TeacherAttendanceStatus),
@@ -10,16 +16,16 @@ export const OverrideAttendanceStatusSchema = z.object({
 export const AdminCheckInSchema = z.object({
   teacherId: z.string().uuid(),
   shift: z.nativeEnum(Shift),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
+  date: dateString,
 })
 
 export const MarkDateClosedSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
+  date: dateString,
   reason: z.string().min(3).max(500),
 })
 
 export const RemoveClosureSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
+  date: dateString,
 })
 
 export const UpdateAttendanceConfigSchema = z.object({
@@ -28,7 +34,7 @@ export const UpdateAttendanceConfigSchema = z.object({
 })
 
 export const GenerateExpectedSlotsSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected YYYY-MM-DD'),
+  date: dateString,
 })
 
 // teacherId is required because the teacher app has no auth — teachers identify via dropdown
