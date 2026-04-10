@@ -6,7 +6,7 @@
  * All functions accept an optional DatabaseClient to participate in transactions.
  */
 
-import { Prisma, Shift, TeacherAttendanceStatus } from '@prisma/client'
+import { Prisma, Program, Shift, TeacherAttendanceStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
@@ -292,7 +292,7 @@ export async function getActiveDugsiTeacherShifts(
   client: DatabaseClient = prisma
 ): Promise<TeacherShift[]> {
   const rows = await client.teacherProgram.findMany({
-    where: { program: 'DUGSI_PROGRAM', isActive: true },
+    where: { program: Program.DUGSI_PROGRAM, isActive: true },
     select: { teacherId: true, shifts: true },
   })
   return rows

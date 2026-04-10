@@ -46,8 +46,8 @@ export async function generateExpectedSlots(
       teacherId,
       date,
       shift,
-      status: 'EXPECTED' as const,
-      source: 'SYSTEM' as const,
+      status: TeacherAttendanceStatus.EXPECTED,
+      source: AttendanceSource.SYSTEM,
     }))
   )
 
@@ -210,8 +210,8 @@ export async function adminCheckIn(
     })
 
     const recordData = {
-      status: 'PRESENT' as const,
-      source: 'ADMIN_OVERRIDE' as const,
+      status: TeacherAttendanceStatus.PRESENT,
+      source: AttendanceSource.ADMIN_OVERRIDE,
       checkInId: checkIn.id,
       clockInTime: checkIn.clockInTime,
       minutesLate: null,

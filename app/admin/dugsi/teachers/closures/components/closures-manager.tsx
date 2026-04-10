@@ -82,6 +82,7 @@ export function ClosuresManager({ initialClosures }: Props) {
       }
       setClosures((prev) => prev.filter((c) => c.id !== closure.id))
       setPendingRemoval(null)
+      router.refresh()
     })
   }
 

@@ -54,6 +54,9 @@ export async function markDateClosed(
     // Must run BEFORE the attendance updateMany below so the attendanceRecord.status filter
     // still matches LATE. Without this, CLOSED → EXCUSED (invalid transition) would leave
     // the excuse permanently un-actionable in the admin queue.
+    // Filter is intentionally narrow (source: AUTO_MARKED) — SELF_CHECKIN LATE records
+    // are NOT flipped to CLOSED below, so their excuses remain actionable (LATE → EXCUSED
+    // is still valid). Only AUTO_MARKED records become CLOSED and need excuse cleanup.
     await tx.excuseRequest.updateMany({
       where: {
         status: { in: ['PENDING', 'APPROVED'] },
@@ -67,6 +70,10 @@ export async function markDateClosed(
       },
     })
 
+    // INTENTIONAL bypass: AUTO_MARKED LATE → CLOSED is not in ALLOWED_TRANSITIONS
+    // because the override dialog must never close a teacher who physically showed up
+    // (SELF_CHECKIN LATE). This is the only code path that performs this transition;
+    // callers must use markDateClosed() rather than transitionStatus() for this case.
     const autoMarkResult = await tx.teacherAttendanceRecord.updateMany({
       where: { date, status: 'LATE', source: 'AUTO_MARKED' },
       data: { status: 'CLOSED', source: 'SYSTEM', changedBy: createdBy ?? null },
