@@ -102,7 +102,9 @@ export async function transitionStatus(
     data: {
       status: toStatus,
       source,
-      clockInTime: clockInTime ?? null,
+      // Only overwrite clockInTime when explicitly supplied — omitting it leaves the
+      // existing value intact (e.g. admin LATE→EXCUSED override keeps the clock-in time)
+      ...(clockInTime !== undefined ? { clockInTime } : {}),
       minutesLate: toStatus === 'LATE' ? (minutesLate ?? null) : null,
       notes: notes ?? null,
       changedBy: changedBy ?? null,

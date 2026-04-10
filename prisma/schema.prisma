@@ -748,11 +748,8 @@ model TeacherAttendanceRecord {
   excuses ExcuseRequest[]
 
   @@unique([teacherId, date, shift])
-  @@index([teacherId])
-  @@index([date])
-  @@index([status])
-  @@index([teacherId, date])
-  @@index([date, shift, status]) // covers auto-mark (date+shift+status=EXPECTED) and grid view (date range)
+  @@index([teacherId, date])           // covers single-column teacherId lookups as prefix
+  @@index([date, shift, status])       // covers auto-mark (date+shift+status=EXPECTED) and grid view (date range)
 }
 
 // Singleton config row for auto-mark behavior.
@@ -796,8 +793,7 @@ model ExcuseRequest {
   attendanceRecord TeacherAttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
   teacher          Teacher                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
 
-  @@index([teacherId])
   @@index([status])
   @@index([attendanceRecordId])
-  @@index([teacherId, status])
+  @@index([teacherId, status])  // covers single-column teacherId lookups as prefix
 }

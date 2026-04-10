@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,7 +17,6 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess }: Props) 
   const [isPending, startTransition] = useTransition()
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isValid = reason.trim().length >= 10
 
@@ -47,7 +46,7 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess }: Props) 
       <p className="text-xs font-medium text-muted-foreground">Request excuse</p>
 
       <Textarea
-        ref={textareaRef}
+        autoFocus
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         placeholder="Explain your absence (min 10 characters)..."

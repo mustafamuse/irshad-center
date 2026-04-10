@@ -54,21 +54,21 @@ const GRACE_DATES = new Set([
 function getWeekendDatesFrom(from: string): string[] {
   const today = new Date()
   const todayStr = formatInTimeZone(today, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
-  const end = new Date(`${todayStr}T12:00:00`)
-  const start = new Date(`${from}T12:00:00`)
+  const end = new Date(`${todayStr}T12:00:00Z`)
+  const start = new Date(`${from}T12:00:00Z`)
 
   const dates: string[] = []
   const cursor = new Date(start)
 
   while (cursor <= end) {
-    const day = cursor.getDay()
+    const day = cursor.getUTCDay()
     if (day === 0 || day === 6) {
-      const y = cursor.getFullYear()
-      const m = String(cursor.getMonth() + 1).padStart(2, '0')
-      const d = String(cursor.getDate()).padStart(2, '0')
+      const y = cursor.getUTCFullYear()
+      const m = String(cursor.getUTCMonth() + 1).padStart(2, '0')
+      const d = String(cursor.getUTCDate()).padStart(2, '0')
       dates.push(`${y}-${m}-${d}`)
     }
-    cursor.setDate(cursor.getDate() + 1)
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
   }
 
   return dates

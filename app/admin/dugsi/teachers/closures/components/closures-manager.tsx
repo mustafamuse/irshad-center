@@ -107,7 +107,11 @@ export function ClosuresManager({ initialClosures }: Props) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => handleRemove(c.date)}
+                  onClick={() => {
+                    const dateLabel = formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')
+                    if (!window.confirm(`Remove closure for ${dateLabel}? All CLOSED records for this date will revert to EXPECTED.`)) return
+                    handleRemove(c.date)
+                  }}
                   disabled={isPending}
                   aria-label={`Remove closure for ${formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')}`}
                 >
