@@ -15,6 +15,7 @@ import {
   SCHOOL_TIMEZONE,
 } from '@/lib/constants/teacher-checkin'
 import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
+import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import { prisma } from '@/lib/db'
 import {
   getCheckinById,
@@ -116,6 +117,16 @@ export async function clockIn(
       },
       include: teacherCheckinInclude,
     })
+
+    // Validate transition if a record already exists (e.g. CLOSED — school was closed
+    // but teacher showed up). Mirrors the guard in adminCheckIn.
+    const existingAttendanceRecord = await tx.teacherAttendanceRecord.findUnique({
+      where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
+      select: { status: true },
+    })
+    if (existingAttendanceRecord) {
+      assertValidTransition(existingAttendanceRecord.status, isLate ? 'LATE' : 'PRESENT')
+    }
 
     await tx.teacherAttendanceRecord.upsert({
       where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },

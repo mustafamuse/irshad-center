@@ -10,6 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { cn } from '@/lib/utils'
 
 import {
@@ -153,7 +154,7 @@ export function CheckinHistory({ teacherId }: Props) {
                           <p className="text-xs text-muted-foreground">
                             {item.shift === 'MORNING' ? 'Morning' : 'Afternoon'}
                             {item.clockInTime && (
-                              <> · clocked in {new Date(item.clockInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Chicago' })}</>
+                              <> · clocked in {new Date(item.clockInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: SCHOOL_TIMEZONE })}</>
                             )}
                           </p>
                         </div>

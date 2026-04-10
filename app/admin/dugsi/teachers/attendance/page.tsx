@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 function getRecentWeekendDates(weeksBack: number): string[] {
   const today = new Date()
   const todayStr = formatInTimeZone(today, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
-  const anchor = new Date(`${todayStr}T12:00:00`)
+  const anchor = new Date(`${todayStr}T12:00:00Z`)
   const dates: string[] = []
 
   const cursor = new Date(anchor)

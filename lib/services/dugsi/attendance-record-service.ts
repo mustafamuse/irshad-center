@@ -94,8 +94,11 @@ export async function transitionStatus(
 
   assertValidTransition(record.status, toStatus)
 
-  const updated = await client.teacherAttendanceRecord.update({
-    where: { id: recordId },
+  // Optimistic lock: include current status in WHERE so a concurrent override that
+  // already changed the status produces count=0 rather than silently overwriting
+  // a state we never validated against.
+  const result = await client.teacherAttendanceRecord.updateMany({
+    where: { id: recordId, status: record.status },
     data: {
       status: toStatus,
       source,
@@ -105,6 +108,15 @@ export async function transitionStatus(
       changedBy: changedBy ?? null,
     },
   })
+
+  if (result.count === 0) {
+    throw new ActionError(
+      'Record was modified concurrently — please refresh and try again',
+      ERROR_CODES.INVALID_TRANSITION,
+      undefined,
+      409
+    )
+  }
 
   logger.info(
     {
@@ -119,7 +131,7 @@ export async function transitionStatus(
     `Attendance status: ${record.status} → ${toStatus}`
   )
 
-  return updated
+  return record
 }
 
 // ============================================================================

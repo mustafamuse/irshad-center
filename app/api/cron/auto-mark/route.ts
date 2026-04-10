@@ -1,9 +1,12 @@
 /**
  * Auto-mark Cron Route
  *
- * Called by Vercel Cron every 15 minutes.
+ * Called by Vercel Cron once per day at 21:00 UTC on weekends (Sat + Sun).
+ * 21:00 UTC = 3 PM CST / 4 PM CDT — after both shift thresholds have passed.
  * Marks EXPECTED attendance records as LATE once the window has passed.
- * Safe to call multiple times — service is idempotent.
+ * Safe to call multiple times — service is idempotent (skips if window not yet passed).
+ *
+ * Note: Vercel hobby plan only supports daily cron jobs (once per day max).
  *
  * Auth: Vercel validates CRON_SECRET automatically in production.
  * In development, set CRON_SECRET env var and pass: Authorization: Bearer <secret>

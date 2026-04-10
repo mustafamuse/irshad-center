@@ -18,15 +18,19 @@ interface Props {
 
 export function ExcuseQueue({ initialRequests }: Props) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
   const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  // Per-request pending state so only the clicked row is disabled, not the whole list
+  const [pendingId, setPendingId] = useState<string | null>(null)
 
   function handleApprove(id: string) {
     setError(null)
+    setPendingId(id)
     startTransition(async () => {
       const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      setPendingId(null)
       if (result?.serverError) {
         setError(result.serverError)
         return
@@ -38,8 +42,10 @@ export function ExcuseQueue({ initialRequests }: Props) {
 
   function handleReject(id: string) {
     setError(null)
+    setPendingId(id)
     startTransition(async () => {
       const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] })
+      setPendingId(null)
       if (result?.serverError) {
         setError(result.serverError)
         return
@@ -95,7 +101,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
               <Button
                 size="sm"
                 onClick={() => handleApprove(req.id)}
-                disabled={isPending}
+                disabled={pendingId === req.id}
               >
                 Approve
               </Button>
@@ -103,7 +109,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
                 size="sm"
                 variant="outline"
                 onClick={() => handleReject(req.id)}
-                disabled={isPending}
+                disabled={pendingId === req.id}
               >
                 Reject
               </Button>

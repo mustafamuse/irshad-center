@@ -84,6 +84,14 @@ function pad(s: string | number, len: number) {
 async function main() {
   const isDryRun = !process.argv.includes('--commit')
 
+  // Guard: fail fast if the UUID placeholder hasn't been replaced before a real commit run.
+  if (!isDryRun && SKIP_TEACHER_ID.startsWith('TODO_')) {
+    console.error('ERROR: SKIP_TEACHER_ID is still a placeholder. Replace it with the real UUID before committing.')
+    console.error('Run this query to find it:')
+    console.error('  SELECT t.id FROM "Teacher" t JOIN "Person" p ON p.id = t."personId" WHERE p.name = \'Hamza Hassan\';')
+    process.exit(1)
+  }
+
   console.log(`\n${'='.repeat(60)}`)
   console.log(`  DUGSI ATTENDANCE BACKFILL${isDryRun ? ' [DRY RUN]' : ' [COMMITTING]'}`)
   console.log(`${'='.repeat(60)}`)

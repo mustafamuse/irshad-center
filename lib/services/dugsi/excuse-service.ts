@@ -10,6 +10,7 @@ import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
+import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import {
   getAttendanceRecordById,
   getExcuseRequestById,
@@ -59,8 +60,10 @@ export async function submitExcuse(
     ? await client.$transaction(doWrites)
     : await doWrites(client)
 
+  // Log claimedTeacherId (not just teacherId) to make clear this is client-supplied
+  // and aids auditing if fraudulent submissions are suspected (no session auth).
   logger.info(
-    { event: 'EXCUSE_SUBMITTED', excuseRequestId: excuseRequest.id, teacherId, attendanceRecordId },
+    { event: 'EXCUSE_SUBMITTED', excuseRequestId: excuseRequest.id, claimedTeacherId: teacherId, attendanceRecordId },
     'Teacher submitted excuse request'
   )
 
@@ -84,6 +87,18 @@ export async function approveExcuse(
         ERROR_CODES.INVALID_TRANSITION
       )
     }
+
+    // Validate transition before writing: between excuse submission and admin approval
+    // the record status may have changed (e.g. admin override or removeClosure reverted
+    // CLOSED → EXPECTED). Fetch current status inside the transaction and assert.
+    const currentRecord = await tx.teacherAttendanceRecord.findUnique({
+      where: { id: excuseRequest.attendanceRecordId },
+      select: { status: true },
+    })
+    if (!currentRecord) {
+      throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND)
+    }
+    assertValidTransition(currentRecord.status, 'EXCUSED')
 
     const [updated] = await Promise.all([
       tx.excuseRequest.update({
