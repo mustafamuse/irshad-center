@@ -151,6 +151,7 @@ export async function getAttendanceRecords(
     where,
     include: attendanceRecordInclude,
     orderBy: [{ date: 'desc' }, { shift: 'asc' }],
+    take: 200,
   })
 }
 
@@ -273,6 +274,7 @@ export async function getPendingExcuseRequests(
     where: { status: 'PENDING' },
     include: excuseRequestInclude,
     orderBy: { createdAt: 'asc' },
+    take: 200,
   })
 }
 
