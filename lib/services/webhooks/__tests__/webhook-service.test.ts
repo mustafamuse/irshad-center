@@ -15,6 +15,7 @@ const {
   mockLinkSubscriptionToProfiles,
   mockCreateSubscriptionFromStripe,
   mockSentrycaptureMessage,
+  mockSentrycaptureException,
   mockCalculateDugsiRate,
   mockExtractCustomerId,
   mockLogError,
@@ -34,6 +35,7 @@ const {
   mockLinkSubscriptionToProfiles: vi.fn(),
   mockCreateSubscriptionFromStripe: vi.fn(),
   mockSentrycaptureMessage: vi.fn(),
+  mockSentrycaptureException: vi.fn(),
   mockCalculateDugsiRate: vi.fn(),
   mockExtractCustomerId: vi.fn(),
   mockLogError: vi.fn(),
@@ -82,6 +84,7 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@sentry/nextjs', () => ({
   startSpan: vi.fn((_opts: unknown, cb: () => unknown) => cb()),
   captureMessage: mockSentrycaptureMessage,
+  captureException: mockSentrycaptureException,
 }))
 
 vi.mock('@/lib/services/shared/billing-service', () => ({
@@ -396,6 +399,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
     expect(result.created).toBe(true)
     expect(mockCreateOrUpdateBillingAccount).toHaveBeenCalled()
     expect(mockLogError).toHaveBeenCalled()
+    expect(mockSentrycaptureException).toHaveBeenCalledOnce()
   })
 
   it('still succeeds when Stripe auth error occurs during metadata patch', async () => {
@@ -423,6 +427,7 @@ describe('handleSubscriptionCreated — Path 4 (Dugsi customer email fallback)',
       expect.anything(),
       expect.objectContaining({ level: 'error' })
     )
+    expect(mockSentrycaptureException).not.toHaveBeenCalled()
   })
 
   it('includes familyName in Stripe metadata patch', async () => {

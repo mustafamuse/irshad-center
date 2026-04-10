@@ -327,6 +327,9 @@ async function resolveDugsiFallbackFromCustomerEmail(
     throw buildNoPersonFoundError(customerId)
   }
 
+  // Unlike Paths 1-3 where createOrUpdateBillingAccount is called in the orchestrator,
+  // Path 4 writes it here inside the resolver. On a retry, the billing account exists
+  // so the orchestrator takes Path 1 instead — this is intentional and correct.
   const billingAccount = await createOrUpdateBillingAccount({
     personId: guardian.id,
     accountType: StripeAccountType.DUGSI,
@@ -556,6 +559,13 @@ async function patchRecoveredDugsiMetadata(
       return
     }
 
+    Sentry.captureException(metadataErr, {
+      extra: {
+        subscriptionId,
+        customerId,
+        guardianPersonId: recovery.guardianPersonId,
+      },
+    })
     await logError(
       logger,
       metadataErr,
@@ -782,6 +792,8 @@ export async function handleSubscriptionCreated(
   }
 
   if (accountType === StripeAccountType.DUGSI) {
+    // For Path 4 subscriptions this is a no-op: metadata is empty on first delivery.
+    // Path 4's own rate check runs inside resolveDugsiFallbackFromCustomerEmail.
     validateDugsiRateIfPresent(subscription)
   }
 

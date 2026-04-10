@@ -227,15 +227,6 @@ export async function createSubscriptionFromStripe(
     throw new Error('Invalid customer ID in subscription')
   }
 
-  // Extract price data
-  const priceData = stripeSubscription.items.data[0]?.price
-  const amount = priceData?.unit_amount || 0
-  const currency = stripeSubscription.currency || 'usd'
-  const interval = priceData?.recurring?.interval || 'month'
-
-  // Extract period dates
-  const periodDates = extractPeriodDates(stripeSubscription)
-
   // Idempotent: if the row already exists (webhook retry after partial failure),
   // return it rather than throwing P2002 on stripeSubscriptionId unique constraint.
   const existing = await getSubscriptionByStripeId(stripeSubscription.id)
@@ -252,6 +243,12 @@ export async function createSubscriptionFromStripe(
     }
     return existing
   }
+
+  const priceData = stripeSubscription.items.data[0]?.price
+  const amount = priceData?.unit_amount || 0
+  const currency = stripeSubscription.currency || 'usd'
+  const interval = priceData?.recurring?.interval || 'month'
+  const periodDates = extractPeriodDates(stripeSubscription)
 
   return await createSubscription({
     billingAccountId,

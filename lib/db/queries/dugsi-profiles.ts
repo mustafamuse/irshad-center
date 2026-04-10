@@ -85,7 +85,7 @@ export async function findBillableDugsiProfileIdsForGuardian(
     select: {
       guardianRelationships: {
         where: { isActive: true },
-        include: {
+        select: {
           dependent: {
             select: {
               programProfiles: {
