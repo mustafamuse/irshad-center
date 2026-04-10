@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react'
 
-import { useRouter } from 'next/navigation'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { Button } from '@/components/ui/button'
@@ -17,7 +16,6 @@ interface Props {
 }
 
 export function ExcuseQueue({ initialRequests }: Props) {
-  const router = useRouter()
   const [, startTransition] = useTransition()
   const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
   const [adminNotes, setAdminNotes] = useState<Record<string, string>>({})
@@ -36,7 +34,6 @@ export function ExcuseQueue({ initialRequests }: Props) {
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
-      router.refresh()
     })
   }
 
@@ -51,7 +48,6 @@ export function ExcuseQueue({ initialRequests }: Props) {
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
-      router.refresh()
     })
   }
 

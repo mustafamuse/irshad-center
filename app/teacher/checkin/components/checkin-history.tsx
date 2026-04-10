@@ -62,9 +62,9 @@ export function CheckinHistory({ teacherId }: Props) {
   }, [teacherId])
 
   // Unconditional fetch — used by both the initial load and post-excuse reload.
-  // Separated from loadHistory so handleExcuseSuccess doesn't rely on hasLoaded state
-  // (which is async and would still be true when the stale closure runs).
-  function fetchHistory(id: string) {
+  // Separated from loadHistory so handleExcuseSuccess doesn't rely on hasLoaded state.
+  // Empty deps: startTransition and state setters are stable across renders.
+  const fetchHistory = useCallback((id: string) => {
     startTransition(async () => {
       try {
         const result = await getTeacherAttendanceHistory(id)
@@ -77,13 +77,12 @@ export function CheckinHistory({ teacherId }: Props) {
       }
       setHasLoaded(true)
     })
-  }
+  }, [])
 
   const loadHistory = useCallback(() => {
     if (!teacherId || hasLoaded) return
     fetchHistory(teacherId)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [teacherId, hasLoaded])
+  }, [teacherId, hasLoaded, fetchHistory])
 
   function handleOpenChange(open: boolean) {
     setIsOpen(open)

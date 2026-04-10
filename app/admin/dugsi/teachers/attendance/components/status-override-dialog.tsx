@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react'
 
 import { TeacherAttendanceStatus } from '@prisma/client'
-import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -39,7 +38,6 @@ export function StatusOverrideDialog({
   shift,
   currentStatus,
 }: Props) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [toStatus, setToStatus] = useState<TeacherAttendanceStatus | null>(null)
   const [notes, setNotes] = useState('')
@@ -62,7 +60,6 @@ export function StatusOverrideDialog({
       onOpenChange(false)
       setToStatus(null)
       setNotes('')
-      router.refresh()
     })
   }
 

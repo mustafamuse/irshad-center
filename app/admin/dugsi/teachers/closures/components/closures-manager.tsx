@@ -4,8 +4,17 @@ import { useTransition, useState } from 'react'
 
 import { formatInTimeZone } from 'date-fns-tz'
 import { Trash2 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,11 +32,11 @@ interface Props {
 }
 
 export function ClosuresManager({ initialClosures }: Props) {
-  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [pendingRemoval, setPendingRemoval] = useState<Closure | null>(null)
 
   function handleAdd() {
     if (!date || !reason.trim()) return
@@ -40,12 +49,11 @@ export function ClosuresManager({ initialClosures }: Props) {
       }
       setDate('')
       setReason('')
-      router.refresh()
     })
   }
 
-  function handleRemove(closureDate: Date) {
-    const dateStr = formatInTimeZone(closureDate, 'UTC', 'yyyy-MM-dd')
+  function handleRemove(closure: Closure) {
+    const dateStr = formatInTimeZone(closure.date, 'UTC', 'yyyy-MM-dd')
     setError(null)
     startTransition(async () => {
       const result = await removeClosureAction({ date: dateStr })
@@ -53,7 +61,7 @@ export function ClosuresManager({ initialClosures }: Props) {
         setError(result.serverError)
         return
       }
-      router.refresh()
+      setPendingRemoval(null)
     })
   }
 
@@ -107,11 +115,7 @@ export function ClosuresManager({ initialClosures }: Props) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => {
-                    const dateLabel = formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')
-                    if (!window.confirm(`Remove closure for ${dateLabel}? All CLOSED records for this date will revert to EXPECTED.`)) return
-                    handleRemove(c.date)
-                  }}
+                  onClick={() => setPendingRemoval(c)}
                   disabled={isPending}
                   aria-label={`Remove closure for ${formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')}`}
                 >
@@ -122,6 +126,37 @@ export function ClosuresManager({ initialClosures }: Props) {
           </div>
         )}
       </div>
+
+      <AlertDialog
+        open={!!pendingRemoval}
+        onOpenChange={(open) => { if (!open) setPendingRemoval(null) }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove closure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingRemoval && (
+                <>
+                  Remove closure for{' '}
+                  <span className="font-medium">
+                    {formatInTimeZone(pendingRemoval.date, 'UTC', 'EEE MMM d, yyyy')}
+                  </span>
+                  ? All CLOSED records for this date will revert to EXPECTED.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => pendingRemoval && handleRemove(pendingRemoval)}
+              disabled={isPending}
+            >
+              {isPending ? 'Removing...' : 'Remove'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
