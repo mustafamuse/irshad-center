@@ -8,6 +8,7 @@
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import {
   getAttendanceRecordById,
@@ -23,27 +24,30 @@ export async function submitExcuse(
 ) {
   const { attendanceRecordId, teacherId, reason } = params
 
-  const record = await getAttendanceRecordById(attendanceRecordId, client)
-  if (!record) {
-    throw new Error('Attendance record not found')
-  }
-
-  if (record.teacherId !== teacherId) {
-    throw new Error('You can only submit excuses for your own attendance records')
-  }
-
-  if (record.status !== 'LATE' && record.status !== 'ABSENT') {
-    throw new Error(
-      `Cannot submit excuse for a record with status ${record.status}. Only LATE or ABSENT records are eligible.`
-    )
-  }
-
-  // Wrap check + create in a transaction: two concurrent submissions for the same
-  // record could both pass the duplicate check before either write commits.
+  // All reads and the write happen inside a single transaction so that:
+  // - The status check is atomic with the duplicate-excuse check.
+  // - An admin override can't change eligibility between check and insert.
+  // Note: the action layer (submitExcuseAction) already validates ownership
+  // before calling here, so we skip a redundant pre-flight ownership check.
   const doWrites = async (tx: DatabaseClient) => {
+    const record = await getAttendanceRecordById(attendanceRecordId, tx)
+    if (!record) {
+      throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND)
+    }
+
+    if (record.status !== 'LATE' && record.status !== 'ABSENT') {
+      throw new ActionError(
+        `Cannot submit excuse for a ${record.status} record — only LATE or ABSENT records are eligible`,
+        ERROR_CODES.EXCUSE_NOT_ELIGIBLE
+      )
+    }
+
     const existing = await getExistingActiveExcuse(attendanceRecordId, tx)
     if (existing) {
-      throw new Error('An excuse request is already pending or approved for this record')
+      throw new ActionError(
+        'An excuse request is already pending or approved for this record',
+        ERROR_CODES.ALREADY_EXCUSED
+      )
     }
 
     return tx.excuseRequest.create({
@@ -71,9 +75,14 @@ export async function approveExcuse(
 
   const doWrites = async (tx: DatabaseClient) => {
     const excuseRequest = await getExcuseRequestById(excuseRequestId, tx)
-    if (!excuseRequest) throw new Error(`Excuse request not found: ${excuseRequestId}`)
+    if (!excuseRequest) {
+      throw new ActionError('Excuse request not found', ERROR_CODES.EXCUSE_REQUEST_NOT_FOUND)
+    }
     if (excuseRequest.status !== 'PENDING') {
-      throw new Error(`Excuse request is already ${excuseRequest.status}`)
+      throw new ActionError(
+        `Excuse request is already ${excuseRequest.status}`,
+        ERROR_CODES.INVALID_TRANSITION
+      )
     }
 
     const [updated] = await Promise.all([
@@ -104,13 +113,17 @@ export async function rejectExcuse(
 ) {
   const { excuseRequestId, adminNote, reviewedBy } = params
 
-  // Wrap in transaction for the same reason as approveExcuse: prevent
-  // two concurrent admin actions both passing the PENDING check.
+  // Wrap in transaction: prevent two concurrent admin actions both passing the PENDING check.
   const doWrites = async (tx: DatabaseClient) => {
     const excuseRequest = await getExcuseRequestById(excuseRequestId, tx)
-    if (!excuseRequest) throw new Error(`Excuse request not found: ${excuseRequestId}`)
+    if (!excuseRequest) {
+      throw new ActionError('Excuse request not found', ERROR_CODES.EXCUSE_REQUEST_NOT_FOUND)
+    }
     if (excuseRequest.status !== 'PENDING') {
-      throw new Error(`Excuse request is already ${excuseRequest.status}`)
+      throw new ActionError(
+        `Excuse request is already ${excuseRequest.status}`,
+        ERROR_CODES.INVALID_TRANSITION
+      )
     }
 
     const updated = await tx.excuseRequest.update({

@@ -28,7 +28,9 @@ import { prisma } from '@/lib/db'
 // ============================================================================
 
 const BACKFILL_FROM = '2026-01-17'
-const SKIP_TEACHER_NAME = 'Hamza Hassan' // excluded — will start fresh
+// Excluded teacher — will start fresh. Fill in the actual UUID before running.
+// Find it with: SELECT t.id FROM "Teacher" t JOIN "Person" p ON p.id = t."personId" WHERE p.name = 'Hamza Hassan';
+const SKIP_TEACHER_ID = 'TODO_REPLACE_WITH_HAMZA_HASSAN_TEACHER_UUID'
 
 // Dates to mark as CLOSED (school was closed)
 const CLOSURE_DATES = new Set([
@@ -85,7 +87,7 @@ async function main() {
   console.log(`\n${'='.repeat(60)}`)
   console.log(`  DUGSI ATTENDANCE BACKFILL${isDryRun ? ' [DRY RUN]' : ' [COMMITTING]'}`)
   console.log(`${'='.repeat(60)}`)
-  console.log(`From: ${BACKFILL_FROM}  |  Skip: ${SKIP_TEACHER_NAME}`)
+  console.log(`From: ${BACKFILL_FROM}  |  Skip teacher ID: ${SKIP_TEACHER_ID}`)
   console.log()
 
   // Load active teachers
@@ -96,7 +98,7 @@ async function main() {
 
   const teachers = teacherPrograms
     .filter((tp) => tp.shifts.length > 0)
-    .filter((tp) => tp.teacher.person.name !== SKIP_TEACHER_NAME)
+    .filter((tp) => tp.teacherId !== SKIP_TEACHER_ID)
     .map((tp) => ({
       id: tp.teacherId,
       name: tp.teacher.person.name,

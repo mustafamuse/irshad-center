@@ -53,15 +53,7 @@ export async function autoMarkLateForShift(
     return { shift, date, marked: 0, skippedReason: 'window_not_passed' }
   }
 
-  // Guard: skip if the school is closed on this date.
-  // markDateClosed only flips existing EXPECTED rows; if the cron runs first, it would
-  // generate EXPECTED slots and incorrectly mark them LATE on a closed day.
   const dateObj = new Date(date)
-  const closure = await client.schoolClosure.findUnique({ where: { date: dateObj } })
-  if (closure) {
-    logger.debug({ shift, date, reason: closure.reason }, 'School closed — skipping auto-mark')
-    return { shift, date, marked: 0, skippedReason: 'school_closed' }
-  }
   const activeTeachers = await client.teacherProgram.findMany({
     where: { program: 'DUGSI_PROGRAM', isActive: true },
     select: { teacherId: true, shifts: true },
@@ -71,10 +63,18 @@ export async function autoMarkLateForShift(
     .filter((tp) => tp.shifts.includes(shift))
     .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] }))
 
-  // Wrap slot generation + updateMany in one transaction so a concurrent self-checkin
-  // can't slip in between the two writes and get immediately auto-marked LATE.
+  // Wrap slot generation + updateMany in one transaction so:
+  // - A concurrent self-checkin can't slip between the slot write and the auto-mark.
+  // - A concurrent markDateClosed can't create a closure between the guard and the updateMany.
   // Use isPrismaClient so the injected client is honoured (testability + correctness).
   const doWrites = async (tx: DatabaseClient) => {
+    // Guard inside the transaction: a concurrent markDateClosed could create a closure
+    // between an outer check and this updateMany, so we re-check here at commit time.
+    const closure = await tx.schoolClosure.findUnique({ where: { date: dateObj } })
+    if (closure) {
+      return -1 // sentinel: school closed
+    }
+
     if (teachersForShift.length > 0) {
       await generateExpectedSlots(teachersForShift, dateObj, tx)
     }
@@ -87,9 +87,16 @@ export async function autoMarkLateForShift(
     return result.count
   }
 
-  const marked = isPrismaClient(client)
+  const count = isPrismaClient(client)
     ? await client.$transaction(doWrites)
     : await doWrites(client)
+
+  if (count === -1) {
+    logger.debug({ shift, date }, 'School closed — skipping auto-mark (checked in-tx)')
+    return { shift, date, marked: 0, skippedReason: 'school_closed' }
+  }
+
+  const marked = count
 
   if (marked === 0) {
     return { shift, date, marked: 0, skippedReason: 'no_expected_records' }
