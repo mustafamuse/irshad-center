@@ -20,7 +20,6 @@ import {
 import {
   getTeacherAttendanceSummary,
   getMonthlyExcuseCount,
-  getAttendanceRecordStatus,
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -296,22 +295,15 @@ const _submitExcuseAction = rateLimitedActionClient
     // The teacher app has no session; teachers identify only by UI selection.
     // Concrete risk: Teacher A selects Teacher B in the dropdown, copies
     // attendanceRecordId from the DOM, and submits an excuse for Teacher B's record.
-    // The teacherId cross-check below only proves the two supplied values are
-    // self-consistent — both are unauthenticated HTML values from the same page.
+    // submitExcuse validates (attendanceRecordId, teacherId) self-consistency inside
+    // its transaction, but both values are unauthenticated HTML values from the same
+    // page — this only proves self-consistency, not true identity.
     // This feature MUST NOT ship to production until #225 is resolved.
     // Full fix (tracked in #225):
     //   - Sign (attendanceRecordId, teacherId, action, exp) with EXCUSE_TOKEN_SECRET on page render
     //     (include the action type so the token can't be replayed against a different endpoint)
     //   - 30-min TTL; add token field to SubmitExcuseSchema; verify before DB lookup
     // Do NOT remove this comment block until #225 is closed.
-    const record = await getAttendanceRecordStatus(attendanceRecordId)
-    if (!record) {
-      throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
-    }
-    if (record.teacherId !== teacherId) {
-      throw new ActionError('Attendance record does not belong to this teacher', ERROR_CODES.EXCUSE_NOT_ELIGIBLE, undefined, 403)
-    }
-
     const excuse = await submitExcuse({ attendanceRecordId, teacherId, reason })
 
     after(() => revalidatePath('/teacher/checkin'))

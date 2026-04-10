@@ -12,7 +12,7 @@ import {
   updateAttendanceConfig,
 } from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
 import {
   transitionStatus,
@@ -59,15 +59,18 @@ const _overrideAttendanceStatusAction = adminActionClient
   .schema(OverrideAttendanceStatusSchema)
   .action(async ({ parsedInput }) => {
     const { recordId, toStatus, notes } = parsedInput
-
-    await transitionStatus({
-      recordId,
-      toStatus,
-      source: 'ADMIN_OVERRIDE',
-      notes,
-      changedBy: ADMIN_IDENTITY,
-    })
-
+    try {
+      await transitionStatus({
+        recordId,
+        toStatus,
+        source: 'ADMIN_OVERRIDE',
+        notes,
+        changedBy: ADMIN_IDENTITY,
+      })
+    } catch (error) {
+      await logError(logger, error, 'overrideAttendanceStatus', { recordId, toStatus })
+      throw error
+    }
     after(revalidateAll)
     return { success: true }
   })
@@ -84,9 +87,12 @@ const _adminCheckInAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { teacherId, shift, date } = parsedInput
     const dateObj = new Date(date)
-
-    await adminCheckIn({ teacherId, shift, date: dateObj, changedBy: ADMIN_IDENTITY })
-
+    try {
+      await adminCheckIn({ teacherId, shift, date: dateObj, changedBy: ADMIN_IDENTITY })
+    } catch (error) {
+      await logError(logger, error, 'adminCheckIn', { teacherId, shift, date })
+      throw error
+    }
     after(revalidateAll)
     return { success: true }
   })
@@ -103,9 +109,13 @@ const _markDateClosedAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { date, reason } = parsedInput
     const dateObj = new Date(date)
-
-    const result = await markDateClosed({ date: dateObj, reason, createdBy: ADMIN_IDENTITY })
-
+    let result
+    try {
+      result = await markDateClosed({ date: dateObj, reason, createdBy: ADMIN_IDENTITY })
+    } catch (error) {
+      await logError(logger, error, 'markDateClosed', { date })
+      throw error
+    }
     after(revalidateAll)
     return { closedCount: result.closedCount }
   })
@@ -173,8 +183,12 @@ const _approveExcuseAction = adminActionClient
   .schema(ReviewExcuseSchema)
   .action(async ({ parsedInput }) => {
     const { excuseRequestId, adminNote } = parsedInput
-    await approveExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
-
+    try {
+      await approveExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
+    } catch (error) {
+      await logError(logger, error, 'approveExcuse', { excuseRequestId })
+      throw error
+    }
     after(revalidateAll)
     return { success: true }
   })
@@ -190,8 +204,12 @@ const _rejectExcuseAction = adminActionClient
   .schema(ReviewExcuseSchema)
   .action(async ({ parsedInput }) => {
     const { excuseRequestId, adminNote } = parsedInput
-    await rejectExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
-
+    try {
+      await rejectExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
+    } catch (error) {
+      await logError(logger, error, 'rejectExcuse', { excuseRequestId })
+      throw error
+    }
     after(revalidateAll)
     return { success: true }
   })

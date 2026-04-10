@@ -1,0 +1,178 @@
+/**
+ * School Closure Service Tests
+ *
+ * Covers:
+ * - markDateClosed: EXPECTED → CLOSED propagation, AUTO_MARKED LATE → CLOSED bypass,
+ *   duplicate closure guard, combined closedCount
+ * - removeClosure: CLOSED → EXPECTED revert, missing closure guard
+ */
+
+import { vi, describe, it, expect, beforeEach } from 'vitest'
+
+const {
+  mockGetSchoolClosure,
+  mockCreateClosure,
+  mockDeleteClosure,
+  mockUpdateMany,
+  mockBulkTransitionStatus,
+  mockBulkReopenDate,
+  mockTransaction,
+} = vi.hoisted(() => ({
+  mockGetSchoolClosure: vi.fn(),
+  mockCreateClosure: vi.fn(),
+  mockDeleteClosure: vi.fn(),
+  mockUpdateMany: vi.fn(),
+  mockBulkTransitionStatus: vi.fn(),
+  mockBulkReopenDate: vi.fn(),
+  mockTransaction: vi.fn(),
+}))
+
+function makeTx() {
+  return {
+    schoolClosure: {
+      create: (...args: unknown[]) => mockCreateClosure(...args),
+      delete: (...args: unknown[]) => mockDeleteClosure(...args),
+    },
+    teacherAttendanceRecord: {
+      updateMany: (...args: unknown[]) => mockUpdateMany(...args),
+    },
+  }
+}
+
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
+  },
+}))
+
+vi.mock('@/lib/db/queries/teacher-attendance', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/db/queries/teacher-attendance')>()
+  return {
+    ...actual,
+    getSchoolClosure: (...args: unknown[]) => mockGetSchoolClosure(...args),
+  }
+})
+
+vi.mock('../attendance-record-service', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../attendance-record-service')>()
+  return {
+    ...actual,
+    bulkTransitionStatus: (...args: unknown[]) => mockBulkTransitionStatus(...args),
+    bulkReopenDate: (...args: unknown[]) => mockBulkReopenDate(...args),
+  }
+})
+
+vi.mock('@/lib/logger', () => ({
+  createServiceLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+  }),
+}))
+
+import { markDateClosed, removeClosure } from '../school-closure-service'
+
+const TEST_DATE = new Date('2026-02-07T12:00:00Z')
+const FAKE_CLOSURE = { id: 'cl-1', date: TEST_DATE, reason: 'Snow day' }
+
+describe('markDateClosed', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+    mockGetSchoolClosure.mockResolvedValue(null)
+    mockCreateClosure.mockResolvedValue(FAKE_CLOSURE)
+    mockBulkTransitionStatus.mockResolvedValue(0)
+    mockUpdateMany.mockResolvedValue({ count: 0 })
+  })
+
+  it('flips EXPECTED records to CLOSED and returns closedCount', async () => {
+    mockBulkTransitionStatus.mockResolvedValue(3)
+
+    const result = await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+
+    expect(result.closedCount).toBe(3)
+    expect(mockBulkTransitionStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ date: TEST_DATE, status: 'EXPECTED' }),
+        toStatus: 'CLOSED',
+        source: 'SYSTEM',
+      }),
+      expect.anything() // tx
+    )
+  })
+
+  it('also closes AUTO_MARKED LATE records when cron fired before admin marked closed', async () => {
+    // Scenario: 21:00 UTC cron ran first, marking 2 teachers as AUTO_MARKED LATE.
+    // Admin then creates a closure — those 2 records should flip to CLOSED too.
+    mockBulkTransitionStatus.mockResolvedValue(1) // 1 EXPECTED → CLOSED
+    mockUpdateMany.mockResolvedValue({ count: 2 }) // 2 AUTO_MARKED LATE → CLOSED
+
+    const result = await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+
+    expect(result.closedCount).toBe(3) // 1 + 2
+    // LATE → CLOSED is intentionally excluded from ALLOWED_TRANSITIONS (override dialog
+    // should never close a teacher who showed up via self-checkin). This updateMany
+    // bypass only targets source=AUTO_MARKED records — teachers who never arrived.
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { date: TEST_DATE, status: 'LATE', source: 'AUTO_MARKED' },
+      data: expect.objectContaining({ status: 'CLOSED', source: 'SYSTEM' }),
+    })
+  })
+
+  it('includes changedBy in both sweeps for audit trail', async () => {
+    mockBulkTransitionStatus.mockResolvedValue(1)
+    mockUpdateMany.mockResolvedValue({ count: 1 })
+
+    await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+
+    expect(mockBulkTransitionStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ changedBy: 'admin' }),
+      expect.anything()
+    )
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ changedBy: 'admin' }),
+      })
+    )
+  })
+
+  it('throws CLOSURE_EXISTS when date is already closed', async () => {
+    mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
+
+    await expect(
+      markDateClosed({ date: TEST_DATE, reason: 'Duplicate', createdBy: 'admin' })
+    ).rejects.toMatchObject({ code: 'CLOSURE_EXISTS' })
+    expect(mockCreateClosure).not.toHaveBeenCalled()
+  })
+})
+
+describe('removeClosure', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+    mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
+    mockDeleteClosure.mockResolvedValue(undefined)
+    mockBulkReopenDate.mockResolvedValue(0)
+  })
+
+  it('reverts CLOSED records to EXPECTED and returns reopenedCount', async () => {
+    mockBulkReopenDate.mockResolvedValue(4)
+
+    const result = await removeClosure({ date: TEST_DATE })
+
+    expect(result.reopenedCount).toBe(4)
+    expect(mockDeleteClosure).toHaveBeenCalledWith({ where: { date: TEST_DATE } })
+    expect(mockBulkReopenDate).toHaveBeenCalledWith(
+      expect.objectContaining({ date: TEST_DATE, source: 'SYSTEM' }),
+      expect.anything()
+    )
+  })
+
+  it('throws NOT_FOUND when no closure exists for the date', async () => {
+    mockGetSchoolClosure.mockResolvedValue(null)
+
+    await expect(removeClosure({ date: TEST_DATE })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(mockDeleteClosure).not.toHaveBeenCalled()
+  })
+})

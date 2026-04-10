@@ -107,44 +107,47 @@ export function AttendanceGrid({ records, weekendDates, closureDates }: Props) {
                 <td className={cn('sticky left-0 px-3 py-2 font-medium', idx % 2 === 0 ? 'bg-white' : 'bg-muted/20')}>
                   {teacher.name}
                 </td>
-                {weekendDates.map((date) =>
-                  (['MORNING', 'AFTERNOON'] as Shift[]).map((shift) => {
-                    const key: CellKey = `${teacher.id}|${date}|${shift}`
-                    const record = recordMap.get(key)
+                {weekendDates.map((date) => (
+                  <Fragment key={date}>
+                    {(['MORNING', 'AFTERNOON'] as Shift[]).map((shift) => {
+                      const key: CellKey = `${teacher.id}|${date}|${shift}`
+                      const record = recordMap.get(key)
 
-                    if (!record) {
+                      if (!record) {
+                        return (
+                          <td key={key} className="px-1 py-2 text-center">
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          </td>
+                        )
+                      }
+
                       return (
                         <td key={key} className="px-1 py-2 text-center">
-                          <span className="text-xs text-muted-foreground/40">—</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setOverrideCell({
+                                recordId: record.id,
+                                teacherName: teacher.name,
+                                date,
+                                shift,
+                                currentStatus: record.status,
+                              })
+                            }
+                            className="transition-opacity hover:opacity-70"
+                            title="Click to override"
+                          >
+                            <AttendanceStatusBadge
+                              status={record.status}
+                              source={record.source}
+                              minutesLate={record.minutesLate}
+                            />
+                          </button>
                         </td>
                       )
-                    }
-
-                    return (
-                      <td key={key} className="px-1 py-2 text-center">
-                        <button
-                          onClick={() =>
-                            setOverrideCell({
-                              recordId: record.id,
-                              teacherName: teacher.name,
-                              date,
-                              shift,
-                              currentStatus: record.status,
-                            })
-                          }
-                          className="transition-opacity hover:opacity-70"
-                          title="Click to override"
-                        >
-                          <AttendanceStatusBadge
-                            status={record.status}
-                            source={record.source}
-                            minutesLate={record.minutesLate}
-                          />
-                        </button>
-                      </td>
-                    )
-                  })
-                )}
+                    })}
+                  </Fragment>
+                ))}
               </tr>
             ))}
           </tbody>
