@@ -41,20 +41,25 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@/lib/db/queries/teacher-attendance', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/db/queries/teacher-attendance')>()
+  const actual =
+    await importOriginal<typeof import('@/lib/db/queries/teacher-attendance')>()
   return {
     ...actual,
     getAttendanceConfig: (...args: unknown[]) => mockGetConfig(...args),
-    getActiveDugsiTeacherShifts: (...args: unknown[]) => mockGetActiveTeachers(...args),
+    getActiveDugsiTeacherShifts: (...args: unknown[]) =>
+      mockGetActiveTeachers(...args),
   }
 })
 
 // generateExpectedSlots depends on createMany — mock the whole service import
 vi.mock('../attendance-record-service', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../attendance-record-service')>()
+  const actual =
+    await importOriginal<typeof import('../attendance-record-service')>()
   return {
     ...actual,
-    generateExpectedSlots: vi.fn().mockResolvedValue({ created: 0, skipped: 0 }),
+    generateExpectedSlots: vi
+      .fn()
+      .mockResolvedValue({ created: 0, skipped: 0 }),
   }
 })
 
@@ -82,27 +87,46 @@ describe('autoMarkLateForShift', () => {
     vi.clearAllMocks()
     mockGetConfig.mockResolvedValue(BASE_CONFIG)
     mockGetActiveTeachers.mockResolvedValue([])
-    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
   })
 
   it('skips when the auto-mark window has not yet passed', async () => {
     // Morning class starts 9:00 AM CT; threshold is 9:15 AM CT.
     // Use a date far in the future — `new Date()` will always be before the threshold.
-    const result = await autoMarkLateForShift('2099-06-07', 'MORNING', BASE_CONFIG)
+    const result = await autoMarkLateForShift(
+      '2099-06-07',
+      'MORNING',
+      BASE_CONFIG
+    )
 
-    expect(result.skippedReason).toBe('window_not_passed')
-    expect(result.marked).toBe(0)
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'window_not_passed',
+      marked: 0,
+    })
     expect(mockTransaction).not.toHaveBeenCalled()
   })
 
   it('skips when school is closed (closure detected inside transaction)', async () => {
     // Past date — window has definitely passed.
-    mockFindUniqueClosure.mockResolvedValue({ id: 'cl-1', date: new Date('2026-02-01') })
+    mockFindUniqueClosure.mockResolvedValue({
+      id: 'cl-1',
+      date: new Date('2026-02-01'),
+    })
 
-    const result = await autoMarkLateForShift('2026-02-01', 'MORNING', BASE_CONFIG)
+    const result = await autoMarkLateForShift(
+      '2026-02-01',
+      'MORNING',
+      BASE_CONFIG
+    )
 
-    expect(result.skippedReason).toBe('school_closed')
-    expect(result.marked).toBe(0)
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'school_closed',
+      marked: 0,
+    })
     expect(mockUpdateMany).not.toHaveBeenCalled()
   })
 
@@ -111,14 +135,24 @@ describe('autoMarkLateForShift', () => {
     mockGetActiveTeachers.mockResolvedValue([])
     mockUpdateMany.mockResolvedValue({ count: 3 })
 
-    const result = await autoMarkLateForShift('2026-02-07', 'MORNING', BASE_CONFIG)
+    const result = await autoMarkLateForShift(
+      '2026-02-07',
+      'MORNING',
+      BASE_CONFIG
+    )
 
-    expect(result.marked).toBe(3)
-    expect(result.skippedReason).toBeUndefined()
+    expect(result).toMatchObject({ kind: 'marked', marked: 3 })
     expect(mockUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: 'EXPECTED', shift: 'MORNING' }),
-        data: expect.objectContaining({ status: 'LATE', source: 'AUTO_MARKED', minutesLate: null }),
+        where: expect.objectContaining({
+          status: 'EXPECTED',
+          shift: 'MORNING',
+        }),
+        data: expect.objectContaining({
+          status: 'LATE',
+          source: 'AUTO_MARKED',
+          minutesLate: null,
+        }),
       })
     )
   })
@@ -128,9 +162,16 @@ describe('autoMarkLateForShift', () => {
     mockFindUniqueClosure.mockResolvedValue(null)
     mockUpdateMany.mockResolvedValue({ count: 0 })
 
-    const result = await autoMarkLateForShift('2026-02-07', 'MORNING', BASE_CONFIG)
+    const result = await autoMarkLateForShift(
+      '2026-02-07',
+      'MORNING',
+      BASE_CONFIG
+    )
 
-    expect(result.marked).toBe(0)
-    expect(result.skippedReason).toBe('no_expected_records')
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'no_expected_records',
+      marked: 0,
+    })
   })
 })

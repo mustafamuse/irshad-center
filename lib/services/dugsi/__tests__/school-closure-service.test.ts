@@ -49,7 +49,8 @@ vi.mock('@/lib/db', () => ({
 }))
 
 vi.mock('@/lib/db/queries/teacher-attendance', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/db/queries/teacher-attendance')>()
+  const actual =
+    await importOriginal<typeof import('@/lib/db/queries/teacher-attendance')>()
   return {
     ...actual,
     getSchoolClosure: (...args: unknown[]) => mockGetSchoolClosure(...args),
@@ -57,10 +58,12 @@ vi.mock('@/lib/db/queries/teacher-attendance', async (importOriginal) => {
 })
 
 vi.mock('../attendance-record-service', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../attendance-record-service')>()
+  const actual =
+    await importOriginal<typeof import('../attendance-record-service')>()
   return {
     ...actual,
-    bulkTransitionStatus: (...args: unknown[]) => mockBulkTransitionStatus(...args),
+    bulkTransitionStatus: (...args: unknown[]) =>
+      mockBulkTransitionStatus(...args),
   }
 })
 
@@ -81,7 +84,9 @@ const FAKE_CLOSURE = { id: 'cl-1', date: TEST_DATE, reason: 'Snow day' }
 describe('markDateClosed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
     mockGetSchoolClosure.mockResolvedValue(null)
     mockCreateClosure.mockResolvedValue(FAKE_CLOSURE)
     mockBulkTransitionStatus.mockResolvedValue(0)
@@ -92,7 +97,11 @@ describe('markDateClosed', () => {
   it('flips EXPECTED records to CLOSED and returns closedCount', async () => {
     mockBulkTransitionStatus.mockResolvedValue(3)
 
-    const result = await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+    const result = await markDateClosed({
+      date: TEST_DATE,
+      reason: 'Snow day',
+      createdBy: 'admin',
+    })
 
     expect(result.closedCount).toBe(3)
     expect(mockBulkTransitionStatus).toHaveBeenCalledWith(
@@ -111,7 +120,11 @@ describe('markDateClosed', () => {
     mockBulkTransitionStatus.mockResolvedValue(1) // 1 EXPECTED → CLOSED
     mockUpdateMany.mockResolvedValue({ count: 2 }) // 2 AUTO_MARKED LATE → CLOSED
 
-    const result = await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+    const result = await markDateClosed({
+      date: TEST_DATE,
+      reason: 'Snow day',
+      createdBy: 'admin',
+    })
 
     expect(result.closedCount).toBe(3) // 1 + 2
     // LATE → CLOSED is intentionally excluded from ALLOWED_TRANSITIONS (override dialog
@@ -127,7 +140,11 @@ describe('markDateClosed', () => {
     mockBulkTransitionStatus.mockResolvedValue(1)
     mockUpdateMany.mockResolvedValue({ count: 1 })
 
-    await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+    await markDateClosed({
+      date: TEST_DATE,
+      reason: 'Snow day',
+      createdBy: 'admin',
+    })
 
     expect(mockBulkTransitionStatus).toHaveBeenCalledWith(
       expect.objectContaining({ changedBy: 'admin' }),
@@ -144,22 +161,55 @@ describe('markDateClosed', () => {
     mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
 
     await expect(
-      markDateClosed({ date: TEST_DATE, reason: 'Duplicate', createdBy: 'admin' })
+      markDateClosed({
+        date: TEST_DATE,
+        reason: 'Duplicate',
+        createdBy: 'admin',
+      })
     ).rejects.toMatchObject({ code: 'CLOSURE_EXISTS' })
     expect(mockCreateClosure).not.toHaveBeenCalled()
+  })
+
+  it('throws CLOSURE_EXISTS on P2002 (two admins both pass the guard and race to create)', async () => {
+    // Both admins read no existing closure (READ COMMITTED), enter the transaction,
+    // and race to insert. The loser's transaction is aborted by PostgreSQL with P2002.
+    const { Prisma } = await import('@prisma/client')
+    mockGetSchoolClosure.mockResolvedValue(null)
+    mockCreateClosure.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.0.0',
+      })
+    )
+
+    await expect(
+      markDateClosed({
+        date: TEST_DATE,
+        reason: 'Race condition',
+        createdBy: 'admin',
+      })
+    ).rejects.toMatchObject({ code: 'CLOSURE_EXISTS' })
   })
 
   it('cancels PENDING/APPROVED excuses on AUTO_MARKED LATE records before flipping them', async () => {
     mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
     mockUpdateMany.mockResolvedValue({ count: 1 })
 
-    await markDateClosed({ date: TEST_DATE, reason: 'Snow day', createdBy: 'admin' })
+    await markDateClosed({
+      date: TEST_DATE,
+      reason: 'Snow day',
+      createdBy: 'admin',
+    })
 
     expect(mockExcuseUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           status: { in: ['PENDING', 'APPROVED'] },
-          attendanceRecord: expect.objectContaining({ date: TEST_DATE, status: 'LATE', source: 'AUTO_MARKED' }),
+          attendanceRecord: expect.objectContaining({
+            date: TEST_DATE,
+            status: 'LATE',
+            source: 'AUTO_MARKED',
+          }),
         }),
         data: expect.objectContaining({ status: 'REJECTED' }),
       })
@@ -174,7 +224,9 @@ describe('markDateClosed', () => {
 describe('removeClosure', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
     mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
     mockDeleteClosure.mockResolvedValue(undefined)
     // reopenClosedRecords is now a module-private helper; it delegates to
@@ -189,7 +241,9 @@ describe('removeClosure', () => {
     const result = await removeClosure({ date: TEST_DATE })
 
     expect(result.reopenedCount).toBe(4)
-    expect(mockDeleteClosure).toHaveBeenCalledWith({ where: { date: TEST_DATE } })
+    expect(mockDeleteClosure).toHaveBeenCalledWith({
+      where: { date: TEST_DATE },
+    })
     expect(mockUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ date: TEST_DATE, status: 'CLOSED' }),
@@ -201,7 +255,9 @@ describe('removeClosure', () => {
   it('throws NOT_FOUND when no closure exists for the date', async () => {
     mockGetSchoolClosure.mockResolvedValue(null)
 
-    await expect(removeClosure({ date: TEST_DATE })).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    await expect(removeClosure({ date: TEST_DATE })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
     expect(mockDeleteClosure).not.toHaveBeenCalled()
   })
 
@@ -215,9 +271,15 @@ describe('removeClosure', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           status: { in: ['PENDING', 'APPROVED'] },
-          attendanceRecord: expect.objectContaining({ date: TEST_DATE, status: 'CLOSED' }),
+          attendanceRecord: expect.objectContaining({
+            date: TEST_DATE,
+            status: 'CLOSED',
+          }),
         }),
-        data: expect.objectContaining({ status: 'REJECTED', reviewedBy: 'admin' }),
+        data: expect.objectContaining({
+          status: 'REJECTED',
+          reviewedBy: 'admin',
+        }),
       })
     )
   })

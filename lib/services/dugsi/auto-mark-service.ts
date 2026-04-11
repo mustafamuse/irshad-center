@@ -19,19 +19,25 @@ import {
   TeacherShift,
 } from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
-import { createServiceLogger } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 
 import { generateExpectedSlots } from './attendance-record-service'
 
 const logger = createServiceLogger('auto-mark')
 
-export interface AutoMarkResult {
-  shift: Shift
-  date: string
-  marked: number
-  skippedReason?: 'window_not_passed' | 'no_expected_records' | 'school_closed'
-}
+export type AutoMarkResult =
+  | { kind: 'marked'; shift: Shift; date: string; marked: number }
+  | {
+      kind: 'skipped'
+      shift: Shift
+      date: string
+      marked: 0
+      skippedReason:
+        | 'window_not_passed'
+        | 'no_expected_records'
+        | 'school_closed'
+    }
 
 export async function autoMarkLateForShift(
   date: string,
@@ -69,7 +75,13 @@ export async function autoMarkLateForShift(
       { shift, date, thresholdUtc, now },
       'Auto-mark window not yet passed — skipping'
     )
-    return { shift, date, marked: 0, skippedReason: 'window_not_passed' }
+    return {
+      kind: 'skipped',
+      shift,
+      date,
+      marked: 0,
+      skippedReason: 'window_not_passed',
+    }
   }
 
   const dateObj = new Date(`${date}T00:00:00Z`)
@@ -134,13 +146,25 @@ export async function autoMarkLateForShift(
       { shift, date },
       'School closed — skipping auto-mark (checked in-tx)'
     )
-    return { shift, date, marked: 0, skippedReason: 'school_closed' }
+    return {
+      kind: 'skipped',
+      shift,
+      date,
+      marked: 0,
+      skippedReason: 'school_closed',
+    }
   }
 
   const marked = writeResult.count
 
   if (marked === 0) {
-    return { shift, date, marked: 0, skippedReason: 'no_expected_records' }
+    return {
+      kind: 'skipped',
+      shift,
+      date,
+      marked: 0,
+      skippedReason: 'no_expected_records',
+    }
   }
 
   logger.info(
@@ -148,7 +172,7 @@ export async function autoMarkLateForShift(
     `Auto-marked ${marked} EXPECTED records as LATE`
   )
 
-  return { shift, date, marked }
+  return { kind: 'marked', shift, date, marked }
 }
 
 /**
@@ -187,15 +211,25 @@ export async function autoMarkBothShifts(
     afternoonSettled.status === 'fulfilled' ? afternoonSettled.value : null
 
   if (morningSettled.status === 'rejected') {
-    logger.error(
-      { event: 'MORNING_SHIFT_FAILED', date, err: morningSettled.reason },
-      'Morning shift auto-mark failed'
+    await logError(
+      logger,
+      morningSettled.reason,
+      'Morning shift auto-mark failed',
+      {
+        event: 'MORNING_SHIFT_FAILED',
+        date,
+      }
     )
   }
   if (afternoonSettled.status === 'rejected') {
-    logger.error(
-      { event: 'AFTERNOON_SHIFT_FAILED', date, err: afternoonSettled.reason },
-      'Afternoon shift auto-mark failed'
+    await logError(
+      logger,
+      afternoonSettled.reason,
+      'Afternoon shift auto-mark failed',
+      {
+        event: 'AFTERNOON_SHIFT_FAILED',
+        date,
+      }
     )
   }
 

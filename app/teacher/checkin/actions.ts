@@ -3,7 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 
-import { Shift, TeacherAttendanceStatus } from '@prisma/client'
+import {
+  AttendanceSource,
+  Shift,
+  TeacherAttendanceStatus,
+} from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 import { z } from 'zod'
 
@@ -57,6 +61,7 @@ export async function getDugsiTeachers(): Promise<TeacherForDropdown[]> {
 export async function getTeacherCurrentStatus(
   teacherId: string
 ): Promise<TeacherCurrentStatus> {
+  z.string().uuid().parse(teacherId)
   const now = new Date()
   const dateString = formatInTimeZone(now, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
   const dateOnly = new Date(dateString)
@@ -100,6 +105,7 @@ const _teacherClockInAction = rateLimitedActionClient
       if (error instanceof ValidationError) {
         throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
       }
+      if (error instanceof ActionError) throw error
       await logError(logger, error, 'Clock-in failed')
       throw new ActionError(
         'Failed to clock in. Please try again.',
@@ -134,6 +140,7 @@ const _teacherClockOutAction = rateLimitedActionClient
       if (error instanceof ValidationError) {
         throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
       }
+      if (error instanceof ActionError) throw error
       await logError(logger, error, 'Clock-out failed')
       throw new ActionError(
         'Failed to clock out. Please try again.',
@@ -161,9 +168,13 @@ export async function checkGeofence(
   longitude: number
 ): Promise<GeofenceCheckResult> {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    logger.warn(
+      { latitude, longitude },
+      'Non-finite GPS coordinates received in checkGeofence'
+    )
     return {
       isWithinGeofence: false,
-      distanceMeters: 0,
+      distanceMeters: -1,
       allowedRadiusMeters: GEOFENCE_RADIUS_METERS,
     }
   }
@@ -229,6 +240,7 @@ export type AttendanceHistoryItem = {
   date: string
   shift: Shift
   status: TeacherAttendanceStatus
+  source: AttendanceSource
   minutesLate: number | null
   clockInTime: Date | null
   pendingExcuseId: string | null // non-null if there's a PENDING excuse request
@@ -288,6 +300,7 @@ async function fetchAttendanceHistory(
       date: formatInTimeZone(r.date, 'UTC', 'yyyy-MM-dd'),
       shift: r.shift,
       status: r.status,
+      source: r.source,
       minutesLate: r.minutesLate,
       clockInTime: r.clockInTime,
       pendingExcuseId:

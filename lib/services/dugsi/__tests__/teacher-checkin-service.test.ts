@@ -8,9 +8,6 @@
 import { Prisma, Shift } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-import { CHECKIN_ERROR_CODES } from '@/lib/constants/teacher-checkin'
-import { ValidationError } from '@/lib/services/validation-service'
-
 const {
   mockIsEnrolled,
   mockGetShifts,
@@ -128,6 +125,8 @@ vi.mock('@/lib/logger', () => ({
   })),
 }))
 
+import { CHECKIN_ERROR_CODES } from '@/lib/constants/teacher-checkin'
+import { ValidationError } from '@/lib/services/validation-service'
 import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 
 import {
@@ -219,7 +218,10 @@ describe('clockIn', () => {
 
     expect(mockCreateAttendance).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'PRESENT', source: 'SELF_CHECKIN' }),
+        data: expect.objectContaining({
+          status: 'PRESENT',
+          source: 'SELF_CHECKIN',
+        }),
       })
     )
   })
@@ -361,6 +363,31 @@ describe('clockIn', () => {
     })
   })
 
+  it('should throw SCHOOL_CLOSED when no pre-existing record exists but a closure row does', async () => {
+    // Covers the else-branch guard: generateExpectedSlots may not have run for the date,
+    // so there is no CLOSED attendance record — the explicit schoolClosure.findUnique
+    // check catches this case before a spurious record is created.
+    mockFindUniqueAttendance.mockResolvedValue(null)
+    mockFindUniqueClosure.mockResolvedValue({
+      id: 'cl-1',
+      date: new Date('2024-01-15'),
+      reason: 'Holiday',
+    })
+
+    const input = {
+      teacherId: 'teacher-1',
+      shift: Shift.MORNING,
+      latitude: 44.9778,
+      longitude: -93.265,
+    }
+
+    await expect(clockIn(input)).rejects.toThrow(ValidationError)
+    await expect(clockIn(input)).rejects.toMatchObject({
+      code: CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+    })
+    expect(mockCreateAttendance).not.toHaveBeenCalled()
+  })
+
   it('should throw error if geofence is not configured', async () => {
     mockIsWithinGeofence.mockReturnValue(false)
     mockIsGeofenceConfigured.mockReturnValue(false)
@@ -450,7 +477,9 @@ describe('updateCheckin', () => {
     })
     // updateCheckin now wraps writes in a $transaction — mirror the same setup
     // used in the clockIn/deleteCheckin describe blocks.
-    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) => fn(makeTx()))
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
     mockUpdateManyAttendance.mockResolvedValue({ count: 1 })
   })
 

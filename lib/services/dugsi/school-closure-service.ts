@@ -2,7 +2,7 @@
  * School Closure Service
  *
  * Manages school closure dates and propagates status changes to attendance records.
- * - markDateClosed: creates SchoolClosure + flips EXPECTED → CLOSED and AUTO_MARKED LATE → CLOSED
+ * - markDateClosed: creates SchoolClosure + flips EXPECTED → CLOSED and AUTO_MARKED LATE → CLOSED; rejects active excuse requests on AUTO_MARKED LATE records
  * - removeClosure: deletes SchoolClosure + reverts CLOSED → EXPECTED
  * Both operations are atomic via $transaction.
  */

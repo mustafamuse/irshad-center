@@ -6,10 +6,8 @@
  * Marks EXPECTED attendance records as LATE once the window has passed.
  * Safe to call multiple times — service is idempotent (skips if window not yet passed).
  *
- * Note: Vercel hobby plan only supports daily cron jobs (once per day max).
- *
  * Auth: Vercel cron jobs send CRON_SECRET in the Authorization header.
- * The application validates it on every request (line 32). In development,
+ * In development,
  * set CRON_SECRET env var and pass: Authorization: Bearer <secret>
  */
 
