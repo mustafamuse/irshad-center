@@ -1,35 +1,24 @@
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
-import { getAttendanceGrid, getActiveDugsiTeacherShifts, listSchoolClosures } from '@/lib/db/queries/teacher-attendance'
+import {
+  getAttendanceGrid,
+  getActiveDugsiTeacherShifts,
+  listSchoolClosures,
+} from '@/lib/db/queries/teacher-attendance'
+import { getWeekendDatesBetween } from '@/lib/utils/date-utils'
 
 import { AttendanceGrid } from './components/attendance-grid'
 
 export const dynamic = 'force-dynamic'
 
-// Returns the last N weekend dates (Sat + Sun) in descending order
+// Returns the last N weekend dates (Sat + Sun) in descending order.
 function getRecentWeekendDates(weeksBack: number): string[] {
-  const today = new Date()
-  const todayStr = formatInTimeZone(today, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
-  const anchor = new Date(`${todayStr}T12:00:00Z`)
-  const dates: string[] = []
-
-  const cursor = new Date(anchor)
-  let daysBack = 0
-
-  while (dates.length < weeksBack * 2 && daysBack < weeksBack * 7 + 14) {
-    const day = cursor.getUTCDay()
-    if (day === 0 || day === 6) {
-      const y = cursor.getUTCFullYear()
-      const m = String(cursor.getUTCMonth() + 1).padStart(2, '0')
-      const d = String(cursor.getUTCDate()).padStart(2, '0')
-      dates.push(`${y}-${m}-${d}`)
-    }
-    cursor.setUTCDate(cursor.getUTCDate() - 1)
-    daysBack++
-  }
-
-  return dates // descending: most recent first
+  const todayStr = formatInTimeZone(new Date(), SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+  const to = new Date(`${todayStr}T12:00:00Z`)
+  const from = new Date(to)
+  from.setUTCDate(from.getUTCDate() - weeksBack * 7)
+  return getWeekendDatesBetween(from, to).reverse()
 }
 
 export default async function TeacherAttendancePage() {
@@ -67,16 +56,17 @@ export default async function TeacherAttendancePage() {
       {closureSet.size > 0 && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
           School closed:{' '}
-          {Array.from(closureSet)
-            .sort()
-            .reverse()
-            .slice(0, 3)
-            .join(', ')}
+          {Array.from(closureSet).sort().reverse().slice(0, 3).join(', ')}
           {closureSet.size > 3 && ` +${closureSet.size - 3} more`}
         </div>
       )}
 
-      <AttendanceGrid records={records} weekendDates={weekendDates} closureDates={closureSet} allTeachers={activeTeachers} />
+      <AttendanceGrid
+        records={records}
+        weekendDates={weekendDates}
+        closureDates={closureSet}
+        allTeachers={activeTeachers}
+      />
     </div>
   )
 }

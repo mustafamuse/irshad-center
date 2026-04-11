@@ -6,9 +6,8 @@ import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { cn } from '@/lib/utils'
-
 import { ExcuseRequestWithRelations } from '@/lib/db/queries/teacher-attendance'
+import { cn } from '@/lib/utils'
 
 import { TeacherWithDetails } from '../actions'
 import { CheckinOverview } from './checkin-overview'

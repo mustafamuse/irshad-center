@@ -47,6 +47,11 @@ export const RemoveClosureSchema = z.object({
 })
 
 export const UpdateAttendanceConfigSchema = z.object({
+  // max(120): derived from the cron schedule ("0 21 * * 0,6" = 21:00 UTC = 15:00 CST).
+  // Formula: max = (cron_fire_CST_minutes_from_midnight) - (class_start_CST_minutes_from_midnight) - 1
+  //        = (15 * 60 + 0) - (9 * 60 + 0) - 1 = 900 - 540 - 1 = 359
+  // 120 is well within the 359-minute ceiling; it keeps the window sane (2 hours max).
+  // COUPLING: if the cron schedule or morning class start time changes, recalculate above.
   morningAutoMarkMinutes: z.number().int().min(0).max(120),
   // max(89): derived from the cron schedule in vercel.json ("0 21 * * 0,6" = 21:00 UTC).
   // Formula: max = (cron_fire_CST_minutes_from_midnight) - (class_start_CST_minutes_from_midnight) - 1
@@ -58,7 +63,6 @@ export const UpdateAttendanceConfigSchema = z.object({
   // MIGRATION NOTE: max(89) prevents *saving* an out-of-range value but does not fix an already-
   // stored value that becomes invalid after a schedule change. DugsiAttendanceConfig is a
   // singleton that persists across deploys — pair any cron schedule change with a migration
-  // that clamps afternoonAutoMarkMinutes to the new maximum.
   afternoonAutoMarkMinutes: z.number().int().min(0).max(89),
 })
 
@@ -81,10 +85,14 @@ export const ReviewExcuseSchema = z.object({
   adminNote: z.string().min(1).max(500).optional(),
 })
 
-export type OverrideAttendanceStatusInput = z.infer<typeof OverrideAttendanceStatusSchema>
+export type OverrideAttendanceStatusInput = z.infer<
+  typeof OverrideAttendanceStatusSchema
+>
 export type AdminCheckInInput = z.infer<typeof AdminCheckInSchema>
 export type MarkDateClosedInput = z.infer<typeof MarkDateClosedSchema>
 export type RemoveClosureInput = z.infer<typeof RemoveClosureSchema>
-export type UpdateAttendanceConfigInput = z.infer<typeof UpdateAttendanceConfigSchema>
+export type UpdateAttendanceConfigInput = z.infer<
+  typeof UpdateAttendanceConfigSchema
+>
 export type SubmitExcuseInput = z.infer<typeof SubmitExcuseSchema>
 export type ReviewExcuseInput = z.infer<typeof ReviewExcuseSchema>

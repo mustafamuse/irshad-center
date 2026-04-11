@@ -11,7 +11,6 @@
  *   - No check-in: ABSENT
  *
  * Usage:
- *   bun run scripts/backfill-attendance.ts          # dry run (default)
  *   bun run scripts/backfill-attendance.ts --commit  # write to DB
  *
  * Idempotent: uses upsert on (teacherId, date, shift) unique constraint.
@@ -22,6 +21,7 @@ import { formatInTimeZone } from 'date-fns-tz'
 
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { prisma } from '@/lib/db'
+import { getWeekendDatesBetween } from '@/lib/utils/date-utils'
 
 // ============================================================================
 // CONFIGURATION
@@ -42,36 +42,17 @@ const CLOSURE_DATES = new Set([
 ])
 
 // Dates to skip entirely (grace period — don't backfill, don't mark absent)
-const GRACE_DATES = new Set([
-  '2026-02-21',
-  '2026-02-22',
-])
+const GRACE_DATES = new Set(['2026-02-21', '2026-02-22'])
 
 // ============================================================================
 // HELPERS
 // ============================================================================
 
 function getWeekendDatesFrom(from: string): string[] {
-  const today = new Date()
-  const todayStr = formatInTimeZone(today, SCHOOL_TIMEZONE, 'yyyy-MM-dd')
+  const todayStr = formatInTimeZone(new Date(), SCHOOL_TIMEZONE, 'yyyy-MM-dd')
   const end = new Date(`${todayStr}T12:00:00Z`)
   const start = new Date(`${from}T12:00:00Z`)
-
-  const dates: string[] = []
-  const cursor = new Date(start)
-
-  while (cursor <= end) {
-    const day = cursor.getUTCDay()
-    if (day === 0 || day === 6) {
-      const y = cursor.getUTCFullYear()
-      const m = String(cursor.getUTCMonth() + 1).padStart(2, '0')
-      const d = String(cursor.getUTCDate()).padStart(2, '0')
-      dates.push(`${y}-${m}-${d}`)
-    }
-    cursor.setUTCDate(cursor.getUTCDate() + 1)
-  }
-
-  return dates
+  return getWeekendDatesBetween(start, end)
 }
 
 function pad(s: string | number, len: number) {
@@ -87,16 +68,26 @@ async function main() {
 
   if (!isDryRun && process.env.SKIP_TEACHER_ID === undefined) {
     console.error('ERROR: SKIP_TEACHER_ID is not set.')
-    console.error('  Re-run with SKIP_TEACHER_ID=<uuid> to exclude the intended teacher,')
-    console.error('  or set it to an empty string to include everyone intentionally:')
-    console.error('    SKIP_TEACHER_ID="" bun run scripts/backfill-attendance.ts --commit')
+    console.error(
+      '  Re-run with SKIP_TEACHER_ID=<uuid> to exclude the intended teacher,'
+    )
+    console.error(
+      '  or set it to an empty string to include everyone intentionally:'
+    )
+    console.error(
+      '    SKIP_TEACHER_ID="" bun run scripts/backfill-attendance.ts --commit'
+    )
     process.exit(1)
   }
 
   console.log(`\n${'='.repeat(60)}`)
-  console.log(`  DUGSI ATTENDANCE BACKFILL${isDryRun ? ' [DRY RUN]' : ' [COMMITTING]'}`)
+  console.log(
+    `  DUGSI ATTENDANCE BACKFILL${isDryRun ? ' [DRY RUN]' : ' [COMMITTING]'}`
+  )
   console.log(`${'='.repeat(60)}`)
-  console.log(`From: ${BACKFILL_FROM}  |  Skip teacher ID: ${SKIP_TEACHER_ID || '(none)'}`)
+  console.log(
+    `From: ${BACKFILL_FROM}  |  Skip teacher ID: ${SKIP_TEACHER_ID || '(none)'}`
+  )
   console.log()
 
   // Load active teachers
@@ -119,7 +110,9 @@ async function main() {
   console.log()
 
   const weekendDates = getWeekendDatesFrom(BACKFILL_FROM)
-  console.log(`Weekend dates: ${weekendDates[0]} → ${weekendDates[weekendDates.length - 1]} (${weekendDates.length} days)`)
+  console.log(
+    `Weekend dates: ${weekendDates[0]} → ${weekendDates[weekendDates.length - 1]} (${weekendDates.length} days)`
+  )
   console.log()
 
   // Load all existing check-ins for these teachers in the date range
@@ -158,12 +151,26 @@ async function main() {
     for (const date of weekendDates) {
       for (const shift of teacher.shifts) {
         if (GRACE_DATES.has(date)) {
-          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'SKIP', source: AttendanceSource.SYSTEM })
+          rows.push({
+            teacherName: teacher.name,
+            teacherId: teacher.id,
+            date,
+            shift,
+            action: 'SKIP',
+            source: AttendanceSource.SYSTEM,
+          })
           continue
         }
 
         if (CLOSURE_DATES.has(date)) {
-          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'CLOSED', source: AttendanceSource.SYSTEM })
+          rows.push({
+            teacherName: teacher.name,
+            teacherId: teacher.id,
+            date,
+            shift,
+            action: 'CLOSED',
+            source: AttendanceSource.SYSTEM,
+          })
           continue
         }
 
@@ -181,7 +188,14 @@ async function main() {
             minutesLate: undefined, // we don't have minutesLate on the fact log; leave null
           })
         } else {
-          rows.push({ teacherName: teacher.name, teacherId: teacher.id, date, shift, action: 'ABSENT', source: AttendanceSource.SYSTEM })
+          rows.push({
+            teacherName: teacher.name,
+            teacherId: teacher.id,
+            date,
+            shift,
+            action: 'ABSENT',
+            source: AttendanceSource.SYSTEM,
+          })
         }
       }
     }
@@ -201,11 +215,15 @@ async function main() {
   console.log()
 
   // Print detail table
-  console.log(pad('Teacher', 22) + pad('Date', 12) + pad('Shift', 12) + 'Action')
+  console.log(
+    pad('Teacher', 22) + pad('Date', 12) + pad('Shift', 12) + 'Action'
+  )
   console.log('-'.repeat(65))
   for (const r of rows) {
     if (r.action === 'SKIP') continue
-    console.log(pad(r.teacherName, 22) + pad(r.date, 12) + pad(r.shift, 12) + r.action)
+    console.log(
+      pad(r.teacherName, 22) + pad(r.date, 12) + pad(r.shift, 12) + r.action
+    )
   }
 
   if (isDryRun) {
@@ -214,7 +232,9 @@ async function main() {
   }
 
   // Write to DB
-  console.log(`\nWriting ${rows.filter((r) => r.action !== 'SKIP').length} records...`)
+  console.log(
+    `\nWriting ${rows.filter((r) => r.action !== 'SKIP').length} records...`
+  )
 
   let dbUpdated = 0
   // Wrap closure upserts + attendance writes in one transaction so a crash or
@@ -222,59 +242,99 @@ async function main() {
   // CLOSED attendance records (or vice versa).
   // Re-running is always safe (skipDuplicates + WHERE status='EXPECTED' guard).
   type RowData = {
-    teacherId: string; date: Date; shift: Shift
-    status: Exclude<Row['action'], 'SKIP'>; source: AttendanceSource
-    checkInId: string | null; clockInTime: Date | null; minutesLate: number | null
+    teacherId: string
+    date: Date
+    shift: Shift
+    status: Exclude<Row['action'], 'SKIP'>
+    source: AttendanceSource
+    checkInId: string | null
+    clockInTime: Date | null
+    minutesLate: number | null
   }
 
   // Expected row count: ~10 teachers × 2 shifts × ~20 weekend dates ≈ 400 rows.
   // Per-row updateMany loop issues one round-trip each; 30 s timeout is conservative
   // but avoids false timeouts on a cold or loaded DB connection.
   console.time('transaction')
-  const { dbCreated, dbUnchanged } = await prisma.$transaction(async (tx) => {
-    // Upsert SchoolClosure rows inside the transaction so closures and CLOSED
-    // attendance records are written atomically.
-    await Promise.all(
-      Array.from(CLOSURE_DATES).map((d) => {
-        const date = new Date(d)
-        return tx.schoolClosure.upsert({
-          where: { date },
-          create: { date, reason: 'School closed (backfill)', createdBy: 'backfill-script' },
-          update: {},
+  const { dbCreated, dbUnchanged } = await prisma.$transaction(
+    async (tx) => {
+      // Upsert SchoolClosure rows inside the transaction so closures and CLOSED
+      // attendance records are written atomically.
+      await Promise.all(
+        Array.from(CLOSURE_DATES).map((d) => {
+          const date = new Date(d)
+          return tx.schoolClosure.upsert({
+            where: { date },
+            create: {
+              date,
+              reason: 'School closed (backfill)',
+              createdBy: 'backfill-script',
+            },
+            update: {},
+          })
         })
-      })
-    )
+      )
 
-    const toCreate: RowData[] = []
+      const toCreate: RowData[] = []
 
-    for (const r of rows) {
-      if (r.action === 'SKIP') continue
-      const dateObj = new Date(r.date)
+      for (const r of rows) {
+        if (r.action === 'SKIP') continue
+        const dateObj = new Date(r.date)
 
-      // Only overwrite if the record is still EXPECTED — preserves admin manual
-      // changes (overrides, excuse approvals) when the script is re-run.
-      const updated = await tx.teacherAttendanceRecord.updateMany({
-        where: { teacherId: r.teacherId, date: dateObj, shift: r.shift, status: 'EXPECTED' },
-        data: { status: r.action, source: r.source, checkInId: r.checkInId ?? null, clockInTime: r.clockInTime ?? null, minutesLate: r.minutesLate ?? null },
-      })
-      if (updated.count > 0) {
-        dbUpdated++
-      } else {
-        toCreate.push({ teacherId: r.teacherId, date: dateObj, shift: r.shift, status: r.action, source: r.source, checkInId: r.checkInId ?? null, clockInTime: r.clockInTime ?? null, minutesLate: r.minutesLate ?? null })
+        // Only overwrite if the record is still EXPECTED — preserves admin manual
+        // changes (overrides, excuse approvals) when the script is re-run.
+        const updated = await tx.teacherAttendanceRecord.updateMany({
+          where: {
+            teacherId: r.teacherId,
+            date: dateObj,
+            shift: r.shift,
+            status: 'EXPECTED',
+          },
+          data: {
+            status: r.action,
+            source: r.source,
+            checkInId: r.checkInId ?? null,
+            clockInTime: r.clockInTime ?? null,
+            minutesLate: r.minutesLate ?? null,
+          },
+        })
+        if (updated.count > 0) {
+          dbUpdated++
+        } else {
+          toCreate.push({
+            teacherId: r.teacherId,
+            date: dateObj,
+            shift: r.shift,
+            status: r.action,
+            source: r.source,
+            checkInId: r.checkInId ?? null,
+            clockInTime: r.clockInTime ?? null,
+            minutesLate: r.minutesLate ?? null,
+          })
+        }
       }
-    }
 
-    // Batch all creates in one query — skipDuplicates silently ignores rows with
-    // a non-EXPECTED status (admin overrides) that already exist in the table.
-    const created = toCreate.length > 0
-      ? (await tx.teacherAttendanceRecord.createMany({ data: toCreate, skipDuplicates: true })).count
-      : 0
+      // Batch all creates in one query — skipDuplicates silently ignores rows with
+      // a non-EXPECTED status (admin overrides) that already exist in the table.
+      const created =
+        toCreate.length > 0
+          ? (
+              await tx.teacherAttendanceRecord.createMany({
+                data: toCreate,
+                skipDuplicates: true,
+              })
+            ).count
+          : 0
 
-    return { dbCreated: created, dbUnchanged: toCreate.length - created }
-  }, { timeout: 30_000 })
+      return { dbCreated: created, dbUnchanged: toCreate.length - created }
+    },
+    { timeout: 30_000 }
+  )
   console.timeEnd('transaction')
 
-  console.log(`Done. ${dbCreated} created, ${dbUpdated} updated, ${dbUnchanged} unchanged (non-EXPECTED — skipped).`)
+  console.log(
+    `Done. ${dbCreated} created, ${dbUpdated} updated, ${dbUnchanged} unchanged (non-EXPECTED — skipped).`
+  )
 }
 
 main()

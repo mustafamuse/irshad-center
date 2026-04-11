@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
+
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { Button } from '@/components/ui/button'
@@ -20,7 +21,8 @@ interface Props {
 export function ExcuseQueue({ initialRequests }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
-  const [requests, setRequests] = useState<ExcuseRequestWithRelations[]>(initialRequests)
+  const [requests, setRequests] =
+    useState<ExcuseRequestWithRelations[]>(initialRequests)
   // Sync when the Server Component re-renders with fresh data (e.g. after revalidatePath
   // fires via after()). Without this, newly submitted requests won't appear until
   // the admin navigates away and back.
@@ -37,15 +39,33 @@ export function ExcuseQueue({ initialRequests }: Props) {
     setErrors((prev) => ({ ...prev, [id]: null }))
     setPendingIds((prev) => new Set(prev).add(id))
     startTransition(async () => {
-      const result = await approveExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] || undefined })
-      setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
+      const result = await approveExcuseAction({
+        excuseRequestId: id,
+        adminNote: adminNotes[id] || undefined,
+      })
+      setPendingIds((prev) => {
+        const s = new Set(prev)
+        s.delete(id)
+        return s
+      })
       if (result?.serverError || result?.validationErrors) {
-        setErrors((prev) => ({ ...prev, [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.` }))
+        setErrors((prev) => ({
+          ...prev,
+          [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.`,
+        }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
-      setAdminNotes((prev) => { const n = { ...prev }; delete n[id]; return n })
-      setErrors((prev) => { const n = { ...prev }; delete n[id]; return n })
+      setAdminNotes((prev) => {
+        const n = { ...prev }
+        delete n[id]
+        return n
+      })
+      setErrors((prev) => {
+        const n = { ...prev }
+        delete n[id]
+        return n
+      })
       router.refresh()
     })
   }
@@ -54,24 +74,64 @@ export function ExcuseQueue({ initialRequests }: Props) {
     setErrors((prev) => ({ ...prev, [id]: null }))
     setPendingIds((prev) => new Set(prev).add(id))
     startTransition(async () => {
-      const result = await rejectExcuseAction({ excuseRequestId: id, adminNote: adminNotes[id] || undefined })
-      setPendingIds((prev) => { const s = new Set(prev); s.delete(id); return s })
+      const result = await rejectExcuseAction({
+        excuseRequestId: id,
+        adminNote: adminNotes[id] || undefined,
+      })
+      setPendingIds((prev) => {
+        const s = new Set(prev)
+        s.delete(id)
+        return s
+      })
       if (result?.serverError || result?.validationErrors) {
-        setErrors((prev) => ({ ...prev, [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.` }))
+        setErrors((prev) => ({
+          ...prev,
+          [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.`,
+        }))
         return
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
-      setAdminNotes((prev) => { const n = { ...prev }; delete n[id]; return n })
-      setErrors((prev) => { const n = { ...prev }; delete n[id]; return n })
+      setAdminNotes((prev) => {
+        const n = { ...prev }
+        delete n[id]
+        return n
+      })
+      setErrors((prev) => {
+        const n = { ...prev }
+        delete n[id]
+        return n
+      })
       router.refresh()
     })
   }
 
   if (requests.length === 0)
-    return <p className="text-sm text-muted-foreground">No pending excuse requests.</p>
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          No pending excuse requests.
+        </p>
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+        >
+          Refresh
+        </button>
+      </div>
+    )
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <button
+          type="button"
+          onClick={() => router.refresh()}
+          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+        >
+          Refresh
+        </button>
+      </div>
       {requests.map((req) => {
         const record = req.attendanceRecord
         const teacherName = record.teacher.person.name
@@ -79,22 +139,30 @@ export function ExcuseQueue({ initialRequests }: Props) {
         const shiftLabel = record.shift === 'MORNING' ? 'Morning' : 'Afternoon'
 
         return (
-          <div key={req.id} className="rounded-lg border p-4 space-y-3">
+          <div key={req.id} className="space-y-3 rounded-lg border p-4">
             <div className="flex items-start justify-between">
               <div>
-                <p className="font-medium text-sm">{teacherName}</p>
+                <p className="text-sm font-medium">{teacherName}</p>
                 <p className="text-xs text-muted-foreground">
                   {dateStr} · {shiftLabel} · was{' '}
-                  <span className="font-medium">{ATTENDANCE_STATUS_CONFIG[record.status].label}</span>
+                  <span className="font-medium">
+                    {ATTENDANCE_STATUS_CONFIG[record.status].label}
+                  </span>
                 </p>
               </div>
               <p className="text-xs text-muted-foreground">
-                {formatInTimeZone(req.createdAt, SCHOOL_TIMEZONE, 'MMM d, h:mm a')}
+                {formatInTimeZone(
+                  req.createdAt,
+                  SCHOOL_TIMEZONE,
+                  'MMM d, h:mm a'
+                )}
               </p>
             </div>
 
             <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
-              <p className="font-medium text-xs text-muted-foreground mb-1">Teacher's reason</p>
+              <p className="mb-1 text-xs font-medium text-muted-foreground">
+                Teacher's reason
+              </p>
               {req.reason}
             </div>
 
@@ -103,7 +171,12 @@ export function ExcuseQueue({ initialRequests }: Props) {
                 placeholder="Admin note (optional)..."
                 rows={2}
                 value={adminNotes[req.id] ?? ''}
-                onChange={(e) => setAdminNotes((prev) => ({ ...prev, [req.id]: e.target.value }))}
+                onChange={(e) =>
+                  setAdminNotes((prev) => ({
+                    ...prev,
+                    [req.id]: e.target.value,
+                  }))
+                }
               />
             </div>
 

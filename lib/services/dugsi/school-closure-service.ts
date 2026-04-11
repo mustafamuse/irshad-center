@@ -11,10 +11,11 @@ import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
+import { getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
-import { getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
+
 import { bulkTransitionStatus } from './attendance-record-service'
 
 const logger = createServiceLogger('school-closure')
@@ -22,7 +23,10 @@ const logger = createServiceLogger('school-closure')
 export async function markDateClosed(
   params: { date: Date; reason: string; createdBy?: string },
   client: DatabaseClient = prisma
-): Promise<{ closure: { id: string; date: Date; reason: string }; closedCount: number }> {
+): Promise<{
+  closure: { id: string; date: Date; reason: string }
+  closedCount: number
+}> {
   const { date, reason, createdBy } = params
 
   const doWrites = async (tx: DatabaseClient) => {
@@ -42,7 +46,12 @@ export async function markDateClosed(
 
     // Propagate: flip EXPECTED → CLOSED for all slots that haven't been acted on yet.
     const closedCount = await bulkTransitionStatus(
-      { where: { date, status: 'EXPECTED' }, toStatus: 'CLOSED', source: 'SYSTEM', changedBy: createdBy },
+      {
+        where: { date, status: 'EXPECTED' },
+        toStatus: 'CLOSED',
+        source: 'SYSTEM',
+        changedBy: createdBy,
+      },
       tx
     )
     // Cancel active excuses on AUTO_MARKED LATE records before flipping them to CLOSED.
@@ -71,12 +80,23 @@ export async function markDateClosed(
     // callers must use markDateClosed() rather than transitionStatus() for this case.
     const autoMarkResult = await tx.teacherAttendanceRecord.updateMany({
       where: { date, status: 'LATE', source: 'AUTO_MARKED' },
-      data: { status: 'CLOSED', source: 'SYSTEM', changedBy: createdBy ?? null },
+      data: {
+        status: 'CLOSED',
+        source: 'SYSTEM',
+        changedBy: createdBy ?? null,
+      },
     })
     const autoMarkedCount = autoMarkResult.count
 
     logger.info(
-      { event: 'SCHOOL_CLOSED', date, reason, closedCount, autoMarkedCount, createdBy },
+      {
+        event: 'SCHOOL_CLOSED',
+        date,
+        reason,
+        closedCount,
+        autoMarkedCount,
+        createdBy,
+      },
       `Marked school closed (${closedCount} EXPECTED + ${autoMarkedCount} AUTO_MARKED → CLOSED)`
     )
 
@@ -88,9 +108,14 @@ export async function markDateClosed(
   // The P2002 bubbles out of $transaction and is remapped here to a clean 409.
   let result: Awaited<ReturnType<typeof doWrites>>
   try {
-    result = isPrismaClient(client) ? await client.$transaction(doWrites) : await doWrites(client)
+    result = isPrismaClient(client)
+      ? await client.$transaction(doWrites)
+      : await doWrites(client)
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
       throw new ActionError(
         `School is already marked closed on ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
         ERROR_CODES.CLOSURE_EXISTS,
@@ -119,7 +144,9 @@ export async function markDateClosed(
 // from one that was genuinely EXPECTED and never acted on. There is no in-DB way to
 // recover the pre-closure state.
 // Both gaps would be solved by storing pre-closure status in a column; that schema
-// change is deferred.
+// change is deferred. Track as a follow-up: add `previousStatus` to
+// TeacherAttendanceRecord (populated by markDateClosed) so reopenClosedRecords
+// can restore the original state instead of always reverting to EXPECTED.
 async function reopenClosedRecords(
   params: { date: Date; changedBy?: string },
   tx: DatabaseClient
@@ -129,7 +156,9 @@ async function reopenClosedRecords(
     data: {
       status: 'EXPECTED',
       source: 'SYSTEM',
-      ...(params.changedBy !== undefined ? { changedBy: params.changedBy } : {}),
+      ...(params.changedBy !== undefined
+        ? { changedBy: params.changedBy }
+        : {}),
     },
   })
   return result.count
@@ -204,9 +233,14 @@ export async function removeClosure(
   // queries on an already-aborted PostgreSQL transaction. Same pattern as P2002 in markDateClosed.
   let result: Awaited<ReturnType<typeof doWrites>>
   try {
-    result = isPrismaClient(client) ? await client.$transaction(doWrites) : await doWrites(client)
+    result = isPrismaClient(client)
+      ? await client.$transaction(doWrites)
+      : await doWrites(client)
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
       throw new ActionError(
         `No school closure found for ${formatInTimeZone(date, 'UTC', 'yyyy-MM-dd')}`,
         ERROR_CODES.NOT_FOUND,

@@ -14,8 +14,6 @@ import {
   CHECKIN_ERROR_CODES,
   SCHOOL_TIMEZONE,
 } from '@/lib/constants/teacher-checkin'
-import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
-import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 import { prisma } from '@/lib/db'
 import {
   getCheckinById,
@@ -28,6 +26,8 @@ import {
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
+import { assertValidTransition } from '@/lib/utils/attendance-transitions'
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 import type {
   ClockInInput,
   ClockOutInput,
@@ -90,10 +90,18 @@ export async function clockIn(
     )
   }
 
-  const { isLate, minutesLate } = evaluateCheckIn({ clockInTimeUtc: now, shift })
+  const { isLate, minutesLate } = evaluateCheckIn({
+    clockInTimeUtc: now,
+    shift,
+  })
 
   // Pre-validate duplicate before opening the transaction (project rule: check before write)
-  const existingCheckin = await getTeacherCheckin(teacherId, dateOnly, shift, client)
+  const existingCheckin = await getTeacherCheckin(
+    teacherId,
+    dateOnly,
+    shift,
+    client
+  )
   if (existingCheckin) {
     throw new ValidationError(
       'Teacher has already checked in for this shift today',
@@ -119,10 +127,11 @@ export async function clockIn(
     })
 
     // Validate transition and write attendance record with optimistic lock — mirrors adminCheckIn.
-    const existingAttendanceRecord = await tx.teacherAttendanceRecord.findUnique({
-      where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
-      select: { status: true },
-    })
+    const existingAttendanceRecord =
+      await tx.teacherAttendanceRecord.findUnique({
+        where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
+        select: { status: true },
+      })
 
     const attendanceData = {
       status: (isLate ? 'LATE' : 'PRESENT') as 'LATE' | 'PRESENT',
@@ -140,11 +149,19 @@ export async function clockIn(
           { teacherId, shift }
         )
       }
-      assertValidTransition(existingAttendanceRecord.status, attendanceData.status)
+      assertValidTransition(
+        existingAttendanceRecord.status,
+        attendanceData.status
+      )
       // Include current status in WHERE: if a concurrent override already changed
       // the status, count=0 → throw rather than silently stomp the new state.
       const updateResult = await tx.teacherAttendanceRecord.updateMany({
-        where: { teacherId, date: dateOnly, shift, status: existingAttendanceRecord.status },
+        where: {
+          teacherId,
+          date: dateOnly,
+          shift,
+          status: existingAttendanceRecord.status,
+        },
         data: attendanceData,
       })
       if (updateResult.count === 0) {
@@ -157,7 +174,9 @@ export async function clockIn(
     } else {
       // No pre-existing record: guard against a closed date where generateExpectedSlots
       // was never run (so there's no CLOSED record to trigger the check above).
-      const closure = await tx.schoolClosure.findUnique({ where: { date: dateOnly } })
+      const closure = await tx.schoolClosure.findUnique({
+        where: { date: dateOnly },
+      })
       if (closure) {
         throw new ValidationError(
           'School is closed today — please contact an admin to record your attendance',
@@ -183,7 +202,10 @@ export async function clockIn(
     // P2002 unique-constraint violation on DugsiTeacherCheckIn(teacherId, date, shift).
     // Catch it OUTSIDE the transaction (project rule: never catch P2002 inside $transaction)
     // and remap to the user-facing DUPLICATE_CHECKIN error.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
       throw new ValidationError(
         'Teacher has already checked in for this shift today',
         CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
@@ -395,7 +417,12 @@ export async function deleteCheckin(
     // and are meaningless once it's gone, so clear them here too.
     await tx.teacherAttendanceRecord.updateMany({
       where: { checkInId },
-      data: { checkInId: null, clockInTime: null, minutesLate: null, changedBy: changedBy ?? null },
+      data: {
+        checkInId: null,
+        clockInTime: null,
+        minutesLate: null,
+        changedBy: changedBy ?? null,
+      },
     })
 
     // Step 2: Revert PRESENT/LATE → ABSENT.  EXCUSED and overridden-ABSENT records are
@@ -414,17 +441,26 @@ export async function deleteCheckin(
     assertValidTransition('LATE', 'ABSENT')
     const revertResult = await tx.teacherAttendanceRecord.updateMany({
       where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
-      data: { status: 'ABSENT', source: 'ADMIN_OVERRIDE', changedBy: changedBy ?? null },
+      data: {
+        status: 'ABSENT',
+        source: 'ADMIN_OVERRIDE',
+        changedBy: changedBy ?? null,
+      },
     })
     if (revertResult.count > 1) {
-      logger.warn({ teacherId, date, shift }, 'deleteCheckin: unexpectedly reverted multiple attendance records')
+      logger.warn(
+        { teacherId, date, shift },
+        'deleteCheckin: unexpectedly reverted multiple attendance records'
+      )
     }
 
     await tx.dugsiTeacherCheckIn.delete({ where: { id: checkInId } })
     return existingCheckin
   }
 
-  const checkin = await (isPrismaClient(client) ? client.$transaction(doWrites) : doWrites(client))
+  const checkin = await (isPrismaClient(client)
+    ? client.$transaction(doWrites)
+    : doWrites(client))
 
   logger.info(
     {

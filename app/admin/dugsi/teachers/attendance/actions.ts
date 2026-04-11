@@ -17,8 +17,14 @@ import {
   adminCheckIn,
   generateExpectedSlots,
 } from '@/lib/services/dugsi/attendance-record-service'
-import { markDateClosed, removeClosure } from '@/lib/services/dugsi/school-closure-service'
-import { approveExcuse, rejectExcuse } from '@/lib/services/dugsi/excuse-service'
+import {
+  approveExcuse,
+  rejectExcuse,
+} from '@/lib/services/dugsi/excuse-service'
+import {
+  markDateClosed,
+  removeClosure,
+} from '@/lib/services/dugsi/school-closure-service'
 import {
   OverrideAttendanceStatusSchema,
   AdminCheckInSchema,
@@ -67,7 +73,10 @@ const _overrideAttendanceStatusAction = adminActionClient
         changedBy: ADMIN_IDENTITY,
       })
     } catch (error) {
-      await logError(logger, error, 'overrideAttendanceStatus', { recordId, toStatus })
+      await logError(logger, error, 'overrideAttendanceStatus', {
+        recordId,
+        toStatus,
+      })
       throw error
     }
     after(revalidateAll)
@@ -87,7 +96,12 @@ const _adminCheckInAction = adminActionClient
     const { teacherId, shift, date } = parsedInput
     const dateObj = new Date(date)
     try {
-      await adminCheckIn({ teacherId, shift, date: dateObj, changedBy: ADMIN_IDENTITY })
+      await adminCheckIn({
+        teacherId,
+        shift,
+        date: dateObj,
+        changedBy: ADMIN_IDENTITY,
+      })
     } catch (error) {
       await logError(logger, error, 'adminCheckIn', { teacherId, shift, date })
       throw error
@@ -110,7 +124,11 @@ const _markDateClosedAction = adminActionClient
     const dateObj = new Date(date)
     let result
     try {
-      result = await markDateClosed({ date: dateObj, reason, createdBy: ADMIN_IDENTITY })
+      result = await markDateClosed({
+        date: dateObj,
+        reason,
+        createdBy: ADMIN_IDENTITY,
+      })
     } catch (error) {
       await logError(logger, error, 'markDateClosed', { date })
       throw error
@@ -152,7 +170,10 @@ const _updateAttendanceConfigAction = adminActionClient
   .schema(UpdateAttendanceConfigSchema)
   .action(async ({ parsedInput }) => {
     try {
-      await updateAttendanceConfig({ ...parsedInput, updatedBy: ADMIN_IDENTITY })
+      await updateAttendanceConfig({
+        ...parsedInput,
+        updatedBy: ADMIN_IDENTITY,
+      })
     } catch (error) {
       await logError(logger, error, 'updateAttendanceConfig', {})
       throw error
@@ -190,7 +211,9 @@ const _generateExpectedSlotsAction = adminActionClient
       })
     } catch (error) {
       if (!(error instanceof ActionError)) {
-        await logError(logger, error, 'generateExpectedSlots', { date: parsedInput.date })
+        await logError(logger, error, 'generateExpectedSlots', {
+          date: parsedInput.date,
+        })
       }
       throw error
     }
@@ -211,7 +234,11 @@ const _approveExcuseAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { excuseRequestId, adminNote } = parsedInput
     try {
-      await approveExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
+      await approveExcuse({
+        excuseRequestId,
+        adminNote,
+        reviewedBy: ADMIN_IDENTITY,
+      })
     } catch (error) {
       await logError(logger, error, 'approveExcuse', { excuseRequestId })
       throw error
@@ -232,7 +259,11 @@ const _rejectExcuseAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { excuseRequestId, adminNote } = parsedInput
     try {
-      await rejectExcuse({ excuseRequestId, adminNote, reviewedBy: ADMIN_IDENTITY })
+      await rejectExcuse({
+        excuseRequestId,
+        adminNote,
+        reviewedBy: ADMIN_IDENTITY,
+      })
     } catch (error) {
       await logError(logger, error, 'rejectExcuse', { excuseRequestId })
       throw error

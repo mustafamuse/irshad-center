@@ -14,26 +14,26 @@ import {
   IRSHAD_CENTER_LOCATION,
 } from '@/lib/constants/teacher-checkin'
 import {
+  getTeacherAttendanceSummary,
+  getMonthlyExcusedCount,
+} from '@/lib/db/queries/teacher-attendance'
+import {
   getCheckinHistory,
   getDugsiTeachersForDropdown,
   getTeacherCheckin,
 } from '@/lib/db/queries/teacher-checkin'
-import {
-  getTeacherAttendanceSummary,
-  getMonthlyExcusedCount,
-} from '@/lib/db/queries/teacher-attendance'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { rateLimitedActionClient } from '@/lib/safe-action'
-import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { submitExcuse } from '@/lib/services/dugsi/excuse-service'
+import { clockIn, clockOut } from '@/lib/services/dugsi/teacher-checkin-service'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 import { ValidationError } from '@/lib/services/validation-service'
+import { SubmitExcuseSchema } from '@/lib/validations/teacher-attendance'
 import {
   ClockInSchema,
   ClockOutSchema,
 } from '@/lib/validations/teacher-checkin'
-import { SubmitExcuseSchema } from '@/lib/validations/teacher-attendance'
 
 const logger = createServiceLogger('teacher-checkin-actions')
 
@@ -232,7 +232,7 @@ export type AttendanceHistoryItem = {
   minutesLate: number | null
   clockInTime: Date | null
   pendingExcuseId: string | null // non-null if there's a PENDING excuse request
-  wasExcuseRejected: boolean     // true if the most recent excuse was REJECTED (teacher should resubmit)
+  wasExcuseRejected: boolean // true if the most recent excuse was REJECTED (teacher should resubmit)
 }
 
 export type AttendanceHistoryResult = {
@@ -293,8 +293,9 @@ async function fetchAttendanceHistory(
       pendingExcuseId:
         r.excuses.find((e) => e.status === 'PENDING')?.id ?? null,
       wasExcuseRejected:
-        !r.excuses.some((e) => e.status === 'PENDING' || e.status === 'APPROVED') &&
-        r.excuses.some((e) => e.status === 'REJECTED'),
+        !r.excuses.some(
+          (e) => e.status === 'PENDING' || e.status === 'APPROVED'
+        ) && r.excuses.some((e) => e.status === 'REJECTED'),
     })),
     monthlyExcuseCount,
   }
@@ -309,7 +310,12 @@ const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
     // Use !== 'true': env vars are strings; PHASE2_AUTH_ENABLED=false would satisfy
     // !process.env.PHASE2_AUTH_ENABLED (it's a truthy string) and bypass this guard.
     if (process.env.PHASE2_AUTH_ENABLED !== 'true') {
-      throw new ActionError('This feature is not yet available', ERROR_CODES.FEATURE_NOT_ENABLED, undefined, 503)
+      throw new ActionError(
+        'This feature is not yet available',
+        ERROR_CODES.FEATURE_NOT_ENABLED,
+        undefined,
+        503
+      )
     }
     return fetchAttendanceHistory(parsedInput.teacherId)
   })
@@ -328,13 +334,17 @@ const _submitExcuseAction = rateLimitedActionClient
 
     // Runtime deploy guard — remove only when PHASE2_AUTH_ENABLED=true is set in prod.
     if (process.env.PHASE2_AUTH_ENABLED !== 'true') {
-      throw new ActionError('This feature is not yet available', ERROR_CODES.FEATURE_NOT_ENABLED, undefined, 503)
+      throw new ActionError(
+        'This feature is not yet available',
+        ERROR_CODES.FEATURE_NOT_ENABLED,
+        undefined,
+        503
+      )
     }
 
     // SECURITY — ownership boundary (BLOCKING pre-production: see #225):
     // The teacher app has no session; teachers identify only by UI selection.
     // Concrete risk: Teacher A selects Teacher B in the dropdown, copies
-    // attendanceRecordId from the DOM, and submits an excuse for Teacher B's record.
     // submitExcuse validates (attendanceRecordId, teacherId) self-consistency inside
     // its transaction, but both values are unauthenticated HTML values from the same
     // page — this only proves self-consistency, not true identity.

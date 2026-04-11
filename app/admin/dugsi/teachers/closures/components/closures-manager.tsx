@@ -3,6 +3,7 @@
 import { useTransition, useState, useEffect } from 'react'
 
 import { useRouter } from 'next/navigation'
+
 import { formatInTimeZone } from 'date-fns-tz'
 import { Trash2 } from 'lucide-react'
 
@@ -38,7 +39,9 @@ export function ClosuresManager({ initialClosures }: Props) {
   const [isRemovePending, startRemoveTransition] = useTransition()
   const [closures, setClosures] = useState<Closure[]>(initialClosures)
   // Sync when the Server Component re-renders with fresh data (e.g. after router.refresh())
-  useEffect(() => { setClosures(initialClosures) }, [initialClosures])
+  useEffect(() => {
+    setClosures(initialClosures)
+  }, [initialClosures])
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -56,8 +59,13 @@ export function ClosuresManager({ initialClosures }: Props) {
       }
       if (result?.validationErrors) {
         // Surface the first field-level error (e.g. "School days are Saturday and Sunday only")
-        const first = Object.values(result.validationErrors).flat().find(Boolean)
-        if (first) { setError(String(first)); return }
+        const first = Object.values(result.validationErrors)
+          .flat()
+          .find(Boolean)
+        if (first) {
+          setError(String(first))
+          return
+        }
       }
       // Optimistically append — id is a temp placeholder since dates are unique
       // and removal uses the date string, not the id.
@@ -89,11 +97,18 @@ export function ClosuresManager({ initialClosures }: Props) {
       if (reopenedCount > 0 && closure.date < new Date()) {
         setReopenWarning(
           `${reopenedCount} record${reopenedCount === 1 ? '' : 's'} reverted to EXPECTED. ` +
-          'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
-          'review and correct them in the attendance grid.'
+            'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
+            'review and correct them in the attendance grid.'
         )
       }
-      setClosures((prev) => prev.filter((c) => c.id !== closure.id))
+      // Match on date string, not ID — the optimistic row uses a fake `_new-${date}` ID
+      // that may have been replaced by the real UUID after router.refresh() fired.
+      // The DB unique constraint on SchoolClosure.date makes date the stable key.
+      setClosures((prev) =>
+        prev.filter(
+          (c) => formatInTimeZone(c.date, 'UTC', 'yyyy-MM-dd') !== dateStr
+        )
+      )
       setPendingRemoval(null)
       router.refresh()
     })
@@ -101,7 +116,7 @@ export function ClosuresManager({ initialClosures }: Props) {
 
   return (
     <div className="max-w-xl space-y-6">
-      <div className="rounded-lg border p-4 space-y-4">
+      <div className="space-y-4 rounded-lg border p-4">
         <h2 className="text-sm font-semibold">Add Closure</h2>
 
         <div className="space-y-2">
@@ -127,9 +142,16 @@ export function ClosuresManager({ initialClosures }: Props) {
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {reopenWarning && <p className="text-sm text-amber-700 bg-amber-50 rounded-md px-3 py-2">{reopenWarning}</p>}
+        {reopenWarning && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            {reopenWarning}
+          </p>
+        )}
 
-        <Button onClick={handleAdd} disabled={!date || !reason.trim() || isAddPending}>
+        <Button
+          onClick={handleAdd}
+          disabled={!date || !reason.trim() || isAddPending}
+        >
           {isAddPending ? 'Saving...' : 'Mark Closed'}
         </Button>
       </div>
@@ -141,7 +163,10 @@ export function ClosuresManager({ initialClosures }: Props) {
         ) : (
           <div className="divide-y rounded-lg border">
             {closures.map((c) => (
-              <div key={c.id} className="flex items-center justify-between px-4 py-3">
+              <div
+                key={c.id}
+                className="flex items-center justify-between px-4 py-3"
+              >
                 <div>
                   <p className="text-sm font-medium">
                     {formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')}
@@ -165,7 +190,9 @@ export function ClosuresManager({ initialClosures }: Props) {
 
       <AlertDialog
         open={!!pendingRemoval}
-        onOpenChange={(open) => { if (!open) setPendingRemoval(null) }}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemoval(null)
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -175,16 +202,24 @@ export function ClosuresManager({ initialClosures }: Props) {
                 <>
                   Remove closure for{' '}
                   <span className="font-medium">
-                    {formatInTimeZone(pendingRemoval.date, 'UTC', 'EEE MMM d, yyyy')}
+                    {formatInTimeZone(
+                      pendingRemoval.date,
+                      'UTC',
+                      'EEE MMM d, yyyy'
+                    )}
                   </span>
                   ? All CLOSED records for this date will revert to EXPECTED.{' '}
-                  Any teachers that were auto-marked LATE before this date was closed will also revert to EXPECTED — you may need to manually correct them in the attendance grid.
+                  Any teachers that were auto-marked LATE before this date was
+                  closed will also revert to EXPECTED — you may need to manually
+                  correct them in the attendance grid.
                 </>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRemovePending}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isRemovePending}>
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => pendingRemoval && handleRemove(pendingRemoval)}
               disabled={isRemovePending}

@@ -9,14 +9,19 @@
  */
 
 import { DugsiAttendanceConfig, PrismaClient, Shift } from '@prisma/client'
-import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+import { fromZonedTime } from 'date-fns-tz'
 
-import { prisma } from '@/lib/db'
-import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { CLASS_START_TIMES, SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
+import { prisma } from '@/lib/db'
+import {
+  getAttendanceConfig,
+  getActiveDugsiTeacherShifts,
+  TeacherShift,
+} from '@/lib/db/queries/teacher-attendance'
+import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
-import { getAttendanceConfig, getActiveDugsiTeacherShifts, TeacherShift } from '@/lib/db/queries/teacher-attendance'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
+
 import { generateExpectedSlots } from './attendance-record-service'
 
 const logger = createServiceLogger('auto-mark')
@@ -54,7 +59,9 @@ export async function autoMarkLateForShift(
   const { hour, minute } = CLASS_START_TIMES[shift]
   const classStartLocal = `${date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
   const classStartUtc = fromZonedTime(classStartLocal, SCHOOL_TIMEZONE)
-  const thresholdUtc = new Date(classStartUtc.getTime() + offsetMinutes * 60_000)
+  const thresholdUtc = new Date(
+    classStartUtc.getTime() + offsetMinutes * 60_000
+  )
 
   const now = new Date()
   if (now < thresholdUtc) {
@@ -68,7 +75,6 @@ export async function autoMarkLateForShift(
   const dateObj = new Date(`${date}T00:00:00Z`)
 
   // Wrap slot generation + updateMany in one transaction so:
-  // - A concurrent self-checkin can't slip between the slot write and the auto-mark.
   // - A concurrent markDateClosed can't create a closure between the guard and the updateMany.
   // Use isPrismaClient so the injected client is honoured (testability + correctness).
   type DoWritesResult = { kind: 'closed' } | { kind: 'marked'; count: number }
@@ -76,7 +82,9 @@ export async function autoMarkLateForShift(
   const doWrites = async (tx: DatabaseClient): Promise<DoWritesResult> => {
     // Guard inside the transaction: a concurrent markDateClosed could create a closure
     // between an outer check and this updateMany, so we re-check here at commit time.
-    const closure = await tx.schoolClosure.findUnique({ where: { date: dateObj } })
+    const closure = await tx.schoolClosure.findUnique({
+      where: { date: dateObj },
+    })
     if (closure) {
       return { kind: 'closed' }
     }
@@ -86,7 +94,8 @@ export async function autoMarkLateForShift(
     // updateMany could otherwise get a spurious LATE slot created inside the tx.
     // autoMarkBothShifts pre-fetches once inside the shared tx and passes it here to
     // avoid a duplicate query per shift; direct callers omit it and fetch here.
-    const activeTeachers = prefetchedTeachers ?? await getActiveDugsiTeacherShifts(tx)
+    const activeTeachers =
+      prefetchedTeachers ?? (await getActiveDugsiTeacherShifts(tx))
     const teachersForShift = activeTeachers
       .filter((tp) => tp.shifts.includes(shift))
       .map((tp) => ({ teacherId: tp.teacherId, shifts: [shift] as Shift[] }))
@@ -105,7 +114,12 @@ export async function autoMarkLateForShift(
       // CONTRACT: callers reading minutesLate on LATE records must check
       // source !== 'AUTO_MARKED' before treating null as "lateness unknown" —
       // for AUTO_MARKED the teacher simply never arrived.
-      data: { status: 'LATE', source: 'AUTO_MARKED', minutesLate: null, changedBy: 'cron' },
+      data: {
+        status: 'LATE',
+        source: 'AUTO_MARKED',
+        minutesLate: null,
+        changedBy: 'cron',
+      },
     })
 
     return { kind: 'marked', count: result.count }
@@ -116,7 +130,10 @@ export async function autoMarkLateForShift(
     : await doWrites(client)
 
   if (writeResult.kind === 'closed') {
-    logger.debug({ shift, date }, 'School closed — skipping auto-mark (checked in-tx)')
+    logger.debug(
+      { shift, date },
+      'School closed — skipping auto-mark (checked in-tx)'
+    )
     return { shift, date, marked: 0, skippedReason: 'school_closed' }
   }
 
@@ -147,7 +164,10 @@ export async function autoMarkLateForShift(
 export async function autoMarkBothShifts(
   date: string,
   client: PrismaClient = prisma
-): Promise<{ morning: AutoMarkResult | null; afternoon: AutoMarkResult | null }> {
+): Promise<{
+  morning: AutoMarkResult | null
+  afternoon: AutoMarkResult | null
+}> {
   // Fetch config once — acceptable one-invocation staleness (same rationale as before).
   const config = await getAttendanceConfig(client)
 
@@ -161,8 +181,10 @@ export async function autoMarkBothShifts(
     autoMarkLateForShift(date, 'AFTERNOON', config, client),
   ])
 
-  const morning = morningSettled.status === 'fulfilled' ? morningSettled.value : null
-  const afternoon = afternoonSettled.status === 'fulfilled' ? afternoonSettled.value : null
+  const morning =
+    morningSettled.status === 'fulfilled' ? morningSettled.value : null
+  const afternoon =
+    afternoonSettled.status === 'fulfilled' ? afternoonSettled.value : null
 
   if (morningSettled.status === 'rejected') {
     logger.error(
@@ -179,7 +201,9 @@ export async function autoMarkBothShifts(
 
   // Both shifts failed — surface as a single rejection so the cron route returns 500.
   if (!morning && !afternoon) {
-    throw new Error('Both MORNING and AFTERNOON auto-mark shifts failed — see per-shift error logs above')
+    throw new Error(
+      'Both MORNING and AFTERNOON auto-mark shifts failed — see per-shift error logs above'
+    )
   }
 
   return { morning, afternoon }

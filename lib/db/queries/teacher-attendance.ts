@@ -6,7 +6,13 @@
  * All functions accept an optional DatabaseClient to participate in transactions.
  */
 
-import { Prisma, PrismaClient, Program, Shift, TeacherAttendanceStatus } from '@prisma/client'
+import {
+  Prisma,
+  PrismaClient,
+  Program,
+  Shift,
+  TeacherAttendanceStatus,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -23,18 +29,20 @@ export const attendanceRecordInclude = {
   excuses: { orderBy: { createdAt: 'desc' as const } },
 } as const satisfies Prisma.TeacherAttendanceRecordInclude
 
-export type AttendanceRecordWithRelations = Prisma.TeacherAttendanceRecordGetPayload<{
-  include: typeof attendanceRecordInclude
-}>
+export type AttendanceRecordWithRelations =
+  Prisma.TeacherAttendanceRecordGetPayload<{
+    include: typeof attendanceRecordInclude
+  }>
 
 // Grid view only needs teacher name + status — no excuses join
 export const attendanceRecordGridInclude = {
   teacher: { include: { person: true } },
 } as const satisfies Prisma.TeacherAttendanceRecordInclude
 
-export type AttendanceRecordGridWithRelations = Prisma.TeacherAttendanceRecordGetPayload<{
-  include: typeof attendanceRecordGridInclude
-}>
+export type AttendanceRecordGridWithRelations =
+  Prisma.TeacherAttendanceRecordGetPayload<{
+    include: typeof attendanceRecordGridInclude
+  }>
 
 // Teacher-facing history: only needs excuses for the "Request Excuse" button.
 // Skips the teacher → person join since the caller (fetchAttendanceHistory) never
@@ -43,9 +51,10 @@ export const attendanceSummaryInclude = {
   excuses: { orderBy: { createdAt: 'desc' as const } },
 } as const satisfies Prisma.TeacherAttendanceRecordInclude
 
-export type AttendanceRecordSummaryWithRelations = Prisma.TeacherAttendanceRecordGetPayload<{
-  include: typeof attendanceSummaryInclude
-}>
+export type AttendanceRecordSummaryWithRelations =
+  Prisma.TeacherAttendanceRecordGetPayload<{
+    include: typeof attendanceSummaryInclude
+  }>
 
 export const excuseRequestInclude = {
   attendanceRecord: { include: { teacher: { include: { person: true } } } },
@@ -65,7 +74,9 @@ export type ExcuseRequestWithRelations = Prisma.ExcuseRequestGetPayload<{
 // a tx call site into a compile-time error instead of a runtime throw.
 export async function getAttendanceConfig(client: PrismaClient = prisma) {
   // Fast path: the singleton exists on every invocation after first use.
-  const existing = await client.dugsiAttendanceConfig.findUnique({ where: { id: 'singleton' } })
+  const existing = await client.dugsiAttendanceConfig.findUnique({
+    where: { id: 'singleton' },
+  })
   if (existing) return existing
 
   // First-ever access: create the default row.  The previous upsert with update:{}
@@ -75,11 +86,20 @@ export async function getAttendanceConfig(client: PrismaClient = prisma) {
   // catching the P2002 PK conflict and re-fetching the row the winner just created.
   try {
     return await client.dugsiAttendanceConfig.create({
-      data: { id: 'singleton', morningAutoMarkMinutes: 15, afternoonAutoMarkMinutes: 15 },
+      data: {
+        id: 'singleton',
+        morningAutoMarkMinutes: 15,
+        afternoonAutoMarkMinutes: 15,
+      },
     })
   } catch (err) {
-    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      return client.dugsiAttendanceConfig.findUniqueOrThrow({ where: { id: 'singleton' } })
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002'
+    ) {
+      return client.dugsiAttendanceConfig.findUniqueOrThrow({
+        where: { id: 'singleton' },
+      })
     }
     throw err
   }
@@ -140,14 +160,19 @@ export async function getAttendanceRecords(
 ): Promise<AttendanceRecordWithRelations[]> {
   const { teacherId, dateFrom, dateTo, shift, status } = filters
 
+  // Default lower bound: 6 months back — prevents unbounded full-table scans
+  // when neither date bound is provided. Matches listSchoolClosures' pattern.
+  const defaultFrom = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 6, 1)
+  )
+
   const where: Prisma.TeacherAttendanceRecordWhereInput = {}
   if (teacherId) where.teacherId = teacherId
   if (shift) where.shift = shift
   if (status) where.status = status
-  if (dateFrom || dateTo) {
-    where.date = {}
-    if (dateFrom) where.date.gte = dateFrom
-    if (dateTo) where.date.lte = dateTo
+  where.date = {
+    gte: dateFrom ?? defaultFrom,
+    ...(dateTo ? { lte: dateTo } : {}),
   }
 
   const rows = await client.teacherAttendanceRecord.findMany({
@@ -208,7 +233,11 @@ export async function getAttendanceGrid(
   const rows = await client.teacherAttendanceRecord.findMany({
     where: { date: { gte: fromDate, lt: toDate } },
     include: attendanceRecordGridInclude,
-    orderBy: [{ date: 'desc' }, { shift: 'asc' }, { teacher: { person: { name: 'asc' } } }],
+    orderBy: [
+      { date: 'desc' },
+      { shift: 'asc' },
+      { teacher: { person: { name: 'asc' } } },
+    ],
     take: 1000,
   })
 
@@ -267,15 +296,25 @@ export async function listSchoolClosures(
   // Use `from || to` so a caller supplying only `to` doesn't silently drop the upper bound.
   const defaultFrom = new Date(Date.UTC(new Date().getUTCFullYear() - 2, 0, 1))
   return client.schoolClosure.findMany({
-    where: from || to
-      ? { date: { ...(from ? { gte: from } : { gte: defaultFrom }), ...(to ? { lt: to } : {}) } }
-      : { date: { gte: defaultFrom } },
+    where:
+      from || to
+        ? {
+            date: {
+              ...(from ? { gte: from } : { gte: defaultFrom }),
+              ...(to ? { lt: to } : {}),
+            },
+          }
+        : { date: { gte: defaultFrom } },
     orderBy: { date: 'desc' },
   })
 }
 
 export async function updateAttendanceConfig(
-  data: { morningAutoMarkMinutes: number; afternoonAutoMarkMinutes: number; updatedBy?: string },
+  data: {
+    morningAutoMarkMinutes: number
+    afternoonAutoMarkMinutes: number
+    updatedBy?: string
+  },
   client: DatabaseClient = prisma
 ) {
   return client.dugsiAttendanceConfig.upsert({
@@ -328,7 +367,7 @@ export async function getExistingActiveExcuse(
 
 export interface TeacherShift {
   teacherId: string
-  name: string  // teacher's person.name — included for grid display without a second join
+  name: string // teacher's person.name — included for grid display without a second join
   shifts: Shift[]
 }
 
@@ -347,5 +386,9 @@ export async function getActiveDugsiTeacherShifts(
       teacher: { select: { person: { select: { name: true } } } },
     },
   })
-  return rows.map((r) => ({ teacherId: r.teacherId, name: r.teacher.person.name, shifts: r.shifts }))
+  return rows.map((r) => ({
+    teacherId: r.teacherId,
+    name: r.teacher.person.name,
+    shifts: r.shifts,
+  }))
 }

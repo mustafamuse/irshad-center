@@ -10,14 +10,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { cn } from '@/lib/utils'
-
-import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { formatWeekendDate } from '@/lib/utils/format-date'
 
 import {
-  type AttendanceHistoryItem,
   type AttendanceHistoryResult,
   getTeacherAttendanceHistory,
 } from '../actions'
@@ -92,7 +90,10 @@ export function CheckinHistory({ teacherId }: Props) {
           <span className="text-sm font-medium">My Attendance History</span>
         </div>
         <ChevronDown
-          className={cn('h-4 w-4 text-gray-500 transition-transform', isOpen && 'rotate-180')}
+          className={cn(
+            'h-4 w-4 text-gray-500 transition-transform',
+            isOpen && 'rotate-180'
+          )}
         />
       </CollapsibleTrigger>
 
@@ -108,7 +109,9 @@ export function CheckinHistory({ teacherId }: Props) {
             </div>
           ) : !history || history.records.length === 0 ? (
             <div className="py-6 text-center">
-              <p className="text-sm text-muted-foreground">No attendance records yet</p>
+              <p className="text-sm text-muted-foreground">
+                No attendance records yet
+              </p>
             </div>
           ) : (
             <div>
@@ -137,11 +140,24 @@ export function CheckinHistory({ teacherId }: Props) {
                     <div key={item.id} className="px-4 py-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium">{formatWeekendDate(item.date)}</p>
+                          <p className="text-sm font-medium">
+                            {formatWeekendDate(item.date)}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {item.shift === 'MORNING' ? 'Morning' : 'Afternoon'}
                             {item.clockInTime && (
-                              <> · clocked in {new Date(item.clockInTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: SCHOOL_TIMEZONE })}</>
+                              <>
+                                {' '}
+                                · clocked in{' '}
+                                {new Date(item.clockInTime).toLocaleTimeString(
+                                  'en-US',
+                                  {
+                                    hour: 'numeric',
+                                    minute: '2-digit',
+                                    timeZone: SCHOOL_TIMEZONE,
+                                  }
+                                )}
+                              </>
                             )}
                           </p>
                         </div>
@@ -163,11 +179,15 @@ export function CheckinHistory({ teacherId }: Props) {
 
                       {/* Excuse actions */}
                       {hasPendingExcuse && (
-                        <p className="mt-1 text-xs text-blue-600">Excuse pending review</p>
+                        <p className="mt-1 text-xs text-blue-600">
+                          Excuse pending review
+                        </p>
                       )}
 
                       {wasRejected && !hasPendingExcuse && !isExcuseOpen && (
-                        <p className="mt-1 text-xs text-amber-700">Previous excuse rejected</p>
+                        <p className="mt-1 text-xs text-amber-700">
+                          Previous excuse rejected
+                        </p>
                       )}
 
                       {canRequestExcuse && !isExcuseOpen && (

@@ -5,12 +5,15 @@ import { Fragment, useMemo, useState } from 'react'
 import { Shift, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
-import { AttendanceRecordGridWithRelations, TeacherShift } from '@/lib/db/queries/teacher-attendance'
-import { formatWeekendDate } from '@/lib/utils/format-date'
+import {
+  AttendanceRecordGridWithRelations,
+  TeacherShift,
+} from '@/lib/db/queries/teacher-attendance'
 import { cn } from '@/lib/utils'
+import { formatWeekendDate } from '@/lib/utils/format-date'
 
-import { StatusOverrideDialog } from './status-override-dialog'
 import { AttendanceStatusBadge } from './status-badge'
+import { StatusOverrideDialog } from './status-override-dialog'
 
 interface Props {
   records: AttendanceRecordGridWithRelations[]
@@ -21,7 +24,12 @@ interface Props {
 
 type CellKey = `${string}|${string}|${Shift}`
 
-export function AttendanceGrid({ records, weekendDates, closureDates, allTeachers }: Props) {
+export function AttendanceGrid({
+  records,
+  weekendDates,
+  closureDates,
+  allTeachers,
+}: Props) {
   const [overrideCell, setOverrideCell] = useState<{
     recordId: string
     teacherName: string
@@ -48,7 +56,10 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
       recordMap.set(key, r)
       if (!teacherMap.has(r.teacherId)) {
         // Inactive teacher with historical records — not in allTeachers but still shown.
-        teacherMap.set(r.teacherId, { id: r.teacherId, name: r.teacher.person.name })
+        teacherMap.set(r.teacherId, {
+          id: r.teacherId,
+          name: r.teacher.person.name,
+        })
       }
     }
 
@@ -91,10 +102,10 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
               <th className="sticky left-0 bg-muted/30 px-3 py-1" />
               {weekendDates.map((date) => (
                 <Fragment key={date}>
-                  <th className="px-1 py-1 text-center text-xs text-muted-foreground font-normal">
+                  <th className="px-1 py-1 text-center text-xs font-normal text-muted-foreground">
                     AM
                   </th>
-                  <th className="px-1 py-1 text-center text-xs text-muted-foreground font-normal">
+                  <th className="px-1 py-1 text-center text-xs font-normal text-muted-foreground">
                     PM
                   </th>
                 </Fragment>
@@ -105,9 +116,17 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
             {teachers.map((teacher, idx) => (
               <tr
                 key={teacher.id}
-                className={cn('border-b', idx % 2 === 0 ? 'bg-background' : 'bg-muted/20')}
+                className={cn(
+                  'border-b',
+                  idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'
+                )}
               >
-                <td className={cn('sticky left-0 px-3 py-2 font-medium', idx % 2 === 0 ? 'bg-background' : 'bg-muted/20')}>
+                <td
+                  className={cn(
+                    'sticky left-0 px-3 py-2 font-medium',
+                    idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'
+                  )}
+                >
                   {teacher.name}
                 </td>
                 {weekendDates.map((date) => (
@@ -119,7 +138,9 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
                       if (!record) {
                         return (
                           <td key={key} className="px-1 py-2 text-center">
-                            <span className="text-xs text-muted-foreground/40">—</span>
+                            <span className="text-xs text-muted-foreground/40">
+                              —
+                            </span>
                           </td>
                         )
                       }
@@ -137,7 +158,7 @@ export function AttendanceGrid({ records, weekendDates, closureDates, allTeacher
                                 currentStatus: record.status,
                               })
                             }
-                            className="transition-opacity hover:opacity-70"
+                            className="rounded-sm transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                             title="Click to override"
                             aria-label={`Override ${teacher.name} ${date} ${shift === 'MORNING' ? 'Morning' : 'Afternoon'}`}
                           >

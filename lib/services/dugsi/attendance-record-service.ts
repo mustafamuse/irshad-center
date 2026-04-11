@@ -7,16 +7,18 @@
  * - adminCheckIn: write both fact-log + attendance record atomically
  */
 
-import { Shift, TeacherAttendanceStatus, AttendanceSource } from '@prisma/client'
+import {
+  Shift,
+  TeacherAttendanceStatus,
+  AttendanceSource,
+} from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { getAttendanceRecordStatus } from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 import { assertValidTransition } from '@/lib/utils/attendance-transitions'
-import {
-  getAttendanceRecordStatus,
-} from '@/lib/db/queries/teacher-attendance'
 
 const logger = createServiceLogger('attendance-record')
 
@@ -50,7 +52,10 @@ export async function generateExpectedSlots(
   )
 
   if (slots.length === 0) {
-    logger.info({ event: 'EXPECTED_SLOTS_GENERATED', created: 0, skipped: 0, date }, 'Generated expected slots')
+    logger.info(
+      { event: 'EXPECTED_SLOTS_GENERATED', created: 0, skipped: 0, date },
+      'Generated expected slots'
+    )
     return { created: 0, skipped: 0 }
   }
 
@@ -62,7 +67,10 @@ export async function generateExpectedSlots(
   const created = result.count
   const skipped = slots.length - created
 
-  logger.info({ event: 'EXPECTED_SLOTS_GENERATED', created, skipped, date }, 'Generated expected slots')
+  logger.info(
+    { event: 'EXPECTED_SLOTS_GENERATED', created, skipped, date },
+    'Generated expected slots'
+  )
   return { created, skipped }
 }
 
@@ -84,7 +92,15 @@ export async function transitionStatus(
   params: TransitionParams,
   client: DatabaseClient = prisma
 ) {
-  const { recordId, toStatus, source, clockInTime, minutesLate, notes, changedBy } = params
+  const {
+    recordId,
+    toStatus,
+    source,
+    clockInTime,
+    minutesLate,
+    notes,
+    changedBy,
+  } = params
 
   // Wrap read + write in the same transaction so the status we validate against
   // (assertValidTransition) is the same row the updateMany commits — callers that
@@ -93,7 +109,12 @@ export async function transitionStatus(
   const doWrites = async (tx: DatabaseClient) => {
     const record = await getAttendanceRecordStatus(recordId, tx)
     if (!record) {
-      throw new ActionError('Attendance record not found', ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND, undefined, 404)
+      throw new ActionError(
+        'Attendance record not found',
+        ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND,
+        undefined,
+        404
+      )
     }
 
     assertValidTransition(record.status, toStatus)
@@ -130,7 +151,10 @@ export async function transitionStatus(
     // and there's no admin UI to reject an already-approved request.
     // REJECTED is the correct terminal state — the admin override implicitly revokes
     // the approval.
-    if (record.status === 'EXCUSED' && (toStatus === 'LATE' || toStatus === 'ABSENT')) {
+    if (
+      record.status === 'EXCUSED' &&
+      (toStatus === 'LATE' || toStatus === 'ABSENT')
+    ) {
       const rejectionResult = await tx.excuseRequest.updateMany({
         where: { attendanceRecordId: recordId, status: 'APPROVED' },
         data: {
@@ -142,7 +166,12 @@ export async function transitionStatus(
       })
       if (rejectionResult.count > 0) {
         logger.info(
-          { event: 'EXCUSE_AUTO_REJECTED', recordId, revokedBy: changedBy, count: rejectionResult.count },
+          {
+            event: 'EXCUSE_AUTO_REJECTED',
+            recordId,
+            revokedBy: changedBy,
+            count: rejectionResult.count,
+          },
           `Auto-rejected ${rejectionResult.count} APPROVED excuse(s) on EXCUSED→${toStatus} revert`
         )
       }
@@ -203,7 +232,10 @@ export async function adminCheckIn(
       const existingCheckIn = await tx.dugsiTeacherCheckIn.findUnique({
         where: { teacherId_date_shift: { teacherId, date, shift } },
       })
-      logger.info({ event: 'ADMIN_CHECK_IN_NOOP', teacherId, shift, date }, 'Teacher already PRESENT — skipping')
+      logger.info(
+        { event: 'ADMIN_CHECK_IN_NOOP', teacherId, shift, date },
+        'Teacher already PRESENT — skipping'
+      )
       return { checkIn: existingCheckIn }
     }
 
@@ -213,17 +245,19 @@ export async function adminCheckIn(
     })
 
     // Create the fact-log row (no GPS, marked as admin-initiated)
-    const checkIn = existingCheckIn ?? await tx.dugsiTeacherCheckIn.create({
-      data: {
-        teacherId,
-        date,
-        shift,
-        clockInTime: now,
-        clockInValid: false, // admin check-in has no GPS
-        isLate: false, // admin marking as present — treated as on-time
-        notes: `Checked in by admin: ${changedBy}`,
-      },
-    })
+    const checkIn =
+      existingCheckIn ??
+      (await tx.dugsiTeacherCheckIn.create({
+        data: {
+          teacherId,
+          date,
+          shift,
+          clockInTime: now,
+          clockInValid: false, // admin check-in has no GPS
+          isLate: false, // admin marking as present — treated as on-time
+          notes: `Checked in by admin: ${changedBy}`,
+        },
+      }))
 
     const recordData = {
       status: TeacherAttendanceStatus.PRESENT,
@@ -295,13 +329,18 @@ export async function adminCheckIn(
  */
 export async function bulkTransitionStatus(
   params: {
-    where: { date: Date; shift?: Shift; status: TeacherAttendanceStatus; source?: AttendanceSource }
+    where: {
+      date: Date
+      shift?: Shift
+      status: TeacherAttendanceStatus
+      source?: AttendanceSource
+    }
     // LATE is excluded: minutesLate cannot be safely omitted (Prisma `undefined` = "don't
     // touch", silently preserving stale values). Use a direct updateMany with an explicit
     // minutesLate value for LATE transitions — see JSDoc above.
     toStatus: Exclude<TeacherAttendanceStatus, 'LATE'>
     source: AttendanceSource
-    changedBy?: string   // recorded per-row for audit; 'cron' for auto-mark, admin name for closures
+    changedBy?: string // recorded per-row for audit; 'cron' for auto-mark, admin name for closures
   },
   client: DatabaseClient = prisma
 ): Promise<number> {
@@ -341,4 +380,3 @@ export async function bulkTransitionStatus(
 
   return result.count
 }
-
