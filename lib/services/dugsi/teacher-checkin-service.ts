@@ -154,6 +154,20 @@ export async function clockIn(
           { teacherId, shift }
         )
       }
+      // Guard: an EXPECTED slot may exist even when the date was later closed
+      // (race: generateExpectedSlots ran after markDateClosed, or a new teacher was added).
+      // The CLOSED status check above catches markDateClosed-propagated records; this check
+      // catches EXPECTED records that were never transitioned to CLOSED.
+      const closure = await tx.schoolClosure.findUnique({
+        where: { date: dateOnly },
+      })
+      if (closure) {
+        throw new ValidationError(
+          'School is closed today — please contact an admin to record your attendance',
+          CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+          { teacherId, shift }
+        )
+      }
       assertValidTransition(
         existingAttendanceRecord.status,
         attendanceData.status
@@ -370,7 +384,10 @@ export async function updateCheckin(
                 minutesLate: effectiveIsLate ? recomputedMinutesLate : null,
                 source: 'ADMIN_OVERRIDE',
               }
-            : {}),
+            : // clockInTime changed but isLate not — re-sync minutesLate to match the
+              // new clock-in time without changing status (admin corrected a time, not
+              // the lateness determination).
+              { minutesLate: effectiveIsLate ? recomputedMinutesLate : null }),
         },
       })
     }

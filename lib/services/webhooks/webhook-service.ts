@@ -243,72 +243,88 @@ export async function handleSubscriptionCreated(
               guardianWithChildren?.guardianRelationships ?? []
             ).flatMap((rel) => rel.dependent.programProfiles)
 
-            billingAccount = await createOrUpdateBillingAccount({
-              personId: guardianPerson.id,
-              accountType,
-              stripeCustomerId: customerId,
-              paymentMethodCaptured: true,
-              paymentMethodCapturedAt: new Date(),
-            })
-
-            if (familyProfiles.length > 0) {
-              profileIds = familyProfiles.map((p) => p.id)
-            }
-
-            const childCount = familyProfiles.length
-            const familyId = familyProfiles[0]?.familyReferenceId ?? null
-            const standardRate = calculateDugsiRate(childCount)
-            const actualAmount =
-              subscription.items.data[0]?.price?.unit_amount ?? standardRate
-
-            try {
-              await getDugsiStripeClient().subscriptions.update(
-                subscription.id,
+            if (familyProfiles.length === 0) {
+              // Guardian exists in DB but has no active Dugsi children — creating a
+              // billing account here would leave it with no profile linkage (orphaned).
+              // Skip account creation; the `if (!billingAccount)` guard below will throw
+              // so the webhook retries and Stripe can surface the failure.
+              Sentry.captureMessage(
+                'Dugsi Path 4: guardian found but has no active family profiles — subscription not linked',
                 {
-                  metadata: {
+                  level: 'error',
+                  extra: {
+                    customerId,
+                    subscriptionId: subscription.id,
                     guardianPersonId: guardianPerson.id,
-                    familyId: familyId ?? '',
-                    childCount: String(childCount),
-                    profileIds: (profileIds ?? []).join(','),
-                    calculatedRate: String(standardRate),
-                    overrideUsed: String(actualAmount !== standardRate),
-                    Family: guardianPerson.name,
-                    source: 'dugsi-webhook-fallback-recovery',
                   },
                 }
               )
-            } catch (metadataErr) {
-              await logError(
-                logger,
-                metadataErr,
-                'Failed to patch Stripe subscription metadata in fallback',
-                { subscriptionId: subscription.id, customerId }
-              )
-            }
+            } else {
+              billingAccount = await createOrUpdateBillingAccount({
+                personId: guardianPerson.id,
+                accountType,
+                stripeCustomerId: customerId,
+                paymentMethodCaptured: true,
+                paymentMethodCapturedAt: new Date(),
+              })
 
-            Sentry.captureMessage(
-              'Dugsi subscription resolved via customer email fallback',
-              {
-                level: 'warning',
-                extra: {
+              profileIds = familyProfiles.map((p) => p.id)
+
+              const childCount = familyProfiles.length
+              const familyId = familyProfiles[0]?.familyReferenceId ?? null
+              const standardRate = calculateDugsiRate(childCount)
+              const actualAmount =
+                subscription.items.data[0]?.price?.unit_amount ?? standardRate
+
+              try {
+                await getDugsiStripeClient().subscriptions.update(
+                  subscription.id,
+                  {
+                    metadata: {
+                      guardianPersonId: guardianPerson.id,
+                      familyId: familyId ?? '',
+                      childCount: String(childCount),
+                      profileIds: profileIds.join(','),
+                      calculatedRate: String(standardRate),
+                      overrideUsed: String(actualAmount !== standardRate),
+                      Family: guardianPerson.name,
+                      source: 'dugsi-webhook-fallback-recovery',
+                    },
+                  }
+                )
+              } catch (metadataErr) {
+                await logError(
+                  logger,
+                  metadataErr,
+                  'Failed to patch Stripe subscription metadata in fallback',
+                  { subscriptionId: subscription.id, customerId }
+                )
+              }
+
+              Sentry.captureMessage(
+                'Dugsi subscription resolved via customer email fallback',
+                {
+                  level: 'warning',
+                  extra: {
+                    customerId,
+                    subscriptionId: subscription.id,
+                    guardianPersonId: guardianPerson.id,
+                    childCount,
+                    derivedProfileIds: profileIds,
+                  },
+                }
+              )
+
+              logger.warn(
+                {
                   customerId,
                   subscriptionId: subscription.id,
                   guardianPersonId: guardianPerson.id,
                   childCount,
-                  derivedProfileIds: profileIds,
                 },
-              }
-            )
-
-            logger.warn(
-              {
-                customerId,
-                subscriptionId: subscription.id,
-                guardianPersonId: guardianPerson.id,
-                childCount,
-              },
-              'Subscription created without metadata — resolved via Stripe customer email fallback'
-            )
+                'Subscription created without metadata — resolved via Stripe customer email fallback'
+              )
+            }
           }
         }
 
