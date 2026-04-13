@@ -121,4 +121,8 @@ export const CHECKIN_ERROR_CODES = {
   // Fired when a teacher tries to clock in on a date the school is closed.
   // Tells the teacher to contact an admin rather than retrying GPS.
   SCHOOL_CLOSED: 'SCHOOL_CLOSED',
+  // Fired when a teacher tries to self-clock-in but an admin has explicitly set their
+  // attendance record to ABSENT (source=ADMIN_OVERRIDE). Self-checkin must not
+  // reverse a deliberate admin action — the teacher must contact the admin directly.
+  ADMIN_OVERRIDE_EXISTS: 'ADMIN_OVERRIDE_EXISTS',
 } as const

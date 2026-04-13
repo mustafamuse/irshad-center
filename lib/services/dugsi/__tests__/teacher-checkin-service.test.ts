@@ -375,6 +375,50 @@ describe('clockIn', () => {
       })
     ).rejects.toMatchObject({ code: CHECKIN_ERROR_CODES.SYSTEM_NOT_CONFIGURED })
   })
+
+  it('throws ADMIN_OVERRIDE_EXISTS and does not modify attendance when existing ABSENT record was set by admin', async () => {
+    mockFindUniqueAttendance.mockResolvedValue({
+      status: 'ABSENT',
+      source: 'ADMIN_OVERRIDE',
+    })
+
+    await expect(
+      clockIn({
+        teacherId: 'teacher-1',
+        shift: Shift.MORNING,
+        latitude: 44.9778,
+        longitude: -93.265,
+      })
+    ).rejects.toMatchObject({ code: CHECKIN_ERROR_CODES.ADMIN_OVERRIDE_EXISTS })
+
+    expect(mockUpdateManyAttendance).not.toHaveBeenCalled()
+    expect(mockCreateAttendance).not.toHaveBeenCalled()
+  })
+
+  it('proceeds past provenance guard when existing ABSENT record was set by the cron (SYSTEM source)', async () => {
+    mockFindUniqueAttendance.mockResolvedValue({
+      status: 'ABSENT',
+      source: 'SYSTEM',
+    })
+    mockUpdateManyAttendance.mockResolvedValue({ count: 1 })
+
+    // Should not throw — provenance guard must not fire for auto-mark ABSENT.
+    await expect(
+      clockIn({
+        teacherId: 'teacher-1',
+        shift: Shift.MORNING,
+        latitude: 44.9778,
+        longitude: -93.265,
+      })
+    ).resolves.toBeDefined()
+
+    expect(mockUpdateManyAttendance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'ABSENT' }),
+        data: expect.objectContaining({ status: 'PRESENT' }),
+      })
+    )
+  })
 })
 
 describe('clockOut', () => {

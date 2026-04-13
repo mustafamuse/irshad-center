@@ -133,7 +133,7 @@ export async function clockIn(
     const existingAttendanceRecord =
       await tx.teacherAttendanceRecord.findUnique({
         where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
-        select: { status: true },
+        select: { status: true, source: true },
       })
 
     const attendanceData = {
@@ -165,6 +165,20 @@ export async function clockIn(
         throw new ValidationError(
           'School is closed today — please contact an admin to record your attendance',
           CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+          { teacherId, shift }
+        )
+      }
+      // Provenance guard: an admin explicitly set this record to ABSENT — self-checkin
+      // must not reverse a deliberate administrative decision. Auto-mark ABSENT
+      // (source=SYSTEM) is allowed because a physically-present late arrival should
+      // still be able to clock in; geofence enforces they are actually on-site.
+      if (
+        existingAttendanceRecord.status === 'ABSENT' &&
+        existingAttendanceRecord.source === 'ADMIN_OVERRIDE'
+      ) {
+        throw new ValidationError(
+          'Your attendance has been recorded by an admin. Contact them to make changes.',
+          CHECKIN_ERROR_CODES.ADMIN_OVERRIDE_EXISTS,
           { teacherId, shift }
         )
       }

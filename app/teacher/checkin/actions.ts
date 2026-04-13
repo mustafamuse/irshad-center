@@ -30,6 +30,7 @@ import {
   getTeacherCheckin,
 } from '@/lib/db/queries/teacher-checkin'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { PHASE2_EXCUSE_ENABLED } from '@/lib/feature-flags'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { submitExcuse } from '@/lib/services/dugsi/excuse-service'
@@ -371,6 +372,14 @@ const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
   .metadata({ actionName: 'getTeacherAttendanceHistoryAction' })
   .schema(z.object({ teacherId: z.string().uuid(), token: z.string() }))
   .action(async ({ parsedInput }) => {
+    if (!PHASE2_EXCUSE_ENABLED) {
+      throw new ActionError(
+        'This feature is not available yet',
+        ERROR_CODES.UNAUTHORIZED,
+        undefined,
+        403
+      )
+    }
     const teacherId = verifyTeacherToken(parsedInput.token)
     if (!teacherId) {
       throw new ActionError(
@@ -406,6 +415,14 @@ const _submitExcuseAction = rateLimitedActionClient
   .metadata({ actionName: 'submitExcuseAction' })
   .schema(SubmitExcuseSchema)
   .action(async ({ parsedInput }) => {
+    if (!PHASE2_EXCUSE_ENABLED) {
+      throw new ActionError(
+        'This feature is not available yet',
+        ERROR_CODES.UNAUTHORIZED,
+        undefined,
+        403
+      )
+    }
     const { attendanceRecordId, token, reason } = parsedInput
 
     // teacherId is resolved from the signed session token; client-supplied value is ignored

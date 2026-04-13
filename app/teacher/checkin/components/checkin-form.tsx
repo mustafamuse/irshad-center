@@ -45,12 +45,12 @@ import { useCheckinOnboarding } from './use-checkin-onboarding'
 
 interface CheckinFormProps {
   teachers: TeacherForDropdown[]
-  showHistory?: boolean
+  phase2ExcuseEnabled?: boolean
 }
 
 export function CheckinForm({
   teachers,
-  showHistory = false,
+  phase2ExcuseEnabled = false,
 }: CheckinFormProps) {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(
     null
@@ -350,7 +350,7 @@ export function CheckinForm({
         </>
       )}
 
-      {showHistory && (
+      {phase2ExcuseEnabled && (
         <CheckinHistory
           teacherId={selectedTeacherId}
           sessionToken={sessionToken}

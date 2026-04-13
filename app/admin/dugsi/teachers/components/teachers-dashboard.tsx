@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
@@ -40,9 +41,14 @@ export function TeachersDashboard({ teachers, pendingExcuses }: Props) {
             Manage teachers, check-ins, and attendance reports
           </p>
         </div>
-        <CreateTeacherDialog onSuccess={handleRefresh}>
-          <Button>Create Teacher</Button>
-        </CreateTeacherDialog>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/admin/dugsi/teachers/attendance">Attendance</Link>
+          </Button>
+          <CreateTeacherDialog onSuccess={handleRefresh}>
+            <Button>Create Teacher</Button>
+          </CreateTeacherDialog>
+        </div>
       </div>
 
       <Tabs defaultValue="teachers" className="space-y-4">
