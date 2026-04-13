@@ -10,6 +10,7 @@ import { submitExcuseAction } from '../actions'
 interface ExcuseFormProps {
   attendanceRecordId: string
   teacherId: string
+  sessionToken: string
   onSuccess: () => void
   onCancel: () => void
 }
@@ -17,6 +18,7 @@ interface ExcuseFormProps {
 export function ExcuseForm({
   attendanceRecordId,
   teacherId,
+  sessionToken,
   onSuccess,
   onCancel,
 }: ExcuseFormProps) {
@@ -35,6 +37,7 @@ export function ExcuseForm({
       const result = await submitExcuseAction({
         attendanceRecordId,
         teacherId,
+        token: sessionToken,
         reason: reason.trim(),
       })
 

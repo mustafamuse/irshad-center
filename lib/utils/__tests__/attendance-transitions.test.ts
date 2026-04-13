@@ -43,11 +43,11 @@ describe('isValidTransition from PRESENT', () => {
   it('allows PRESENT → ABSENT', () => {
     expect(isValidTransition('PRESENT', 'ABSENT')).toBe(true)
   })
-  it('allows PRESENT → EXCUSED', () => {
-    expect(isValidTransition('PRESENT', 'EXCUSED')).toBe(true)
-  })
   it('allows PRESENT → LATE', () => {
     expect(isValidTransition('PRESENT', 'LATE')).toBe(true)
+  })
+  it('rejects PRESENT → EXCUSED (teachers who are PRESENT do not need excuses)', () => {
+    expect(isValidTransition('PRESENT', 'EXCUSED')).toBe(false)
   })
   it('rejects PRESENT → EXPECTED', () => {
     expect(isValidTransition('PRESENT', 'EXPECTED')).toBe(false)
@@ -166,9 +166,9 @@ describe('getAllowedTransitions', () => {
   })
   it('returns correct set for PRESENT', () => {
     expect(getAllowedTransitions('PRESENT')).toEqual(
-      expect.arrayContaining(['ABSENT', 'EXCUSED', 'LATE'])
+      expect.arrayContaining(['ABSENT', 'LATE'])
     )
-    expect(getAllowedTransitions('PRESENT')).toHaveLength(3)
+    expect(getAllowedTransitions('PRESENT')).toHaveLength(2)
   })
   it('returns correct set for LATE (includes self)', () => {
     expect(getAllowedTransitions('LATE')).toEqual(
@@ -223,5 +223,33 @@ describe('assertValidTransition', () => {
 
   it('includes the allowed transitions in the error message', () => {
     expect(() => assertValidTransition('CLOSED', 'LATE')).toThrow(/PRESENT/)
+  })
+})
+
+// ─── PRESENT→EXCUSED removal regression guards ───────────────────────────────
+
+describe('PRESENT→EXCUSED removal (regression guards)', () => {
+  it('isValidTransition PRESENT→EXCUSED returns false', () => {
+    expect(isValidTransition('PRESENT', 'EXCUSED')).toBe(false)
+  })
+
+  it('getAllowedTransitions PRESENT does not include EXCUSED', () => {
+    expect(getAllowedTransitions('PRESENT')).not.toContain('EXCUSED')
+  })
+
+  it('isValidTransition PRESENT→ABSENT returns true', () => {
+    expect(isValidTransition('PRESENT', 'ABSENT')).toBe(true)
+  })
+
+  it('isValidTransition PRESENT→LATE returns true', () => {
+    expect(isValidTransition('PRESENT', 'LATE')).toBe(true)
+  })
+
+  it('isValidTransition LATE→EXCUSED returns true (EXCUSED valid from LATE)', () => {
+    expect(isValidTransition('LATE', 'EXCUSED')).toBe(true)
+  })
+
+  it('isValidTransition ABSENT→EXCUSED returns true (EXCUSED valid from ABSENT)', () => {
+    expect(isValidTransition('ABSENT', 'EXCUSED')).toBe(true)
   })
 })

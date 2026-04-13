@@ -14,7 +14,9 @@ const ALLOWED_TRANSITIONS: Record<
   //   already has concrete attendance data (showed up, was excused, etc.) cannot
   //   be reverted to CLOSED via the override dialog. Use removeClosure() + the
   //   natural record if the whole day needs to be reopened.
-  PRESENT: ['ABSENT', 'EXCUSED', 'LATE'],
+  // EXCUSED is intentionally excluded from PRESENT: teachers who are PRESENT do
+  //   not need excuses. EXCUSED is only valid from LATE or ABSENT.
+  PRESENT: ['ABSENT', 'LATE'],
   // LATE → LATE: self-checkin can update clockInTime/source on an auto-marked LATE record
   //   without changing the displayed status.
   LATE: ['ABSENT', 'EXCUSED', 'PRESENT', 'LATE'],

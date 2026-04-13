@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
 import { format } from 'date-fns'
@@ -11,15 +11,12 @@ import {
   Clock,
   HelpCircle,
   Loader2,
-  LogIn,
-  LogOut,
-  MapPin,
   Sun,
   Sunset,
   User,
 } from 'lucide-react'
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,31 +28,20 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SHIFT_TIME_LABELS } from '@/lib/constants/teacher-checkin'
-import { METERS_TO_FEET } from '@/lib/services/geolocation-service'
 
 import {
-  checkGeofence,
+  createTeacherSessionAction,
   getTeacherCurrentStatus,
-  teacherClockInAction,
-  teacherClockOutAction,
   type GeofenceCheckResult,
   type TeacherCurrentStatus,
   type TeacherForDropdown,
 } from '../actions'
 import { CheckinHistory } from './checkin-history'
+import { ClockInButton } from './clock-in-button'
+import { GeofenceValidator } from './geofence-validator'
 import { OnboardingModal } from './onboarding-modal'
 import { TeacherSelector } from './teacher-selector'
 import { useCheckinOnboarding } from './use-checkin-onboarding'
-import { useGeolocation } from './use-geolocation'
-
-function formatDistance(meters: number): string {
-  const feet = meters * METERS_TO_FEET
-  if (feet >= 1000) {
-    const miles = feet / 5280
-    return `${miles.toFixed(1)} miles`
-  }
-  return `${Math.round(feet)}ft`
-}
 
 interface CheckinFormProps {
   teachers: TeacherForDropdown[]
@@ -69,6 +55,7 @@ export function CheckinForm({
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(
     null
   )
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
   const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
   const [status, setStatus] = useState<TeacherCurrentStatus | null>(null)
   const [message, setMessage] = useState<{
@@ -77,16 +64,12 @@ export function CheckinForm({
   } | null>(null)
   const [geofenceStatus, setGeofenceStatus] =
     useState<GeofenceCheckResult | null>(null)
+  const [locationCoords, setLocationCoords] = useState<{
+    latitude: number | null
+    longitude: number | null
+  }>({ latitude: null, longitude: null })
 
   const [isPending, startTransition] = useTransition()
-  const {
-    location,
-    isLoading: isGeoLoading,
-    requestLocation,
-    hasLocation,
-    hasError,
-    permissionState,
-  } = useGeolocation()
   const { showOnboarding, dismissOnboarding, resetOnboarding } =
     useCheckinOnboarding()
 
@@ -95,12 +78,17 @@ export function CheckinForm({
 
   useEffect(() => {
     if (selectedTeacherId) {
+      const id = selectedTeacherId
       const shifts = selectedTeacher?.shifts ?? []
 
       startTransition(async () => {
         try {
-          const currentStatus = await getTeacherCurrentStatus(selectedTeacherId)
+          const [currentStatus, sessionResult] = await Promise.all([
+            getTeacherCurrentStatus(id),
+            createTeacherSessionAction({ teacherId: id }),
+          ])
           setStatus(currentStatus)
+          setSessionToken(sessionResult?.data?.token ?? null)
 
           if (shifts.length === 1) {
             setSelectedShift(shifts[0])
@@ -121,42 +109,10 @@ export function CheckinForm({
     } else {
       setStatus(null)
       setSelectedShift(null)
+      setSessionToken(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers is stable from server props
   }, [selectedTeacherId])
-
-  useEffect(() => {
-    if (
-      selectedShift &&
-      !hasLocation &&
-      !isGeoLoading &&
-      permissionState === 'granted'
-    ) {
-      handleRequestLocation()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- omits handleRequestLocation (stable useCallback on requestLocation)
-  }, [selectedShift, permissionState])
-
-  const handleRequestLocation = useCallback(async () => {
-    setMessage(null)
-    setGeofenceStatus(null)
-    const loc = await requestLocation()
-    if (loc.latitude !== null && loc.longitude !== null) {
-      try {
-        const result = await checkGeofence(loc.latitude, loc.longitude)
-        setGeofenceStatus(result)
-      } catch (error) {
-        console.error('Geofence check failed:', error)
-        setMessage({
-          type: 'error',
-          text:
-            error instanceof Error
-              ? error.message
-              : 'Could not verify your location. Please try again.',
-        })
-      }
-    }
-  }, [requestLocation])
 
   const currentCheckin = useMemo(() => {
     if (!status || !selectedShift) return null
@@ -177,97 +133,22 @@ export function CheckinForm({
         }
       : null
   }, [status, selectedShift])
+
   const isClockedIn = currentCheckin !== null
   const isClockedOut = isClockedIn && currentCheckin.clockOutTime !== null
-
-  const handleClockIn = async () => {
-    if (
-      !selectedTeacherId ||
-      !selectedShift ||
-      !location.latitude ||
-      !location.longitude
-    ) {
-      setMessage({
-        type: 'error',
-        text: 'Location is required. Please enable location and try again.',
-      })
-      return
-    }
-
-    setMessage(null)
-
-    const lat = location.latitude
-    const lng = location.longitude
-
-    startTransition(async () => {
-      const result = await teacherClockInAction({
-        teacherId: selectedTeacherId,
-        shift: selectedShift,
-        latitude: lat,
-        longitude: lng,
-      })
-
-      if (result?.data) {
-        setMessage({
-          type: 'success',
-          text: result.data.message ?? 'Clocked in!',
-        })
-        setStatus(result.data.status)
-      } else {
-        setMessage({
-          type: 'error',
-          text: result?.serverError ?? 'Clock-in failed',
-        })
-      }
-    })
-  }
-
-  const handleClockOut = async () => {
-    if (
-      !currentCheckin?.id ||
-      !selectedTeacherId ||
-      !location.latitude ||
-      !location.longitude
-    ) {
-      setMessage({
-        type: 'error',
-        text: 'Location is required. Please enable location and try again.',
-      })
-      return
-    }
-
-    setMessage(null)
-
-    const lat = location.latitude
-    const lng = location.longitude
-
-    startTransition(async () => {
-      const result = await teacherClockOutAction({
-        checkInId: currentCheckin.id,
-        teacherId: selectedTeacherId,
-        latitude: lat,
-        longitude: lng,
-      })
-
-      if (result?.data) {
-        setMessage({
-          type: 'success',
-          text: result.data.message ?? 'Clocked out!',
-        })
-        setStatus(result.data.status)
-      } else {
-        setMessage({
-          type: 'error',
-          text: result?.serverError ?? 'Clock-out failed',
-        })
-      }
-    })
-  }
 
   const formatTime = (date: Date | null) => {
     if (!date) return null
     return format(new Date(date), 'h:mm a')
   }
+
+  const locationCoordsForButton =
+    locationCoords.latitude !== null && locationCoords.longitude !== null
+      ? {
+          latitude: locationCoords.latitude,
+          longitude: locationCoords.longitude,
+        }
+      : null
 
   return (
     <div className="space-y-4">
@@ -300,6 +181,7 @@ export function CheckinForm({
               setSelectedTeacherId(id)
               setMessage(null)
               setGeofenceStatus(null)
+              setLocationCoords({ latitude: null, longitude: null })
             }}
             disabled={isPending}
           />
@@ -408,136 +290,13 @@ export function CheckinForm({
                 </CardContent>
               </Card>
 
-              {hasLocation && geofenceStatus?.isWithinGeofence ? (
-                <div className="flex items-center justify-between rounded-lg border bg-white px-4 py-3 shadow-sm duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:150ms]">
-                  <div className="flex items-center gap-2 text-sm text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span>At Irshad Center</span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleRequestLocation}
-                    disabled={isGeoLoading || isPending}
-                    className="h-auto px-2 py-1 text-xs text-muted-foreground"
-                  >
-                    {isGeoLoading ? (
-                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                    ) : (
-                      <MapPin className="mr-1 h-3 w-3" />
-                    )}
-                    Refresh
-                  </Button>
-                </div>
-              ) : (
-                <Card className="border-0 shadow-md duration-300 animate-in fade-in slide-in-from-bottom-2 [animation-delay:150ms]">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#007078]/10">
-                        <MapPin className="h-4 w-4 text-[#007078]" />
-                      </div>
-                      Location
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {hasLocation &&
-                    geofenceStatus &&
-                    !geofenceStatus.isWithinGeofence ? (
-                      <>
-                        <div className="flex items-center gap-2 text-sm font-medium text-red-600">
-                          <AlertCircle className="h-4 w-4" />
-                          <span>
-                            {formatDistance(geofenceStatus.distanceMeters)} away
-                            {' \u2022 '}
-                            Must be within{' '}
-                            {Math.round(
-                              geofenceStatus.allowedRadiusMeters *
-                                METERS_TO_FEET
-                            )}
-                            ft
-                          </span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          onClick={handleRequestLocation}
-                          disabled={isGeoLoading || isPending}
-                          className="w-full"
-                        >
-                          <MapPin className="mr-2 h-4 w-4" />
-                          Retry Location
-                        </Button>
-                      </>
-                    ) : permissionState === 'denied' ? (
-                      <div className="space-y-3">
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>Location Blocked</AlertTitle>
-                          <AlertDescription>
-                            Tap the lock icon in your browser&apos;s address
-                            bar, set Location to &quot;Allow&quot;, then reload.
-                          </AlertDescription>
-                        </Alert>
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => window.location.reload()}
-                        >
-                          Reload Page
-                        </Button>
-                      </div>
-                    ) : hasError ? (
-                      <div className="space-y-3">
-                        <Alert variant="destructive">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>Could Not Get Location</AlertTitle>
-                          <AlertDescription>
-                            Make sure you are not in airplane mode and have a
-                            clear view of the sky, then try again.
-                          </AlertDescription>
-                        </Alert>
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={handleRequestLocation}
-                          disabled={isGeoLoading || isPending}
-                        >
-                          <MapPin className="mr-2 h-4 w-4" />
-                          Retry Location
-                        </Button>
-                      </div>
-                    ) : isGeoLoading ? (
-                      <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Getting your location…</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="rounded-lg border border-[#007078]/20 bg-[#007078]/5 p-3">
-                          <p className="text-sm font-medium text-[#007078]">
-                            Your browser will ask for location access
-                          </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Tap{' '}
-                            <span className="font-medium text-foreground">
-                              &quot;Allow&quot;
-                            </span>{' '}
-                            when you see the popup to verify you are at the
-                            center.
-                          </p>
-                        </div>
-                        <Button
-                          className="w-full bg-[#007078] text-white hover:bg-[#005a61]"
-                          onClick={handleRequestLocation}
-                          disabled={isPending}
-                        >
-                          <MapPin className="mr-2 h-4 w-4" />
-                          Enable Location
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+              <GeofenceValidator
+                shift={selectedShift}
+                onGeofenceResult={setGeofenceStatus}
+                onLocationChange={(lat, lng) =>
+                  setLocationCoords({ latitude: lat, longitude: lng })
+                }
+              />
 
               {message &&
                 (message.type === 'success' ? (
@@ -568,57 +327,35 @@ export function CheckinForm({
                 ))}
 
               <div className="space-y-3">
-                {!isClockedIn ? (
-                  <Button
-                    size="lg"
-                    className="h-14 w-full bg-[#007078] text-lg shadow-lg shadow-[#007078]/25 transition-[background-color,box-shadow,transform] hover:bg-[#005a61] hover:shadow-xl hover:shadow-[#007078]/30 hover:ring-2 hover:ring-[#deb43e]/50 hover:ring-offset-1 active:scale-[0.98]"
-                    onClick={handleClockIn}
-                    disabled={
-                      !hasLocation ||
-                      isPending ||
-                      geofenceStatus?.isWithinGeofence !== true
-                    }
-                  >
-                    {isPending ? (
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : (
-                      <LogIn className="mr-2 h-5 w-5" />
-                    )}
-                    Clock In
-                  </Button>
-                ) : !isClockedOut ? (
-                  <Button
-                    size="lg"
-                    className="h-14 w-full bg-amber-600 text-lg text-white shadow-lg shadow-amber-600/25 transition-[background-color,box-shadow,transform] hover:bg-amber-700 hover:shadow-xl hover:shadow-amber-600/30 active:scale-[0.98]"
-                    onClick={handleClockOut}
-                    disabled={!hasLocation || isPending}
-                  >
-                    {isPending ? (
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    ) : (
-                      <LogOut className="mr-2 h-5 w-5" />
-                    )}
-                    Clock Out
-                  </Button>
-                ) : (
-                  <div className="rounded-xl border-2 border-dashed border-green-200 bg-green-50/50 p-4 text-center">
-                    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    </div>
-                    <p className="font-medium text-green-800">Shift Complete</p>
-                    <p className="mt-1 text-sm text-green-600">
-                      You have completed your {selectedShift.toLowerCase()}{' '}
-                      shift.
-                    </p>
-                  </div>
-                )}
+                <ClockInButton
+                  teacherId={selectedTeacherId}
+                  shift={selectedShift}
+                  geofenceStatus={geofenceStatus}
+                  locationCoords={locationCoordsForButton}
+                  currentCheckin={currentCheckin}
+                  isPending={isPending}
+                  onClockIn={(newStatus, msg) => {
+                    setStatus(newStatus)
+                    setMessage({ type: 'success', text: msg })
+                  }}
+                  onClockOut={(newStatus, msg) => {
+                    setStatus(newStatus)
+                    setMessage({ type: 'success', text: msg })
+                  }}
+                  onError={(msg) => setMessage({ type: 'error', text: msg })}
+                />
               </div>
             </>
           )}
         </>
       )}
 
-      {showHistory && <CheckinHistory teacherId={selectedTeacherId} />}
+      {showHistory && (
+        <CheckinHistory
+          teacherId={selectedTeacherId}
+          sessionToken={sessionToken}
+        />
+      )}
 
       <OnboardingModal open={showOnboarding} onDismiss={dismissOnboarding} />
     </div>

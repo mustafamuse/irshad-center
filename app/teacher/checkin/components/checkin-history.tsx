@@ -23,9 +23,13 @@ import { ExcuseForm } from './excuse-form'
 
 interface CheckinHistoryProps {
   teacherId: string | null
+  sessionToken: string | null
 }
 
-export function CheckinHistory({ teacherId }: CheckinHistoryProps) {
+export function CheckinHistory({
+  teacherId,
+  sessionToken,
+}: CheckinHistoryProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [history, setHistory] = useState<AttendanceHistoryResult | null>(null)
@@ -43,10 +47,13 @@ export function CheckinHistory({ teacherId }: CheckinHistoryProps) {
     setExcuseOpenId(null)
   }, [teacherId])
 
-  const fetchHistory = useCallback((id: string) => {
+  const fetchHistory = useCallback((id: string, token: string) => {
     startTransition(async () => {
       try {
-        const result = await getTeacherAttendanceHistory({ teacherId: id })
+        const result = await getTeacherAttendanceHistory({
+          teacherId: id,
+          token,
+        })
         if (currentTeacherRef.current !== id) return
         if (result?.serverError) throw new Error(result.serverError)
         if (result?.data) {
@@ -62,9 +69,9 @@ export function CheckinHistory({ teacherId }: CheckinHistoryProps) {
   }, [])
 
   const loadHistory = useCallback(() => {
-    if (!teacherId || (hasLoaded && !error)) return
-    fetchHistory(teacherId)
-  }, [teacherId, hasLoaded, error, fetchHistory])
+    if (!teacherId || !sessionToken || (hasLoaded && !error)) return
+    fetchHistory(teacherId, sessionToken)
+  }, [teacherId, sessionToken, hasLoaded, error, fetchHistory])
 
   function handleOpenChange(open: boolean) {
     setIsOpen(open)
@@ -73,7 +80,7 @@ export function CheckinHistory({ teacherId }: CheckinHistoryProps) {
 
   function handleExcuseSuccess() {
     setExcuseOpenId(null)
-    if (teacherId) fetchHistory(teacherId)
+    if (teacherId && sessionToken) fetchHistory(teacherId, sessionToken)
   }
 
   if (!teacherId) return null
@@ -197,6 +204,7 @@ export function CheckinHistory({ teacherId }: CheckinHistoryProps) {
                         <ExcuseForm
                           attendanceRecordId={item.id}
                           teacherId={teacherId}
+                          sessionToken={sessionToken ?? ''}
                           onSuccess={handleExcuseSuccess}
                           onCancel={() => setExcuseOpenId(null)}
                         />

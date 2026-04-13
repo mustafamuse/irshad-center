@@ -340,10 +340,11 @@ export async function bulkTransitionStatus(
     toStatus: Exclude<TeacherAttendanceStatus, 'LATE'>
     source: AttendanceSource
     changedBy?: string // recorded per-row for audit; 'cron' for auto-mark, admin name for closures
+    previousStatus?: TeacherAttendanceStatus // saved before closure so reopen can restore original state
   },
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const { where, toStatus, source, changedBy } = params
+  const { where, toStatus, source, changedBy, previousStatus } = params
 
   assertValidTransition(where.status, toStatus)
 
@@ -360,6 +361,7 @@ export async function bulkTransitionStatus(
       // Always clear minutesLate — LATE is excluded from toStatus (see parameter type).
       minutesLate: null,
       ...(changedBy !== undefined ? { changedBy } : {}),
+      ...(previousStatus !== undefined ? { previousStatus } : {}),
     },
   })
 

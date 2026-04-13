@@ -175,6 +175,38 @@ describe('autoMarkLateForShift', () => {
       marked: 0,
     })
   })
+
+  it('race condition — record clocked in between slot generation and updateMany is not overwritten', async () => {
+    // Simulates: teacher was EXPECTED when generateExpectedSlots ran, then clocked in
+    // (PRESENT) before updateMany executed. The WHERE clause filters status='EXPECTED',
+    // so updateMany finds nothing to update and returns count=0. The function must
+    // return a non-error result rather than treating the 0-count as a failure.
+    mockFindUniqueClosure.mockResolvedValue(null)
+    mockUpdateMany.mockResolvedValue({ count: 0 })
+
+    const result = await autoMarkLateForShift(
+      '2026-02-07',
+      'MORNING',
+      BASE_CONFIG
+    )
+
+    // The WHERE clause must include status: 'EXPECTED' so records that transitioned
+    // to PRESENT (or LATE) between slot generation and this write are never touched.
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'EXPECTED',
+        }),
+      })
+    )
+
+    // count=0 from updateMany must not produce an error — the function skips cleanly.
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'no_expected_records',
+      marked: 0,
+    })
+  })
 })
 
 describe('autoMarkBothShifts', () => {

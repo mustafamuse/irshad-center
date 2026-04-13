@@ -8,6 +8,7 @@ const {
   mockTeacherClockInAction,
   mockTeacherClockOutAction,
   mockCheckGeofence,
+  mockCreateTeacherSessionAction,
   mockUseGeolocation,
   mockUseCheckinOnboarding,
 } = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const {
   mockTeacherClockInAction: vi.fn(),
   mockTeacherClockOutAction: vi.fn(),
   mockCheckGeofence: vi.fn(),
+  mockCreateTeacherSessionAction: vi.fn(),
   mockUseGeolocation: vi.fn(),
   mockUseCheckinOnboarding: vi.fn(),
 }))
@@ -27,6 +29,8 @@ vi.mock('../../actions', () => ({
   teacherClockOutAction: (...args: unknown[]) =>
     mockTeacherClockOutAction(...args),
   checkGeofence: (...args: unknown[]) => mockCheckGeofence(...args),
+  createTeacherSessionAction: (...args: unknown[]) =>
+    mockCreateTeacherSessionAction(...args),
 }))
 
 vi.mock('../use-geolocation', () => ({
@@ -107,6 +111,9 @@ describe('CheckinForm', () => {
     vi.clearAllMocks()
     mockUseGeolocation.mockReturnValue(defaultGeolocation)
     mockGetTeacherCurrentStatus.mockResolvedValue(defaultStatus)
+    mockCreateTeacherSessionAction.mockResolvedValue({
+      data: { token: 'mock-token' },
+    })
     mockCheckGeofence.mockResolvedValue({
       isWithinGeofence: true,
       distanceMeters: 25,

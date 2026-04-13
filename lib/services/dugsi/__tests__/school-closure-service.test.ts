@@ -4,7 +4,8 @@
  * Covers:
  * - markDateClosed: EXPECTED → CLOSED propagation, AUTO_MARKED LATE → CLOSED bypass,
  *   duplicate closure guard, combined closedCount
- * - removeClosure: CLOSED → EXPECTED revert, missing closure guard
+ * - removeClosure: CLOSED → previousStatus revert, missing closure guard
+ * - previousStatus preservation: save pre-closure status and restore on reopen
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest'
@@ -14,6 +15,7 @@ const {
   mockCreateClosure,
   mockDeleteClosure,
   mockUpdateMany,
+  mockFindMany,
   mockExcuseUpdateMany,
   mockBulkTransitionStatus,
   mockTransaction,
@@ -22,6 +24,7 @@ const {
   mockCreateClosure: vi.fn(),
   mockDeleteClosure: vi.fn(),
   mockUpdateMany: vi.fn(),
+  mockFindMany: vi.fn(),
   mockExcuseUpdateMany: vi.fn(),
   mockBulkTransitionStatus: vi.fn(),
   mockTransaction: vi.fn(),
@@ -35,6 +38,7 @@ function makeTx() {
     },
     teacherAttendanceRecord: {
       updateMany: (...args: unknown[]) => mockUpdateMany(...args),
+      findMany: (...args: unknown[]) => mockFindMany(...args),
     },
     excuseRequest: {
       updateMany: (...args: unknown[]) => mockExcuseUpdateMany(...args),
@@ -229,13 +233,19 @@ describe('removeClosure', () => {
     )
     mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
     mockDeleteClosure.mockResolvedValue(undefined)
-    // reopenClosedRecords is now a module-private helper; it delegates to
-    // tx.teacherAttendanceRecord.updateMany — same mock as the LATE→CLOSED sweep.
+    // reopenClosedRecords fetches CLOSED records then runs per-group updateMany.
+    mockFindMany.mockResolvedValue([])
     mockUpdateMany.mockResolvedValue({ count: 0 })
     mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
   })
 
-  it('reverts CLOSED records to EXPECTED and returns reopenedCount', async () => {
+  it('reverts CLOSED records to their previousStatus and returns reopenedCount', async () => {
+    mockFindMany.mockResolvedValue([
+      { id: 'r-1', previousStatus: 'EXPECTED' },
+      { id: 'r-2', previousStatus: 'EXPECTED' },
+      { id: 'r-3', previousStatus: 'EXPECTED' },
+      { id: 'r-4', previousStatus: 'EXPECTED' },
+    ])
     mockUpdateMany.mockResolvedValue({ count: 4 })
 
     const result = await removeClosure({ date: TEST_DATE })
@@ -244,9 +254,13 @@ describe('removeClosure', () => {
     expect(mockDeleteClosure).toHaveBeenCalledWith({
       where: { date: TEST_DATE },
     })
-    expect(mockUpdateMany).toHaveBeenCalledWith(
+    expect(mockFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ date: TEST_DATE, status: 'CLOSED' }),
+      })
+    )
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
         data: expect.objectContaining({ status: 'EXPECTED', source: 'SYSTEM' }),
       })
     )
@@ -279,6 +293,7 @@ describe('removeClosure', () => {
 
   it('cancels PENDING/APPROVED excuses on CLOSED records before reopening', async () => {
     mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
+    mockFindMany.mockResolvedValue([{ id: 'r-1', previousStatus: 'EXPECTED' }])
     mockUpdateMany.mockResolvedValue({ count: 2 })
 
     await removeClosure({ date: TEST_DATE, changedBy: 'admin' })
@@ -295,6 +310,103 @@ describe('removeClosure', () => {
         data: expect.objectContaining({
           status: 'REJECTED',
           reviewedBy: 'admin',
+        }),
+      })
+    )
+  })
+})
+
+describe('previousStatus preservation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
+    mockGetSchoolClosure.mockResolvedValue(null)
+    mockCreateClosure.mockResolvedValue(FAKE_CLOSURE)
+    mockBulkTransitionStatus.mockResolvedValue(0)
+    mockUpdateMany.mockResolvedValue({ count: 0 })
+    mockFindMany.mockResolvedValue([])
+    mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
+  })
+
+  it('markDateClosed sets previousStatus to the record status before closure', async () => {
+    mockBulkTransitionStatus.mockResolvedValue(1)
+
+    await markDateClosed({
+      date: TEST_DATE,
+      reason: 'Snow day',
+      createdBy: 'admin',
+    })
+
+    expect(mockBulkTransitionStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ date: TEST_DATE, status: 'EXPECTED' }),
+        toStatus: 'CLOSED',
+        previousStatus: 'EXPECTED',
+      }),
+      expect.anything()
+    )
+  })
+
+  it('markDateClosed sets previousStatus LATE on AUTO_MARKED LATE records', async () => {
+    mockUpdateMany.mockResolvedValue({ count: 1 })
+
+    await markDateClosed({
+      date: TEST_DATE,
+      reason: 'Snow day',
+      createdBy: 'admin',
+    })
+
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { date: TEST_DATE, status: 'LATE', source: 'AUTO_MARKED' },
+        data: expect.objectContaining({
+          status: 'CLOSED',
+          previousStatus: 'LATE',
+        }),
+      })
+    )
+  })
+
+  it('removeClosure restores previousStatus for non-EXPECTED records', async () => {
+    mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
+    mockDeleteClosure.mockResolvedValue(undefined)
+    mockFindMany.mockResolvedValue([
+      { id: 'r-1', previousStatus: 'PRESENT' },
+      { id: 'r-2', previousStatus: 'PRESENT' },
+    ])
+    mockUpdateMany.mockResolvedValue({ count: 2 })
+
+    const result = await removeClosure({ date: TEST_DATE })
+
+    expect(result.reopenedCount).toBe(2)
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['r-1', 'r-2'] } },
+        data: expect.objectContaining({
+          status: 'PRESENT',
+          previousStatus: null,
+        }),
+      })
+    )
+  })
+
+  it('removeClosure falls back to EXPECTED when previousStatus is null', async () => {
+    mockGetSchoolClosure.mockResolvedValue(FAKE_CLOSURE)
+    mockDeleteClosure.mockResolvedValue(undefined)
+    mockFindMany.mockResolvedValue([{ id: 'r-1', previousStatus: null }])
+    mockUpdateMany.mockResolvedValue({ count: 1 })
+
+    const result = await removeClosure({ date: TEST_DATE })
+
+    expect(result.reopenedCount).toBe(1)
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['r-1'] } },
+        data: expect.objectContaining({
+          status: 'EXPECTED',
+          previousStatus: null,
         }),
       })
     )

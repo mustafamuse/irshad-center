@@ -70,13 +70,10 @@ export const GenerateExpectedSlotsSchema = z.object({
   date: weekendDateString,
 })
 
-// teacherId is included as a self-consistency check (stop-gap until session auth in #225):
-// the server resolves the true teacherId from the record and asserts it matches the
-// client-supplied value. An attacker must now know both the recordId AND the correct
-// teacherId — but this doesn't fix the underlying spoofability without session auth.
 export const SubmitExcuseSchema = z.object({
   attendanceRecordId: z.string().uuid(),
   teacherId: z.string().uuid(),
+  token: z.string(),
   reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000),
 })
 

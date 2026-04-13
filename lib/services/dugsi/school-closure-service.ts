@@ -7,7 +7,7 @@
  * Both operations are atomic via $transaction.
  */
 
-import { Prisma } from '@prisma/client'
+import { Prisma, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
@@ -44,13 +44,15 @@ export async function markDateClosed(
       data: { date, reason, createdBy: createdBy ?? null },
     })
 
-    // Propagate: flip EXPECTED → CLOSED for all slots that haven't been acted on yet.
+    // Propagate: flip EXPECTED → CLOSED, saving previousStatus so reopenClosedRecords
+    // can restore the original state instead of always reverting to EXPECTED.
     const closedCount = await bulkTransitionStatus(
       {
         where: { date, status: 'EXPECTED' },
         toStatus: 'CLOSED',
         source: 'SYSTEM',
         changedBy: createdBy,
+        previousStatus: 'EXPECTED',
       },
       tx
     )
@@ -78,11 +80,13 @@ export async function markDateClosed(
     // because the override dialog must never close a teacher who physically showed up
     // (SELF_CHECKIN LATE). This is the only code path that performs this transition;
     // callers must use markDateClosed() rather than transitionStatus() for this case.
+    // previousStatus: 'LATE' so reopenClosedRecords can restore LATE correctly.
     const { count: autoMarkedCount } =
       await tx.teacherAttendanceRecord.updateMany({
         where: { date, status: 'LATE', source: 'AUTO_MARKED' },
         data: {
           status: 'CLOSED',
+          previousStatus: 'LATE',
           source: 'SYSTEM',
           changedBy: createdBy ?? null,
         },
@@ -133,35 +137,51 @@ export async function markDateClosed(
 // compiler-enforced: nothing outside this file can accidentally skip the SchoolClosure
 // row deletion that must accompany the status revert.
 //
-// Known trade-off: this reverts ALL CLOSED records to EXPECTED indiscriminately —
-// including records that were AUTO_MARKED LATE before the closure was created
-// (markDateClosed flips AUTO_MARKED LATE → CLOSED as a side-effect). Since the
-// auto-mark cron only runs for today's date, those historical records will remain
-// EXPECTED and never be re-marked LATE automatically. An admin would need to
-// manually override them via the attendance grid.
-// Audit-trail gap: source is reset to 'SYSTEM' for all reverted records — a record
-// that was originally AUTO_MARKED/LATE before the closure is now indistinguishable
-// from one that was genuinely EXPECTED and never acted on. There is no in-DB way to
-// recover the pre-closure state.
-// Both gaps would be solved by storing pre-closure status in a column; that schema
-// change is deferred. Track as a follow-up: add `previousStatus` to
-// TeacherAttendanceRecord (populated by markDateClosed) so reopenClosedRecords
-// can restore the original state instead of always reverting to EXPECTED.
+// Restores pre-closure status using the `previousStatus` column populated by
+// markDateClosed. Records without a previousStatus (legacy rows or edge cases) fall
+// back to EXPECTED. One updateMany per distinct previousStatus value keeps this
+// efficient without per-row updates.
 async function reopenClosedRecords(
   params: { date: Date; changedBy?: string },
   tx: DatabaseClient
 ): Promise<number> {
-  const result = await tx.teacherAttendanceRecord.updateMany({
-    where: { date: params.date, status: 'CLOSED' },
-    data: {
-      status: 'EXPECTED',
-      source: 'SYSTEM',
-      ...(params.changedBy !== undefined
-        ? { changedBy: params.changedBy }
-        : {}),
-    },
+  const { date, changedBy } = params
+  const changedByData = changedBy !== undefined ? { changedBy } : {}
+
+  // Fetch all CLOSED records grouped by their previousStatus value.
+  const closedRecords = await tx.teacherAttendanceRecord.findMany({
+    where: { date, status: 'CLOSED' },
+    select: { id: true, previousStatus: true },
   })
-  return result.count
+
+  if (closedRecords.length === 0) return 0
+
+  // Group record IDs by the status they should be restored to.
+  const groups = new Map<TeacherAttendanceStatus | null, string[]>()
+  for (const record of closedRecords) {
+    const key = record.previousStatus
+    const ids = groups.get(key) ?? []
+    ids.push(record.id)
+    groups.set(key, ids)
+  }
+
+  let totalCount = 0
+
+  for (const [restoreStatus, ids] of groups) {
+    const targetStatus: TeacherAttendanceStatus = restoreStatus ?? 'EXPECTED'
+    const { count } = await tx.teacherAttendanceRecord.updateMany({
+      where: { id: { in: ids } },
+      data: {
+        status: targetStatus,
+        previousStatus: null,
+        source: 'SYSTEM',
+        ...changedByData,
+      },
+    })
+    totalCount += count
+  }
+
+  return totalCount
 }
 
 export async function removeClosure(

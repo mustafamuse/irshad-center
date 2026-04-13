@@ -734,8 +734,9 @@ model TeacherAttendanceRecord {
   teacherId   String
   date        DateTime                @db.Date
   shift       Shift
-  status      TeacherAttendanceStatus @default(EXPECTED)
-  source      AttendanceSource        @default(SYSTEM)
+  status         TeacherAttendanceStatus  @default(EXPECTED)
+  previousStatus TeacherAttendanceStatus?
+  source         AttendanceSource         @default(SYSTEM)
   checkInId   String?                 @unique // FK → DugsiTeacherCheckIn (one-to-one)
   clockInTime DateTime? // denormalized for display without join
   minutesLate Int? // null when status is not LATE

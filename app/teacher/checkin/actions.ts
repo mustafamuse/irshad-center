@@ -12,6 +12,10 @@ import { formatInTimeZone } from 'date-fns-tz'
 import { z } from 'zod'
 
 import {
+  generateTeacherToken,
+  verifyTeacherToken,
+} from '@/lib/auth/teacher-session'
+import {
   GEOFENCE_RADIUS_METERS,
   SCHOOL_TIMEZONE,
   IRSHAD_CENTER_LOCATION,
@@ -285,8 +289,8 @@ export type AttendanceHistoryItem = {
   source: AttendanceSource
   minutesLate: number | null
   clockInTime: Date | null
-  pendingExcuseId: string | null // non-null if there's a PENDING excuse request
-  wasExcuseRejected: boolean // true if the most recent excuse was REJECTED (teacher should resubmit)
+  pendingExcuseId: string | null
+  wasExcuseRejected: boolean
 }
 
 export type AttendanceHistoryResult = {
@@ -294,25 +298,8 @@ export type AttendanceHistoryResult = {
   monthlyExcuseCount: number
 }
 
-// TODO(#225): DEPLOY BLOCKER — this action must not reach production until the
-// signed session token auth fix in #225 is deployed (see risk description below).
-// SECURITY NOTE (tracked in #225 — BROADER risk than submitExcuseAction):
-// teacherId is a client-supplied, unauthenticated parameter. This function has
-// NO cross-reference anchor: a teacher only needs to know or guess another
-// teacher's UUID (which is visible in DOM attributes and API responses throughout
-// the teacher UI) to read their full 8-week attendance history and all pending
-// excuse IDs. submitExcuseAction at least requires a self-consistent pair of
-// (attendanceRecordId, teacherId), raising the bar slightly; this endpoint has
-// no such requirement and is a realistic information-disclosure risk.
-// Stop-gap: wrapped in rateLimitedActionClient to prevent tight-loop scraping.
-// Full fix in #225:
-//   - Replace teacherId param with a signed session token
-//   - Resolve the caller's identity server-side; discard the client-supplied value
-// Do NOT remove this comment block until #225 is closed.
-// IMPORTANT: keep this function unexported. All callers must go through
-// _getTeacherAttendanceHistoryAction so the rate-limit + session auth (#225)
-// wrapper is always enforced — exporting it directly would let a future
-// refactor bypass the auth guard without any compiler warning.
+// teacherId is resolved from the signed session token; client-supplied value is ignored.
+// IMPORTANT: keep unexported — all callers must go through _getTeacherAttendanceHistoryAction.
 async function fetchAttendanceHistory(
   teacherId: string,
   weeksBack = 8
@@ -356,28 +343,49 @@ async function fetchAttendanceHistory(
   }
 }
 
-const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
-  .metadata({ actionName: 'getTeacherAttendanceHistoryAction' })
+const _createTeacherSessionAction = rateLimitedActionClient
+  .metadata({ actionName: 'createTeacherSessionAction' })
   .schema(z.object({ teacherId: z.string().uuid() }))
   .action(async ({ parsedInput }) => {
-    // Runtime deploy guard — see TODO(#225) above.
-    // Remove this check only when PHASE2_AUTH_ENABLED=true is set in production env.
-    // Use !== 'true': env vars are strings; PHASE2_AUTH_ENABLED=false would satisfy
-    // !process.env.PHASE2_AUTH_ENABLED (it's a truthy string) and bypass this guard.
-    if (process.env.PHASE2_AUTH_ENABLED !== 'true') {
+    const teachers = await getDugsiTeachersForDropdown()
+    const found = teachers.find((t) => t.id === parsedInput.teacherId)
+    if (!found) {
       throw new ActionError(
-        'This feature is not yet available',
-        ERROR_CODES.FEATURE_NOT_ENABLED,
+        'Teacher not found',
+        ERROR_CODES.UNAUTHORIZED,
         undefined,
-        503
+        401
+      )
+    }
+    const token = generateTeacherToken(parsedInput.teacherId)
+    return { token }
+  })
+
+export async function createTeacherSessionAction(
+  ...args: Parameters<typeof _createTeacherSessionAction>
+) {
+  return _createTeacherSessionAction(...args)
+}
+
+const _getTeacherAttendanceHistoryAction = rateLimitedActionClient
+  .metadata({ actionName: 'getTeacherAttendanceHistoryAction' })
+  .schema(z.object({ teacherId: z.string().uuid(), token: z.string() }))
+  .action(async ({ parsedInput }) => {
+    const teacherId = verifyTeacherToken(parsedInput.token)
+    if (!teacherId) {
+      throw new ActionError(
+        'Session expired. Please refresh and try again.',
+        ERROR_CODES.UNAUTHORIZED,
+        undefined,
+        401
       )
     }
     try {
-      return await fetchAttendanceHistory(parsedInput.teacherId)
+      return await fetchAttendanceHistory(teacherId)
     } catch (error) {
       if (error instanceof ActionError) throw error
       await logError(logger, error, 'fetchAttendanceHistory failed', {
-        teacherId: parsedInput.teacherId,
+        teacherId,
       })
       throw new ActionError(
         'Failed to load attendance history',
@@ -398,30 +406,19 @@ const _submitExcuseAction = rateLimitedActionClient
   .metadata({ actionName: 'submitExcuseAction' })
   .schema(SubmitExcuseSchema)
   .action(async ({ parsedInput }) => {
-    const { attendanceRecordId, teacherId, reason } = parsedInput
+    const { attendanceRecordId, token, reason } = parsedInput
 
-    // Runtime deploy guard — remove only when PHASE2_AUTH_ENABLED=true is set in prod.
-    if (process.env.PHASE2_AUTH_ENABLED !== 'true') {
+    // teacherId is resolved from the signed session token; client-supplied value is ignored
+    const teacherId = verifyTeacherToken(token)
+    if (!teacherId) {
       throw new ActionError(
-        'This feature is not yet available',
-        ERROR_CODES.FEATURE_NOT_ENABLED,
+        'Session expired. Please refresh and try again.',
+        ERROR_CODES.UNAUTHORIZED,
         undefined,
-        503
+        401
       )
     }
 
-    // SECURITY — ownership boundary (BLOCKING pre-production: see #225):
-    // The teacher app has no session; teachers identify only by UI selection.
-    // Concrete risk: Teacher A selects Teacher B in the dropdown, copies
-    // submitExcuse validates (attendanceRecordId, teacherId) self-consistency inside
-    // its transaction, but both values are unauthenticated HTML values from the same
-    // page — this only proves self-consistency, not true identity.
-    // This feature MUST NOT ship to production until #225 is resolved.
-    // Full fix (tracked in #225):
-    //   - Sign (attendanceRecordId, teacherId, action, exp) with EXCUSE_TOKEN_SECRET on page render
-    //     (include the action type so the token can't be replayed against a different endpoint)
-    //   - 30-min TTL; add token field to SubmitExcuseSchema; verify before DB lookup
-    // Do NOT remove this comment block until #225 is closed.
     try {
       const excuse = await submitExcuse({
         attendanceRecordId,
