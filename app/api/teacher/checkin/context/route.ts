@@ -4,13 +4,11 @@ import { Shift } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 import { z } from 'zod'
 
-import { generateTeacherToken } from '@/lib/auth/teacher-session'
 import { SCHOOL_TIMEZONE } from '@/lib/constants/teacher-checkin'
 import {
   getTeacherCheckin,
   getTeacherShifts,
 } from '@/lib/db/queries/teacher-checkin'
-import { PHASE2_EXCUSE_ENABLED } from '@/lib/feature-flags'
 import type { TeacherContextDto } from '@/lib/features/attendance/contracts'
 
 const schema = z.object({ teacherId: z.string().uuid() })
@@ -45,9 +43,7 @@ export async function GET(req: NextRequest) {
       afternoonClockInTime: afternoonCheckin?.clockInTime.toISOString() ?? null,
       afternoonClockOutTime:
         afternoonCheckin?.clockOutTime?.toISOString() ?? null,
-      sessionToken: PHASE2_EXCUSE_ENABLED
-        ? generateTeacherToken(teacherId)
-        : null,
+      sessionToken: null,
     }
 
     return NextResponse.json(dto)

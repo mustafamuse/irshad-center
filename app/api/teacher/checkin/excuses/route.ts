@@ -1,14 +1,20 @@
 import { revalidatePath } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 
+import { z } from 'zod'
+
 import { verifyTeacherToken } from '@/lib/auth/teacher-session'
 import { ActionError } from '@/lib/errors/action-error'
 import { PHASE2_EXCUSE_ENABLED } from '@/lib/feature-flags'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { submitExcuse } from '@/lib/services/dugsi/excuse-service'
-import { SubmitExcuseSchema } from '@/lib/validations/teacher-attendance'
 
 const logger = createServiceLogger('teacher-excuses-route')
+
+const BodySchema = z.object({
+  attendanceRecordId: z.string().uuid(),
+  reason: z.string().min(10, 'Reason must be at least 10 characters').max(1000),
+})
 
 export async function POST(req: NextRequest) {
   if (!PHASE2_EXCUSE_ENABLED) {
@@ -41,7 +47,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  const parsed = SubmitExcuseSchema.safeParse({ ...(body as object), token })
+  const parsed = BodySchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.errors[0]?.message ?? 'Invalid input' },

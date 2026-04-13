@@ -1,6 +1,7 @@
 'use client'
 
 import { Shift } from '@prisma/client'
+import { format } from 'date-fns'
 import { AlertCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,7 @@ interface Props {
 }
 
 function toIsoDate(date: Date): string {
-  return date.toISOString().split('T')[0]
+  return format(date, 'yyyy-MM-dd')
 }
 
 export function CheckinOverview({ onDataChanged }: Props) {
