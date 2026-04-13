@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 
 import { format } from 'date-fns'
 import { Loader2 } from 'lucide-react'
@@ -20,10 +20,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
+import { AttendanceFetchError } from '@/lib/features/attendance/client'
+import { useUpdateCheckinMutation } from '@/lib/features/attendance/hooks/admin'
 import { createClientLogger } from '@/lib/logger-client'
 import { cn } from '@/lib/utils'
 
-import { CheckinRecord, updateCheckinAction } from '../actions'
+import { CheckinRecord } from '../actions'
 import { formatFullDate } from './date-utils'
 
 const logger = createClientLogger('edit-checkin-dialog')
@@ -35,7 +37,7 @@ interface Props {
   onSuccess?: () => void
 }
 
-function formatDateForInput(date: Date | null | undefined): string {
+function formatDateForInput(date: Date | string | null | undefined): string {
   if (!date) return ''
   try {
     return format(new Date(date), "yyyy-MM-dd'T'HH:mm")
@@ -51,7 +53,6 @@ export function EditCheckinDialog({
   checkin,
   onSuccess,
 }: Props) {
-  const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
   const [clockInTime, setClockInTime] = useState(
@@ -64,26 +65,31 @@ export function EditCheckinDialog({
   const [clockInValid, setClockInValid] = useState(checkin.clockInValid)
   const [notes, setNotes] = useState(checkin.notes || '')
 
-  function handleSubmit(e: React.FormEvent) {
+  const mutation = useUpdateCheckinMutation()
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
-    startTransition(async () => {
-      const result = await updateCheckinAction({
-        checkInId: checkin.id,
-        clockInTime: new Date(clockInTime),
-        clockOutTime: clockOutTime ? new Date(clockOutTime) : null,
+    try {
+      await mutation.mutateAsync({
+        id: checkin.id,
+        clockInTime: clockInTime || undefined,
+        clockOutTime: clockOutTime || null,
         isLate,
         clockInValid,
         notes: notes || null,
       })
-
-      if (result?.data) {
-        onSuccess?.()
+      onSuccess?.()
+    } catch (err) {
+      if (err instanceof AttendanceFetchError) {
+        setError(err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
       } else {
-        setError(result?.serverError || 'Failed to update check-in')
+        setError('Failed to update check-in')
       }
-    })
+    }
   }
 
   return (
@@ -96,7 +102,7 @@ export function EditCheckinDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div className="flex items-center gap-2">
             <Badge
               variant="outline"
@@ -176,12 +182,14 @@ export function EditCheckinDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              disabled={isPending}
+              disabled={mutation.isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending}>
-              {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" disabled={mutation.isPending}>
+              {mutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
               Save Changes
             </Button>
           </DialogFooter>

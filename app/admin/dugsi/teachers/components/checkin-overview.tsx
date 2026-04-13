@@ -1,9 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
-
 import { Shift } from '@prisma/client'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -13,15 +11,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useAdminGridQuery } from '@/lib/features/attendance/hooks/admin'
+import { useAdminAttendanceController } from '@/lib/features/attendance/hooks/admin-controller'
 
-import {
-  CheckinRecord,
-  getCheckinsForDateAction,
-  getCheckinHistoryWithFiltersAction,
-} from '../actions'
 import { CheckinCard } from './checkin-card'
 import { CheckinTable } from './checkin-table'
-import { generateWeekendDayOptions, getWeekendDates } from './date-utils'
 import { FilterControls, HistoryFilterSelect } from './filter-controls'
 import { useCheckinFilters } from './use-checkin-filters'
 
@@ -29,133 +23,60 @@ interface Props {
   onDataChanged?: () => void
 }
 
-type ViewMode = 'today' | 'history'
+function toIsoDate(date: Date): string {
+  return date.toISOString().split('T')[0]
+}
 
 export function CheckinOverview({ onDataChanged }: Props) {
+  const ctrl = useAdminAttendanceController()
   const filters = useCheckinFilters()
-  const [isPending, startTransition] = useTransition()
-  const [viewMode, setViewMode] = useState<ViewMode>('today')
-  const [checkins, setCheckins] = useState<CheckinRecord[]>([])
-  const [error, setError] = useState<string | null>(null)
 
-  const weekendDayOptions = useMemo(() => generateWeekendDayOptions(4), [])
-
-  const [selectedDay, setSelectedDay] = useState('this-weekend')
-  const [selectedDate, setSelectedDate] = useState(
-    () => getWeekendDates(0).start
-  )
-  const [selectedEndDate, setSelectedEndDate] = useState<Date | undefined>(
-    () => getWeekendDates(0).end
-  )
-
-  const [pagination, setPagination] = useState({
-    page: 1,
-    total: 0,
-    totalPages: 0,
-  })
-
-  const loadTodayCheckins = useCallback(() => {
-    startTransition(async () => {
-      const queryFilters: {
-        date?: Date
-        dateTo?: Date
-        shift?: Shift
-        teacherId?: string
-      } = {
-        date: selectedDate,
-      }
-      if (selectedEndDate) {
-        queryFilters.dateTo = selectedEndDate
-      }
-      if (filters.shiftFilter !== 'all') {
-        queryFilters.shift = filters.shiftFilter
-      }
-      if (filters.teacherFilter !== 'all') {
-        queryFilters.teacherId = filters.teacherFilter
-      }
-
-      const result = await getCheckinsForDateAction(queryFilters)
-      if (result?.data) {
-        setCheckins(result.data)
-        setError(null)
-      } else {
-        setError(result?.serverError || 'Failed to load check-ins')
-      }
-    })
-  }, [
-    selectedDate,
-    selectedEndDate,
-    filters.shiftFilter,
-    filters.teacherFilter,
-  ])
-
-  const loadHistory = useCallback(
-    (page: number) => {
-      startTransition(async () => {
-        const queryFilters: {
-          dateFrom?: Date
-          dateTo?: Date
-          shift?: Shift
-          teacherId?: string
-          page?: number
-          limit?: number
-        } = {
-          dateFrom: filters.dateRange.start,
-          dateTo: filters.dateRange.end,
-          page,
-          limit: 20,
+  const gridFilters =
+    ctrl.viewMode === 'today'
+      ? {
+          date: toIsoDate(ctrl.selectedDate),
+          dateTo: ctrl.selectedEndDate
+            ? toIsoDate(ctrl.selectedEndDate)
+            : undefined,
+          shift:
+            filters.shiftFilter !== 'all'
+              ? (filters.shiftFilter as Shift)
+              : undefined,
+          teacherId:
+            filters.teacherFilter !== 'all' ? filters.teacherFilter : undefined,
         }
-        if (filters.shiftFilter !== 'all') {
-          queryFilters.shift = filters.shiftFilter
-        }
-        if (filters.teacherFilter !== 'all') {
-          queryFilters.teacherId = filters.teacherFilter
+      : {
+          dateFrom: toIsoDate(ctrl.dateRange.start),
+          dateTo: toIsoDate(ctrl.dateRange.end),
+          shift:
+            filters.shiftFilter !== 'all'
+              ? (filters.shiftFilter as Shift)
+              : undefined,
+          teacherId:
+            filters.teacherFilter !== 'all' ? filters.teacherFilter : undefined,
+          page: ctrl.historyPage,
+          pageSize: 20,
         }
 
-        const result = await getCheckinHistoryWithFiltersAction(queryFilters)
-        if (result?.data) {
-          setCheckins(result.data.data)
-          setPagination({
-            page: result.data.page,
-            total: result.data.total,
-            totalPages: result.data.totalPages,
-          })
-          setError(null)
-        } else {
-          setError(result?.serverError || 'Failed to load check-in history')
-        }
-      })
-    },
-    [filters.dateRange, filters.shiftFilter, filters.teacherFilter]
-  )
+  const gridQuery = useAdminGridQuery(gridFilters)
 
-  useEffect(() => {
-    if (viewMode === 'today') {
-      loadTodayCheckins()
-    } else {
-      loadHistory(1)
-    }
-  }, [viewMode, loadTodayCheckins, loadHistory])
+  const checkins = gridQuery.data?.data ?? []
+  const pagination = gridQuery.data
+    ? {
+        page: gridQuery.data.page,
+        total: gridQuery.data.total,
+        totalPages: gridQuery.data.totalPages,
+      }
+    : null
+
+  const isLoading =
+    gridQuery.isLoading || gridQuery.isFetching || filters.isLoading
+  const error = gridQuery.error?.message ?? null
 
   function handleRefresh() {
-    if (viewMode === 'today') {
-      loadTodayCheckins()
-    } else {
-      loadHistory(pagination.page)
-    }
+    void gridQuery.refetch()
     onDataChanged?.()
   }
-
-  function handleDayChange(value: string) {
-    setSelectedDay(value)
-    const option = weekendDayOptions.find((o) => o.value === value)
-    if (option) {
-      setSelectedDate(option.date)
-      setSelectedEndDate(option.endDate)
-    }
-  }
-
-  const isLoading = isPending || filters.isPending
 
   return (
     <div className="space-y-4">
@@ -163,28 +84,31 @@ export function CheckinOverview({ onDataChanged }: Props) {
         <div className="flex items-center gap-2">
           <div className="flex rounded-lg border p-1">
             <Button
-              variant={viewMode === 'today' ? 'secondary' : 'ghost'}
+              variant={ctrl.viewMode === 'today' ? 'secondary' : 'ghost'}
               size="sm"
-              onClick={() => setViewMode('today')}
+              onClick={() => ctrl.setViewMode('today')}
             >
               Day
             </Button>
             <Button
-              variant={viewMode === 'history' ? 'secondary' : 'ghost'}
+              variant={ctrl.viewMode === 'history' ? 'secondary' : 'ghost'}
               size="sm"
-              onClick={() => setViewMode('history')}
+              onClick={() => ctrl.setViewMode('history')}
             >
               History
             </Button>
           </div>
 
-          {viewMode === 'today' ? (
-            <Select value={selectedDay} onValueChange={handleDayChange}>
+          {ctrl.viewMode === 'today' ? (
+            <Select
+              value={ctrl.selectedDay}
+              onValueChange={ctrl.handleDayChange}
+            >
               <SelectTrigger className="flex-1 sm:w-[200px]">
                 <SelectValue placeholder="Select day" />
               </SelectTrigger>
               <SelectContent>
-                {weekendDayOptions.map((opt) => (
+                {ctrl.weekendDayOptions.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>
@@ -193,9 +117,9 @@ export function CheckinOverview({ onDataChanged }: Props) {
             </Select>
           ) : (
             <HistoryFilterSelect
-              value={filters.selectedHistoryFilter}
-              onChange={filters.handleHistoryFilterChange}
-              options={filters.historyFilterOptions}
+              value={ctrl.selectedHistoryFilter}
+              onChange={ctrl.handleHistoryFilterChange}
+              options={ctrl.historyFilterOptions}
             />
           )}
         </div>
@@ -221,7 +145,7 @@ export function CheckinOverview({ onDataChanged }: Props) {
 
       {isLoading && checkins.length === 0 ? (
         <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
         </div>
       ) : checkins.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">
@@ -249,34 +173,36 @@ export function CheckinOverview({ onDataChanged }: Props) {
             ))}
           </div>
 
-          {viewMode === 'history' && pagination.totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Page {pagination.page} of {pagination.totalPages} (
-                {pagination.total} records)
-              </p>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadHistory(pagination.page - 1)}
-                  disabled={pagination.page <= 1 || isLoading}
-                >
-                  Previous
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => loadHistory(pagination.page + 1)}
-                  disabled={
-                    pagination.page >= pagination.totalPages || isLoading
-                  }
-                >
-                  Next
-                </Button>
+          {ctrl.viewMode === 'history' &&
+            pagination &&
+            pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Page {pagination.page} of {pagination.totalPages} (
+                  {pagination.total} records)
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => ctrl.setHistoryPage(ctrl.historyPage - 1)}
+                    disabled={ctrl.historyPage <= 1 || isLoading}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => ctrl.setHistoryPage(ctrl.historyPage + 1)}
+                    disabled={
+                      ctrl.historyPage >= pagination.totalPages || isLoading
+                    }
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </>
       )}
     </div>

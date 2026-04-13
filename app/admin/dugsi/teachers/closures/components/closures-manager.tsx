@@ -1,8 +1,6 @@
 'use client'
 
-import { useTransition, useState, useEffect } from 'react'
-
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 
 import { formatInTimeZone } from 'date-fns-tz'
 import { Trash2 } from 'lucide-react'
@@ -21,106 +19,78 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-
+import { AttendanceFetchError } from '@/lib/features/attendance/client'
+import type { ClosureDto } from '@/lib/features/attendance/contracts'
 import {
-  markDateClosedAction,
-  removeClosureAction,
-} from '../../attendance/actions'
+  useAdminClosuresQuery,
+  useMarkClosureMutation,
+  useRemoveClosureMutation,
+} from '@/lib/features/attendance/hooks/admin'
 
-type Closure = { id: string; date: Date; reason: string }
+export function ClosuresManager() {
+  const closuresQuery = useAdminClosuresQuery()
+  const markMutation = useMarkClosureMutation()
+  const removeMutation = useRemoveClosureMutation()
 
-interface Props {
-  initialClosures: Closure[]
-}
-
-export function ClosuresManager({ initialClosures }: Props) {
-  const router = useRouter()
-  const [isAddPending, startAddTransition] = useTransition()
-  const [isRemovePending, startRemoveTransition] = useTransition()
-  const [closures, setClosures] = useState<Closure[]>(initialClosures)
-  // Sync when the Server Component re-renders with fresh data (e.g. after router.refresh())
-  useEffect(() => {
-    setClosures(initialClosures)
-  }, [initialClosures])
   const [date, setDate] = useState('')
   const [reason, setReason] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [pendingRemoval, setPendingRemoval] = useState<Closure | null>(null)
+  const [addError, setAddError] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
+  const [pendingRemoval, setPendingRemoval] = useState<ClosureDto | null>(null)
   const [reopenWarning, setReopenWarning] = useState<string | null>(null)
 
-  function handleAdd() {
+  async function handleAdd() {
     if (!date || !reason.trim()) return
-    setError(null)
-    startAddTransition(async () => {
-      const result = await markDateClosedAction({ date, reason })
-      if (result?.serverError) {
-        setError(result.serverError)
-        return
-      }
-      if (result?.validationErrors) {
-        // Surface the first field-level error (e.g. "School days are Saturday and Sunday only")
-        const first = Object.values(result.validationErrors)
-          .flat()
-          .find(Boolean)
-        if (first) {
-          setError(String(first))
-          return
-        }
-      }
-      // Optimistically append — id is a temp placeholder since dates are unique
-      // and removal uses the date string, not the id.
-      setClosures((prev) => [
-        ...prev,
-        { id: `_new-${date}`, date: new Date(`${date}T00:00:00.000Z`), reason },
-      ])
+    setAddError(null)
+    try {
+      await markMutation.mutateAsync({ date, reason })
       setDate('')
       setReason('')
-      router.refresh()
-    })
-  }
-
-  function handleRemovalDialogChange(open: boolean) {
-    if (!open) setPendingRemoval(null)
-  }
-
-  function handleConfirmRemove() {
-    if (pendingRemoval) handleRemove(pendingRemoval)
-  }
-
-  function handleRemove(closure: Closure) {
-    const dateStr = formatInTimeZone(closure.date, 'UTC', 'yyyy-MM-dd')
-    setError(null)
-    setReopenWarning(null)
-    startRemoveTransition(async () => {
-      const result = await removeClosureAction({ date: dateStr })
-      if (result?.serverError) {
-        setError(result.serverError)
-        setPendingRemoval(null)
-        return
+    } catch (err) {
+      if (err instanceof AttendanceFetchError) {
+        setAddError(err.message)
+      } else if (err instanceof Error) {
+        setAddError(err.message)
+      } else {
+        setAddError('Failed to mark date closed')
       }
-      const reopenedCount = result?.data?.reopenedCount ?? 0
-      // Warn when a historical closure is removed and EXPECTED records may be stranded:
-      // the auto-mark cron only runs for today, so formerly AUTO_MARKED LATE records
-      // that were flipped CLOSED will now sit as EXPECTED with no automatic correction.
-      if (reopenedCount > 0 && closure.date < new Date()) {
+    }
+  }
+
+  async function handleConfirmRemove() {
+    if (!pendingRemoval) return
+    setRemoveError(null)
+    setReopenWarning(null)
+    const dateStr = pendingRemoval.date
+    try {
+      const result = await removeMutation.mutateAsync(dateStr)
+      const reopenedCount = result.reopenedCount ?? 0
+      if (
+        reopenedCount > 0 &&
+        new Date(`${dateStr}T00:00:00.000Z`) < new Date()
+      ) {
         setReopenWarning(
           `${reopenedCount} record${reopenedCount === 1 ? '' : 's'} reverted to EXPECTED. ` +
             'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
             'review and correct them in the attendance grid.'
         )
       }
-      // Match on date string, not ID — the optimistic row uses a fake `_new-${date}` ID
-      // that may have been replaced by the real UUID after router.refresh() fired.
-      // The DB unique constraint on SchoolClosure.date makes date the stable key.
-      setClosures((prev) =>
-        prev.filter(
-          (c) => formatInTimeZone(c.date, 'UTC', 'yyyy-MM-dd') !== dateStr
-        )
-      )
       setPendingRemoval(null)
-      router.refresh()
-    })
+    } catch (err) {
+      if (err instanceof AttendanceFetchError) {
+        setRemoveError(err.message)
+      } else if (err instanceof Error) {
+        setRemoveError(err.message)
+      } else {
+        setRemoveError('Failed to remove closure')
+      }
+      setPendingRemoval(null)
+    }
   }
+
+  const closures = closuresQuery.data ?? []
+  const isAddPending = markMutation.isPending
+  const isRemovePending = removeMutation.isPending
 
   return (
     <div className="max-w-xl space-y-6">
@@ -149,7 +119,7 @@ export function ClosuresManager({ initialClosures }: Props) {
           />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {addError && <p className="text-sm text-red-600">{addError}</p>}
         {reopenWarning && (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700">
             {reopenWarning}
@@ -157,7 +127,7 @@ export function ClosuresManager({ initialClosures }: Props) {
         )}
 
         <Button
-          onClick={handleAdd}
+          onClick={() => void handleAdd()}
           disabled={!date || !reason.trim() || isAddPending}
         >
           {isAddPending ? 'Saving...' : 'Mark Closed'}
@@ -166,13 +136,16 @@ export function ClosuresManager({ initialClosures }: Props) {
 
       <div className="space-y-2">
         <h2 className="text-sm font-semibold">Existing Closures</h2>
-        {closures.length === 0 ? (
+        {removeError && <p className="text-sm text-red-600">{removeError}</p>}
+        {closuresQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : closures.length === 0 ? (
           <p className="text-sm text-muted-foreground">No closures recorded.</p>
         ) : (
           <div className="divide-y rounded-lg border">
             {closures.map((c) => {
               const dateLabel = formatInTimeZone(
-                c.date,
+                new Date(`${c.date}T00:00:00.000Z`),
                 'UTC',
                 'EEE MMM d, yyyy'
               )
@@ -203,7 +176,9 @@ export function ClosuresManager({ initialClosures }: Props) {
 
       <AlertDialog
         open={!!pendingRemoval}
-        onOpenChange={handleRemovalDialogChange}
+        onOpenChange={(open) => {
+          if (!open) setPendingRemoval(null)
+        }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -214,7 +189,7 @@ export function ClosuresManager({ initialClosures }: Props) {
                   Remove closure for{' '}
                   <span className="font-medium">
                     {formatInTimeZone(
-                      pendingRemoval.date,
+                      new Date(`${pendingRemoval.date}T00:00:00.000Z`),
                       'UTC',
                       'EEE MMM d, yyyy'
                     )}
@@ -232,7 +207,7 @@ export function ClosuresManager({ initialClosures }: Props) {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleConfirmRemove}
+              onClick={() => void handleConfirmRemove()}
               disabled={isRemovePending}
             >
               {isRemovePending ? 'Removing...' : 'Remove'}

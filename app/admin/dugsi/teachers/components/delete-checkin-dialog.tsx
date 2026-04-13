@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
@@ -15,9 +15,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
+import { AttendanceFetchError } from '@/lib/features/attendance/client'
+import { useDeleteCheckinMutation } from '@/lib/features/attendance/hooks/admin'
 import { cn } from '@/lib/utils'
 
-import { CheckinRecord, deleteCheckinAction } from '../actions'
+import { CheckinRecord } from '../actions'
 import { formatCheckinTime, formatFullDate } from './date-utils'
 
 interface Props {
@@ -33,21 +35,23 @@ export function DeleteCheckinDialog({
   checkin,
   onSuccess,
 }: Props) {
-  const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const mutation = useDeleteCheckinMutation()
 
-  function handleDelete() {
+  async function handleDelete() {
     setError(null)
-
-    startTransition(async () => {
-      const result = await deleteCheckinAction({ checkInId: checkin.id })
-
-      if (!result?.serverError) {
-        onSuccess?.()
+    try {
+      await mutation.mutateAsync(checkin.id)
+      onSuccess?.()
+    } catch (err) {
+      if (err instanceof AttendanceFetchError) {
+        setError(err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
       } else {
-        setError(result.serverError || 'Failed to delete check-in')
+        setError('Failed to delete check-in')
       }
-    })
+    }
   }
 
   return (
@@ -91,17 +95,19 @@ export function DeleteCheckinDialog({
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
-            disabled={isPending}
+            disabled={mutation.isPending}
           >
             Cancel
           </Button>
           <Button
             type="button"
             variant="destructive"
-            onClick={handleDelete}
-            disabled={isPending}
+            onClick={() => void handleDelete()}
+            disabled={mutation.isPending}
           >
-            {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {mutation.isPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
             Delete
           </Button>
         </DialogFooter>

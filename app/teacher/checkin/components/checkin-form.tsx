@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useMemo } from 'react'
 
 import { Shift } from '@prisma/client'
 import { format } from 'date-fns'
@@ -28,14 +28,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { SHIFT_TIME_LABELS } from '@/lib/constants/teacher-checkin'
+import { useTeacherContextQuery } from '@/lib/features/attendance/hooks/teacher'
+import { useTeacherCheckinController } from '@/lib/features/attendance/hooks/teacher-controller'
 
-import {
-  createTeacherSessionAction,
-  getTeacherCurrentStatus,
-  type GeofenceCheckResult,
-  type TeacherCurrentStatus,
-  type TeacherForDropdown,
-} from '../actions'
+import type { TeacherForDropdown } from '../actions'
 import { CheckinHistory } from './checkin-history'
 import { ClockInButton } from './clock-in-button'
 import { GeofenceValidator } from './geofence-validator'
@@ -48,111 +44,62 @@ interface CheckinFormProps {
   phase2ExcuseEnabled?: boolean
 }
 
+function formatTime(date: Date | string | null): string | null {
+  if (!date) return null
+  return format(new Date(date), 'h:mm a')
+}
+
 export function CheckinForm({
   teachers,
   phase2ExcuseEnabled = false,
 }: CheckinFormProps) {
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(
-    null
-  )
-  const [sessionToken, setSessionToken] = useState<string | null>(null)
-  const [selectedShift, setSelectedShift] = useState<Shift | null>(null)
-  const [status, setStatus] = useState<TeacherCurrentStatus | null>(null)
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error' | 'warning'
-    text: string
-  } | null>(null)
-  const [geofenceStatus, setGeofenceStatus] =
-    useState<GeofenceCheckResult | null>(null)
-  const [locationCoords, setLocationCoords] = useState<{
-    latitude: number | null
-    longitude: number | null
-  }>({ latitude: null, longitude: null })
-
-  const [isPending, startTransition] = useTransition()
   const { showOnboarding, dismissOnboarding, resetOnboarding } =
     useCheckinOnboarding()
+
+  const {
+    selectedTeacherId,
+    selectedShift,
+    historyOpen,
+    message,
+    geofenceStatus,
+    locationCoords,
+    setSelectedShift,
+    setHistoryOpen,
+    setMessage,
+    setGeofenceStatus,
+    setLocationCoords,
+    handleTeacherChange,
+  } = useTeacherCheckinController()
 
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId)
   const availableShifts = selectedTeacher?.shifts ?? []
 
-  const currentTeacherRef = useRef<string | null>(null)
-  // Sort then join so the key is order-invariant — only changes when the actual
-  // shift list changes, not just when the array reference identity changes.
-  const shiftKey = [...(selectedTeacher?.shifts ?? [])].sort().join(',')
-
-  useEffect(() => {
-    if (selectedTeacherId) {
-      const id = selectedTeacherId
-      const shifts = selectedTeacher?.shifts ?? []
-      currentTeacherRef.current = id
-
-      // Clear stale state immediately before the async work starts.
-      // The previous teacher's token/status must not remain visible under the new
-      // teacher's name while the new Promise.all is in flight (300–800 ms).
-      setStatus(null)
-      setSessionToken(null)
-      setSelectedShift(shifts.length === 1 ? shifts[0] : null)
-
-      startTransition(async () => {
-        try {
-          const [currentStatus, sessionResult] = await Promise.all([
-            getTeacherCurrentStatus(id),
-            phase2ExcuseEnabled
-              ? createTeacherSessionAction({ teacherId: id })
-              : Promise.resolve(null),
-          ])
-          if (currentTeacherRef.current !== id) return
-          setStatus(currentStatus)
-          setSessionToken(sessionResult?.data?.token ?? null)
-        } catch (error) {
-          if (currentTeacherRef.current !== id) return
-          console.error('Failed to load teacher status:', error)
-          setMessage({
-            type: 'error',
-            text:
-              error instanceof Error
-                ? error.message
-                : 'Could not load status. Please try again.',
-          })
-        }
-      })
-    } else {
-      currentTeacherRef.current = null
-      setStatus(null)
-      setSelectedShift(null)
-      setSessionToken(null)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTeacherId, phase2ExcuseEnabled, shiftKey])
+  const contextQuery = useTeacherContextQuery(selectedTeacherId)
+  const contextData = contextQuery.data
+  const isContextLoading = contextQuery.isLoading || contextQuery.isFetching
 
   const currentCheckin = useMemo(() => {
-    if (!status || !selectedShift) return null
+    if (!contextData || !selectedShift) return null
     if (selectedShift === Shift.MORNING) {
-      return status.morningCheckinId
+      return contextData.morningCheckinId
         ? {
-            id: status.morningCheckinId,
-            clockInTime: status.morningClockInTime,
-            clockOutTime: status.morningClockOutTime,
+            id: contextData.morningCheckinId,
+            clockInTime: contextData.morningClockInTime,
+            clockOutTime: contextData.morningClockOutTime,
           }
         : null
     }
-    return status.afternoonCheckinId
+    return contextData.afternoonCheckinId
       ? {
-          id: status.afternoonCheckinId,
-          clockInTime: status.afternoonClockInTime,
-          clockOutTime: status.afternoonClockOutTime,
+          id: contextData.afternoonCheckinId,
+          clockInTime: contextData.afternoonClockInTime,
+          clockOutTime: contextData.afternoonClockOutTime,
         }
       : null
-  }, [status, selectedShift])
+  }, [contextData, selectedShift])
 
   const isClockedIn = currentCheckin !== null
   const isClockedOut = isClockedIn && currentCheckin.clockOutTime !== null
-
-  const formatTime = (date: Date | null) => {
-    if (!date) return null
-    return format(new Date(date), 'h:mm a')
-  }
 
   const locationCoordsForButton =
     locationCoords.latitude !== null && locationCoords.longitude !== null
@@ -190,12 +137,14 @@ export function CheckinForm({
             teachers={teachers}
             selectedTeacherId={selectedTeacherId}
             onSelect={(id) => {
-              setSelectedTeacherId(id)
+              handleTeacherChange(id)
               setMessage(null)
-              setGeofenceStatus(null)
-              setLocationCoords({ latitude: null, longitude: null })
+              const teacher = teachers.find((t) => t.id === id)
+              if (teacher && teacher.shifts.length === 1) {
+                setSelectedShift(teacher.shifts[0])
+              }
             }}
-            disabled={isPending}
+            disabled={isContextLoading}
           />
         </CardContent>
       </Card>
@@ -216,7 +165,7 @@ export function CheckinForm({
                 <Select
                   value={selectedShift ?? undefined}
                   onValueChange={(v) => setSelectedShift(v as Shift)}
-                  disabled={isPending}
+                  disabled={isContextLoading}
                 >
                   <SelectTrigger className="h-12 text-base">
                     <SelectValue placeholder="Select shift..." />
@@ -253,7 +202,7 @@ export function CheckinForm({
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {isPending && !status ? (
+                  {isContextLoading && !contextData ? (
                     <div className="flex items-center justify-center py-4">
                       <Loader2 className="h-6 w-6 animate-spin" />
                     </div>
@@ -345,15 +294,13 @@ export function CheckinForm({
                   geofenceStatus={geofenceStatus}
                   locationCoords={locationCoordsForButton}
                   currentCheckin={currentCheckin}
-                  isPending={isPending}
-                  onClockIn={(newStatus, msg) => {
-                    setStatus(newStatus)
+                  isContextLoading={isContextLoading}
+                  onClockIn={(msg) =>
                     setMessage({ type: 'success', text: msg })
-                  }}
-                  onClockOut={(newStatus, msg) => {
-                    setStatus(newStatus)
+                  }
+                  onClockOut={(msg) =>
                     setMessage({ type: 'success', text: msg })
-                  }}
+                  }
                   onError={(msg) => setMessage({ type: 'error', text: msg })}
                 />
               </div>
@@ -365,7 +312,10 @@ export function CheckinForm({
       {phase2ExcuseEnabled && (
         <CheckinHistory
           teacherId={selectedTeacherId}
-          sessionToken={sessionToken}
+          sessionToken={contextData?.sessionToken ?? null}
+          isOpen={historyOpen}
+          onOpenChange={setHistoryOpen}
+          phase2Enabled={phase2ExcuseEnabled}
         />
       )}
 

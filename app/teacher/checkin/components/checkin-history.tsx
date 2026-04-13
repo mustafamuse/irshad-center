@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 import { ChevronDown, Clock, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -10,36 +12,44 @@ import {
 } from '@/components/ui/collapsible'
 import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
+import { useTeacherCheckinHistoryQuery } from '@/lib/features/attendance/hooks/teacher'
 import { cn } from '@/lib/utils'
 import { formatWeekendDate } from '@/lib/utils/format-date'
 
 import { ExcuseForm } from './excuse-form'
-import { useTeacherHistory } from '../hooks/use-teacher-history'
 
 interface CheckinHistoryProps {
   teacherId: string | null
   sessionToken: string | null
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+  phase2Enabled: boolean
 }
 
 export function CheckinHistory({
   teacherId,
   sessionToken,
+  isOpen,
+  onOpenChange,
+  phase2Enabled,
 }: CheckinHistoryProps) {
-  const {
-    history,
-    isPending,
-    error,
-    isOpen,
-    excuseOpenId,
-    setExcuseOpenId,
-    handleOpenChange,
-    handleExcuseSuccess,
-  } = useTeacherHistory({ teacherId, sessionToken })
+  const [excuseOpenId, setExcuseOpenId] = useState<string | null>(null)
+
+  const historyQuery = useTeacherCheckinHistoryQuery({
+    teacherId,
+    sessionToken,
+    enabled: isOpen,
+    phase2Enabled,
+  })
+
+  const history = historyQuery.data
+  const isPending = historyQuery.isLoading || historyQuery.isFetching
+  const error = historyQuery.error?.message ?? null
 
   if (!teacherId) return null
 
   return (
-    <Collapsible open={isOpen} onOpenChange={handleOpenChange}>
+    <Collapsible open={isOpen} onOpenChange={onOpenChange}>
       <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg border bg-white p-4 text-left hover:bg-gray-50">
         <div className="flex items-center gap-2">
           <Clock className="h-4 w-4 text-[#007078]" />
@@ -158,7 +168,7 @@ export function CheckinHistory({
                           attendanceRecordId={item.id}
                           teacherId={teacherId}
                           sessionToken={sessionToken ?? ''}
-                          onSuccess={handleExcuseSuccess}
+                          onSuccess={() => setExcuseOpenId(null)}
                           onCancel={() => setExcuseOpenId(null)}
                         />
                       )}

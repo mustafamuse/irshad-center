@@ -1,13 +1,8 @@
-import { getPendingExcuseRequests } from '@/lib/db/queries/teacher-attendance'
-
 import { getTeachers } from './actions'
 import { TeachersDashboard } from './components/teachers-dashboard'
 
 export default async function TeachersPage() {
-  const [result, pendingExcuses] = await Promise.all([
-    getTeachers({ program: 'DUGSI_PROGRAM' }),
-    getPendingExcuseRequests().catch(() => [] as Awaited<ReturnType<typeof getPendingExcuseRequests>>),
-  ])
+  const result = await getTeachers({ program: 'DUGSI_PROGRAM' })
 
   if (!result?.data) {
     return (
@@ -23,7 +18,7 @@ export default async function TeachersPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <TeachersDashboard teachers={result.data} pendingExcuses={pendingExcuses} />
+      <TeachersDashboard teachers={result.data} />
     </div>
   )
 }

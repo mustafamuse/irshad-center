@@ -29,7 +29,7 @@ export function formatCheckinDate(dateStr: string): string {
   return format(new Date(year, month - 1, day), 'EEE, MMM d')
 }
 
-export function formatCheckinTime(date: Date): string {
+export function formatCheckinTime(date: Date | string): string {
   return format(new Date(date), 'h:mm a')
 }
 

@@ -655,8 +655,8 @@ export interface CheckinRecord {
   teacherName: string
   date: string
   shift: Shift
-  clockInTime: Date
-  clockOutTime: Date | null
+  clockInTime: string // ISO datetime
+  clockOutTime: string | null
   isLate: boolean
   clockInValid: boolean
   notes: string | null
@@ -676,8 +676,8 @@ function mapCheckinToRecord(
     teacherName: checkin.teacher.person.name,
     date: checkin.date.toISOString().split('T')[0],
     shift: checkin.shift,
-    clockInTime: checkin.clockInTime,
-    clockOutTime: checkin.clockOutTime,
+    clockInTime: checkin.clockInTime.toISOString(),
+    clockOutTime: checkin.clockOutTime?.toISOString() ?? null,
     isLate: checkin.isLate,
     clockInValid: checkin.clockInValid,
     notes: checkin.notes,

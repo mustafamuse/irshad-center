@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-
-import { submitExcuseAction } from '../actions'
+import { AttendanceFetchError } from '@/lib/features/attendance/client'
+import { useSubmitExcuseMutation } from '@/lib/features/attendance/hooks/teacher'
 
 interface ExcuseFormProps {
   attendanceRecordId: string
@@ -22,40 +22,41 @@ export function ExcuseForm({
   onSuccess,
   onCancel,
 }: ExcuseFormProps) {
-  const [isPending, startTransition] = useTransition()
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  const mutation = useSubmitExcuseMutation(teacherId, sessionToken)
 
   const trimmedLength = reason.trim().length
   const isValid = trimmedLength >= 10
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!isValid) return
     setError(null)
 
-    startTransition(async () => {
-      const result = await submitExcuseAction({
+    try {
+      await mutation.mutateAsync({
         attendanceRecordId,
-        teacherId,
-        token: sessionToken,
         reason: reason.trim(),
       })
-
-      if (result?.serverError || result?.validationErrors) {
-        setError(result.serverError ?? 'Invalid request. Please try again.')
-        return
-      }
-
       setReason('')
       onSuccess()
-    })
+    } catch (err) {
+      if (err instanceof AttendanceFetchError) {
+        setError(err.message)
+      } else if (err instanceof Error) {
+        setError(err.message)
+      } else {
+        setError('Failed to submit excuse. Please try again.')
+      }
+    }
   }
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        handleSubmit()
+        void handleSubmit()
       }}
       className="mt-2 space-y-2 rounded-md border bg-white p-3"
     >
@@ -84,12 +85,16 @@ export function ExcuseForm({
             size="sm"
             variant="ghost"
             onClick={onCancel}
-            disabled={isPending}
+            disabled={mutation.isPending}
           >
             Cancel
           </Button>
-          <Button type="submit" size="sm" disabled={!isValid || isPending}>
-            {isPending ? 'Submitting...' : 'Submit'}
+          <Button
+            type="submit"
+            size="sm"
+            disabled={!isValid || mutation.isPending}
+          >
+            {mutation.isPending ? 'Submitting...' : 'Submit'}
           </Button>
         </div>
       </div>
