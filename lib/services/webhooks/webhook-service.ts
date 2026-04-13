@@ -244,12 +244,13 @@ export async function handleSubscriptionCreated(
             ).flatMap((rel) => rel.dependent.programProfiles)
 
             if (familyProfiles.length === 0) {
-              // Guardian exists in DB but has no active Dugsi children — creating a
-              // billing account here would leave it with no profile linkage (orphaned).
-              // Skip account creation; the `if (!billingAccount)` guard below will throw
-              // so the webhook retries and Stripe can surface the failure.
+              // Guardian exists in DB but has no active Dugsi children — no profile
+              // linkage is possible. Do NOT throw: this is a non-retryable data
+              // inconsistency (retries won't enroll the children). Return a result so
+              // the webhook handler responds 200 and stops retrying. Sentry + structured
+              // log trigger manual investigation.
               Sentry.captureMessage(
-                'Dugsi Path 4: guardian found but has no active family profiles — subscription not linked',
+                'Dugsi Path 4: guardian has no active family profiles — subscription unlinked, manual fix required',
                 {
                   level: 'error',
                   extra: {
@@ -259,6 +260,20 @@ export async function handleSubscriptionCreated(
                   },
                 }
               )
+              logger.error(
+                {
+                  event: 'DUGSI_SUBSCRIPTION_UNLINKED',
+                  customerId,
+                  subscriptionId: subscription.id,
+                  guardianPersonId: guardianPerson.id,
+                },
+                'Dugsi Path 4: no family profiles found — subscription not linked to any profiles'
+              )
+              return {
+                subscriptionId: subscription.id,
+                status: subscription.status as SubscriptionStatus,
+                created: false,
+              }
             } else {
               billingAccount = await createOrUpdateBillingAccount({
                 personId: guardianPerson.id,
