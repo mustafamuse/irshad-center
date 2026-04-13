@@ -221,10 +221,12 @@ const _getTeachers = adminActionClient
   .action(async ({ parsedInput }) => {
     const { program } = parsedInput
     if (program === 'DUGSI_PROGRAM') {
-      const teachers = await getAllTeachers('DUGSI_PROGRAM')
+      const [teachers, teachersWithStatus] = await Promise.all([
+        getAllTeachers('DUGSI_PROGRAM'),
+        getAllDugsiTeachersWithTodayStatus(),
+      ])
       const teacherIds = teachers.map((t) => t.id)
 
-      const teachersWithStatus = await getAllDugsiTeachersWithTodayStatus()
       const statusMap = new Map(
         teachersWithStatus.map((t) => [
           t.id,
