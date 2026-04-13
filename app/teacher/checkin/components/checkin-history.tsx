@@ -1,7 +1,5 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
-
 import { ChevronDown, Clock, Loader2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -15,11 +13,8 @@ import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { cn } from '@/lib/utils'
 import { formatWeekendDate } from '@/lib/utils/format-date'
 
-import {
-  type AttendanceHistoryResult,
-  getTeacherAttendanceHistory,
-} from '../actions'
 import { ExcuseForm } from './excuse-form'
+import { useTeacherHistory } from '../hooks/use-teacher-history'
 
 interface CheckinHistoryProps {
   teacherId: string | null
@@ -30,58 +25,16 @@ export function CheckinHistory({
   teacherId,
   sessionToken,
 }: CheckinHistoryProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [isPending, startTransition] = useTransition()
-  const [history, setHistory] = useState<AttendanceHistoryResult | null>(null)
-  const [hasLoaded, setHasLoaded] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [excuseOpenId, setExcuseOpenId] = useState<string | null>(null)
-  const currentTeacherRef = useRef(teacherId)
-
-  useEffect(() => {
-    currentTeacherRef.current = teacherId
-    setHistory(null)
-    setHasLoaded(false)
-    setIsOpen(false)
-    setError(null)
-    setExcuseOpenId(null)
-  }, [teacherId])
-
-  const fetchHistory = useCallback((id: string, token: string) => {
-    startTransition(async () => {
-      try {
-        const result = await getTeacherAttendanceHistory({
-          teacherId: id,
-          token,
-        })
-        if (currentTeacherRef.current !== id) return
-        if (result?.serverError) throw new Error(result.serverError)
-        if (result?.data) {
-          setHistory(result.data)
-          setError(null)
-        }
-      } catch (err) {
-        if (currentTeacherRef.current !== id) return
-        setError(err instanceof Error ? err.message : 'Failed to load history')
-      }
-      setHasLoaded(true)
-    })
-  }, [])
-
-  const loadHistory = useCallback(() => {
-    if (!teacherId || !sessionToken || (hasLoaded && !error)) return
-    fetchHistory(teacherId, sessionToken)
-  }, [teacherId, sessionToken, hasLoaded, error, fetchHistory])
-
-  function handleOpenChange(open: boolean) {
-    setIsOpen(open)
-    if (open && (!hasLoaded || error)) loadHistory()
-  }
-
-  function handleExcuseSuccess() {
-    setExcuseOpenId(null)
-    if (teacherId && sessionToken) fetchHistory(teacherId, sessionToken)
-  }
+  const {
+    history,
+    isPending,
+    error,
+    isOpen,
+    excuseOpenId,
+    setExcuseOpenId,
+    handleOpenChange,
+    handleExcuseSuccess,
+  } = useTeacherHistory({ teacherId, sessionToken })
 
   if (!teacherId) return null
 

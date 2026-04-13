@@ -1,19 +1,13 @@
 'use client'
 
-import { useTransition } from 'react'
-
 import { Shift } from '@prisma/client'
 import { format } from 'date-fns'
 import { CheckCircle2, Loader2, LogIn, LogOut } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
-import {
-  teacherClockInAction,
-  teacherClockOutAction,
-  type GeofenceCheckResult,
-  type TeacherCurrentStatus,
-} from '../actions'
+import { type GeofenceCheckResult, type TeacherCurrentStatus } from '../actions'
+import { useClockInOut } from '../hooks/use-clock-in-out'
 
 interface ClockInButtonProps {
   teacherId: string
@@ -47,65 +41,19 @@ export function ClockInButton({
   onClockOut,
   onError,
 }: ClockInButtonProps) {
-  const [isPending, startTransition] = useTransition()
+  const { isPending, handleClockIn, handleClockOut } = useClockInOut({
+    teacherId,
+    shift,
+    locationCoords,
+    currentCheckinId: currentCheckin?.id ?? null,
+    onClockIn,
+    onClockOut,
+    onError,
+  })
 
   const isClockedIn = currentCheckin !== null
   const isClockedOut = isClockedIn && currentCheckin.clockOutTime !== null
   const isAnyPending = isPending || externalPending
-
-  const handleClockIn = () => {
-    if (!locationCoords?.latitude || !locationCoords?.longitude) {
-      onError('Location is required. Please enable location and try again.')
-      return
-    }
-
-    const lat = locationCoords.latitude
-    const lng = locationCoords.longitude
-
-    startTransition(async () => {
-      const result = await teacherClockInAction({
-        teacherId,
-        shift,
-        latitude: lat,
-        longitude: lng,
-      })
-
-      if (result?.data) {
-        onClockIn(result.data.status, result.data.message)
-      } else {
-        onError(result?.serverError ?? 'Clock-in failed')
-      }
-    })
-  }
-
-  const handleClockOut = () => {
-    if (
-      !currentCheckin?.id ||
-      !locationCoords?.latitude ||
-      !locationCoords?.longitude
-    ) {
-      onError('Location is required. Please enable location and try again.')
-      return
-    }
-
-    const lat = locationCoords.latitude
-    const lng = locationCoords.longitude
-
-    startTransition(async () => {
-      const result = await teacherClockOutAction({
-        checkInId: currentCheckin.id,
-        teacherId,
-        latitude: lat,
-        longitude: lng,
-      })
-
-      if (result?.data) {
-        onClockOut(result.data.status, result.data.message)
-      } else {
-        onError(result?.serverError ?? 'Clock-out failed')
-      }
-    })
-  }
 
   if (isClockedOut) {
     return (

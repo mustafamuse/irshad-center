@@ -18,6 +18,7 @@ import { getAttendanceRecordStatus } from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
+import { deriveMinutesLate } from '@/lib/utils/attendance-state'
 import {
   assertAdminTransition,
   assertSystemTransition,
@@ -133,7 +134,10 @@ export async function transitionStatus(
         // Only overwrite clockInTime when explicitly supplied — omitting it leaves the
         // existing value intact (e.g. admin LATE→EXCUSED override keeps the clock-in time)
         ...(clockInTime !== undefined ? { clockInTime } : {}),
-        minutesLate: toStatus === 'LATE' ? (minutesLate ?? null) : null,
+        minutesLate:
+          toStatus === 'LATE'
+            ? (minutesLate ?? null)
+            : deriveMinutesLate({ toStatus }),
         notes: notes ?? null,
         changedBy: changedBy ?? null,
       },
@@ -267,7 +271,9 @@ export async function adminCheckIn(
       source: AttendanceSource.ADMIN_OVERRIDE,
       checkInId: checkIn.id,
       clockInTime: checkIn.clockInTime,
-      minutesLate: null,
+      minutesLate: deriveMinutesLate({
+        toStatus: TeacherAttendanceStatus.PRESENT,
+      }),
       changedBy,
     }
 
@@ -363,8 +369,7 @@ export async function bulkTransitionStatus(
     data: {
       status: toStatus,
       source,
-      // Always clear minutesLate — LATE is excluded from toStatus (see parameter type).
-      minutesLate: null,
+      minutesLate: deriveMinutesLate({ toStatus }),
       ...(changedBy !== undefined ? { changedBy } : {}),
       ...(previousStatus !== undefined ? { previousStatus } : {}),
     },

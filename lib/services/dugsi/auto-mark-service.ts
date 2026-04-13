@@ -20,6 +20,7 @@ import {
 } from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
+import { deriveMinutesLate } from '@/lib/utils/attendance-state'
 
 import { generateExpectedSlots } from './attendance-record-service'
 
@@ -112,18 +113,13 @@ export async function autoMarkLateForShift(
 
     const { count: markedCount } = await tx.teacherAttendanceRecord.updateMany({
       where: { date: dateObj, shift, status: 'EXPECTED' },
-      // minutesLate is intentionally null for AUTO_MARKED records. The cron fires at
-      // 21:00 UTC, so `now - classStart` would produce a misleading offset (~360 min
-      // morning, ~90 min afternoon). The configured threshold reflects *when* the window
-      // was set, not actual lateness. AttendanceStatusBadge renders "Late (auto)" for
-      // source=AUTO_MARKED records to distinguish this case.
-      // CONTRACT: callers reading minutesLate on LATE records must check
-      // source !== 'AUTO_MARKED' before treating null as "lateness unknown" —
-      // for AUTO_MARKED the teacher simply never arrived.
       data: {
         status: 'LATE',
         source: 'AUTO_MARKED',
-        minutesLate: null,
+        minutesLate: deriveMinutesLate({
+          toStatus: 'LATE',
+          source: 'AUTO_MARKED',
+        }),
         changedBy: 'cron',
       },
     })

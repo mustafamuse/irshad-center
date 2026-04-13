@@ -26,6 +26,7 @@ import {
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
+import { deriveMinutesLate } from '@/lib/utils/attendance-state'
 import {
   canTeacherTransition,
   assertAdminTransition,
@@ -96,7 +97,7 @@ export async function clockIn(
     )
   }
 
-  const { isLate, minutesLate } = evaluateCheckIn({
+  const { isLate } = evaluateCheckIn({
     clockInTimeUtc: now,
     shift,
   })
@@ -139,14 +140,19 @@ export async function clockIn(
         select: { status: true, source: true },
       })
 
+    const attendanceStatus = isLate
+      ? TeacherAttendanceStatus.LATE
+      : TeacherAttendanceStatus.PRESENT
     const attendanceData = {
-      status: isLate
-        ? TeacherAttendanceStatus.LATE
-        : TeacherAttendanceStatus.PRESENT,
+      status: attendanceStatus,
       source: 'SELF_CHECKIN' as const,
       checkInId: checkInRecord.id,
       clockInTime: now,
-      minutesLate: isLate ? minutesLate : null,
+      minutesLate: deriveMinutesLate({
+        toStatus: attendanceStatus,
+        clockInTimeUtc: now,
+        shift,
+      }),
     }
 
     if (existingAttendanceRecord) {
@@ -392,26 +398,30 @@ export async function updateCheckin(
     if (syncClockIn || syncStatus) {
       const effectiveIsLate = isLate ?? existingCheckin.isLate
       const effectiveClockInTime = clockInTime ?? existingCheckin.clockInTime
-      // Re-derive minutesLate from the effective clock-in time — avoids silently erasing
-      // precise lateness (e.g. 12 min) when an admin edits a field other than isLate.
-      const { minutesLate: recomputedMinutesLate } = evaluateCheckIn({
-        clockInTimeUtc: effectiveClockInTime,
-        shift: existingCheckin.shift,
-      })
+      const effectiveStatus = effectiveIsLate
+        ? ('LATE' as const)
+        : ('PRESENT' as const)
       await tx.teacherAttendanceRecord.updateMany({
         where: { checkInId, status: { in: ['PRESENT', 'LATE'] } },
         data: {
           ...(syncClockIn ? { clockInTime } : {}),
           ...(syncStatus
             ? {
-                status: effectiveIsLate ? 'LATE' : 'PRESENT',
-                minutesLate: effectiveIsLate ? recomputedMinutesLate : null,
+                status: effectiveStatus,
+                minutesLate: deriveMinutesLate({
+                  toStatus: effectiveStatus,
+                  clockInTimeUtc: effectiveClockInTime,
+                  shift: existingCheckin.shift,
+                }),
                 source: 'ADMIN_OVERRIDE',
               }
-            : // clockInTime changed but isLate not — re-sync minutesLate to match the
-              // new clock-in time without changing status (admin corrected a time, not
-              // the lateness determination).
-              { minutesLate: effectiveIsLate ? recomputedMinutesLate : null }),
+            : {
+                minutesLate: deriveMinutesLate({
+                  toStatus: effectiveStatus,
+                  clockInTimeUtc: effectiveClockInTime,
+                  shift: existingCheckin.shift,
+                }),
+              }),
         },
       })
     }

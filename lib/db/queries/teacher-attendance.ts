@@ -40,7 +40,10 @@ export type AttendanceRecordGridWithRelations =
 // Skips the teacher → person join since the caller (fetchAttendanceHistory) never
 // accesses r.teacher and the teacherId filter already scopes the query.
 export const attendanceSummaryInclude = {
-  excuses: { orderBy: { createdAt: 'desc' as const } },
+  excuses: {
+    select: { id: true, status: true },
+    orderBy: { createdAt: 'desc' as const },
+  },
 } as const satisfies Prisma.TeacherAttendanceRecordInclude
 
 export type AttendanceRecordSummaryWithRelations =
@@ -221,7 +224,10 @@ export async function getAttendanceGrid(
   fromDate: Date,
   toDate: Date,
   client: DatabaseClient = prisma
-): Promise<AttendanceRecordGridWithRelations[]> {
+): Promise<{
+  records: AttendanceRecordGridWithRelations[]
+  truncated: boolean
+}> {
   const rows = await client.teacherAttendanceRecord.findMany({
     where: { date: { gte: fromDate, lt: toDate } },
     include: attendanceRecordGridInclude,
@@ -230,17 +236,20 @@ export async function getAttendanceGrid(
       { shift: 'asc' },
       { teacher: { person: { name: 'asc' } } },
     ],
-    take: 1000,
+    take: 1001,
   })
 
-  if (rows.length === 1000) {
+  const truncated = rows.length > 1000
+  const records = truncated ? rows.slice(0, 1000) : rows
+
+  if (truncated) {
     logger.warn(
       { event: 'ATTENDANCE_GRID_CAP_HIT', fromDate, toDate },
-      'getAttendanceGrid hit the 1000-row cap — results may be incomplete; add pagination'
+      'getAttendanceGrid exceeded 1000 rows — results truncated; add pagination'
     )
   }
 
-  return rows
+  return { records, truncated }
 }
 
 // Counts attendance records with status=EXCUSED for a teacher in a given month.

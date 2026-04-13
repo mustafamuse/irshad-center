@@ -739,6 +739,7 @@ model TeacherAttendanceRecord {
   source         AttendanceSource         @default(SYSTEM)
   checkInId   String?                 @unique // FK → DugsiTeacherCheckIn (one-to-one)
   clockInTime DateTime? // denormalized for display without join
+  /// CHECK constraint enforced via migration: attendance_minutes_late_only_when_late
   minutesLate Int? // null when status is not LATE
   notes       String?
   changedBy   String? // admin actor for audit

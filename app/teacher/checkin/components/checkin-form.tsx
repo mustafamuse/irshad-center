@@ -85,7 +85,9 @@ export function CheckinForm({
         try {
           const [currentStatus, sessionResult] = await Promise.all([
             getTeacherCurrentStatus(id),
-            createTeacherSessionAction({ teacherId: id }),
+            phase2ExcuseEnabled
+              ? createTeacherSessionAction({ teacherId: id })
+              : Promise.resolve(null),
           ])
           setStatus(currentStatus)
           setSessionToken(sessionResult?.data?.token ?? null)

@@ -27,7 +27,7 @@ export default async function TeacherAttendancePage() {
   const from = new Date(`${weekendDates[weekendDates.length - 1]}T00:00:00Z`)
   const to = new Date(`${weekendDates[0]}T00:00:00Z`)
   to.setUTCDate(to.getUTCDate() + 1)
-  const [records, closures, activeTeachers] = await Promise.all([
+  const [{ records, truncated }, closures, activeTeachers] = await Promise.all([
     getAttendanceGrid(from, to),
     listSchoolClosures(from, to),
     getActiveDugsiTeacherShifts(),
@@ -51,6 +51,13 @@ export default async function TeacherAttendancePage() {
           School closed:{' '}
           {Array.from(closureSet).sort().reverse().slice(0, 3).join(', ')}
           {closureSet.size > 3 && ` +${closureSet.size - 3} more`}
+        </div>
+      )}
+
+      {truncated && (
+        <div className="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-800">
+          Showing 1,000 of more records — narrow the date range to see all
+          results.
         </div>
       )}
 

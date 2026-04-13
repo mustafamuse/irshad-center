@@ -21,6 +21,7 @@ import {
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
+import { deriveMinutesLate } from '@/lib/utils/attendance-state'
 import { assertAdminTransition } from '@/lib/utils/attendance-transitions'
 
 const logger = createServiceLogger('excuse')
@@ -197,7 +198,9 @@ export async function approveExcuse(
       data: {
         status: TeacherAttendanceStatus.EXCUSED,
         source: AttendanceSource.EXCUSE_APPROVED,
-        minutesLate: null,
+        minutesLate: deriveMinutesLate({
+          toStatus: TeacherAttendanceStatus.EXCUSED,
+        }),
         changedBy: reviewedBy,
       },
     })
