@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 
 import { Shift } from '@prisma/client'
 import { format } from 'date-fns'
@@ -76,10 +76,23 @@ export function CheckinForm({
   const selectedTeacher = teachers.find((t) => t.id === selectedTeacherId)
   const availableShifts = selectedTeacher?.shifts ?? []
 
+  const currentTeacherRef = useRef<string | null>(null)
+  // Sort then join so the key is order-invariant — only changes when the actual
+  // shift list changes, not just when the array reference identity changes.
+  const shiftKey = [...(selectedTeacher?.shifts ?? [])].sort().join(',')
+
   useEffect(() => {
     if (selectedTeacherId) {
       const id = selectedTeacherId
       const shifts = selectedTeacher?.shifts ?? []
+      currentTeacherRef.current = id
+
+      // Clear stale state immediately before the async work starts.
+      // The previous teacher's token/status must not remain visible under the new
+      // teacher's name while the new Promise.all is in flight (300–800 ms).
+      setStatus(null)
+      setSessionToken(null)
+      setSelectedShift(shifts.length === 1 ? shifts[0] : null)
 
       startTransition(async () => {
         try {
@@ -89,15 +102,11 @@ export function CheckinForm({
               ? createTeacherSessionAction({ teacherId: id })
               : Promise.resolve(null),
           ])
+          if (currentTeacherRef.current !== id) return
           setStatus(currentStatus)
           setSessionToken(sessionResult?.data?.token ?? null)
-
-          if (shifts.length === 1) {
-            setSelectedShift(shifts[0])
-          } else {
-            setSelectedShift(null)
-          }
         } catch (error) {
+          if (currentTeacherRef.current !== id) return
           console.error('Failed to load teacher status:', error)
           setMessage({
             type: 'error',
@@ -109,12 +118,13 @@ export function CheckinForm({
         }
       })
     } else {
+      currentTeacherRef.current = null
       setStatus(null)
       setSelectedShift(null)
       setSessionToken(null)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- teachers is stable from server props
-  }, [selectedTeacherId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeacherId, phase2ExcuseEnabled, shiftKey])
 
   const currentCheckin = useMemo(() => {
     if (!status || !selectedShift) return null

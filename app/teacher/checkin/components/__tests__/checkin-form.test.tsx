@@ -1,3 +1,5 @@
+import { act } from 'react'
+
 import { Shift } from '@prisma/client'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -651,7 +653,7 @@ describe('CheckinForm', () => {
         ...clockedInStatus,
         morningClockOutTime: new Date('2024-01-15T12:00:00'),
       }
-      mockGetTeacherCurrentStatus.mockResolvedValue(clockedInStatus)
+      mockGetTeacherCurrentStatus.mockResolvedValueOnce(clockedInStatus)
       mockTeacherClockOutAction.mockResolvedValue({
         data: { status: clockedOutStatus, message: 'Clocked out successfully' },
       })
@@ -683,6 +685,70 @@ describe('CheckinForm', () => {
       await waitFor(() => {
         expect(screen.getByText('Clocked out successfully')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('stale-request guard', () => {
+    it('clears state immediately on teacher switch and ignores stale in-flight responses for both status and session token', async () => {
+      // Alice: if her request resolves, she would show "Shift In Progress"
+      const aliceStatus = {
+        ...defaultStatus,
+        morningCheckinId: 'alice-checkin-1',
+        morningClockInTime: new Date('2024-01-15T08:25:00'),
+      }
+
+      // Defer Alice's requests so they resolve after Bob is selected
+      let resolveAStatus!: (v: unknown) => void
+      let resolveASession!: (v: unknown) => void
+      mockGetTeacherCurrentStatus.mockImplementationOnce(
+        () =>
+          new Promise((res) => {
+            resolveAStatus = res as (v: unknown) => void
+          })
+      )
+      mockCreateTeacherSessionAction.mockImplementationOnce(
+        () =>
+          new Promise((res) => {
+            resolveASession = res as (v: unknown) => void
+          })
+      )
+      // Bob's calls use the beforeEach defaults (defaultStatus, mock-token)
+
+      const user = userEvent.setup()
+      render(<CheckinForm teachers={mockTeachers} phase2ExcuseEnabled={true} />)
+
+      const combobox = screen.getByRole('combobox')
+
+      // 1. Select Alice — both requests start and hang
+      await user.click(combobox)
+      await user.click(screen.getByRole('option', { name: /alice smith/i }))
+
+      // 2. Switch to Bob before Alice resolves
+      await user.click(combobox)
+      await user.click(screen.getByRole('option', { name: /bob johnson/i }))
+
+      // 3. Bob has 1 shift → auto-selected. Alice's "Shift In Progress" must not appear.
+      //    The form shows Bob's status section immediately (null/loading state).
+      await waitFor(() => {
+        expect(screen.queryByText('Shift In Progress')).not.toBeInTheDocument()
+      })
+
+      // 4. Resolve Alice's stale in-flight requests: "clocked in" status + tok-a
+      await act(async () => {
+        resolveAStatus(aliceStatus)
+        resolveASession({ data: { token: 'tok-a' } })
+      })
+
+      // 5. Alice's data must not land under Bob — "Shift In Progress" still absent
+      expect(screen.queryByText('Shift In Progress')).not.toBeInTheDocument()
+
+      // 6. Bob's own request (defaultStatus — not clocked in) resolves via mock default
+      await waitFor(() => {
+        expect(screen.getByText('Not Clocked In')).toBeInTheDocument()
+      })
+
+      // Confirm both session actions were called (Alice's deferred + Bob's immediate)
+      expect(mockCreateTeacherSessionAction).toHaveBeenCalledTimes(2)
     })
   })
 })

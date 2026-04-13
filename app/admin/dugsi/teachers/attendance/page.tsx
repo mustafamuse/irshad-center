@@ -56,8 +56,8 @@ export default async function TeacherAttendancePage() {
 
       {truncated && (
         <div className="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-2 text-sm text-yellow-800">
-          Showing 1,000 of more records — narrow the date range to see all
-          results.
+          Showing the first 1,000 records. Some cells may be incomplete; narrow
+          the date range to see all results.
         </div>
       )}
 
@@ -66,6 +66,7 @@ export default async function TeacherAttendancePage() {
         weekendDates={weekendDates}
         closureDates={closureSet}
         allTeachers={activeTeachers}
+        truncated={truncated}
       />
     </div>
   )

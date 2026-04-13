@@ -66,6 +66,20 @@ export function useTeacherHistory({
     })
   }, [])
 
+  // Trigger load when token arrives after the panel was already opened.
+  // Without this, opening history before the token is minted leaves the panel
+  // in a permanent "no records" state until the user toggles it closed and re-opens.
+  // hasLoaded guard prevents re-fetching on token refresh once data is already loaded.
+  // isPending is read from the current render's closure to block concurrent fetches,
+  // but is intentionally excluded from deps — including it would re-trigger the effect
+  // every time a transition completes, causing a fetch loop in concurrent mode.
+  useEffect(() => {
+    if (isOpen && sessionToken && !hasLoaded && !isPending && teacherId) {
+      fetchHistory(teacherId, sessionToken)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken, isOpen, hasLoaded, teacherId, fetchHistory])
+
   const loadHistory = useCallback(() => {
     if (!teacherId || !sessionToken || (hasLoaded && !error)) return
     fetchHistory(teacherId, sessionToken)

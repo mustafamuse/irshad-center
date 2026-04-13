@@ -20,6 +20,7 @@ interface Props {
   weekendDates: string[] // YYYY-MM-DD, descending
   closureDates: Set<string>
   allTeachers: TeacherShift[] // full active roster — ensures teachers with no records in window still appear
+  truncated?: boolean // true when results were capped at 1000 rows; empty cells may be missing data
 }
 
 type CellKey = `${string}|${string}|${Shift}`
@@ -43,6 +44,7 @@ export function AttendanceGrid({
   weekendDates,
   closureDates,
   allTeachers,
+  truncated = false,
 }: Props) {
   const [overrideCell, setOverrideCell] = useState<OverrideCell | null>(null)
 
@@ -155,8 +157,20 @@ export function AttendanceGrid({
                       if (!record) {
                         return (
                           <td key={key} className="px-1 py-2 text-center">
-                            <span className="text-xs text-muted-foreground/40">
-                              —
+                            <span
+                              className={cn(
+                                'text-xs',
+                                truncated
+                                  ? 'cursor-help italic text-muted-foreground/30'
+                                  : 'text-muted-foreground/40'
+                              )}
+                              title={
+                                truncated
+                                  ? 'Data may be incomplete — narrow the date range'
+                                  : undefined
+                              }
+                            >
+                              {truncated ? '?' : '—'}
                             </span>
                           </td>
                         )
