@@ -1,64 +1,115 @@
-import type { TeacherAttendanceStatus } from '@prisma/client'
+import type { AttendanceSource, TeacherAttendanceStatus } from '@prisma/client'
 
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
-const ALLOWED_TRANSITIONS: Record<
+// ─── Teacher (self-checkin) ────────────────────────────────────────────────
+//
+// Teachers may only clock in to PRESENT or LATE. Provenance matters:
+// ADMIN_OVERRIDE-sourced ABSENT cannot be reversed by self-checkin.
+// CLOSED is caught before this check (SCHOOL_CLOSED error).
+// Already-PRESENT teachers are caught by DUPLICATE_CHECKIN before this check.
+
+const TEACHER_TRANSITIONS: Partial<
+  Record<TeacherAttendanceStatus, TeacherAttendanceStatus[]>
+> = {
+  EXPECTED: ['PRESENT', 'LATE'],
+  LATE: ['LATE', 'PRESENT'], // LATE→LATE: update clockInTime on auto-marked record
+  ABSENT: ['PRESENT', 'LATE'], // physically shows up after cron auto-mark (SYSTEM source)
+}
+
+export function canTeacherTransition(
+  from: TeacherAttendanceStatus,
+  fromSource: AttendanceSource | null,
+  to: TeacherAttendanceStatus
+): boolean {
+  // Admin set this ABSENT explicitly — self-checkin cannot reverse that decision.
+  if (from === 'ABSENT' && fromSource === 'ADMIN_OVERRIDE') return false
+  return TEACHER_TRANSITIONS[from]?.includes(to) ?? false
+}
+
+// ─── Admin (override dialog, adminCheckIn, deleteCheckin, excuse approval) ──
+//
+// EXPECTED→CLOSED is excluded: markDateClosed is the only valid path to CLOSED,
+// and it bypasses this table intentionally (see school-closure-service.ts).
+
+const ADMIN_TRANSITIONS: Record<
   TeacherAttendanceStatus,
   TeacherAttendanceStatus[]
 > = {
-  // EXPECTED → CLOSED: markDateClosed propagates this in bulk via bulkTransitionStatus.
-  //   This transition is system-only — intentionally excluded from the admin override
-  //   dialog (OverrideAttendanceStatusSchema limits toStatus to non-CLOSED values).
-  EXPECTED: ['PRESENT', 'LATE', 'ABSENT', 'CLOSED'],
-  // PRESENT/LATE/ABSENT/EXCUSED → CLOSED intentionally excluded: a teacher who
-  //   already has concrete attendance data (showed up, was excused, etc.) cannot
-  //   be reverted to CLOSED via the override dialog. Use removeClosure() + the
-  //   natural record if the whole day needs to be reopened.
-  // EXCUSED is intentionally excluded from PRESENT: teachers who are PRESENT do
-  //   not need excuses. EXCUSED is only valid from LATE or ABSENT.
+  EXPECTED: ['PRESENT', 'LATE', 'ABSENT'],
   PRESENT: ['ABSENT', 'LATE'],
-  // LATE → LATE: self-checkin can update clockInTime/source on an auto-marked LATE record
-  //   without changing the displayed status.
   LATE: ['ABSENT', 'EXCUSED', 'PRESENT', 'LATE'],
-  // ABSENT → PRESENT: admin corrects an auto-marked absence when the teacher
-  //   physically showed up after the auto-mark window fired.
   ABSENT: ['LATE', 'EXCUSED', 'PRESENT'],
-  // EXCUSED → LATE/ABSENT: admin reverts an erroneously approved excuse.
-  // transitionStatus atomically rejects any APPROVED ExcuseRequest in the same
-  // transaction so the teacher isn't left in a dead-end (can't resubmit because
-  // getExistingActiveExcuse would find the orphaned APPROVED row).
   EXCUSED: ['LATE', 'ABSENT'],
-  // CLOSED → PRESENT: admin confirms teacher physically showed up on a closed day.
-  // This transition goes through transitionStatus (override dialog), which only updates
-  // TeacherAttendanceRecord — no DugsiTeacherCheckIn fact-log row is created. The result
-  // is a PRESENT record with checkInId = null and clockInTime = null. The ADMIN_OVERRIDE
-  // source distinguishes these fact-log-less records from SELF_CHECKIN entries in the
-  // audit trail. If a clock-in fact-log is required, use adminCheckIn instead.
-  // CLOSED → EXPECTED is excluded: it would leave the record in EXPECTED while the
-  //   SchoolClosure row still exists. Use removeClosure() to revert the whole date.
   CLOSED: ['PRESENT'],
 }
 
-export function isValidTransition(
+export function canAdminTransition(
   from: TeacherAttendanceStatus,
   to: TeacherAttendanceStatus
 ): boolean {
-  return ALLOWED_TRANSITIONS[from].includes(to)
+  return ADMIN_TRANSITIONS[from].includes(to)
 }
 
-export function getAllowedTransitions(
-  from: TeacherAttendanceStatus
-): TeacherAttendanceStatus[] {
-  return ALLOWED_TRANSITIONS[from]
-}
-
-export function assertValidTransition(
+export function assertAdminTransition(
   from: TeacherAttendanceStatus,
   to: TeacherAttendanceStatus
 ): void {
-  if (!isValidTransition(from, to)) {
+  if (!canAdminTransition(from, to)) {
     throw new ActionError(
-      `Invalid attendance transition: ${from} → ${to}. Allowed: ${ALLOWED_TRANSITIONS[from].join(', ')}`,
+      `Invalid attendance transition: ${from} → ${to}. Allowed: ${ADMIN_TRANSITIONS[from].join(', ')}`,
+      ERROR_CODES.INVALID_TRANSITION,
+      undefined,
+      422
+    )
+  }
+}
+
+export function getAdminAllowedTransitions(
+  from: TeacherAttendanceStatus
+): TeacherAttendanceStatus[] {
+  return ADMIN_TRANSITIONS[from]
+}
+
+// ─── System (closure propagation, excuse approval) ────────────────────────
+//
+// Auto-mark (EXPECTED→LATE via cron) uses raw updateMany — minutesLate handling
+// requires explicit field control that the generic transition path cannot provide.
+// Closure restore (CLOSED→previousStatus) is similarly a raw updateMany in
+// school-closure-service.ts to support per-row previousStatus restoration.
+
+export type SystemAction = 'closure_mark' | 'excuse_approval'
+
+const SYSTEM_TRANSITIONS: Record<
+  SystemAction,
+  Partial<Record<TeacherAttendanceStatus, TeacherAttendanceStatus[]>>
+> = {
+  closure_mark: {
+    EXPECTED: ['CLOSED'],
+  },
+  excuse_approval: {
+    LATE: ['EXCUSED'],
+    ABSENT: ['EXCUSED'],
+  },
+}
+
+export function canSystemTransition(
+  from: TeacherAttendanceStatus,
+  to: TeacherAttendanceStatus,
+  action: SystemAction
+): boolean {
+  return SYSTEM_TRANSITIONS[action][from]?.includes(to) ?? false
+}
+
+export function assertSystemTransition(
+  from: TeacherAttendanceStatus,
+  to: TeacherAttendanceStatus,
+  action: SystemAction
+): void {
+  if (!canSystemTransition(from, to, action)) {
+    const allowed = SYSTEM_TRANSITIONS[action][from]?.join(', ') ?? 'none'
+    throw new ActionError(
+      `Invalid system transition (${action}): ${from} → ${to}. Allowed: ${allowed}`,
       ERROR_CODES.INVALID_TRANSITION,
       undefined,
       422

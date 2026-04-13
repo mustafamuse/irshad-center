@@ -21,7 +21,7 @@ import {
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
-import { assertValidTransition } from '@/lib/utils/attendance-transitions'
+import { assertAdminTransition } from '@/lib/utils/attendance-transitions'
 
 const logger = createServiceLogger('excuse')
 
@@ -161,7 +161,7 @@ export async function approveExcuse(
         ERROR_CODES.ATTENDANCE_RECORD_NOT_FOUND
       )
     }
-    assertValidTransition(currentRecord.status, TeacherAttendanceStatus.EXCUSED)
+    assertAdminTransition(currentRecord.status, TeacherAttendanceStatus.EXCUSED)
 
     const excuseUpdate = await tx.excuseRequest.updateMany({
       where: { id: excuseRequestId, status: ExcuseRequestStatus.PENDING },

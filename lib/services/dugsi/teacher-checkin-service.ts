@@ -26,7 +26,10 @@ import {
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
-import { assertValidTransition } from '@/lib/utils/attendance-transitions'
+import {
+  canTeacherTransition,
+  assertAdminTransition,
+} from '@/lib/utils/attendance-transitions'
 import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 import type {
   ClockInInput,
@@ -168,24 +171,31 @@ export async function clockIn(
           { teacherId, shift }
         )
       }
-      // Provenance guard: an admin explicitly set this record to ABSENT — self-checkin
-      // must not reverse a deliberate administrative decision. Auto-mark ABSENT
-      // (source=SYSTEM) is allowed because a physically-present late arrival should
-      // still be able to clock in; geofence enforces they are actually on-site.
+      // Actor-aware transition guard: teacher self-checkin is restricted to PRESENT/LATE
+      // targets, and ADMIN_OVERRIDE-sourced ABSENT records cannot be reversed by self-checkin.
       if (
-        existingAttendanceRecord.status === 'ABSENT' &&
-        existingAttendanceRecord.source === 'ADMIN_OVERRIDE'
+        !canTeacherTransition(
+          existingAttendanceRecord.status,
+          existingAttendanceRecord.source,
+          attendanceData.status
+        )
       ) {
+        if (
+          existingAttendanceRecord.status === 'ABSENT' &&
+          existingAttendanceRecord.source === 'ADMIN_OVERRIDE'
+        ) {
+          throw new ValidationError(
+            'Your attendance has been recorded by an admin. Contact them to make changes.',
+            CHECKIN_ERROR_CODES.ADMIN_OVERRIDE_EXISTS,
+            { teacherId, shift }
+          )
+        }
         throw new ValidationError(
-          'Your attendance has been recorded by an admin. Contact them to make changes.',
+          'Cannot check in: your attendance for this shift has already been recorded. Contact an admin if changes are needed.',
           CHECKIN_ERROR_CODES.ADMIN_OVERRIDE_EXISTS,
           { teacherId, shift }
         )
       }
-      assertValidTransition(
-        existingAttendanceRecord.status,
-        attendanceData.status
-      )
       // Include current status in WHERE: if a concurrent override already changed
       // the status, count=0 → throw rather than silently stomp the new state.
       const updateResult = await tx.teacherAttendanceRecord.updateMany({
@@ -472,9 +482,9 @@ export async function deleteCheckin(
     // The @@unique([teacherId, date, shift]) constraint guarantees at most one row,
     // so count > 1 would indicate a data integrity problem.
     // Assert both reachable transitions are still valid — guards against silent
-    // breakage if ALLOWED_TRANSITIONS is tightened in the future.
-    assertValidTransition('PRESENT', 'ABSENT')
-    assertValidTransition('LATE', 'ABSENT')
+    // breakage if the admin transition table is tightened in the future.
+    assertAdminTransition('PRESENT', 'ABSENT')
+    assertAdminTransition('LATE', 'ABSENT')
     const { count: revertedCount } =
       await tx.teacherAttendanceRecord.updateMany({
         where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },

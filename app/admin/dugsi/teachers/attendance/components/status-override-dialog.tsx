@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
 import { cn } from '@/lib/utils'
-import { getAllowedTransitions } from '@/lib/utils/attendance-transitions'
+import { getAdminAllowedTransitions } from '@/lib/utils/attendance-transitions'
 import type { OverrideAttendanceStatusInput } from '@/lib/validations/teacher-attendance'
 
 import { overrideAttendanceStatusAction } from '../actions'
@@ -64,7 +64,7 @@ export function StatusOverrideDialog({
 
   // Filter to overrideable statuses only — EXPECTED (slot generation) and CLOSED
   // (markDateClosed) have dedicated flows and must not appear in the manual override dialog.
-  const allowedTransitions = getAllowedTransitions(currentStatus).filter(
+  const allowedTransitions = getAdminAllowedTransitions(currentStatus).filter(
     (s): s is OverrideAttendanceStatusInput['toStatus'] =>
       (s === 'PRESENT' || s === 'LATE' || s === 'ABSENT' || s === 'EXCUSED') &&
       s !== currentStatus

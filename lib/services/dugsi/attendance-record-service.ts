@@ -18,7 +18,11 @@ import { getAttendanceRecordStatus } from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
-import { assertValidTransition } from '@/lib/utils/attendance-transitions'
+import {
+  assertAdminTransition,
+  assertSystemTransition,
+  type SystemAction,
+} from '@/lib/utils/attendance-transitions'
 
 const logger = createServiceLogger('attendance-record')
 
@@ -116,7 +120,7 @@ export async function transitionStatus(
       )
     }
 
-    assertValidTransition(record.status, toStatus)
+    assertAdminTransition(record.status, toStatus)
 
     // Optimistic lock: include current status in WHERE so a concurrent override that
     // already changed the status produces count=0 rather than silently overwriting
@@ -268,7 +272,7 @@ export async function adminCheckIn(
     }
 
     if (existingRecord) {
-      assertValidTransition(existingRecord.status, 'PRESENT')
+      assertAdminTransition(existingRecord.status, 'PRESENT')
       // Optimistic lock: include current status in WHERE, mirroring transitionStatus.
       // Prevents a concurrent auto-mark/override from being silently overwritten.
       const updateResult = await tx.teacherAttendanceRecord.updateMany({
@@ -339,14 +343,15 @@ export async function bulkTransitionStatus(
     // minutesLate value for LATE transitions — see JSDoc above.
     toStatus: Exclude<TeacherAttendanceStatus, 'LATE'>
     source: AttendanceSource
+    action: SystemAction
     changedBy?: string // recorded per-row for audit; 'cron' for auto-mark, admin name for closures
     previousStatus?: TeacherAttendanceStatus // saved before closure so reopen can restore original state
   },
   client: DatabaseClient = prisma
 ): Promise<number> {
-  const { where, toStatus, source, changedBy, previousStatus } = params
+  const { where, toStatus, source, action, changedBy, previousStatus } = params
 
-  assertValidTransition(where.status, toStatus)
+  assertSystemTransition(where.status, toStatus, action)
 
   const { count } = await client.teacherAttendanceRecord.updateMany({
     where: {

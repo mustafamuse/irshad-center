@@ -51,6 +51,7 @@ export async function markDateClosed(
         where: { date, status: 'EXPECTED' },
         toStatus: 'CLOSED',
         source: 'SYSTEM',
+        action: 'closure_mark',
         changedBy: createdBy,
         previousStatus: 'EXPECTED',
       },
