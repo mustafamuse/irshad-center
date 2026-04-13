@@ -24,6 +24,14 @@ interface Props {
 
 type CellKey = `${string}|${string}|${Shift}`
 
+type OverrideCell = {
+  recordId: string
+  teacherName: string
+  date: string
+  shift: Shift
+  currentStatus: TeacherAttendanceStatus
+}
+
 const SHIFTS: Shift[] = ['MORNING', 'AFTERNOON']
 
 function rowBg(idx: number) {
@@ -36,14 +44,6 @@ export function AttendanceGrid({
   closureDates,
   allTeachers,
 }: Props) {
-  type OverrideCell = {
-    recordId: string
-    teacherName: string
-    date: string
-    shift: Shift
-    currentStatus: TeacherAttendanceStatus
-  }
-
   const [overrideCell, setOverrideCell] = useState<OverrideCell | null>(null)
 
   function openOverride(
@@ -192,7 +192,7 @@ export function AttendanceGrid({
 
       {overrideCell && (
         <StatusOverrideDialog
-          open={!!overrideCell}
+          open
           onOpenChange={(open) => !open && setOverrideCell(null)}
           recordId={overrideCell.recordId}
           teacherName={overrideCell.teacherName}

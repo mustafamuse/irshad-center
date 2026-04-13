@@ -461,13 +461,6 @@ const _linkDugsiSubscription = adminActionClient
     }): Promise<SubscriptionLinkData & { message: string }> => {
       const { parentEmail, subscriptionId } = parsedInput
 
-      if (!parentEmail || parentEmail.trim() === '') {
-        throw new ActionError(
-          'Parent email is required to link subscription.',
-          ERROR_CODES.VALIDATION_ERROR
-        )
-      }
-
       const result = await linkDugsiSubscriptionService(
         parentEmail,
         subscriptionId
@@ -927,12 +920,7 @@ const _updateClassAction = adminActionClient
             ERROR_CODES.NOT_FOUND
           )
         }
-        if (
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'P2002'
-        ) {
+        if (isPrismaError(error) && error.code === 'P2002') {
           throw new ActionError(
             'A class with this name already exists',
             ERROR_CODES.VALIDATION_ERROR

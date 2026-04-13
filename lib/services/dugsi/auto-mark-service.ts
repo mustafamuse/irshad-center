@@ -20,7 +20,6 @@ import {
 } from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
-import { assertValidTransition } from '@/lib/utils/attendance-transitions'
 
 import { generateExpectedSlots } from './attendance-record-service'
 
@@ -51,11 +50,6 @@ export async function autoMarkLateForShift(
   // Optional pre-fetched teacher roster — when omitted, fetched inside doWrites.
   prefetchedTeachers?: TeacherShift[]
 ): Promise<AutoMarkResult> {
-  // Fast-fail if the transition table ever removes EXPECTED → LATE.
-  // The updateMany inside doWrites bypasses assertValidTransition directly;
-  // this guard ensures the cron breaks loudly rather than silently doing nothing.
-  assertValidTransition('EXPECTED', 'LATE')
-
   const offsetMinutes =
     shift === 'MORNING'
       ? config.morningAutoMarkMinutes

@@ -14,6 +14,8 @@ import { ExcuseRequestWithRelations } from '@/lib/db/queries/teacher-attendance'
 
 import { approveExcuseAction, rejectExcuseAction } from '../attendance/actions'
 
+type ExcuseAction = typeof approveExcuseAction | typeof rejectExcuseAction
+
 interface Props {
   initialRequests: ExcuseRequestWithRelations[]
 }
@@ -34,8 +36,6 @@ export function ExcuseQueue({ initialRequests }: Props) {
   // Set of in-flight request IDs so multiple rows can be independently disabled
   // (a single string would re-enable a row when a different row's action completes)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
-
-  type ExcuseAction = typeof approveExcuseAction | typeof rejectExcuseAction
 
   function handleDecision(id: string, action: ExcuseAction) {
     setErrors((prev) => ({ ...prev, [id]: null }))
@@ -80,33 +80,29 @@ export function ExcuseQueue({ initialRequests }: Props) {
     handleDecision(id, rejectExcuseAction)
   }
 
+  const refreshButton = (
+    <button
+      type="button"
+      onClick={() => router.refresh()}
+      className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+    >
+      Refresh
+    </button>
+  )
+
   if (requests.length === 0)
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
           No pending excuse requests.
         </p>
-        <button
-          type="button"
-          onClick={() => router.refresh()}
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-        >
-          Refresh
-        </button>
+        {refreshButton}
       </div>
     )
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => router.refresh()}
-          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
-        >
-          Refresh
-        </button>
-      </div>
+      <div className="flex justify-end">{refreshButton}</div>
       {requests.map((req) => {
         const record = req.attendanceRecord
         const teacherName = record.teacher.person.name

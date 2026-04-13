@@ -261,7 +261,7 @@ describe('removeClosure', () => {
     expect(mockDeleteClosure).not.toHaveBeenCalled()
   })
 
-  it('throws NOT_FOUND on P2002 when two admins concurrently remove the same closure', async () => {
+  it('throws NOT_FOUND on P2025 when two admins concurrently remove the same closure', async () => {
     // Both admins pass getSchoolClosure (closure exists), but the second delete
     // hits P2025 because the first already removed the row.
     const { Prisma } = await import('@prisma/client')

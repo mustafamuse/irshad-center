@@ -189,7 +189,7 @@ const updateTeacherDetailsSchema = z.object({
 
 const updateTeacherShiftsSchema = z.object({
   teacherId: uuidSchema,
-  shifts: z.array(z.enum(['MORNING', 'AFTERNOON'])),
+  shifts: z.array(z.nativeEnum(Shift)),
 })
 
 const getTeachersSchema = z.object({
@@ -343,7 +343,7 @@ const _deleteTeacherAction = adminActionClient
     const { teacherId } = parsedInput
     await deleteTeacher(teacherId)
 
-    after(() => revalidatePath('/admin/teachers'))
+    after(() => revalidatePath('/admin/dugsi/teachers'))
 
     logger.info({ teacherId }, 'Teacher deleted')
   })

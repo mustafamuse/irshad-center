@@ -457,13 +457,12 @@ describe('checkGeofence', () => {
   })
 
   it('should return isWithinGeofence=true when location is within radius', async () => {
-    mockIsWithinGeofence.mockReturnValue(true)
-    mockCalculateDistance.mockReturnValue(25)
+    mockCalculateDistance.mockReturnValue(10)
 
     const result = await checkGeofence(44.9778, -93.265)
 
     expect(result.isWithinGeofence).toBe(true)
-    expect(result.distanceMeters).toBe(25)
+    expect(result.distanceMeters).toBe(10)
     expect(result.allowedRadiusMeters).toBe(15)
   })
 

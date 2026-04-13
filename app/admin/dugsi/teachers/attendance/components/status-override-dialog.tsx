@@ -17,6 +17,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ATTENDANCE_STATUS_CONFIG } from '@/lib/constants/attendance-status'
+import { cn } from '@/lib/utils'
 import { getAllowedTransitions } from '@/lib/utils/attendance-transitions'
 import type { OverrideAttendanceStatusInput } from '@/lib/validations/teacher-attendance'
 
@@ -37,9 +38,11 @@ function statusButtonClass(
   s: OverrideAttendanceStatusInput['toStatus'],
   selected: boolean
 ) {
-  return `rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-    selected ? 'ring-2 ring-ring ring-offset-1' : 'hover:bg-accent'
-  } ${ATTENDANCE_STATUS_CONFIG[s].className}`
+  return cn(
+    'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+    selected ? 'ring-2 ring-ring ring-offset-1' : 'hover:bg-accent',
+    ATTENDANCE_STATUS_CONFIG[s].className
+  )
 }
 
 export function StatusOverrideDialog({

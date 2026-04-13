@@ -5,7 +5,7 @@
  * Handles GPS geofencing validation, late detection, and admin overrides.
  */
 
-import { Prisma } from '@prisma/client'
+import { Prisma, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import {
@@ -50,7 +50,11 @@ export async function clockIn(
 ): Promise<ClockInResult> {
   const { teacherId, shift, latitude, longitude } = input
 
-  const isEnrolled = await isTeacherEnrolledInDugsi(teacherId, client)
+  const [isEnrolled, teacherShifts] = await Promise.all([
+    isTeacherEnrolledInDugsi(teacherId, client),
+    getTeacherShifts(teacherId, client),
+  ])
+
   if (!isEnrolled) {
     throw new ValidationError(
       'Teacher is not enrolled in the Dugsi program',
@@ -59,7 +63,6 @@ export async function clockIn(
     )
   }
 
-  const teacherShifts = await getTeacherShifts(teacherId, client)
   if (!teacherShifts.includes(shift)) {
     throw new ValidationError(
       `Teacher is not assigned to the ${shift} shift`,
@@ -134,7 +137,9 @@ export async function clockIn(
       })
 
     const attendanceData = {
-      status: (isLate ? 'LATE' : 'PRESENT') as 'LATE' | 'PRESENT',
+      status: isLate
+        ? TeacherAttendanceStatus.LATE
+        : TeacherAttendanceStatus.PRESENT,
       source: 'SELF_CHECKIN' as const,
       checkInId: checkInRecord.id,
       clockInTime: now,

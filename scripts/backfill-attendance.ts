@@ -237,11 +237,6 @@ async function main() {
     `\nWriting ${rows.filter((r) => r.action !== 'SKIP').length} records...`
   )
 
-  let dbUpdated = 0
-  // Wrap closure upserts + attendance writes in one transaction so a crash or
-  // SIGTERM mid-run doesn't leave SchoolClosure rows without the corresponding
-  // CLOSED attendance records (or vice versa).
-  // Re-running is always safe (skipDuplicates + WHERE status='EXPECTED' guard).
   type RowData = {
     teacherId: string
     date: Date
@@ -253,16 +248,89 @@ async function main() {
     minutesLate: number | null
   }
 
-  // Expected row count: ~10 teachers × 2 shifts × ~20 weekend dates ≈ 400 rows.
-  // Per-row updateMany loop issues one round-trip each; TRANSACTION_TIMEOUT_MS is conservative
-  // but avoids false timeouts on a cold or loaded DB connection.
+  // Pre-fetch existing records outside the transaction to avoid ~400 sequential
+  // updateMany round-trips inside the transaction. We partition rows into:
+  //   - toCreate: no existing record
+  //   - absentIds / closedIds: EXPECTED records to bulk-update in two shots
+  //   - presentLateUpdates: EXPECTED records with per-row data (checkInId differs)
+  // Rows where an existing record is non-EXPECTED are left untouched (admin overrides).
+  const existingRecords = await prisma.teacherAttendanceRecord.findMany({
+    where: { teacherId: { in: teachers.map((t) => t.id) } },
+    select: {
+      id: true,
+      teacherId: true,
+      date: true,
+      shift: true,
+      status: true,
+    },
+  })
+
+  const existingMap = new Map<string, { id: string; status: string }>()
+  for (const r of existingRecords) {
+    const dateStr = formatInTimeZone(r.date, 'UTC', 'yyyy-MM-dd')
+    existingMap.set(`${r.teacherId}|${dateStr}|${r.shift}`, {
+      id: r.id,
+      status: r.status,
+    })
+  }
+
+  type PresentLateUpdate = {
+    id: string
+    action: 'PRESENT' | 'LATE'
+    source: AttendanceSource
+    checkInId: string | null
+    clockInTime: Date | null
+    minutesLate: number | null
+  }
+
+  const toCreate: RowData[] = []
+  const absentIds: string[] = []
+  const closedIds: string[] = []
+  const presentLateUpdates: PresentLateUpdate[] = []
+  let dbUpdated = 0
+
+  for (const r of rows) {
+    if (r.action === 'SKIP') continue
+    const existing = existingMap.get(`${r.teacherId}|${r.date}|${r.shift}`)
+    if (!existing) {
+      toCreate.push({
+        teacherId: r.teacherId,
+        date: new Date(r.date),
+        shift: r.shift,
+        status: r.action,
+        source: r.source,
+        checkInId: r.checkInId ?? null,
+        clockInTime: r.clockInTime ?? null,
+        minutesLate: r.minutesLate ?? null,
+      })
+    } else if (existing.status === 'EXPECTED') {
+      dbUpdated++
+      if (r.action === 'ABSENT') absentIds.push(existing.id)
+      else if (r.action === 'CLOSED') closedIds.push(existing.id)
+      else if (r.action === 'PRESENT' || r.action === 'LATE') {
+        presentLateUpdates.push({
+          id: existing.id,
+          action: r.action,
+          source: r.source,
+          checkInId: r.checkInId ?? null,
+          clockInTime: r.clockInTime ?? null,
+          minutesLate: r.minutesLate ?? null,
+        })
+      }
+    }
+    // else: non-EXPECTED existing record — preserve admin overrides, skip
+  }
+
+  // Wrap closure upserts + attendance writes in one transaction so a crash or
+  // SIGTERM mid-run doesn't leave SchoolClosure rows without the corresponding
+  // CLOSED attendance records (or vice versa).
   console.time('transaction')
   const { dbCreated, dbUnchanged } = await prisma.$transaction(
     async (tx) => {
-      // Upsert SchoolClosure rows inside the transaction so closures and CLOSED
-      // attendance records are written atomically.
-      await Promise.all(
-        Array.from(CLOSURE_DATES).map((d) => {
+      await Promise.all([
+        // Upsert SchoolClosure rows inside the transaction so closures and CLOSED
+        // attendance records are written atomically.
+        ...Array.from(CLOSURE_DATES).map((d) => {
           const date = new Date(d)
           return tx.schoolClosure.upsert({
             where: { date },
@@ -273,47 +341,36 @@ async function main() {
             },
             update: {},
           })
-        })
-      )
-
-      const toCreate: RowData[] = []
-
-      for (const r of rows) {
-        if (r.action === 'SKIP') continue
-        const dateObj = new Date(r.date)
-
-        // Only overwrite if the record is still EXPECTED — preserves admin manual
-        // changes (overrides, excuse approvals) when the script is re-run.
-        const updated = await tx.teacherAttendanceRecord.updateMany({
-          where: {
-            teacherId: r.teacherId,
-            date: dateObj,
-            shift: r.shift,
-            status: 'EXPECTED',
-          },
-          data: {
-            status: r.action,
-            source: r.source,
-            checkInId: r.checkInId ?? null,
-            clockInTime: r.clockInTime ?? null,
-            minutesLate: r.minutesLate ?? null,
-          },
-        })
-        if (updated.count > 0) {
-          dbUpdated++
-        } else {
-          toCreate.push({
-            teacherId: r.teacherId,
-            date: dateObj,
-            shift: r.shift,
-            status: r.action,
-            source: r.source,
-            checkInId: r.checkInId ?? null,
-            clockInTime: r.clockInTime ?? null,
-            minutesLate: r.minutesLate ?? null,
-          })
-        }
-      }
+        }),
+        // Bulk update ABSENT rows — one updateMany for all of them
+        absentIds.length > 0
+          ? tx.teacherAttendanceRecord.updateMany({
+              where: { id: { in: absentIds }, status: 'EXPECTED' },
+              data: { status: 'ABSENT', source: AttendanceSource.SYSTEM },
+            })
+          : Promise.resolve(),
+        // Bulk update CLOSED rows — one updateMany for all of them
+        closedIds.length > 0
+          ? tx.teacherAttendanceRecord.updateMany({
+              where: { id: { in: closedIds }, status: 'EXPECTED' },
+              data: { status: 'CLOSED', source: AttendanceSource.SYSTEM },
+            })
+          : Promise.resolve(),
+        // PRESENT/LATE rows each have a unique checkInId — run in parallel
+        ...presentLateUpdates.map(
+          ({ id, action, source, checkInId, clockInTime, minutesLate }) =>
+            tx.teacherAttendanceRecord.updateMany({
+              where: { id, status: 'EXPECTED' },
+              data: {
+                status: action,
+                source,
+                checkInId,
+                clockInTime,
+                minutesLate,
+              },
+            })
+        ),
+      ])
 
       // Batch all creates in one query — skipDuplicates silently ignores rows with
       // a non-EXPECTED status (admin overrides) that already exist in the table.

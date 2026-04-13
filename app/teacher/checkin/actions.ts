@@ -13,7 +13,6 @@ import { z } from 'zod'
 
 import {
   GEOFENCE_RADIUS_METERS,
-  isWithinGeofence,
   SCHOOL_TIMEZONE,
   IRSHAD_CENTER_LOCATION,
 } from '@/lib/constants/teacher-checkin'
@@ -218,7 +217,7 @@ export async function checkGeofence(
   )
 
   return {
-    isWithinGeofence: isWithinGeofence(latitude, longitude),
+    isWithinGeofence: distance <= GEOFENCE_RADIUS_METERS,
     distanceMeters: Math.round(distance),
     allowedRadiusMeters: GEOFENCE_RADIUS_METERS,
   }

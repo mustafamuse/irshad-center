@@ -16,7 +16,7 @@ interface Props {
 }
 
 function parseMinutes(raw: string, fallback: number): number {
-  if (raw === '') return 0
+  if (raw === '') return fallback
   const n = Number(raw)
   return Number.isFinite(n) ? n : fallback
 }

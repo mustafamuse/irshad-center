@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useState, useEffect, useRef } from 'react'
+import { useTransition, useState, useEffect } from 'react'
 
 import { useRouter } from 'next/navigation'
 
@@ -47,7 +47,6 @@ export function ClosuresManager({ initialClosures }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [pendingRemoval, setPendingRemoval] = useState<Closure | null>(null)
   const [reopenWarning, setReopenWarning] = useState<string | null>(null)
-  const isRemovingRef = useRef(false)
 
   function handleAdd() {
     if (!date || !reason.trim()) return
@@ -89,43 +88,37 @@ export function ClosuresManager({ initialClosures }: Props) {
   }
 
   function handleRemove(closure: Closure) {
-    if (isRemovingRef.current) return
-    isRemovingRef.current = true
     const dateStr = formatInTimeZone(closure.date, 'UTC', 'yyyy-MM-dd')
     setError(null)
     setReopenWarning(null)
     startRemoveTransition(async () => {
-      try {
-        const result = await removeClosureAction({ date: dateStr })
-        if (result?.serverError) {
-          setError(result.serverError)
-          setPendingRemoval(null)
-          return
-        }
-        const reopenedCount = result?.data?.reopenedCount ?? 0
-        // Warn when a historical closure is removed and EXPECTED records may be stranded:
-        // the auto-mark cron only runs for today, so formerly AUTO_MARKED LATE records
-        // that were flipped CLOSED will now sit as EXPECTED with no automatic correction.
-        if (reopenedCount > 0 && closure.date < new Date()) {
-          setReopenWarning(
-            `${reopenedCount} record${reopenedCount === 1 ? '' : 's'} reverted to EXPECTED. ` +
-              'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
-              'review and correct them in the attendance grid.'
-          )
-        }
-        // Match on date string, not ID — the optimistic row uses a fake `_new-${date}` ID
-        // that may have been replaced by the real UUID after router.refresh() fired.
-        // The DB unique constraint on SchoolClosure.date makes date the stable key.
-        setClosures((prev) =>
-          prev.filter(
-            (c) => formatInTimeZone(c.date, 'UTC', 'yyyy-MM-dd') !== dateStr
-          )
-        )
+      const result = await removeClosureAction({ date: dateStr })
+      if (result?.serverError) {
+        setError(result.serverError)
         setPendingRemoval(null)
-        router.refresh()
-      } finally {
-        isRemovingRef.current = false
+        return
       }
+      const reopenedCount = result?.data?.reopenedCount ?? 0
+      // Warn when a historical closure is removed and EXPECTED records may be stranded:
+      // the auto-mark cron only runs for today, so formerly AUTO_MARKED LATE records
+      // that were flipped CLOSED will now sit as EXPECTED with no automatic correction.
+      if (reopenedCount > 0 && closure.date < new Date()) {
+        setReopenWarning(
+          `${reopenedCount} record${reopenedCount === 1 ? '' : 's'} reverted to EXPECTED. ` +
+            'Teachers previously auto-marked LATE will not be re-marked automatically — ' +
+            'review and correct them in the attendance grid.'
+        )
+      }
+      // Match on date string, not ID — the optimistic row uses a fake `_new-${date}` ID
+      // that may have been replaced by the real UUID after router.refresh() fired.
+      // The DB unique constraint on SchoolClosure.date makes date the stable key.
+      setClosures((prev) =>
+        prev.filter(
+          (c) => formatInTimeZone(c.date, 'UTC', 'yyyy-MM-dd') !== dateStr
+        )
+      )
+      setPendingRemoval(null)
+      router.refresh()
     })
   }
 
@@ -177,28 +170,33 @@ export function ClosuresManager({ initialClosures }: Props) {
           <p className="text-sm text-muted-foreground">No closures recorded.</p>
         ) : (
           <div className="divide-y rounded-lg border">
-            {closures.map((c) => (
-              <div
-                key={c.id}
-                className="flex items-center justify-between px-4 py-3"
-              >
-                <div>
-                  <p className="text-sm font-medium">
-                    {formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{c.reason}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setPendingRemoval(c)}
-                  disabled={isRemovePending}
-                  aria-label={`Remove closure for ${formatInTimeZone(c.date, 'UTC', 'EEE MMM d, yyyy')}`}
+            {closures.map((c) => {
+              const dateLabel = formatInTimeZone(
+                c.date,
+                'UTC',
+                'EEE MMM d, yyyy'
+              )
+              return (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between px-4 py-3"
                 >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-            ))}
+                  <div>
+                    <p className="text-sm font-medium">{dateLabel}</p>
+                    <p className="text-xs text-muted-foreground">{c.reason}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setPendingRemoval(c)}
+                    disabled={isRemovePending}
+                    aria-label={`Remove closure for ${dateLabel}`}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
