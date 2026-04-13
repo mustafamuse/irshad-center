@@ -64,7 +64,7 @@ export function ExcuseForm({
         autoFocus
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder="Explain your absence (min 10 characters)..."
+        placeholder="Explain your absence (min 10 characters)…"
         rows={3}
         maxLength={1000}
         className="text-sm"

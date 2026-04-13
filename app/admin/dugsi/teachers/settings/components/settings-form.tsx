@@ -84,7 +84,7 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
       {saved && <p className="text-sm text-green-600">Settings saved.</p>}
 
       <Button onClick={handleSave} disabled={isPending}>
-        {isPending ? 'Saving...' : 'Save'}
+        {isPending ? 'Saving…' : 'Save'}
       </Button>
     </div>
   )

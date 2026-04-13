@@ -508,7 +508,7 @@ export function CheckinForm({
                     ) : isGeoLoading ? (
                       <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span>Getting your location...</span>
+                        <span>Getting your location…</span>
                       </div>
                     ) : (
                       <div className="space-y-3">
@@ -571,7 +571,7 @@ export function CheckinForm({
                 {!isClockedIn ? (
                   <Button
                     size="lg"
-                    className="h-14 w-full bg-[#007078] text-lg shadow-lg shadow-[#007078]/25 transition-all hover:bg-[#005a61] hover:shadow-xl hover:shadow-[#007078]/30 hover:ring-2 hover:ring-[#deb43e]/50 hover:ring-offset-1 active:scale-[0.98]"
+                    className="h-14 w-full bg-[#007078] text-lg shadow-lg shadow-[#007078]/25 transition-[background-color,box-shadow,transform] hover:bg-[#005a61] hover:shadow-xl hover:shadow-[#007078]/30 hover:ring-2 hover:ring-[#deb43e]/50 hover:ring-offset-1 active:scale-[0.98]"
                     onClick={handleClockIn}
                     disabled={
                       !hasLocation ||
@@ -589,7 +589,7 @@ export function CheckinForm({
                 ) : !isClockedOut ? (
                   <Button
                     size="lg"
-                    className="h-14 w-full bg-amber-600 text-lg text-white shadow-lg shadow-amber-600/25 transition-all hover:bg-amber-700 hover:shadow-xl hover:shadow-amber-600/30 active:scale-[0.98]"
+                    className="h-14 w-full bg-amber-600 text-lg text-white shadow-lg shadow-amber-600/25 transition-[background-color,box-shadow,transform] hover:bg-amber-700 hover:shadow-xl hover:shadow-amber-600/30 active:scale-[0.98]"
                     onClick={handleClockOut}
                     disabled={!hasLocation || isPending}
                   >

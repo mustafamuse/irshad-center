@@ -75,6 +75,7 @@ function ParentContact({
             size="sm"
             onClick={onEdit}
             className="h-7 px-2"
+            aria-label="Edit"
           >
             <Edit className="h-3.5 w-3.5" />
           </Button>

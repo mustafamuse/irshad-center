@@ -159,7 +159,7 @@ export function StatusOverrideDialog({
               id="notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Reason for override..."
+              placeholder="Reason for override…"
               rows={2}
               maxLength={500}
             />

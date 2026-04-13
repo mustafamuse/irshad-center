@@ -139,7 +139,7 @@ export function ExcuseQueue({ initialRequests }: Props) {
 
             <div className="space-y-1">
               <Textarea
-                placeholder="Admin note (optional)..."
+                placeholder="Admin note (optional)…"
                 rows={2}
                 value={adminNotes[req.id] ?? ''}
                 onChange={(e) =>

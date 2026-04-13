@@ -424,6 +424,7 @@ export function BillingTab({ family }: BillingTabProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
+                      aria-label="Open invoice"
                       onClick={() => {
                         if (payment.invoiceUrl) {
                           window.open(
