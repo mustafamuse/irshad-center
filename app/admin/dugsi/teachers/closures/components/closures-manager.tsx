@@ -80,6 +80,14 @@ export function ClosuresManager({ initialClosures }: Props) {
     })
   }
 
+  function handleRemovalDialogChange(open: boolean) {
+    if (!open) setPendingRemoval(null)
+  }
+
+  function handleConfirmRemove() {
+    if (pendingRemoval) handleRemove(pendingRemoval)
+  }
+
   function handleRemove(closure: Closure) {
     if (isRemovingRef.current) return
     isRemovingRef.current = true
@@ -197,9 +205,7 @@ export function ClosuresManager({ initialClosures }: Props) {
 
       <AlertDialog
         open={!!pendingRemoval}
-        onOpenChange={(open) => {
-          if (!open) setPendingRemoval(null)
-        }}
+        onOpenChange={handleRemovalDialogChange}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -228,7 +234,7 @@ export function ClosuresManager({ initialClosures }: Props) {
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => pendingRemoval && handleRemove(pendingRemoval)}
+              onClick={handleConfirmRemove}
               disabled={isRemovePending}
             >
               {isRemovePending ? 'Removing...' : 'Remove'}

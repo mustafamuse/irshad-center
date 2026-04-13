@@ -59,12 +59,11 @@ export async function generateExpectedSlots(
     return { created: 0, skipped: 0 }
   }
 
-  const result = await client.teacherAttendanceRecord.createMany({
+  const { count: created } = await client.teacherAttendanceRecord.createMany({
     data: slots,
     skipDuplicates: true,
   })
 
-  const created = result.count
   const skipped = slots.length - created
 
   logger.info(
@@ -155,7 +154,7 @@ export async function transitionStatus(
       record.status === 'EXCUSED' &&
       (toStatus === 'LATE' || toStatus === 'ABSENT')
     ) {
-      const rejectionResult = await tx.excuseRequest.updateMany({
+      const { count: autoRejectedCount } = await tx.excuseRequest.updateMany({
         where: { attendanceRecordId: recordId, status: 'APPROVED' },
         data: {
           status: 'REJECTED',
@@ -164,15 +163,15 @@ export async function transitionStatus(
           reviewedAt: new Date(),
         },
       })
-      if (rejectionResult.count > 0) {
+      if (autoRejectedCount > 0) {
         logger.info(
           {
             event: 'EXCUSE_AUTO_REJECTED',
             recordId,
             revokedBy: changedBy,
-            count: rejectionResult.count,
+            count: autoRejectedCount,
           },
-          `Auto-rejected ${rejectionResult.count} APPROVED excuse(s) on EXCUSED→${toStatus} revert`
+          `Auto-rejected ${autoRejectedCount} APPROVED excuse(s) on EXCUSED→${toStatus} revert`
         )
       }
     }
@@ -348,7 +347,7 @@ export async function bulkTransitionStatus(
 
   assertValidTransition(where.status, toStatus)
 
-  const result = await client.teacherAttendanceRecord.updateMany({
+  const { count } = await client.teacherAttendanceRecord.updateMany({
     where: {
       date: where.date,
       ...(where.shift ? { shift: where.shift } : {}),
@@ -372,11 +371,11 @@ export async function bulkTransitionStatus(
       from: where.status,
       to: toStatus,
       source,
-      count: result.count,
+      count,
       changedBy,
     },
-    `Bulk transition ${where.status} → ${toStatus}: ${result.count} records`
+    `Bulk transition ${where.status} → ${toStatus}: ${count} records`
   )
 
-  return result.count
+  return count
 }

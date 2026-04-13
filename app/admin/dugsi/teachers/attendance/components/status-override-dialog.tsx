@@ -33,6 +33,15 @@ interface Props {
   currentStatus: TeacherAttendanceStatus
 }
 
+function statusButtonClass(
+  s: OverrideAttendanceStatusInput['toStatus'],
+  selected: boolean
+) {
+  return `rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+    selected ? 'ring-2 ring-ring ring-offset-1' : 'hover:bg-accent'
+  } ${ATTENDANCE_STATUS_CONFIG[s].className}`
+}
+
 export function StatusOverrideDialog({
   open,
   onOpenChange,
@@ -44,29 +53,37 @@ export function StatusOverrideDialog({
 }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [toStatus, setToStatus] = useState<OverrideAttendanceStatusInput['toStatus'] | null>(null)
+  const [toStatus, setToStatus] = useState<
+    OverrideAttendanceStatusInput['toStatus'] | null
+  >(null)
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   // Filter to overrideable statuses only — EXPECTED (slot generation) and CLOSED
   // (markDateClosed) have dedicated flows and must not appear in the manual override dialog.
-  const allowedTransitions = getAllowedTransitions(currentStatus)
-    .filter((s): s is OverrideAttendanceStatusInput['toStatus'] =>
+  const allowedTransitions = getAllowedTransitions(currentStatus).filter(
+    (s): s is OverrideAttendanceStatusInput['toStatus'] =>
       (s === 'PRESENT' || s === 'LATE' || s === 'ABSENT' || s === 'EXCUSED') &&
       s !== currentStatus
-    )
+  )
 
   function handleSubmit() {
     if (!toStatus) return
     setError(null)
 
     startTransition(async () => {
-      const result = await overrideAttendanceStatusAction({ recordId, toStatus, notes: notes || undefined })
+      const result = await overrideAttendanceStatusAction({
+        recordId,
+        toStatus,
+        notes: notes || undefined,
+      })
 
       if (result?.serverError || result?.validationErrors) {
         // A concurrent override or auto-mark cron may have changed the status
         // since this dialog opened — the displayed options may no longer apply.
-        setError(`${result.serverError ?? 'Invalid request.'} Please close and reopen the dialog to see the current status.`)
+        setError(
+          `${result.serverError ?? 'Invalid request.'} Please close and reopen the dialog to see the current status.`
+        )
         return
       }
 
@@ -108,9 +125,10 @@ export function StatusOverrideDialog({
 
           {currentStatus === 'CLOSED' && (
             <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              This date is marked as a school closure. Overriding changes only this
-              teacher&apos;s record — the school-wide closure and all other CLOSED records
-              remain unchanged. Use the Closures page to remove the closure entirely.
+              This date is marked as a school closure. Overriding changes only
+              this teacher&apos;s record — the school-wide closure and all other
+              CLOSED records remain unchanged. Use the Closures page to remove
+              the closure entirely.
             </p>
           )}
 
@@ -122,11 +140,7 @@ export function StatusOverrideDialog({
                   key={s}
                   type="button"
                   onClick={() => setToStatus(s)}
-                  className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    toStatus === s
-                      ? 'ring-2 ring-ring ring-offset-1'
-                      : 'hover:bg-accent'
-                  } ${ATTENDANCE_STATUS_CONFIG[s].className}`}
+                  className={statusButtonClass(s, toStatus === s)}
                 >
                   {ATTENDANCE_STATUS_CONFIG[s].label}
                 </button>

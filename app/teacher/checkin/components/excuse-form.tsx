@@ -7,19 +7,25 @@ import { Textarea } from '@/components/ui/textarea'
 
 import { submitExcuseAction } from '../actions'
 
-interface Props {
+interface ExcuseFormProps {
   attendanceRecordId: string
   teacherId: string
   onSuccess: () => void
   onCancel: () => void
 }
 
-export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel }: Props) {
+export function ExcuseForm({
+  attendanceRecordId,
+  teacherId,
+  onSuccess,
+  onCancel,
+}: ExcuseFormProps) {
   const [isPending, startTransition] = useTransition()
   const [reason, setReason] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const isValid = reason.trim().length >= 10
+  const trimmedLength = reason.trim().length
+  const isValid = trimmedLength >= 10
 
   function handleSubmit() {
     if (!isValid) return
@@ -44,10 +50,15 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
 
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); handleSubmit() }}
+      onSubmit={(e) => {
+        e.preventDefault()
+        handleSubmit()
+      }}
       className="mt-2 space-y-2 rounded-md border bg-white p-3"
     >
-      <p className="text-xs font-medium text-muted-foreground">Request excuse</p>
+      <p className="text-xs font-medium text-muted-foreground">
+        Request excuse
+      </p>
 
       <Textarea
         autoFocus
@@ -61,7 +72,8 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
 
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-muted-foreground">
-          {reason.trim().length}/1000{reason.trim().length < 10 && ` (${10 - reason.trim().length} more needed)`}
+          {trimmedLength}/1000
+          {trimmedLength < 10 && ` (${10 - trimmedLength} more needed)`}
         </span>
         <div className="flex gap-2">
           <Button
@@ -73,11 +85,7 @@ export function ExcuseForm({ attendanceRecordId, teacherId, onSuccess, onCancel 
           >
             Cancel
           </Button>
-          <Button
-            type="submit"
-            size="sm"
-            disabled={!isValid || isPending}
-          >
+          <Button type="submit" size="sm" disabled={!isValid || isPending}>
             {isPending ? 'Submitting...' : 'Submit'}
           </Button>
         </div>

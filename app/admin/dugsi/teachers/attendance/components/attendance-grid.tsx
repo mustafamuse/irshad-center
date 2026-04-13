@@ -24,19 +24,42 @@ interface Props {
 
 type CellKey = `${string}|${string}|${Shift}`
 
+const SHIFTS: Shift[] = ['MORNING', 'AFTERNOON']
+
+function rowBg(idx: number) {
+  return idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'
+}
+
 export function AttendanceGrid({
   records,
   weekendDates,
   closureDates,
   allTeachers,
 }: Props) {
-  const [overrideCell, setOverrideCell] = useState<{
+  type OverrideCell = {
     recordId: string
     teacherName: string
     date: string
     shift: Shift
     currentStatus: TeacherAttendanceStatus
-  } | null>(null)
+  }
+
+  const [overrideCell, setOverrideCell] = useState<OverrideCell | null>(null)
+
+  function openOverride(
+    record: AttendanceRecordGridWithRelations,
+    teacherName: string,
+    date: string,
+    shift: Shift
+  ) {
+    setOverrideCell({
+      recordId: record.id,
+      teacherName,
+      date,
+      shift,
+      currentStatus: record.status,
+    })
+  }
 
   // Build lookup: "teacherId|date|shift" → record
   const { recordMap, teachers } = useMemo(() => {
@@ -114,24 +137,18 @@ export function AttendanceGrid({
           </thead>
           <tbody>
             {teachers.map((teacher, idx) => (
-              <tr
-                key={teacher.id}
-                className={cn(
-                  'border-b',
-                  idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'
-                )}
-              >
+              <tr key={teacher.id} className={cn('border-b', rowBg(idx))}>
                 <td
                   className={cn(
                     'sticky left-0 px-3 py-2 font-medium',
-                    idx % 2 === 0 ? 'bg-background' : 'bg-muted/20'
+                    rowBg(idx)
                   )}
                 >
                   {teacher.name}
                 </td>
                 {weekendDates.map((date) => (
                   <Fragment key={date}>
-                    {(['MORNING', 'AFTERNOON'] as Shift[]).map((shift) => {
+                    {SHIFTS.map((shift) => {
                       const key: CellKey = `${teacher.id}|${date}|${shift}`
                       const record = recordMap.get(key)
 
@@ -150,13 +167,7 @@ export function AttendanceGrid({
                           <button
                             type="button"
                             onClick={() =>
-                              setOverrideCell({
-                                recordId: record.id,
-                                teacherName: teacher.name,
-                                date,
-                                shift,
-                                currentStatus: record.status,
-                              })
+                              openOverride(record, teacher.name, date, shift)
                             }
                             className="rounded-sm transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                             title="Click to override"

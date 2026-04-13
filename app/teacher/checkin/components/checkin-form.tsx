@@ -62,7 +62,10 @@ interface CheckinFormProps {
   showHistory?: boolean
 }
 
-export function CheckinForm({ teachers, showHistory = false }: CheckinFormProps) {
+export function CheckinForm({
+  teachers,
+  showHistory = false,
+}: CheckinFormProps) {
   const [selectedTeacherId, setSelectedTeacherId] = useState<string | null>(
     null
   )
@@ -92,8 +95,7 @@ export function CheckinForm({ teachers, showHistory = false }: CheckinFormProps)
 
   useEffect(() => {
     if (selectedTeacherId) {
-      const teacher = teachers.find((t) => t.id === selectedTeacherId)
-      const shifts = teacher?.shifts ?? []
+      const shifts = selectedTeacher?.shifts ?? []
 
       startTransition(async () => {
         try {

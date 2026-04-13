@@ -21,11 +21,11 @@ import {
 } from '../actions'
 import { ExcuseForm } from './excuse-form'
 
-interface Props {
+interface CheckinHistoryProps {
   teacherId: string | null
 }
 
-export function CheckinHistory({ teacherId }: Props) {
+export function CheckinHistory({ teacherId }: CheckinHistoryProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [history, setHistory] = useState<AttendanceHistoryResult | null>(null)
@@ -43,9 +43,6 @@ export function CheckinHistory({ teacherId }: Props) {
     setExcuseOpenId(null)
   }, [teacherId])
 
-  // Unconditional fetch — used by both the initial load and post-excuse reload.
-  // Separated from loadHistory so handleExcuseSuccess doesn't rely on hasLoaded state.
-  // Empty deps: startTransition and state setters are stable across renders.
   const fetchHistory = useCallback((id: string) => {
     startTransition(async () => {
       try {
@@ -76,7 +73,6 @@ export function CheckinHistory({ teacherId }: Props) {
 
   function handleExcuseSuccess() {
     setExcuseOpenId(null)
-    // Bypass the hasLoaded guard — we need a fresh fetch regardless of prior load state
     if (teacherId) fetchHistory(teacherId)
   }
 
@@ -115,7 +111,6 @@ export function CheckinHistory({ teacherId }: Props) {
             </div>
           ) : (
             <div>
-              {/* Monthly excuse count */}
               <div className="border-b px-4 py-2">
                 <p className="text-xs text-muted-foreground">
                   Excused records this month:{' '}
@@ -125,7 +120,6 @@ export function CheckinHistory({ teacherId }: Props) {
                 </p>
               </div>
 
-              {/* Status rows */}
               <div className="divide-y">
                 {history.records.map((item) => {
                   const badgeConfig = ATTENDANCE_STATUS_CONFIG[item.status]
@@ -177,7 +171,6 @@ export function CheckinHistory({ teacherId }: Props) {
                         </div>
                       </div>
 
-                      {/* Excuse actions */}
                       {hasPendingExcuse && (
                         <p className="mt-1 text-xs text-blue-600">
                           Excuse pending review

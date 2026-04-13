@@ -116,7 +116,7 @@ export async function autoMarkLateForShift(
       await generateExpectedSlots(teachersForShift, dateObj, tx)
     }
 
-    const result = await tx.teacherAttendanceRecord.updateMany({
+    const { count: markedCount } = await tx.teacherAttendanceRecord.updateMany({
       where: { date: dateObj, shift, status: 'EXPECTED' },
       // minutesLate is intentionally null for AUTO_MARKED records. The cron fires at
       // 21:00 UTC, so `now - classStart` would produce a misleading offset (~360 min
@@ -134,7 +134,7 @@ export async function autoMarkLateForShift(
       },
     })
 
-    return { kind: 'marked', count: result.count }
+    return { kind: 'marked', count: markedCount }
   }
 
   const writeResult = isPrismaClient(client)

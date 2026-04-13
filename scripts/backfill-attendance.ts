@@ -28,6 +28,7 @@ import { getWeekendDatesBetween } from '@/lib/utils/date-utils'
 // ============================================================================
 
 const BACKFILL_FROM = '2026-01-17'
+const TRANSACTION_TIMEOUT_MS = 30_000
 // Excluded teacher — set SKIP_TEACHER_ID env var before running with --commit.
 // Find the UUID: SELECT t.id FROM "Teacher" t JOIN "Person" p ON p.id = t."personId" WHERE p.name = 'Hamza Hassan';
 // Example: SKIP_TEACHER_ID=<uuid> bun run scripts/backfill-attendance.ts --commit
@@ -55,8 +56,8 @@ function getWeekendDatesFrom(from: string): string[] {
   return getWeekendDatesBetween(start, end)
 }
 
-function pad(s: string | number, len: number) {
-  return String(s).padEnd(len)
+function pad(s: string | number, width: number) {
+  return String(s).padEnd(width)
 }
 
 // ============================================================================
@@ -253,7 +254,7 @@ async function main() {
   }
 
   // Expected row count: ~10 teachers × 2 shifts × ~20 weekend dates ≈ 400 rows.
-  // Per-row updateMany loop issues one round-trip each; 30 s timeout is conservative
+  // Per-row updateMany loop issues one round-trip each; TRANSACTION_TIMEOUT_MS is conservative
   // but avoids false timeouts on a cold or loaded DB connection.
   console.time('transaction')
   const { dbCreated, dbUnchanged } = await prisma.$transaction(
@@ -328,7 +329,7 @@ async function main() {
 
       return { dbCreated: created, dbUnchanged: toCreate.length - created }
     },
-    { timeout: 30_000 }
+    { timeout: TRANSACTION_TIMEOUT_MS }
   )
   console.timeEnd('transaction')
 

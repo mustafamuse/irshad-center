@@ -67,6 +67,26 @@ import {
 
 const logger = createServiceLogger('teacher-admin-actions')
 
+function throwIfAlreadyTeacher(error: unknown): never {
+  if (
+    error instanceof ValidationError &&
+    error.code === 'TEACHER_ALREADY_EXISTS'
+  ) {
+    throw new ActionError(
+      'This person is already a teacher',
+      ERROR_CODES.VALIDATION_ERROR
+    )
+  }
+  throw error as Error
+}
+
+function throwIfCheckinValidationError(error: unknown): never {
+  if (error instanceof ValidationError) {
+    throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+  }
+  throw error as Error
+}
+
 // Search configuration
 const SEARCH_MIN_LENGTH = 2
 const SEARCH_MAX_RESULTS = 20
@@ -291,21 +311,10 @@ const _createTeacherAction = adminActionClient
     const { personId } = parsedInput
     try {
       const teacher = await createTeacherAndAssignDugsi(personId)
-
       after(() => revalidatePath('/admin/dugsi/teachers'))
-
       return { teacherId: teacher.id }
     } catch (error) {
-      if (
-        error instanceof ValidationError &&
-        error.code === 'TEACHER_ALREADY_EXISTS'
-      ) {
-        throw new ActionError(
-          'This person is already a teacher',
-          ERROR_CODES.VALIDATION_ERROR
-        )
-      }
-      throw error
+      throwIfAlreadyTeacher(error)
     }
   })
 
@@ -320,21 +329,10 @@ const _createTeacherWithPersonAction = adminActionClient
         email: normalizeEmail(email),
         phone: phone ? normalizePhone(phone) : null,
       })
-
       after(() => revalidatePath('/admin/dugsi/teachers'))
-
       return { teacherId: teacher.id }
     } catch (error) {
-      if (
-        error instanceof ValidationError &&
-        error.code === 'TEACHER_ALREADY_EXISTS'
-      ) {
-        throw new ActionError(
-          'This person is already a teacher',
-          ERROR_CODES.VALIDATION_ERROR
-        )
-      }
-      throw error
+      throwIfAlreadyTeacher(error)
     }
   })
 
@@ -747,10 +745,7 @@ const _updateCheckinAction = adminActionClient
 
       return record
     } catch (error) {
-      if (error instanceof ValidationError) {
-        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
-      }
-      throw error
+      throwIfCheckinValidationError(error)
     }
   })
 
@@ -772,10 +767,7 @@ const _deleteCheckinAction = adminActionClient
         'Check-in deleted by admin'
       )
     } catch (error) {
-      if (error instanceof ValidationError) {
-        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
-      }
-      throw error
+      throwIfCheckinValidationError(error)
     }
   })
 

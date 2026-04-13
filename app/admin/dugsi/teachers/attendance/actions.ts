@@ -122,19 +122,18 @@ const _markDateClosedAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const { date, reason } = parsedInput
     const dateObj = new Date(date)
-    let result
     try {
-      result = await markDateClosed({
+      const closure = await markDateClosed({
         date: dateObj,
         reason,
         createdBy: ADMIN_IDENTITY,
       })
+      after(revalidateAll)
+      return { closedCount: closure.closedCount }
     } catch (error) {
       await logError(logger, error, 'markDateClosed', { date })
       throw error
     }
-    after(revalidateAll)
-    return { closedCount: result.closedCount }
   })
 
 export async function markDateClosedAction(
@@ -148,15 +147,17 @@ const _removeClosureAction = adminActionClient
   .schema(RemoveClosureSchema)
   .action(async ({ parsedInput }) => {
     const dateObj = new Date(parsedInput.date)
-    let result
     try {
-      result = await removeClosure({ date: dateObj, changedBy: ADMIN_IDENTITY })
+      const closure = await removeClosure({
+        date: dateObj,
+        changedBy: ADMIN_IDENTITY,
+      })
+      after(revalidateAll)
+      return { reopenedCount: closure.reopenedCount }
     } catch (error) {
       await logError(logger, error, 'removeClosure', { date: parsedInput.date })
       throw error
     }
-    after(revalidateAll)
-    return { reopenedCount: result.reopenedCount }
   })
 
 export async function removeClosureAction(
@@ -194,9 +195,8 @@ const _generateExpectedSlotsAction = adminActionClient
   .action(async ({ parsedInput }) => {
     const dateObj = new Date(parsedInput.date)
 
-    let result
     try {
-      result = await prisma.$transaction(async (tx) => {
+      const slots = await prisma.$transaction(async (tx) => {
         const closure = await getSchoolClosure(dateObj, tx)
         if (closure) {
           throw new ActionError(
@@ -209,6 +209,8 @@ const _generateExpectedSlotsAction = adminActionClient
         const teacherShifts = await getActiveDugsiTeacherShifts(tx)
         return generateExpectedSlots(teacherShifts, dateObj, tx)
       })
+      after(revalidateAll)
+      return slots
     } catch (error) {
       if (!(error instanceof ActionError)) {
         await logError(logger, error, 'generateExpectedSlots', {
@@ -217,9 +219,6 @@ const _generateExpectedSlotsAction = adminActionClient
       }
       throw error
     }
-
-    after(revalidateAll)
-    return result
   })
 
 export async function generateExpectedSlotsAction(

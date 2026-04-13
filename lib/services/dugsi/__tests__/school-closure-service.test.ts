@@ -261,6 +261,22 @@ describe('removeClosure', () => {
     expect(mockDeleteClosure).not.toHaveBeenCalled()
   })
 
+  it('throws NOT_FOUND on P2002 when two admins concurrently remove the same closure', async () => {
+    // Both admins pass getSchoolClosure (closure exists), but the second delete
+    // hits P2025 because the first already removed the row.
+    const { Prisma } = await import('@prisma/client')
+    mockDeleteClosure.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: '6.0.0',
+      })
+    )
+
+    await expect(removeClosure({ date: TEST_DATE })).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
+  })
+
   it('cancels PENDING/APPROVED excuses on CLOSED records before reopening', async () => {
     mockExcuseUpdateMany.mockResolvedValue({ count: 1 })
     mockUpdateMany.mockResolvedValue({ count: 2 })

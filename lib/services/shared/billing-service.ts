@@ -77,51 +77,12 @@ export async function getBillingAccountByCustomerId(
   return await getBillingAccountByCustomerIdQuery(stripeCustomerId, accountType)
 }
 
-/**
- * Create or update a billing account.
- *
- * Uses upsert logic - creates if doesn't exist, updates if exists.
- * Maps Stripe customer IDs to the appropriate account type field.
- *
- * @param input - Billing account data including personId, accountType, and Stripe IDs
- * @returns Created or updated billing account record
- *
- * @example
- * ```typescript
- * // Create a Mahad billing account
- * const account = await createOrUpdateBillingAccount({
- *   personId: 'person-uuid',
- *   accountType: 'MAHAD',
- *   stripeCustomerId: 'cus_xxxxx',
- * })
- *
- * // Create a Dugsi billing account with payment intent
- * const dugsiAccount = await createOrUpdateBillingAccount({
- *   personId: 'person-uuid',
- *   accountType: 'DUGSI',
- *   stripeCustomerId: 'cus_yyyyy',
- *   paymentIntentId: 'pi_zzzzz',
- * })
- * ```
- */
 export async function createOrUpdateBillingAccount(input: BillingAccountInput) {
-  // Map input to the format expected by the query function
-  const data: {
-    personId?: string | null
-    accountType: StripeAccountType
-    stripeCustomerIdMahad?: string | null
-    stripeCustomerIdDugsi?: string | null
-    stripeCustomerIdYouth?: string | null
-    stripeCustomerIdDonation?: string | null
-    paymentIntentIdDugsi?: string | null
-    paymentMethodCaptured?: boolean
-    paymentMethodCapturedAt?: Date | null
-  } = {
+  const data: Parameters<typeof upsertBillingAccountQuery>[0] = {
     personId: input.personId,
     accountType: input.accountType,
   }
 
-  // Add Stripe customer ID based on account type
   switch (input.accountType) {
     case 'MAHAD':
       if (input.stripeCustomerId) {
@@ -148,7 +109,6 @@ export async function createOrUpdateBillingAccount(input: BillingAccountInput) {
       break
   }
 
-  // Add payment method capture info
   if (input.paymentMethodCaptured !== undefined) {
     data.paymentMethodCaptured = input.paymentMethodCaptured
   }
@@ -191,13 +151,12 @@ export async function linkSubscriptionToProfiles(
     totalAmount,
   })
 
-  // Calculate split amounts
   const amounts = calculateSplitAmounts(
     validated.totalAmount,
     validated.programProfileIds.length
   )
 
-  // Validate no split amount is <= 0 (CLAUDE.md Rule #13)
+  // No split can be zero — BillingAssignment.amount must be positive
   const hasInvalidAmount = amounts.some((amount) => amount <= 0)
   if (hasInvalidAmount) {
     throw new ActionError(
@@ -206,9 +165,7 @@ export async function linkSubscriptionToProfiles(
     )
   }
 
-  // Helper to create assignments (includes fetch for transaction safety)
   const createAssignments = async (tx: DatabaseClient): Promise<number> => {
-    // Batch fetch inside transaction to avoid race conditions
     const allExistingAssignments = await tx.billingAssignment.findMany({
       where: {
         programProfileId: { in: validated.programProfileIds },
@@ -248,34 +205,23 @@ export async function linkSubscriptionToProfiles(
     return result.count
   }
 
-  // If client is already a transaction, use it directly; otherwise wrap in new transaction
-  if (client !== prisma) {
-    return await Sentry.startSpan(
-      {
-        name: 'billing.create_assignments',
-        op: 'db',
-        attributes: {
-          subscription_id: subscriptionId,
-          num_profiles: programProfileIds.length,
-          total_amount: totalAmount,
-        },
-      },
-      () => createAssignments(client)
-    )
-  }
-
-  // Use transaction to ensure all assignments are created atomically
+  const inTransaction = client !== prisma
   return await Sentry.startSpan(
     {
-      name: 'billing.create_assignments_transaction',
-      op: 'db.transaction',
+      name: inTransaction
+        ? 'billing.create_assignments'
+        : 'billing.create_assignments_transaction',
+      op: inTransaction ? 'db' : 'db.transaction',
       attributes: {
         subscription_id: subscriptionId,
         num_profiles: programProfileIds.length,
         total_amount: totalAmount,
       },
     },
-    () => prisma.$transaction(createAssignments)
+    () =>
+      inTransaction
+        ? createAssignments(client)
+        : prisma.$transaction(createAssignments)
   )
 }
 

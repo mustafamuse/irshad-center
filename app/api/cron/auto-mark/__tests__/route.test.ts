@@ -129,6 +129,7 @@ describe('GET /api/cron/auto-mark', () => {
     // 2026-01-09 is a Friday (getUTCDay() = 5)
     mockFormatInTimeZone.mockReturnValue('2026-01-09')
     const res = await GET()
+    expect(res.status).toBe(200)
     expect(await res.json()).toMatchObject({ skipped: 'not_a_school_day' })
     expect(mockAutoMarkBothShifts).not.toHaveBeenCalled()
   })

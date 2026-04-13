@@ -35,18 +35,20 @@ export function ExcuseQueue({ initialRequests }: Props) {
   // (a single string would re-enable a row when a different row's action completes)
   const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
 
-  function handleApprove(id: string) {
+  type ExcuseAction = typeof approveExcuseAction | typeof rejectExcuseAction
+
+  function handleDecision(id: string, action: ExcuseAction) {
     setErrors((prev) => ({ ...prev, [id]: null }))
     setPendingIds((prev) => new Set(prev).add(id))
     startTransition(async () => {
-      const result = await approveExcuseAction({
+      const result = await action({
         excuseRequestId: id,
         adminNote: adminNotes[id] || undefined,
       })
       setPendingIds((prev) => {
-        const s = new Set(prev)
-        s.delete(id)
-        return s
+        const next = new Set(prev)
+        next.delete(id)
+        return next
       })
       if (result?.serverError || result?.validationErrors) {
         setErrors((prev) => ({
@@ -57,52 +59,25 @@ export function ExcuseQueue({ initialRequests }: Props) {
       }
       setRequests((prev) => prev.filter((r) => r.id !== id))
       setAdminNotes((prev) => {
-        const n = { ...prev }
-        delete n[id]
-        return n
+        const next = { ...prev }
+        delete next[id]
+        return next
       })
       setErrors((prev) => {
-        const n = { ...prev }
-        delete n[id]
-        return n
+        const next = { ...prev }
+        delete next[id]
+        return next
       })
       router.refresh()
     })
   }
 
+  function handleApprove(id: string) {
+    handleDecision(id, approveExcuseAction)
+  }
+
   function handleReject(id: string) {
-    setErrors((prev) => ({ ...prev, [id]: null }))
-    setPendingIds((prev) => new Set(prev).add(id))
-    startTransition(async () => {
-      const result = await rejectExcuseAction({
-        excuseRequestId: id,
-        adminNote: adminNotes[id] || undefined,
-      })
-      setPendingIds((prev) => {
-        const s = new Set(prev)
-        s.delete(id)
-        return s
-      })
-      if (result?.serverError || result?.validationErrors) {
-        setErrors((prev) => ({
-          ...prev,
-          [id]: `${result.serverError ?? 'Validation error'} — refresh to see latest.`,
-        }))
-        return
-      }
-      setRequests((prev) => prev.filter((r) => r.id !== id))
-      setAdminNotes((prev) => {
-        const n = { ...prev }
-        delete n[id]
-        return n
-      })
-      setErrors((prev) => {
-        const n = { ...prev }
-        delete n[id]
-        return n
-      })
-      router.refresh()
-    })
+    handleDecision(id, rejectExcuseAction)
   }
 
   if (requests.length === 0)

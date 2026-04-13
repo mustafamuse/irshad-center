@@ -1,11 +1,3 @@
-/**
- * Teacher Attendance Query Functions
- *
- * Query layer for TeacherAttendanceRecord, DugsiAttendanceConfig,
- * SchoolClosure, and ExcuseRequest models.
- * All functions accept an optional DatabaseClient to participate in transactions.
- */
-
 import {
   Prisma,
   PrismaClient,

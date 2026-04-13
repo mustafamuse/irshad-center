@@ -32,40 +32,33 @@ export const adminActionClient = actionClient.use(async ({ next }) => {
   return next()
 })
 
+async function enforceRateLimit(
+  actionName: string,
+  headersList: Awaited<ReturnType<typeof headers>>
+) {
+  const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
+  if (!ip) return
+  const result = await checkRateLimit(`${actionName}:${ip}`)
+  if (!result.success) {
+    throw new ActionError(
+      'Too many attempts. Please try again later.',
+      ERROR_CODES.RATE_LIMIT_EXCEEDED,
+      undefined,
+      429
+    )
+  }
+}
+
 export const rateLimitedActionClient = actionClient.use(
   async ({ next, metadata }) => {
-    const headersList = await headers()
-    const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
-    if (ip) {
-      const result = await checkRateLimit(`${metadata.actionName}:${ip}`)
-      if (!result.success) {
-        throw new ActionError(
-          'Too many attempts. Please try again later.',
-          ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          undefined,
-          429
-        )
-      }
-    }
+    await enforceRateLimit(metadata.actionName, await headers())
     return next()
   }
 )
 
 export const rateLimitedAdminActionClient = adminActionClient.use(
   async ({ next, metadata }) => {
-    const headersList = await headers()
-    const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
-    if (ip) {
-      const result = await checkRateLimit(`${metadata.actionName}:${ip}`)
-      if (!result.success) {
-        throw new ActionError(
-          'Too many attempts. Please try again later.',
-          ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          undefined,
-          429
-        )
-      }
-    }
+    await enforceRateLimit(metadata.actionName, await headers())
     return next()
   }
 )

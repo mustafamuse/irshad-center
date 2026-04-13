@@ -60,6 +60,7 @@ import {
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import { isPrismaError } from '@/lib/utils/type-guards'
 import {
   UpdateFamilyShiftSchema,
   DugsiRegistrationFiltersSchema,
@@ -821,12 +822,7 @@ const _enrollStudentInClassAction = adminActionClient
     try {
       await enrollStudentInClass(classId, programProfileId)
     } catch (error) {
-      if (
-        error &&
-        typeof error === 'object' &&
-        'code' in error &&
-        error.code === 'P2002'
-      ) {
+      if (isPrismaError(error) && error.code === 'P2002') {
         throw new ActionError(
           'This student is already enrolled in a class',
           ERROR_CODES.VALIDATION_ERROR
@@ -903,12 +899,7 @@ const _createClassAction = adminActionClient
           message: 'Class created successfully',
         }
       } catch (error) {
-        if (
-          error &&
-          typeof error === 'object' &&
-          'code' in error &&
-          error.code === 'P2002'
-        ) {
+        if (isPrismaError(error) && error.code === 'P2002') {
           throw new ActionError(
             'A class with this name already exists for this shift',
             ERROR_CODES.VALIDATION_ERROR

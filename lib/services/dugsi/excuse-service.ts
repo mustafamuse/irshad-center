@@ -163,7 +163,7 @@ export async function approveExcuse(
     }
     assertValidTransition(currentRecord.status, TeacherAttendanceStatus.EXCUSED)
 
-    const excuseUpdateResult = await tx.excuseRequest.updateMany({
+    const excuseUpdate = await tx.excuseRequest.updateMany({
       where: { id: excuseRequestId, status: ExcuseRequestStatus.PENDING },
       data: {
         status: ExcuseRequestStatus.APPROVED,
@@ -176,7 +176,7 @@ export async function approveExcuse(
     // between the findUnique above and this write would have changed status → REJECTED.
     // count=0 here means we'd silently overwrite REJECTED → APPROVED and then flip the
     // attendance record to EXCUSED, producing an orphaned approval. Fail fast instead.
-    if (excuseUpdateResult.count === 0) {
+    if (excuseUpdate.count === 0) {
       throw new ActionError(
         'Excuse request was modified concurrently — please refresh and try again',
         ERROR_CODES.CONCURRENT_MODIFICATION,
@@ -189,7 +189,7 @@ export async function approveExcuse(
     // count=0 instead of silently overwriting the new state.
     // Sequential (not Promise.all): Prisma interactive transactions use a single
     // connection and cannot process concurrent queries on the same tx client.
-    const statusResult = await tx.teacherAttendanceRecord.updateMany({
+    const attendanceUpdate = await tx.teacherAttendanceRecord.updateMany({
       where: {
         id: excuseRequest.attendanceRecordId,
         status: currentRecord.status,
@@ -201,7 +201,7 @@ export async function approveExcuse(
         changedBy: reviewedBy,
       },
     })
-    if (statusResult.count === 0) {
+    if (attendanceUpdate.count === 0) {
       // The transaction is rolled back entirely by this throw — neither the excuse
       // status nor the attendance record was changed. The admin can safely retry the
       // approval from the pending excuse list without refreshing first.
@@ -249,7 +249,7 @@ export async function rejectExcuse(
       )
     }
 
-    const rejectUpdateResult = await tx.excuseRequest.updateMany({
+    const rejectUpdate = await tx.excuseRequest.updateMany({
       where: { id: excuseRequestId, status: ExcuseRequestStatus.PENDING },
       data: {
         status: ExcuseRequestStatus.REJECTED,
@@ -262,7 +262,7 @@ export async function rejectExcuse(
     // write would have changed status → APPROVED and flipped the attendance record.
     // Without this guard, we'd silently overwrite APPROVED → REJECTED leaving attendance
     // stuck at EXCUSED with no live excuse to explain it.
-    if (rejectUpdateResult.count === 0) {
+    if (rejectUpdate.count === 0) {
       throw new ActionError(
         'Excuse request was modified concurrently — please refresh and try again',
         ERROR_CODES.CONCURRENT_MODIFICATION,

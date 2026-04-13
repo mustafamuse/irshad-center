@@ -439,17 +439,18 @@ export async function deleteCheckin(
     // breakage if ALLOWED_TRANSITIONS is tightened in the future.
     assertValidTransition('PRESENT', 'ABSENT')
     assertValidTransition('LATE', 'ABSENT')
-    const revertResult = await tx.teacherAttendanceRecord.updateMany({
-      where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
-      data: {
-        status: 'ABSENT',
-        source: 'ADMIN_OVERRIDE',
-        changedBy: changedBy ?? null,
-      },
-    })
-    if (revertResult.count > 1) {
+    const { count: revertedCount } =
+      await tx.teacherAttendanceRecord.updateMany({
+        where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
+        data: {
+          status: 'ABSENT',
+          source: 'ADMIN_OVERRIDE',
+          changedBy: changedBy ?? null,
+        },
+      })
+    if (revertedCount > 1) {
       logger.warn(
-        { teacherId, date, shift },
+        { teacherId, date, shift, revertedCount },
         'deleteCheckin: unexpectedly reverted multiple attendance records'
       )
     }
@@ -458,7 +459,7 @@ export async function deleteCheckin(
     return existingCheckin
   }
 
-  const checkin = await (isPrismaClient(client)
+  const deletedCheckIn = await (isPrismaClient(client)
     ? client.$transaction(doWrites)
     : doWrites(client))
 
@@ -466,10 +467,10 @@ export async function deleteCheckin(
     {
       event: 'CHECKIN_DELETED',
       checkInId,
-      teacherId: checkin.teacherId,
-      teacherName: checkin.teacher.person.name,
-      date: checkin.date.toISOString(),
-      shift: checkin.shift,
+      teacherId: deletedCheckIn.teacherId,
+      teacherName: deletedCheckIn.teacher.person.name,
+      date: deletedCheckIn.date.toISOString(),
+      shift: deletedCheckIn.shift,
     },
     'Check-in record deleted by admin'
   )

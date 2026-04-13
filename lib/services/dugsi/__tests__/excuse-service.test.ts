@@ -261,6 +261,25 @@ describe('approveExcuse', () => {
     ).rejects.toMatchObject({ code: ERROR_CODES.CONCURRENT_MODIFICATION })
   })
 
+  it('throws INVALID_TRANSITION when the linked attendance record is CLOSED', async () => {
+    // Scenario: teacher submits excuse while LATE, then admin marks the date closed
+    // (flipping the record to CLOSED). Admin then tries to approve the orphaned
+    // PENDING excuse — assertValidTransition(CLOSED, EXCUSED) must reject it.
+    mockGetExcuseById.mockResolvedValue({
+      id: 'ex-1',
+      status: 'PENDING',
+      attendanceRecordId: 'rec-1',
+    })
+    mockFindUniqueRecord.mockResolvedValue({ status: 'CLOSED' })
+
+    await expect(
+      approveExcuse({ excuseRequestId: 'ex-1', reviewedBy: 'admin' })
+    ).rejects.toMatchObject({ code: ERROR_CODES.INVALID_TRANSITION })
+    // The excuse and attendance record must not be written
+    expect(mockExcuseUpdateMany).not.toHaveBeenCalled()
+    expect(mockUpdateManyRecord).not.toHaveBeenCalled()
+  })
+
   it('throws ATTENDANCE_RECORD_NOT_FOUND when attendance record was deleted after excuse was found', async () => {
     // Race: excuse exists and is PENDING, but the linked attendance record is gone
     // by the time approveExcuse reads it inside the transaction.

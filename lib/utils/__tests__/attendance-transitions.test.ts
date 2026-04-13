@@ -197,25 +197,31 @@ describe('getAllowedTransitions', () => {
 // ─── assertValidTransition ───────────────────────────────────────────────────
 
 describe('assertValidTransition', () => {
-  it('does not throw for a valid transition', () => {
+  it('does not throw for EXPECTED → PRESENT', () => {
     expect(() => assertValidTransition('EXPECTED', 'PRESENT')).not.toThrow()
+  })
+
+  it('does not throw for LATE → LATE (self-loop)', () => {
     expect(() => assertValidTransition('LATE', 'LATE')).not.toThrow()
+  })
+
+  it('does not throw for CLOSED → PRESENT (admin override)', () => {
     expect(() => assertValidTransition('CLOSED', 'PRESENT')).not.toThrow()
   })
 
-  it('throws ActionError with INVALID_TRANSITION code for invalid transition', () => {
+  it('throws ActionError with INVALID_TRANSITION code for a disallowed transition', () => {
     expect(() => assertValidTransition('CLOSED', 'ABSENT')).toThrow(
       expect.objectContaining({ code: ERROR_CODES.INVALID_TRANSITION })
     )
   })
 
-  it('includes the from/to statuses in the error message', () => {
+  it('includes the from and to statuses in the error message', () => {
     expect(() => assertValidTransition('EXCUSED', 'PRESENT')).toThrow(
       /EXCUSED.*PRESENT/
     )
   })
 
-  it('includes allowed transitions in the error message', () => {
+  it('includes the allowed transitions in the error message', () => {
     expect(() => assertValidTransition('CLOSED', 'LATE')).toThrow(/PRESENT/)
   })
 })

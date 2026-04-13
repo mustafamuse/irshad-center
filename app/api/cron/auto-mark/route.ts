@@ -28,31 +28,33 @@ const logger = createServiceLogger('cron-auto-mark')
 // take several seconds on a cold connection with many teachers.
 export const maxDuration = 60
 
-export async function GET() {
+async function verifyCronAuth(): Promise<'ok' | 'missing_secret' | 'invalid'> {
   const headersList = await headers()
   const authHeader = headersList.get('authorization')
 
   const cronSecret = process.env.CRON_SECRET
-  if (!cronSecret) {
+  if (!cronSecret) return 'missing_secret'
+
+  const expected = Buffer.from(`Bearer ${cronSecret}`)
+  const received = Buffer.from(authHeader ?? '')
+  const valid =
+    received.length === expected.length &&
+    crypto.timingSafeEqual(received, expected)
+
+  return valid ? 'ok' : 'invalid'
+}
+
+export async function GET() {
+  const authResult = await verifyCronAuth()
+
+  if (authResult === 'missing_secret') {
     logger.error(
       { event: 'CRON_SECRET_MISSING' },
       'CRON_SECRET env var is not set — auto-mark cron will not run'
     )
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  // Hash both sides to a fixed-length digest before comparing so that
-  // timingSafeEqual is always called on equal-length inputs — no length
-  // short-circuit, and the expected token length is never leaked via timing.
-  const expectedHash = crypto
-    .createHash('sha256')
-    .update(`Bearer ${cronSecret}`)
-    .digest()
-  const receivedHash = crypto
-    .createHash('sha256')
-    .update(authHeader ?? '')
-    .digest()
-  const valid = crypto.timingSafeEqual(expectedHash, receivedHash)
-  if (!valid) {
+  if (authResult === 'invalid') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -78,13 +80,18 @@ export async function GET() {
     // 200 with a null shift would be invisible in the cron dashboard. 207 surfaces the
     // partial failure in any monitor keying on HTTP status while still counting as
     // "completed" (not a dead 500) for the working shift.
+    const errors: string[] = []
+    if (!result.morning) errors.push('morning_shift_failed')
+    if (!result.afternoon) errors.push('afternoon_shift_failed')
+
     return NextResponse.json(
       {
         date: todayStr,
         morning: result.morning,
         afternoon: result.afternoon,
+        ...(errors.length > 0 ? { errors } : {}),
       },
-      { status: result.morning && result.afternoon ? 200 : 207 }
+      { status: errors.length === 0 ? 200 : 207 }
     )
   } catch (error) {
     await logError(

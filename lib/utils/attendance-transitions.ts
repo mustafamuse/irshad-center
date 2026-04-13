@@ -1,16 +1,11 @@
-/**
- * Teacher Attendance Status Transition Guard
- *
- * Pure functions — no DB calls, no side effects.
- * All status transition validation lives here so the service layer
- * and any future callers share one source of truth.
- */
-
 import type { TeacherAttendanceStatus } from '@prisma/client'
 
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 
-const ALLOWED_TRANSITIONS: Record<TeacherAttendanceStatus, TeacherAttendanceStatus[]> = {
+const ALLOWED_TRANSITIONS: Record<
+  TeacherAttendanceStatus,
+  TeacherAttendanceStatus[]
+> = {
   // EXPECTED → CLOSED: markDateClosed propagates this in bulk via bulkTransitionStatus.
   //   This transition is system-only — intentionally excluded from the admin override
   //   dialog (OverrideAttendanceStatusSchema limits toStatus to non-CLOSED values).

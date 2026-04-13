@@ -78,15 +78,15 @@ export async function markDateClosed(
     // because the override dialog must never close a teacher who physically showed up
     // (SELF_CHECKIN LATE). This is the only code path that performs this transition;
     // callers must use markDateClosed() rather than transitionStatus() for this case.
-    const autoMarkResult = await tx.teacherAttendanceRecord.updateMany({
-      where: { date, status: 'LATE', source: 'AUTO_MARKED' },
-      data: {
-        status: 'CLOSED',
-        source: 'SYSTEM',
-        changedBy: createdBy ?? null,
-      },
-    })
-    const autoMarkedCount = autoMarkResult.count
+    const { count: autoMarkedCount } =
+      await tx.teacherAttendanceRecord.updateMany({
+        where: { date, status: 'LATE', source: 'AUTO_MARKED' },
+        data: {
+          status: 'CLOSED',
+          source: 'SYSTEM',
+          changedBy: createdBy ?? null,
+        },
+      })
 
     logger.info(
       {

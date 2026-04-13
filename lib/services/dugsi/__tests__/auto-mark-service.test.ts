@@ -70,9 +70,10 @@ vi.mock('@/lib/logger', () => ({
     debug: vi.fn(),
     error: vi.fn(),
   }),
+  logError: vi.fn(),
 }))
 
-import { autoMarkLateForShift } from '../auto-mark-service'
+import { autoMarkLateForShift, autoMarkBothShifts } from '../auto-mark-service'
 
 const BASE_CONFIG = {
   id: 'singleton',
@@ -173,5 +174,53 @@ describe('autoMarkLateForShift', () => {
       skippedReason: 'no_expected_records',
       marked: 0,
     })
+  })
+})
+
+describe('autoMarkBothShifts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetConfig.mockResolvedValue(BASE_CONFIG)
+    mockGetActiveTeachers.mockResolvedValue([])
+    mockFindUniqueClosure.mockResolvedValue(null)
+    mockUpdateMany.mockResolvedValue({ count: 2 })
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
+  })
+
+  it('returns results for both shifts when both succeed', async () => {
+    const result = await autoMarkBothShifts('2026-02-07')
+
+    expect(result.morning).not.toBeNull()
+    expect(result.afternoon).not.toBeNull()
+    expect(result.morning).toMatchObject({ shift: 'MORNING' })
+    expect(result.afternoon).toMatchObject({ shift: 'AFTERNOON' })
+  })
+
+  it('returns null for the failed shift and a result for the successful one', async () => {
+    // First transaction call (MORNING) rejects; second (AFTERNOON) succeeds.
+    // allSettled ensures AFTERNOON commits even though MORNING threw.
+    mockTransaction
+      .mockRejectedValueOnce(new Error('DB timeout'))
+      .mockImplementationOnce((fn: (tx: unknown) => unknown) => fn(makeTx()))
+
+    const result = await autoMarkBothShifts('2026-02-07')
+
+    // One shift failed → null; one succeeded → result object
+    const nullCount = [result.morning, result.afternoon].filter(
+      (r) => r === null
+    ).length
+    const successCount = [result.morning, result.afternoon].filter(
+      (r) => r !== null
+    ).length
+    expect(nullCount).toBe(1)
+    expect(successCount).toBe(1)
+  })
+
+  it('throws when both shifts fail', async () => {
+    mockTransaction.mockRejectedValue(new Error('DB down'))
+
+    await expect(autoMarkBothShifts('2026-02-07')).rejects.toThrow()
   })
 })

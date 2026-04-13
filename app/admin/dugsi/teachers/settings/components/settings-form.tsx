@@ -15,6 +15,12 @@ interface Props {
   initialAfternoon: number
 }
 
+function parseMinutes(raw: string, fallback: number): number {
+  if (raw === '') return 0
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : fallback
+}
+
 export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -52,10 +58,7 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
           min={0}
           max={120}
           value={morning}
-          onChange={(e) => {
-            const n = Number(e.target.value)
-            setMorning(e.target.value === '' ? 0 : Number.isFinite(n) ? n : morning)
-          }}
+          onChange={(e) => setMorning(parseMinutes(e.target.value, morning))}
           step={1}
         />
       </div>
@@ -71,10 +74,9 @@ export function SettingsForm({ initialMorning, initialAfternoon }: Props) {
           max={89}
           step={1}
           value={afternoon}
-          onChange={(e) => {
-            const n = Number(e.target.value)
-            setAfternoon(e.target.value === '' ? 0 : Number.isFinite(n) ? n : afternoon)
-          }}
+          onChange={(e) =>
+            setAfternoon(parseMinutes(e.target.value, afternoon))
+          }
         />
       </div>
 
