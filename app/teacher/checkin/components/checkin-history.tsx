@@ -90,6 +90,22 @@ export function CheckinHistory({
     phase2Enabled,
   })
 
+  // Recover from an expired session: a 401 from the history query means the
+  // 30-minute HMAC token is no longer valid. Clear the local token so the PIN
+  // prompt reappears — the teacher can re-authenticate without a page reload.
+  useEffect(() => {
+    if (
+      localToken &&
+      historyQuery.error instanceof AttendanceFetchError &&
+      historyQuery.error.status === 401
+    ) {
+      setLocalToken(null)
+      setPin('')
+      setExcuseOpenId(null)
+      setPinError('Session expired. Enter the PIN again.')
+    }
+  }, [historyQuery.error, localToken])
+
   const history = historyQuery.data
   const isPending = historyQuery.isLoading || historyQuery.isFetching
   const error = historyQuery.error?.message ?? null

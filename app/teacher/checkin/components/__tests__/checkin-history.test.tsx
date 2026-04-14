@@ -3,6 +3,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
+import { AttendanceFetchError } from '@/lib/features/attendance/client'
+
 const { mockMutate, mockHistoryQuery } = vi.hoisted(() => ({
   mockMutate: vi.fn(),
   mockHistoryQuery: vi.fn(),
@@ -129,6 +131,79 @@ describe('CheckinHistory', () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Enter PIN')).toBeInTheDocument()
     })
+  })
+
+  it('clears token and shows PIN prompt with expired message when history query returns 401', async () => {
+    let queryState: {
+      data: undefined
+      isLoading: boolean
+      isFetching: boolean
+      error: AttendanceFetchError | null
+    } = {
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: null,
+    }
+    mockHistoryQuery.mockImplementation(() => queryState)
+
+    // Mutation immediately succeeds
+    mockMutate.mockImplementation(
+      (
+        _vars: unknown,
+        callbacks: { onSuccess: (r: { token: string }) => void }
+      ) => {
+        callbacks.onSuccess({ token: 'valid-token' })
+      }
+    )
+
+    const { rerender } = render(
+      <CheckinHistory
+        teacherId={TEACHER_A}
+        sessionToken={null}
+        isOpen={true}
+        onOpenChange={vi.fn()}
+        phase2Enabled={true}
+      />,
+      { wrapper: makeQueryWrapper() }
+    )
+
+    // Enter PIN and submit
+    await userEvent.type(screen.getByPlaceholderText('Enter PIN'), 'pin')
+    await userEvent.click(screen.getByRole('button', { name: /verify pin/i }))
+
+    // PIN prompt gone after successful auth
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('Enter PIN')).not.toBeInTheDocument()
+    })
+
+    // Simulate the history query returning a 401 (token expired after 30 min)
+    queryState = {
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: new AttendanceFetchError(
+        401,
+        'Session expired. Please refresh and try again.'
+      ),
+    }
+    rerender(
+      <CheckinHistory
+        teacherId={TEACHER_A}
+        sessionToken={null}
+        isOpen={true}
+        onOpenChange={vi.fn()}
+        phase2Enabled={true}
+      />
+    )
+
+    // PIN prompt reappears with the recovery message
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Enter PIN')).toBeInTheDocument()
+    })
+    expect(
+      screen.getByText('Session expired. Enter the PIN again.')
+    ).toBeInTheDocument()
   })
 
   it('preserves a valid token when the history panel is closed and reopened', async () => {

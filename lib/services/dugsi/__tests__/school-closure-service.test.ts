@@ -12,21 +12,25 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
   mockGetSchoolClosure,
+  mockGetActiveDugsiTeacherShifts,
   mockCreateClosure,
   mockDeleteClosure,
   mockUpdateMany,
   mockFindMany,
   mockExcuseUpdateMany,
   mockBulkTransitionStatus,
+  mockGenerateExpectedSlots,
   mockTransaction,
 } = vi.hoisted(() => ({
   mockGetSchoolClosure: vi.fn(),
+  mockGetActiveDugsiTeacherShifts: vi.fn(),
   mockCreateClosure: vi.fn(),
   mockDeleteClosure: vi.fn(),
   mockUpdateMany: vi.fn(),
   mockFindMany: vi.fn(),
   mockExcuseUpdateMany: vi.fn(),
   mockBulkTransitionStatus: vi.fn(),
+  mockGenerateExpectedSlots: vi.fn(),
   mockTransaction: vi.fn(),
 }))
 
@@ -58,6 +62,8 @@ vi.mock('@/lib/db/queries/teacher-attendance', async (importOriginal) => {
   return {
     ...actual,
     getSchoolClosure: (...args: unknown[]) => mockGetSchoolClosure(...args),
+    getActiveDugsiTeacherShifts: (...args: unknown[]) =>
+      mockGetActiveDugsiTeacherShifts(...args),
   }
 })
 
@@ -68,6 +74,8 @@ vi.mock('../attendance-record-service', async (importOriginal) => {
     ...actual,
     bulkTransitionStatus: (...args: unknown[]) =>
       mockBulkTransitionStatus(...args),
+    generateExpectedSlots: (...args: unknown[]) =>
+      mockGenerateExpectedSlots(...args),
   }
 })
 
@@ -93,6 +101,8 @@ describe('markDateClosed', () => {
     )
     mockGetSchoolClosure.mockResolvedValue(null)
     mockCreateClosure.mockResolvedValue(FAKE_CLOSURE)
+    mockGetActiveDugsiTeacherShifts.mockResolvedValue([])
+    mockGenerateExpectedSlots.mockResolvedValue({ created: 0, skipped: 0 })
     mockBulkTransitionStatus.mockResolvedValue(0)
     mockUpdateMany.mockResolvedValue({ count: 0 })
     mockExcuseUpdateMany.mockResolvedValue({ count: 0 })
@@ -159,6 +169,33 @@ describe('markDateClosed', () => {
         data: expect.objectContaining({ changedBy: 'admin' }),
       })
     )
+  })
+
+  it('seeds EXPECTED rows before closure propagation when no rows exist yet', async () => {
+    // Scenario: admin closes a future date before auto-mark has run.
+    // No attendance rows exist yet — the grid would show blanks without the seed.
+    const teachers = [
+      { teacherId: 't-1', name: 'Teacher A', shifts: ['MORNING', 'AFTERNOON'] },
+      { teacherId: 't-2', name: 'Teacher B', shifts: ['MORNING'] },
+    ]
+    mockGetActiveDugsiTeacherShifts.mockResolvedValue(teachers)
+    mockGenerateExpectedSlots.mockResolvedValue({ created: 3, skipped: 0 })
+    mockBulkTransitionStatus.mockResolvedValue(3)
+
+    const result = await markDateClosed({ date: TEST_DATE, reason: 'Holiday' })
+
+    expect(mockGetActiveDugsiTeacherShifts).toHaveBeenCalledOnce()
+    expect(mockGenerateExpectedSlots).toHaveBeenCalledWith(
+      teachers,
+      TEST_DATE,
+      expect.anything() // tx
+    )
+    expect(result.closedCount).toBe(3)
+
+    // Seed must run before the status flip so rows exist to flip
+    const seedOrder = mockGenerateExpectedSlots.mock.invocationCallOrder[0]
+    const flipOrder = mockBulkTransitionStatus.mock.invocationCallOrder[0]
+    expect(seedOrder).toBeLessThan(flipOrder)
   })
 
   it('throws CLOSURE_EXISTS when date is already closed', async () => {

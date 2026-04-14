@@ -11,12 +11,18 @@ import { Prisma, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import { prisma } from '@/lib/db'
-import { getSchoolClosure } from '@/lib/db/queries/teacher-attendance'
+import {
+  getActiveDugsiTeacherShifts,
+  getSchoolClosure,
+} from '@/lib/db/queries/teacher-attendance'
 import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger } from '@/lib/logger'
 
-import { bulkTransitionStatus } from './attendance-record-service'
+import {
+  bulkTransitionStatus,
+  generateExpectedSlots,
+} from './attendance-record-service'
 
 const logger = createServiceLogger('school-closure')
 
@@ -43,6 +49,13 @@ export async function markDateClosed(
     const closure = await tx.schoolClosure.create({
       data: { date, reason, createdBy: createdBy ?? null },
     })
+
+    // Seed EXPECTED rows for all active teachers before flipping them.
+    // generateExpectedSlots is idempotent (createMany + skipDuplicates) so existing
+    // rows are left untouched. Without this, closing a future date that auto-mark
+    // hasn't run yet produces zero rows in the grid — teachers never appear as CLOSED.
+    const teachers = await getActiveDugsiTeacherShifts(tx)
+    await generateExpectedSlots(teachers, date, tx)
 
     // Propagate: flip EXPECTED → CLOSED, saving previousStatus so reopenClosedRecords
     // can restore the original state instead of always reverting to EXPECTED.
