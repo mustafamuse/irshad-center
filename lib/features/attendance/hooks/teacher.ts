@@ -3,7 +3,6 @@
 import { Shift } from '@prisma/client'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-
 import { AttendanceFetchError, attendanceFetch } from '../client'
 import type {
   CheckinRecordDto,
@@ -141,9 +140,19 @@ export function useSubmitExcuseMutation(
     },
     onError: (error: unknown) => {
       if (error instanceof AttendanceFetchError && error.status === 403) {
-        
       }
     },
+  })
+}
+
+export function useGetSessionMutation() {
+  return useMutation({
+    mutationFn: (payload: { teacherId: string; pin: string }) =>
+      attendanceFetch<{ token: string }>('/api/teacher/checkin/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
   })
 }
 
