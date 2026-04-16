@@ -59,14 +59,17 @@ export async function findMahadRegistrationByLastNameAndPhoneLast4(
     },
   })
 
-  const match = profiles.find(
+  const matches = profiles.filter(
     (p) => getLastNameFromFullName(p.person.name).toLowerCase() === normLast
   )
 
-  if (!match) {
+  // When ambiguous (multiple people share the same last name + last 4 of phone)
+  // we return `not_found` instead of revealing a potentially wrong identity.
+  if (matches.length !== 1) {
     return { found: false }
   }
 
+  const match = matches[0]!
   const enrollment = match.enrollments[0]
   const programStatusLabel =
     ENROLLMENT_STATUS_LABELS[match.status] ?? match.status

@@ -22,6 +22,7 @@ export function useRegistration({
 
   const registerStudent = useCallback(
     (formData: MahadRegistrationValues) => {
+      if (isSubmitting) return
       startTransition(async () => {
         try {
           const result = await registerStudentAction(formData)
@@ -62,7 +63,7 @@ export function useRegistration({
         }
       })
     },
-    [form, router]
+    [form, router, isSubmitting]
   )
 
   return {

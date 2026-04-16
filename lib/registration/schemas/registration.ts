@@ -8,6 +8,8 @@ import {
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
+import { getAgeInYears } from '@/lib/registration/utils/date-of-birth'
+
 // ============================================================================
 // FEATURE FLAGS
 // ============================================================================
@@ -134,7 +136,7 @@ export const mahadRegistrationSchema = z.object({
   dateOfBirth: z
     .date()
     .refine((date) => {
-      const age = Math.floor((Date.now() - date.getTime()) / 31536000000)
+      const age = getAgeInYears(date)
       return age >= 15 && age <= 100
     }, 'Student must be between 15 and 100 years old')
     .refine(
@@ -189,7 +191,7 @@ export const childInfoSchema = z.object({
   dateOfBirth: z
     .date()
     .refine((date) => {
-      const age = Math.floor((Date.now() - date.getTime()) / 31536000000)
+      const age = getAgeInYears(date)
       return age >= 5 && age <= 18
     }, 'Child must be between 5 and 18 years old')
     .refine(
