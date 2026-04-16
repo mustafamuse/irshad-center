@@ -6,8 +6,9 @@ import { Metadata } from 'next'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 
+import { MahadPublicProviders } from '../_components/mahad-public-providers'
+
 import { RegisterForm } from './_components/registration-form'
-import { Providers } from './providers'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <Providers>
+    <MahadPublicProviders context="Mahad registration">
       <div className="min-h-screen bg-white">
         <div className="container mx-auto px-4 py-8 md:px-6 md:py-12">
           <div className="mb-8 flex items-center justify-between">
@@ -60,6 +61,6 @@ export default function RegisterPage() {
           </div>
         </div>
       </div>
-    </Providers>
+    </MahadPublicProviders>
   )
 }

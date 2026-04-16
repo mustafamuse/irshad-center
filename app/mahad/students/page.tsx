@@ -6,7 +6,8 @@ import { Metadata } from 'next'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 
-import { Providers } from '../register/providers'
+import { MahadPublicProviders } from '../_components/mahad-public-providers'
+
 import { StudentLookupForm } from './_components/student-lookup-form'
 
 export const dynamic = 'force-dynamic'
@@ -19,7 +20,7 @@ export const metadata: Metadata = {
 
 export default function MahadStudentsLookupPage() {
   return (
-    <Providers>
+    <MahadPublicProviders context="Mahad students lookup">
       <div className="min-h-screen bg-white">
         <div className="container mx-auto px-4 py-8 md:px-6 md:py-12">
           <div className="mb-8 flex items-center justify-between">
@@ -52,6 +53,6 @@ export default function MahadStudentsLookupPage() {
           </div>
         </div>
       </div>
-    </Providers>
+    </MahadPublicProviders>
   )
 }
