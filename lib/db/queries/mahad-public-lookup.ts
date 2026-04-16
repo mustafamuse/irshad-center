@@ -30,6 +30,32 @@ export type MahadPublicLookupResult =
   | MahadPublicLookupSuccess
   | { found: false }
 
+export interface MahadPublicLookupCandidate {
+  status: EnrollmentStatus
+  createdAt: Date
+  person: { name: string }
+  enrollments: Array<{ status: EnrollmentStatus }>
+}
+
+export function pickMahadRegistrationMatch<
+  T extends { person: { name: string } }
+>(
+  profiles: T[],
+  normalizedLastName: string
+): T | null {
+  const matches = profiles.filter(
+    (profile) =>
+      getLastNameFromFullName(profile.person.name).toLowerCase() ===
+      normalizedLastName
+  )
+
+  if (matches.length !== 1) {
+    return null
+  }
+
+  return matches[0] ?? null
+}
+
 /**
  * Public self-check: match Mahad program profile by legal last name (last token of
  * `Person.name`) and last 4 digits of the stored 10-digit phone number.
@@ -50,18 +76,25 @@ export async function findMahadRegistrationByLastNameAndPhoneLast4(
         phone: { endsWith: phoneLast4 },
       },
     },
-    include: {
-      person: true,
+    select: {
+      status: true,
+      createdAt: true,
+      person: {
+        select: {
+          name: true,
+        },
+      },
       enrollments: {
         orderBy: { startDate: 'desc' },
         take: 1,
+        select: {
+          status: true,
+        },
       },
     },
   })
 
-  const match = profiles.find(
-    (p) => getLastNameFromFullName(p.person.name).toLowerCase() === normLast
-  )
+  const match = pickMahadRegistrationMatch(profiles, normLast)
 
   if (!match) {
     return { found: false }
