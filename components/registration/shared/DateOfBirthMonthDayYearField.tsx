@@ -1,56 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { Control, FieldValues, Path } from 'react-hook-form'
 
 import { Input } from '@/components/ui/input'
 import { FormFieldWrapper } from '@/lib/registration/components/FormFieldWrapper'
+import {
+  parseDateParts,
+  tryBuildDate,
+} from '@/lib/registration/utils/date-of-birth'
 import { getInputClassNames } from '@/lib/registration/utils/form-utils'
-
-function parseDateParts(value: unknown): {
-  month: string
-  day: string
-  year: string
-} {
-  if (!value || !(value instanceof Date) || Number.isNaN(value.getTime())) {
-    return { month: '', day: '', year: '' }
-  }
-  return {
-    month: String(value.getMonth() + 1),
-    day: String(value.getDate()),
-    year: String(value.getFullYear()),
-  }
-}
-
-function tryBuildDate(
-  month: string,
-  day: string,
-  year: string
-): Date | undefined {
-  const m = Number.parseInt(month, 10)
-  const d = Number.parseInt(day, 10)
-  const y = Number.parseInt(year, 10)
-  if (
-    !month.trim() ||
-    !day.trim() ||
-    !year.trim() ||
-    [m, d, y].some((n) => Number.isNaN(n))
-  ) {
-    return undefined
-  }
-  if (year.trim().length !== 4) return undefined
-  if (m < 1 || m > 12 || d < 1 || d > 31 || y < 1000) return undefined
-  const dt = new Date(y, m - 1, d)
-  if (
-    dt.getFullYear() !== y ||
-    dt.getMonth() !== m - 1 ||
-    dt.getDate() !== d
-  ) {
-    return undefined
-  }
-  return dt
-}
 
 interface DateOfBirthMonthDayYearFieldProps<T extends FieldValues> {
   control: Control<T>
@@ -95,8 +55,13 @@ function MonthDayYearInputs({
   const [month, setMonth] = useState(() => parseDateParts(value).month)
   const [day, setDay] = useState(() => parseDateParts(value).day)
   const [year, setYear] = useState(() => parseDateParts(value).year)
+  const skipSyncRef = useRef(false)
 
   useEffect(() => {
+    if (skipSyncRef.current) {
+      skipSyncRef.current = false
+      return
+    }
     const p = parseDateParts(value)
     setMonth(p.month)
     setDay(p.day)
@@ -110,6 +75,7 @@ function MonthDayYearInputs({
     setDay(nextDay)
     setYear(nextYear)
     const built = tryBuildDate(nextMonth.trim(), nextDay.trim(), nextYear.trim())
+    skipSyncRef.current = true
     onChange(built)
   }
 

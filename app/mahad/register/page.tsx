@@ -1,13 +1,11 @@
 import Link from 'next/link'
 
-import { ArrowLeft } from 'lucide-react'
 import { Metadata } from 'next'
 
-import { Button } from '@/components/ui/button'
-import { Logo } from '@/components/ui/logo'
+import { MahadPublicProviders } from '../_components/mahad-public-providers'
+import { MahadPublicShell } from '../_components/mahad-public-shell'
 
 import { RegisterForm } from './_components/registration-form'
-import { Providers } from './providers'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,48 +16,25 @@ export const metadata: Metadata = {
 
 export default function RegisterPage() {
   return (
-    <Providers>
-      <div className="min-h-screen bg-white">
-        <div className="container mx-auto px-4 py-8 md:px-6 md:py-12">
-          <div className="mb-8 flex items-center justify-between">
-            <Button
-              asChild
-              variant="ghost"
-              className="h-10 gap-2 rounded-xl text-sm text-[#007078] hover:bg-[#007078]/10"
+    <MahadPublicProviders context="Mahad registration">
+      <MahadPublicShell
+        title="Student Registration"
+        description="Join our 2024-2025 academic year at Irshād Māhad"
+        headerExtra={
+          <p className="text-sm text-gray-600">
+            Already registered?{' '}
+            <Link
+              href="/mahad/students"
+              className="font-medium text-[#007078] underline-offset-4 hover:underline"
             >
-              <Link href="/mahad">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Back to Home</span>
-              </Link>
-            </Button>
-            <div className="w-32">
-              <Logo size="sm" className="w-full" />
-            </div>
-          </div>
-
-          <div className="mx-auto max-w-2xl">
-            <header className="mb-12 space-y-3 text-center">
-              <h1 className="text-3xl font-bold tracking-tight text-[#007078] sm:text-4xl">
-                Student Registration
-              </h1>
-              <p className="text-lg text-gray-600">
-                Join our 2024-2025 academic year at Irshād Māhad
-              </p>
-              <p className="text-sm text-gray-600">
-                Already registered?{' '}
-                <Link
-                  href="/mahad/students"
-                  className="font-medium text-[#007078] underline-offset-4 hover:underline"
-                >
-                  Check your registration status
-                </Link>{' '}
-                before submitting again.
-              </p>
-            </header>
-            <RegisterForm />
-          </div>
-        </div>
-      </div>
-    </Providers>
+              Check your registration status
+            </Link>{' '}
+            before submitting again.
+          </p>
+        }
+      >
+        <RegisterForm />
+      </MahadPublicShell>
+    </MahadPublicProviders>
   )
 }
