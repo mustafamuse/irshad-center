@@ -1,15 +1,15 @@
 'use client'
 
-import { useCallback, useState, useTransition } from 'react'
+import { useState } from 'react'
 
 import Link from 'next/link'
 
 import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { Loader2 } from 'lucide-react'
-import { FieldPath, useForm } from 'react-hook-form'
-import { toast } from 'sonner'
+import { useForm } from 'react-hook-form'
 
+import { useSafeActionForm } from '@/app/mahad/_hooks/use-safe-action-form'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -27,7 +27,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { createClientLogger } from '@/lib/logger-client'
+import type { MahadPublicLookupResult } from '@/lib/db/queries/mahad-public-lookup'
 import {
   mahadStudentLookupSchema,
   type MahadStudentLookupValues,
@@ -39,21 +39,21 @@ import {
 
 import { lookupMahadRegistration } from '../_actions/lookup'
 
-const logger = createClientLogger('mahad-student-lookup')
+type LookupResultState =
+  | { status: 'idle' }
+  | { status: 'not_found' }
+  | {
+      status: 'found'
+      studentName: string
+      registeredAt: string
+      programStatusLabel: string
+      enrollmentStatusLabel: string | null
+    }
 
 export function StudentLookupForm() {
-  const [isPending, startTransition] = useTransition()
-  const [lookupResult, setLookupResult] = useState<
-    | { status: 'idle' }
-    | { status: 'not_found' }
-    | {
-        status: 'found'
-        studentName: string
-        registeredAt: string
-        programStatusLabel: string
-        enrollmentStatusLabel: string | null
-      }
-  >({ status: 'idle' })
+  const [lookupResult, setLookupResult] = useState<LookupResultState>({
+    status: 'idle',
+  })
 
   const form = useForm<MahadStudentLookupValues>({
     resolver: zodResolver(mahadStudentLookupSchema),
@@ -64,62 +64,34 @@ export function StudentLookupForm() {
     mode: 'onBlur',
   })
 
-  const onSubmit = useCallback(
-    (data: MahadStudentLookupValues) => {
-      setLookupResult({ status: 'idle' })
-      startTransition(async () => {
-        try {
-          const result = await lookupMahadRegistration(data)
-
-          if (result?.validationErrors) {
-            for (const [field, fieldErrors] of Object.entries(
-              result.validationErrors
-            )) {
-              const errors = fieldErrors as { _errors?: string[] }
-              if (errors._errors?.[0]) {
-                form.setError(field as FieldPath<MahadStudentLookupValues>, {
-                  type: 'manual',
-                  message: errors._errors[0],
-                })
-              }
-            }
-            setLookupResult({ status: 'idle' })
-            return
-          }
-
-          if (result?.serverError) {
-            toast.error(result.serverError)
-            setLookupResult({ status: 'idle' })
-            return
-          }
-
-          const payload = result?.data
-          if (!payload) {
-            setLookupResult({ status: 'idle' })
-            return
-          }
-
-          if (!payload.found) {
-            setLookupResult({ status: 'not_found' })
-            return
-          }
-
-          setLookupResult({
-            status: 'found',
-            studentName: payload.studentName,
-            registeredAt: payload.registeredAt,
-            programStatusLabel: payload.programStatusLabel,
-            enrollmentStatusLabel: payload.enrollmentStatusLabel,
-          })
-        } catch (e) {
-          logger.error('Lookup error', e)
-          toast.error('Something went wrong. Please try again.')
-          setLookupResult({ status: 'idle' })
-        }
+  const { execute, isPending } = useSafeActionForm<
+    MahadStudentLookupValues,
+    MahadPublicLookupResult
+  >({
+    form,
+    action: lookupMahadRegistration,
+    exceptionToast: 'Something went wrong. Please try again.',
+    loggerName: 'mahad-student-lookup',
+    onError: () => setLookupResult({ status: 'idle' }),
+    onSuccess: (payload) => {
+      if (!payload.found) {
+        setLookupResult({ status: 'not_found' })
+        return
+      }
+      setLookupResult({
+        status: 'found',
+        studentName: payload.studentName,
+        registeredAt: payload.registeredAt,
+        programStatusLabel: payload.programStatusLabel,
+        enrollmentStatusLabel: payload.enrollmentStatusLabel,
       })
     },
-    [form]
-  )
+  })
+
+  const onSubmit = (values: MahadStudentLookupValues) => {
+    setLookupResult({ status: 'idle' })
+    execute(values)
+  }
 
   return (
     <div className="space-y-6">
