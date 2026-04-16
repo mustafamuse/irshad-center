@@ -1,13 +1,11 @@
 'use client'
 
-import Link from 'next/link'
-
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Home, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 
 import { ContactFields } from '@/components/registration/shared/ContactFields'
-import { DateOfBirthField } from '@/components/registration/shared/DateOfBirthField'
+import { DateOfBirthMonthDayYearField } from '@/components/registration/shared/DateOfBirthMonthDayYearField'
 import { NameFields } from '@/components/registration/shared/NameFields'
 import { Button } from '@/components/ui/button'
 import {
@@ -120,24 +118,7 @@ export function RegisterForm() {
   }
 
   return (
-    <div className="min-h-screen bg-white px-4 pb-20 pt-4 md:px-6 md:py-8">
-      <div className="mx-auto max-w-3xl space-y-4 md:space-y-8">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Link
-              href="/mahad"
-              className="flex items-center gap-1.5 rounded-lg px-2 py-1 hover:text-primary"
-            >
-              <Home className="h-4 w-4" />
-              <span>Home</span>
-            </Link>
-            <span>/</span>
-            <span className="font-medium text-foreground">
-              Student Registration
-            </span>
-          </div>
-        </div>
-
+    <div className="mx-auto max-w-3xl space-y-6">
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(handleSubmit)}
@@ -175,7 +156,7 @@ export function RegisterForm() {
                   }}
                 />
 
-                <DateOfBirthField
+                <DateOfBirthMonthDayYearField
                   control={form.control}
                   fieldName="dateOfBirth"
                 />
@@ -315,7 +296,6 @@ export function RegisterForm() {
             </Card>
           </form>
         </Form>
-      </div>
     </div>
   )
 }
