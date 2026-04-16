@@ -42,6 +42,9 @@ export default async function RegistrationSuccessPage({
                 <Link href="/mahad/register">Register Another Student</Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
+                <Link href="/mahad/students">Check registration later</Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full">
                 <Link href="/mahad">Back to Home</Link>
               </Button>
             </div>

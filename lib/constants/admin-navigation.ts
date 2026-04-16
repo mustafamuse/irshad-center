@@ -48,6 +48,7 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
         items: [
           { title: 'Landing', url: '/mahad' },
           { title: 'Register', url: '/mahad/register' },
+          { title: 'Student lookup', url: '/mahad/students' },
           { title: 'Programs', url: '/mahad/programs' },
           { title: 'Scholarship', url: '/mahad/scholarship' },
           { title: 'Autopay', url: '/mahad/autopay' },

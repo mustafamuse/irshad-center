@@ -6,17 +6,18 @@ import { Metadata } from 'next'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 
-import { RegisterForm } from './_components/registration-form'
-import { Providers } from './providers'
+import { Providers } from '../register/providers'
+import { StudentLookupForm } from './_components/student-lookup-form'
 
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Student Registration - Irshād Māhad',
-  description: 'Register for the 2024-2025 academic year at Irshād Māhad.',
+  title: 'Check Registration - Irshād Māhad',
+  description:
+    'Confirm whether you are already registered for Irshād Māhad using your last name and phone.',
 }
 
-export default function RegisterPage() {
+export default function MahadStudentsLookupPage() {
   return (
     <Providers>
       <div className="min-h-screen bg-white">
@@ -40,23 +41,14 @@ export default function RegisterPage() {
           <div className="mx-auto max-w-2xl">
             <header className="mb-12 space-y-3 text-center">
               <h1 className="text-3xl font-bold tracking-tight text-[#007078] sm:text-4xl">
-                Student Registration
+                Mahad registration lookup
               </h1>
               <p className="text-lg text-gray-600">
-                Join our 2024-2025 academic year at Irshād Māhad
-              </p>
-              <p className="text-sm text-gray-600">
-                Already registered?{' '}
-                <Link
-                  href="/mahad/students"
-                  className="font-medium text-[#007078] underline-offset-4 hover:underline"
-                >
-                  Check your registration status
-                </Link>{' '}
-                before submitting again.
+                See if you are already registered. If not, you can complete
+                registration in a few minutes.
               </p>
             </header>
-            <RegisterForm />
+            <StudentLookupForm />
           </div>
         </div>
       </div>
