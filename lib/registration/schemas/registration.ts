@@ -1,25 +1,24 @@
-import {
-  GradeLevel,
-  Gender,
-  Shift,
-  GraduationStatus,
-  PaymentFrequency,
-} from '@prisma/client'
+import { GradeLevel, Gender, Shift } from '@prisma/client'
 import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
 import { getAgeInYears } from '@/lib/registration/utils/date-of-birth'
 
-// ============================================================================
-// FEATURE FLAGS
-// ============================================================================
+import {
+  emailSchema,
+  nameSchema,
+  phoneSchema,
+  schoolNameSchema,
+  SHOW_GRADE_SCHOOL,
+} from './registration-field-schemas'
 
-/**
- * Feature flag to show/hide grade and school fields in registration forms.
- * Set NEXT_PUBLIC_SHOW_GRADE_SCHOOL=true in Vercel to re-enable these fields.
- */
-export const SHOW_GRADE_SCHOOL =
-  process.env.NEXT_PUBLIC_SHOW_GRADE_SCHOOL === 'true'
+export {
+  emailSchema,
+  nameSchema,
+  phoneSchema,
+  schoolNameSchema,
+  SHOW_GRADE_SCHOOL,
+} from './registration-field-schemas'
 
 // ============================================================================
 // SHARED CONSTANTS & LABELS
@@ -47,18 +46,6 @@ export const GRADE_LEVEL_LABELS: Record<GradeLevel, string> = {
   GRADE_11: '11th Grade',
   GRADE_12: '12th Grade',
 }
-
-// ============================================================================
-// MAHAD (COLLEGE) OPTIONS
-// ============================================================================
-
-// Grade options for Mahad students (college year tracking)
-export const MAHAD_GRADE_OPTIONS = [
-  { value: 'FRESHMAN', label: 'Freshman' },
-  { value: 'SOPHOMORE', label: 'Sophomore' },
-  { value: 'JUNIOR', label: 'Junior' },
-  { value: 'SENIOR', label: 'Senior' },
-] as const
 
 // ============================================================================
 // DUGSI (K-12) OPTIONS
@@ -91,92 +78,13 @@ export const SHIFT_OPTIONS = [
   { value: 'AFTERNOON', label: 'Afternoon' },
 ] as const
 
-// ============================================================================
-// REUSABLE FIELD SCHEMAS
-// ============================================================================
-
-export const nameSchema = z
-  .string()
-  .trim()
-  .min(2, 'Name must be at least 2 characters')
-  .max(50, 'Name must be less than 50 characters')
-  .regex(
-    /^[\p{L}\s'-]+$/u,
-    'Name can only contain letters, spaces, hyphens, and apostrophes'
-  )
-
-export const emailSchema = z
-  .string()
-  .email('Please enter a valid email address')
-  .min(5, 'Email must be at least 5 characters')
-  .max(100, 'Email must be less than 100 characters')
-
-export const phoneSchema = z
-  .string()
-  .regex(/^\d{3}-\d{3}-\d{4}$/, 'Enter a valid phone number (XXX-XXX-XXXX)')
-
-const schoolNameSchema = z
-  .string()
-  .min(2, 'School name must be at least 2 characters')
-  .max(100, 'School name must be less than 100 characters')
-  .regex(
-    /^[\p{L}\p{Nd}\s.'-]+$/u,
-    'School name can only contain letters, numbers, spaces, hyphens, periods, and apostrophes'
-  )
-
-// ============================================================================
-// MAHAD (SELF-REGISTRATION) SCHEMA
-// ============================================================================
-
-export const mahadRegistrationSchema = z.object({
-  firstName: nameSchema,
-  lastName: nameSchema,
-  email: emailSchema,
-  phone: phoneSchema,
-  dateOfBirth: z
-    .date()
-    .refine((date) => {
-      const age = getAgeInYears(date)
-      return age >= 15 && age <= 100
-    }, 'Student must be between 15 and 100 years old')
-    .refine(
-      (date) => date <= new Date(),
-      'Date of birth cannot be in the future'
-    ),
-  // Grade level - controlled by SHOW_GRADE_SCHOOL feature flag
-  gradeLevel: SHOW_GRADE_SCHOOL
-    ? z.nativeEnum(GradeLevel, {
-        required_error: 'Please select your grade level',
-      })
-    : z.nativeEnum(GradeLevel).nullable().optional(),
-  schoolName: SHOW_GRADE_SCHOOL
-    ? schoolNameSchema
-    : schoolNameSchema.nullable().optional(),
-  graduationStatus: z.nativeEnum(GraduationStatus, {
-    required_error: 'Please select your graduation status',
-  }),
-  paymentFrequency: z.nativeEnum(PaymentFrequency, {
-    required_error: 'Please select a payment frequency',
-  }),
-})
-
-export type MahadRegistrationValues = z.infer<typeof mahadRegistrationSchema>
-
-export interface MahadFormSectionProps {
-  control: Control<MahadRegistrationValues>
-}
-
-export const MAHAD_DEFAULT_FORM_VALUES: Partial<MahadRegistrationValues> = {
-  firstName: '',
-  lastName: '',
-  email: '',
-  phone: '',
-  dateOfBirth: undefined,
-  gradeLevel: undefined,
-  schoolName: undefined,
-  graduationStatus: undefined,
-  paymentFrequency: undefined,
-}
+export {
+  MAHAD_DEFAULT_FORM_VALUES,
+  MAHAD_GRADE_OPTIONS,
+  mahadRegistrationSchema,
+  type MahadFormSectionProps,
+  type MahadRegistrationValues,
+} from './mahad-registration'
 
 // ============================================================================
 // DUGSI (PARENT-LED REGISTRATION) SCHEMA

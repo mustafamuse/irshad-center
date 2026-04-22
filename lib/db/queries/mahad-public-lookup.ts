@@ -8,6 +8,11 @@ export function getLastNameFromFullName(fullName: string): string {
   return parts.length ? parts[parts.length - 1]! : ''
 }
 
+export function getFirstNameFromFullName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean)
+  return parts.length ? parts[0]! : ''
+}
+
 const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
   REGISTERED: 'Registered',
   ENROLLED: 'Enrolled',
@@ -23,7 +28,6 @@ export interface MahadPublicLookupSuccess {
   /** ISO date string (UTC) of program profile creation */
   registeredAt: string
   programStatusLabel: string
-  enrollmentStatusLabel: string | null
 }
 
 export type MahadPublicLookupResult =
@@ -34,20 +38,20 @@ export interface MahadPublicLookupCandidate {
   status: EnrollmentStatus
   createdAt: Date
   person: { name: string }
-  enrollments: Array<{ status: EnrollmentStatus }>
 }
 
 export function pickMahadRegistrationMatch<
   T extends { person: { name: string } }
 >(
   profiles: T[],
+  normalizedFirstName: string,
   normalizedLastName: string
 ): T | null {
-  const matches = profiles.filter(
-    (profile) =>
-      getLastNameFromFullName(profile.person.name).toLowerCase() ===
-      normalizedLastName
-  )
+  const matches = profiles.filter((profile) => {
+    const first = getFirstNameFromFullName(profile.person.name).toLowerCase()
+    const last = getLastNameFromFullName(profile.person.name).toLowerCase()
+    return first === normalizedFirstName && last === normalizedLastName
+  })
 
   if (matches.length !== 1) {
     return null
@@ -57,15 +61,19 @@ export function pickMahadRegistrationMatch<
 }
 
 /**
- * Public self-check: match Mahad program profile by legal last name (last token of
- * `Person.name`) and last 4 digits of the stored 10-digit phone number.
+ * Public self-check: match a Mahad program profile by legal first + last name
+ * (first/last whitespace-delimited tokens of `Person.name`) and the last 4
+ * digits of the stored 10-digit phone number. Requiring first name prevents
+ * sibling collisions where families share a surname and phone number.
  */
-export async function findMahadRegistrationByLastNameAndPhoneLast4(
+export async function findMahadRegistrationByNameAndPhoneLast4(
+  firstName: string,
   lastName: string,
   phoneLast4: string
 ): Promise<MahadPublicLookupResult> {
+  const normFirst = firstName.trim().toLowerCase()
   const normLast = lastName.trim().toLowerCase()
-  if (!normLast || !/^\d{4}$/.test(phoneLast4)) {
+  if (!normFirst || !normLast || !/^\d{4}$/.test(phoneLast4)) {
     return { found: false }
   }
 
@@ -84,34 +92,22 @@ export async function findMahadRegistrationByLastNameAndPhoneLast4(
           name: true,
         },
       },
-      enrollments: {
-        orderBy: { startDate: 'desc' },
-        take: 1,
-        select: {
-          status: true,
-        },
-      },
     },
   })
 
-  const match = pickMahadRegistrationMatch(profiles, normLast)
+  const match = pickMahadRegistrationMatch(profiles, normFirst, normLast)
 
   if (!match) {
     return { found: false }
   }
 
-  const enrollment = match.enrollments[0]
   const programStatusLabel =
     ENROLLMENT_STATUS_LABELS[match.status] ?? match.status
-  const enrollmentStatusLabel = enrollment
-    ? (ENROLLMENT_STATUS_LABELS[enrollment.status] ?? enrollment.status)
-    : null
 
   return {
     found: true,
     studentName: match.person.name.trim(),
     registeredAt: match.createdAt.toISOString(),
     programStatusLabel,
-    enrollmentStatusLabel,
   }
 }

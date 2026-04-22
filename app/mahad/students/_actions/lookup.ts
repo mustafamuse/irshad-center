@@ -1,6 +1,6 @@
 'use server'
 
-import { findMahadRegistrationByLastNameAndPhoneLast4 } from '@/lib/db/queries/mahad-public-lookup'
+import { findMahadRegistrationByNameAndPhoneLast4 } from '@/lib/db/queries/mahad-public-lookup'
 import { mahadStudentLookupSchema } from '@/lib/mahad/student-lookup-schema'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 
@@ -8,7 +8,8 @@ const _lookupMahadRegistration = rateLimitedActionClient
   .metadata({ actionName: 'mahadPublicRegistrationLookup' })
   .schema(mahadStudentLookupSchema)
   .action(async ({ parsedInput }) => {
-    const result = await findMahadRegistrationByLastNameAndPhoneLast4(
+    const result = await findMahadRegistrationByNameAndPhoneLast4(
+      parsedInput.firstName,
       parsedInput.lastName,
       parsedInput.phoneLast4
     )
@@ -22,7 +23,6 @@ const _lookupMahadRegistration = rateLimitedActionClient
       studentName: result.studentName,
       registeredAt: result.registeredAt,
       programStatusLabel: result.programStatusLabel,
-      enrollmentStatusLabel: result.enrollmentStatusLabel,
     }
   })
 

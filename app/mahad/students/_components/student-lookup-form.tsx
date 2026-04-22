@@ -7,7 +7,9 @@ import Link from 'next/link'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { Loader2 } from 'lucide-react'
+import { useAction } from 'next-safe-action/hooks'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -26,12 +28,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { useSafeActionForm } from '@/app/mahad/_hooks/use-safe-action-form'
+import { applySafeActionValidationErrorsToForm } from '@/lib/mahad/apply-safe-action-validation-to-rhf'
 import {
   mahadStudentLookupSchema,
   type MahadStudentLookupValues,
 } from '@/lib/mahad/student-lookup-schema'
-import type { MahadPublicLookupResult } from '@/lib/db/queries/mahad-public-lookup'
 import {
   buttonClassNames,
   getInputClassNames,
@@ -39,49 +40,58 @@ import {
 
 import { lookupMahadRegistration } from '../_actions/lookup'
 
+type LookupUiState =
+  | { status: 'idle' }
+  | { status: 'not_found' }
+  | {
+      status: 'found'
+      studentName: string
+      registeredAt: string
+      programStatusLabel: string
+    }
+
 export function StudentLookupForm() {
-  const [lookupResult, setLookupResult] = useState<
-    | { status: 'idle' }
-    | { status: 'not_found' }
-    | {
-        status: 'found'
-        studentName: string
-        registeredAt: string
-        programStatusLabel: string
-        enrollmentStatusLabel: string | null
-      }
-  >({ status: 'idle' })
+  const [lookupResult, setLookupResult] = useState<LookupUiState>({
+    status: 'idle',
+  })
 
   const form = useForm<MahadStudentLookupValues>({
     resolver: zodResolver(mahadStudentLookupSchema),
     defaultValues: {
+      firstName: '',
       lastName: '',
       phoneLast4: '',
     },
     mode: 'onBlur',
   })
 
-  const { execute, isPending } = useSafeActionForm<
-    MahadStudentLookupValues,
-    MahadPublicLookupResult
-  >({
-    form,
-    action: lookupMahadRegistration,
-    loggerName: 'mahad-student-lookup',
-    onError: () => setLookupResult({ status: 'idle' }),
-    onSuccess: (payload) => {
-      if (!payload.found) {
+  function clearLookupCardOnEdit() {
+    setLookupResult((prev) =>
+      prev.status === 'idle' ? prev : { status: 'idle' }
+    )
+  }
+
+  const { execute, isPending } = useAction(lookupMahadRegistration, {
+    onSuccess: ({ data }) => {
+      if (!data?.found) {
         setLookupResult({ status: 'not_found' })
         return
       }
-
       setLookupResult({
         status: 'found',
-        studentName: payload.studentName,
-        registeredAt: payload.registeredAt,
-        programStatusLabel: payload.programStatusLabel,
-        enrollmentStatusLabel: payload.enrollmentStatusLabel,
+        studentName: data.studentName,
+        registeredAt: data.registeredAt,
+        programStatusLabel: data.programStatusLabel,
       })
+    },
+    onError: ({ error }) => {
+      if (error.validationErrors) {
+        applySafeActionValidationErrorsToForm(form, error.validationErrors)
+      }
+      if (error.serverError) {
+        toast.error(error.serverError)
+      }
+      setLookupResult({ status: 'idle' })
     },
   })
 
@@ -100,35 +110,79 @@ export function StudentLookupForm() {
                 Look up your registration
               </CardTitle>
               <CardDescription className="text-gray-600">
-                Use the <span className="font-medium">legal last name</span> you
-                registered with and the{' '}
+                Use the{' '}
+                <span className="font-medium">legal first and last name</span>{' '}
+                you registered with, and the{' '}
                 <span className="font-medium">last 4 digits</span> of the phone
                 number on your registration (WhatsApp number).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6 px-0">
-              <FormField
-                control={form.control}
-                name="lastName"
-                render={({ field, fieldState }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium">
-                      Legal last name
-                      <span className="text-destructive"> *</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        autoComplete="family-name"
-                        placeholder="Last name"
-                        aria-invalid={!!fieldState.error}
-                        className={getInputClassNames(!!fieldState.error)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="firstName"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel className="text-base font-medium">
+                        Legal first name
+                        <span aria-hidden="true" className="text-destructive">
+                          {' '}
+                          *
+                        </span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          autoComplete="given-name"
+                          placeholder="First name"
+                          aria-required="true"
+                          aria-invalid={!!fieldState.error}
+                          disabled={isPending}
+                          className={getInputClassNames(!!fieldState.error)}
+                          onChange={(e) => {
+                            clearLookupCardOnEdit()
+                            field.onChange(e)
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="lastName"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel className="text-base font-medium">
+                        Legal last name
+                        <span aria-hidden="true" className="text-destructive">
+                          {' '}
+                          *
+                        </span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          autoComplete="family-name"
+                          placeholder="Last name"
+                          aria-required="true"
+                          aria-invalid={!!fieldState.error}
+                          disabled={isPending}
+                          className={getInputClassNames(!!fieldState.error)}
+                          onChange={(e) => {
+                            clearLookupCardOnEdit()
+                            field.onChange(e)
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               <FormField
                 control={form.control}
@@ -137,18 +191,25 @@ export function StudentLookupForm() {
                   <FormItem>
                     <FormLabel className="text-base font-medium">
                       Last 4 digits of phone
-                      <span className="text-destructive"> *</span>
+                      <span aria-hidden="true" className="text-destructive">
+                        {' '}
+                        *
+                      </span>
                     </FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         inputMode="numeric"
+                        pattern="\d{4}"
                         autoComplete="off"
                         placeholder="1234"
                         maxLength={4}
+                        aria-required="true"
                         aria-invalid={!!fieldState.error}
+                        disabled={isPending}
                         className={getInputClassNames(!!fieldState.error)}
                         onChange={(e) => {
+                          clearLookupCardOnEdit()
                           const v = e.target.value.replace(/\D/g, '').slice(0, 4)
                           field.onChange(v)
                         }}
@@ -179,7 +240,11 @@ export function StudentLookupForm() {
       </Form>
 
       {lookupResult.status === 'not_found' && (
-        <Card className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-amber-200 md:p-8">
+        <Card
+          role="status"
+          aria-live="polite"
+          className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-amber-200 md:p-8"
+        >
           <CardHeader className="px-0 pb-2">
             <CardTitle className="text-lg text-[#007078]">
               No registration found
@@ -201,7 +266,11 @@ export function StudentLookupForm() {
       )}
 
       {lookupResult.status === 'found' && (
-        <Card className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-teal-200 md:p-8">
+        <Card
+          role="status"
+          aria-live="polite"
+          className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-teal-200 md:p-8"
+        >
           <CardHeader className="px-0 pb-2">
             <CardTitle className="text-lg text-[#007078]">
               Registration on file
@@ -223,14 +292,6 @@ export function StudentLookupForm() {
               <span className="font-medium text-gray-900">Program status: </span>
               {lookupResult.programStatusLabel}
             </p>
-            {lookupResult.enrollmentStatusLabel && (
-              <p>
-                <span className="font-medium text-gray-900">
-                  Enrollment status:{' '}
-                </span>
-                {lookupResult.enrollmentStatusLabel}
-              </p>
-            )}
             <p className="text-xs text-muted-foreground">
               If something looks wrong, contact the admin team with your full
               name and phone number.
