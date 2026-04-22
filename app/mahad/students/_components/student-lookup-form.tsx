@@ -7,9 +7,11 @@ import Link from 'next/link'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { format } from 'date-fns'
 import { Loader2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2 } from 'lucide-react'
 import { useAction } from 'next-safe-action/hooks'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
+
 
 import { Button } from '@/components/ui/button'
 import {
@@ -184,41 +186,46 @@ export function StudentLookupForm() {
                 />
               </div>
 
-              <FormField
-                control={form.control}
-                name="phoneLast4"
-                render={({ field, fieldState }) => (
-                  <FormItem>
-                    <FormLabel className="text-base font-medium">
-                      Last 4 digits of phone
-                      <span aria-hidden="true" className="text-destructive">
-                        {' '}
-                        *
-                      </span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        inputMode="numeric"
-                        pattern="\d{4}"
-                        autoComplete="off"
-                        placeholder="1234"
-                        maxLength={4}
-                        aria-required="true"
-                        aria-invalid={!!fieldState.error}
-                        disabled={isPending}
-                        className={getInputClassNames(!!fieldState.error)}
-                        onChange={(e) => {
-                          clearLookupCardOnEdit()
-                          const v = e.target.value.replace(/\D/g, '').slice(0, 4)
-                          field.onChange(v)
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="phoneLast4"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel className="text-base font-medium">
+                        Last 4 digits of phone
+                        <span aria-hidden="true" className="text-destructive">
+                          {' '}
+                          *
+                        </span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          inputMode="numeric"
+                          pattern="\d{4}"
+                          autoComplete="off"
+                          placeholder="1234"
+                          maxLength={4}
+                          aria-required="true"
+                          aria-invalid={!!fieldState.error}
+                          disabled={isPending}
+                          className={getInputClassNames(!!fieldState.error)}
+                          onChange={(e) => {
+                            clearLookupCardOnEdit()
+                            const v = e.target.value
+                              .replace(/\D/g, '')
+                              .slice(0, 4)
+                            field.onChange(v)
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="hidden md:block" aria-hidden="true" />
+              </div>
 
               <Button
                 type="submit"
@@ -240,64 +247,105 @@ export function StudentLookupForm() {
       </Form>
 
       {lookupResult.status === 'not_found' && (
-        <Card
+        <div
           role="status"
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-amber-200 md:p-8"
+          className="overflow-hidden rounded-2xl bg-amber-50 p-6 ring-1 ring-amber-200 md:p-8"
         >
-          <CardHeader className="px-0 pb-2">
-            <CardTitle className="text-lg text-[#007078]">
-              No registration found
-            </CardTitle>
-            <CardDescription>
-              We could not find a Mahad registration that matches those details.
-              If you have not registered yet, use the link below.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 px-0 pt-2">
-            <Button asChild className={buttonClassNames.primary}>
-              <Link href="/mahad/register">Register for Māhad</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/mahad">Back to Mahad home</Link>
-            </Button>
-          </CardContent>
-        </Card>
+          <div className="flex gap-4">
+            <AlertCircle
+              className="mt-0.5 h-5 w-5 shrink-0 text-amber-500"
+              aria-hidden="true"
+            />
+            <div className="space-y-4">
+              <div>
+                <p className="font-semibold text-amber-900">
+                  No registration found
+                </p>
+                <p className="mt-1 text-sm text-amber-700">
+                  We could not find a Māhad registration matching those details.
+                  Double-check the name and phone number you used when
+                  registering.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button asChild className={buttonClassNames.primary}>
+                  <Link href="/mahad/register">Register for Māhad</Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="border-amber-300 text-amber-800 hover:bg-amber-100"
+                >
+                  <Link href="/mahad">Back to home</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {lookupResult.status === 'found' && (
-        <Card
+        <div
           role="status"
           aria-live="polite"
-          className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-teal-200 md:p-8"
+          className="overflow-hidden rounded-2xl ring-1 ring-[#007078]/20"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(0,112,120,0.04) 0%, rgba(222,180,62,0.06) 100%)',
+          }}
         >
-          <CardHeader className="px-0 pb-2">
-            <CardTitle className="text-lg text-[#007078]">
-              Registration on file
-            </CardTitle>
-            <CardDescription>
-              We found a Mahad registration for{' '}
-              <span className="font-medium text-foreground">
-                {lookupResult.studentName}
-              </span>
-              .
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 px-0 text-sm text-gray-700">
-            <p>
-              <span className="font-medium text-gray-900">Submitted: </span>
-              {format(new Date(lookupResult.registeredAt), 'MMMM d, yyyy')}
-            </p>
-            <p>
-              <span className="font-medium text-gray-900">Program status: </span>
-              {lookupResult.programStatusLabel}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              If something looks wrong, contact the admin team with your full
-              name and phone number.
-            </p>
-          </CardContent>
-        </Card>
+          <div className="p-6 md:p-8">
+            <div className="flex gap-4">
+              <CheckCircle2
+                className="mt-0.5 h-5 w-5 shrink-0 text-[#007078]"
+                aria-hidden="true"
+              />
+              <div className="min-w-0 flex-1 space-y-4">
+                <div>
+                  <p className="font-semibold text-[#007078]">
+                    Registration on file
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    Found a Māhad registration for{' '}
+                    <span className="font-medium text-gray-900">
+                      {lookupResult.studentName}
+                    </span>
+                    .
+                  </p>
+                </div>
+                <dl className="space-y-1.5 text-sm">
+                  <div className="flex gap-2">
+                    <dt className="font-medium text-gray-700">Submitted</dt>
+                    <dd className="text-gray-600">
+                      {format(
+                        new Date(lookupResult.registeredAt),
+                        'MMMM d, yyyy'
+                      )}
+                    </dd>
+                  </div>
+                  <div className="flex gap-2">
+                    <dt className="font-medium text-gray-700">Status</dt>
+                    <dd className="text-gray-600">
+                      {lookupResult.programStatusLabel}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-xs text-gray-400">
+                  If something looks wrong, contact the admin team with your
+                  full name and phone number.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div
+            className="h-1 w-full"
+            style={{
+              background: 'linear-gradient(90deg, #007078 0%, #deb43e 100%)',
+            }}
+            aria-hidden="true"
+          />
+        </div>
       )}
     </div>
   )
