@@ -11,18 +11,5 @@
     "analyze-codebase@claude-code-marketplace": true,
     "feature-dev@claude-plugins-official": true
   },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/metadata-updater.sh",
-            "timeout": 5000
-          }
-        ]
-      }
-    ]
-  }
+  "hooks": {}
 }

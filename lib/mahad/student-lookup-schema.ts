@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { nameSchema } from '@/lib/registration/schemas/registration'
+import { nameSchema } from '@/lib/registration/schemas/registration-field-schemas'
 
 export const mahadStudentLookupSchema = z.object({
   firstName: nameSchema,

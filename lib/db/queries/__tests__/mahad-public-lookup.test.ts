@@ -43,12 +43,12 @@ describe('mahad public lookup helpers', () => {
   it('disambiguates siblings who share a last name and household phone', () => {
     const siblings = [candidate('Amina Hassan'), candidate('Abdi Hassan')]
 
-    expect(pickMahadRegistrationMatch(siblings, 'amina', 'hassan')).toMatchObject(
-      { person: { name: 'Amina Hassan' } }
-    )
-    expect(pickMahadRegistrationMatch(siblings, 'abdi', 'hassan')).toMatchObject(
-      { person: { name: 'Abdi Hassan' } }
-    )
+    expect(
+      pickMahadRegistrationMatch(siblings, 'amina', 'hassan')
+    ).toMatchObject({ person: { name: 'Amina Hassan' } })
+    expect(
+      pickMahadRegistrationMatch(siblings, 'abdi', 'hassan')
+    ).toMatchObject({ person: { name: 'Abdi Hassan' } })
   })
 
   it('returns null when no profile matches first + last name', () => {
@@ -87,10 +87,21 @@ describe('findMahadRegistrationByNameAndPhoneLast4', () => {
     expect(mockFindMany).not.toHaveBeenCalled()
   })
 
-  it('returns { found: false } without querying when names are empty after trim', async () => {
+  it('returns { found: false } without querying when firstName is empty after trim', async () => {
     const result = await findMahadRegistrationByNameAndPhoneLast4(
       '   ',
       'Hassan',
+      '1234'
+    )
+
+    expect(result).toEqual({ found: false })
+    expect(mockFindMany).not.toHaveBeenCalled()
+  })
+
+  it('returns { found: false } without querying when lastName is empty after trim', async () => {
+    const result = await findMahadRegistrationByNameAndPhoneLast4(
+      'Abdi',
+      '   ',
       '1234'
     )
 
@@ -130,7 +141,7 @@ describe('findMahadRegistrationByNameAndPhoneLast4', () => {
     expect(result).toEqual({
       found: true,
       studentName: 'Abdi Hassan',
-      registeredAt: '2026-02-15T08:30:00.000Z',
+      registeredAt: '2026-02-15',
       programStatusLabel: 'Enrolled',
     })
   })

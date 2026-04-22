@@ -10,7 +10,7 @@ import { returnValidationErrors } from 'next-safe-action'
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { ActionError } from '@/lib/errors/action-error'
-import { createActionLogger } from '@/lib/logger'
+import { createActionLogger, logError } from '@/lib/logger'
 import { mahadRegistrationSchema } from '@/lib/registration/schemas/mahad-registration'
 import { emailSchema } from '@/lib/registration/schemas/registration-field-schemas'
 import { rateLimitedActionClient } from '@/lib/safe-action'
@@ -83,6 +83,9 @@ const _registerStudent = rateLimitedActionClient
           })
         }
       }
+      await logError(logger, error, 'Unexpected error in Mahad registration', {
+        name: fullName,
+      })
       throw error
     }
   })
@@ -109,9 +112,22 @@ export async function checkEmailExists(email: string): Promise<boolean> {
     if (!rateResult.success) {
       return false
     }
-  } catch {
-    // Fail open if headers/rate-limit unavailable
+  } catch (error) {
+    logger.warn(
+      { err: error },
+      '[rate-limit] Rate limit check failed — failing open'
+    )
   }
 
-  return DuplicateDetectionService.isEmailRegistered(parsed.data, MAHAD_PROGRAM)
+  try {
+    return await DuplicateDetectionService.isEmailRegistered(
+      parsed.data,
+      MAHAD_PROGRAM
+    )
+  } catch (error) {
+    await logError(logger, error, 'Email existence check failed', {
+      email: parsed.data,
+    })
+    return false
+  }
 }

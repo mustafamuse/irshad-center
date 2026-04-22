@@ -34,10 +34,7 @@ import {
   MAHAD_DEFAULT_FORM_VALUES,
 } from '@/lib/registration/schemas/mahad-registration'
 import { SHOW_GRADE_SCHOOL } from '@/lib/registration/schemas/registration-field-schemas'
-import {
-  buttonClassNames,
-  getInputClassNames,
-} from '@/lib/registration/utils/form-utils'
+import { getInputClassNames } from '@/lib/registration/utils/form-utils'
 import {
   formatMahadEstimate,
   formatMahadOptionPrice,
@@ -72,10 +69,10 @@ function EstimatedPrice({
   )
 
   return (
-    <div className="rounded-lg bg-teal-50 p-3 text-sm">
-      <p className="font-medium text-teal-800">{label}</p>
+    <div className="rounded-lg bg-[#007078]/5 p-3 text-sm">
+      <p className="font-medium text-[#007078]">{label}</p>
       {savingsLabel ? (
-        <p className="text-teal-600">{savingsLabel}</p>
+        <p className="text-[#007078]/70">{savingsLabel}</p>
       ) : null}
     </div>
   )
@@ -110,10 +107,7 @@ export function RegisterForm() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(handleSubmit)}
-          className="space-y-4"
-        >
+        <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <Card className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-gray-200 md:p-8">
             <CardHeader className="mb-6 space-y-1 px-0 pb-6">
               <CardTitle className="text-xl font-semibold text-[#007078]">
@@ -172,10 +166,7 @@ export function RegisterForm() {
                         </SelectTrigger>
                         <SelectContent>
                           {MAHAD_GRADE_OPTIONS.map((option) => (
-                            <SelectItem
-                              key={option.value}
-                              value={option.value}
-                            >
+                            <SelectItem key={option.value} value={option.value}>
                               {option.label}
                             </SelectItem>
                           ))}
@@ -270,7 +261,7 @@ export function RegisterForm() {
 
               <Button
                 type="submit"
-                className={buttonClassNames.primary}
+                variant="brand"
                 disabled={isSubmitting || form.formState.isSubmitting}
                 aria-busy={isSubmitting || form.formState.isSubmitting}
               >
