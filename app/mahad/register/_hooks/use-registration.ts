@@ -1,10 +1,11 @@
 import { useRouter } from 'next/navigation'
 
+import { useAction } from 'next-safe-action/hooks'
 import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
-import { useSafeActionForm } from '@/app/mahad/_hooks/use-safe-action-form'
-import type { MahadRegistrationValues } from '@/lib/registration/schemas/registration'
+import { applySafeActionValidationErrorsToForm } from '@/lib/mahad/apply-safe-action-validation-to-rhf'
+import type { MahadRegistrationValues } from '@/lib/registration/schemas/mahad-registration'
 
 import { registerStudent as registerStudentAction } from '../_actions'
 
@@ -15,26 +16,35 @@ export function useRegistration({
 }) {
   const router = useRouter()
 
-  const { execute, isPending } = useSafeActionForm<
-    MahadRegistrationValues,
-    { name: string }
-  >({
-    form,
-    action: registerStudentAction,
-    validationErrorToast: 'Please correct the errors above.',
-    exceptionToast: 'Registration failed. Please try again.',
-    loggerName: 'mahad-registration',
-    onSuccess: (data) => {
+  const { execute, isPending } = useAction(registerStudentAction, {
+    onSuccess: ({ data }) => {
+      if (!data) return
       toast.success('Registration complete!')
       form.reset()
       router.push(
         `/mahad/register/success?name=${encodeURIComponent(data.name)}`
       )
     },
+    onError: ({ error }) => {
+      if (error.validationErrors) {
+        applySafeActionValidationErrorsToForm(form, error.validationErrors)
+        toast.error('Please correct the errors above.')
+        return
+      }
+      if (error.serverError) {
+        toast.error(error.serverError)
+        return
+      }
+      toast.error('Registration failed. Please try again.')
+    },
   })
 
+  function registerStudent(values: MahadRegistrationValues) {
+    execute(values)
+  }
+
   return {
-    registerStudent: execute,
+    registerStudent,
     isSubmitting: isPending,
   }
 }

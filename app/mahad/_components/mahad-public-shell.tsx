@@ -47,7 +47,7 @@ export function MahadPublicShell({
             ) : null}
             {headerExtra}
           </header>
-          {children}
+          <main>{children}</main>
         </div>
       </div>
     </div>

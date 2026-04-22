@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { nameSchema } from '@/lib/registration/schemas/registration'
 
 export const mahadStudentLookupSchema = z.object({
+  firstName: nameSchema,
   lastName: nameSchema,
   phoneLast4: z
     .string()

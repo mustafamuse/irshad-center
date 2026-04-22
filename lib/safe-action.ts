@@ -32,20 +32,29 @@ export const adminActionClient = actionClient.use(async ({ next }) => {
   return next()
 })
 
+/**
+ * Resolve a rate-limit identifier from request headers. When no IP is
+ * available (misconfigured proxy, local requests), fall back to a shared
+ * `"unknown"` bucket so attackers cannot bypass throttling by stripping
+ * the `x-forwarded-for` header.
+ */
+async function getRateLimitIdentifier(): Promise<string> {
+  const headersList = await headers()
+  const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
+  return ip || 'unknown'
+}
+
 export const rateLimitedActionClient = actionClient.use(
   async ({ next, metadata }) => {
-    const headersList = await headers()
-    const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
-    if (ip) {
-      const result = await checkRateLimit(`${metadata.actionName}:${ip}`)
-      if (!result.success) {
-        throw new ActionError(
-          'Too many attempts. Please try again later.',
-          ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          undefined,
-          429
-        )
-      }
+    const identifier = await getRateLimitIdentifier()
+    const result = await checkRateLimit(`${metadata.actionName}:${identifier}`)
+    if (!result.success) {
+      throw new ActionError(
+        'Too many attempts. Please try again later.',
+        ERROR_CODES.RATE_LIMIT_EXCEEDED,
+        undefined,
+        429
+      )
     }
     return next()
   }
@@ -53,18 +62,15 @@ export const rateLimitedActionClient = actionClient.use(
 
 export const rateLimitedAdminActionClient = adminActionClient.use(
   async ({ next, metadata }) => {
-    const headersList = await headers()
-    const ip = headersList.get('x-forwarded-for')?.split(',')[0]?.trim()
-    if (ip) {
-      const result = await checkRateLimit(`${metadata.actionName}:${ip}`)
-      if (!result.success) {
-        throw new ActionError(
-          'Too many attempts. Please try again later.',
-          ERROR_CODES.RATE_LIMIT_EXCEEDED,
-          undefined,
-          429
-        )
-      }
+    const identifier = await getRateLimitIdentifier()
+    const result = await checkRateLimit(`${metadata.actionName}:${identifier}`)
+    if (!result.success) {
+      throw new ActionError(
+        'Too many attempts. Please try again later.',
+        ERROR_CODES.RATE_LIMIT_EXCEEDED,
+        undefined,
+        429
+      )
     }
     return next()
   }

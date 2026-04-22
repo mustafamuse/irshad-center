@@ -4,10 +4,7 @@ import { Metadata } from 'next'
 
 import { MahadPublicProviders } from '../_components/mahad-public-providers'
 import { MahadPublicShell } from '../_components/mahad-public-shell'
-
 import { RegisterForm } from './_components/registration-form'
-
-export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Student Registration - Irshād Māhad',

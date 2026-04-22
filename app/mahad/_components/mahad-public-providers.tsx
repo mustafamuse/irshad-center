@@ -1,7 +1,5 @@
 'use client'
 
-import { Toaster } from 'sonner'
-
 import { AppErrorBoundary } from '@/components/error-boundary'
 
 interface MahadPublicProvidersProps {
@@ -9,6 +7,10 @@ interface MahadPublicProvidersProps {
   context?: string
 }
 
+/**
+ * Inline error boundary for Mahad public flows. Toasts use the root `Toaster`
+ * in `app/layout.tsx` — do not mount a second `Toaster` here.
+ */
 export function MahadPublicProviders({
   children,
   context = 'Mahad',
@@ -16,17 +18,6 @@ export function MahadPublicProviders({
   return (
     <AppErrorBoundary context={context} variant="inline">
       {children}
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          duration: 4000,
-          style: {
-            background: 'white',
-            color: '#374151',
-            border: '1px solid #e5e7eb',
-          },
-        }}
-      />
     </AppErrorBoundary>
   )
 }
