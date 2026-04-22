@@ -2,6 +2,7 @@ import { EnrollmentStatus } from '@prisma/client'
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
 
 export function getLastNameFromFullName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/).filter(Boolean)
@@ -41,7 +42,7 @@ export interface MahadPublicLookupCandidate {
 }
 
 export function pickMahadRegistrationMatch<
-  T extends { person: { name: string } }
+  T extends { person: { name: string } },
 >(
   profiles: T[],
   normalizedFirstName: string,
@@ -69,7 +70,8 @@ export function pickMahadRegistrationMatch<
 export async function findMahadRegistrationByNameAndPhoneLast4(
   firstName: string,
   lastName: string,
-  phoneLast4: string
+  phoneLast4: string,
+  client: DatabaseClient = prisma
 ): Promise<MahadPublicLookupResult> {
   const normFirst = firstName.trim().toLowerCase()
   const normLast = lastName.trim().toLowerCase()
@@ -77,7 +79,7 @@ export async function findMahadRegistrationByNameAndPhoneLast4(
     return { found: false }
   }
 
-  const profiles = await prisma.programProfile.findMany({
+  const profiles = await client.programProfile.findMany({
     where: {
       program: MAHAD_PROGRAM,
       person: {

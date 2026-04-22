@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+import { assertAdmin } from '@/lib/auth'
+
 /**
  * Notifications API Route
  *
@@ -7,6 +9,6 @@ import { NextResponse } from 'next/server'
  * This endpoint is stubbed until notifications feature is properly set up.
  */
 export async function GET() {
-  // Return empty notifications array
+  await assertAdmin()
   return NextResponse.json([])
 }

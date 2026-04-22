@@ -9,10 +9,13 @@ import { returnValidationErrors } from 'next-safe-action'
 
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { ActionError } from '@/lib/errors/action-error'
+import { createActionLogger, logError } from '@/lib/logger'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { createFamilyRegistration } from '@/lib/services/registration-service'
 import { findGuardianByEmail } from '@/lib/services/shared/parent-service'
+
+const logger = createActionLogger('dugsi-registration')
 
 const _registerDugsiChildren = rateLimitedActionClient
   .metadata({ actionName: 'registerDugsiChildren' })
@@ -94,6 +97,9 @@ const _registerDugsiChildren = rateLimitedActionClient
           })
         }
       }
+      await logError(logger, error, 'Unexpected error in Dugsi registration', {
+        familyReferenceId,
+      })
       throw error
     }
   })
