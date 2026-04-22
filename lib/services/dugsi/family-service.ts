@@ -13,10 +13,13 @@ import {
   ERROR_CODES,
   throwIfP2002,
 } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+
+const logger = createServiceLogger('dugsi-family-service')
 
 export interface ParentUpdateInput {
   /** ID of any student in the family (used to look up family) */
@@ -136,6 +139,9 @@ export async function updateParentInfo(
         })
       } catch (error) {
         throwIfP2002(error)
+        await logError(logger, error, 'Unexpected DB error in family service', {
+          guardianId: guardian.id,
+        })
         throw error
       }
     }
@@ -250,6 +256,10 @@ export async function addSecondParent(
     )
   } catch (error) {
     throwIfP2002(error)
+    await logError(logger, error, 'Unexpected DB error in family service', {
+      studentId: input.studentId,
+      dependentId: profile?.person.id,
+    })
     throw error
   }
 

@@ -16,11 +16,14 @@ import {
   ERROR_CODES,
   throwIfP2002,
 } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+
+const logger = createServiceLogger('mahad-student-service')
 
 /**
  * Student creation input
@@ -269,23 +272,30 @@ export async function getMahadStudentSiblings(studentId: string) {
  * @returns Deleted profile
  */
 export async function deleteMahadStudent(studentId: string) {
-  return await prisma.$transaction(async (tx) => {
-    await tx.enrollment.updateMany({
-      where: {
-        programProfileId: studentId,
-        status: { not: 'WITHDRAWN' },
-      },
-      data: {
-        status: 'WITHDRAWN',
-        endDate: new Date(),
-      },
-    })
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await tx.enrollment.updateMany({
+        where: {
+          programProfileId: studentId,
+          status: { not: 'WITHDRAWN' },
+        },
+        data: {
+          status: 'WITHDRAWN',
+          endDate: new Date(),
+        },
+      })
 
-    return tx.programProfile.update({
-      where: { id: studentId },
-      data: {
-        status: 'WITHDRAWN',
-      },
+      return tx.programProfile.update({
+        where: { id: studentId },
+        data: {
+          status: 'WITHDRAWN',
+        },
+      })
     })
-  })
+  } catch (error) {
+    await logError(logger, error, 'Failed to delete Mahad student', {
+      studentId,
+    })
+    throw error
+  }
 }

@@ -1,13 +1,17 @@
 import * as Sentry from '@sentry/nextjs'
 
+import { createServiceLogger } from '@/lib/logger'
+
 import { LogEventData } from './types'
+
+const logger = createServiceLogger('webhook')
 
 export function logEvent(
   message: string,
   eventId: string,
   data: LogEventData
 ): void {
-  console.log(`[${message}] Event ID: ${eventId}`, data)
+  logger.info(data, message)
 }
 
 export function handleError(
