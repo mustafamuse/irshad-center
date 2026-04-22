@@ -64,6 +64,14 @@ export async function checkRateLimit(
         })
       : getDefaultRatelimit()
 
-  const { success, remaining, reset } = await client.limit(identifier)
-  return { success, remaining, reset }
+  try {
+    const { success, remaining, reset } = await client.limit(identifier)
+    return { success, remaining, reset }
+  } catch (error) {
+    console.error(
+      '[rate-limit] Redis error — failing open:',
+      error instanceof Error ? error.message : String(error)
+    )
+    return { success: true, remaining: maxAttempts, reset: 0 }
+  }
 }

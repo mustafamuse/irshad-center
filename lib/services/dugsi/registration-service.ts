@@ -26,7 +26,7 @@ import {
 } from '@/lib/db/queries/program-profile'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger, logWarning } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
 import {
@@ -375,13 +375,13 @@ async function cancelFamilySubscriptions(
           )
           canceled++
         } catch (error) {
-          await logWarning(
+          await logError(
             logger,
+            error,
             'Subscription cancellation failed during family deletion',
             {
               stripeSubscriptionId,
               familyId: profiles[0]?.familyReferenceId,
-              error: error instanceof Error ? error.message : 'Unknown error',
             }
           )
         }

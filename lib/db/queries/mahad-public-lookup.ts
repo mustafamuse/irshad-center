@@ -26,7 +26,7 @@ const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
 export interface MahadPublicLookupSuccess {
   found: true
   studentName: string
-  /** ISO date string (UTC) of program profile creation */
+  /** UTC date string YYYY-MM-DD of program profile creation */
   registeredAt: string
   programStatusLabel: string
 }
@@ -109,7 +109,7 @@ export async function findMahadRegistrationByNameAndPhoneLast4(
   return {
     found: true,
     studentName: match.person.name.trim(),
-    registeredAt: match.createdAt.toISOString(),
+    registeredAt: match.createdAt.toISOString().slice(0, 10),
     programStatusLabel,
   }
 }

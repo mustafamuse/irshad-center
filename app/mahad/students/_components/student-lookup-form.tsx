@@ -5,14 +5,13 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 import { zodResolver } from '@hookform/resolvers/zod'
-import { format } from 'date-fns'
-import { Loader2 } from 'lucide-react'
-import { AlertCircle, CheckCircle2 } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { useAction } from 'next-safe-action/hooks'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
-
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -35,10 +34,7 @@ import {
   mahadStudentLookupSchema,
   type MahadStudentLookupValues,
 } from '@/lib/mahad/student-lookup-schema'
-import {
-  buttonClassNames,
-  getInputClassNames,
-} from '@/lib/registration/utils/form-utils'
+import { getInputClassNames } from '@/lib/registration/utils/form-utils'
 
 import { lookupMahadRegistration } from '../_actions/lookup'
 
@@ -47,7 +43,6 @@ type LookupUiState =
   | { status: 'not_found' }
   | {
       status: 'found'
-      studentName: string
       registeredAt: string
       programStatusLabel: string
     }
@@ -81,7 +76,6 @@ export function StudentLookupForm() {
       }
       setLookupResult({
         status: 'found',
-        studentName: data.studentName,
         registeredAt: data.registeredAt,
         programStatusLabel: data.programStatusLabel,
       })
@@ -229,8 +223,9 @@ export function StudentLookupForm() {
 
               <Button
                 type="submit"
-                className={buttonClassNames.primary}
+                variant="brand"
                 disabled={isPending}
+                aria-busy={isPending}
               >
                 {isPending ? (
                   <span className="flex items-center gap-2">
@@ -247,87 +242,80 @@ export function StudentLookupForm() {
       </Form>
 
       {lookupResult.status === 'not_found' && (
-        <div
+        <Alert
+          variant="warning"
           role="status"
           aria-live="polite"
-          className="overflow-hidden rounded-2xl bg-amber-50 p-6 ring-1 ring-amber-200 md:p-8"
+          className="rounded-2xl p-6 md:p-8"
         >
-          <div className="flex gap-4">
-            <AlertCircle
-              className="mt-0.5 h-5 w-5 shrink-0 text-amber-500"
-              aria-hidden="true"
-            />
-            <div className="space-y-4">
-              <div>
-                <p className="font-semibold text-amber-900">
-                  No registration found
-                </p>
-                <p className="mt-1 text-sm text-amber-700">
-                  We could not find a Māhad registration matching those details.
-                  Double-check the name and phone number you used when
-                  registering.
-                </p>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button asChild className={buttonClassNames.primary}>
-                  <Link href="/mahad/register">Register for Māhad</Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="border-amber-300 text-amber-800 hover:bg-amber-100"
-                >
-                  <Link href="/mahad">Back to home</Link>
-                </Button>
-              </div>
+          <AlertCircle className="h-5 w-5" />
+          <AlertTitle className="text-base font-semibold">
+            No registration found
+          </AlertTitle>
+          <AlertDescription className="mt-1 space-y-4">
+            <p>
+              We could not find a Māhad registration matching those details.
+              Double-check the name and phone number you used when registering.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button asChild variant="brand">
+                <Link href="/mahad/register">Register for Māhad</Link>
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="h-14 rounded-full border-amber-300 text-amber-800 hover:bg-amber-100 md:h-12"
+              >
+                <Link href="/mahad">Back to home</Link>
+              </Button>
             </div>
-          </div>
-        </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       {lookupResult.status === 'found' && (
-        <div
+        <Alert
+          variant="success"
           role="status"
           aria-live="polite"
-          className="overflow-hidden rounded-2xl ring-1 ring-[#007078]/20"
-          style={{
-            background:
-              'linear-gradient(135deg, rgba(0,112,120,0.04) 0%, rgba(222,180,62,0.06) 100%)',
-          }}
+          className="overflow-hidden rounded-2xl p-0"
         >
           <div className="p-6 md:p-8">
             <div className="flex gap-4">
               <CheckCircle2
-                className="mt-0.5 h-5 w-5 shrink-0 text-[#007078]"
+                className="mt-0.5 h-5 w-5 shrink-0"
                 aria-hidden="true"
               />
               <div className="min-w-0 flex-1 space-y-4">
                 <div>
-                  <p className="font-semibold text-[#007078]">
+                  <AlertTitle className="text-base font-semibold">
                     Registration on file
-                  </p>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Found a Māhad registration for{' '}
-                    <span className="font-medium text-gray-900">
-                      {lookupResult.studentName}
-                    </span>
-                    .
-                  </p>
+                  </AlertTitle>
+                  <AlertDescription className="mt-1 text-sm text-gray-600">
+                    A Māhad registration was found matching your details.
+                  </AlertDescription>
                 </div>
                 <dl className="space-y-1.5 text-sm">
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <dt className="font-medium text-gray-700">Submitted</dt>
                     <dd className="text-gray-600">
-                      {format(
-                        new Date(lookupResult.registeredAt),
-                        'MMMM d, yyyy'
-                      )}
+                      {new Intl.DateTimeFormat('en-US', {
+                        timeZone: 'UTC',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      }).format(new Date(lookupResult.registeredAt))}
                     </dd>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <dt className="font-medium text-gray-700">Status</dt>
-                    <dd className="text-gray-600">
-                      {lookupResult.programStatusLabel}
+                    <dd>
+                      <Badge
+                        variant="outline"
+                        className="border-[#007078]/30 bg-[#007078]/10 text-[#007078]"
+                      >
+                        {lookupResult.programStatusLabel}
+                      </Badge>
                     </dd>
                   </div>
                 </dl>
@@ -345,7 +333,7 @@ export function StudentLookupForm() {
             }}
             aria-hidden="true"
           />
-        </div>
+        </Alert>
       )}
     </div>
   )
