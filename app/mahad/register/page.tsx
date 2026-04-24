@@ -2,13 +2,15 @@ import Link from 'next/link'
 
 import { Metadata } from 'next'
 
+import { getAcademicYear } from '@/lib/utils/academic-year'
+
 import { MahadPublicProviders } from '../_components/mahad-public-providers'
 import { MahadPublicShell } from '../_components/mahad-public-shell'
 import { RegisterForm } from './_components/registration-form'
 
 export const metadata: Metadata = {
   title: 'Student Registration - Irshād Māhad',
-  description: 'Register for the 2024-2025 academic year at Irshād Māhad.',
+  description: `Register for the ${getAcademicYear()} academic year at Irshād Māhad.`,
 }
 
 export default function RegisterPage() {
@@ -16,7 +18,7 @@ export default function RegisterPage() {
     <MahadPublicProviders context="Mahad registration">
       <MahadPublicShell
         title="Student Registration"
-        description="Join our 2024-2025 academic year at Irshād Māhad"
+        description={`Join our ${getAcademicYear()} academic year at Irshād Māhad`}
         headerExtra={
           <p className="text-sm text-gray-600">
             Already registered?{' '}

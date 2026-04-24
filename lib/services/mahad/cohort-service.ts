@@ -12,7 +12,6 @@
  * - Manage batch lifecycle
  */
 
-import { prisma } from '@/lib/db'
 import {
   createBatch,
   deleteBatch,
@@ -21,6 +20,7 @@ import {
   getBatchStudents,
   getBatchStudentCount,
   getBatchesWithFilters,
+  updateBatch,
 } from '@/lib/db/queries/batch'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
@@ -189,10 +189,7 @@ export async function updateMahadBatch(
   }
 
   try {
-    return await prisma.batch.update({
-      where: { id: batchId },
-      data,
-    })
+    return await updateBatch(batchId, data)
   } catch (error) {
     await logError(logger, error, 'Failed to update Mahad batch', { batchId })
     throw error

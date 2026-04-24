@@ -19,7 +19,8 @@ const buttonVariants = cva(
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
         brand:
-          'h-14 w-full rounded-full bg-[#007078] text-base font-medium text-white transition-colors hover:bg-[#007078]/90 md:h-12',
+          'h-14 w-full rounded-full bg-brand text-base font-medium text-white transition-colors hover:bg-brand-hover md:h-12',
+        // TODO: migrate `#deb43e` to a `--brand-accent` token when the design system adds one.
         'brand-outline':
           'h-14 w-full rounded-full border border-[#deb43e] text-base font-medium text-[#deb43e] transition-colors hover:bg-[#deb43e]/10 md:h-12',
       },

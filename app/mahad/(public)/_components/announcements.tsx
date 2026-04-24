@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import { MessageCircle, Users2, ArrowRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { getAcademicYear } from '@/lib/utils/academic-year'
 
 interface TimelinePhase {
   step: number
@@ -115,8 +116,8 @@ export const AnnouncementSection: React.FC = () => {
                 Enrollment Still Open!
               </h2>
               <p className="mt-3 text-xl text-white/90">
-                Join our 2024-2025 academic year. Limited spots available for
-                our Islamic Studies program.
+                Join our {getAcademicYear()} academic year. Limited spots
+                available for our Islamic Studies program.
               </p>
             </div>
 

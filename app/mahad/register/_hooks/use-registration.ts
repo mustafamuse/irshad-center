@@ -4,8 +4,8 @@ import { useAction } from 'next-safe-action/hooks'
 import { UseFormReturn } from 'react-hook-form'
 import { toast } from 'sonner'
 
-import { applySafeActionValidationErrorsToForm } from '@/lib/mahad/apply-safe-action-validation-to-rhf'
 import type { MahadRegistrationValues } from '@/lib/registration/schemas/mahad-registration'
+import { applySafeActionValidationErrorsToForm } from '@/lib/registration/utils/apply-safe-action-validation-to-rhf'
 
 import { registerStudent as registerStudentAction } from '../_actions'
 

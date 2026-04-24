@@ -30,16 +30,6 @@ export const inputClassNames = {
   withIcon: 'pr-12',
 }
 
-// Common button class names
-export const buttonClassNames = {
-  primary:
-    'h-14 w-full rounded-full bg-[#007078] text-base font-medium text-white transition-colors hover:bg-[#007078]/90 md:h-12',
-  secondary:
-    'h-14 w-full rounded-full border-[#deb43e] text-base font-medium text-[#deb43e] transition-colors hover:bg-[#deb43e]/10 md:h-12',
-  ghost:
-    'h-8 w-8 rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500',
-}
-
 // Helper to get combined input class names
 export function getInputClassNames(hasError: boolean, hasIcon = false): string {
   return [
