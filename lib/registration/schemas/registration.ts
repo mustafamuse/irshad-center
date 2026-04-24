@@ -78,14 +78,6 @@ export const SHIFT_OPTIONS = [
   { value: 'AFTERNOON', label: 'Afternoon' },
 ] as const
 
-export {
-  MAHAD_DEFAULT_FORM_VALUES,
-  MAHAD_GRADE_OPTIONS,
-  mahadRegistrationSchema,
-  type MahadFormSectionProps,
-  type MahadRegistrationValues,
-} from './mahad-registration'
-
 // ============================================================================
 // DUGSI (PARENT-LED REGISTRATION) SCHEMA
 // ============================================================================

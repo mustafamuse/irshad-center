@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 import { Control, FieldValues, Path } from 'react-hook-form'
 
@@ -34,6 +34,8 @@ export function DateOfBirthMonthDayYearField<T extends FieldValues>({
     >
       {(field, fieldState) => (
         <MonthDayYearInputs
+          groupLabel={label}
+          required={required}
           hasError={!!fieldState.error}
           value={field.value as Date | undefined}
           onChange={field.onChange}
@@ -44,10 +46,14 @@ export function DateOfBirthMonthDayYearField<T extends FieldValues>({
 }
 
 function MonthDayYearInputs({
+  groupLabel,
+  required,
   hasError,
   value,
   onChange,
 }: {
+  groupLabel: string
+  required: boolean
   hasError: boolean
   value: Date | undefined
   onChange: (next: Date | undefined) => void
@@ -56,6 +62,11 @@ function MonthDayYearInputs({
   const [day, setDay] = useState(() => parseDateParts(value).day)
   const [year, setYear] = useState(() => parseDateParts(value).year)
   const skipSyncRef = useRef(false)
+
+  const monthId = useId()
+  const dayId = useId()
+  const yearId = useId()
+  const hintId = useId()
 
   useEffect(() => {
     if (skipSyncRef.current) {
@@ -74,23 +85,36 @@ function MonthDayYearInputs({
     setMonth(nextMonth)
     setDay(nextDay)
     setYear(nextYear)
-    const built = tryBuildDate(nextMonth.trim(), nextDay.trim(), nextYear.trim())
+    const built = tryBuildDate(
+      nextMonth.trim(),
+      nextDay.trim(),
+      nextYear.trim()
+    )
     skipSyncRef.current = true
     onChange(built)
   }
 
   return (
-    <div className="space-y-2">
+    <fieldset className="space-y-2">
+      <legend className="sr-only">{groupLabel}</legend>
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Month</span>
+          <label
+            htmlFor={monthId}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Month
+          </label>
           <Input
+            id={monthId}
             type="text"
             inputMode="numeric"
             autoComplete="bday-month"
             placeholder="MM"
             maxLength={2}
-            aria-label="Birth month"
+            aria-required={required}
+            aria-invalid={hasError}
+            aria-describedby={hintId}
             className={inputClass}
             value={month}
             onChange={(e) => {
@@ -100,14 +124,22 @@ function MonthDayYearInputs({
           />
         </div>
         <div className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Day</span>
+          <label
+            htmlFor={dayId}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Day
+          </label>
           <Input
+            id={dayId}
             type="text"
             inputMode="numeric"
             autoComplete="bday-day"
             placeholder="DD"
             maxLength={2}
-            aria-label="Birth day"
+            aria-required={required}
+            aria-invalid={hasError}
+            aria-describedby={hintId}
             className={inputClass}
             value={day}
             onChange={(e) => {
@@ -117,14 +149,22 @@ function MonthDayYearInputs({
           />
         </div>
         <div className="space-y-1.5">
-          <span className="text-xs font-medium text-muted-foreground">Year</span>
+          <label
+            htmlFor={yearId}
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Year
+          </label>
           <Input
+            id={yearId}
             type="text"
             inputMode="numeric"
             autoComplete="bday-year"
             placeholder="YYYY"
             maxLength={4}
-            aria-label="Birth year"
+            aria-required={required}
+            aria-invalid={hasError}
+            aria-describedby={hintId}
             className={inputClass}
             value={year}
             onChange={(e) => {
@@ -134,10 +174,10 @@ function MonthDayYearInputs({
           />
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Enter your date of birth as month, day, and year. Example: March 5, 2005 →
-        03 / 05 / 2005
+      <p id={hintId} className="text-xs text-muted-foreground">
+        Enter your date of birth as month, day, and year. Example: March 5, 2005
+        → 03 / 05 / 2005
       </p>
-    </div>
+    </fieldset>
   )
 }

@@ -177,6 +177,7 @@ export async function updateBatch(
     name?: string
     startDate?: Date | null
     endDate?: Date | null
+    isActive?: boolean
   },
   client: DatabaseClient = prisma
 ): Promise<BatchWithCount> {
@@ -186,6 +187,7 @@ export async function updateBatch(
     name?: string
     startDate?: Date | null
     endDate?: Date | null
+    isActive?: boolean
   } = {}
 
   if (data.name !== undefined) {
@@ -196,6 +198,9 @@ export async function updateBatch(
   }
   if (data.endDate !== undefined) {
     updateData.endDate = data.endDate
+  }
+  if (data.isActive !== undefined) {
+    updateData.isActive = data.isActive
   }
 
   const batch = await client.batch.update({

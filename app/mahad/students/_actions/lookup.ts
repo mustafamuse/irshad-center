@@ -1,7 +1,7 @@
 'use server'
 
 import { findMahadRegistrationByNameAndPhoneLast4 } from '@/lib/db/queries/mahad-public-lookup'
-import { mahadStudentLookupSchema } from '@/lib/mahad/student-lookup-schema'
+import { mahadStudentLookupSchema } from '@/lib/registration/schemas/mahad-student-lookup'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 
 const _lookupMahadRegistration = rateLimitedActionClient

@@ -278,6 +278,17 @@ export async function getMahadStudentSiblings(studentId: string) {
  * @returns Deleted profile
  */
 export async function deleteMahadStudent(studentId: string) {
+  const profile = await getProgramProfileById(studentId)
+
+  if (!profile || profile.program !== MAHAD_PROGRAM) {
+    throw new ActionError(
+      'Mahad student profile not found',
+      ERROR_CODES.PROFILE_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
   try {
     return await prisma.$transaction(async (tx) => {
       await tx.enrollment.updateMany({
@@ -299,6 +310,7 @@ export async function deleteMahadStudent(studentId: string) {
       })
     })
   } catch (error) {
+    if (error instanceof ActionError) throw error
     await logError(logger, error, 'Failed to delete Mahad student', {
       studentId,
     })

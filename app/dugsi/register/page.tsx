@@ -1,16 +1,19 @@
 import { Metadata } from 'next'
 
+import { getAcademicYear } from '@/lib/utils/academic-year'
+
 import { DugsiRegisterPage } from './register-page'
 
 export const dynamic = 'force-dynamic'
+
+const dugsiDescription = `Register your child for the ${getAcademicYear()} academic year at Irshād Dugsi. Weekend Islamic education program for children in Eden Prairie.`
+
 export const metadata: Metadata = {
   title: 'Child Registration - Irshād Dugsi',
-  description:
-    'Register your child for the 2024-2025 academic year at Irshād Dugsi. Weekend Islamic education program for children in Eden Prairie.',
+  description: dugsiDescription,
   openGraph: {
     title: 'Child Registration - Irshād Dugsi',
-    description:
-      'Register your child for the 2024-2025 academic year at Irshād Dugsi. Weekend Islamic education program for children in Eden Prairie.',
+    description: dugsiDescription,
     images: [
       {
         url: '/images/Dugsi.svg',
@@ -23,8 +26,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Child Registration - Irshād Dugsi',
-    description:
-      'Register your child for the 2024-2025 academic year at Irshād Dugsi. Weekend Islamic education program for children in Eden Prairie.',
+    description: dugsiDescription,
     images: ['/images/Dugsi.svg'],
   },
 }
