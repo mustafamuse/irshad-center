@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { Metadata } from 'next'
 
 import { AnnouncementSection } from './_components/announcements'
-import { PaymentBanner } from './_components/banner'
 import { ContactSection } from './_components/contact'
 import SemesterCountdown from './_components/countdown'
 import { HomeHero } from './_components/hero'
@@ -21,7 +20,6 @@ export default function HomePage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <ScrollHandler />
-      <PaymentBanner />
       <MobileNav />
       <SemesterCountdown />
 

@@ -51,7 +51,6 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
           { title: 'Student lookup', url: '/mahad/check' },
           { title: 'Programs', url: '/mahad/programs' },
           { title: 'Scholarship', url: '/mahad/scholarship' },
-          { title: 'Autopay', url: '/mahad/autopay' },
           { title: 'Payment FAQ', url: '/mahad/payment-faq' },
           { title: 'Privacy', url: '/mahad/privacy' },
           { title: 'Terms', url: '/mahad/terms' },
