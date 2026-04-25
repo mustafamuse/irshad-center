@@ -1,9 +1,18 @@
 import Link from 'next/link'
 
 import { CheckCircle } from 'lucide-react'
+import { Metadata } from 'next'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
+import { MahadPageHeader } from '../../../_components/mahad-page-header'
+
+export const metadata: Metadata = {
+  title: 'Registration Complete - Irshād Māhad',
+  description: 'Your Irshād Māhad registration has been submitted.',
+  robots: { index: false, follow: false },
+}
 
 export default async function RegistrationSuccessPage({
   searchParams,
@@ -13,13 +22,14 @@ export default async function RegistrationSuccessPage({
   const { name } = await searchParams
 
   return (
-    <div className="min-h-screen bg-white px-4 pb-20 pt-4 md:px-6 md:py-8">
-      <div className="mx-auto max-w-lg space-y-6 pt-12">
+    <>
+      <MahadPageHeader title="Registration Complete" />
+      <main>
         <Card className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-gray-200 md:p-8">
           <CardHeader className="items-center space-y-4 px-0 pb-4">
-            <CheckCircle className="h-12 w-12 text-teal-600" />
-            <CardTitle className="text-center text-2xl font-semibold text-[#007078]">
-              Registration Complete
+            <CheckCircle className="h-12 w-12 text-brand" />
+            <CardTitle className="text-center text-2xl font-semibold text-brand">
+              You&apos;re all set
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6 px-0 text-center">
@@ -35,14 +45,11 @@ export default async function RegistrationSuccessPage({
               </p>
             </div>
             <div className="flex flex-col gap-3">
-              <Button
-                asChild
-                className="w-full bg-[#007078] hover:bg-[#005a60]"
-              >
+              <Button asChild variant="brand">
                 <Link href="/mahad/register">Register Another Student</Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/mahad/students">Check registration later</Link>
+                <Link href="/mahad/check">Check registration later</Link>
               </Button>
               <Button asChild variant="outline" className="w-full">
                 <Link href="/mahad">Back to Home</Link>
@@ -50,7 +57,7 @@ export default async function RegistrationSuccessPage({
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+      </main>
+    </>
   )
 }
