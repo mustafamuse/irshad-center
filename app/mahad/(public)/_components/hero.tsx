@@ -114,7 +114,7 @@ export function HomeHero() {
                 variant="outline"
                 className="rounded-full border-brand/40 px-8 text-brand transition-all hover:bg-brand/5"
               >
-                <Link href="/mahad/students">Check Registration</Link>
+                <Link href="/mahad/check">Check Registration</Link>
               </Button>
             </motion.div>
           </div>

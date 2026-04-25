@@ -5,19 +5,13 @@ import { ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
 
-interface MahadPublicShellProps {
-  title: React.ReactNode
-  description?: React.ReactNode
-  headerExtra?: React.ReactNode
+interface MahadPublicShellFrameProps {
   children: React.ReactNode
 }
 
-export function MahadPublicShell({
-  title,
-  description,
-  headerExtra,
+export function MahadPublicShellFrame({
   children,
-}: MahadPublicShellProps) {
+}: MahadPublicShellFrameProps) {
   return (
     <div
       className="min-h-screen"
@@ -40,7 +34,7 @@ export function MahadPublicShell({
             <Button
               asChild
               variant="ghost"
-              className="h-10 gap-2 rounded-xl text-sm text-[#007078] hover:bg-[#007078]/10"
+              className="h-10 gap-2 rounded-xl text-sm text-brand hover:bg-brand/10"
             >
               <Link href="/mahad">
                 <ArrowLeft className="h-4 w-4" />
@@ -52,20 +46,7 @@ export function MahadPublicShell({
             </div>
           </div>
 
-          <div className="mx-auto max-w-2xl">
-            <header className="mb-10 space-y-3 text-center">
-              <h1 className="text-3xl font-bold tracking-tight text-[#007078] sm:text-4xl">
-                {title}
-              </h1>
-              {description ? (
-                <p className="mx-auto max-w-md text-base text-gray-500">
-                  {description}
-                </p>
-              ) : null}
-              {headerExtra}
-            </header>
-            <main>{children}</main>
-          </div>
+          <div className="mx-auto max-w-2xl">{children}</div>
         </div>
       </div>
     </div>
