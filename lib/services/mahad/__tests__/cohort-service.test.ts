@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockUpdateBatch } = vi.hoisted(() => ({
+const { mockUpdateBatch, mockCreateBatch } = vi.hoisted(() => ({
   mockUpdateBatch: vi.fn(),
+  mockCreateBatch: vi.fn(),
 }))
 
 vi.mock('@/lib/db/queries/batch', () => ({
   updateBatch: (...args: unknown[]) => mockUpdateBatch(...args),
-  createBatch: vi.fn(),
+  createBatch: (...args: unknown[]) => mockCreateBatch(...args),
   deleteBatch: vi.fn(),
   getBatchById: vi.fn(),
   getBatches: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('@/lib/logger', () => ({
 
 import {
   activateMahadBatch,
+  createMahadBatch,
   deactivateMahadBatch,
   updateMahadBatch,
 } from '../cohort-service'
@@ -79,5 +81,36 @@ describe('activate/deactivate batch', () => {
   it('deactivateMahadBatch flips isActive to false via the query layer', async () => {
     await deactivateMahadBatch('batch-1')
     expect(mockUpdateBatch).toHaveBeenCalledWith('batch-1', { isActive: false })
+  })
+})
+
+describe('createMahadBatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockCreateBatch.mockResolvedValue({ id: 'batch-1' })
+  })
+
+  it('rejects when endDate is on or before startDate', async () => {
+    const start = new Date('2026-09-01')
+    const end = new Date('2026-08-01')
+    await expect(
+      createMahadBatch({ name: 'Fall 2026', startDate: start, endDate: end })
+    ).rejects.toMatchObject({
+      message: 'End date must be after start date',
+      field: 'endDate',
+    })
+    expect(mockCreateBatch).not.toHaveBeenCalled()
+  })
+
+  it('allows omitted endDate (open-ended batch)', async () => {
+    await createMahadBatch({
+      name: 'Open',
+      startDate: new Date('2026-09-01'),
+    })
+    expect(mockCreateBatch).toHaveBeenCalledWith({
+      name: 'Open',
+      startDate: new Date('2026-09-01'),
+      endDate: null,
+    })
   })
 })

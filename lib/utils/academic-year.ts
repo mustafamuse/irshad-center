@@ -1,4 +1,4 @@
-// Academic year runs September–August. Returns e.g. "2025-2026".
+/** Academic year runs September through August. */
 export function getAcademicYear(): string {
   const now = new Date()
   const year = now.getFullYear()

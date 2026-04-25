@@ -270,12 +270,18 @@ export async function getMahadStudentSiblings(studentId: string) {
 }
 
 /**
- * Delete Mahad student.
+ * Withdraw a Mahad student.
  *
- * Soft delete - marks as inactive and withdraws from enrollments.
+ * Soft-delete: marks the program profile WITHDRAWN and ends any active
+ * enrollments. The record is preserved for historical/billing reference.
+ *
+ * Throws `PROFILE_NOT_FOUND` (404) if no Mahad profile exists for `studentId`.
+ * A concurrent delete that races past the precheck (Prisma P2025) is
+ * translated to the same `PROFILE_NOT_FOUND` error so callers see a single
+ * consistent shape.
  *
  * @param studentId - Program profile ID
- * @returns Deleted profile
+ * @returns The withdrawn program profile
  */
 export async function deleteMahadStudent(studentId: string) {
   const profile = await getProgramProfileById(studentId)
@@ -311,6 +317,17 @@ export async function deleteMahadStudent(studentId: string) {
     })
   } catch (error) {
     if (error instanceof ActionError) throw error
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
+      throw new ActionError(
+        'Mahad student profile not found',
+        ERROR_CODES.PROFILE_NOT_FOUND,
+        undefined,
+        404
+      )
+    }
     await logError(logger, error, 'Failed to delete Mahad student', {
       studentId,
     })

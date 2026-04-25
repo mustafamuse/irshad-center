@@ -68,7 +68,8 @@ export function LookupFoundCard({
       <div
         className="h-1 w-full"
         style={{
-          background: 'linear-gradient(90deg, #007078 0%, #deb43e 100%)',
+          background:
+            'linear-gradient(90deg, hsl(var(--brand)) 0%, #deb43e 100%)',
         }}
         aria-hidden="true"
       />
