@@ -103,13 +103,10 @@ export async function findMahadRegistrationByNameAndPhoneLast4(
     return { found: false }
   }
 
-  const programStatusLabel =
-    ENROLLMENT_STATUS_LABELS[match.status] ?? match.status
-
   return {
     found: true,
     studentName: match.person.name.trim(),
     registeredAt: match.createdAt.toISOString().slice(0, 10),
-    programStatusLabel,
+    programStatusLabel: ENROLLMENT_STATUS_LABELS[match.status],
   }
 }

@@ -135,9 +135,7 @@ export async function checkParentEmailExists(email: string): Promise<boolean> {
     const existing = await findGuardianByEmail(parsed.data)
     return existing !== null
   } catch (error) {
-    await logError(logger, error, 'Parent email existence check failed', {
-      email: parsed.data,
-    })
+    await logError(logger, error, 'Parent email existence check failed', {})
     return false
   }
 }

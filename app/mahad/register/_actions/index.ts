@@ -125,9 +125,7 @@ export async function checkEmailExists(email: string): Promise<boolean> {
       MAHAD_PROGRAM
     )
   } catch (error) {
-    await logError(logger, error, 'Email existence check failed', {
-      email: parsed.data,
-    })
+    await logError(logger, error, 'Email existence check failed', {})
     return false
   }
 }
