@@ -60,9 +60,23 @@ const contactInfo = {
   whatsapp: '6125177466',
 }
 
-const socialLinks = [
-  { name: 'Facebook', Icon: FacebookIcon },
-  { name: 'Instagram', Icon: InstagramIcon },
+interface SocialLink {
+  name: string
+  Icon: React.FC
+  href?: string
+}
+
+const socialLinks: SocialLink[] = [
+  {
+    name: 'Facebook',
+    Icon: FacebookIcon,
+    href: 'https://www.facebook.com/irshadcenter',
+  },
+  {
+    name: 'Instagram',
+    Icon: InstagramIcon,
+    href: 'https://www.instagram.com/irshadcenter',
+  },
   { name: 'Twitter', Icon: TwitterIcon },
 ]
 
@@ -245,27 +259,41 @@ export function ContactSection() {
             <div>
               <h3 className="font-medium text-gray-900">Follow Us</h3>
               <div className="mt-4 flex gap-4">
-                {socialLinks.map(({ name, Icon }) => (
-                  <div
-                    key={name}
-                    className="group relative flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full bg-brand/10 opacity-70 transition-all hover:bg-brand/5"
-                    title="Coming soon"
-                  >
-                    {/* Tooltip */}
-                    <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 transform">
-                      <div className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-                        <div className="whitespace-nowrap rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white">
-                          Coming Soon
-                          {/* Arrow */}
-                          <div className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 rotate-45 transform bg-gray-900" />
+                {socialLinks.map(({ name, Icon, href }) =>
+                  href ? (
+                    <a
+                      key={name}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Follow Irshad Center on ${name}`}
+                      className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-brand/10 transition-all hover:bg-brand"
+                    >
+                      <span className="sr-only">{name}</span>
+                      <Icon />
+                    </a>
+                  ) : (
+                    <div
+                      key={name}
+                      className="group relative flex h-10 w-10 cursor-not-allowed items-center justify-center rounded-full bg-brand/10 opacity-70 transition-all hover:bg-brand/5"
+                      title="Coming soon"
+                    >
+                      {/* Tooltip */}
+                      <div className="pointer-events-none absolute -top-10 left-1/2 -translate-x-1/2 transform">
+                        <div className="flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="whitespace-nowrap rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white">
+                            Coming Soon
+                            {/* Arrow */}
+                            <div className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 rotate-45 transform bg-gray-900" />
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <span className="sr-only">{name}</span>
-                    <Icon />
-                  </div>
-                ))}
+                      <span className="sr-only">{name}</span>
+                      <Icon />
+                    </div>
+                  )
+                )}
               </div>
             </div>
           </motion.div>
