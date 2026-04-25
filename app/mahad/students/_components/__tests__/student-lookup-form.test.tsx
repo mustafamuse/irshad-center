@@ -150,4 +150,39 @@ describe('StudentLookupForm', () => {
     expect(submit).toHaveAttribute('aria-busy', 'true')
     expect(submit).toBeDisabled()
   })
+
+  it('maps server validationErrors onto the matching form fields', async () => {
+    const user = userEvent.setup()
+    const { triggerError } = setupUseAction()
+    render(<StudentLookupForm />)
+
+    await fillAndSubmit(user)
+    triggerError({
+      validationErrors: {
+        firstName: { _errors: ['First name is required'] },
+      },
+    })
+
+    expect(
+      await screen.findByText('First name is required')
+    ).toBeInTheDocument()
+  })
+
+  it('clears a found card when the user edits any field', async () => {
+    const user = userEvent.setup()
+    const { triggerSuccess } = setupUseAction()
+    render(<StudentLookupForm />)
+
+    await fillAndSubmit(user)
+    triggerSuccess({
+      found: true,
+      registeredAt: '2026-02-15',
+      programStatusLabel: 'Enrolled',
+    })
+    expect(await screen.findByText(/registration on file/i)).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/legal first name/i), 'X')
+
+    expect(screen.queryByText(/registration on file/i)).not.toBeInTheDocument()
+  })
 })

@@ -112,7 +112,7 @@ export function HomeHero() {
                 asChild
                 size="lg"
                 variant="outline"
-                className="rounded-full border-[#007078]/40 px-8 text-[#007078] transition-all hover:bg-[#007078]/5"
+                className="rounded-full border-brand/40 px-8 text-brand transition-all hover:bg-brand/5"
               >
                 <Link href="/mahad/students">Check Registration</Link>
               </Button>
