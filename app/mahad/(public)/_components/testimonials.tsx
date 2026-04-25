@@ -31,10 +31,10 @@ export function Testimonials() {
     <section className="bg-white py-16 lg:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-[#007078]/10 px-4 py-2 text-sm font-medium text-[#007078]">
+          <div className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-4 py-2 text-sm font-medium text-brand">
             Latest Student Survey Results
           </div>
-          <h2 className="mt-4 text-3xl font-bold tracking-tight text-[#007078] sm:text-4xl">
+          <h2 className="mt-4 text-3xl font-bold tracking-tight text-brand sm:text-4xl">
             In Their Own Words
           </h2>
           <p className="mt-4 text-lg text-gray-600">
@@ -55,11 +55,11 @@ export function Testimonials() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               className="relative rounded-2xl bg-white p-6 shadow-sm ring-1 ring-gray-200"
             >
-              <div className="absolute -top-4 left-6 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#007078]">
+              <div className="absolute -top-4 left-6 inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand">
                 <Quote className="h-4 w-4 text-white" />
               </div>
               <div className="mt-4">
-                <div className="mb-2 text-sm font-medium text-[#deb43e]">
+                <div className="mb-2 text-sm font-medium text-brand-accent">
                   {testimonial.highlight}
                 </div>
                 <p className="text-base leading-relaxed text-gray-600">

@@ -17,7 +17,7 @@ export function MahadPublicShellFrame({
       className="min-h-screen"
       style={{
         backgroundColor: '#f8fafa',
-        backgroundImage: `radial-gradient(circle at 1px 1px, #007078 1px, transparent 0)`,
+        backgroundImage: `radial-gradient(circle at 1px 1px, hsl(var(--brand)) 1px, transparent 0)`,
         backgroundSize: '28px 28px',
         backgroundPosition: '0 0',
       }}
