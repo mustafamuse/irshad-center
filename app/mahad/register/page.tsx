@@ -8,9 +8,11 @@ import { MahadPublicProviders } from '../_components/mahad-public-providers'
 import { MahadPublicShell } from '../_components/mahad-public-shell'
 import { RegisterForm } from './_components/registration-form'
 
-export const metadata: Metadata = {
-  title: 'Student Registration - Irshād Māhad',
-  description: `Register for the ${getAcademicYear()} academic year at Irshād Māhad.`,
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: 'Student Registration - Irshād Māhad',
+    description: `Register for the ${getAcademicYear()} academic year at Irshād Māhad.`,
+  }
 }
 
 export default function RegisterPage() {

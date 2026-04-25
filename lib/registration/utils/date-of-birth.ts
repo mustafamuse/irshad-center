@@ -10,8 +10,8 @@ export function parseDateParts(value: unknown): DateParts {
   }
 
   return {
-    month: String(value.getMonth() + 1),
-    day: String(value.getDate()),
+    month: String(value.getMonth() + 1).padStart(2, '0'),
+    day: String(value.getDate()).padStart(2, '0'),
     year: String(value.getFullYear()),
   }
 }
@@ -38,11 +38,7 @@ export function tryBuildDate(
   if (m < 1 || m > 12 || d < 1 || d > 31 || y < 1000) return undefined
 
   const dt = new Date(y, m - 1, d)
-  if (
-    dt.getFullYear() !== y ||
-    dt.getMonth() !== m - 1 ||
-    dt.getDate() !== d
-  ) {
+  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) {
     return undefined
   }
 

@@ -1,5 +1,4 @@
 import { GradeLevel, GraduationStatus, PaymentFrequency } from '@prisma/client'
-import { Control } from 'react-hook-form'
 import { z } from 'zod'
 
 import {
@@ -10,7 +9,6 @@ import {
   SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration-field-schemas'
 import { getAgeInYears } from '@/lib/registration/utils/date-of-birth'
-
 
 export const MAHAD_GRADE_OPTIONS = [
   { value: 'FRESHMAN', label: 'Freshman' },
@@ -51,10 +49,6 @@ export const mahadRegistrationSchema = z.object({
 })
 
 export type MahadRegistrationValues = z.infer<typeof mahadRegistrationSchema>
-
-export interface MahadFormSectionProps {
-  control: Control<MahadRegistrationValues>
-}
 
 export const MAHAD_DEFAULT_FORM_VALUES: Partial<MahadRegistrationValues> = {
   firstName: '',

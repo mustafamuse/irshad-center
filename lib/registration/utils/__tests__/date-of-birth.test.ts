@@ -1,21 +1,26 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  getAgeInYears,
-  parseDateParts,
-  tryBuildDate,
-} from '../date-of-birth'
+import { getAgeInYears, parseDateParts, tryBuildDate } from '../date-of-birth'
 
 describe('date-of-birth utils', () => {
-  it('parses and rebuilds dates', () => {
+  it('parses dates into zero-padded month/day strings to match the UI hint', () => {
     const date = new Date(2005, 2, 5)
 
     expect(parseDateParts(date)).toEqual({
-      month: '3',
-      day: '5',
+      month: '03',
+      day: '05',
       year: '2005',
     })
     expect(tryBuildDate('03', '05', '2005')).toEqual(date)
+  })
+
+  it('pads double-digit months and days correctly', () => {
+    const date = new Date(2010, 11, 25)
+    expect(parseDateParts(date)).toEqual({
+      month: '12',
+      day: '25',
+      year: '2010',
+    })
   })
 
   it('rejects invalid dates', () => {
