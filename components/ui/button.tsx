@@ -21,7 +21,7 @@ const buttonVariants = cva(
         brand:
           'h-14 w-full rounded-full bg-brand text-base font-medium text-white transition-colors hover:bg-brand-hover md:h-12',
         'brand-outline':
-          'h-14 w-full rounded-full border border-[#deb43e] text-base font-medium text-[#deb43e] transition-colors hover:bg-[#deb43e]/10 md:h-12',
+          'h-14 w-full rounded-full border border-brand-accent text-base font-medium text-brand-accent transition-colors hover:bg-brand-accent/10 md:h-12',
       },
       size: {
         default: 'h-10 px-4 py-2',

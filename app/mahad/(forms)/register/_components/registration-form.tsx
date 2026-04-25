@@ -69,11 +69,9 @@ function EstimatedPrice({
   )
 
   return (
-    <div className="rounded-lg bg-[#007078]/5 p-3 text-sm">
-      <p className="font-medium text-[#007078]">{label}</p>
-      {savingsLabel ? (
-        <p className="text-[#007078]/70">{savingsLabel}</p>
-      ) : null}
+    <div className="rounded-lg bg-brand/5 p-3 text-sm">
+      <p className="font-medium text-brand">{label}</p>
+      {savingsLabel ? <p className="text-brand/70">{savingsLabel}</p> : null}
     </div>
   )
 }
@@ -110,7 +108,7 @@ export function RegisterForm() {
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           <Card className="overflow-hidden rounded-2xl border-0 bg-white p-6 shadow-sm ring-1 ring-gray-200 md:p-8">
             <CardHeader className="mb-6 space-y-1 px-0 pb-6">
-              <CardTitle className="text-xl font-semibold text-[#007078]">
+              <CardTitle className="text-xl font-semibold text-brand">
                 Personal Information
               </CardTitle>
               <CardDescription className="text-gray-600">

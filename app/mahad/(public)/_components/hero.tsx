@@ -15,29 +15,29 @@ const features = [
     icon: Users2,
     title: '100+ Active Students',
     description: 'Join our growing community of dedicated learners',
-    color: 'bg-[#007078]/10',
-    textColor: 'text-[#007078]',
+    color: 'bg-brand/10',
+    textColor: 'text-brand',
   },
   {
     icon: GraduationCap,
     title: 'Accredited Instructors',
     description: 'Learn from qualified and experienced instructors',
-    color: 'bg-[#deb43e]/10',
-    textColor: 'text-[#deb43e]',
+    color: 'bg-brand-accent/10',
+    textColor: 'text-brand-accent',
   },
   {
     icon: BookOpen,
     title: 'Comprehensive Curriculum',
     description: 'Structured learning path for all levels',
-    color: 'bg-[#007078]/10',
-    textColor: 'text-[#007078]',
+    color: 'bg-brand/10',
+    textColor: 'text-brand',
   },
   {
     icon: Building2,
     title: 'Traditional & Modern',
     description: 'Bridging classical hikma with contemporary needs',
-    color: 'bg-[#deb43e]/10',
-    textColor: 'text-[#deb43e]',
+    color: 'bg-brand-accent/10',
+    textColor: 'text-brand-accent',
   },
 ]
 
@@ -48,8 +48,8 @@ export function HomeHero() {
       <section className="relative overflow-hidden bg-white">
         {/* Background Pattern */}
         <div className="absolute inset-0 -z-10">
-          <div className="absolute inset-0 bg-[linear-gradient(30deg,#007078_0%,transparent_70%)] opacity-[0.07]" />
-          <div className="absolute right-0 top-0 h-[1000px] w-[1000px] translate-x-1/2 rounded-full bg-gradient-to-l from-[#deb43e]/5 to-transparent" />
+          <div className="absolute inset-0 bg-[linear-gradient(30deg,hsl(var(--brand))_0%,transparent_70%)] opacity-[0.07]" />
+          <div className="absolute right-0 top-0 h-[1000px] w-[1000px] translate-x-1/2 rounded-full bg-gradient-to-l from-brand-accent/5 to-transparent" />
         </div>
 
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
@@ -63,7 +63,7 @@ export function HomeHero() {
             >
               <Logo size="xl" className="w-full" />
               <motion.div
-                className="absolute -inset-4 -z-10 bg-gradient-to-r from-[#007078]/10 via-transparent to-[#007078]/10 blur-2xl"
+                className="absolute -inset-4 -z-10 bg-gradient-to-r from-brand/10 via-transparent to-brand/10 blur-2xl"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.4, duration: 1 }}
@@ -90,21 +90,15 @@ export function HomeHero() {
               <Button
                 asChild
                 size="lg"
-                className="rounded-full bg-[#007078] px-8 text-white shadow-lg transition-all hover:bg-[#007078]/90 hover:shadow-xl"
+                className="rounded-full bg-brand px-8 text-white shadow-lg transition-all hover:bg-brand/90 hover:shadow-xl"
               >
-                <Link
-                  href="https://forms.gle/t38Jurtqes2pbBsVA"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Begin Registration
-                </Link>
+                <Link href="/mahad/register">Begin Registration</Link>
               </Button>
               <Button
                 asChild
                 size="lg"
                 variant="outline"
-                className="rounded-full border-[#deb43e] px-8 text-[#deb43e] transition-all hover:bg-[#deb43e]/5"
+                className="rounded-full border-brand-accent px-8 text-brand-accent transition-all hover:bg-brand-accent/5"
               >
                 <Link href="/mahad/programs">View All Courses</Link>
               </Button>
