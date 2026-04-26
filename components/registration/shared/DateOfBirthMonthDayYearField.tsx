@@ -62,6 +62,8 @@ function MonthDayYearInputs({
   const [day, setDay] = useState(() => parseDateParts(value).day)
   const [year, setYear] = useState(() => parseDateParts(value).year)
   const skipSyncRef = useRef(false)
+  const dayRef = useRef<HTMLInputElement>(null)
+  const yearRef = useRef<HTMLInputElement>(null)
 
   const monthId = useId()
   const dayId = useId()
@@ -120,7 +122,7 @@ function MonthDayYearInputs({
             onChange={(e) => {
               const v = e.target.value.replace(/\D/g, '').slice(0, 2)
               commit(v, day, year)
-              if (v.length === 2) document.getElementById(dayId)?.focus()
+              if (v.length === 2) dayRef.current?.focus()
             }}
           />
         </div>
@@ -132,6 +134,7 @@ function MonthDayYearInputs({
             Day
           </label>
           <Input
+            ref={dayRef}
             id={dayId}
             type="text"
             inputMode="numeric"
@@ -146,7 +149,7 @@ function MonthDayYearInputs({
             onChange={(e) => {
               const v = e.target.value.replace(/\D/g, '').slice(0, 2)
               commit(month, v, year)
-              if (v.length === 2) document.getElementById(yearId)?.focus()
+              if (v.length === 2) yearRef.current?.focus()
             }}
           />
         </div>
@@ -158,6 +161,7 @@ function MonthDayYearInputs({
             Year
           </label>
           <Input
+            ref={yearRef}
             id={yearId}
             type="text"
             inputMode="numeric"
