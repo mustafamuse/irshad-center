@@ -590,11 +590,7 @@ export function ProgramsContent() {
                 size="lg"
                 className="bg-white text-brand hover:bg-white/90"
               >
-                <Link
-                  href="https://forms.gle/t38Jurtqes2pbBsVA"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <Link href="/mahad/register">
                   Apply Now
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
