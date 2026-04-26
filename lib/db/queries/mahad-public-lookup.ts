@@ -99,6 +99,9 @@ export async function findMahadRegistrationByNameAndPhoneLast4(
     },
   })
 
+  // If take:10 was saturated we can't guarantee the right profile wasn't truncated — return not-found.
+  if (profiles.length >= 10) return { found: false }
+
   const match = pickMahadRegistrationMatch(profiles, normFirst, normLast)
 
   if (!match) {
