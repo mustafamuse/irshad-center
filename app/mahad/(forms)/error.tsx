@@ -48,9 +48,13 @@ export default function MahadFormsError({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 px-0">
-        {error.message ? (
+        {process.env.NODE_ENV === 'development' && error.message ? (
           <p className="text-center text-sm text-muted-foreground">
             {error.message}
+          </p>
+        ) : error.digest ? (
+          <p className="text-center text-xs text-muted-foreground">
+            Error reference: {error.digest}
           </p>
         ) : null}
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">

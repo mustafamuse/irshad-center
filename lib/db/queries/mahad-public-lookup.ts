@@ -25,6 +25,7 @@ const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
 
 export interface MahadPublicLookupSuccess {
   found: true
+  /** Full name from Person record. Never forward to unauthenticated clients — the action layer intentionally strips this field. */
   studentName: string
   /** UTC date string YYYY-MM-DD of program profile creation */
   registeredAt: string
@@ -86,6 +87,7 @@ export async function findMahadRegistrationByNameAndPhoneLast4(
         phone: { endsWith: phoneLast4 },
       },
     },
+    take: 10,
     select: {
       status: true,
       createdAt: true,

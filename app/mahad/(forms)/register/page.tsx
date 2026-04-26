@@ -2,6 +2,8 @@ import Link from 'next/link'
 
 import { Metadata } from 'next'
 
+export const dynamic = 'force-dynamic'
+
 import { getAcademicYear } from '@/lib/utils/academic-year'
 
 import { RegisterForm } from './_components/registration-form'

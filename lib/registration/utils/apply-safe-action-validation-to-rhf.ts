@@ -29,8 +29,11 @@ export function applySafeActionValidationErrorsToForm<T extends FieldValues>(
 function walk<T extends FieldValues>(
   node: ValidationErrorNode,
   path: string,
-  form: UseFormReturn<T>
+  form: UseFormReturn<T>,
+  depth = 0
 ): void {
+  if (depth > 6) return
+
   const rootMessage = node._errors?.[0]
   if (rootMessage) {
     if (path === '') {
@@ -48,6 +51,6 @@ function walk<T extends FieldValues>(
     if (!value || typeof value !== 'object') continue
 
     const nextPath = path === '' ? key : `${path}.${key}`
-    walk(value as ValidationErrorNode, nextPath, form)
+    walk(value as ValidationErrorNode, nextPath, form, depth + 1)
   }
 }

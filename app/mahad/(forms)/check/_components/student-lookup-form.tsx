@@ -68,7 +68,7 @@ export function StudentLookupForm() {
 
   const { execute, isPending } = useAction(lookupMahadRegistration, {
     onSuccess: ({ data }) => {
-      if (!data?.found) {
+      if (!data || data.found === false) {
         setLookupResult({ status: 'not_found' })
         return
       }
