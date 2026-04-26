@@ -120,6 +120,7 @@ function MonthDayYearInputs({
             onChange={(e) => {
               const v = e.target.value.replace(/\D/g, '').slice(0, 2)
               commit(v, day, year)
+              if (v.length === 2) document.getElementById(dayId)?.focus()
             }}
           />
         </div>
@@ -145,6 +146,7 @@ function MonthDayYearInputs({
             onChange={(e) => {
               const v = e.target.value.replace(/\D/g, '').slice(0, 2)
               commit(month, v, year)
+              if (v.length === 2) document.getElementById(yearId)?.focus()
             }}
           />
         </div>

@@ -1,6 +1,9 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
+import { createServiceLogger } from '@/lib/logger'
+
+const logger = createServiceLogger('rate-limit')
 const DEFAULT_MAX_ATTEMPTS = 5
 const WINDOW = '15 m' as const
 
@@ -20,9 +23,9 @@ function warnOnceIfRedisMissing(): void {
   const message =
     '[rate-limit] UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN are not set — rate limiting is disabled.'
   if (process.env.NODE_ENV === 'production') {
-    console.error(message)
+    logger.error(message)
   } else {
-    console.warn(message)
+    logger.warn(message)
   }
 }
 
@@ -68,9 +71,9 @@ export async function checkRateLimit(
     const { success, remaining, reset } = await client.limit(identifier)
     return { success, remaining, reset }
   } catch (error) {
-    console.error(
-      '[rate-limit] Redis error — failing open:',
-      error instanceof Error ? error.message : String(error)
+    logger.error(
+      { err: error instanceof Error ? error.message : String(error) },
+      '[rate-limit] Redis error — failing open'
     )
     return { success: true, remaining: maxAttempts, reset: 0 }
   }

@@ -1,5 +1,3 @@
-import { AppErrorBoundary } from '@/components/error-boundary'
-
 import { MahadPublicShellFrame } from '../_components/mahad-public-shell-frame'
 
 export default function MahadFormsLayout({
@@ -7,9 +5,5 @@ export default function MahadFormsLayout({
 }: {
   children: React.ReactNode
 }) {
-  return (
-    <AppErrorBoundary context="Mahad public flow" variant="inline">
-      <MahadPublicShellFrame>{children}</MahadPublicShellFrame>
-    </AppErrorBoundary>
-  )
+  return <MahadPublicShellFrame>{children}</MahadPublicShellFrame>
 }
