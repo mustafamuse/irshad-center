@@ -12,7 +12,6 @@
  * - Manage batch lifecycle
  */
 
-import { prisma } from '@/lib/db'
 import {
   createBatch,
   deleteBatch,
@@ -21,8 +20,12 @@ import {
   getBatchStudents,
   getBatchStudentCount,
   getBatchesWithFilters,
+  updateBatch,
 } from '@/lib/db/queries/batch'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
+
+const logger = createServiceLogger('mahad-cohort-service')
 
 /**
  * Batch creation input
@@ -63,11 +66,18 @@ export async function createMahadBatch(input: BatchCreateInput) {
     )
   }
 
-  return await createBatch({
-    name: input.name,
-    startDate: input.startDate,
-    endDate: input.endDate ?? null,
-  })
+  try {
+    return await createBatch({
+      name: input.name,
+      startDate: input.startDate,
+      endDate: input.endDate ?? null,
+    })
+  } catch (error) {
+    await logError(logger, error, 'Failed to create Mahad batch', {
+      name: input.name,
+    })
+    throw error
+  }
 }
 
 /**
@@ -92,7 +102,12 @@ export async function deleteMahadBatch(batchId: string) {
     )
   }
 
-  return await deleteBatch(batchId)
+  try {
+    return await deleteBatch(batchId)
+  } catch (error) {
+    await logError(logger, error, 'Failed to delete Mahad batch', { batchId })
+    throw error
+  }
 }
 
 /**
@@ -173,10 +188,12 @@ export async function updateMahadBatch(
     )
   }
 
-  return await prisma.batch.update({
-    where: { id: batchId },
-    data,
-  })
+  try {
+    return await updateBatch(batchId, data)
+  } catch (error) {
+    await logError(logger, error, 'Failed to update Mahad batch', { batchId })
+    throw error
+  }
 }
 
 /**

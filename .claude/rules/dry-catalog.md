@@ -42,6 +42,8 @@ paths:
 | `enrollment.ts`      | `getEnrollmentsByBatch()`, `getActiveEnrollment()`       |
 | `siblings.ts`        | `getSiblingGroups()`, `createSiblingRelationship()`      |
 
+**Rule**: Services must use these query functions. Never call `prisma.X.Y()` directly from `lib/services/`. Violating files: `validation-service.ts`, `sibling-detector.ts`, `registration-service.ts` — these need to be refactored.
+
 ### Mappers, Utilities, Constants, Validations
 
 | Location                             | Key exports                                               |

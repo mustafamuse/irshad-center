@@ -231,7 +231,7 @@ export function ProgramsContent() {
             <Button
               asChild
               variant="ghost"
-              className="flex items-center gap-2 text-[#007078] transition-colors hover:bg-[#007078]/5"
+              className="flex items-center gap-2 text-brand transition-colors hover:bg-brand/5"
             >
               <Link href="/mahad">
                 <ArrowLeft className="h-4 w-4" />
@@ -258,10 +258,10 @@ export function ProgramsContent() {
           transition={{ duration: 0.5, delay: 0.1 }}
           className="mb-16"
         >
-          <Card className="border-none bg-gradient-to-br from-[#007078]/5 to-transparent p-8 shadow-lg">
+          <Card className="border-none bg-gradient-to-br from-brand/5 to-transparent p-8 shadow-lg">
             <div className="flex items-start gap-4">
-              <div className="rounded-lg bg-[#007078]/10 p-3">
-                <GraduationCap className="h-6 w-6 text-[#007078]" />
+              <div className="rounded-lg bg-brand/10 p-3">
+                <GraduationCap className="h-6 w-6 text-brand" />
               </div>
               <div className="flex-1">
                 <h2 className="text-2xl font-semibold text-gray-900">
@@ -275,7 +275,7 @@ export function ProgramsContent() {
                 </p>
                 <div className="mt-6 grid gap-4 sm:grid-cols-3">
                   <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-[#007078]" />
+                    <Clock className="h-5 w-5 text-brand" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">
                         Duration
@@ -284,7 +284,7 @@ export function ProgramsContent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Users className="h-5 w-5 text-[#007078]" />
+                    <Users className="h-5 w-5 text-brand" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">
                         Class Size
@@ -293,7 +293,7 @@ export function ProgramsContent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Lightbulb className="h-5 w-5 text-[#007078]" />
+                    <Lightbulb className="h-5 w-5 text-brand" />
                     <div>
                       <p className="text-sm font-medium text-gray-900">
                         Format
@@ -330,10 +330,8 @@ export function ProgramsContent() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
               >
-                <Card className="h-full border-[#007078]/20 p-6 transition-all hover:shadow-lg">
-                  <h3 className="font-semibold text-[#007078]">
-                    {semester.name}
-                  </h3>
+                <Card className="h-full border-brand/20 p-6 transition-all hover:shadow-lg">
+                  <h3 className="font-semibold text-brand">{semester.name}</h3>
                   <p className="mt-2 text-sm text-gray-600">{semester.dates}</p>
                   <p className="mt-2 text-sm font-medium text-gray-900">
                     {semester.notes}
@@ -369,8 +367,8 @@ export function ProgramsContent() {
               >
                 <Card className="h-full border-none bg-white p-6 shadow-lg transition-all hover:shadow-xl">
                   <div className="flex items-start gap-4">
-                    <div className="rounded-lg bg-[#007078]/10 p-3">
-                      <course.icon className="h-6 w-6 text-[#007078]" />
+                    <div className="rounded-lg bg-brand/10 p-3">
+                      <course.icon className="h-6 w-6 text-brand" />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-gray-900">
@@ -432,8 +430,8 @@ export function ProgramsContent() {
               >
                 <Card className="h-full border-none bg-white p-6 shadow-lg transition-all hover:shadow-xl">
                   <div className="flex items-start gap-4">
-                    <div className="rounded-lg bg-[#deb43e]/10 p-3">
-                      <course.icon className="h-6 w-6 text-[#deb43e]" />
+                    <div className="rounded-lg bg-brand-accent/10 p-3">
+                      <course.icon className="h-6 w-6 text-brand-accent" />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-xl font-semibold text-gray-900">
@@ -486,7 +484,7 @@ export function ProgramsContent() {
           <Card className="overflow-hidden border-none shadow-lg">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-[#007078]/5">
+                <thead className="bg-brand/5">
                   <tr>
                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900">
                       Letter Grade
@@ -555,7 +553,7 @@ export function ProgramsContent() {
               >
                 <Card className="h-full border-none bg-white p-6 shadow-lg">
                   <div className="mb-4 flex items-center gap-3">
-                    <Compass className="h-6 w-6 text-[#007078]" />
+                    <Compass className="h-6 w-6 text-brand" />
                     <h3 className="text-lg font-semibold text-gray-900">
                       {expectation.title}
                     </h3>
@@ -563,7 +561,7 @@ export function ProgramsContent() {
                   <ul className="space-y-3">
                     {expectation.items.map((item) => (
                       <li key={item} className="flex items-start gap-2">
-                        <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#007078]" />
+                        <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
                         <span className="text-sm text-gray-600">{item}</span>
                       </li>
                     ))}
@@ -581,7 +579,7 @@ export function ProgramsContent() {
           transition={{ duration: 0.5, delay: 1.1 }}
           className="text-center"
         >
-          <Card className="border-none bg-gradient-to-br from-[#007078] to-[#007078]/80 p-12 text-white shadow-2xl">
+          <Card className="border-none bg-gradient-to-br from-brand to-brand/80 p-12 text-white shadow-2xl">
             <h2 className="text-3xl font-bold">Ready to Begin Your Journey?</h2>
             <p className="mt-4 text-lg text-white/90">
               Join us in this comprehensive Islamic education program
@@ -590,13 +588,9 @@ export function ProgramsContent() {
               <Button
                 asChild
                 size="lg"
-                className="bg-white text-[#007078] hover:bg-white/90"
+                className="bg-white text-brand hover:bg-white/90"
               >
-                <Link
-                  href="https://forms.gle/t38Jurtqes2pbBsVA"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <Link href="/mahad/register">
                   Apply Now
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>

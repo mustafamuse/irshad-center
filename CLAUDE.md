@@ -52,7 +52,10 @@ Claude should refuse to write code violating these rules.
 16. **Log errors with structured context** - `logError(logger, error, 'Context', { entityId })`
 17. **Never log sensitive data** - Pino redacts passwords, tokens, card numbers, API keys
 18. **Always return `ActionResult<T>`** from server actions
-19. **Revalidate cache after mutations** - `revalidatePath()`
+19. **Always wrap `revalidatePath` in `after()`** — `after(() => revalidatePath('/path'))` — calling it directly blocks the response. Import `after` from `next/server`.
+20. **All server mutations must use safe-action clients** — `adminActionClient` or `rateLimitedActionClient` from `@/lib/safe-action`. Plain `'use server'` functions with `assertAdmin()` skip rate limiting, metadata, and error serialization. Only read-only query utilities may use bare `'use server'`.
+21. **Never bypass the query layer** — services must call query functions from `lib/db/queries/` instead of calling `prisma.X.Y()` directly. Raw Prisma calls in service files defeat query testability and reuse.
+22. **All `ActionError` throws must use a defined ERROR_CODE** — add the code to `lib/errors/action-error.ts` first. Never throw `ActionError` with a string literal code not in `ERROR_CODES`.
 
 ---
 

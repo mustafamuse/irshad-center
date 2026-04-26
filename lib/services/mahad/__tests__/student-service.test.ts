@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
@@ -6,6 +7,7 @@ const {
   mockProgramProfileCreate,
   mockProgramProfileUpdate,
   mockEnrollmentCreate,
+  mockEnrollmentUpdateMany,
   mockTransaction,
   mockGetProgramProfileById,
   mockCheckDuplicate,
@@ -15,6 +17,7 @@ const {
   mockProgramProfileCreate: vi.fn(),
   mockProgramProfileUpdate: vi.fn(),
   mockEnrollmentCreate: vi.fn(),
+  mockEnrollmentUpdateMany: vi.fn(),
   mockTransaction: vi.fn(),
   mockGetProgramProfileById: vi.fn(),
   mockCheckDuplicate: vi.fn(),
@@ -31,6 +34,7 @@ const mockTx = {
   },
   enrollment: {
     create: (...args: unknown[]) => mockEnrollmentCreate(...args),
+    updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
   },
 }
 
@@ -71,7 +75,11 @@ vi.mock('@/lib/services/duplicate-detection-service', () => ({
 
 import { ActionError } from '@/lib/errors/action-error'
 
-import { createMahadStudent, updateMahadStudent } from '../student-service'
+import {
+  createMahadStudent,
+  deleteMahadStudent,
+  updateMahadStudent,
+} from '../student-service'
 
 const noDuplicateResult = {
   isDuplicate: false,
@@ -517,5 +525,91 @@ describe('updateMahadStudent', () => {
 
     expect(mockPersonUpdate).toHaveBeenCalled()
     expect(mockProgramProfileUpdate).toHaveBeenCalled()
+  })
+})
+
+describe('deleteMahadStudent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockTransaction.mockImplementation(
+      (fn: (tx: Record<string, unknown>) => Promise<unknown>) => fn(mockTx)
+    )
+    mockEnrollmentUpdateMany.mockResolvedValue({ count: 1 })
+    mockProgramProfileUpdate.mockResolvedValue({
+      id: 'profile-1',
+      status: 'WITHDRAWN',
+    })
+  })
+
+  it('soft-deletes the profile and withdraws active enrollments', async () => {
+    mockGetProgramProfileById.mockResolvedValue({
+      id: 'profile-1',
+      program: 'MAHAD_PROGRAM',
+    })
+
+    const result = await deleteMahadStudent('profile-1')
+
+    expect(mockEnrollmentUpdateMany).toHaveBeenCalledWith({
+      where: {
+        programProfileId: 'profile-1',
+        status: { not: 'WITHDRAWN' },
+      },
+      data: expect.objectContaining({ status: 'WITHDRAWN' }),
+    })
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith({
+      where: { id: 'profile-1' },
+      data: { status: 'WITHDRAWN' },
+    })
+    expect(result).toMatchObject({ id: 'profile-1', status: 'WITHDRAWN' })
+  })
+
+  it('throws PROFILE_NOT_FOUND when no profile exists for the id', async () => {
+    mockGetProgramProfileById.mockResolvedValue(null)
+
+    await expect(deleteMahadStudent('does-not-exist')).rejects.toMatchObject({
+      message: 'Mahad student profile not found',
+      code: 'PROFILE_NOT_FOUND',
+      statusCode: 404,
+    })
+  })
+
+  it('throws PROFILE_NOT_FOUND when the profile belongs to a different program', async () => {
+    mockGetProgramProfileById.mockResolvedValue({
+      id: 'profile-1',
+      program: 'DUGSI_PROGRAM',
+    })
+
+    await expect(deleteMahadStudent('profile-1')).rejects.toMatchObject({
+      code: 'PROFILE_NOT_FOUND',
+      statusCode: 404,
+    })
+  })
+
+  it('translates a concurrent delete (P2025) into PROFILE_NOT_FOUND', async () => {
+    mockGetProgramProfileById.mockResolvedValue({
+      id: 'profile-1',
+      program: 'MAHAD_PROGRAM',
+    })
+    const p2025 = new Prisma.PrismaClientKnownRequestError(
+      'Record to update not found.',
+      { code: 'P2025', clientVersion: 'test' }
+    )
+    mockProgramProfileUpdate.mockRejectedValueOnce(p2025)
+
+    await expect(deleteMahadStudent('profile-1')).rejects.toMatchObject({
+      code: 'PROFILE_NOT_FOUND',
+      statusCode: 404,
+    })
+  })
+
+  it('rethrows unexpected database errors', async () => {
+    mockGetProgramProfileById.mockResolvedValue({
+      id: 'profile-1',
+      program: 'MAHAD_PROGRAM',
+    })
+    const boom = new Error('db down')
+    mockProgramProfileUpdate.mockRejectedValueOnce(boom)
+
+    await expect(deleteMahadStudent('profile-1')).rejects.toBe(boom)
   })
 })

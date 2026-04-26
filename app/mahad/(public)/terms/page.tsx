@@ -60,8 +60,8 @@ export default function TermsPage() {
     <div className="relative min-h-screen bg-white">
       {/* Background decoration */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 right-0 h-[1000px] w-[1000px] translate-x-1/2 rounded-full bg-gradient-to-l from-[#007078]/5 to-transparent" />
-        <div className="absolute -bottom-1/2 left-0 h-[1000px] w-[1000px] -translate-x-1/2 rounded-full bg-gradient-to-r from-[#deb43e]/5 to-transparent" />
+        <div className="absolute -top-1/2 right-0 h-[1000px] w-[1000px] translate-x-1/2 rounded-full bg-gradient-to-l from-brand/5 to-transparent" />
+        <div className="absolute -bottom-1/2 left-0 h-[1000px] w-[1000px] -translate-x-1/2 rounded-full bg-gradient-to-r from-brand-accent/5 to-transparent" />
       </div>
 
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -71,7 +71,7 @@ export default function TermsPage() {
             <Button
               asChild
               variant="ghost"
-              className="flex items-center gap-2 text-[#007078] transition-colors hover:bg-[#007078]/5"
+              className="flex items-center gap-2 text-brand transition-colors hover:bg-brand/5"
             >
               <Link href="/mahad">
                 <ArrowLeft className="h-4 w-4" />
@@ -95,14 +95,14 @@ export default function TermsPage() {
         <div className="relative flex gap-8">
           {/* Table of Contents - Desktop */}
           <div className="sticky top-8 hidden h-fit w-64 shrink-0 lg:block">
-            <div className="rounded-xl bg-[#007078]/5 p-6">
+            <div className="rounded-xl bg-brand/5 p-6">
               <h3 className="font-medium text-gray-900">On this page</h3>
               <nav className="mt-4 space-y-2">
                 {sections.map((section) => (
                   <a
                     key={section.id}
                     href={`#${section.id}`}
-                    className="block text-sm text-gray-600 transition-colors hover:text-[#007078]"
+                    className="block text-sm text-gray-600 transition-colors hover:text-brand"
                   >
                     {section.title}
                   </a>
@@ -146,7 +146,7 @@ export default function TermsPage() {
                         'Assessment test required before enrollment',
                       ].map((item) => (
                         <li key={item} className="flex items-start gap-3">
-                          <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#007078]" />
+                          <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                           <span className="text-gray-600">{item}</span>
                         </li>
                       ))}
@@ -187,7 +187,7 @@ export default function TermsPage() {
                         'US bank account (ACH) payments only',
                       ].map((item) => (
                         <li key={item} className="flex items-start gap-3">
-                          <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#007078]" />
+                          <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                           <span className="text-gray-600">{item}</span>
                         </li>
                       ))}
@@ -205,7 +205,7 @@ export default function TermsPage() {
                         'Banking information updates must be submitted through proper channels',
                       ].map((item) => (
                         <li key={item} className="flex items-start gap-3">
-                          <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#007078]" />
+                          <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                           <span className="text-gray-600">{item}</span>
                         </li>
                       ))}
@@ -229,7 +229,7 @@ export default function TermsPage() {
                     'No refunds for partial attendance',
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3">
-                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#007078]" />
+                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                       <span className="text-gray-600">{item}</span>
                     </li>
                   ))}
@@ -253,7 +253,7 @@ export default function TermsPage() {
                     'Follow classroom and facility rules',
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3">
-                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#007078]" />
+                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                       <span className="text-gray-600">{item}</span>
                     </li>
                   ))}
@@ -274,7 +274,7 @@ export default function TermsPage() {
                     'Emergency contact information must be kept current',
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3">
-                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#007078]" />
+                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                       <span className="text-gray-600">{item}</span>
                     </li>
                   ))}
@@ -314,7 +314,7 @@ export default function TermsPage() {
                     'WhatsApp: Available during business hours',
                   ].map((item) => (
                     <li key={item} className="flex items-start gap-3">
-                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[#007078]" />
+                      <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-brand" />
                       <span className="text-gray-600">{item}</span>
                     </li>
                   ))}

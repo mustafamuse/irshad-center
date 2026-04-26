@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import { MessageCircle, Users2, ArrowRight } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { getAcademicYear } from '@/lib/utils/academic-year'
 
 interface TimelinePhase {
   step: number
@@ -79,7 +80,7 @@ export const AnnouncementSection: React.FC = () => {
   return (
     <section
       id="announcements"
-      className="relative overflow-hidden bg-[#007078] px-4 py-12 text-white sm:px-6 lg:px-8"
+      className="relative overflow-hidden bg-brand px-4 py-12 text-white sm:px-6 lg:px-8"
     >
       {/* Background Pattern */}
       <div className="pointer-events-none absolute inset-0">
@@ -101,8 +102,8 @@ export const AnnouncementSection: React.FC = () => {
               initial="initial"
               animate="animate"
             >
-              <MessageCircle className="h-5 w-5 text-[#deb43e]" />
-              <span className="text-sm font-medium uppercase tracking-wide text-[#deb43e]">
+              <MessageCircle className="h-5 w-5 text-brand-accent" />
+              <span className="text-sm font-medium uppercase tracking-wide text-brand-accent">
                 Important Announcement
               </span>
             </motion.div>
@@ -115,15 +116,15 @@ export const AnnouncementSection: React.FC = () => {
                 Enrollment Still Open!
               </h2>
               <p className="mt-3 text-xl text-white/90">
-                Join our 2024-2025 academic year. Limited spots available for
-                our Islamic Studies program.
+                Join our {getAcademicYear()} academic year. Limited spots
+                available for our Islamic Studies program.
               </p>
             </div>
 
             {/* Info Badges */}
             <div className="flex flex-col gap-4 sm:flex-row">
               <div className="flex items-center gap-3 rounded-full bg-[#006068] px-5 py-3">
-                <Users2 className="h-5 w-5 text-[#deb43e]" />
+                <Users2 className="h-5 w-5 text-brand-accent" />
                 <span className="text-sm font-medium">
                   Rolling admissions now open
                 </span>
@@ -133,7 +134,7 @@ export const AnnouncementSection: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <Users2 className="h-5 w-5 text-[#deb43e]" />
+                <Users2 className="h-5 w-5 text-brand-accent" />
                 <span className="text-sm font-medium">
                   Limited to 30 students
                 </span>
@@ -151,12 +152,12 @@ export const AnnouncementSection: React.FC = () => {
                 >
                   <div className="relative z-10 flex flex-col gap-3">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#deb43e] text-lg font-bold text-[#007078]">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-accent text-lg font-bold text-brand">
                         {phase.step}
                       </div>
                       <h3 className="text-lg font-semibold">{phase.title}</h3>
                     </div>
-                    <time className="text-[#deb43e]">{phase.date}</time>
+                    <time className="text-brand-accent">{phase.date}</time>
                     <p className="text-white/70">{phase.description}</p>
                   </div>
                   {/* Decorative pattern */}
@@ -172,12 +173,10 @@ export const AnnouncementSection: React.FC = () => {
               <Button
                 asChild
                 size="lg"
-                className="rounded-full bg-[#deb43e] px-8 text-[#007078] transition-all hover:bg-[#deb43e]/90 hover:shadow-lg"
+                className="rounded-full bg-brand-accent px-8 text-brand transition-all hover:bg-brand-accent/90 hover:shadow-lg"
               >
                 <Link
-                  href="https://forms.gle/t38Jurtqes2pbBsVA"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href="/mahad/register"
                   className="flex items-center gap-2"
                 >
                   Apply Now
@@ -187,9 +186,9 @@ export const AnnouncementSection: React.FC = () => {
               <Button
                 asChild
                 size="lg"
-                className="rounded-full bg-white px-8 text-[#007078] transition-all hover:bg-white/90 hover:shadow-lg"
+                className="rounded-full bg-white px-8 text-brand transition-all hover:bg-white/90 hover:shadow-lg"
               >
-                <Link href="/programs">Learn More</Link>
+                <Link href="/mahad/programs">Learn More</Link>
               </Button>
             </div>
           </div>

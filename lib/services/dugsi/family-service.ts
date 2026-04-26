@@ -13,10 +13,13 @@ import {
   ERROR_CODES,
   throwIfP2002,
 } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+
+const logger = createServiceLogger('dugsi-family-service')
 
 export interface ParentUpdateInput {
   /** ID of any student in the family (used to look up family) */
@@ -136,6 +139,9 @@ export async function updateParentInfo(
         })
       } catch (error) {
         throwIfP2002(error)
+        await logError(logger, error, 'Unexpected DB error in family service', {
+          guardianId: guardian.id,
+        })
         throw error
       }
     }
@@ -250,6 +256,10 @@ export async function addSecondParent(
     )
   } catch (error) {
     throwIfP2002(error)
+    await logError(logger, error, 'Unexpected DB error in family service', {
+      studentId: input.studentId,
+      dependentId: profile?.person.id,
+    })
     throw error
   }
 
@@ -267,52 +277,61 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
     )
   }
 
-  await Sentry.startSpan(
-    { name: 'family.updateChildInfo', op: 'db.transaction' },
-    async () => {
-      const personUpdateData: Prisma.PersonUpdateInput = {}
+  try {
+    await Sentry.startSpan(
+      { name: 'family.updateChildInfo', op: 'db.transaction' },
+      async () => {
+        const personUpdateData: Prisma.PersonUpdateInput = {}
 
-      if (input.firstName || input.lastName) {
-        const currentName = profile.person.name.split(' ')
-        const firstName = input.firstName || currentName[0] || ''
-        const lastName = input.lastName || currentName.slice(1).join(' ') || ''
-        personUpdateData.name = `${firstName} ${lastName}`.trim()
+        if (input.firstName || input.lastName) {
+          const currentName = profile.person.name.split(' ')
+          const firstName = input.firstName || currentName[0] || ''
+          const lastName =
+            input.lastName || currentName.slice(1).join(' ') || ''
+          personUpdateData.name = `${firstName} ${lastName}`.trim()
+        }
+
+        if (input.dateOfBirth !== undefined) {
+          personUpdateData.dateOfBirth = input.dateOfBirth
+        }
+
+        if (Object.keys(personUpdateData).length > 0) {
+          await prisma.person.update({
+            where: { id: profile.personId },
+            data: personUpdateData,
+          })
+        }
+
+        const profileUpdates: Partial<{
+          gender: 'MALE' | 'FEMALE'
+          gradeLevel: GradeLevel
+          schoolName: string | null
+          healthInfo: string | null
+        }> = {}
+
+        if (input.gender !== undefined) profileUpdates.gender = input.gender
+        if (input.gradeLevel !== undefined)
+          profileUpdates.gradeLevel = input.gradeLevel
+        if (input.schoolName !== undefined)
+          profileUpdates.schoolName = input.schoolName || null
+        if (input.healthInfo !== undefined)
+          profileUpdates.healthInfo = input.healthInfo
+
+        if (Object.keys(profileUpdates).length > 0) {
+          await prisma.programProfile.update({
+            where: { id: input.studentId },
+            data: profileUpdates,
+          })
+        }
       }
-
-      if (input.dateOfBirth !== undefined) {
-        personUpdateData.dateOfBirth = input.dateOfBirth
-      }
-
-      if (Object.keys(personUpdateData).length > 0) {
-        await prisma.person.update({
-          where: { id: profile.personId },
-          data: personUpdateData,
-        })
-      }
-
-      const profileUpdates: Partial<{
-        gender: 'MALE' | 'FEMALE'
-        gradeLevel: GradeLevel
-        schoolName: string | null
-        healthInfo: string | null
-      }> = {}
-
-      if (input.gender !== undefined) profileUpdates.gender = input.gender
-      if (input.gradeLevel !== undefined)
-        profileUpdates.gradeLevel = input.gradeLevel
-      if (input.schoolName !== undefined)
-        profileUpdates.schoolName = input.schoolName || null
-      if (input.healthInfo !== undefined)
-        profileUpdates.healthInfo = input.healthInfo
-
-      if (Object.keys(profileUpdates).length > 0) {
-        await prisma.programProfile.update({
-          where: { id: input.studentId },
-          data: profileUpdates,
-        })
-      }
-    }
-  )
+    )
+  } catch (error) {
+    throwIfP2002(error)
+    await logError(logger, error, 'Failed to update child info', {
+      studentId: input.studentId,
+    })
+    throw error
+  }
 }
 
 export async function addChildToFamily(
@@ -353,51 +372,60 @@ export async function addChildToFamily(
 
   const fullName = `${input.firstName} ${input.lastName}`.trim()
 
-  const newProfile = await Sentry.startSpan(
-    { name: 'family.addChildToFamily', op: 'db.transaction' },
-    async () => {
-      return prisma.$transaction(async (tx) => {
-        const newPerson = await tx.person.create({
-          data: {
-            name: fullName,
-            dateOfBirth: input.dateOfBirth || null,
-          },
-        })
+  let newProfile: Awaited<ReturnType<typeof prisma.programProfile.create>>
+  try {
+    newProfile = await Sentry.startSpan(
+      { name: 'family.addChildToFamily', op: 'db.transaction' },
+      async () => {
+        return prisma.$transaction(async (tx) => {
+          const newPerson = await tx.person.create({
+            data: {
+              name: fullName,
+              dateOfBirth: input.dateOfBirth || null,
+            },
+          })
 
-        await tx.guardianRelationship.createMany({
-          data: guardians.map((guardian) => ({
-            guardianId: guardian.id,
-            dependentId: newPerson.id,
-            isActive: true,
-          })),
-        })
+          await tx.guardianRelationship.createMany({
+            data: guardians.map((guardian) => ({
+              guardianId: guardian.id,
+              dependentId: newPerson.id,
+              isActive: true,
+            })),
+          })
 
-        const profile = await tx.programProfile.create({
-          data: {
-            personId: newPerson.id,
-            program: DUGSI_PROGRAM,
-            familyReferenceId: familyId,
-            gender: input.gender,
-            gradeLevel: input.gradeLevel,
-            schoolName: input.schoolName || null,
-            healthInfo: input.healthInfo || null,
-            status: 'REGISTERED',
-            shift: existingProfile.shift,
-          },
-        })
+          const profile = await tx.programProfile.create({
+            data: {
+              personId: newPerson.id,
+              program: DUGSI_PROGRAM,
+              familyReferenceId: familyId,
+              gender: input.gender,
+              gradeLevel: input.gradeLevel,
+              schoolName: input.schoolName || null,
+              healthInfo: input.healthInfo || null,
+              status: 'REGISTERED',
+              shift: existingProfile.shift,
+            },
+          })
 
-        await tx.enrollment.create({
-          data: {
-            programProfileId: profile.id,
-            status: 'REGISTERED',
-            startDate: new Date(),
-          },
-        })
+          await tx.enrollment.create({
+            data: {
+              programProfileId: profile.id,
+              status: 'REGISTERED',
+              startDate: new Date(),
+            },
+          })
 
-        return profile
-      })
-    }
-  )
+          return profile
+        })
+      }
+    )
+  } catch (error) {
+    throwIfP2002(error)
+    await logError(logger, error, 'Failed to add child to family', {
+      existingStudentId: input.existingStudentId,
+    })
+    throw error
+  }
 
   return { childId: newProfile.id }
 }
@@ -457,31 +485,39 @@ export async function setPrimaryPayer(
 
   const childPersonIds = familyProfiles.map((p) => p.personId)
 
-  const result = await Sentry.startSpan(
-    { name: 'family.setPrimaryPayer', op: 'db.transaction' },
-    async () => {
-      return prisma.$transaction(async (tx) => {
-        await tx.guardianRelationship.updateMany({
-          where: {
-            dependentId: { in: childPersonIds },
-            isActive: true,
-          },
-          data: { isPrimaryPayer: false },
-        })
+  let result: number
+  try {
+    result = await Sentry.startSpan(
+      { name: 'family.setPrimaryPayer', op: 'db.transaction' },
+      async () => {
+        return prisma.$transaction(async (tx) => {
+          await tx.guardianRelationship.updateMany({
+            where: {
+              dependentId: { in: childPersonIds },
+              isActive: true,
+            },
+            data: { isPrimaryPayer: false },
+          })
 
-        const updated = await tx.guardianRelationship.updateMany({
-          where: {
-            guardianId: selectedGuardian.id,
-            dependentId: { in: childPersonIds },
-            isActive: true,
-          },
-          data: { isPrimaryPayer: true },
-        })
+          const updated = await tx.guardianRelationship.updateMany({
+            where: {
+              guardianId: selectedGuardian.id,
+              dependentId: { in: childPersonIds },
+              isActive: true,
+            },
+            data: { isPrimaryPayer: true },
+          })
 
-        return updated.count
-      })
-    }
-  )
+          return updated.count
+        })
+      }
+    )
+  } catch (error) {
+    await logError(logger, error, 'Failed to set primary payer', {
+      studentId: input.studentId,
+    })
+    throw error
+  }
 
   return { updated: result }
 }

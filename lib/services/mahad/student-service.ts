@@ -16,11 +16,14 @@ import {
   ERROR_CODES,
   throwIfP2002,
 } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
 import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+
+const logger = createServiceLogger('mahad-student-service')
 
 /**
  * Student creation input
@@ -152,6 +155,9 @@ export async function createMahadStudent(input: StudentCreateInput) {
   } catch (error) {
     if (error instanceof ActionError) throw error
     throwIfP2002(error)
+    await logError(logger, error, 'Failed to create Mahad student', {
+      name: input.name,
+    })
     throw error
   }
 }
@@ -233,6 +239,9 @@ export async function updateMahadStudent(
   } catch (error) {
     if (error instanceof ActionError) throw error
     throwIfP2002(error)
+    await logError(logger, error, 'Failed to update Mahad student', {
+      studentId,
+    })
     throw error
   }
 }
@@ -261,31 +270,66 @@ export async function getMahadStudentSiblings(studentId: string) {
 }
 
 /**
- * Delete Mahad student.
+ * Withdraw a Mahad student.
  *
- * Soft delete - marks as inactive and withdraws from enrollments.
+ * Soft-delete: marks the program profile WITHDRAWN and ends any active
+ * enrollments. The record is preserved for historical/billing reference.
+ *
+ * Throws `PROFILE_NOT_FOUND` (404) if no Mahad profile exists for `studentId`.
+ * The profile/program check runs inside the transaction to prevent a race where
+ * a concurrent update changes the profile between precheck and write.
  *
  * @param studentId - Program profile ID
- * @returns Deleted profile
+ * @returns The withdrawn program profile
  */
 export async function deleteMahadStudent(studentId: string) {
-  return await prisma.$transaction(async (tx) => {
-    await tx.enrollment.updateMany({
-      where: {
-        programProfileId: studentId,
-        status: { not: 'WITHDRAWN' },
-      },
-      data: {
-        status: 'WITHDRAWN',
-        endDate: new Date(),
-      },
-    })
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const profile = await getProgramProfileById(studentId, tx)
 
-    return tx.programProfile.update({
-      where: { id: studentId },
-      data: {
-        status: 'WITHDRAWN',
-      },
+      if (!profile || profile.program !== MAHAD_PROGRAM) {
+        throw new ActionError(
+          'Mahad student profile not found',
+          ERROR_CODES.PROFILE_NOT_FOUND,
+          undefined,
+          404
+        )
+      }
+
+      await tx.enrollment.updateMany({
+        where: {
+          programProfileId: studentId,
+          status: { not: 'WITHDRAWN' },
+        },
+        data: {
+          status: 'WITHDRAWN',
+          endDate: new Date(),
+        },
+      })
+
+      return tx.programProfile.update({
+        where: { id: studentId },
+        data: {
+          status: 'WITHDRAWN',
+        },
+      })
     })
-  })
+  } catch (error) {
+    if (error instanceof ActionError) throw error
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
+      throw new ActionError(
+        'Mahad student profile not found',
+        ERROR_CODES.PROFILE_NOT_FOUND,
+        undefined,
+        404
+      )
+    }
+    await logError(logger, error, 'Failed to delete Mahad student', {
+      studentId,
+    })
+    throw error
+  }
 }
