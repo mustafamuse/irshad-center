@@ -276,27 +276,26 @@ export async function getMahadStudentSiblings(studentId: string) {
  * enrollments. The record is preserved for historical/billing reference.
  *
  * Throws `PROFILE_NOT_FOUND` (404) if no Mahad profile exists for `studentId`.
- * A concurrent delete that races past the precheck (Prisma P2025) is
- * translated to the same `PROFILE_NOT_FOUND` error so callers see a single
- * consistent shape.
+ * The profile/program check runs inside the transaction to prevent a race where
+ * a concurrent update changes the profile between precheck and write.
  *
  * @param studentId - Program profile ID
  * @returns The withdrawn program profile
  */
 export async function deleteMahadStudent(studentId: string) {
-  const profile = await getProgramProfileById(studentId)
-
-  if (!profile || profile.program !== MAHAD_PROGRAM) {
-    throw new ActionError(
-      'Mahad student profile not found',
-      ERROR_CODES.PROFILE_NOT_FOUND,
-      undefined,
-      404
-    )
-  }
-
   try {
     return await prisma.$transaction(async (tx) => {
+      const profile = await getProgramProfileById(studentId, tx)
+
+      if (!profile || profile.program !== MAHAD_PROGRAM) {
+        throw new ActionError(
+          'Mahad student profile not found',
+          ERROR_CODES.PROFILE_NOT_FOUND,
+          undefined,
+          404
+        )
+      }
+
       await tx.enrollment.updateMany({
         where: {
           programProfileId: studentId,

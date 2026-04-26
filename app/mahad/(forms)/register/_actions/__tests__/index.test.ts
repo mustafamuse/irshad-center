@@ -348,7 +348,7 @@ describe('checkEmailExists', () => {
     expect(mockIsEmailRegistered).toHaveBeenCalled()
   })
 
-  it('should return false (fail closed) when rate limited', async () => {
+  it('should return false (fail open) when rate limited', async () => {
     mockCheckRateLimit.mockResolvedValue({
       success: false,
       remaining: 0,

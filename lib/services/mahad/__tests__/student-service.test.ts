@@ -571,7 +571,6 @@ describe('deleteMahadStudent', () => {
       code: 'PROFILE_NOT_FOUND',
       statusCode: 404,
     })
-    expect(mockTransaction).not.toHaveBeenCalled()
   })
 
   it('throws PROFILE_NOT_FOUND when the profile belongs to a different program', async () => {
@@ -584,7 +583,6 @@ describe('deleteMahadStudent', () => {
       code: 'PROFILE_NOT_FOUND',
       statusCode: 404,
     })
-    expect(mockTransaction).not.toHaveBeenCalled()
   })
 
   it('translates a concurrent delete (P2025) into PROFILE_NOT_FOUND', async () => {
