@@ -248,7 +248,10 @@ export async function handleSubscriptionCreated(
       subscriptionMetadata.billingType as StudentBillingType
     )
 
-    if (priceAmount !== expectedRate) {
+    if (
+      priceAmount !== expectedRate &&
+      subscriptionMetadata.isOverride !== 'true'
+    ) {
       logger.warn(
         {
           subscriptionId: subscription.id,

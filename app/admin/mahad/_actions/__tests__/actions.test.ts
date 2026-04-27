@@ -71,7 +71,7 @@ const {
   mockAfter,
   mockGetProfileForPaymentLink,
   mockGetBatchByName,
-  mockSetProfileBillingDefaults,
+  mockBillingAccountFindFirst,
 } = vi.hoisted(() => ({
   mockCreateBatch: vi.fn(),
   mockUpdateBatch: vi.fn(),
@@ -97,7 +97,7 @@ const {
   mockPersonUpdate: vi.fn(),
   mockAfter: vi.fn((fn: () => void) => fn()),
   mockGetProfileForPaymentLink: vi.fn(),
-  mockSetProfileBillingDefaults: vi.fn(),
+  mockBillingAccountFindFirst: vi.fn(),
 }))
 
 vi.mock('next/cache', () => ({
@@ -122,6 +122,9 @@ vi.mock('@/lib/db', () => ({
           mockBillingAssignmentFindMany(...args),
         findFirst: (...args: unknown[]) =>
           mockBillingAssignmentFindFirst(...args),
+      },
+      billingAccount: {
+        findFirst: (...args: unknown[]) => mockBillingAccountFindFirst(...args),
       },
       person: {
         update: (...args: unknown[]) => mockPersonUpdate(...args),
@@ -151,8 +154,6 @@ vi.mock('@/lib/db/queries/student', () => ({
     mockGetStudentDeleteWarnings(...args),
   getProfileForPaymentLink: (...args: unknown[]) =>
     mockGetProfileForPaymentLink(...args),
-  setProfileBillingDefaults: (...args: unknown[]) =>
-    mockSetProfileBillingDefaults(...args),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -202,9 +203,8 @@ import {
   deleteStudentAction,
   bulkDeleteStudentsAction,
   getStudentDeleteWarningsAction,
-  generatePaymentLinkAction,
-  generatePaymentLinkWithDefaultsAction,
   updateStudentAction,
+  generatePaymentLinkWithOverrideAction,
 } from '../index'
 
 const VALID_BATCH_ID = '550e8400-e29b-41d4-a716-446655440000'
@@ -756,184 +756,6 @@ describe('Duplicate Resolution Actions', () => {
   })
 })
 
-describe('Payment Link Actions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    process.env.NEXT_PUBLIC_APP_URL = 'https://test.app'
-  })
-
-  describe('generatePaymentLinkAction', () => {
-    it('should generate payment link for valid profile', async () => {
-      mockGetProfileForPaymentLink.mockResolvedValue({
-        id: 'profile-1',
-        personId: 'person-1',
-        graduationStatus: 'NON_GRADUATE',
-        paymentFrequency: 'MONTHLY',
-        billingType: 'FULL_TIME',
-        person: {
-          name: 'Test Student',
-          email: 'test@example.com',
-          phone: null,
-        },
-      })
-      mockStripeSessionCreate.mockResolvedValue({
-        id: 'sess_123',
-        url: 'https://checkout.stripe.com/test',
-      })
-
-      const result = await generatePaymentLinkAction({
-        profileId: VALID_STUDENT_ID,
-      })
-
-      expect(result?.data?.url).toBe('https://checkout.stripe.com/test')
-      expect(result?.data?.amount).toBe(15000)
-    })
-
-    it('should reject profile without billing config', async () => {
-      mockGetProfileForPaymentLink.mockResolvedValue({
-        id: 'profile-1',
-        personId: 'person-1',
-        graduationStatus: null,
-        paymentFrequency: null,
-        billingType: null,
-        person: {
-          name: 'Test Student',
-          email: 'test@example.com',
-          phone: null,
-        },
-      })
-
-      const result = await generatePaymentLinkAction({
-        profileId: VALID_STUDENT_ID,
-      })
-
-      expect(result?.serverError).toContain('Billing configuration incomplete')
-    })
-
-    it('should reject exempt students', async () => {
-      mockGetProfileForPaymentLink.mockResolvedValue({
-        id: 'profile-1',
-        personId: 'person-1',
-        graduationStatus: 'NON_GRADUATE',
-        paymentFrequency: 'MONTHLY',
-        billingType: 'EXEMPT',
-        person: {
-          name: 'Test Student',
-          email: 'test@example.com',
-          phone: null,
-        },
-      })
-
-      const result = await generatePaymentLinkAction({
-        profileId: VALID_STUDENT_ID,
-      })
-
-      expect(result?.serverError).toContain(
-        'Exempt students do not need payment'
-      )
-    })
-
-    it('should reject profile without email', async () => {
-      mockGetProfileForPaymentLink.mockResolvedValue({
-        id: 'profile-1',
-        personId: 'person-1',
-        graduationStatus: 'NON_GRADUATE',
-        paymentFrequency: 'MONTHLY',
-        billingType: 'FULL_TIME',
-        person: {
-          name: 'Test Student',
-          email: null,
-          phone: null,
-        },
-      })
-
-      const result = await generatePaymentLinkAction({
-        profileId: VALID_STUDENT_ID,
-      })
-
-      expect(result?.serverError).toContain('email address is required')
-    })
-
-    it('should return error for non-existent profile', async () => {
-      mockGetProfileForPaymentLink.mockResolvedValue(null)
-      const nonExistentId = '550e8400-e29b-41d4-a716-446655449999'
-
-      const result = await generatePaymentLinkAction({
-        profileId: nonExistentId,
-      })
-
-      expect(result?.serverError).toBe('Student profile not found')
-    })
-
-    it('should reject invalid UUID', async () => {
-      const result = await generatePaymentLinkAction({
-        profileId: 'not-a-uuid',
-      })
-
-      expect(result?.validationErrors).toBeDefined()
-    })
-
-    describe('payment method types', () => {
-      const mockProfile = {
-        id: 'profile-1',
-        personId: 'person-1',
-        graduationStatus: 'NON_GRADUATE',
-        paymentFrequency: 'MONTHLY',
-        billingType: 'FULL_TIME',
-        person: {
-          name: 'Test Student',
-          email: 'test@example.com',
-          phone: null,
-        },
-      }
-
-      beforeEach(() => {
-        mockGetProfileForPaymentLink.mockResolvedValue(mockProfile)
-        mockStripeSessionCreate.mockResolvedValue({
-          id: 'sess_123',
-          url: 'https://checkout.stripe.com/test',
-        })
-      })
-
-      it('should include card and ACH when feature flag is enabled', async () => {
-        vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', 'true')
-
-        await generatePaymentLinkAction({ profileId: VALID_STUDENT_ID })
-
-        expect(mockStripeSessionCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            payment_method_types: ['card', 'us_bank_account'],
-          })
-        )
-      })
-
-      it('should only include ACH when feature flag is disabled', async () => {
-        vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', 'false')
-
-        await generatePaymentLinkAction({ profileId: VALID_STUDENT_ID })
-
-        expect(mockStripeSessionCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            payment_method_types: ['us_bank_account'],
-          })
-        )
-      })
-
-      it('should only include ACH when feature flag is not set', async () => {
-        vi.stubEnv('MAHAD_CARD_PAYMENTS_ENABLED', '')
-
-        await generatePaymentLinkAction({ profileId: VALID_STUDENT_ID })
-
-        expect(mockStripeSessionCreate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            payment_method_types: ['us_bank_account'],
-          })
-        )
-      })
-    })
-  })
-})
-
 describe('Student Update Actions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -1046,48 +868,144 @@ describe('Student Update Actions', () => {
   })
 })
 
-describe('generatePaymentLinkWithDefaultsAction', () => {
+const VALID_PROFILE_FIXTURE = {
+  id: VALID_PROFILE_ID,
+  personId: '550e8400-e29b-41d4-a716-446655440007',
+  graduationStatus: 'NON_GRADUATE' as const,
+  paymentFrequency: 'MONTHLY' as const,
+  billingType: 'FULL_TIME' as const,
+  person: {
+    name: 'Test Student',
+    email: 'student@example.com',
+    phone: '6125550000',
+  },
+}
+
+describe('generatePaymentLinkWithOverrideAction', () => {
   beforeEach(() => {
-    mockSetProfileBillingDefaults.mockResolvedValue(true)
+    vi.clearAllMocks()
+    process.env.NEXT_PUBLIC_APP_URL = 'https://test.app'
+    mockGetProfileForPaymentLink.mockResolvedValue(VALID_PROFILE_FIXTURE)
+    mockBillingAssignmentFindFirst.mockResolvedValue(null)
+    mockBillingAccountFindFirst.mockResolvedValue(null)
+    mockStripeSessionCreate.mockResolvedValue({
+      id: 'sess_test',
+      url: 'https://checkout.stripe.com/test',
+    })
   })
 
-  it('should set billing defaults then return payment link', async () => {
-    mockGetProfileForPaymentLink.mockResolvedValue({
-      id: VALID_PROFILE_ID,
-      personId: 'person-1',
-      graduationStatus: 'NON_GRADUATE',
-      paymentFrequency: 'MONTHLY',
-      billingType: 'FULL_TIME',
-      person: {
-        name: 'Test Student',
-        email: 'test@example.com',
-        phone: null,
-      },
-    })
-    mockStripeSessionCreate.mockResolvedValue({
-      id: 'sess_defaults',
-      url: 'https://checkout.stripe.com/defaults-test',
-    })
-
-    const result = await generatePaymentLinkWithDefaultsAction({
+  it('should generate a checkout URL for a valid profile', async () => {
+    const result = await generatePaymentLinkWithOverrideAction({
       profileId: VALID_PROFILE_ID,
     })
 
-    expect(result?.data?.url).toBe('https://checkout.stripe.com/defaults-test')
-    expect(result?.data?.amount).toBe(15000)
-    expect(mockSetProfileBillingDefaults).toHaveBeenCalledWith(
-      VALID_PROFILE_ID,
-      expect.objectContaining({ graduationStatus: expect.any(String) })
+    expect(result?.data?.url).toBe('https://checkout.stripe.com/test')
+    expect(result?.data?.isOverride).toBe(false)
+    expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customer_email: 'student@example.com',
+      })
     )
   })
 
-  it('should return not found error when profile does not exist', async () => {
-    mockSetProfileBillingDefaults.mockResolvedValueOnce(false)
+  it('should block if student already has an active subscription', async () => {
+    mockBillingAssignmentFindFirst.mockResolvedValue({ id: 'ba-existing' })
 
-    const result = await generatePaymentLinkWithDefaultsAction({
+    const result = await generatePaymentLinkWithOverrideAction({
       profileId: VALID_PROFILE_ID,
     })
 
-    expect(result?.serverError).toBe('Student profile not found')
+    expect(result?.serverError).toContain(
+      'already has an active Mahad subscription'
+    )
+    expect(mockStripeSessionCreate).not.toHaveBeenCalled()
+  })
+
+  it('should reuse existing Stripe customer ID when BillingAccount exists', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue({
+      stripeCustomerIdMahad: 'cus_existing123',
+    })
+
+    await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: 'cus_existing123' })
+    )
+    expect(mockStripeSessionCreate).not.toHaveBeenCalledWith(
+      expect.objectContaining({ customer_email: expect.any(String) })
+    )
+  })
+
+  it('should use customer_email when no existing BillingAccount customer', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue(null)
+
+    await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ customer_email: 'student@example.com' })
+    )
+  })
+
+  it('should apply override amount when provided', async () => {
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+      overrideAmount: 10000,
+    })
+
+    expect(result?.data?.isOverride).toBe(true)
+    expect(result?.data?.finalAmount).toBe(10000)
+    expect(mockStripeSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        line_items: expect.arrayContaining([
+          expect.objectContaining({
+            price_data: expect.objectContaining({ unit_amount: 10000 }),
+          }),
+        ]),
+      })
+    )
+  })
+
+  it('should return error when profile has no email', async () => {
+    mockGetProfileForPaymentLink.mockResolvedValue({
+      ...VALID_PROFILE_FIXTURE,
+      person: { ...VALID_PROFILE_FIXTURE.person, email: null },
+    })
+
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.serverError).toContain('email address is required')
+  })
+
+  it('should fall back to customer_email when stored Stripe customer ID is stale', async () => {
+    mockBillingAccountFindFirst.mockResolvedValue({
+      stripeCustomerIdMahad: 'cus_deleted',
+    })
+    const staleCustomerError = Object.assign(new Error('No such customer'), {
+      type: 'StripeInvalidRequestError',
+      code: 'resource_missing',
+      param: 'customer',
+    })
+    mockStripeSessionCreate
+      .mockRejectedValueOnce(staleCustomerError)
+      .mockResolvedValueOnce({
+        id: 'sess_fallback',
+        url: 'https://checkout.stripe.com/fallback',
+      })
+
+    const result = await generatePaymentLinkWithOverrideAction({
+      profileId: VALID_PROFILE_ID,
+    })
+
+    expect(result?.data?.url).toBe('https://checkout.stripe.com/fallback')
+    expect(mockStripeSessionCreate).toHaveBeenCalledTimes(2)
+    expect(mockStripeSessionCreate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ customer_email: 'student@example.com' })
+    )
   })
 })

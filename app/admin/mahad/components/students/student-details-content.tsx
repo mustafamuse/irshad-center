@@ -186,6 +186,7 @@ export function StudentDetailsContent({
         studentName={student.name}
         open={showPaymentLinkDialog}
         onOpenChange={setShowPaymentLinkDialog}
+        errorActionHref={`/admin/mahad?student=${student.id}`}
       />
     </div>
   )

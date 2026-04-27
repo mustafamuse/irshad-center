@@ -32,6 +32,7 @@ import { PaymentLinkDialog } from '../dialogs/payment-link-dialog'
 interface StudentsTableProps {
   students: MahadStudent[]
   batches: MahadBatch[]
+  initialStudentId?: string
 }
 
 function getStatusBadge(status: StudentStatus) {
@@ -51,9 +52,13 @@ function getStatusBadge(status: StudentStatus) {
   return <Badge variant={config.variant}>{config.label}</Badge>
 }
 
-export function StudentsTable({ students, batches }: StudentsTableProps) {
+export function StudentsTable({
+  students,
+  batches,
+  initialStudentId,
+}: StudentsTableProps) {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
-    null
+    initialStudentId ?? null
   )
   const [paymentLinkStudentId, setPaymentLinkStudentId] = useState<
     string | null
@@ -190,6 +195,11 @@ export function StudentsTable({ students, batches }: StudentsTableProps) {
         studentName={paymentLinkStudent?.name ?? ''}
         open={!!paymentLinkStudent}
         onOpenChange={(open) => !open && setPaymentLinkStudentId(null)}
+        errorActionHref={
+          paymentLinkStudent
+            ? `/admin/mahad?student=${paymentLinkStudent.id}`
+            : undefined
+        }
       />
 
       <DeleteStudentDialog

@@ -40,11 +40,21 @@ function Loading() {
   )
 }
 
-export default async function MahadCohortsPage() {
-  const [batches, students] = await Promise.all([
+export default async function MahadCohortsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const [batches, students, resolvedParams] = await Promise.all([
     getBatches(),
     getCachedStudentsWithBatch(),
+    searchParams,
   ])
+
+  const initialStudentId =
+    typeof resolvedParams.student === 'string'
+      ? resolvedParams.student
+      : undefined
 
   return (
     <main className="container mx-auto space-y-4 p-4 sm:space-y-6 sm:p-6 lg:space-y-8 lg:p-8">
@@ -55,7 +65,11 @@ export default async function MahadCohortsPage() {
         fallbackLabel="Reload Dashboard"
       >
         <Suspense fallback={<Loading />}>
-          <MahadDashboard students={students} batches={batches} />
+          <MahadDashboard
+            students={students}
+            batches={batches}
+            initialStudentId={initialStudentId}
+          />
         </Suspense>
       </AppErrorBoundary>
     </main>
