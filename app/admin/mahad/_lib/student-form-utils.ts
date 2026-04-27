@@ -15,10 +15,6 @@ import {
   type UpdateStudentPayload,
 } from '../_types'
 
-/**
- * Get default form data from student record
- * Converts null/undefined to appropriate form defaults
- */
 export function getDefaultFormData(
   student: BatchStudentData | StudentDetailData
 ): StudentFormData {
@@ -37,6 +33,7 @@ export function getDefaultFormData(
   }
 }
 
+// Next.js RSC serializes Date to ISO string across the server→client boundary
 function normalizeDateValue(
   value: Date | string | null | undefined
 ): Date | null {
@@ -51,17 +48,6 @@ function normalizeDateValue(
   return parsed
 }
 
-function getDateTimestamp(value: Date | null): number | null {
-  value: Date | string | null | undefined
-): number | null {
-  const normalizedDate = normalizeDateValue(value)
-  return normalizedDate ? normalizedDate.getTime() : null
-}
-
-/**
- * Convert form data to API payload
- * Handles 'none' placeholder conversion to null
- */
 export function convertFormDataToPayload(
   formData: StudentFormData
 ): UpdateStudentPayload {
@@ -126,7 +112,7 @@ export function hasFormChanges(
     formData.name !== originalData.name ||
     formData.email !== originalData.email ||
     formData.phone !== originalData.phone ||
-    getDateTimestamp(formData.dateOfBirth) !==
+    (formData.dateOfBirth?.getTime() ?? null) !==
       (originalData.dateOfBirth?.getTime() ?? null) ||
     formData.gradeLevel !== originalData.gradeLevel ||
     formData.schoolName !== originalData.schoolName ||

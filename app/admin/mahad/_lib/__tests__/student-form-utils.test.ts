@@ -82,7 +82,7 @@ describe('student-form-utils', () => {
 
     it('should normalize serialized dateOfBirth values to Date', () => {
       const serializedDateStudent = createMockStudent({
-        dateOfBirth: '2000-01-01T00:00:00.000Z',
+        dateOfBirth: '2000-01-01T00:00:00.000Z' as string,
       })
 
       const formData = getDefaultFormData(serializedDateStudent)
@@ -95,7 +95,7 @@ describe('student-form-utils', () => {
 
     it('should return null for an invalid date string', () => {
       const student = createMockStudent({
-        dateOfBirth: 'not-a-date' as unknown as Date,
+        dateOfBirth: 'not-a-date' as string,
       })
       const formData = getDefaultFormData(student)
       expect(formData.dateOfBirth).toBeNull()
@@ -362,11 +362,26 @@ describe('student-form-utils', () => {
 
     it('should return false when original dateOfBirth is serialized', () => {
       const studentWithSerializedDate = createMockStudent({
-        dateOfBirth: '2000-01-01T00:00:00.000Z' as unknown as Date,
+        dateOfBirth: '2000-01-01T00:00:00.000Z' as string,
       })
       const formData = getDefaultFormData(studentWithSerializedDate)
 
       expect(hasFormChanges(formData, studentWithSerializedDate)).toBe(false)
+    })
+
+    it('should return false when both dateOfBirth values are null', () => {
+      const student = createMockStudent({ dateOfBirth: null })
+      const formData = getDefaultFormData(student)
+
+      expect(hasFormChanges(formData, student)).toBe(false)
+    })
+
+    it('should return true when dateOfBirth is cleared to null', () => {
+      const student = createMockStudent({ dateOfBirth: new Date('2000-01-01') })
+      const formData = getDefaultFormData(student)
+      formData.dateOfBirth = null
+
+      expect(hasFormChanges(formData, student)).toBe(true)
     })
   })
 })
