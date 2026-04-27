@@ -79,6 +79,19 @@ describe('student-form-utils', () => {
       expect(formData.paymentNotes).toBe(FORM_DEFAULTS.EMPTY)
       expect(formData.batchId).toBe(FORM_DEFAULTS.NONE)
     })
+
+    it('should normalize serialized dateOfBirth values to Date', () => {
+      const serializedDateStudent = createMockStudent({
+        dateOfBirth: '2000-01-01T00:00:00.000Z' as unknown as Date,
+      })
+
+      const formData = getDefaultFormData(serializedDateStudent)
+
+      expect(formData.dateOfBirth).toBeInstanceOf(Date)
+      expect(formData.dateOfBirth?.toISOString()).toBe(
+        '2000-01-01T00:00:00.000Z'
+      )
+    })
   })
 
   describe('convertFormDataToPayload', () => {
@@ -337,6 +350,15 @@ describe('student-form-utils', () => {
       formData.billingType = StudentBillingType.PART_TIME
 
       expect(hasFormChanges(formData, student)).toBe(true)
+    })
+
+    it('should return false when original dateOfBirth is serialized', () => {
+      const studentWithSerializedDate = createMockStudent({
+        dateOfBirth: '2000-01-01T00:00:00.000Z' as unknown as Date,
+      })
+      const formData = getDefaultFormData(studentWithSerializedDate)
+
+      expect(hasFormChanges(formData, studentWithSerializedDate)).toBe(false)
     })
   })
 })

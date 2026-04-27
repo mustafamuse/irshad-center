@@ -26,7 +26,7 @@ export function getDefaultFormData(
     name: student.name,
     email: student.email || FORM_DEFAULTS.EMPTY,
     phone: student.phone || FORM_DEFAULTS.EMPTY,
-    dateOfBirth: student.dateOfBirth ?? null,
+    dateOfBirth: normalizeDateValue(student.dateOfBirth),
     gradeLevel: student.gradeLevel || FORM_DEFAULTS.NONE,
     schoolName: student.schoolName || FORM_DEFAULTS.EMPTY,
     graduationStatus: student.graduationStatus || FORM_DEFAULTS.NONE,
@@ -35,6 +35,27 @@ export function getDefaultFormData(
     paymentNotes: student.paymentNotes || FORM_DEFAULTS.EMPTY,
     batchId: student.batchId || FORM_DEFAULTS.NONE,
   }
+}
+
+function normalizeDateValue(
+  value: Date | string | null | undefined
+): Date | null {
+  if (!value) return null
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
+
+function getDateTimestamp(
+  value: Date | string | null | undefined
+): number | null {
+  const normalizedDate = normalizeDateValue(value)
+  return normalizedDate ? normalizedDate.getTime() : null
 }
 
 /**
@@ -105,7 +126,8 @@ export function hasFormChanges(
     formData.name !== originalData.name ||
     formData.email !== originalData.email ||
     formData.phone !== originalData.phone ||
-    formData.dateOfBirth?.getTime() !== originalData.dateOfBirth?.getTime() ||
+    getDateTimestamp(formData.dateOfBirth) !==
+      getDateTimestamp(originalData.dateOfBirth) ||
     formData.gradeLevel !== originalData.gradeLevel ||
     formData.schoolName !== originalData.schoolName ||
     formData.graduationStatus !== originalData.graduationStatus ||
