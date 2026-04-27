@@ -37,6 +37,7 @@ export function getDefaultFormData(
   }
 }
 
+function normalizeDateValue(
   value: Date | string | null | undefined
 ): Date | null {
   if (!value) return null
