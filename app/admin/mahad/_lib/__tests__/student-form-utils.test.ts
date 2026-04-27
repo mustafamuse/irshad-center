@@ -82,7 +82,7 @@ describe('student-form-utils', () => {
 
     it('should normalize serialized dateOfBirth values to Date', () => {
       const serializedDateStudent = createMockStudent({
-        dateOfBirth: '2000-01-01T00:00:00.000Z' as unknown as Date,
+        dateOfBirth: '2000-01-01T00:00:00.000Z',
       })
 
       const formData = getDefaultFormData(serializedDateStudent)
