@@ -1,12 +1,21 @@
 'use client'
 
-import { Fragment, useMemo } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 
-import { Mail, Phone, Copy, Edit, UserPlus, Wallet } from 'lucide-react'
+import {
+  Mail,
+  Phone,
+  Copy,
+  Edit,
+  UserPlus,
+  Wallet,
+  UserMinus,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 
 import { useActionHandler } from '@/hooks/use-action-handler'
@@ -21,6 +30,7 @@ interface OverviewTabProps {
   onEditParent: (parentNumber: 1 | 2, isAdding: boolean) => void
   onEditChild: (studentId: string) => void
   onAddChild: () => void
+  onWithdraw: (profileIds: string[]) => void
 }
 
 interface ParentContactProps {
@@ -132,9 +142,24 @@ export function OverviewTab({
   onEditParent,
   onEditChild,
   onAddChild,
+  onWithdraw,
 }: OverviewTabProps) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   const { execute: executeSetPrimaryPayer, isPending: isSettingPrimaryPayer } =
     useActionHandler(setPrimaryPayer)
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   const copyToClipboard = async (text: string, label: string) => {
     try {
@@ -223,33 +248,72 @@ export function OverviewTab({
           <h3 className="text-base font-semibold">
             Kids ({family.members.length})
           </h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onAddChild}
-            className="h-8 px-2 sm:px-3"
-          >
-            <UserPlus className="h-3.5 w-3.5 sm:mr-1.5" />
-            <span className="hidden sm:inline">Add Child</span>
-          </Button>
+          <div className="flex items-center gap-1">
+            {selectedIds.size > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onWithdraw(Array.from(selectedIds))
+                  setSelectedIds(new Set())
+                }}
+                className="h-8 px-2 text-xs text-amber-700 hover:text-amber-800 sm:px-3"
+              >
+                <UserMinus className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">
+                  Withdraw ({selectedIds.size})
+                </span>
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onAddChild}
+              className="h-8 px-2 sm:px-3"
+            >
+              <UserPlus className="h-3.5 w-3.5 sm:mr-1.5" />
+              <span className="hidden sm:inline">Add Child</span>
+            </Button>
+          </div>
         </div>
         <div className="space-y-2.5 pt-1">
           {sortedChildren.map((child, index) => (
-            <ChildInfoCard
-              key={child.id}
-              child={child}
-              index={index}
-              editButton={
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onEditChild(child.id)}
-                  className="h-7 px-2"
-                >
-                  <Edit className="h-3.5 w-3.5" />
-                </Button>
-              }
-            />
+            <div key={child.id} className="flex items-start gap-2">
+              <div className="flex pt-3">
+                <Checkbox
+                  checked={selectedIds.has(child.id)}
+                  onCheckedChange={() => toggleSelection(child.id)}
+                  aria-label={`Select ${child.name} for withdrawal`}
+                />
+              </div>
+              <div className="flex-1">
+                <ChildInfoCard
+                  child={child}
+                  index={index}
+                  editButton={
+                    <div className="flex items-center gap-0.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onWithdraw([child.id])}
+                        className="h-7 px-1.5 text-amber-600 hover:text-amber-700"
+                        title="Withdraw child"
+                      >
+                        <UserMinus className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onEditChild(child.id)}
+                        className="h-7 px-2"
+                      >
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  }
+                />
+              </div>
+            </div>
           ))}
         </div>
       </div>

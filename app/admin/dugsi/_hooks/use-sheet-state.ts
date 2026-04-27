@@ -37,6 +37,10 @@ export function useSheetState() {
   const [deleteFamilyDialog, setDeleteFamilyDialog] = useState(false)
   const [consolidateSubscriptionDialog, setConsolidateSubscriptionDialog] =
     useState(false)
+  const [withdrawDialog, setWithdrawDialog] = useState<{
+    open: boolean
+    profileIds: string[]
+  }>({ open: false, profileIds: [] })
   const [shiftPopover, setShiftPopover] = useState(false)
   const [pendingShift, setPendingShift] = useState<PendingShift | null>(null)
   const [activeTab, setActiveTab] = useState<SheetTab>('overview')
@@ -60,6 +64,14 @@ export function useSheetState() {
     setEditChildDialog((prev) => ({ ...prev, open: false }))
   }, [])
 
+  const openWithdrawDialog = useCallback((profileIds: string[]) => {
+    setWithdrawDialog({ open: true, profileIds })
+  }, [])
+
+  const closeWithdrawDialog = useCallback(() => {
+    setWithdrawDialog({ open: false, profileIds: [] })
+  }, [])
+
   const reset = useCallback(() => {
     setEditParentDialog({ open: false, parentNumber: 1, isAdding: false })
     setEditChildDialog({ open: false, studentId: null })
@@ -67,6 +79,7 @@ export function useSheetState() {
     setPaymentLinkDialog(false)
     setDeleteFamilyDialog(false)
     setConsolidateSubscriptionDialog(false)
+    setWithdrawDialog({ open: false, profileIds: [] })
     setShiftPopover(false)
     setPendingShift(null)
     setActiveTab('overview')
@@ -80,6 +93,7 @@ export function useSheetState() {
       paymentLinkDialog,
       deleteFamilyDialog,
       consolidateSubscriptionDialog,
+      withdrawDialog,
       shiftPopover,
       pendingShift,
       activeTab,
@@ -93,6 +107,8 @@ export function useSheetState() {
       setPaymentLinkDialog,
       setDeleteFamilyDialog,
       setConsolidateSubscriptionDialog,
+      openWithdrawDialog,
+      closeWithdrawDialog,
       setShiftPopover,
       setPendingShift,
       setActiveTab,
