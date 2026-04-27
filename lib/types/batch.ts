@@ -88,16 +88,12 @@ export interface BatchAssignmentResult {
 // STUDENT TYPES (Using ProgramProfile/Enrollment Model)
 // ============================================================================
 
-/**
- * Student with batch data - represents a ProgramProfile with enrollment info
- * This is the main type used in the admin interface for student lists
- */
 export interface Student {
   id: string // ProgramProfile.id
   name: string // Person.name
   email?: string | null
   phone?: string | null
-  dateOfBirth?: Date | null
+  dateOfBirth?: Date | string | null
   gradeLevel?: GradeLevel | null
   schoolName?: string | null
   // Mahad billing fields
@@ -111,9 +107,6 @@ export interface Student {
   updatedAt: Date
 }
 
-/**
- * Student with batch relation
- */
 export interface StudentWithBatch extends Student {
   batch?: {
     id: string
@@ -127,10 +120,6 @@ export interface StudentWithBatch extends Student {
 export { StudentStatusEnum as StudentStatus }
 export type { StudentStatusEnum }
 
-/**
- * Student with batch and related data for UI (full data - used in lists)
- * Includes subscription and sibling information
- */
 export interface BatchStudentData extends StudentWithBatch {
   subscription?: {
     id: string
@@ -141,10 +130,6 @@ export interface BatchStudentData extends StudentWithBatch {
   siblingCount?: number
 }
 
-/**
- * Student detail data - matches what getStudentById returns (subset of fields)
- * Used for detail views and forms
- */
 export interface StudentDetailData extends BatchStudentData {
   enrollments?: Array<{
     id: string
