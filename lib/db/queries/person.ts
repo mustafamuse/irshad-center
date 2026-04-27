@@ -182,6 +182,44 @@ export async function getPersonWithAllRelations(
   })
 }
 
+/**
+ * Verify that a person ID exists in the database.
+ * Used to validate person IDs sourced from Stripe metadata before creating billing records.
+ */
+export async function findPersonById(
+  personId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findUnique({
+    where: { id: personId },
+    select: { id: true },
+  })
+}
+
+/**
+ * Find a person via any billing account already linked to this Stripe customer ID.
+ * Searches both Mahad and Dugsi customer ID columns — used for cross-program re-subscribers
+ * where the program-specific billing account has not been created yet.
+ */
+export async function findPersonByStripeCustomerId(
+  customerId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.person.findFirst({
+    where: {
+      billingAccounts: {
+        some: {
+          OR: [
+            { stripeCustomerIdMahad: customerId },
+            { stripeCustomerIdDugsi: customerId },
+          ],
+        },
+      },
+    },
+    select: { id: true },
+  })
+}
+
 export async function updatePersonContact(
   personId: string,
   data: PersonContactFields,
