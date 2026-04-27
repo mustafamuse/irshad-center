@@ -51,7 +51,7 @@ function normalizeDateValue(
   return parsed
 }
 
-function getDateTimestamp(
+function getDateTimestamp(value: Date | null): number | null {
   value: Date | string | null | undefined
 ): number | null {
   const normalizedDate = normalizeDateValue(value)
