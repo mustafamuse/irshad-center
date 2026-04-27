@@ -70,6 +70,8 @@ model Teacher {
   attendanceSessions DugsiAttendanceSession[]
   checkIns           DugsiTeacherCheckIn[]
   dugsiClasses       DugsiClassTeacher[]
+  attendanceRecords  TeacherAttendanceRecord[]
+  excuseRequests     ExcuseRequest[]
 
   @@index([personId])
 }
@@ -98,6 +100,29 @@ model TeacherProgram {
 enum Shift {
   MORNING
   AFTERNOON
+}
+
+enum TeacherAttendanceStatus {
+  EXPECTED // slot generated, no check-in yet
+  PRESENT // on time (self or admin)
+  LATE // after deadline (self check-in or auto-marked)
+  ABSENT // admin-only: never showed up
+  EXCUSED // admin approved excuse (reason required)
+  CLOSED // school closed that day
+}
+
+enum AttendanceSource {
+  SELF_CHECKIN    // teacher GPS clock-in
+  ADMIN_OVERRIDE  // admin manual action
+  AUTO_MARKED     // cron job
+  SYSTEM          // expectation generation, closure propagation, backfill
+  EXCUSE_APPROVED // excuse approved by admin → record flipped to EXCUSED
+}
+
+enum ExcuseRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum DugsiAttendanceStatus {
@@ -596,7 +621,8 @@ model DugsiTeacherCheckIn {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  teacher          Teacher                  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  attendanceRecord TeacherAttendanceRecord?
 
   @@unique([teacherId, date, shift])
   @@index([teacherId])
@@ -694,4 +720,82 @@ model Donation {
   @@index([status, isRecurring, stripeSubscriptionId])
   @@index([status, stripeSubscriptionId, paidAt])
   @@index([status, donorEmail])
+}
+
+// ============================================================================
+// TEACHER ATTENDANCE (PHASE 2)
+// ============================================================================
+
+// Status lifecycle table for teacher attendance.
+// DugsiTeacherCheckIn is the immutable fact log; this is the living status record.
+// One row per teacher/date/shift — upserted idempotently.
+model TeacherAttendanceRecord {
+  id          String                  @id @default(uuid())
+  teacherId   String
+  date        DateTime                @db.Date
+  shift       Shift
+  status         TeacherAttendanceStatus  @default(EXPECTED)
+  previousStatus TeacherAttendanceStatus?
+  source         AttendanceSource         @default(SYSTEM)
+  checkInId   String?                 @unique // FK → DugsiTeacherCheckIn (one-to-one)
+  clockInTime DateTime? // denormalized for display without join
+  /// CHECK constraint enforced via migration: attendance_minutes_late_only_when_late
+  minutesLate Int? // null when status is not LATE
+  notes       String?
+  changedBy   String? // admin actor for audit
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  teacher Teacher              @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  checkIn DugsiTeacherCheckIn? @relation(fields: [checkInId], references: [id], onDelete: Restrict)
+  excuses ExcuseRequest[]
+
+  @@unique([teacherId, date, shift])
+  @@index([teacherId, date])           // covers single-column teacherId lookups as prefix
+  @@index([date, shift, status])       // covers auto-mark (date+shift+status=EXPECTED) and grid view (date range)
+}
+
+// Singleton config row for auto-mark behavior.
+// Self-seeds on first read via upsert in getAttendanceConfig().
+model DugsiAttendanceConfig {
+  id                       String   @id @default("singleton")
+  morningAutoMarkMinutes   Int      @default(15) // minutes after 9:00 AM class start
+  afternoonAutoMarkMinutes Int      @default(15) // minutes after 1:30 PM class start
+  updatedAt                DateTime @updatedAt
+  updatedBy                String?
+}
+
+// Admin-marked school closures. Propagates EXPECTED → CLOSED on creation;
+// reverts CLOSED → EXPECTED on deletion.
+model SchoolClosure {
+  id        String   @id @default(uuid())
+  date      DateTime @db.Date
+  reason    String
+  createdBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date]) // PostgreSQL implicitly creates a B-tree index for unique constraints
+}
+
+// Teacher-submitted excuse requests for LATE or ABSENT records.
+// Admin reviews (approve/reject) via the admin UI.
+model ExcuseRequest {
+  id                 String              @id @default(uuid())
+  attendanceRecordId String
+  teacherId          String
+  reason             String // min 10 chars (enforced in service)
+  status             ExcuseRequestStatus @default(PENDING)
+  adminNote          String?
+  reviewedBy         String?
+  reviewedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  attendanceRecord TeacherAttendanceRecord @relation(fields: [attendanceRecordId], references: [id], onDelete: Cascade)
+  teacher          Teacher                 @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([attendanceRecordId])
+  @@index([teacherId, status])  // covers single-column teacherId lookups as prefix
 }

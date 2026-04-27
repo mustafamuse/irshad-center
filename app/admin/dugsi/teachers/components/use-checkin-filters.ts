@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useMemo, useState, useTransition, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Shift } from '@prisma/client'
 
-import { TeacherOption, getTeachersForDropdownAction } from '../actions'
+import { useTeachersDropdownQuery } from '@/lib/features/attendance/hooks/admin'
+
 import {
   FilterOption,
   generateHistoryFilterOptions,
@@ -12,8 +13,8 @@ import {
 } from './date-utils'
 
 export interface CheckinFiltersState {
-  isPending: boolean
-  teachers: TeacherOption[]
+  isLoading: boolean
+  teachers: { id: string; name: string }[]
   teachersError: string | null
   shiftFilter: Shift | 'all'
   teacherFilter: string | 'all'
@@ -24,7 +25,6 @@ export interface CheckinFiltersState {
 }
 
 export interface CheckinFiltersActions {
-  startTransition: (callback: () => void) => void
   setShiftFilter: (value: Shift | 'all') => void
   setTeacherFilter: (value: string | 'all') => void
   handleHistoryFilterChange: (value: string) => void
@@ -32,36 +32,19 @@ export interface CheckinFiltersActions {
 
 export function useCheckinFilters(): CheckinFiltersState &
   CheckinFiltersActions {
-  const [isPending, startTransition] = useTransition()
-  const [teachers, setTeachers] = useState<TeacherOption[]>([])
-  const [teachersError, setTeachersError] = useState<string | null>(null)
   const [shiftFilter, setShiftFilter] = useState<Shift | 'all'>('all')
   const [teacherFilter, setTeacherFilter] = useState<string | 'all'>('all')
   const [selectedHistoryFilter, setSelectedHistoryFilter] =
     useState('this-month')
   const [dateRange, setDateRange] = useState(() => getThisMonthRange())
 
+  const teachersQuery = useTeachersDropdownQuery()
+
   const historyFilterOptions = useMemo(() => generateHistoryFilterOptions(), [])
   const allHistoryOptions = useMemo(
     () => [...historyFilterOptions.months, ...historyFilterOptions.quarters],
     [historyFilterOptions]
   )
-
-  const loadTeachers = useCallback(() => {
-    startTransition(async () => {
-      const result = await getTeachersForDropdownAction()
-      if (result?.data) {
-        setTeachers(result.data)
-        setTeachersError(null)
-      } else {
-        setTeachersError(result?.serverError || 'Failed to load teachers')
-      }
-    })
-  }, [])
-
-  useEffect(() => {
-    loadTeachers()
-  }, [loadTeachers])
 
   function handleHistoryFilterChange(value: string) {
     const option = allHistoryOptions.find((o) => o.value === value)
@@ -72,16 +55,15 @@ export function useCheckinFilters(): CheckinFiltersState &
   }
 
   return {
-    isPending,
-    teachers,
-    teachersError,
+    isLoading: teachersQuery.isLoading,
+    teachers: teachersQuery.data ?? [],
+    teachersError: teachersQuery.error?.message ?? null,
     shiftFilter,
     teacherFilter,
     selectedHistoryFilter,
     dateRange,
     historyFilterOptions,
     allHistoryOptions,
-    startTransition,
     setShiftFilter,
     setTeacherFilter,
     handleHistoryFilterChange,

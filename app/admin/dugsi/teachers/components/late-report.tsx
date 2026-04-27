@@ -97,7 +97,7 @@ export function LateReport() {
     loadData()
   }, [loadData])
 
-  const isLoading = isPending || filters.isPending
+  const isLoading = isPending || filters.isLoading
 
   return (
     <div className="space-y-4">

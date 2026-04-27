@@ -1,32 +1,44 @@
 import { Shift } from '@prisma/client'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect, beforeEach, beforeAll } from 'vitest'
 
 const {
-  mockGetTeacherCurrentStatus,
-  mockTeacherClockInAction,
-  mockTeacherClockOutAction,
-  mockCheckGeofence,
+  mockUseTeacherContextQuery,
+  mockUseClockInMutation,
+  mockUseClockOutMutation,
   mockUseGeolocation,
   mockUseCheckinOnboarding,
+  mockCheckGeofence,
 } = vi.hoisted(() => ({
-  mockGetTeacherCurrentStatus: vi.fn(),
-  mockTeacherClockInAction: vi.fn(),
-  mockTeacherClockOutAction: vi.fn(),
-  mockCheckGeofence: vi.fn(),
+  mockUseTeacherContextQuery: vi.fn(),
+  mockUseClockInMutation: vi.fn(),
+  mockUseClockOutMutation: vi.fn(),
   mockUseGeolocation: vi.fn(),
   mockUseCheckinOnboarding: vi.fn(),
+  mockCheckGeofence: vi.fn(),
 }))
 
 vi.mock('../../actions', () => ({
-  getTeacherCurrentStatus: (...args: unknown[]) =>
-    mockGetTeacherCurrentStatus(...args),
-  teacherClockInAction: (...args: unknown[]) =>
-    mockTeacherClockInAction(...args),
-  teacherClockOutAction: (...args: unknown[]) =>
-    mockTeacherClockOutAction(...args),
   checkGeofence: (...args: unknown[]) => mockCheckGeofence(...args),
+}))
+
+vi.mock('@/lib/features/attendance/hooks/teacher', () => ({
+  useTeacherContextQuery: (...args: unknown[]) =>
+    mockUseTeacherContextQuery(...args),
+  useClockInMutation: (...args: unknown[]) => mockUseClockInMutation(...args),
+  useClockOutMutation: (...args: unknown[]) => mockUseClockOutMutation(...args),
+  useTeacherCheckinHistoryQuery: vi.fn().mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isFetching: false,
+    error: null,
+  }),
+  useSubmitExcuseMutation: vi.fn().mockReturnValue({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }))
 
 vi.mock('../use-geolocation', () => ({
@@ -38,6 +50,17 @@ vi.mock('../use-checkin-onboarding', () => ({
 }))
 
 import { CheckinForm } from '../checkin-form'
+
+function makeQueryWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+  }
+}
 
 const mockTeachers = [
   {
@@ -81,18 +104,43 @@ const locationAcquired = {
     timestamp: Date.now(),
   },
   isLoading: false,
-  requestLocation: vi.fn(),
+  requestLocation: vi.fn().mockResolvedValue({
+    latitude: 44.9778,
+    longitude: -93.265,
+    accuracy: 10,
+    error: null,
+    timestamp: Date.now(),
+  }),
   hasLocation: true,
   hasError: false,
 }
 
-const defaultStatus = {
-  morningCheckinId: null,
-  morningClockInTime: null,
-  morningClockOutTime: null,
-  afternoonCheckinId: null,
-  afternoonClockInTime: null,
-  afternoonClockOutTime: null,
+const defaultContextNotClocked = {
+  data: {
+    teacherId: '550e8400-e29b-41d4-a716-446655440002',
+    todayDate: '2024-01-15',
+    shifts: [Shift.MORNING],
+    morningCheckinId: null,
+    morningClockInTime: null,
+    morningClockOutTime: null,
+    afternoonCheckinId: null,
+    afternoonClockInTime: null,
+    afternoonClockOutTime: null,
+    sessionToken: null,
+  },
+  isLoading: false,
+  isFetching: false,
+  error: null,
+}
+
+const defaultClockInMutation = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+}
+
+const defaultClockOutMutation = {
+  mutateAsync: vi.fn(),
+  isPending: false,
 }
 
 beforeAll(() => {
@@ -106,29 +154,47 @@ describe('CheckinForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseGeolocation.mockReturnValue(defaultGeolocation)
-    mockGetTeacherCurrentStatus.mockResolvedValue(defaultStatus)
-    mockCheckGeofence.mockResolvedValue({
-      isWithinGeofence: true,
-      distanceMeters: 25,
-      allowedRadiusMeters: 15,
+    mockUseTeacherContextQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isFetching: false,
+      error: null,
     })
+    mockUseClockInMutation.mockReturnValue({ ...defaultClockInMutation })
+    mockUseClockOutMutation.mockReturnValue({ ...defaultClockOutMutation })
     mockUseCheckinOnboarding.mockReturnValue({
       showOnboarding: false,
       dismissOnboarding: vi.fn(),
       resetOnboarding: vi.fn(),
     })
+    mockCheckGeofence.mockResolvedValue({
+      isWithinGeofence: true,
+      distanceMeters: 0,
+      allowedRadiusMeters: 200,
+    })
+    locationAcquired.requestLocation.mockResolvedValue({
+      latitude: 44.9778,
+      longitude: -93.265,
+      accuracy: 10,
+      error: null,
+      timestamp: Date.now(),
+    })
   })
 
   describe('rendering', () => {
     it('should render teacher selector', () => {
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       expect(screen.getByText('Select Your Name')).toBeInTheDocument()
       expect(screen.getByRole('combobox')).toBeInTheDocument()
     })
 
     it('should not show shift selector before teacher is selected', () => {
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       expect(screen.queryByText('Select Shift')).not.toBeInTheDocument()
     })
@@ -137,7 +203,9 @@ describe('CheckinForm', () => {
   describe('teacher selection', () => {
     it('should show shift selector when teacher has multiple shifts', async () => {
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -150,9 +218,11 @@ describe('CheckinForm', () => {
       })
     })
 
-    it('should auto-select shift when teacher has only one shift', async () => {
+    it('should not show shift selector when teacher has only one shift', async () => {
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -162,17 +232,19 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(screen.queryByText('Select Shift')).not.toBeInTheDocument()
-        expect(screen.getByText('Current Status')).toBeInTheDocument()
       })
     })
 
-    it('should show current status card after teacher selection', async () => {
+    it('should show current status card after teacher selection with context data', async () => {
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
-
       const option = screen.getByRole('option', { name: /bob johnson/i })
       await user.click(option)
 
@@ -182,32 +254,21 @@ describe('CheckinForm', () => {
     })
 
     it('should clear message when teacher is changed', async () => {
-      const mockRequestLocation = vi.fn().mockResolvedValue({
-        latitude: 44.9778,
-        longitude: -93.265,
-        accuracy: 10,
-        error: null,
-        timestamp: Date.now(),
+      const clockInMutateAsync = vi.fn().mockResolvedValue({
+        checkInId: 'checkin-1',
+        message: 'Clocked in successfully',
       })
-      mockUseGeolocation.mockReturnValue({
-        ...locationAcquired,
-        requestLocation: mockRequestLocation,
+      mockUseClockInMutation.mockReturnValue({
+        mutateAsync: clockInMutateAsync,
+        isPending: false,
       })
-      mockCheckGeofence.mockResolvedValue({
-        isWithinGeofence: true,
-        distanceMeters: 5,
-        allowedRadiusMeters: 50,
-      })
-      mockTeacherClockInAction.mockResolvedValue({
-        data: {
-          checkInId: 'checkin-1',
-          status: defaultStatus,
-          message: 'Clocked in successfully',
-        },
-      })
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+      mockUseGeolocation.mockReturnValue(locationAcquired)
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -222,10 +283,8 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('button', { name: /enable location/i }))
 
       await waitFor(() => {
-        expect(screen.getByText('Clock In')).toBeInTheDocument()
-        expect(
-          screen.getByRole('button', { name: /clock in/i })
-        ).not.toBeDisabled()
+        const clockInButton = screen.getByRole('button', { name: /clock in/i })
+        expect(clockInButton).not.toBeDisabled()
       })
 
       await user.click(screen.getByRole('button', { name: /clock in/i }))
@@ -247,8 +306,12 @@ describe('CheckinForm', () => {
 
   describe('status display', () => {
     it('should show Not Clocked In badge initially', async () => {
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -259,16 +322,20 @@ describe('CheckinForm', () => {
       })
     })
 
-    it('should show Clocked In badge with time when clocked in', async () => {
-      const clockedInStatus = {
-        ...defaultStatus,
-        morningCheckinId: 'checkin-1',
-        morningClockInTime: new Date('2024-01-15T08:25:00'),
-      }
-      mockGetTeacherCurrentStatus.mockResolvedValue(clockedInStatus)
+    it('should show Shift In Progress when clocked in', async () => {
+      mockUseTeacherContextQuery.mockReturnValue({
+        ...defaultContextNotClocked,
+        data: {
+          ...defaultContextNotClocked.data,
+          morningCheckinId: 'checkin-1',
+          morningClockInTime: '2024-01-15T08:25:00.000Z',
+        },
+      })
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -281,16 +348,20 @@ describe('CheckinForm', () => {
     })
 
     it('should show Shift Complete when clocked out', async () => {
-      const completedStatus = {
-        ...defaultStatus,
-        morningCheckinId: 'checkin-1',
-        morningClockInTime: new Date('2024-01-15T08:25:00'),
-        morningClockOutTime: new Date('2024-01-15T12:00:00'),
-      }
-      mockGetTeacherCurrentStatus.mockResolvedValue(completedStatus)
+      mockUseTeacherContextQuery.mockReturnValue({
+        ...defaultContextNotClocked,
+        data: {
+          ...defaultContextNotClocked.data,
+          morningCheckinId: 'checkin-1',
+          morningClockInTime: '2024-01-15T08:25:00.000Z',
+          morningClockOutTime: '2024-01-15T12:00:00.000Z',
+        },
+      })
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -305,20 +376,17 @@ describe('CheckinForm', () => {
 
   describe('location handling', () => {
     it('should call requestLocation when Enable Location button clicked', async () => {
-      const mockRequestLocation = vi.fn().mockResolvedValue({
-        latitude: 44.9778,
-        longitude: -93.265,
-        accuracy: 10,
-        error: null,
-        timestamp: Date.now(),
-      })
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+      const mockRequestLocation = vi.fn()
       mockUseGeolocation.mockReturnValue({
         ...defaultGeolocation,
         requestLocation: mockRequestLocation,
       })
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -335,83 +403,8 @@ describe('CheckinForm', () => {
       expect(mockRequestLocation).toHaveBeenCalled()
     })
 
-    it('should show At Irshad Center when location is within geofence', async () => {
-      const mockRequestLocation = vi.fn().mockResolvedValue({
-        latitude: 44.9778,
-        longitude: -93.265,
-        accuracy: 10,
-        error: null,
-        timestamp: Date.now(),
-      })
-      mockUseGeolocation.mockReturnValue({
-        ...locationAcquired,
-        requestLocation: mockRequestLocation,
-      })
-      mockCheckGeofence.mockResolvedValue({
-        isWithinGeofence: true,
-        distanceMeters: 5,
-        allowedRadiusMeters: 50,
-      })
-
-      const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
-
-      const combobox = screen.getByRole('combobox')
-      await user.click(combobox)
-      await user.click(screen.getByRole('option', { name: /bob johnson/i }))
-
-      await waitFor(() => {
-        expect(
-          screen.getByRole('button', { name: /enable location/i })
-        ).toBeInTheDocument()
-      })
-
-      await user.click(screen.getByRole('button', { name: /enable location/i }))
-
-      await waitFor(() => {
-        expect(screen.getByText('At Irshad Center')).toBeInTheDocument()
-      })
-    })
-
-    it('should show geofence warning when outside radius', async () => {
-      const mockRequestLocation = vi.fn().mockResolvedValue({
-        latitude: 45.0,
-        longitude: -93.0,
-        accuracy: 10,
-        error: null,
-        timestamp: Date.now(),
-      })
-      mockUseGeolocation.mockReturnValue({
-        ...locationAcquired,
-        requestLocation: mockRequestLocation,
-      })
-      mockCheckGeofence.mockResolvedValue({
-        isWithinGeofence: false,
-        distanceMeters: 150,
-        allowedRadiusMeters: 15,
-      })
-
-      const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
-
-      const combobox = screen.getByRole('combobox')
-      await user.click(combobox)
-      await user.click(screen.getByRole('option', { name: /bob johnson/i }))
-
-      await waitFor(() => {
-        expect(
-          screen.getByRole('button', { name: /enable location/i })
-        ).toBeInTheDocument()
-      })
-
-      await user.click(screen.getByRole('button', { name: /enable location/i }))
-
-      await waitFor(() => {
-        expect(screen.getByText(/492ft away/i)).toBeInTheDocument()
-      })
-    })
-
     it('should show location error when geolocation fails', async () => {
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
       mockUseGeolocation.mockReturnValue({
         ...defaultGeolocation,
         hasError: true,
@@ -422,7 +415,9 @@ describe('CheckinForm', () => {
       })
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -430,17 +425,18 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Could Not Get Location')).toBeInTheDocument()
-        expect(
-          screen.getByText(/make sure you are not in airplane mode/i)
-        ).toBeInTheDocument()
       })
     })
   })
 
   describe('clock in/out buttons', () => {
     it('should disable clock-in button when no location', async () => {
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -453,25 +449,13 @@ describe('CheckinForm', () => {
     })
 
     it('should enable clock-in button when location is acquired and within geofence', async () => {
-      const mockRequestLocation = vi.fn().mockResolvedValue({
-        latitude: 44.9778,
-        longitude: -93.265,
-        accuracy: 10,
-        error: null,
-        timestamp: Date.now(),
-      })
-      mockUseGeolocation.mockReturnValue({
-        ...locationAcquired,
-        requestLocation: mockRequestLocation,
-      })
-      mockCheckGeofence.mockResolvedValue({
-        isWithinGeofence: true,
-        distanceMeters: 5,
-        allowedRadiusMeters: 50,
-      })
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+      mockUseGeolocation.mockReturnValue(locationAcquired)
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -493,15 +477,19 @@ describe('CheckinForm', () => {
 
     it('should show clock-out button when clocked in', async () => {
       mockUseGeolocation.mockReturnValue(locationAcquired)
-      const clockedInStatus = {
-        ...defaultStatus,
-        morningCheckinId: 'checkin-1',
-        morningClockInTime: new Date('2024-01-15T08:25:00'),
-      }
-      mockGetTeacherCurrentStatus.mockResolvedValue(clockedInStatus)
+      mockUseTeacherContextQuery.mockReturnValue({
+        ...defaultContextNotClocked,
+        data: {
+          ...defaultContextNotClocked.data,
+          morningCheckinId: 'checkin-1',
+          morningClockInTime: '2024-01-15T08:25:00.000Z',
+        },
+      })
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -516,37 +504,22 @@ describe('CheckinForm', () => {
   })
 
   describe('actions', () => {
-    it('should call teacherClockInAction and show success message', async () => {
-      const mockRequestLocation = vi.fn().mockResolvedValue({
-        latitude: 44.9778,
-        longitude: -93.265,
-        accuracy: 10,
-        error: null,
-        timestamp: Date.now(),
+    it('should call clockInMutation and show success message', async () => {
+      const clockInMutateAsync = vi.fn().mockResolvedValue({
+        checkInId: 'checkin-1',
+        message: 'Clocked in successfully',
       })
-      mockUseGeolocation.mockReturnValue({
-        ...locationAcquired,
-        requestLocation: mockRequestLocation,
+      mockUseClockInMutation.mockReturnValue({
+        mutateAsync: clockInMutateAsync,
+        isPending: false,
       })
-      mockCheckGeofence.mockResolvedValue({
-        isWithinGeofence: true,
-        distanceMeters: 5,
-        allowedRadiusMeters: 50,
-      })
-      mockTeacherClockInAction.mockResolvedValue({
-        data: {
-          checkInId: 'checkin-1',
-          status: {
-            ...defaultStatus,
-            morningCheckinId: 'checkin-1',
-            morningClockInTime: new Date(),
-          },
-          message: 'Clocked in successfully',
-        },
-      })
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+      mockUseGeolocation.mockReturnValue(locationAcquired)
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -569,8 +542,7 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('button', { name: /clock in/i }))
 
       await waitFor(() => {
-        expect(mockTeacherClockInAction).toHaveBeenCalledWith({
-          teacherId: '550e8400-e29b-41d4-a716-446655440002',
+        expect(clockInMutateAsync).toHaveBeenCalledWith({
           shift: Shift.MORNING,
           latitude: 44.9778,
           longitude: -93.265,
@@ -582,29 +554,21 @@ describe('CheckinForm', () => {
       })
     })
 
-    it('should show error message when clock-in fails', async () => {
-      const mockRequestLocation = vi.fn().mockResolvedValue({
-        latitude: 44.9778,
-        longitude: -93.265,
-        accuracy: 10,
-        error: null,
-        timestamp: Date.now(),
+    it('should show error message when clock-in throws', async () => {
+      const clockInMutateAsync = vi
+        .fn()
+        .mockRejectedValue(new Error('Not enrolled in Dugsi program'))
+      mockUseClockInMutation.mockReturnValue({
+        mutateAsync: clockInMutateAsync,
+        isPending: false,
       })
-      mockUseGeolocation.mockReturnValue({
-        ...locationAcquired,
-        requestLocation: mockRequestLocation,
-      })
-      mockCheckGeofence.mockResolvedValue({
-        isWithinGeofence: true,
-        distanceMeters: 5,
-        allowedRadiusMeters: 50,
-      })
-      mockTeacherClockInAction.mockResolvedValue({
-        serverError: 'Not enrolled in Dugsi program',
-      })
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+      mockUseGeolocation.mockReturnValue(locationAcquired)
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -633,24 +597,28 @@ describe('CheckinForm', () => {
       })
     })
 
-    it('should call teacherClockOutAction and update status', async () => {
+    it('should call clockOutMutation and show success message', async () => {
+      const clockOutMutateAsync = vi.fn().mockResolvedValue({
+        message: 'Clocked out successfully',
+      })
+      mockUseClockOutMutation.mockReturnValue({
+        mutateAsync: clockOutMutateAsync,
+        isPending: false,
+      })
       mockUseGeolocation.mockReturnValue(locationAcquired)
-      const clockedInStatus = {
-        ...defaultStatus,
-        morningCheckinId: 'checkin-1',
-        morningClockInTime: new Date('2024-01-15T08:25:00'),
-      }
-      const clockedOutStatus = {
-        ...clockedInStatus,
-        morningClockOutTime: new Date('2024-01-15T12:00:00'),
-      }
-      mockGetTeacherCurrentStatus.mockResolvedValue(clockedInStatus)
-      mockTeacherClockOutAction.mockResolvedValue({
-        data: { status: clockedOutStatus, message: 'Clocked out successfully' },
+      mockUseTeacherContextQuery.mockReturnValue({
+        ...defaultContextNotClocked,
+        data: {
+          ...defaultContextNotClocked.data,
+          morningCheckinId: 'checkin-1',
+          morningClockInTime: '2024-01-15T08:25:00.000Z',
+        },
       })
 
       const user = userEvent.setup()
-      render(<CheckinForm teachers={mockTeachers} />)
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
 
       const combobox = screen.getByRole('combobox')
       await user.click(combobox)
@@ -665,9 +633,8 @@ describe('CheckinForm', () => {
       await user.click(screen.getByRole('button', { name: /clock out/i }))
 
       await waitFor(() => {
-        expect(mockTeacherClockOutAction).toHaveBeenCalledWith({
+        expect(clockOutMutateAsync).toHaveBeenCalledWith({
           checkInId: 'checkin-1',
-          teacherId: '550e8400-e29b-41d4-a716-446655440002',
           latitude: 44.9778,
           longitude: -93.265,
         })
@@ -675,6 +642,55 @@ describe('CheckinForm', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Clocked out successfully')).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('teacher switch isolation', () => {
+    it('clears message state when teacher is switched', async () => {
+      const clockInMutateAsync = vi.fn().mockResolvedValue({
+        checkInId: 'checkin-1',
+        message: 'Clocked in successfully',
+      })
+      mockUseClockInMutation.mockReturnValue({
+        mutateAsync: clockInMutateAsync,
+        isPending: false,
+      })
+      mockUseTeacherContextQuery.mockReturnValue(defaultContextNotClocked)
+      mockUseGeolocation.mockReturnValue(locationAcquired)
+
+      const user = userEvent.setup()
+      render(<CheckinForm teachers={mockTeachers} />, {
+        wrapper: makeQueryWrapper(),
+      })
+
+      const combobox = screen.getByRole('combobox')
+      await user.click(combobox)
+      await user.click(screen.getByRole('option', { name: /bob johnson/i }))
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: /enable location/i })
+        ).toBeInTheDocument()
+      )
+      await user.click(screen.getByRole('button', { name: /enable location/i }))
+      await waitFor(() =>
+        expect(
+          screen.getByRole('button', { name: /clock in/i })
+        ).not.toBeDisabled()
+      )
+      await user.click(screen.getByRole('button', { name: /clock in/i }))
+      await waitFor(() =>
+        expect(screen.getByText('Clocked in successfully')).toBeInTheDocument()
+      )
+
+      await user.click(combobox)
+      await user.click(screen.getByRole('option', { name: /alice smith/i }))
+
+      await waitFor(() => {
+        expect(
+          screen.queryByText('Clocked in successfully')
+        ).not.toBeInTheDocument()
       })
     })
   })

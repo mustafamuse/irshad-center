@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { TeacherWithDetails } from '../actions'
 import { CheckinOverview } from './checkin-overview'
 import { CreateTeacherDialog } from './create-teacher-dialog'
+import { ExcuseQueue } from './excuse-queue'
 import { LateReport } from './late-report'
 import { TeacherList } from './teacher-list'
 
@@ -37,9 +39,14 @@ export function TeachersDashboard({ teachers }: Props) {
             Manage teachers, check-ins, and attendance reports
           </p>
         </div>
-        <CreateTeacherDialog onSuccess={handleRefresh}>
-          <Button>Create Teacher</Button>
-        </CreateTeacherDialog>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link href="/admin/dugsi/teachers/attendance">Attendance</Link>
+          </Button>
+          <CreateTeacherDialog onSuccess={handleRefresh}>
+            <Button>Create Teacher</Button>
+          </CreateTeacherDialog>
+        </div>
       </div>
 
       <Tabs defaultValue="teachers" className="space-y-4">
@@ -47,6 +54,7 @@ export function TeachersDashboard({ teachers }: Props) {
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
           <TabsTrigger value="checkins">Check-ins</TabsTrigger>
           <TabsTrigger value="late-report">Late Report</TabsTrigger>
+          <TabsTrigger value="excuses">Excuses</TabsTrigger>
         </TabsList>
 
         <TabsContent
@@ -62,6 +70,10 @@ export function TeachersDashboard({ teachers }: Props) {
 
         <TabsContent value="late-report">
           <LateReport />
+        </TabsContent>
+
+        <TabsContent value="excuses">
+          <ExcuseQueue />
         </TabsContent>
       </Tabs>
     </>

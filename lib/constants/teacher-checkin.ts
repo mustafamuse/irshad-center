@@ -1,14 +1,11 @@
-/**
- * Teacher Check-in Constants
- *
- * Configuration for the Dugsi teacher check-in system including
- * shift times, geofencing, and status display.
- */
-
 import { createClientLogger } from '@/lib/logger-client'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 
-export { SCHOOL_TIMEZONE, SHIFT_START_TIMES, SHIFT_TIME_LABELS } from '@/lib/constants/shift-times'
+export {
+  SCHOOL_TIMEZONE,
+  SHIFT_START_TIMES,
+  SHIFT_TIME_LABELS,
+} from '@/lib/constants/shift-times'
 
 const logger = createClientLogger('teacher-checkin')
 
@@ -16,20 +13,17 @@ const logger = createClientLogger('teacher-checkin')
 // GEOFENCE CONFIGURATION
 // ============================================================================
 
-/**
- * Irshad Center location for geofencing validation.
- * Loaded from environment variables to allow configuration per deployment.
- */
 export const IRSHAD_CENTER_LOCATION = {
   lat: parseFloat(process.env.IRSHAD_CENTER_LAT || '0'),
   lng: parseFloat(process.env.IRSHAD_CENTER_LNG || '0'),
 } as const
 
-/**
- * Maximum distance (in meters) from center to be considered a valid check-in.
- * 15 meters (~50ft) = must be at the building entrance.
- */
+// 15 meters (~50ft) = must be at the building entrance.
 export const GEOFENCE_RADIUS_METERS = 15
+
+function isCenterLocationMissing(): boolean {
+  return IRSHAD_CENTER_LOCATION.lat === 0 && IRSHAD_CENTER_LOCATION.lng === 0
+}
 
 // ============================================================================
 // STATUS BADGES
@@ -77,15 +71,8 @@ export const LOCATION_STATUS_BADGES = {
 // UTILITY FUNCTIONS
 // ============================================================================
 
-/**
- * Checks if a location is within the geofence radius of Irshad Center.
- *
- * @param lat - Latitude of the location to check
- * @param lng - Longitude of the location to check
- * @returns true if within geofence, false otherwise
- */
 export function isWithinGeofence(lat: number, lng: number): boolean {
-  if (IRSHAD_CENTER_LOCATION.lat === 0 && IRSHAD_CENTER_LOCATION.lng === 0) {
+  if (isCenterLocationMissing()) {
     logger.warn(
       'IRSHAD_CENTER_LAT and IRSHAD_CENTER_LNG environment variables not set'
     )
@@ -101,24 +88,16 @@ export function isWithinGeofence(lat: number, lng: number): boolean {
   return distance <= GEOFENCE_RADIUS_METERS
 }
 
-/**
- * Validates that center location environment variables are configured.
- * Call this at app startup to catch configuration errors early.
- */
-export function validateCenterLocationConfig(): void {
-  if (IRSHAD_CENTER_LOCATION.lat === 0 && IRSHAD_CENTER_LOCATION.lng === 0) {
-    throw new Error(
-      'Teacher check-in requires IRSHAD_CENTER_LAT and IRSHAD_CENTER_LNG environment variables to be set'
-    )
-  }
+export function isGeofenceConfigured(): boolean {
+  return !isCenterLocationMissing()
 }
 
-/**
- * Checks if geofence location is configured.
- * Used to determine if check-ins should be blocked due to misconfiguration.
- */
-export function isGeofenceConfigured(): boolean {
-  return !(IRSHAD_CENTER_LOCATION.lat === 0 && IRSHAD_CENTER_LOCATION.lng === 0)
+export function validateCenterLocationConfig(): void {
+  if (isCenterLocationMissing()) {
+    logger.warn(
+      'IRSHAD_CENTER_LAT and IRSHAD_CENTER_LNG environment variables not set — geofence disabled'
+    )
+  }
 }
 
 // ============================================================================
@@ -136,4 +115,14 @@ export const CHECKIN_ERROR_CODES = {
   SYSTEM_NOT_CONFIGURED: 'SYSTEM_NOT_CONFIGURED',
   OUTSIDE_GEOFENCE: 'OUTSIDE_GEOFENCE',
   INVALID_TIME_ORDER: 'INVALID_TIME_ORDER',
+  // Fired when a concurrent admin override or auto-mark changed the attendance
+  // record status between our read and our updateMany write (optimistic lock).
+  CONCURRENT_MODIFICATION: 'CONCURRENT_MODIFICATION',
+  // Fired when a teacher tries to clock in on a date the school is closed.
+  // Tells the teacher to contact an admin rather than retrying GPS.
+  SCHOOL_CLOSED: 'SCHOOL_CLOSED',
+  // Fired when a teacher tries to self-clock-in but an admin has explicitly set their
+  // attendance record to ABSENT (source=ADMIN_OVERRIDE). Self-checkin must not
+  // reverse a deliberate admin action — the teacher must contact the admin directly.
+  ADMIN_OVERRIDE_EXISTS: 'ADMIN_OVERRIDE_EXISTS',
 } as const

@@ -21,12 +21,40 @@ import {
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
-import { createServiceLogger, logError } from '@/lib/logger'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 import { extractPeriodDates } from '@/lib/utils/type-guards'
 
 const logger = createServiceLogger('subscription-service')
+
+type StripeSubscriptionPricing = {
+  customerId: string
+  amount: number
+  currency: string
+  interval: string
+}
+
+function extractSubscriptionPricing(
+  subscription: Stripe.Subscription
+): StripeSubscriptionPricing {
+  const customerId =
+    typeof subscription.customer === 'string'
+      ? subscription.customer
+      : subscription.customer?.id
+
+  if (!customerId) {
+    throw new Error('Invalid customer ID in subscription')
+  }
+
+  const priceData = subscription.items.data[0]?.price
+  return {
+    customerId,
+    amount: priceData?.unit_amount ?? 0,
+    currency: subscription.currency || 'usd',
+    interval: priceData?.recurring?.interval || 'month',
+  }
+}
 
 /**
  * Subscription validation result
@@ -106,23 +134,8 @@ export async function validateStripeSubscription(
     )
   }
 
-  // Extract customer ID
-  const customerId =
-    typeof subscription.customer === 'string'
-      ? subscription.customer
-      : subscription.customer?.id
-
-  if (!customerId) {
-    throw new Error('Invalid customer ID in subscription')
-  }
-
-  // Extract amount and interval
-  const priceData = subscription.items.data[0]?.price
-  const amount = priceData?.unit_amount || 0
-  const currency = subscription.currency || 'usd'
-  const interval = priceData?.recurring?.interval || 'month'
-
-  // Extract period dates
+  const { customerId, amount, currency, interval } =
+    extractSubscriptionPricing(subscription)
   const periodDates = extractPeriodDates(subscription)
 
   return {
@@ -217,26 +230,10 @@ export async function createSubscriptionFromStripe(
   billingAccountId: string,
   accountType: StripeAccountType
 ) {
-  // Extract customer ID
-  const customerId =
-    typeof stripeSubscription.customer === 'string'
-      ? stripeSubscription.customer
-      : stripeSubscription.customer?.id
-
-  if (!customerId) {
-    throw new Error('Invalid customer ID in subscription')
-  }
-
-  // Extract price data
-  const priceData = stripeSubscription.items.data[0]?.price
-  const amount = priceData?.unit_amount || 0
-  const currency = stripeSubscription.currency || 'usd'
-  const interval = priceData?.recurring?.interval || 'month'
-
-  // Extract period dates
+  const { customerId, amount, currency, interval } =
+    extractSubscriptionPricing(stripeSubscription)
   const periodDates = extractPeriodDates(stripeSubscription)
 
-  // Create subscription
   return await createSubscription({
     billingAccountId,
     stripeAccountType: accountType,

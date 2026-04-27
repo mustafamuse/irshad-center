@@ -5,7 +5,7 @@
  * Handles GPS geofencing validation, late detection, and admin overrides.
  */
 
-import { Prisma } from '@prisma/client'
+import { Prisma, TeacherAttendanceStatus } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 
 import {
@@ -14,18 +14,24 @@ import {
   CHECKIN_ERROR_CODES,
   SCHOOL_TIMEZONE,
 } from '@/lib/constants/teacher-checkin'
-import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 import { prisma } from '@/lib/db'
 import {
   getCheckinById,
   isTeacherEnrolledInDugsi,
   getTeacherShifts,
+  getTeacherCheckin,
   teacherCheckinInclude,
   TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
-import { DatabaseClient } from '@/lib/db/types'
+import { DatabaseClient, isPrismaClient } from '@/lib/db/types'
 import { createServiceLogger } from '@/lib/logger'
 import { ValidationError } from '@/lib/services/validation-service'
+import { deriveMinutesLate } from '@/lib/utils/attendance-state'
+import {
+  canTeacherTransition,
+  assertAdminTransition,
+} from '@/lib/utils/attendance-transitions'
+import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 import type {
   ClockInInput,
   ClockOutInput,
@@ -48,7 +54,11 @@ export async function clockIn(
 ): Promise<ClockInResult> {
   const { teacherId, shift, latitude, longitude } = input
 
-  const isEnrolled = await isTeacherEnrolledInDugsi(teacherId, client)
+  const [isEnrolled, teacherShifts] = await Promise.all([
+    isTeacherEnrolledInDugsi(teacherId, client),
+    getTeacherShifts(teacherId, client),
+  ])
+
   if (!isEnrolled) {
     throw new ValidationError(
       'Teacher is not enrolled in the Dugsi program',
@@ -57,7 +67,6 @@ export async function clockIn(
     )
   }
 
-  const teacherShifts = await getTeacherShifts(teacherId, client)
   if (!teacherShifts.includes(shift)) {
     throw new ValidationError(
       `Teacher is not assigned to the ${shift} shift`,
@@ -88,12 +97,29 @@ export async function clockIn(
     )
   }
 
-  const { isLate } = evaluateCheckIn({ clockInTimeUtc: now, shift })
+  const { isLate } = evaluateCheckIn({
+    clockInTimeUtc: now,
+    shift,
+  })
 
-  let checkIn: TeacherCheckinWithRelations
+  // Pre-validate duplicate before opening the transaction (project rule: check before write)
+  const existingCheckin = await getTeacherCheckin(
+    teacherId,
+    dateOnly,
+    shift,
+    client
+  )
+  if (existingCheckin) {
+    throw new ValidationError(
+      'Teacher has already checked in for this shift today',
+      CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
+      { teacherId, shift, date: dateOnly.toISOString() }
+    )
+  }
 
-  try {
-    checkIn = await client.dugsiTeacherCheckIn.create({
+  // Atomically write both the fact-log row and the attendance record
+  const doWrites = async (tx: DatabaseClient) => {
+    const checkInRecord = await tx.dugsiTeacherCheckIn.create({
       data: {
         teacherId,
         date: dateOnly,
@@ -106,7 +132,125 @@ export async function clockIn(
       },
       include: teacherCheckinInclude,
     })
+
+    // Validate transition and write attendance record with optimistic lock — mirrors adminCheckIn.
+    const existingAttendanceRecord =
+      await tx.teacherAttendanceRecord.findUnique({
+        where: { teacherId_date_shift: { teacherId, date: dateOnly, shift } },
+        select: { status: true, source: true },
+      })
+
+    const attendanceStatus = isLate
+      ? TeacherAttendanceStatus.LATE
+      : TeacherAttendanceStatus.PRESENT
+    const attendanceData = {
+      status: attendanceStatus,
+      source: 'SELF_CHECKIN' as const,
+      checkInId: checkInRecord.id,
+      clockInTime: now,
+      minutesLate: deriveMinutesLate({
+        toStatus: attendanceStatus,
+        clockInTimeUtc: now,
+        shift,
+      }),
+    }
+
+    if (existingAttendanceRecord) {
+      if (existingAttendanceRecord.status === 'CLOSED') {
+        throw new ValidationError(
+          'School is closed today — please contact an admin to record your attendance',
+          CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+          { teacherId, shift }
+        )
+      }
+      // Guard: an EXPECTED slot may exist even when the date was later closed
+      // (race: generateExpectedSlots ran after markDateClosed, or a new teacher was added).
+      // The CLOSED status check above catches markDateClosed-propagated records; this check
+      // catches EXPECTED records that were never transitioned to CLOSED.
+      const closure = await tx.schoolClosure.findUnique({
+        where: { date: dateOnly },
+      })
+      if (closure) {
+        throw new ValidationError(
+          'School is closed today — please contact an admin to record your attendance',
+          CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+          { teacherId, shift }
+        )
+      }
+      // Actor-aware transition guard: teacher self-checkin is restricted to PRESENT/LATE
+      // targets, and ADMIN_OVERRIDE-sourced ABSENT records cannot be reversed by self-checkin.
+      if (
+        !canTeacherTransition(
+          existingAttendanceRecord.status,
+          existingAttendanceRecord.source,
+          attendanceData.status
+        )
+      ) {
+        if (
+          existingAttendanceRecord.status === 'ABSENT' &&
+          existingAttendanceRecord.source === 'ADMIN_OVERRIDE'
+        ) {
+          throw new ValidationError(
+            'Your attendance has been recorded by an admin. Contact them to make changes.',
+            CHECKIN_ERROR_CODES.ADMIN_OVERRIDE_EXISTS,
+            { teacherId, shift }
+          )
+        }
+        throw new ValidationError(
+          'Cannot check in: your attendance for this shift has already been recorded. Contact an admin if changes are needed.',
+          CHECKIN_ERROR_CODES.ADMIN_OVERRIDE_EXISTS,
+          { teacherId, shift }
+        )
+      }
+      // Include current status in WHERE: if a concurrent override already changed
+      // the status, count=0 → throw rather than silently stomp the new state.
+      const updateResult = await tx.teacherAttendanceRecord.updateMany({
+        where: {
+          teacherId,
+          date: dateOnly,
+          shift,
+          status: existingAttendanceRecord.status,
+        },
+        data: attendanceData,
+      })
+      if (updateResult.count === 0) {
+        throw new ValidationError(
+          'Attendance record was modified concurrently — please try again',
+          CHECKIN_ERROR_CODES.CONCURRENT_MODIFICATION,
+          { teacherId, shift }
+        )
+      }
+    } else {
+      // No pre-existing record: guard against a closed date where generateExpectedSlots
+      // was never run (so there's no CLOSED record to trigger the check above).
+      const closure = await tx.schoolClosure.findUnique({
+        where: { date: dateOnly },
+      })
+      if (closure) {
+        throw new ValidationError(
+          'School is closed today — please contact an admin to record your attendance',
+          CHECKIN_ERROR_CODES.SCHOOL_CLOSED,
+          { teacherId, shift }
+        )
+      }
+      await tx.teacherAttendanceRecord.create({
+        data: { teacherId, date: dateOnly, shift, ...attendanceData },
+      })
+    }
+
+    return checkInRecord
+  }
+
+  let checkIn: TeacherCheckinWithRelations
+  try {
+    checkIn = isPrismaClient(client)
+      ? await client.$transaction(doWrites)
+      : await doWrites(client)
   } catch (error) {
+    // A concurrent clockIn that slipped through the pre-flight check will cause a
+    // P2002 unique-constraint violation on DugsiTeacherCheckIn(teacherId, date, shift).
+    // Catch it OUTSIDE the transaction (project rule: never catch P2002 inside $transaction)
+    // and remap to the user-facing DUPLICATE_CHECKIN error.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === 'P2002'
@@ -114,7 +258,7 @@ export async function clockIn(
       throw new ValidationError(
         'Teacher has already checked in for this shift today',
         CHECKIN_ERROR_CODES.DUPLICATE_CHECKIN,
-        { teacherId, shift, date: dateOnly.toISOString() }
+        { teacherId, shift }
       )
     }
     throw error
@@ -237,51 +381,152 @@ export async function updateCheckin(
     )
   }
 
-  const checkIn = await client.dugsiTeacherCheckIn.update({
-    where: { id: checkInId },
-    data: updateData,
-    include: teacherCheckinInclude,
-  })
+  const doWrites = async (tx: DatabaseClient) => {
+    const checkIn = await tx.dugsiTeacherCheckIn.update({
+      where: { id: checkInId },
+      data: updateData,
+      include: teacherCheckinInclude,
+    })
 
-  logger.info(
-    {
-      event: 'CHECKIN_UPDATED',
-      checkInId,
-      teacherId: checkIn.teacherId,
-      teacherName: checkIn.teacher.person.name,
-      changes: Object.keys(updateData),
-    },
-    'Check-in record updated by admin'
-  )
+    // Sync the linked TeacherAttendanceRecord when clockInTime or isLate changes.
+    // The record may not exist (e.g. backfill hasn't run), so updateMany is used —
+    // 0 matched rows is silently acceptable; we're not creating a new record here.
+    // Status guard (PRESENT, LATE) prevents touching EXCUSED/ABSENT records where
+    // the clock-in is no longer the authoritative source of status.
+    const syncClockIn = clockInTime !== undefined
+    const syncStatus = isLate !== undefined
+    if (syncClockIn || syncStatus) {
+      const effectiveIsLate = isLate ?? existingCheckin.isLate
+      const effectiveClockInTime = clockInTime ?? existingCheckin.clockInTime
+      const effectiveStatus = effectiveIsLate
+        ? ('LATE' as const)
+        : ('PRESENT' as const)
+      await tx.teacherAttendanceRecord.updateMany({
+        where: { checkInId, status: { in: ['PRESENT', 'LATE'] } },
+        data: {
+          ...(syncClockIn ? { clockInTime } : {}),
+          ...(syncStatus
+            ? {
+                status: effectiveStatus,
+                minutesLate: deriveMinutesLate({
+                  toStatus: effectiveStatus,
+                  clockInTimeUtc: effectiveClockInTime,
+                  shift: existingCheckin.shift,
+                }),
+                source: 'ADMIN_OVERRIDE',
+              }
+            : {
+                minutesLate: deriveMinutesLate({
+                  toStatus: effectiveStatus,
+                  clockInTimeUtc: effectiveClockInTime,
+                  shift: existingCheckin.shift,
+                }),
+              }),
+        },
+      })
+    }
 
-  return checkIn
+    logger.info(
+      {
+        event: 'CHECKIN_UPDATED',
+        checkInId,
+        teacherId: checkIn.teacherId,
+        teacherName: checkIn.teacher.person.name,
+        changes: Object.keys(updateData),
+      },
+      'Check-in record updated by admin'
+    )
+
+    return checkIn
+  }
+
+  return isPrismaClient(client)
+    ? client.$transaction(doWrites)
+    : doWrites(client)
 }
 
 export async function deleteCheckin(
   checkInId: string,
+  changedBy?: string,
   client: DatabaseClient = prisma
 ): Promise<void> {
-  const existingCheckin = await getCheckinById(checkInId, client)
-  if (!existingCheckin) {
-    throw new ValidationError(
-      'Check-in record not found',
-      CHECKIN_ERROR_CODES.CHECKIN_NOT_FOUND,
-      { checkInId }
-    )
+  // Read + delete inside the same transaction so a concurrent delete by another admin
+  // produces a clean ValidationError (from getCheckinById returning null) rather than
+  // an uncaught P2025 from tx.dugsiTeacherCheckIn.delete.
+  const doWrites = async (tx: DatabaseClient) => {
+    const existingCheckin = await getCheckinById(checkInId, tx)
+    if (!existingCheckin) {
+      throw new ValidationError(
+        'Check-in record not found',
+        CHECKIN_ERROR_CODES.CHECKIN_NOT_FOUND,
+        { checkInId }
+      )
+    }
+
+    const { teacherId, date, shift } = existingCheckin
+
+    // Step 1: Release the RESTRICT FK on ANY record still pointing at this check-in,
+    // regardless of status.  EXCUSED and admin-overridden ABSENT records legitimately
+    // carry a non-null checkInId (neither approveExcuse nor transitionStatus clears it),
+    // so the status-filtered updateMany below would leave their FK live and the DELETE
+    // would throw P2003.  clockInTime and minutesLate originate from the check-in row
+    // and are meaningless once it's gone, so clear them here too.
+    await tx.teacherAttendanceRecord.updateMany({
+      where: { checkInId },
+      data: {
+        checkInId: null,
+        clockInTime: null,
+        minutesLate: null,
+        changedBy: changedBy ?? null,
+      },
+    })
+
+    // Step 2: Revert PRESENT/LATE → ABSENT.  EXCUSED and overridden-ABSENT records are
+    // intentionally left at their current status — the teacher did show up, and an admin
+    // action already determined the outcome.
+    // ABSENT (not EXPECTED) is intentional: the check-in existed, proving the teacher
+    // attempted to sign in. Deleting it means the attendance outcome is now unknown —
+    // ABSENT is the conservative fallback. EXPECTED would imply the window is still open
+    // for a fresh clock-in, which may no longer be true (e.g. post-cutoff deletion).
+    // UI callers should warn the admin before confirming the delete.
+    // The @@unique([teacherId, date, shift]) constraint guarantees at most one row,
+    // so count > 1 would indicate a data integrity problem.
+    // Assert both reachable transitions are still valid — guards against silent
+    // breakage if the admin transition table is tightened in the future.
+    assertAdminTransition('PRESENT', 'ABSENT')
+    assertAdminTransition('LATE', 'ABSENT')
+    const { count: revertedCount } =
+      await tx.teacherAttendanceRecord.updateMany({
+        where: { teacherId, date, shift, status: { in: ['PRESENT', 'LATE'] } },
+        data: {
+          status: 'ABSENT',
+          source: 'ADMIN_OVERRIDE',
+          changedBy: changedBy ?? null,
+        },
+      })
+    if (revertedCount > 1) {
+      logger.warn(
+        { teacherId, date, shift, revertedCount },
+        'deleteCheckin: unexpectedly reverted multiple attendance records'
+      )
+    }
+
+    await tx.dugsiTeacherCheckIn.delete({ where: { id: checkInId } })
+    return existingCheckin
   }
 
-  await client.dugsiTeacherCheckIn.delete({
-    where: { id: checkInId },
-  })
+  const deletedCheckIn = await (isPrismaClient(client)
+    ? client.$transaction(doWrites)
+    : doWrites(client))
 
   logger.info(
     {
       event: 'CHECKIN_DELETED',
       checkInId,
-      teacherId: existingCheckin.teacherId,
-      teacherName: existingCheckin.teacher.person.name,
-      date: existingCheckin.date.toISOString(),
-      shift: existingCheckin.shift,
+      teacherId: deletedCheckIn.teacherId,
+      teacherName: deletedCheckIn.teacher.person.name,
+      date: deletedCheckIn.date.toISOString(),
+      shift: deletedCheckIn.shift,
     },
     'Check-in record deleted by admin'
   )

@@ -31,16 +31,16 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { cn } from '@/lib/utils'
 
-import { useActionHandler } from '@/hooks/use-action-handler'
 import { Family, StripePaymentHistoryItem } from '../../../_types'
 import { getBillingStatus } from '../../../_utils/billing'
+import { getFamilyPaymentHistory } from '../../../actions'
 import {
   pauseFamilyBillingAction,
   resumeFamilyBillingAction,
 } from '../../../actions/billing-actions'
-import { getFamilyPaymentHistory } from '../../../actions'
 
 interface BillingTabProps {
   family: Family
@@ -424,6 +424,7 @@ export function BillingTab({ family }: BillingTabProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
+                      aria-label="Open invoice"
                       onClick={() => {
                         if (payment.invoiceUrl) {
                           window.open(

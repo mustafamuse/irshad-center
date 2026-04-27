@@ -1,14 +1,8 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useState } from 'react'
 
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Loader2,
-  XCircle,
-} from 'lucide-react'
+import { AlertCircle, CheckCircle2, Clock, XCircle } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,13 +15,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { SHIFT_BADGES } from '@/lib/constants/dugsi'
+import { useAdminCheckinHistoryQuery } from '@/lib/features/attendance/hooks/admin'
 import { cn } from '@/lib/utils'
 
-import {
-  CheckinHistoryItem,
-  CheckinHistoryResult,
-  getTeacherCheckinHistoryAction,
-} from '../actions'
 import { formatCheckinDate, formatCheckinTime } from './date-utils'
 
 interface Props {
@@ -35,39 +25,17 @@ interface Props {
 }
 
 export function CheckinHistoryTab({ teacherId }: Props) {
-  const [isPending, startTransition] = useTransition()
-  const [history, setHistory] = useState<CheckinHistoryResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const currentTeacherRef = useRef(teacherId)
+  const [page, setPage] = useState(1)
 
-  useEffect(() => {
-    currentTeacherRef.current = teacherId
-    setHistory(null)
-    setError(null)
-    loadHistory(1)
-  }, [teacherId])
-
-  function loadHistory(page: number) {
-    const requestTeacherId = teacherId
-    startTransition(async () => {
-      const result = await getTeacherCheckinHistoryAction({
-        teacherId: requestTeacherId,
-        page,
-      })
-      if (currentTeacherRef.current !== requestTeacherId) return
-      if (result?.data) {
-        setHistory(result.data)
-        setError(null)
-      } else {
-        setError(result?.serverError || 'Failed to load history')
-      }
-    })
-  }
+  const query = useAdminCheckinHistoryQuery(teacherId, page)
+  const history = query.data
+  const isPending = query.isLoading || query.isFetching
+  const error = query.error?.message ?? null
 
   if (isPending && !history) {
     return (
       <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
       </div>
     )
   }
@@ -98,7 +66,6 @@ export function CheckinHistoryTab({ teacherId }: Props) {
   return (
     <div className="space-y-4">
       <div className="rounded-md border">
-        {/* Desktop table */}
         <Table className="hidden sm:table">
           <TableHeader>
             <TableRow>
@@ -110,7 +77,7 @@ export function CheckinHistoryTab({ teacherId }: Props) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {history.data.map((item: CheckinHistoryItem) => (
+            {history.data.map((item) => (
               <TableRow key={item.id}>
                 <TableCell className="font-medium">
                   {formatCheckinDate(item.date)}
@@ -169,9 +136,8 @@ export function CheckinHistoryTab({ teacherId }: Props) {
           </TableBody>
         </Table>
 
-        {/* Mobile cards */}
         <div className="divide-y sm:hidden">
-          {history.data.map((item: CheckinHistoryItem) => (
+          {history.data.map((item) => (
             <div key={item.id} className="space-y-1 p-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">
@@ -230,16 +196,16 @@ export function CheckinHistoryTab({ teacherId }: Props) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => loadHistory(history.page - 1)}
-              disabled={history.page <= 1 || isPending}
+              onClick={() => setPage((p) => p - 1)}
+              disabled={page <= 1 || isPending}
             >
               Previous
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => loadHistory(history.page + 1)}
-              disabled={history.page >= history.totalPages || isPending}
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= history.totalPages || isPending}
             >
               Next
             </Button>

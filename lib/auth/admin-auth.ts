@@ -1,7 +1,8 @@
-import crypto from 'crypto'
 import { cache } from 'react'
 
 import { cookies } from 'next/headers'
+
+import crypto from 'node:crypto'
 
 const MAX_TOKEN_AGE_MS = 24 * 60 * 60 * 1000
 

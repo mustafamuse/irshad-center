@@ -1,0 +1,258 @@
+/**
+ * Auto-mark Service Tests
+ *
+ * Covers: window not passed, school closed (in-tx guard), idempotent on second call
+ */
+
+import { vi, describe, it, expect, beforeEach } from 'vitest'
+
+const {
+  mockGetConfig,
+  mockGetActiveTeachers,
+  mockFindUniqueClosure,
+  mockUpdateMany,
+  mockCreateMany,
+  mockTransaction,
+} = vi.hoisted(() => ({
+  mockGetConfig: vi.fn(),
+  mockGetActiveTeachers: vi.fn(),
+  mockFindUniqueClosure: vi.fn(),
+  mockUpdateMany: vi.fn(),
+  mockCreateMany: vi.fn(),
+  mockTransaction: vi.fn(),
+}))
+
+function makeTx() {
+  return {
+    schoolClosure: {
+      findUnique: (...args: unknown[]) => mockFindUniqueClosure(...args),
+    },
+    teacherAttendanceRecord: {
+      updateMany: (...args: unknown[]) => mockUpdateMany(...args),
+      createMany: (...args: unknown[]) => mockCreateMany(...args),
+    },
+  }
+}
+
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
+  },
+}))
+
+vi.mock('@/lib/db/queries/teacher-attendance', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@/lib/db/queries/teacher-attendance')>()
+  return {
+    ...actual,
+    getAttendanceConfig: (...args: unknown[]) => mockGetConfig(...args),
+    getActiveDugsiTeacherShifts: (...args: unknown[]) =>
+      mockGetActiveTeachers(...args),
+  }
+})
+
+// generateExpectedSlots depends on createMany — mock the whole service import
+vi.mock('../attendance-record-service', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../attendance-record-service')>()
+  return {
+    ...actual,
+    generateExpectedSlots: vi
+      .fn()
+      .mockResolvedValue({ created: 0, skipped: 0 }),
+  }
+})
+
+vi.mock('@/lib/logger', () => ({
+  createServiceLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+  }),
+  logError: vi.fn(),
+}))
+
+import { autoMarkLateForShift, autoMarkBothShifts } from '../auto-mark-service'
+
+const BASE_CONFIG = {
+  id: 'singleton',
+  morningAutoMarkMinutes: 15,
+  afternoonAutoMarkMinutes: 15,
+  updatedAt: new Date(),
+  updatedBy: null,
+}
+
+describe('autoMarkLateForShift', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetConfig.mockResolvedValue(BASE_CONFIG)
+    mockGetActiveTeachers.mockResolvedValue([])
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
+  })
+
+  it('skips when the auto-mark window has not yet passed', async () => {
+    // Morning class starts 9:00 AM CT; threshold is 9:15 AM CT.
+    // Use a date far in the future — `new Date()` will always be before the threshold.
+    const result = await autoMarkLateForShift(
+      '2099-06-07',
+      'MORNING',
+      BASE_CONFIG
+    )
+
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'window_not_passed',
+      marked: 0,
+    })
+    expect(mockTransaction).not.toHaveBeenCalled()
+  })
+
+  it('skips when school is closed (closure detected inside transaction)', async () => {
+    // Past date — window has definitely passed.
+    mockFindUniqueClosure.mockResolvedValue({
+      id: 'cl-1',
+      date: new Date('2026-02-01'),
+    })
+
+    const result = await autoMarkLateForShift(
+      '2026-02-01',
+      'MORNING',
+      BASE_CONFIG
+    )
+
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'school_closed',
+      marked: 0,
+    })
+    expect(mockUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('marks EXPECTED records as LATE when window has passed and school is open', async () => {
+    mockFindUniqueClosure.mockResolvedValue(null)
+    mockGetActiveTeachers.mockResolvedValue([])
+    mockUpdateMany.mockResolvedValue({ count: 3 })
+
+    const result = await autoMarkLateForShift(
+      '2026-02-07',
+      'MORNING',
+      BASE_CONFIG
+    )
+
+    expect(result).toMatchObject({ kind: 'marked', marked: 3 })
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'EXPECTED',
+          shift: 'MORNING',
+        }),
+        data: expect.objectContaining({
+          status: 'LATE',
+          source: 'AUTO_MARKED',
+          minutesLate: null,
+        }),
+      })
+    )
+  })
+
+  it('is idempotent — returns 0 when no EXPECTED records remain (second run)', async () => {
+    // All records were already marked LATE on the first cron run.
+    mockFindUniqueClosure.mockResolvedValue(null)
+    mockUpdateMany.mockResolvedValue({ count: 0 })
+
+    const result = await autoMarkLateForShift(
+      '2026-02-07',
+      'MORNING',
+      BASE_CONFIG
+    )
+
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'no_expected_records',
+      marked: 0,
+    })
+  })
+
+  it('race condition — record clocked in between slot generation and updateMany is not overwritten', async () => {
+    // Simulates: teacher was EXPECTED when generateExpectedSlots ran, then clocked in
+    // (PRESENT) before updateMany executed. The WHERE clause filters status='EXPECTED',
+    // so updateMany finds nothing to update and returns count=0. The function must
+    // return a non-error result rather than treating the 0-count as a failure.
+    mockFindUniqueClosure.mockResolvedValue(null)
+    mockUpdateMany.mockResolvedValue({ count: 0 })
+
+    const result = await autoMarkLateForShift(
+      '2026-02-07',
+      'MORNING',
+      BASE_CONFIG
+    )
+
+    // The WHERE clause must include status: 'EXPECTED' so records that transitioned
+    // to PRESENT (or LATE) between slot generation and this write are never touched.
+    expect(mockUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: 'EXPECTED',
+        }),
+      })
+    )
+
+    // count=0 from updateMany must not produce an error — the function skips cleanly.
+    expect(result).toMatchObject({
+      kind: 'skipped',
+      skippedReason: 'no_expected_records',
+      marked: 0,
+    })
+  })
+})
+
+describe('autoMarkBothShifts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetConfig.mockResolvedValue(BASE_CONFIG)
+    mockGetActiveTeachers.mockResolvedValue([])
+    mockFindUniqueClosure.mockResolvedValue(null)
+    mockUpdateMany.mockResolvedValue({ count: 2 })
+    mockTransaction.mockImplementation((fn: (tx: unknown) => unknown) =>
+      fn(makeTx())
+    )
+  })
+
+  it('returns results for both shifts when both succeed', async () => {
+    const result = await autoMarkBothShifts('2026-02-07')
+
+    expect(result.morning).not.toBeNull()
+    expect(result.afternoon).not.toBeNull()
+    expect(result.morning).toMatchObject({ shift: 'MORNING' })
+    expect(result.afternoon).toMatchObject({ shift: 'AFTERNOON' })
+  })
+
+  it('returns null for the failed shift and a result for the successful one', async () => {
+    // First transaction call (MORNING) rejects; second (AFTERNOON) succeeds.
+    // allSettled ensures AFTERNOON commits even though MORNING threw.
+    mockTransaction
+      .mockRejectedValueOnce(new Error('DB timeout'))
+      .mockImplementationOnce((fn: (tx: unknown) => unknown) => fn(makeTx()))
+
+    const result = await autoMarkBothShifts('2026-02-07')
+
+    // One shift failed → null; one succeeded → result object
+    const nullCount = [result.morning, result.afternoon].filter(
+      (r) => r === null
+    ).length
+    const successCount = [result.morning, result.afternoon].filter(
+      (r) => r !== null
+    ).length
+    expect(nullCount).toBe(1)
+    expect(successCount).toBe(1)
+  })
+
+  it('throws when both shifts fail', async () => {
+    mockTransaction.mockRejectedValue(new Error('DB down'))
+
+    await expect(autoMarkBothShifts('2026-02-07')).rejects.toThrow()
+  })
+})

@@ -15,8 +15,16 @@ export const ADMIN_NAVIGATION: NavGroup[] = [
     items: [
       { title: 'Dashboard', url: '/admin/dugsi' },
       { title: 'Classes', url: '/admin/dugsi/classes' },
-      { title: 'Teachers', url: '/admin/dugsi/teachers' },
-      { title: 'Attendance', url: '/admin/dugsi/attendance' },
+      {
+        title: 'Teachers',
+        url: '/admin/dugsi/teachers',
+        items: [
+          { title: 'Attendance', url: '/admin/dugsi/teachers/attendance' },
+          { title: 'Closures', url: '/admin/dugsi/teachers/closures' },
+          { title: 'Settings', url: '/admin/dugsi/teachers/settings' },
+        ],
+      },
+      { title: 'Student Attendance', url: '/admin/dugsi/attendance' },
     ],
   },
   {

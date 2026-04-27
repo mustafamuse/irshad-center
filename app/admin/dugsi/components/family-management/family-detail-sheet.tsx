@@ -41,11 +41,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { SHIFT_BADGES, SHIFT_COLORS } from '@/lib/constants/dugsi'
 
 import { OverviewTab, BillingTab, HistoryTab } from './detail-tabs'
 import { FamilyStatusBadge } from './family-status-badge'
-import { useActionHandler } from '@/hooks/use-action-handler'
 import { useSheetState, SheetTab } from '../../_hooks/use-sheet-state'
 import { Family } from '../../_types'
 import { getFamilyStatus } from '../../_utils/family'
@@ -301,7 +301,7 @@ export function FamilyDetailSheet({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" aria-label="More options">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>

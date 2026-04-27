@@ -15,7 +15,7 @@
 
 import { revalidateTag } from 'next/cache'
 
-import { StripeAccountType, SubscriptionStatus } from '@prisma/client'
+import { StripeAccountType, SubscriptionStatus, Program } from '@prisma/client'
 import type {
   GraduationStatus,
   PaymentFrequency,
@@ -31,6 +31,7 @@ import {
   getBillingAssignmentsBySubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
+import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
@@ -39,6 +40,7 @@ import {
   unlinkSubscription,
 } from '@/lib/services/shared/billing-service'
 import { createSubscriptionFromStripe } from '@/lib/services/shared/subscription-service'
+import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 import {
@@ -181,8 +183,8 @@ export async function handleSubscriptionCreated(
         paymentMethodCapturedAt: new Date(),
       })
     } else {
-      // Fall back to finding person by existing billing account (for non-Mahad subscriptions)
-      const person = await prisma.person.findFirst({
+      // Path 3: find by customer ID already linked to a billing account
+      const existingPerson = await prisma.person.findFirst({
         where: {
           billingAccounts: {
             some: {
@@ -195,17 +197,162 @@ export async function handleSubscriptionCreated(
         },
       })
 
-      if (!person) {
+      if (existingPerson) {
+        billingAccount = await createOrUpdateBillingAccount({
+          personId: existingPerson.id,
+          accountType,
+          stripeCustomerId: customerId,
+        })
+      } else if (accountType === 'DUGSI') {
+        // Path 4: Dugsi-only fallback for subscriptions created manually in the Stripe dashboard.
+        // Resolves the person via Stripe customer email, derives family profiles from DB,
+        // then patches the subscription metadata so future webhook events work normally.
+        const stripeCustomer =
+          await getDugsiStripeClient().customers.retrieve(customerId)
+        const customerEmail = stripeCustomer.deleted
+          ? null
+          : stripeCustomer.email
+
+        if (customerEmail) {
+          const guardianPerson = await findPersonByActiveContact(customerEmail)
+
+          if (guardianPerson) {
+            const guardianWithChildren = await prisma.person.findFirst({
+              where: { id: guardianPerson.id },
+              include: {
+                guardianRelationships: {
+                  where: { isActive: true },
+                  include: {
+                    dependent: {
+                      include: {
+                        programProfiles: {
+                          where: {
+                            program: Program.DUGSI_PROGRAM,
+                            status: { not: 'WITHDRAWN' },
+                          },
+                          select: { id: true, familyReferenceId: true },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            })
+
+            const familyProfiles = (
+              guardianWithChildren?.guardianRelationships ?? []
+            ).flatMap((rel) => rel.dependent.programProfiles)
+
+            if (familyProfiles.length === 0) {
+              // Guardian exists in DB but has no active Dugsi children — no profile
+              // linkage is possible. Do NOT throw: this is a non-retryable data
+              // inconsistency (retries won't enroll the children). Return a result so
+              // the webhook handler responds 200 and stops retrying. Sentry + structured
+              // log trigger manual investigation.
+              Sentry.captureMessage(
+                'Dugsi Path 4: guardian has no active family profiles — subscription unlinked, manual fix required',
+                {
+                  level: 'error',
+                  extra: {
+                    customerId,
+                    subscriptionId: subscription.id,
+                    guardianPersonId: guardianPerson.id,
+                  },
+                }
+              )
+              logger.error(
+                {
+                  event: 'DUGSI_SUBSCRIPTION_UNLINKED',
+                  customerId,
+                  subscriptionId: subscription.id,
+                  guardianPersonId: guardianPerson.id,
+                },
+                'Dugsi Path 4: no family profiles found — subscription not linked to any profiles'
+              )
+              return {
+                subscriptionId: subscription.id,
+                status: subscription.status as SubscriptionStatus,
+                created: false,
+              }
+            } else {
+              billingAccount = await createOrUpdateBillingAccount({
+                personId: guardianPerson.id,
+                accountType,
+                stripeCustomerId: customerId,
+                paymentMethodCaptured: true,
+                paymentMethodCapturedAt: new Date(),
+              })
+
+              profileIds = familyProfiles.map((p) => p.id)
+
+              const childCount = familyProfiles.length
+              const familyId = familyProfiles[0]?.familyReferenceId ?? null
+              const standardRate = calculateDugsiRate(childCount)
+              const actualAmount =
+                subscription.items.data[0]?.price?.unit_amount ?? standardRate
+
+              try {
+                await getDugsiStripeClient().subscriptions.update(
+                  subscription.id,
+                  {
+                    metadata: {
+                      guardianPersonId: guardianPerson.id,
+                      familyId: familyId ?? '',
+                      childCount: String(childCount),
+                      profileIds: profileIds.join(','),
+                      calculatedRate: String(standardRate),
+                      overrideUsed: String(actualAmount !== standardRate),
+                      Family: guardianPerson.name,
+                      source: 'dugsi-webhook-fallback-recovery',
+                    },
+                  }
+                )
+              } catch (metadataErr) {
+                await logError(
+                  logger,
+                  metadataErr,
+                  'Failed to patch Stripe subscription metadata in fallback',
+                  { subscriptionId: subscription.id, customerId }
+                )
+              }
+
+              Sentry.captureMessage(
+                'Dugsi subscription resolved via customer email fallback',
+                {
+                  level: 'warning',
+                  extra: {
+                    customerId,
+                    subscriptionId: subscription.id,
+                    guardianPersonId: guardianPerson.id,
+                    childCount,
+                    derivedProfileIds: profileIds,
+                  },
+                }
+              )
+
+              logger.warn(
+                {
+                  customerId,
+                  subscriptionId: subscription.id,
+                  guardianPersonId: guardianPerson.id,
+                  childCount,
+                },
+                'Subscription created without metadata — resolved via Stripe customer email fallback'
+              )
+            }
+          }
+        }
+
+        if (!billingAccount) {
+          throw new Error(
+            `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
+          )
+        }
+      } else {
         throw new Error(
           `No person found for customer ${customerId}. Payment method must be captured first or subscription metadata must include personId/guardianPersonId.`
         )
       }
-
-      billingAccount = await createOrUpdateBillingAccount({
-        personId: person.id,
-        accountType,
-        stripeCustomerId: customerId,
-      })
     }
   }
 

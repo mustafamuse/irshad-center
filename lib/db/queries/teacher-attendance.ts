@@ -1,0 +1,395 @@
+import {
+  Prisma,
+  PrismaClient,
+  Program,
+  Shift,
+  TeacherAttendanceStatus,
+} from '@prisma/client'
+
+import { prisma } from '@/lib/db'
+import { DatabaseClient } from '@/lib/db/types'
+import { createServiceLogger } from '@/lib/logger'
+
+const logger = createServiceLogger('teacher-attendance-queries')
+
+// ============================================================================
+// INCLUDES
+// ============================================================================
+
+export const attendanceRecordInclude = {
+  teacher: { include: { person: true } },
+  excuses: { orderBy: { createdAt: 'desc' as const } },
+} as const satisfies Prisma.TeacherAttendanceRecordInclude
+
+export type AttendanceRecordWithRelations =
+  Prisma.TeacherAttendanceRecordGetPayload<{
+    include: typeof attendanceRecordInclude
+  }>
+
+// Grid view only needs teacher name + status — no excuses join
+export const attendanceRecordGridInclude = {
+  teacher: { include: { person: true } },
+} as const satisfies Prisma.TeacherAttendanceRecordInclude
+
+export type AttendanceRecordGridWithRelations =
+  Prisma.TeacherAttendanceRecordGetPayload<{
+    include: typeof attendanceRecordGridInclude
+  }>
+
+// Teacher-facing history: only needs excuses for the "Request Excuse" button.
+// Skips the teacher → person join since the caller (fetchAttendanceHistory) never
+// accesses r.teacher and the teacherId filter already scopes the query.
+export const attendanceSummaryInclude = {
+  excuses: {
+    select: { id: true, status: true },
+    orderBy: { createdAt: 'desc' as const },
+  },
+} as const satisfies Prisma.TeacherAttendanceRecordInclude
+
+export type AttendanceRecordSummaryWithRelations =
+  Prisma.TeacherAttendanceRecordGetPayload<{
+    include: typeof attendanceSummaryInclude
+  }>
+
+export const excuseRequestInclude = {
+  attendanceRecord: { include: { teacher: { include: { person: true } } } },
+} as const satisfies Prisma.ExcuseRequestInclude
+
+export type ExcuseRequestWithRelations = Prisma.ExcuseRequestGetPayload<{
+  include: typeof excuseRequestInclude
+}>
+
+// ============================================================================
+// CONFIG (SINGLETON)
+// ============================================================================
+
+// PrismaClient (not DatabaseClient) — the P2002 catch in the slow path is only safe
+// outside a $transaction (PostgreSQL aborts the tx on constraint violations, making
+// findUniqueOrThrow run on an already-dead connection). Narrowing to PrismaClient turns
+// a tx call site into a compile-time error instead of a runtime throw.
+export async function getAttendanceConfig(client: PrismaClient = prisma) {
+  // Fast path: the singleton exists on every invocation after first use.
+  const existing = await client.dugsiAttendanceConfig.findUnique({
+    where: { id: 'singleton' },
+  })
+  if (existing) return existing
+
+  // First-ever access: create the default row.  The previous upsert with update:{}
+  // worked but silently refreshed updatedAt on every read, making it useless as a
+  // "last configured" timestamp.
+  // The rare concurrent-first-access race (two callers both read null) is handled by
+  // catching the P2002 PK conflict and re-fetching the row the winner just created.
+  try {
+    return await client.dugsiAttendanceConfig.create({
+      data: {
+        id: 'singleton',
+        morningAutoMarkMinutes: 15,
+        afternoonAutoMarkMinutes: 15,
+      },
+    })
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === 'P2002'
+    ) {
+      return client.dugsiAttendanceConfig.findUniqueOrThrow({
+        where: { id: 'singleton' },
+      })
+    }
+    throw err
+  }
+}
+
+// ============================================================================
+// ATTENDANCE RECORDS
+// ============================================================================
+
+export async function getAttendanceRecord(
+  teacherId: string,
+  date: Date,
+  shift: Shift,
+  client: DatabaseClient = prisma
+): Promise<AttendanceRecordWithRelations | null> {
+  return client.teacherAttendanceRecord.findUnique({
+    where: { teacherId_date_shift: { teacherId, date, shift } },
+    include: attendanceRecordInclude,
+  })
+}
+
+export async function getAttendanceRecordById(
+  id: string,
+  client: DatabaseClient = prisma
+): Promise<AttendanceRecordWithRelations | null> {
+  return client.teacherAttendanceRecord.findUnique({
+    where: { id },
+    include: attendanceRecordInclude,
+  })
+}
+
+/**
+ * Narrow fetch for service-layer ownership/status checks.
+ * Avoids the teacher+person+excuses joins that getAttendanceRecordById pulls in
+ * when all we need is id, teacherId, and status.
+ */
+export async function getAttendanceRecordStatus(
+  id: string,
+  client: DatabaseClient = prisma
+) {
+  return client.teacherAttendanceRecord.findUnique({
+    where: { id },
+    select: { id: true, teacherId: true, status: true },
+  })
+}
+
+export interface AttendanceRecordFilters {
+  teacherId?: string
+  dateFrom?: Date
+  dateTo?: Date
+  shift?: Shift
+  status?: TeacherAttendanceStatus
+}
+
+export async function getAttendanceRecords(
+  filters: AttendanceRecordFilters = {},
+  client: DatabaseClient = prisma
+): Promise<AttendanceRecordWithRelations[]> {
+  const { teacherId, dateFrom, dateTo, shift, status } = filters
+
+  // Default lower bound: 6 months back — prevents unbounded full-table scans
+  // when neither date bound is provided. Matches listSchoolClosures' pattern.
+  const defaultFrom = new Date(
+    Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() - 6, 1)
+  )
+
+  const where: Prisma.TeacherAttendanceRecordWhereInput = {}
+  if (teacherId) where.teacherId = teacherId
+  if (shift) where.shift = shift
+  if (status) where.status = status
+  where.date = {
+    gte: dateFrom ?? defaultFrom,
+    ...(dateTo ? { lte: dateTo } : {}),
+  }
+
+  const rows = await client.teacherAttendanceRecord.findMany({
+    where,
+    include: attendanceRecordInclude,
+    orderBy: [{ date: 'desc' }, { shift: 'asc' }],
+    take: 200,
+  })
+
+  if (rows.length === 200) {
+    logger.warn(
+      { event: 'ATTENDANCE_RECORDS_CAP_HIT', filters },
+      'getAttendanceRecords hit the 200-row cap — results may be incomplete; tighten the date range'
+    )
+  }
+
+  return rows
+}
+
+// All records for a teacher across a date range — used for teacher-facing history.
+// Uses the slim attendanceSummaryInclude (excuses only) since callers never access
+// r.teacher. Admin detail views query directly with attendanceRecordInclude.
+export async function getTeacherAttendanceSummary(
+  teacherId: string,
+  fromDate: Date,
+  toDate: Date,
+  client: DatabaseClient = prisma
+): Promise<AttendanceRecordSummaryWithRelations[]> {
+  const rows = await client.teacherAttendanceRecord.findMany({
+    where: {
+      teacherId,
+      date: { gte: fromDate, lte: toDate },
+    },
+    include: attendanceSummaryInclude,
+    orderBy: [{ date: 'desc' }, { shift: 'asc' }],
+    take: 100,
+  })
+
+  if (rows.length === 100) {
+    logger.warn(
+      { event: 'ATTENDANCE_SUMMARY_CAP_HIT', teacherId, fromDate, toDate },
+      'getTeacherAttendanceSummary hit the 100-row cap — results may be incomplete; narrow the date range'
+    )
+  }
+
+  return rows
+}
+
+// Grid data for admin attendance overview: all teachers × recent weekend dates.
+// Cap at 1000: at 2 shifts × 16 dates ≈ 32 rows per teacher, this supports ~31
+// teachers before truncation. If the roster grows beyond that, add cursor-based
+// pagination here and a matching `after` param before this becomes a slow page load.
+export async function getAttendanceGrid(
+  fromDate: Date,
+  toDate: Date,
+  client: DatabaseClient = prisma
+): Promise<{
+  records: AttendanceRecordGridWithRelations[]
+  truncated: boolean
+}> {
+  const rows = await client.teacherAttendanceRecord.findMany({
+    where: { date: { gte: fromDate, lt: toDate } },
+    include: attendanceRecordGridInclude,
+    orderBy: [
+      { date: 'desc' },
+      { shift: 'asc' },
+      { teacher: { person: { name: 'asc' } } },
+    ],
+    take: 1001,
+  })
+
+  const truncated = rows.length > 1000
+  const records = truncated ? rows.slice(0, 1000) : rows
+
+  if (truncated) {
+    logger.warn(
+      { event: 'ATTENDANCE_GRID_CAP_HIT', fromDate, toDate },
+      'getAttendanceGrid exceeded 1000 rows — results truncated; add pagination'
+    )
+  }
+
+  return { records, truncated }
+}
+
+// Counts attendance records with status=EXCUSED for a teacher in a given month.
+// NOTE: this counts any EXCUSED record — including admin-overridden ones — not just
+// excuse requests. Renamed from getMonthlyExcuseCount to clarify what's measured.
+// If this ever drives an enforcement rule (max N per month), switch to counting
+// ExcuseRequest rows with status=APPROVED instead.
+export async function getMonthlyExcusedCount(
+  teacherId: string,
+  year: number,
+  month: number, // 1-based
+  client: DatabaseClient = prisma
+): Promise<number> {
+  // Use Date.UTC to avoid local-timezone shifts when constructing midnight boundaries.
+  // `lt` on first-of-next-month is unambiguous and avoids last-day-of-month edge cases.
+  const from = new Date(Date.UTC(year, month - 1, 1))
+  const to = new Date(Date.UTC(year, month, 1)) // exclusive upper bound (first of next month)
+
+  return client.teacherAttendanceRecord.count({
+    where: {
+      teacherId,
+      status: 'EXCUSED',
+      date: { gte: from, lt: to },
+    },
+  })
+}
+
+// ============================================================================
+// SCHOOL CLOSURES
+// ============================================================================
+
+export async function getSchoolClosure(
+  date: Date,
+  client: DatabaseClient = prisma
+) {
+  return client.schoolClosure.findUnique({ where: { date } })
+}
+
+export async function listSchoolClosures(
+  from?: Date,
+  to?: Date,
+  client: DatabaseClient = prisma
+) {
+  // Default lower bound: 2 years back — prevents unbounded full-table scans.
+  // Use `from || to` so a caller supplying only `to` doesn't silently drop the upper bound.
+  const defaultFrom = new Date(Date.UTC(new Date().getUTCFullYear() - 2, 0, 1))
+  return client.schoolClosure.findMany({
+    where:
+      from || to
+        ? {
+            date: {
+              ...(from ? { gte: from } : { gte: defaultFrom }),
+              ...(to ? { lt: to } : {}),
+            },
+          }
+        : { date: { gte: defaultFrom } },
+    orderBy: { date: 'desc' },
+  })
+}
+
+export async function updateAttendanceConfig(
+  data: {
+    morningAutoMarkMinutes: number
+    afternoonAutoMarkMinutes: number
+    updatedBy?: string
+  },
+  client: DatabaseClient = prisma
+) {
+  return client.dugsiAttendanceConfig.upsert({
+    where: { id: 'singleton' },
+    create: { id: 'singleton', ...data },
+    update: data,
+  })
+}
+
+// ============================================================================
+// EXCUSE REQUESTS
+// ============================================================================
+
+export async function getExcuseRequestById(
+  id: string,
+  client: DatabaseClient = prisma
+): Promise<ExcuseRequestWithRelations | null> {
+  return client.excuseRequest.findUnique({
+    where: { id },
+    include: excuseRequestInclude,
+  })
+}
+
+export async function getPendingExcuseRequests(
+  client: DatabaseClient = prisma
+): Promise<ExcuseRequestWithRelations[]> {
+  return client.excuseRequest.findMany({
+    where: { status: 'PENDING' },
+    include: excuseRequestInclude,
+    orderBy: { createdAt: 'asc' },
+    take: 200,
+  })
+}
+
+export async function getExistingActiveExcuse(
+  attendanceRecordId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.excuseRequest.findFirst({
+    where: {
+      attendanceRecordId,
+      status: { in: ['PENDING', 'APPROVED'] },
+    },
+  })
+}
+
+// ============================================================================
+// TEACHER SHIFTS
+// ============================================================================
+
+export interface TeacherShift {
+  teacherId: string
+  name: string // teacher's person.name — included for grid display without a second join
+  shifts: Shift[]
+}
+
+/**
+ * Returns all active Dugsi teachers with their assigned shifts.
+ * Used by auto-mark, expected-slot generation, and the attendance grid.
+ */
+export async function getActiveDugsiTeacherShifts(
+  client: DatabaseClient = prisma
+): Promise<TeacherShift[]> {
+  const rows = await client.teacherProgram.findMany({
+    where: { program: Program.DUGSI_PROGRAM, isActive: true },
+    select: {
+      teacherId: true,
+      shifts: true,
+      teacher: { select: { person: { select: { name: true } } } },
+    },
+  })
+  return rows.map((r) => ({
+    teacherId: r.teacherId,
+    name: r.teacher.person.name,
+    shifts: r.shifts,
+  }))
+}
