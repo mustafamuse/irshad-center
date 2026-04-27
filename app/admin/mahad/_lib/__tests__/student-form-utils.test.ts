@@ -92,6 +92,14 @@ describe('student-form-utils', () => {
         '2000-01-01T00:00:00.000Z'
       )
     })
+
+    it('should return null for an invalid date string', () => {
+      const student = createMockStudent({
+        dateOfBirth: 'not-a-date' as unknown as Date,
+      })
+      const formData = getDefaultFormData(student)
+      expect(formData.dateOfBirth).toBeNull()
+    })
   })
 
   describe('convertFormDataToPayload', () => {
