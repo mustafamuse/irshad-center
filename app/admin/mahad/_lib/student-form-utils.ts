@@ -127,7 +127,7 @@ export function hasFormChanges(
     formData.email !== originalData.email ||
     formData.phone !== originalData.phone ||
     getDateTimestamp(formData.dateOfBirth) !==
-      getDateTimestamp(originalData.dateOfBirth) ||
+      (originalData.dateOfBirth?.getTime() ?? null) ||
     formData.gradeLevel !== originalData.gradeLevel ||
     formData.schoolName !== originalData.schoolName ||
     formData.graduationStatus !== originalData.graduationStatus ||
