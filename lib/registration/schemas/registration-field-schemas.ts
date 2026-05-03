@@ -2,7 +2,9 @@ import { z } from 'zod'
 
 /**
  * Feature flag to show/hide grade and school fields in registration forms.
- * Set NEXT_PUBLIC_SHOW_GRADE_SCHOOL=true in Vercel to re-enable these fields.
+ * Set NEXT_PUBLIC_SHOW_GRADE_SCHOOL=true in Vercel and redeploy to re-enable
+ * these fields. A server restart alone is not sufficient — Next.js inlines
+ * NEXT_PUBLIC_* values at build time.
  */
 export const SHOW_GRADE_SCHOOL =
   process.env.NEXT_PUBLIC_SHOW_GRADE_SCHOOL === 'true'
