@@ -1,4 +1,4 @@
-export default function Loading() {
+export default function MahadLoading() {
   return (
     <div className="flex min-h-screen items-center justify-center">
       <div className="flex flex-col items-center space-y-4">

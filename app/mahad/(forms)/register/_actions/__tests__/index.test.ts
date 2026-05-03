@@ -337,14 +337,14 @@ describe('checkEmailExists', () => {
     expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:1.2.3.4', 10)
   })
 
-  it('should skip rate limiting when IP is unavailable', async () => {
+  it('should rate limit under a shared bucket when IP is unavailable', async () => {
     mockHeaders.mockResolvedValue(new Headers())
     mockIsEmailRegistered.mockResolvedValue(false)
 
     const result = await checkEmailExists('test@example.com')
 
     expect(result).toBe(false)
-    expect(mockCheckRateLimit).not.toHaveBeenCalled()
+    expect(mockCheckRateLimit).toHaveBeenCalledWith('email-check:unknown', 10)
     expect(mockIsEmailRegistered).toHaveBeenCalled()
   })
 
@@ -358,6 +358,14 @@ describe('checkEmailExists', () => {
     const result = await checkEmailExists('test@example.com')
 
     expect(result).toBe(false)
+    expect(mockIsEmailRegistered).not.toHaveBeenCalled()
+  })
+
+  it('should short-circuit to false for malformed email input', async () => {
+    const result = await checkEmailExists('not-an-email')
+
+    expect(result).toBe(false)
+    expect(mockCheckRateLimit).not.toHaveBeenCalled()
     expect(mockIsEmailRegistered).not.toHaveBeenCalled()
   })
 })

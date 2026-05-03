@@ -6,15 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import {
-  X,
-  Menu,
-  Home,
-  GraduationCap,
-  Info,
-  Calendar,
-  UserPlus,
-} from 'lucide-react'
+import { X, Menu, Home, GraduationCap, UserPlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Logo } from '@/components/ui/logo'
@@ -23,8 +15,6 @@ import { cn } from '@/lib/utils'
 const menuItems = [
   { href: '/mahad', label: 'Home', icon: Home },
   { href: '/mahad/programs', label: 'Programs', icon: GraduationCap },
-  { href: '/mahad/about', label: 'About Us', icon: Info },
-  { href: '/mahad/schedule', label: 'Class Schedule', icon: Calendar },
 ]
 
 export function MobileNav() {
@@ -42,7 +32,7 @@ export function MobileNav() {
       <Button
         variant="ghost"
         size="icon"
-        className="relative z-50 h-10 w-10 text-[#007078] hover:bg-[#007078]/5"
+        className="relative z-50 h-10 w-10 text-brand hover:bg-brand/5"
         onClick={() => setIsOpen(!isOpen)}
       >
         <span className="sr-only">Toggle menu</span>
@@ -91,10 +81,10 @@ export function MobileNav() {
                   transition={{ delay: 0.1 }}
                   className="flex items-center justify-center"
                 >
-                  <div className="inline-flex items-center gap-2 rounded-full bg-[#007078] px-4 py-2 text-sm text-white">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm text-white">
                     <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#deb43e] opacity-75" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-[#deb43e]" />
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-accent opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-accent" />
                     </span>
                     Welcome to Irshād Māhad
                   </div>
@@ -141,8 +131,8 @@ export function MobileNav() {
                             className={cn(
                               'flex items-center gap-4 rounded-lg px-4 py-3 text-sm font-medium transition-colors',
                               isActive
-                                ? 'bg-[#007078] text-white'
-                                : 'text-gray-700 hover:bg-[#007078]/5 hover:text-[#007078]'
+                                ? 'bg-brand text-white'
+                                : 'text-gray-700 hover:bg-brand/5 hover:text-brand'
                             )}
                           >
                             <Icon className="h-5 w-5" />
@@ -163,17 +153,15 @@ export function MobileNav() {
                 >
                   <Button
                     asChild
-                    className="relative w-full overflow-hidden rounded-full bg-[#007078] text-white shadow-lg transition-all hover:shadow-xl"
+                    className="relative w-full overflow-hidden rounded-full bg-brand text-white shadow-lg transition-all hover:shadow-xl"
                   >
                     <Link
-                      href="https://forms.gle/t38Jurtqes2pbBsVA"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href="/mahad/register"
                       className="flex items-center justify-center gap-2"
                     >
                       <UserPlus className="h-4 w-4" />
                       <span className="relative z-10">Begin Registration</span>
-                      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#007078] via-[#007078]/90 to-[#deb43e] opacity-0 transition-opacity hover:opacity-100" />
+                      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-brand via-brand/90 to-brand-accent opacity-0 transition-opacity hover:opacity-100" />
                     </Link>
                   </Button>
                 </motion.div>

@@ -5,6 +5,7 @@ import { PaymentCompleteContent } from '@/components/payment/payment-complete-co
 export const metadata: Metadata = {
   title: 'Payment Complete - Irshad Mahad',
   description: 'Your payment setup status for Irshad Mahad.',
+  robots: { index: false, follow: false },
 }
 
 export default async function PaymentCompletePage({

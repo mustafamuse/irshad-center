@@ -47,10 +47,7 @@ import {
   SHIFT_OPTIONS,
   SHOW_GRADE_SCHOOL,
 } from '@/lib/registration/schemas/registration'
-import {
-  buttonClassNames,
-  getInputClassNames,
-} from '@/lib/registration/utils/form-utils'
+import { getInputClassNames } from '@/lib/registration/utils/form-utils'
 import { cn, capitalizeName } from '@/lib/utils'
 
 import { useDugsiRegistration } from '../_hooks/use-registration'
@@ -769,10 +766,8 @@ export function DugsiRegisterForm() {
           {/* Submit Button */}
           <Button
             type="submit"
-            className={cn(
-              buttonClassNames.primary,
-              'h-11 text-sm sm:h-12 sm:text-base'
-            )}
+            variant="brand"
+            className="h-11 text-sm sm:h-12 sm:text-base"
             disabled={isPending}
           >
             {isPending ? (

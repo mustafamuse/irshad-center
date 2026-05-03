@@ -9,10 +9,14 @@ import { returnValidationErrors } from 'next-safe-action'
 
 import { checkRateLimit } from '@/lib/auth/rate-limit'
 import { ActionError } from '@/lib/errors/action-error'
+import { createActionLogger, logError } from '@/lib/logger'
 import { dugsiRegistrationSchema } from '@/lib/registration/schemas/registration'
+import { emailSchema } from '@/lib/registration/schemas/registration-field-schemas'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { createFamilyRegistration } from '@/lib/services/registration-service'
 import { findGuardianByEmail } from '@/lib/services/shared/parent-service'
+
+const logger = createActionLogger('dugsi-registration')
 
 const _registerDugsiChildren = rateLimitedActionClient
   .metadata({ actionName: 'registerDugsiChildren' })
@@ -94,6 +98,9 @@ const _registerDugsiChildren = rateLimitedActionClient
           })
         }
       }
+      await logError(logger, error, 'Unexpected error in Dugsi registration', {
+        familyReferenceId,
+      })
       throw error
     }
   })
@@ -105,6 +112,9 @@ export async function registerDugsiChildren(
 }
 
 export async function checkParentEmailExists(email: string): Promise<boolean> {
+  const parsed = emailSchema.safeParse(email)
+  if (!parsed.success) return false
+
   try {
     const headerStore = await headers()
     const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
@@ -114,10 +124,18 @@ export async function checkParentEmailExists(email: string): Promise<boolean> {
         return false
       }
     }
-  } catch {
-    // Fail open if headers/rate-limit unavailable
+  } catch (error) {
+    logger.warn(
+      { err: error },
+      '[rate-limit] Rate limit check failed — failing open'
+    )
   }
 
-  const existing = await findGuardianByEmail(email)
-  return existing !== null
+  try {
+    const existing = await findGuardianByEmail(parsed.data)
+    return existing !== null
+  } catch (error) {
+    await logError(logger, error, 'Parent email existence check failed', {})
+    return false
+  }
 }

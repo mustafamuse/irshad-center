@@ -26,7 +26,7 @@ import {
 } from '@/lib/db/queries/program-profile'
 import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
-import { createServiceLogger, logWarning } from '@/lib/logger'
+import { createServiceLogger, logError } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
 import {
@@ -88,9 +88,16 @@ export async function getAllDugsiRegistrations(
   return Sentry.startSpan(
     { name: 'registration.getAllDugsiRegistrations', op: 'db' },
     async () => {
-      const validatedFilters = filters
-        ? DugsiRegistrationFiltersSchema.parse(filters)
-        : undefined
+      const filterResult = filters
+        ? DugsiRegistrationFiltersSchema.safeParse(filters)
+        : null
+      if (filterResult && !filterResult.success) {
+        throw new ActionError(
+          'Invalid registration filters',
+          ERROR_CODES.VALIDATION_ERROR
+        )
+      }
+      const validatedFilters = filterResult?.data
 
       // Get family counts FIRST (unfiltered - for billing accuracy)
       const familyCounts = await getFamilyChildCounts()
@@ -368,13 +375,13 @@ async function cancelFamilySubscriptions(
           )
           canceled++
         } catch (error) {
-          await logWarning(
+          await logError(
             logger,
+            error,
             'Subscription cancellation failed during family deletion',
             {
               stripeSubscriptionId,
               familyId: profiles[0]?.familyReferenceId,
-              error: error instanceof Error ? error.message : 'Unknown error',
             }
           )
         }
