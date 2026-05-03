@@ -1,7 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockLimit } = vi.hoisted(() => ({
+const { mockLimit, mockLogWarn, mockLogError } = vi.hoisted(() => ({
   mockLimit: vi.fn(),
+  mockLogWarn: vi.fn(),
+  mockLogError: vi.fn(),
+}))
+
+vi.mock('@/lib/logger', () => ({
+  createServiceLogger: () => ({
+    warn: mockLogWarn,
+    error: mockLogError,
+    info: vi.fn(),
+    debug: vi.fn(),
+  }),
 }))
 
 vi.mock('@upstash/ratelimit', () => ({
@@ -56,28 +67,22 @@ describe('checkRateLimit', () => {
   it('fails open and logs when Redis env vars are missing', async () => {
     delete process.env.UPSTASH_REDIS_REST_URL
     delete process.env.UPSTASH_REDIS_REST_TOKEN
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     const { checkRateLimit } = await import('../rate-limit')
     const result = await checkRateLimit('ip-1')
 
     expect(result.success).toBe(true)
     expect(mockLimit).not.toHaveBeenCalled()
-    expect(warnSpy).toHaveBeenCalled()
-
-    warnSpy.mockRestore()
+    expect(mockLogWarn).toHaveBeenCalled()
   })
 
   it('fails open and logs when the Redis call throws', async () => {
     mockLimit.mockRejectedValueOnce(new Error('network blip'))
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const { checkRateLimit } = await import('../rate-limit')
     const result = await checkRateLimit('ip-1', 10)
 
     expect(result).toEqual({ success: true, remaining: 10, reset: 0 })
-    expect(errorSpy).toHaveBeenCalled()
-
-    errorSpy.mockRestore()
+    expect(mockLogError).toHaveBeenCalled()
   })
 })
