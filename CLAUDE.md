@@ -30,6 +30,25 @@
 
 ---
 
+## High-risk paths (require human review)
+
+Per Erik Schluntz's leaf-node restriction pattern. Claude may edit these only with explicit user direction; auto-modes should treat them as read-only.
+
+- `lib/services/shared/billing.ts` — cross-program billing logic
+- `lib/services/webhooks/**` — Stripe webhook dispatchers
+- `lib/stripe/**` — Stripe client configuration
+- `prisma/schema.prisma` — schema source of truth
+- `prisma/migrations/**` — applied migrations (also covered by `prisma-migration-safety` skill)
+- `lib/safe-action.ts` — auth and rate-limit base
+- `app/api/webhook/**` — webhook route handlers
+- `middleware.ts` — auth middleware
+
+When work touches these, invoke the appropriate specialty agent:
+
+- `security-reviewer` for auth/webhook/admin-action changes
+- `migration-reviewer` for any `prisma/migrations/**` or `prisma/schema.prisma` edit
+- `verify-app` after the change to confirm behavior
+
 ## Critical Rules (Strict Enforcement)
 
 Claude should refuse to write code violating these rules.
@@ -58,31 +77,17 @@ Claude should refuse to write code violating these rules.
 
 ## Workflow Patterns
 
-### Autonomous PR Pipeline
+### Workflow skills (loaded on demand, not always-on)
 
-When asked to implement a feature end-to-end, follow this sequence without stopping between steps:
-
-1. Implement the feature
-2. Run `tsc --noEmit` and fix type errors
-3. Run relevant tests and fix failures
-4. Commit with a descriptive message
-5. Push and create PR using `/create-pr`
-6. Report back with a summary
-
-Do not pause for confirmation between steps unless a step fails more than twice.
+- `/autopr` — autonomous PR pipeline (implement → typecheck → test → commit → push → `/create-pr`)
+- `/swarm` — parallel agent fan-out for refactors touching 3+ independent files
+- `/feature-gan` — three-agent harness (Planner/Generator/Evaluator) for non-trivial features
+- `/notes` — bootstrap NOTES.md to externalize state for long tasks
+- `/babysit` — handle PR review comments, rebase on main, shepherd toward merge
 
 ### PR Creation
 
-All PRs use the `/create-pr` command (`.claude/commands/create-pr.md`). Do not use any other PR format.
-
-### Parallel Agent Swarm for Refactors
-
-When a refactor touches 3+ files independently, use the Task tool to spawn parallel agents:
-
-- One agent per file or module
-- Each agent reads the file, applies the pattern, and reports back
-- Merge results sequentially after all agents complete
-- Use this for: renames across files, pattern migrations, bulk type updates
+All PRs use the `/create-pr` command. Do not use any other PR format.
 
 ### Self-Healing Test Loop
 
@@ -92,6 +97,28 @@ When tests fail after implementation, automatically fix and re-run:
 2. If failures: analyze error output, apply fix, re-run
 3. Repeat up to 3 cycles
 4. If still failing after 3 cycles, stop and report what was tried
+
+### Babysit Loop (continuous PR handling)
+
+For long-running PR shepherding, use the `/babysit` skill on a loop:
+
+```
+/loop 5m /babysit
+```
+
+It auto-rebases on main, addresses safe bot review comments per the policy in `babysit/SKILL.md`, and reports human-review items without auto-addressing them. Never auto-merges.
+
+---
+
+## Context Management
+
+See `~/.claude/CLAUDE.md` "Context management (anti-rot protocol)" for the canonical NOTES.md → reset → re-read pattern. Applies to this codebase the same way.
+
+For irshad-center specifically, when a task spans multiple Stripe + Prisma + UI areas, **always** write a `NOTES.md` at task start with:
+
+- Decisions about which Stripe client (Mahad vs Dugsi)
+- Whether a migration is needed (and the destructive/safe classification)
+- Which path-attached skills apply (`stripe-dual-client`, `prisma-migration-safety`, `webhook-handler`)
 
 ---
 

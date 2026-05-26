@@ -1,0 +1,5 @@
+# All notes are local/ephemeral by default. Tracked: .gitignore, .gitkeep.
+*
+!.gitignore
+!.gitkeep
+!README.md
