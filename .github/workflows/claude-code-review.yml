@@ -40,17 +40,39 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            Read the repository's CLAUDE.md for project rules and conventions.
+            Read the repository's CLAUDE.md AND the path-attached rules in .claude/rules/* AND the path-attached skills under .claude/skills/* for project conventions.
 
             Please review this pull request with a focus on:
             - Code quality and best practices
-            - Potential bugs or issues
-            - Security implications
-            - Performance considerations
+            - Potential bugs or issues (especially Stripe dual-client confusion: Mahad uses stripeServerClient, Dugsi uses getDugsiStripeClient)
+            - Security implications (auth, webhooks, PII)
+            - Performance considerations (N+1 queries, missing indexes)
+            - Prisma migration safety (refuse destructive ops on Student/BillingAssignment/Subscription/WebhookEvent without explicit acknowledgment)
+
+            ## Calibration (avoid the bot-loop)
+
+            Skip these comment types unless they introduce a real bug or security issue:
+            - JSDoc on internal functions
+            - "Could be extracted into a hook" stylistic suggestions
+            - "Might over-fetch" warnings on intentional queries
+            - Cosmetic style nits Prettier already passed
+
+            Focus on findings that change correctness, not preference.
+
+            ## Compounding Engineering
+
+            If you find an issue that represents a recurring class of mistake (not a one-off bug), append to your top-level summary comment a section:
+
+            > **Proposed CLAUDE.md addition** (for the maintainer to review):
+            > - [one-line rule]
+
+            Example: if a PR uses the wrong Stripe client, propose "Always grep for the correct Stripe client at file scope; never import the other program's client into this domain."
+
+            The maintainer will manually promote accepted proposals into CLAUDE.md. Do not edit CLAUDE.md directly in this workflow.
 
             Note: The PR branch is already checked out in the current working directory.
 
-            Use `gh pr comment` for top-level feedback.
+            Use `gh pr comment` for top-level feedback (including the Proposed CLAUDE.md addition section).
             Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) to highlight specific code issues.
             Only post GitHub comments - don't submit review text as messages.
 
