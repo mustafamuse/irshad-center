@@ -23,6 +23,7 @@ import {
 } from '@/lib/db/queries/enrollment'
 import type { DatabaseClient } from '@/lib/db/types'
 import { logger } from '@/lib/logger'
+import { isValidStatusTransition } from '@/lib/types/enrollment'
 
 /**
  * Result of enrollment status updates
@@ -83,7 +84,10 @@ export async function handleSubscriptionCancellationEnrollments(
         tx
       )
 
-      if (activeEnrollment) {
+      if (
+        activeEnrollment &&
+        isValidStatusTransition(activeEnrollment.status, 'WITHDRAWN')
+      ) {
         await updateEnrollmentStatus(
           activeEnrollment.id,
           'WITHDRAWN',
