@@ -1,0 +1,183 @@
+import { vi, describe, it, expect, beforeEach } from 'vitest'
+
+const {
+  mockGetSubscriptionByStripeId,
+  mockGetBillingAssignmentsBySubscription,
+  mockGetActiveEnrollment,
+  mockUpdateEnrollmentStatus,
+  mockProgramProfileUpdate,
+  mockTransaction,
+} = vi.hoisted(() => ({
+  mockGetSubscriptionByStripeId: vi.fn(),
+  mockGetBillingAssignmentsBySubscription: vi.fn(),
+  mockGetActiveEnrollment: vi.fn(),
+  mockUpdateEnrollmentStatus: vi.fn(),
+  mockProgramProfileUpdate: vi.fn(),
+  mockTransaction: vi.fn(),
+}))
+
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    programProfile: {
+      update: (...args: unknown[]) => mockProgramProfileUpdate(...args),
+    },
+    $transaction: (...args: unknown[]) => mockTransaction(...args),
+  },
+}))
+
+vi.mock('@/lib/db/queries/billing', () => ({
+  getSubscriptionByStripeId: (...args: unknown[]) =>
+    mockGetSubscriptionByStripeId(...args),
+  getBillingAssignmentsBySubscription: (...args: unknown[]) =>
+    mockGetBillingAssignmentsBySubscription(...args),
+}))
+
+vi.mock('@/lib/db/queries/enrollment', () => ({
+  getActiveEnrollment: (...args: unknown[]) => mockGetActiveEnrollment(...args),
+  updateEnrollmentStatus: (...args: unknown[]) =>
+    mockUpdateEnrollmentStatus(...args),
+}))
+
+vi.mock('@/lib/logger', () => {
+  const stub = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
+  return {
+    logger: stub,
+    createServiceLogger: () => stub,
+    logError: vi.fn(),
+  }
+})
+
+import { handleSubscriptionCancellationEnrollments } from '../enrollment-service'
+
+const STRIPE_SUB_ID = 'sub_test_123'
+
+function makeAssignment(opts: {
+  profileId: string
+  program: 'DUGSI_PROGRAM' | 'MAHAD_PROGRAM'
+  isActive?: boolean
+  status?: 'ENROLLED' | 'WITHDRAWN'
+}) {
+  return {
+    id: `ba_${opts.profileId}`,
+    programProfileId: opts.profileId,
+    isActive: opts.isActive ?? true,
+    programProfile: {
+      id: opts.profileId,
+      program: opts.program,
+      status: opts.status ?? 'ENROLLED',
+    },
+  }
+}
+
+describe('handleSubscriptionCancellationEnrollments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetSubscriptionByStripeId.mockResolvedValue({ id: 'db_sub_1' })
+    mockGetActiveEnrollment.mockResolvedValue({ id: 'enr_1' })
+    mockUpdateEnrollmentStatus.mockResolvedValue(undefined)
+    mockProgramProfileUpdate.mockResolvedValue(undefined)
+    mockTransaction.mockImplementation(
+      async (fn: (tx: unknown) => Promise<unknown>) =>
+        fn({
+          programProfile: { update: mockProgramProfileUpdate },
+        })
+    )
+  })
+
+  it('flips both Enrollment and ProgramProfile to WITHDRAWN for Dugsi', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({ profileId: 'p_dugsi', program: 'DUGSI_PROGRAM' }),
+    ])
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(result.withdrawn).toBe(1)
+    expect(result.profilesWithdrawn).toBe(1)
+    expect(mockUpdateEnrollmentStatus).toHaveBeenCalledWith(
+      'enr_1',
+      'WITHDRAWN',
+      expect.any(String),
+      expect.any(Date),
+      expect.anything()
+    )
+    expect(mockProgramProfileUpdate).toHaveBeenCalledWith({
+      where: { id: 'p_dugsi' },
+      data: { status: 'WITHDRAWN' },
+    })
+  })
+
+  it('flips only Enrollment (not ProgramProfile) for Mahad', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({ profileId: 'p_mahad', program: 'MAHAD_PROGRAM' }),
+    ])
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(result.withdrawn).toBe(1)
+    expect(result.profilesWithdrawn).toBe(0)
+    expect(mockUpdateEnrollmentStatus).toHaveBeenCalledTimes(1)
+    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('skips assignments that are already inactive', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({
+        profileId: 'p_inactive',
+        program: 'DUGSI_PROGRAM',
+        isActive: false,
+      }),
+    ])
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(result.withdrawn).toBe(0)
+    expect(result.profilesWithdrawn).toBe(0)
+    expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
+    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('does not re-flip a Dugsi profile that is already WITHDRAWN', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({
+        profileId: 'p_already',
+        program: 'DUGSI_PROGRAM',
+        status: 'WITHDRAWN',
+      }),
+    ])
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(result.profilesWithdrawn).toBe(0)
+    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('returns empty result when subscription is not in DB', async () => {
+    mockGetSubscriptionByStripeId.mockResolvedValue(null)
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([])
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(result.withdrawn).toBe(0)
+    expect(result.profilesWithdrawn).toBe(0)
+    expect(mockGetBillingAssignmentsBySubscription).not.toHaveBeenCalled()
+  })
+
+  it('propagates errors so the outer transaction rolls back', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({ profileId: 'p_dugsi', program: 'DUGSI_PROGRAM' }),
+    ])
+    mockUpdateEnrollmentStatus.mockRejectedValue(
+      new Error('simulated DB failure')
+    )
+
+    await expect(
+      handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+    ).rejects.toThrow('simulated DB failure')
+    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+  })
+})
