@@ -174,6 +174,7 @@ describe('generateDugsiVCardContent', () => {
 
     const result = await generateDugsiVCardContent({})
     expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedDuplicate).toBe(1)
     const note = result?.data?.content ?? ''
     expect(note).toContain('Child Alpha')
     expect(note).toContain('Child Beta')

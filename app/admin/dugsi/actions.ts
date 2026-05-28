@@ -329,9 +329,8 @@ const _generateDugsiVCardContent = adminActionClient
           const dedupeKey = normalizedEmail || formattedPhone || ''
 
           if (contactMap.has(dedupeKey)) {
-            if (isWithinSameFamily) {
-              skippedDuplicate++
-            } else {
+            skippedDuplicate++
+            if (!isWithinSameFamily) {
               const existing = contactMap.get(dedupeKey)!
               const existingChildren = existing.note
                 ? existing.note.replace(/^Children: /, '').split(', ')
