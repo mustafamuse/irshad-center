@@ -26,7 +26,7 @@ const _generateMahadVCardContent = adminActionClient
 
     const contacts: VCardContact[] = []
     let skippedNoContact = 0
-    const skippedDuplicate = 0
+    let skippedDuplicate = 0
 
     for (const student of students) {
       const phone = formatPhoneForVCard(student.phone)
