@@ -50,23 +50,31 @@ async function main() {
     },
   })
 
-  const aMatchingProfiles = await prisma.programProfile.findMany({
-    where: { program: DUGSI, status: { not: 'WITHDRAWN' } },
-    select: { familyReferenceId: true },
-  })
-  const activeFamilyIds = new Set(
-    aMatchingProfiles
-      .map((p) => p.familyReferenceId)
-      .filter((id): id is string => id !== null)
-  )
-  const dugsiFamilyOnly = await prisma.programProfile.count({
+  // Rule D: profile is non-WITHDRAWN AND has at least one OTHER non-WITHDRAWN
+  // sibling in the same family. Build family IDs from profiles that have
+  // siblings (count >= 2 in the family group) to avoid counting a profile as
+  // its own active sibling.
+  const familyCounts = await prisma.programProfile.groupBy({
+    by: ['familyReferenceId'],
     where: {
       program: DUGSI,
       status: { not: 'WITHDRAWN' },
-      familyReferenceId: { in: Array.from(activeFamilyIds) },
+      familyReferenceId: { not: null },
+    },
+    _count: { id: true },
+  })
+  const familiesWithSiblings = new Set(
+    familyCounts
+      .filter((g) => g._count.id >= 2)
+      .map((g) => g.familyReferenceId as string)
+  )
+  const ruleD = await prisma.programProfile.count({
+    where: {
+      program: DUGSI,
+      status: { not: 'WITHDRAWN' },
+      familyReferenceId: { in: Array.from(familiesWithSiblings) },
     },
   })
-  const ruleD = dugsiFamilyOnly
 
   // Cross-cutting diagnostics
   const profileWithdrawn = await prisma.programProfile.count({

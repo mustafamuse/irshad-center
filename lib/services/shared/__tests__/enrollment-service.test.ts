@@ -5,22 +5,19 @@ const {
   mockGetBillingAssignmentsBySubscription,
   mockGetActiveEnrollment,
   mockUpdateEnrollmentStatus,
-  mockProgramProfileUpdate,
+  mockUpdateProgramProfileStatus,
   mockTransaction,
 } = vi.hoisted(() => ({
   mockGetSubscriptionByStripeId: vi.fn(),
   mockGetBillingAssignmentsBySubscription: vi.fn(),
   mockGetActiveEnrollment: vi.fn(),
   mockUpdateEnrollmentStatus: vi.fn(),
-  mockProgramProfileUpdate: vi.fn(),
+  mockUpdateProgramProfileStatus: vi.fn(),
   mockTransaction: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
   prisma: {
-    programProfile: {
-      update: (...args: unknown[]) => mockProgramProfileUpdate(...args),
-    },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
   },
 }))
@@ -36,6 +33,11 @@ vi.mock('@/lib/db/queries/enrollment', () => ({
   getActiveEnrollment: (...args: unknown[]) => mockGetActiveEnrollment(...args),
   updateEnrollmentStatus: (...args: unknown[]) =>
     mockUpdateEnrollmentStatus(...args),
+}))
+
+vi.mock('@/lib/db/queries/program-profile', () => ({
+  updateProgramProfileStatus: (...args: unknown[]) =>
+    mockUpdateProgramProfileStatus(...args),
 }))
 
 vi.mock('@/lib/logger', () => {
@@ -78,12 +80,9 @@ describe('handleSubscriptionCancellationEnrollments', () => {
       status: 'ENROLLED',
     })
     mockUpdateEnrollmentStatus.mockResolvedValue(undefined)
-    mockProgramProfileUpdate.mockResolvedValue(undefined)
+    mockUpdateProgramProfileStatus.mockResolvedValue(undefined)
     mockTransaction.mockImplementation(
-      async (fn: (tx: unknown) => Promise<unknown>) =>
-        fn({
-          programProfile: { update: mockProgramProfileUpdate },
-        })
+      async (fn: (tx: unknown) => Promise<unknown>) => fn({})
     )
   })
 
@@ -104,10 +103,11 @@ describe('handleSubscriptionCancellationEnrollments', () => {
       expect.any(Date),
       expect.anything()
     )
-    expect(mockProgramProfileUpdate).toHaveBeenCalledWith({
-      where: { id: 'p_dugsi' },
-      data: { status: 'WITHDRAWN' },
-    })
+    expect(mockUpdateProgramProfileStatus).toHaveBeenCalledWith(
+      'p_dugsi',
+      'WITHDRAWN',
+      expect.anything()
+    )
   })
 
   it('flips only Enrollment (not ProgramProfile) for Mahad', async () => {
@@ -121,7 +121,7 @@ describe('handleSubscriptionCancellationEnrollments', () => {
     expect(result.withdrawn).toBe(1)
     expect(result.profilesWithdrawn).toBe(0)
     expect(mockUpdateEnrollmentStatus).toHaveBeenCalledTimes(1)
-    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })
 
   it('skips assignments that are already inactive', async () => {
@@ -139,7 +139,7 @@ describe('handleSubscriptionCancellationEnrollments', () => {
     expect(result.withdrawn).toBe(0)
     expect(result.profilesWithdrawn).toBe(0)
     expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
-    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })
 
   it('does not re-flip a Dugsi profile that is already WITHDRAWN', async () => {
@@ -155,7 +155,7 @@ describe('handleSubscriptionCancellationEnrollments', () => {
       await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
 
     expect(result.profilesWithdrawn).toBe(0)
-    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })
 
   it('returns empty result when subscription is not in DB', async () => {
@@ -200,7 +200,7 @@ describe('handleSubscriptionCancellationEnrollments', () => {
       await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
 
     expect(result.profilesWithdrawn).toBe(0)
-    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })
 
   it('propagates errors so the outer transaction rolls back', async () => {
@@ -214,6 +214,6 @@ describe('handleSubscriptionCancellationEnrollments', () => {
     await expect(
       handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
     ).rejects.toThrow('simulated DB failure')
-    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
+    expect(mockUpdateProgramProfileStatus).not.toHaveBeenCalled()
   })
 })

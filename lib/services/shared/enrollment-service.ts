@@ -21,6 +21,7 @@ import {
   getActiveEnrollment,
   updateEnrollmentStatus,
 } from '@/lib/db/queries/enrollment'
+import { updateProgramProfileStatus } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { logger } from '@/lib/logger'
 import { isValidStatusTransition } from '@/lib/types/enrollment'
@@ -110,10 +111,11 @@ export async function handleSubscriptionCancellationEnrollments(
         assignment.programProfile.status !== 'WITHDRAWN' &&
         assignment.programProfile.status !== 'COMPLETED'
       ) {
-        await tx.programProfile.update({
-          where: { id: assignment.programProfileId },
-          data: { status: 'WITHDRAWN' },
-        })
+        await updateProgramProfileStatus(
+          assignment.programProfileId,
+          'WITHDRAWN',
+          tx
+        )
         results.profilesWithdrawn++
       }
     }
