@@ -499,6 +499,50 @@ describe('generateDugsiVCardContent', () => {
     expect(content).toContain('shared@example.com')
   })
 
+  it('bridge merge preserves real name over Dugsi Parent fallback', async () => {
+    const regA = makeReg({
+      id: 'reg-a',
+      name: 'Child Alpha',
+      familyReferenceId: 'fam-A',
+      parentFirstName: '',
+      parentLastName: '',
+      parentEmail: null,
+      parentPhone: '6125559999',
+    })
+    const regC = makeReg({
+      id: 'reg-c',
+      name: 'Child Gamma',
+      familyReferenceId: 'fam-C',
+      parentFirstName: 'Sara',
+      parentLastName: 'Ahmed',
+      parentEmail: 'sara@example.com',
+      parentPhone: null,
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    const regB = makeReg({
+      id: 'reg-b',
+      name: 'Child Beta',
+      familyReferenceId: 'fam-B',
+      parentFirstName: 'Sara',
+      parentLastName: 'Ahmed',
+      parentEmail: 'sara@example.com',
+      parentPhone: '6125559999',
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    // A→C→B: A creates a 'Dugsi Parent' fallback contact; C creates a named contact;
+    // B bridges them — the merged contact must keep Sara Ahmed's name, not 'Dugsi Parent'
+    mockGetAllDugsiRegistrations.mockResolvedValue([regA, regC, regB])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    const content = result?.data?.content ?? ''
+    expect(content).toContain('Sara')
+    expect(content).toContain('Ahmed')
+    expect(content).not.toContain('Dugsi Parent')
+  })
+
   it('parent1 email+phone, parent2 same phone treated as intra-family duplicate', async () => {
     const reg = makeReg({
       id: 'reg-1',

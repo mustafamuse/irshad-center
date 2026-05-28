@@ -364,6 +364,11 @@ const _generateDugsiVCardContent = adminActionClient
                 primary.phone = secondary.phone
               if (!primary.email && secondary.email)
                 primary.email = secondary.email
+              if (!primary.firstName && secondary.firstName) {
+                primary.firstName = secondary.firstName
+                primary.lastName = secondary.lastName
+                primary.fullName = secondary.fullName
+              }
               for (const [k, v] of phoneToKey)
                 if (v === secondaryKey) phoneToKey.set(k, resolvedKey)
               for (const [k, v] of emailToKey)
