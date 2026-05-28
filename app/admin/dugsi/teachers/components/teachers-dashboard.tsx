@@ -4,6 +4,8 @@ import { useTransition } from 'react'
 
 import { useRouter } from 'next/navigation'
 
+import { Download } from 'lucide-react'
+
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
@@ -37,9 +39,17 @@ export function TeachersDashboard({ teachers }: Props) {
             Manage teachers, check-ins, and attendance reports
           </p>
         </div>
-        <CreateTeacherDialog onSuccess={handleRefresh}>
-          <Button>Create Teacher</Button>
-        </CreateTeacherDialog>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <a href="/api/admin/dugsi/roster-export" download>
+              <Download className="mr-2 h-4 w-4" />
+              Export Rosters
+            </a>
+          </Button>
+          <CreateTeacherDialog onSuccess={handleRefresh}>
+            <Button>Create Teacher</Button>
+          </CreateTeacherDialog>
+        </div>
       </div>
 
       <Tabs defaultValue="teachers" className="space-y-4">
