@@ -431,6 +431,44 @@ describe('generateDugsiVCardContent', () => {
     expect(note).toContain('Child Gamma')
   })
 
+  it('3-family dedup resolves correctly regardless of ordering (A→C→B)', async () => {
+    const regA = makeReg({
+      id: 'reg-a',
+      name: 'Child Alpha',
+      familyReferenceId: 'fam-A',
+      parentEmail: null,
+      parentPhone: '6125559999',
+    })
+    const regB = makeReg({
+      id: 'reg-b',
+      name: 'Child Beta',
+      familyReferenceId: 'fam-B',
+      parentEmail: 'shared@example.com',
+      parentPhone: '6125559999',
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    const regC = makeReg({
+      id: 'reg-c',
+      name: 'Child Gamma',
+      familyReferenceId: 'fam-C',
+      parentEmail: 'shared@example.com',
+      parentPhone: null,
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    // A→C→B: bridge record B arrives last, after A and C are already separate contacts
+    mockGetAllDugsiRegistrations.mockResolvedValue([regA, regC, regB])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedDuplicate).toBe(2)
+    const note = result?.data?.content ?? ''
+    expect(note).toContain('Child Alpha')
+    expect(note).toContain('Child Beta')
+    expect(note).toContain('Child Gamma')
+  })
+
   it('parent1 email+phone, parent2 same phone treated as intra-family duplicate', async () => {
     const reg = makeReg({
       id: 'reg-1',

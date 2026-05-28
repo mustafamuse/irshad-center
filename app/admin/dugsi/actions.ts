@@ -346,6 +346,35 @@ const _generateDugsiVCardContent = adminActionClient
               const childSet = childSetsMap.get(resolvedKey)!
               memberNames.forEach((n) => childSet.add(n))
             }
+
+            // Bridge detection: if the current record carries both identifiers
+            // and one of them already points to a separate contact (e.g. A→C→B
+            // ordering where B bridges phone-only A and email-only C), merge
+            // the secondary contact into resolvedKey retroactively.
+            const mergeSecondary = (secondaryKey: string) => {
+              if (secondaryKey === resolvedKey || !contactMap.has(secondaryKey))
+                return
+              skippedDuplicate++
+              childSetsMap
+                .get(secondaryKey)
+                ?.forEach((n) => childSetsMap.get(resolvedKey)!.add(n))
+              for (const [k, v] of phoneToKey)
+                if (v === secondaryKey) phoneToKey.set(k, resolvedKey)
+              for (const [k, v] of emailToKey)
+                if (v === secondaryKey) emailToKey.set(k, resolvedKey)
+              contactMap.delete(secondaryKey)
+              childSetsMap.delete(secondaryKey)
+            }
+
+            if (formattedPhone) {
+              const pk = phoneToKey.get(formattedPhone)
+              if (pk !== undefined) mergeSecondary(pk)
+            }
+            if (normalizedEmail) {
+              const ek = emailToKey.get(normalizedEmail)
+              if (ek !== undefined) mergeSecondary(ek)
+            }
+
             if (formattedPhone) phoneToKey.set(formattedPhone, resolvedKey)
             if (normalizedEmail) emailToKey.set(normalizedEmail, resolvedKey)
             return
