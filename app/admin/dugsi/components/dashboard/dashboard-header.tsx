@@ -54,7 +54,7 @@ export function DashboardHeader({
         skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
         skippedChurned != null &&
           skippedChurned > 0 &&
-          `${skippedChurned} churned`,
+          `${skippedChurned} churned fam.`,
       ]
         .filter(Boolean)
         .join(', ')
