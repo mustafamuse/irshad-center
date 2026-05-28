@@ -463,10 +463,13 @@ describe('generateDugsiVCardContent', () => {
     const result = await generateDugsiVCardContent({})
     expect(result?.data?.exported).toBe(1)
     expect(result?.data?.skippedDuplicate).toBe(2)
-    const note = result?.data?.content ?? ''
-    expect(note).toContain('Child Alpha')
-    expect(note).toContain('Child Beta')
-    expect(note).toContain('Child Gamma')
+    const content = result?.data?.content ?? ''
+    expect(content).toContain('Child Alpha')
+    expect(content).toContain('Child Beta')
+    expect(content).toContain('Child Gamma')
+    // merged contact must carry both identifiers from the absorbed records
+    expect(content).toContain('+16125559999')
+    expect(content).toContain('shared@example.com')
   })
 
   it('parent1 email+phone, parent2 same phone treated as intra-family duplicate', async () => {

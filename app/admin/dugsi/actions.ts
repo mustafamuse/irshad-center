@@ -358,6 +358,12 @@ const _generateDugsiVCardContent = adminActionClient
               childSetsMap
                 .get(secondaryKey)
                 ?.forEach((n) => childSetsMap.get(resolvedKey)!.add(n))
+              const primary = contactMap.get(resolvedKey)!
+              const secondary = contactMap.get(secondaryKey)!
+              if (!primary.phone && secondary.phone)
+                primary.phone = secondary.phone
+              if (!primary.email && secondary.email)
+                primary.email = secondary.email
               for (const [k, v] of phoneToKey)
                 if (v === secondaryKey) phoneToKey.set(k, resolvedKey)
               for (const [k, v] of emailToKey)
