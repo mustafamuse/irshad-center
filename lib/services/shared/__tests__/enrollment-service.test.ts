@@ -55,7 +55,7 @@ function makeAssignment(opts: {
   profileId: string
   program: 'DUGSI_PROGRAM' | 'MAHAD_PROGRAM'
   isActive?: boolean
-  status?: 'ENROLLED' | 'WITHDRAWN'
+  status?: 'ENROLLED' | 'WITHDRAWN' | 'COMPLETED'
 }) {
   return {
     id: `ba_${opts.profileId}`,
@@ -170,7 +170,7 @@ describe('handleSubscriptionCancellationEnrollments', () => {
     expect(mockGetBillingAssignmentsBySubscription).not.toHaveBeenCalled()
   })
 
-  it('skips COMPLETED enrollment — COMPLETED has no valid transitions', async () => {
+  it('skips enrollment row update when enrollment status is COMPLETED', async () => {
     mockGetBillingAssignmentsBySubscription.mockResolvedValue([
       makeAssignment({ profileId: 'p_completed', program: 'DUGSI_PROGRAM' }),
     ])
@@ -183,8 +183,24 @@ describe('handleSubscriptionCancellationEnrollments', () => {
       await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
 
     expect(result.withdrawn).toBe(0)
-    expect(result.profilesWithdrawn).toBe(1) // profile still flipped; enrollment row skipped
+    expect(result.profilesWithdrawn).toBe(1) // profile (ENROLLED) still flipped; enrollment row skipped
     expect(mockUpdateEnrollmentStatus).not.toHaveBeenCalled()
+  })
+
+  it('does not flip a COMPLETED Dugsi profile to WITHDRAWN — graduated ≠ dropped out', async () => {
+    mockGetBillingAssignmentsBySubscription.mockResolvedValue([
+      makeAssignment({
+        profileId: 'p_graduated',
+        program: 'DUGSI_PROGRAM',
+        status: 'COMPLETED',
+      }),
+    ])
+
+    const result =
+      await handleSubscriptionCancellationEnrollments(STRIPE_SUB_ID)
+
+    expect(result.profilesWithdrawn).toBe(0)
+    expect(mockProgramProfileUpdate).not.toHaveBeenCalled()
   })
 
   it('propagates errors so the outer transaction rolls back', async () => {

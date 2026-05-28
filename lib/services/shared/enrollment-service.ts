@@ -102,9 +102,13 @@ export async function handleSubscriptionCancellationEnrollments(
       // row itself (NOT derived from StripeAccountType). Safe to switch on
       // because the BillingAssignment join guarantees this is the same
       // profile we are about to mark withdrawn.
+      // Skip COMPLETED profiles: COMPLETED = graduated, WITHDRAWN = dropped out.
+      // Overwriting a graduate's profile status corrupts audit queries that
+      // distinguish dropouts from graduates on status = 'WITHDRAWN'.
       if (
         assignment.programProfile.program === 'DUGSI_PROGRAM' &&
-        assignment.programProfile.status !== 'WITHDRAWN'
+        assignment.programProfile.status !== 'WITHDRAWN' &&
+        assignment.programProfile.status !== 'COMPLETED'
       ) {
         await tx.programProfile.update({
           where: { id: assignment.programProfileId },
