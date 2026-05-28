@@ -36,6 +36,7 @@ export function DashboardHeader({
         exported,
         skippedNoContact,
         skippedDuplicate,
+        skippedChurned,
       } = result.data
       if (exported === 0) {
         toast.error('No parent contacts with phone or email to export')
@@ -51,6 +52,9 @@ export function DashboardHeader({
       const parts = [
         skippedNoContact > 0 && `${skippedNoContact} no-contact`,
         skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
+        skippedChurned != null &&
+          skippedChurned > 0 &&
+          `${skippedChurned} churned`,
       ]
         .filter(Boolean)
         .join(', ')

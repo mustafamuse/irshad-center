@@ -420,6 +420,7 @@ const _generateDugsiVCardContent = adminActionClient
         exported: contacts.length,
         skippedNoContact,
         skippedDuplicate,
+        skippedChurned,
       }
     }
   )
