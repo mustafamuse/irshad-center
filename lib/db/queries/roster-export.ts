@@ -39,6 +39,7 @@ export async function getDugsiRosterByTeacher(
                                 include: {
                                   person: {
                                     select: {
+                                      id: true,
                                       name: true,
                                       phone: true,
                                       email: true,
@@ -87,11 +88,15 @@ export async function getDugsiRosterByTeacher(
 
         const studentName = profile.person.name
         const assignment = profile.assignments[0]
-        const payer = assignment?.subscription.billingAccount.person
+        const activeSub =
+          assignment?.subscription.status === 'active'
+            ? assignment.subscription
+            : undefined
+        const payer = activeSub?.billingAccount.person
 
         const payerKey = payer
-          ? `person_${payer.name}_${payer.email ?? ''}`
-          : `unknown_${studentName}`
+          ? `${payer.id}_${shift}`
+          : `unknown_${studentName}_${shift}`
         const existing = payerMap.get(payerKey)
 
         if (existing) {

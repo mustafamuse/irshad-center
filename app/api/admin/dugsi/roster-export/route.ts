@@ -3,9 +3,17 @@ import { cookies } from 'next/headers'
 import { verifyAuthToken } from '@/lib/auth/admin-auth'
 import { getDugsiRosterByTeacher } from '@/lib/db/queries/roster-export'
 
+const FORMULA_CHARS = /^[=+\-@\t\r]/
+
 function csvCell(value: string | null | undefined): string {
-  const s = value ?? ''
-  if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+  let s = value ?? ''
+  if (FORMULA_CHARS.test(s)) s = "'" + s
+  if (
+    s.includes(',') ||
+    s.includes('"') ||
+    s.includes('\n') ||
+    s.includes('\r')
+  ) {
     return `"${s.replace(/"/g, '""')}"`
   }
   return s

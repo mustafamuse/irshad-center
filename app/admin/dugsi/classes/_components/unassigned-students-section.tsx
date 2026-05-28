@@ -260,6 +260,7 @@ export function UnassignedStudentsSection({
                 <SelectValue placeholder="Filter by teacher (optional)" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="">All teachers</SelectItem>
                 {teachers.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}
