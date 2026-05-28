@@ -288,6 +288,10 @@ describe('generateDugsiVCardContent', () => {
 
     const result = await generateDugsiVCardContent({ shift: 'MORNING' })
     expect(result?.data?.filename).toContain('dugsi-morning-')
+    expect(mockGetAllDugsiRegistrations).toHaveBeenCalledWith(
+      undefined,
+      expect.objectContaining({ shift: 'MORNING' })
+    )
   })
 
   it('ORG includes shift when scoped', async () => {
