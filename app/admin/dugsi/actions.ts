@@ -60,6 +60,10 @@ import {
 import { getTeachersByProgram as getTeachersByProgramService } from '@/lib/services/shared/teacher-service'
 import { sendPaymentLink } from '@/lib/services/whatsapp/whatsapp-service'
 import { getDugsiStripeClient } from '@/lib/stripe-dugsi'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 import { UpdateFamilyShiftSchema } from '@/lib/validations/dugsi'
 import {
   AssignTeacherToClassSchema,
@@ -243,107 +247,165 @@ const _getDugsiRegistrations = adminActionClient
 
 const _generateDugsiVCardContent = adminActionClient
   .metadata({ actionName: 'generateDugsiVCardContent' })
-  .action(async (): Promise<VCardResult> => {
-    const registrations = await getAllDugsiRegistrations()
+  .schema(
+    z.object({
+      shift: z.enum(['MORNING', 'AFTERNOON']).optional(),
+      includeChurned: z.boolean().default(false),
+    })
+  )
+  .action(
+    async ({
+      parsedInput: { shift, includeChurned },
+    }): Promise<VCardResult> => {
+      const registrations = await getAllDugsiRegistrations(
+        undefined,
+        shift ? { shift } : undefined
+      )
 
-    const familyMap = new Map<string, DugsiRegistration[]>()
-    for (const reg of registrations) {
-      const key =
-        reg.familyReferenceId ||
-        reg.parentEmail?.toLowerCase() ||
-        reg.parentPhone ||
-        reg.id
-      const list = familyMap.get(key) ?? []
-      list.push(reg)
-      familyMap.set(key, list)
-    }
-
-    const families: Family[] = Array.from(familyMap.entries()).map(
-      ([key, members]) => {
-        const first = members[0]
-        return {
-          familyKey: key,
-          members,
-          hasPayment: members.some((m) => m.paymentMethodCaptured),
-          hasSubscription: members.some(
-            (m) =>
-              m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
-          ),
-          hasChurned: members.some(
-            (m) =>
-              m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'canceled'
-          ),
-          parentEmail: first.parentEmail,
-          parentPhone: first.parentPhone,
-        }
-      }
-    )
-
-    const contacts: VCardContact[] = []
-    const seen = new Set<string>()
-    let skipped = 0
-
-    for (const family of families) {
-      const first = family.members[0]
-      const childNames = family.members.map((m) => m.name).join(', ')
-
-      const addParent = (
-        firstName: string | null,
-        lastName: string | null,
-        email: string | null,
-        phone: string | null
-      ) => {
-        const formattedPhone = formatPhoneForVCard(phone)
-        if (!formattedPhone && !email) {
-          skipped++
-          return
-        }
-
-        const dedupeKey = email?.toLowerCase() || formattedPhone || ''
-        if (seen.has(dedupeKey)) {
-          skipped++
-          return
-        }
-        seen.add(dedupeKey)
-
-        contacts.push({
-          firstName: firstName || '',
-          lastName: lastName || '',
-          fullName:
-            [firstName, lastName].filter(Boolean).join(' ') || 'Dugsi Parent',
-          phone: formattedPhone,
-          email: email || undefined,
-          organization: 'Irshad Dugsi',
-          note: `Children: ${childNames}`,
-        })
+      const familyMap = new Map<string, DugsiRegistration[]>()
+      for (const reg of registrations) {
+        const key =
+          reg.familyReferenceId ||
+          normalizeEmail(reg.parentEmail) ||
+          normalizePhone(reg.parentPhone) ||
+          reg.id
+        const list = familyMap.get(key) ?? []
+        list.push(reg)
+        familyMap.set(key, list)
       }
 
-      if (first.parentFirstName || first.parentLastName) {
+      const families: Family[] = Array.from(familyMap.entries()).map(
+        ([key, members]) => {
+          return {
+            familyKey: key,
+            members,
+            hasPayment: members.some((m) => m.paymentMethodCaptured),
+            hasSubscription: members.some(
+              (m) =>
+                m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
+            ),
+            hasChurned: members.some(
+              (m) =>
+                m.stripeSubscriptionIdDugsi &&
+                m.subscriptionStatus === 'canceled'
+            ),
+            parentEmail: null,
+            parentPhone: null,
+          }
+        }
+      )
+
+      const org = shift ? `Dugsi - ${shift}` : 'Irshad Dugsi'
+      const filename = shift
+        ? `dugsi-${shift.toLowerCase()}-parent-contacts-${getDateString()}.vcf`
+        : `dugsi-parent-contacts-${getDateString()}.vcf`
+
+      const contactMap = new Map<string, VCardContact>()
+      let skippedNoContact = 0
+      let skippedDuplicate = 0
+
+      for (const family of families) {
+        if (!includeChurned && family.hasChurned && !family.hasSubscription) {
+          continue
+        }
+
+        const first = family.members[0]
+        const childNames = family.members.map((m) => m.name).join(', ')
+
+        const addParent = (
+          firstName: string | null,
+          lastName: string | null,
+          email: string | null,
+          phone: string | null,
+          isWithinSameFamily: boolean
+        ) => {
+          const formattedPhone = formatPhoneForVCard(phone)
+          const normalizedEmail = normalizeEmail(email)
+          if (!formattedPhone && !normalizedEmail) {
+            skippedNoContact++
+            return
+          }
+
+          const dedupeKey = normalizedEmail || formattedPhone || ''
+
+          if (contactMap.has(dedupeKey)) {
+            if (isWithinSameFamily) {
+              skippedDuplicate++
+            } else {
+              const existing = contactMap.get(dedupeKey)!
+              const existingChildren = existing.note
+                ? existing.note.replace(/^Children: /, '').split(', ')
+                : []
+              const newChildren = childNames.split(', ')
+              const merged = [...new Set([...existingChildren, ...newChildren])]
+              existing.note = `Children: ${merged.join(', ')}`
+            }
+            return
+          }
+
+          contactMap.set(dedupeKey, {
+            firstName: firstName || '',
+            lastName: lastName || '',
+            fullName:
+              [firstName, lastName].filter(Boolean).join(' ') || 'Dugsi Parent',
+            phone: formattedPhone,
+            email: normalizedEmail || undefined,
+            organization: org,
+            note: `Children: ${childNames}`,
+          })
+        }
+
         addParent(
           first.parentFirstName,
           first.parentLastName,
           first.parentEmail,
-          first.parentPhone
+          first.parentPhone,
+          false
         )
+
+        if (first.parent2Phone || first.parent2Email) {
+          const parent1Key =
+            normalizeEmail(first.parentEmail) ||
+            formatPhoneForVCard(first.parentPhone) ||
+            ''
+          const parent2Key =
+            normalizeEmail(first.parent2Email) ||
+            formatPhoneForVCard(first.parent2Phone) ||
+            ''
+          const isSameContact = parent1Key !== '' && parent1Key === parent2Key
+          addParent(
+            first.parent2FirstName,
+            first.parent2LastName,
+            first.parent2Email,
+            first.parent2Phone,
+            isSameContact
+          )
+        }
       }
 
-      if (first.parent2FirstName || first.parent2LastName) {
-        addParent(
-          first.parent2FirstName,
-          first.parent2LastName,
-          first.parent2Email,
-          first.parent2Phone
-        )
+      const contacts = Array.from(contactMap.values())
+
+      logger.info(
+        {
+          exported: contacts.length,
+          skippedNoContact,
+          skippedDuplicate,
+          totalFamilies: families.length,
+          includeChurned,
+          shift,
+        },
+        'Dugsi contacts exported'
+      )
+
+      return {
+        content: generateVCardsContent(contacts),
+        filename,
+        exported: contacts.length,
+        skippedNoContact,
+        skippedDuplicate,
       }
     }
-
-    return {
-      content: generateVCardsContent(contacts),
-      filename: `dugsi-parent-contacts-${getDateString()}.vcf`,
-      exported: contacts.length,
-      skipped,
-    }
-  })
+  )
 
 const _getAvailableDugsiTeachers = adminActionClient
   .metadata({ actionName: 'getAvailableDugsiTeachers' })
