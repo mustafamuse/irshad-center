@@ -45,7 +45,13 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
         return
       }
 
-      const { content, filename, exported, skipped } = result.data
+      const {
+        content,
+        filename,
+        exported,
+        skippedNoContact,
+        skippedDuplicate,
+      } = result.data
       if (exported === 0) {
         toast.error('No contacts with phone or email to export')
         return
@@ -57,9 +63,10 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
         return
       }
 
+      const totalSkipped = skippedNoContact + skippedDuplicate
       const msg =
-        skipped > 0
-          ? `Exported ${exported} contacts from ${batch.name} (${skipped} skipped)`
+        totalSkipped > 0
+          ? `Exported ${exported} contacts from ${batch.name} (${skippedNoContact} no-contact, ${skippedDuplicate} duplicates skipped)`
           : `Exported ${exported} contacts from ${batch.name}`
       toast.success(msg)
     } finally {

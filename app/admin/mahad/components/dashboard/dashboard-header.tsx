@@ -24,7 +24,13 @@ export function DashboardHeader() {
         return
       }
 
-      const { content, filename, exported, skipped } = result.data
+      const {
+        content,
+        filename,
+        exported,
+        skippedNoContact,
+        skippedDuplicate,
+      } = result.data
       if (exported === 0) {
         toast.error('No contacts with phone or email to export')
         return
@@ -36,9 +42,10 @@ export function DashboardHeader() {
         return
       }
 
+      const totalSkipped = skippedNoContact + skippedDuplicate
       const msg =
-        skipped > 0
-          ? `Exported ${exported} contacts (${skipped} skipped)`
+        totalSkipped > 0
+          ? `Exported ${exported} contacts (${skippedNoContact} no-contact, ${skippedDuplicate} duplicates skipped)`
           : `Exported ${exported} contacts`
       toast.success(msg)
     } finally {
