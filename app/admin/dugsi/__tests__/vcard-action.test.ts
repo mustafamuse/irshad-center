@@ -198,6 +198,27 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.content).toContain('FN:Dugsi Parent')
   })
 
+  it('parent1 with no name but with contact info is exported with "Dugsi Parent" fallback', async () => {
+    const reg = makeReg({
+      id: 'reg-1',
+      name: 'Child One',
+      parentFirstName: null,
+      parentLastName: null,
+      parentEmail: 'noname@example.com',
+      parentPhone: null,
+      parent2FirstName: null,
+      parent2LastName: null,
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    mockGetAllDugsiRegistrations.mockResolvedValue([reg])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.content).toContain('FN:Dugsi Parent')
+    expect(result?.data?.skippedNoContact).toBe(0)
+  })
+
   it('returns split skip counts: no-contact bucket and duplicate bucket', async () => {
     const reg1 = makeReg({
       id: 'reg-1',
