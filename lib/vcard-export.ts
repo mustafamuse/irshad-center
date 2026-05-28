@@ -12,7 +12,8 @@ export interface VCardResult {
   content: string
   filename: string
   exported: number
-  skipped: number
+  skippedNoContact: number
+  skippedDuplicate: number
 }
 
 export function escapeVCardValue(value: string): string {
