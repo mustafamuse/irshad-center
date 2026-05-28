@@ -381,6 +381,13 @@ const _generateDugsiVCardContent = adminActionClient
               if (ek !== undefined) mergeSecondary(ek)
             }
 
+            // Enrich the primary with any new identifier the incoming record carries
+            const primaryContact = contactMap.get(resolvedKey)!
+            if (formattedPhone && !primaryContact.phone)
+              primaryContact.phone = formattedPhone
+            if (normalizedEmail && !primaryContact.email)
+              primaryContact.email = normalizedEmail
+
             if (formattedPhone) phoneToKey.set(formattedPhone, resolvedKey)
             if (normalizedEmail) emailToKey.set(normalizedEmail, resolvedKey)
             return

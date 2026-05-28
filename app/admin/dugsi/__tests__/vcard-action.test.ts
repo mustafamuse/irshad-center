@@ -376,6 +376,33 @@ describe('generateDugsiVCardContent', () => {
     expect(note).toContain('Child Beta')
   })
 
+  it('phone-only family A, email+phone family B merges and the vCard carries both identifiers', async () => {
+    const regA = makeReg({
+      id: 'reg-a',
+      name: 'Child Alpha',
+      familyReferenceId: 'fam-A',
+      parentEmail: null,
+      parentPhone: '6125559999',
+    })
+    const regB = makeReg({
+      id: 'reg-b',
+      name: 'Child Beta',
+      familyReferenceId: 'fam-B',
+      parentEmail: 'new@example.com',
+      parentPhone: '6125559999',
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    mockGetAllDugsiRegistrations.mockResolvedValue([regA, regB])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedDuplicate).toBe(1)
+    const content = result?.data?.content ?? ''
+    expect(content).toContain('+16125559999')
+    expect(content).toContain('new@example.com')
+  })
+
   it('parent2 with name but no contact info increments skippedNoContact', async () => {
     const reg = makeReg({
       id: 'reg-1',
