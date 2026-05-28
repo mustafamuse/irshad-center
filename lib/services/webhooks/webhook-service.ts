@@ -38,6 +38,7 @@ import {
   linkSubscriptionToProfiles,
   unlinkSubscription,
 } from '@/lib/services/shared/billing-service'
+import { handleSubscriptionCancellationEnrollments } from '@/lib/services/shared/enrollment-service'
 import { createSubscriptionFromStripe } from '@/lib/services/shared/subscription-service'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
@@ -493,12 +494,19 @@ export async function handleSubscriptionDeleted(
     }
   }
 
-  // Update subscription to canceled and unlink from all profiles atomically
+  // Update subscription to canceled, cascade enrollment/profile WITHDRAWN,
+  // and unlink assignments. Order matters: the cascade reads still-active
+  // assignments, so it MUST run before unlinkSubscription deactivates them.
   await prisma.$transaction(async (tx) => {
     await updateSubscriptionStatusQuery(
       dbSubscription.id,
       'canceled',
       undefined,
+      tx
+    )
+    await handleSubscriptionCancellationEnrollments(
+      stripeSubscriptionId,
+      'Stripe subscription canceled',
       tx
     )
     await unlinkSubscription(dbSubscription.id, tx)

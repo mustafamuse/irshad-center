@@ -708,3 +708,14 @@ export async function getProgramProfilesByStatus(
     },
   })
 }
+
+export async function updateProgramProfileStatus(
+  profileId: string,
+  status: EnrollmentStatus,
+  client: DatabaseClient = prisma
+): Promise<void> {
+  await client.programProfile.update({
+    where: { id: profileId },
+    data: { status },
+  })
+}
