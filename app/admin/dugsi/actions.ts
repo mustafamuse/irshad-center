@@ -303,6 +303,7 @@ const _generateDugsiVCardContent = adminActionClient
       const contactMap = new Map<string, VCardContact>()
       const childSetsMap = new Map<string, Set<string>>()
       const phoneToKey = new Map<string, string>()
+      const emailToKey = new Map<string, string>()
       let skippedNoContact = 0
       let skippedDuplicate = 0
 
@@ -333,7 +334,9 @@ const _generateDugsiVCardContent = adminActionClient
             ? dedupeKey
             : formattedPhone && phoneToKey.has(formattedPhone)
               ? phoneToKey.get(formattedPhone)!
-              : dedupeKey
+              : normalizedEmail && emailToKey.has(normalizedEmail)
+                ? emailToKey.get(normalizedEmail)!
+                : dedupeKey
 
           if (contactMap.has(resolvedKey)) {
             skippedDuplicate++
@@ -341,6 +344,8 @@ const _generateDugsiVCardContent = adminActionClient
               const childSet = childSetsMap.get(resolvedKey)!
               memberNames.forEach((n) => childSet.add(n))
             }
+            if (formattedPhone) phoneToKey.set(formattedPhone, resolvedKey)
+            if (normalizedEmail) emailToKey.set(normalizedEmail, resolvedKey)
             return
           }
 
@@ -356,6 +361,7 @@ const _generateDugsiVCardContent = adminActionClient
             note: '',
           })
           if (formattedPhone) phoneToKey.set(formattedPhone, dedupeKey)
+          if (normalizedEmail) emailToKey.set(normalizedEmail, dedupeKey)
         }
 
         addParent(
@@ -367,15 +373,13 @@ const _generateDugsiVCardContent = adminActionClient
         )
 
         if (first.parent2Phone || first.parent2Email) {
-          const parent1Key =
-            normalizeEmail(first.parentEmail) ||
-            formatPhoneForVCard(first.parentPhone) ||
-            ''
-          const parent2Key =
-            normalizeEmail(first.parent2Email) ||
-            formatPhoneForVCard(first.parent2Phone) ||
-            ''
-          const isSameContact = parent1Key !== '' && parent1Key === parent2Key
+          const p1Phone = formatPhoneForVCard(first.parentPhone) || ''
+          const p2Phone = formatPhoneForVCard(first.parent2Phone) || ''
+          const parent1Key = normalizeEmail(first.parentEmail) || p1Phone || ''
+          const parent2Key = normalizeEmail(first.parent2Email) || p2Phone || ''
+          const isSameContact =
+            (parent1Key !== '' && parent1Key === parent2Key) ||
+            (p1Phone !== '' && p1Phone === p2Phone)
           addParent(
             first.parent2FirstName,
             first.parent2LastName,

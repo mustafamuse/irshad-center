@@ -371,4 +371,59 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.exported).toBe(1)
     expect(result?.data?.skippedNoContact).toBe(1)
   })
+
+  it('phone-only family A, email+phone family B, email-only family C all resolve to one contact', async () => {
+    const regA = makeReg({
+      id: 'reg-a',
+      name: 'Child Alpha',
+      familyReferenceId: 'fam-A',
+      parentEmail: null,
+      parentPhone: '6125559999',
+    })
+    const regB = makeReg({
+      id: 'reg-b',
+      name: 'Child Beta',
+      familyReferenceId: 'fam-B',
+      parentEmail: 'shared@example.com',
+      parentPhone: '6125559999',
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    const regC = makeReg({
+      id: 'reg-c',
+      name: 'Child Gamma',
+      familyReferenceId: 'fam-C',
+      parentEmail: 'shared@example.com',
+      parentPhone: null,
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    mockGetAllDugsiRegistrations.mockResolvedValue([regA, regB, regC])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedDuplicate).toBe(2)
+    const note = result?.data?.content ?? ''
+    expect(note).toContain('Child Alpha')
+    expect(note).toContain('Child Beta')
+    expect(note).toContain('Child Gamma')
+  })
+
+  it('parent1 email+phone, parent2 same phone treated as intra-family duplicate', async () => {
+    const reg = makeReg({
+      id: 'reg-1',
+      name: 'Child One',
+      parentEmail: 'parent@example.com',
+      parentPhone: '6125551234',
+      parent2FirstName: 'Fatima',
+      parent2LastName: 'Hassan',
+      parent2Email: null,
+      parent2Phone: '6125551234',
+    })
+    mockGetAllDugsiRegistrations.mockResolvedValue([reg])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedDuplicate).toBe(1)
+  })
 })
