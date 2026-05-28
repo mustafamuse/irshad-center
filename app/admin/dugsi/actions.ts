@@ -392,6 +392,13 @@ const _generateDugsiVCardContent = adminActionClient
               primaryContact.phone = formattedPhone
             if (normalizedEmail && !primaryContact.email)
               primaryContact.email = normalizedEmail
+            if (!primaryContact.firstName && firstName) {
+              primaryContact.firstName = firstName
+              primaryContact.lastName = lastName || ''
+              primaryContact.fullName = [firstName, lastName]
+                .filter(Boolean)
+                .join(' ')
+            }
 
             if (formattedPhone) phoneToKey.set(formattedPhone, resolvedKey)
             if (normalizedEmail) emailToKey.set(normalizedEmail, resolvedKey)

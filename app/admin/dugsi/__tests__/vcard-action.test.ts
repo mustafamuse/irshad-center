@@ -403,6 +403,39 @@ describe('generateDugsiVCardContent', () => {
     expect(content).toContain('new@example.com')
   })
 
+  it('non-bridge duplicate promotes real name onto Dugsi Parent fallback', async () => {
+    const regA = makeReg({
+      id: 'reg-a',
+      name: 'Child Alpha',
+      familyReferenceId: 'fam-A',
+      parentFirstName: '',
+      parentLastName: '',
+      parentEmail: null,
+      parentPhone: '6125559999',
+    })
+    const regB = makeReg({
+      id: 'reg-b',
+      name: 'Child Beta',
+      familyReferenceId: 'fam-B',
+      parentFirstName: 'Omar',
+      parentLastName: 'Hassan',
+      parentEmail: 'omar@example.com',
+      parentPhone: '6125559999',
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    // A→B: A creates 'Dugsi Parent' fallback; B is a duplicate via phone, has real name + email
+    mockGetAllDugsiRegistrations.mockResolvedValue([regA, regB])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    const content = result?.data?.content ?? ''
+    expect(content).toContain('Omar')
+    expect(content).toContain('Hassan')
+    expect(content).toContain('omar@example.com')
+    expect(content).not.toContain('Dugsi Parent')
+  })
+
   it('parent2 with name but no contact info increments skippedNoContact', async () => {
     const reg = makeReg({
       id: 'reg-1',
