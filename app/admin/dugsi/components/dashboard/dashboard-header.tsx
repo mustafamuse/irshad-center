@@ -52,7 +52,7 @@ export function DashboardHeader({
       const parts = [
         skippedNoContact > 0 && `${skippedNoContact} no-contact`,
         skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
-        skippedChurned != null &&
+        skippedChurned !== undefined &&
           skippedChurned > 0 &&
           `${skippedChurned} churned fam.`,
       ]
