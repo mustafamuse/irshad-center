@@ -48,11 +48,15 @@ export function DashboardHeader({
         return
       }
 
-      const totalSkipped = skippedNoContact + skippedDuplicate
-      const msg =
-        totalSkipped > 0
-          ? `Exported ${exported} parent contacts (${skippedNoContact} no-contact, ${skippedDuplicate} deduped)`
-          : `Exported ${exported} parent contacts`
+      const parts = [
+        skippedNoContact > 0 && `${skippedNoContact} no-contact`,
+        skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
+      ]
+        .filter(Boolean)
+        .join(', ')
+      const msg = parts
+        ? `Exported ${exported} parent contacts (${parts})`
+        : `Exported ${exported} parent contacts`
       toast.success(msg)
     } finally {
       setIsExporting(false)
