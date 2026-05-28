@@ -306,9 +306,11 @@ const _generateDugsiVCardContent = adminActionClient
       const emailToKey = new Map<string, string>()
       let skippedNoContact = 0
       let skippedDuplicate = 0
+      let skippedChurned = 0
 
       for (const family of families) {
         if (!includeChurned && family.hasChurned && !family.hasSubscription) {
+          skippedChurned++
           continue
         }
 
@@ -404,6 +406,7 @@ const _generateDugsiVCardContent = adminActionClient
           exported: contacts.length,
           skippedNoContact,
           skippedDuplicate,
+          skippedChurned,
           totalFamilies: families.length,
           includeChurned,
           shift,

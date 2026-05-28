@@ -302,6 +302,7 @@ describe('generateDugsiVCardContent', () => {
       exported: expect.any(Number),
       skippedNoContact: expect.any(Number),
       skippedDuplicate: expect.any(Number),
+      skippedChurned: expect.any(Number),
       totalFamilies: expect.any(Number),
       includeChurned: true,
       shift: 'MORNING',
