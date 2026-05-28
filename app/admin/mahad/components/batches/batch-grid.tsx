@@ -66,7 +66,7 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
       const totalSkipped = skippedNoContact + skippedDuplicate
       const msg =
         totalSkipped > 0
-          ? `Exported ${exported} contacts from ${batch.name} (${skippedNoContact} no-contact, ${skippedDuplicate} duplicates skipped)`
+          ? `Exported ${exported} contacts from ${batch.name} (${skippedNoContact} no-contact, ${skippedDuplicate} deduped)`
           : `Exported ${exported} contacts from ${batch.name}`
       toast.success(msg)
     } finally {

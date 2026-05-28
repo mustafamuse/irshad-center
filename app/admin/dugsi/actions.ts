@@ -301,6 +301,7 @@ const _generateDugsiVCardContent = adminActionClient
         : `dugsi-parent-contacts-${getDateString()}.vcf`
 
       const contactMap = new Map<string, VCardContact>()
+      const childSetsMap = new Map<string, Set<string>>()
       let skippedNoContact = 0
       let skippedDuplicate = 0
 
@@ -310,14 +311,14 @@ const _generateDugsiVCardContent = adminActionClient
         }
 
         const first = family.members[0]
-        const childNames = family.members.map((m) => m.name).join(', ')
+        const memberNames = family.members.map((m) => m.name)
 
         const addParent = (
           firstName: string | null,
           lastName: string | null,
           email: string | null,
           phone: string | null,
-          isWithinSameFamily: boolean
+          isIntraFamilyDuplicate: boolean
         ) => {
           const formattedPhone = formatPhoneForVCard(phone)
           const normalizedEmail = normalizeEmail(email)
@@ -330,18 +331,14 @@ const _generateDugsiVCardContent = adminActionClient
 
           if (contactMap.has(dedupeKey)) {
             skippedDuplicate++
-            if (!isWithinSameFamily) {
-              const existing = contactMap.get(dedupeKey)!
-              const existingChildren = existing.note
-                ? existing.note.replace(/^Children: /, '').split(', ')
-                : []
-              const newChildren = childNames.split(', ')
-              const merged = [...new Set([...existingChildren, ...newChildren])]
-              existing.note = `Children: ${merged.join(', ')}`
+            if (!isIntraFamilyDuplicate) {
+              const childSet = childSetsMap.get(dedupeKey)!
+              memberNames.forEach((n) => childSet.add(n))
             }
             return
           }
 
+          childSetsMap.set(dedupeKey, new Set(memberNames))
           contactMap.set(dedupeKey, {
             firstName: firstName || '',
             lastName: lastName || '',
@@ -350,7 +347,7 @@ const _generateDugsiVCardContent = adminActionClient
             phone: formattedPhone,
             email: normalizedEmail || undefined,
             organization: org,
-            note: `Children: ${childNames}`,
+            note: '',
           })
         }
 
@@ -380,6 +377,11 @@ const _generateDugsiVCardContent = adminActionClient
             isSameContact
           )
         }
+      }
+
+      for (const [key, contact] of contactMap.entries()) {
+        const children = childSetsMap.get(key)
+        contact.note = children ? `Children: ${[...children].join(', ')}` : ''
       }
 
       const contacts = Array.from(contactMap.values())
