@@ -302,6 +302,7 @@ const _generateDugsiVCardContent = adminActionClient
 
       const contactMap = new Map<string, VCardContact>()
       const childSetsMap = new Map<string, Set<string>>()
+      const phoneToKey = new Map<string, string>()
       let skippedNoContact = 0
       let skippedDuplicate = 0
 
@@ -328,11 +329,16 @@ const _generateDugsiVCardContent = adminActionClient
           }
 
           const dedupeKey = normalizedEmail || formattedPhone || ''
+          const resolvedKey = contactMap.has(dedupeKey)
+            ? dedupeKey
+            : formattedPhone && phoneToKey.has(formattedPhone)
+              ? phoneToKey.get(formattedPhone)!
+              : dedupeKey
 
-          if (contactMap.has(dedupeKey)) {
+          if (contactMap.has(resolvedKey)) {
             skippedDuplicate++
             if (!isIntraFamilyDuplicate) {
-              const childSet = childSetsMap.get(dedupeKey)!
+              const childSet = childSetsMap.get(resolvedKey)!
               memberNames.forEach((n) => childSet.add(n))
             }
             return
@@ -349,6 +355,7 @@ const _generateDugsiVCardContent = adminActionClient
             organization: org,
             note: '',
           })
+          if (formattedPhone) phoneToKey.set(formattedPhone, dedupeKey)
         }
 
         addParent(
@@ -376,6 +383,8 @@ const _generateDugsiVCardContent = adminActionClient
             first.parent2Phone,
             isSameContact
           )
+        } else if (first.parent2FirstName || first.parent2LastName) {
+          skippedNoContact++
         }
       }
 
