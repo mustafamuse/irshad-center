@@ -17,6 +17,8 @@
 
 import { prisma } from '@/lib/db'
 
+import { runScript } from './lib/run-script'
+
 const DUGSI = 'DUGSI_PROGRAM' as const
 
 async function main() {
@@ -184,9 +186,4 @@ function pct(n: number, total: number): string {
   return `${((n / total) * 100).toFixed(1)}%`
 }
 
-main()
-  .catch((err) => {
-    console.error(err)
-    process.exit(1)
-  })
-  .finally(() => prisma.$disconnect())
+runScript(main, { cleanup: () => prisma.$disconnect() })

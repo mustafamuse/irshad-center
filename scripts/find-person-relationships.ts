@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/db'
 
+import { runScript } from './lib/run-script'
+
 async function findPersonRelationships() {
   const person = await prisma.person.findFirst({
     where: {
@@ -165,4 +167,4 @@ async function findPersonRelationships() {
   await prisma.$disconnect()
 }
 
-findPersonRelationships().catch(console.error)
+runScript(findPersonRelationships)

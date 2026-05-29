@@ -10,6 +10,8 @@
 
 import { prisma } from '@/lib/db'
 
+import { runScript } from './lib/run-script'
+
 async function fixPaymentMethodCaptured() {
   const accounts = await prisma.billingAccount.findMany({
     where: {
@@ -46,9 +48,4 @@ async function fixPaymentMethodCaptured() {
   console.log(`Done! Updated ${updated} accounts.`)
 }
 
-fixPaymentMethodCaptured()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error(e)
-    process.exit(1)
-  })
+runScript(fixPaymentMethodCaptured)

@@ -10,7 +10,10 @@
 import Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
+import { formatCurrency } from '@/lib/utils/formatters'
 import { getStripeClient } from '@/lib/utils/stripe-client'
+
+import { runScript } from './lib/run-script'
 
 // Stripe's recent SDK moved current_period_start/end onto subscription items
 // and renamed invoice.subscription. These narrow shapes cover both versions.
@@ -40,13 +43,6 @@ function parseEmailArg(): string {
 }
 
 const CUSTOMER_EMAIL = parseEmailArg()
-
-function fmt$(cents: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(cents / 100)
-}
 
 function fmtDate(unixSeconds: number | null | undefined): string {
   if (!unixSeconds) return '-'
@@ -87,7 +83,7 @@ async function main() {
       console.log(`\n  --- Sub ${sub.id} ---`)
       console.log(`    Status:           ${sub.status}`)
       console.log(
-        `    Amount:           ${fmt$(sub.items.data[0]?.price.unit_amount ?? 0)}`
+        `    Amount:           ${formatCurrency(sub.items.data[0]?.price.unit_amount ?? 0)}`
       )
       console.log(
         `    Interval:         every ${sub.items.data[0]?.price.recurring?.interval_count ?? 1} ${sub.items.data[0]?.price.recurring?.interval ?? '?'}`
@@ -121,7 +117,7 @@ async function main() {
           ? invTyped.subscription
           : (invTyped.subscription?.id ?? '-')
       console.log(
-        `    ${fmtDate(inv.created)} | ${inv.status?.padEnd(8)} | ${fmt$(inv.amount_paid).padStart(10)} paid / ${fmt$(inv.amount_due).padStart(10)} due | sub:${subRef}`
+        `    ${fmtDate(inv.created)} | ${inv.status?.padEnd(8)} | ${formatCurrency(inv.amount_paid).padStart(10)} paid / ${formatCurrency(inv.amount_due).padStart(10)} due | sub:${subRef}`
       )
     }
 
@@ -133,7 +129,7 @@ async function main() {
     })
     for (const ch of charges.data) {
       console.log(
-        `    ${fmtDate(ch.created)} | ${ch.status?.padEnd(10)} | ${fmt$(ch.amount).padStart(10)} | refunded:${ch.refunded}`
+        `    ${fmtDate(ch.created)} | ${ch.status?.padEnd(10)} | ${formatCurrency(ch.amount).padStart(10)} | refunded:${ch.refunded}`
       )
     }
   }
@@ -184,7 +180,7 @@ async function main() {
     console.log(`\n  ProgramProfiles: ${person.programProfiles.length}`)
     for (const p of person.programProfiles) {
       console.log(
-        `    ${p.program} (${p.status}) — rate=${fmt$(p.monthlyRate)}, gradStatus=${p.graduationStatus}, payFreq=${p.paymentFrequency}, billType=${p.billingType}`
+        `    ${p.program} (${p.status}) — rate=${formatCurrency(p.monthlyRate)}, gradStatus=${p.graduationStatus}, payFreq=${p.paymentFrequency}, billType=${p.billingType}`
       )
       console.log(
         `      Enrollments: ${p.enrollments.length} (active: ${p.enrollments.filter((e) => !e.endDate).length})`
@@ -204,7 +200,7 @@ async function main() {
       )
       for (const s of ba.subscriptions) {
         console.log(
-          `      ${s.stripeSubscriptionId} (${s.status}) ${fmt$(s.amount)} — assignments: ${s.assignments.length}`
+          `      ${s.stripeSubscriptionId} (${s.status}) ${formatCurrency(s.amount)} — assignments: ${s.assignments.length}`
         )
       }
     }
@@ -213,9 +209,4 @@ async function main() {
   await prisma.$disconnect()
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error('Investigation failed:', err)
-    process.exit(1)
-  })
+runScript(main)

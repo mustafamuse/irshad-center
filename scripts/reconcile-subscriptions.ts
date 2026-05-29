@@ -20,6 +20,9 @@ import {
   type OrphanedSubscription,
   type StudentMatch,
 } from '@/lib/services/link-subscriptions/subscription-linking-service'
+import { formatCurrency } from '@/lib/utils/formatters'
+
+import { runScript } from './lib/run-script'
 
 // Parse command line arguments
 const args = process.argv.slice(2)
@@ -32,16 +35,6 @@ interface ReconciliationResult {
   status: 'linked' | 'unmatched' | 'skipped' | 'error'
   match?: StudentMatch
   reason?: string
-}
-
-/**
- * Format currency amount from cents to dollars
- */
-function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(cents / 100)
 }
 
 /**
@@ -302,12 +295,4 @@ async function main() {
   }
 }
 
-// Run the script
-main()
-  .then(() => {
-    process.exit(0)
-  })
-  .catch((error) => {
-    console.error('Fatal error:', error)
-    process.exit(1)
-  })
+runScript(main)

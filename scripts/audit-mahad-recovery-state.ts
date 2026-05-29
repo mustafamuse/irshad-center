@@ -13,6 +13,8 @@ import { StripeAccountType } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 
+import { runScript } from './lib/run-script'
+
 async function main() {
   const mahad = getStripeClient(StripeAccountType.MAHAD)
 
@@ -138,9 +140,4 @@ async function main() {
   await prisma.$disconnect()
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error('Audit failed:', err)
-    process.exit(1)
-  })
+runScript(main)

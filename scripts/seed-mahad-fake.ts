@@ -21,6 +21,8 @@ import { prisma } from '@/lib/db'
 import { normalizePhone } from '@/lib/types/person'
 import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
+import { runScript } from './lib/run-script'
+
 const FAKE_DATA_MARKER = { isFakeData: true, seedVersion: 'v1' }
 
 const FIRST_NAMES_MALE = [
@@ -348,11 +350,4 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .catch((err) => {
-    console.error('Error:', err)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+runScript(main, { cleanup: () => prisma.$disconnect() })

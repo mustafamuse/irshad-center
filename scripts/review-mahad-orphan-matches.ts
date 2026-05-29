@@ -13,13 +13,9 @@ import {
   getAllOrphanedSubscriptions,
   getPotentialStudentMatches,
 } from '@/lib/services/link-subscriptions'
+import { formatCurrency } from '@/lib/utils/formatters'
 
-function fmt$(cents: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(cents / 100)
-}
+import { runScript } from './lib/run-script'
 
 async function main() {
   const orphans = (await getAllOrphanedSubscriptions()).filter(
@@ -69,7 +65,7 @@ async function main() {
     console.log(`  STRIPE SIDE`)
     console.log(`    Sub ID:        ${sub.id}`)
     console.log(`    Status:        ${sub.status}`)
-    console.log(`    Amount:        ${fmt$(sub.amount)}`)
+    console.log(`    Amount:        ${formatCurrency(sub.amount)}`)
     console.log(
       `    Customer:      ${sub.customerName ?? '(none)'} <${sub.customerEmail}>`
     )
@@ -108,7 +104,7 @@ async function main() {
     console.log(`    Profile ID:    ${profile?.id}`)
     console.log(`    Profile status:${profile?.status}`)
     console.log(
-      `    DB monthlyRate:${profile ? fmt$(profile.monthlyRate) : '?'}`
+      `    DB monthlyRate:${profile ? formatCurrency(profile.monthlyRate) : '?'}`
     )
     console.log(`    graduationStatus:  ${profile?.graduationStatus ?? '-'}`)
     console.log(`    paymentFrequency:  ${profile?.paymentFrequency ?? '-'}`)
@@ -127,7 +123,7 @@ async function main() {
     }
     if (profile && sub.amount !== profile.monthlyRate) {
       flags.push(
-        `amount diff: Stripe=${fmt$(sub.amount)} vs DB monthlyRate=${fmt$(profile.monthlyRate)}`
+        `amount diff: Stripe=${formatCurrency(sub.amount)} vs DB monthlyRate=${formatCurrency(profile.monthlyRate)}`
       )
     }
     if (
@@ -153,9 +149,4 @@ async function main() {
   await prisma.$disconnect()
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error('Review failed:', err)
-    process.exit(1)
-  })
+runScript(main)
