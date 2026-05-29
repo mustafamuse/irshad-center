@@ -8,7 +8,7 @@
  *   set -a && source .env.local && set +a && bunx tsx scripts/audit-mahad-recovery-state.ts
  */
 
-import { Program, StripeAccountType } from '@prisma/client'
+import { Program, StripeAccountType, SubscriptionStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { getStripeClient } from '@/lib/utils/stripe-client'
@@ -66,7 +66,13 @@ async function main() {
   const mahadSubsActive = await prisma.subscription.count({
     where: {
       stripeAccountType: StripeAccountType.MAHAD,
-      status: { in: ['active', 'trialing', 'past_due'] },
+      status: {
+        in: [
+          SubscriptionStatus.active,
+          SubscriptionStatus.trialing,
+          SubscriptionStatus.past_due,
+        ],
+      },
     },
   })
   const mahadAssignmentsTotal = await prisma.billingAssignment.count({
@@ -87,7 +93,13 @@ async function main() {
   const mahadActiveSubsWithoutAssignments = await prisma.subscription.count({
     where: {
       stripeAccountType: StripeAccountType.MAHAD,
-      status: { in: ['active', 'trialing', 'past_due'] },
+      status: {
+        in: [
+          SubscriptionStatus.active,
+          SubscriptionStatus.trialing,
+          SubscriptionStatus.past_due,
+        ],
+      },
       assignments: { none: {} },
     },
   })

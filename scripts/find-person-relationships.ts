@@ -163,8 +163,6 @@ async function findPersonRelationships() {
   } else {
     console.log('Not a teacher')
   }
-
-  await prisma.$disconnect()
 }
 
-runScript(findPersonRelationships)
+runScript(findPersonRelationships, { cleanup: () => prisma.$disconnect() })
