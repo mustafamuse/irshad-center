@@ -247,6 +247,7 @@ describe('generateDugsiVCardContent', () => {
 
     const result = await generateDugsiVCardContent({})
     expect(result?.data?.exported).toBe(0)
+    expect(result?.data?.skippedChurned).toBe(1)
   })
 
   it('includes churned families when includeChurned: true', async () => {

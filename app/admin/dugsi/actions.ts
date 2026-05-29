@@ -439,9 +439,7 @@ const _generateDugsiVCardContent = adminActionClient
           const p2Phone = formatPhoneForVCard(first.parent2Phone) || ''
           const parent1Key = normalizeEmail(first.parentEmail) || p1Phone || ''
           const parent2Key = normalizeEmail(first.parent2Email) || p2Phone || ''
-          const isSameContact =
-            (parent1Key !== '' && parent1Key === parent2Key) ||
-            (p1Phone !== '' && p1Phone === p2Phone)
+          const isSameContact = parent1Key !== '' && parent1Key === parent2Key
           addParent(
             first.parent2FirstName,
             first.parent2LastName,
