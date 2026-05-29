@@ -300,6 +300,8 @@ const _generateDugsiVCardContent = adminActionClient
         ? `dugsi-${shift.toLowerCase()}-parent-contacts-${getDateString()}.vcf`
         : `dugsi-parent-contacts-${getDateString()}.vcf`
 
+      // contactMap and childSetsMap are always maintained with identical key sets.
+      // Every add/delete must touch both; see mergeSecondary for the delete path.
       const contactMap = new Map<string, VCardContact>()
       const childSetsMap = new Map<string, Set<string>>()
       const phoneToKey = new Map<string, string>()
@@ -369,10 +371,14 @@ const _generateDugsiVCardContent = adminActionClient
                 primary.lastName = secondary.lastName
                 primary.fullName = secondary.fullName
               }
+              const phoneUpdates: Array<[string, string]> = []
               for (const [k, v] of phoneToKey)
-                if (v === secondaryKey) phoneToKey.set(k, resolvedKey)
+                if (v === secondaryKey) phoneUpdates.push([k, resolvedKey])
+              phoneUpdates.forEach(([k, v]) => phoneToKey.set(k, v))
+              const emailUpdates: Array<[string, string]> = []
               for (const [k, v] of emailToKey)
-                if (v === secondaryKey) emailToKey.set(k, resolvedKey)
+                if (v === secondaryKey) emailUpdates.push([k, resolvedKey])
+              emailUpdates.forEach(([k, v]) => emailToKey.set(k, v))
               contactMap.delete(secondaryKey)
               childSetsMap.delete(secondaryKey)
             }
