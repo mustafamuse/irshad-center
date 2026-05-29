@@ -5,6 +5,8 @@ import { SCHOOL_TIMEZONE } from '@/lib/constants/shift-times'
 import { prisma } from '@/lib/db'
 import { evaluateCheckIn } from '@/lib/utils/evaluate-checkin'
 
+import { runScript } from './lib/run-script'
+
 type CheckInClassification =
   | 'ON_TIME'
   | 'LATE'
@@ -584,11 +586,4 @@ async function main() {
   printReport(results, weekendDates, teachers, excludeDates)
 }
 
-main()
-  .then(() => prisma.$disconnect())
-  .then(() => process.exit(0))
-  .catch(async (error) => {
-    console.error('Fatal error:', error)
-    await prisma.$disconnect()
-    process.exit(1)
-  })
+runScript(main, { cleanup: () => prisma.$disconnect() })

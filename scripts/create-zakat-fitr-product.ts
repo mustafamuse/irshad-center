@@ -10,6 +10,8 @@
 
 import { getDonationStripeClient } from '@/lib/stripe-donation'
 
+import { runScript } from './lib/run-script'
+
 async function main() {
   const stripe = getDonationStripeClient()
 
@@ -35,4 +37,4 @@ async function main() {
   )
 }
 
-main().catch(console.error)
+runScript(main)

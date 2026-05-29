@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/db'
 
+import { runScript } from './lib/run-script'
+
 async function findPersonRelationships() {
   const person = await prisma.person.findFirst({
     where: {
@@ -161,8 +163,6 @@ async function findPersonRelationships() {
   } else {
     console.log('Not a teacher')
   }
-
-  await prisma.$disconnect()
 }
 
-findPersonRelationships().catch(console.error)
+runScript(findPersonRelationships, { cleanup: () => prisma.$disconnect() })

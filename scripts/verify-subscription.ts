@@ -15,6 +15,9 @@
 
 import { prisma } from '@/lib/db'
 import { getMahadStripeClient } from '@/lib/stripe-mahad'
+import { formatCurrency } from '@/lib/utils/formatters'
+
+import { runScript } from './lib/run-script'
 
 const subscriptionId = process.argv[2]
 
@@ -26,13 +29,6 @@ if (!subscriptionId) {
     'Example: npx tsx scripts/verify-subscription.ts sub_1SYAUfFsdFzP1bzTTdjuOZnZ'
   )
   process.exit(1)
-}
-
-function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(cents / 100)
 }
 
 async function main() {
@@ -268,11 +264,4 @@ async function main() {
   console.log('')
 }
 
-main()
-  .then(() => {
-    process.exit(0)
-  })
-  .catch((error) => {
-    console.error('Fatal error:', error)
-    process.exit(1)
-  })
+runScript(main, { cleanup: () => prisma.$disconnect() })
