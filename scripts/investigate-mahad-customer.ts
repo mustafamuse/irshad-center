@@ -57,6 +57,14 @@ function fmtDate(unixSeconds: number | null | undefined): string {
 }
 
 async function main() {
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(
+      'ERROR: set NODE_ENV=production before running against live Stripe.\n' +
+        'Without it getStripeClient selects test keys, querying the test account against the live DB.'
+    )
+    process.exit(1)
+  }
+
   const stripe = getStripeClient(StripeAccountType.MAHAD)
 
   // Find the customer(s) with this email in Mahad

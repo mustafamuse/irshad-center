@@ -18,6 +18,14 @@ import { formatCurrency } from '@/lib/utils/formatters'
 import { runScript } from './lib/run-script'
 
 async function main() {
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(
+      'ERROR: set NODE_ENV=production before running against live Stripe.\n' +
+        'Without it getAllOrphanedSubscriptions uses test keys, matching test orphans against the live DB.'
+    )
+    process.exit(1)
+  }
+
   const orphans = (await getAllOrphanedSubscriptions()).filter(
     (s) => s.program === 'MAHAD'
   )

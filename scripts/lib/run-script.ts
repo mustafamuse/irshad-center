@@ -12,13 +12,21 @@ export async function runScript(
   main: () => Promise<void>,
   options: { cleanup?: () => Promise<void> | void } = {}
 ): Promise<void> {
+  let exitCode = 0
   try {
     await main()
-    await options.cleanup?.()
-    process.exit(0)
   } catch (err) {
     console.error(err)
-    await options.cleanup?.()
-    process.exit(1)
+    exitCode = 1
+  } finally {
+    // Run cleanup exactly once, on both paths, and never let a failing
+    // cleanup escape as an unhandled rejection or skip the exit.
+    try {
+      await options.cleanup?.()
+    } catch (cleanupErr) {
+      console.error(cleanupErr)
+      exitCode = 1
+    }
   }
+  process.exit(exitCode)
 }
