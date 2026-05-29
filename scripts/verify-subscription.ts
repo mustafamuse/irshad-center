@@ -264,4 +264,4 @@ async function main() {
   console.log('')
 }
 
-runScript(main)
+runScript(main, { cleanup: () => prisma.$disconnect() })

@@ -48,4 +48,4 @@ async function fixPaymentMethodCaptured() {
   console.log(`Done! Updated ${updated} accounts.`)
 }
 
-runScript(fixPaymentMethodCaptured)
+runScript(fixPaymentMethodCaptured, { cleanup: () => prisma.$disconnect() })

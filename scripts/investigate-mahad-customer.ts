@@ -13,7 +13,7 @@ import Stripe from 'stripe'
 import { prisma } from '@/lib/db'
 import { normalizeEmail } from '@/lib/utils/contact-normalization'
 import { formatCurrency } from '@/lib/utils/formatters'
-import { getStripeClient } from '@/lib/utils/stripe-client'
+import { getStripeClient, getStripeCustomerId } from '@/lib/utils/stripe-client'
 
 import { runScript } from './lib/run-script'
 
@@ -214,7 +214,7 @@ async function main() {
     console.log(`\n  BillingAccounts: ${person.billingAccounts.length}`)
     for (const ba of person.billingAccounts) {
       console.log(
-        `    ${ba.accountType}: customer=${ba.stripeCustomerIdMahad ?? '-'} — subs: ${ba.subscriptions.length}`
+        `    ${ba.accountType}: customer=${getStripeCustomerId(ba, ba.accountType) ?? '-'} — subs: ${ba.subscriptions.length}`
       )
       for (const s of ba.subscriptions) {
         console.log(
