@@ -289,8 +289,8 @@ const _generateDugsiVCardContent = adminActionClient
                 m.stripeSubscriptionIdDugsi &&
                 m.subscriptionStatus === 'canceled'
             ),
-            parentEmail: null,
-            parentPhone: null,
+            parentEmail: members[0]?.parentEmail ?? null,
+            parentPhone: members[0]?.parentPhone ?? null,
           }
         }
       )

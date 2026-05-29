@@ -26,7 +26,7 @@ const _generateMahadVCardContent = adminActionClient
 
     const contacts: VCardContact[] = []
     let skippedNoContact = 0
-    const skippedDuplicate = 0
+    const skippedDuplicate = 0 // Mahad has no cross-contact dedup; always 0
 
     for (const student of students) {
       const phone = formatPhoneForVCard(student.phone)

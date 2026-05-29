@@ -110,6 +110,12 @@ It auto-rebases on main, addresses safe bot review comments per the policy in `b
 
 ---
 
+## Domain Invariants
+
+- **vCard export `skippedDuplicate` is contact-level, not family-level.** It counts each record that resolves to an already-seen contact (a bridge merge of 3 families into 1 contact yields `skippedDuplicate = 2`). Mahad has no cross-contact dedup, so its `skippedDuplicate` is always `0`. Do not rename this field to `skippedFamilies` or repurpose it for family-level counts.
+
+---
+
 ## Context Management
 
 See `~/.claude/CLAUDE.md` "Context management (anti-rot protocol)" for the canonical NOTES.md → reset → re-read pattern. Applies to this codebase the same way.
