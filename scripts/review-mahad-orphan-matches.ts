@@ -146,7 +146,6 @@ async function main() {
   console.log(`\n${'='.repeat(78)}`)
   console.log(`Total matchable: ${matchableIdx}`)
   console.log(`${'='.repeat(78)}\n`)
-  await prisma.$disconnect()
 }
 
-runScript(main)
+runScript(main, { cleanup: () => prisma.$disconnect() })

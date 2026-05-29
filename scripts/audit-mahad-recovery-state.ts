@@ -8,7 +8,7 @@
  *   set -a && source .env.local && set +a && bunx tsx scripts/audit-mahad-recovery-state.ts
  */
 
-import { StripeAccountType } from '@prisma/client'
+import { Program, StripeAccountType } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { getStripeClient } from '@/lib/utils/stripe-client'
@@ -16,6 +16,14 @@ import { getStripeClient } from '@/lib/utils/stripe-client'
 import { runScript } from './lib/run-script'
 
 async function main() {
+  if (process.env.NODE_ENV !== 'production') {
+    console.error(
+      'ERROR: set NODE_ENV=production before running against live Stripe.\n' +
+        'Without it getStripeClient selects test keys, comparing Stripe-test vs DB-live.'
+    )
+    process.exit(1)
+  }
+
   const mahad = getStripeClient(StripeAccountType.MAHAD)
 
   // --- Stripe-side counts ---
@@ -31,54 +39,54 @@ async function main() {
   // --- DB-side counts ---
   const personCount = await prisma.person.count()
   const mahadProfileCount = await prisma.programProfile.count({
-    where: { program: 'MAHAD_PROGRAM' },
+    where: { program: Program.MAHAD_PROGRAM },
   })
   const mahadProfilesUnique = await prisma.programProfile.groupBy({
     by: ['personId'],
-    where: { program: 'MAHAD_PROGRAM' },
+    where: { program: Program.MAHAD_PROGRAM },
   })
   const mahadEnrollmentActive = await prisma.enrollment.count({
     where: {
-      programProfile: { program: 'MAHAD_PROGRAM' },
+      programProfile: { program: Program.MAHAD_PROGRAM },
       endDate: null,
     },
   })
   const mahadBillingAccountTotal = await prisma.billingAccount.count({
-    where: { accountType: 'MAHAD' },
+    where: { accountType: StripeAccountType.MAHAD },
   })
   const mahadBillingAccountOrphan = await prisma.billingAccount.count({
-    where: { accountType: 'MAHAD', personId: null },
+    where: { accountType: StripeAccountType.MAHAD, personId: null },
   })
   const mahadBillingAccountWithPerson = await prisma.billingAccount.count({
-    where: { accountType: 'MAHAD', personId: { not: null } },
+    where: { accountType: StripeAccountType.MAHAD, personId: { not: null } },
   })
   const mahadSubscriptions = await prisma.subscription.count({
-    where: { stripeAccountType: 'MAHAD' },
+    where: { stripeAccountType: StripeAccountType.MAHAD },
   })
   const mahadSubsActive = await prisma.subscription.count({
     where: {
-      stripeAccountType: 'MAHAD',
+      stripeAccountType: StripeAccountType.MAHAD,
       status: { in: ['active', 'trialing', 'past_due'] },
     },
   })
   const mahadAssignmentsTotal = await prisma.billingAssignment.count({
-    where: { subscription: { stripeAccountType: 'MAHAD' } },
+    where: { subscription: { stripeAccountType: StripeAccountType.MAHAD } },
   })
   const mahadAssignmentsActive = await prisma.billingAssignment.count({
     where: {
-      subscription: { stripeAccountType: 'MAHAD' },
+      subscription: { stripeAccountType: StripeAccountType.MAHAD },
       isActive: true,
     },
   })
   const mahadSubsWithoutAssignments = await prisma.subscription.count({
     where: {
-      stripeAccountType: 'MAHAD',
+      stripeAccountType: StripeAccountType.MAHAD,
       assignments: { none: {} },
     },
   })
   const mahadActiveSubsWithoutAssignments = await prisma.subscription.count({
     where: {
-      stripeAccountType: 'MAHAD',
+      stripeAccountType: StripeAccountType.MAHAD,
       status: { in: ['active', 'trialing', 'past_due'] },
       assignments: { none: {} },
     },
@@ -136,8 +144,6 @@ async function main() {
   }
 
   console.log('\n' + '='.repeat(70) + '\n')
-
-  await prisma.$disconnect()
 }
 
-runScript(main)
+runScript(main, { cleanup: () => prisma.$disconnect() })

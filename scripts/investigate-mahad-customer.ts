@@ -7,9 +7,11 @@
  *     NODE_ENV=production bunx tsx scripts/investigate-mahad-customer.ts --email <email>
  */
 
+import { StripeAccountType } from '@prisma/client'
 import Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 import { formatCurrency } from '@/lib/utils/formatters'
 import { getStripeClient } from '@/lib/utils/stripe-client'
 
@@ -34,7 +36,9 @@ function parseEmailArg(): string {
     )
     process.exit(1)
   }
-  const email = args[emailIdx + 1].trim().toLowerCase()
+  // Preserve casing: Stripe's customers.list email filter is case-sensitive,
+  // so lowercasing here can miss a customer stored with a mixed-case email.
+  const email = args[emailIdx + 1].trim()
   if (!email || !email.includes('@')) {
     console.error(`Invalid email: "${email}"`)
     process.exit(1)
@@ -43,6 +47,9 @@ function parseEmailArg(): string {
 }
 
 const CUSTOMER_EMAIL = parseEmailArg()
+// Person.email is stored normalized (lowercase) — see normalizeEmail; use the
+// normalized form for the DB lookup while the raw form drives the Stripe lookup.
+const DB_EMAIL = normalizeEmail(CUSTOMER_EMAIL)
 
 function fmtDate(unixSeconds: number | null | undefined): string {
   if (!unixSeconds) return '-'
@@ -50,7 +57,7 @@ function fmtDate(unixSeconds: number | null | undefined): string {
 }
 
 async function main() {
-  const stripe = getStripeClient('MAHAD')
+  const stripe = getStripeClient(StripeAccountType.MAHAD)
 
   // Find the customer(s) with this email in Mahad
   const customerList = await stripe.customers.list({
@@ -72,14 +79,17 @@ async function main() {
     console.log(`  Delinquent:  ${customer.delinquent}`)
     console.log(`  Metadata:    ${JSON.stringify(customer.metadata)}`)
 
-    // All subscriptions including canceled
-    const subs = await stripe.subscriptions.list({
+    // All subscriptions including canceled (auto-paginated for full history)
+    const subs: Stripe.Subscription[] = []
+    for await (const sub of stripe.subscriptions.list({
       customer: customer.id,
-      limit: 50,
       status: 'all',
-    })
-    console.log(`\n  Subscriptions: ${subs.data.length}`)
-    for (const sub of subs.data) {
+      limit: 100,
+    })) {
+      subs.push(sub)
+    }
+    console.log(`\n  Subscriptions: ${subs.length}`)
+    for (const sub of subs) {
       console.log(`\n  --- Sub ${sub.id} ---`)
       console.log(`    Status:           ${sub.status}`)
       console.log(
@@ -140,7 +150,7 @@ async function main() {
   console.log('='.repeat(78))
 
   const person = await prisma.person.findFirst({
-    where: { email: CUSTOMER_EMAIL },
+    where: { email: DB_EMAIL },
     include: {
       programProfiles: {
         include: {
@@ -205,8 +215,6 @@ async function main() {
       }
     }
   }
-
-  await prisma.$disconnect()
 }
 
-runScript(main)
+runScript(main, { cleanup: () => prisma.$disconnect() })
