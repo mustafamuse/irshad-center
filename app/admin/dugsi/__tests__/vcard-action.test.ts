@@ -55,10 +55,6 @@ vi.mock('next/cache', () => ({
   unstable_cache: vi.fn((fn: (...args: unknown[]) => unknown) => fn),
 }))
 
-vi.mock('next/server', () => ({
-  after: vi.fn((cb: () => void) => cb()),
-}))
-
 vi.mock('@/lib/services/dugsi', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/lib/services/dugsi')>()
   return {
