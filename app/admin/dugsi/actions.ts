@@ -334,6 +334,12 @@ const _generateDugsiVCardContent = adminActionClient
           }
 
           const dedupeKey = normalizedEmail || formattedPhone || ''
+          // Step 1: fast path — dedupeKey is still the live contactMap key.
+          // Step 2: phone bridge — dedupeKey differs but same phone seen before.
+          // Step 3: email bridge — email was a live key that mergeSecondary deleted
+          //   from contactMap (bridge merge); emailToKey still points to the survivor.
+          //   Removing step 3 breaks A→C→B arrival order: after C's key is deleted,
+          //   a later email-only record falls through steps 1 & 2 and creates a duplicate.
           const resolvedKey = contactMap.has(dedupeKey)
             ? dedupeKey
             : formattedPhone && phoneToKey.has(formattedPhone)

@@ -229,7 +229,7 @@ describe('generateDugsiVCardContent', () => {
 
     const result = await generateDugsiVCardContent({})
     expect(result?.data?.skippedNoContact).toBeGreaterThanOrEqual(1)
-    expect(result?.data?.skippedDuplicate).toBeDefined()
+    expect(result?.data?.skippedDuplicate).toBe(0)
   })
 
   it('excludes churned-only families by default (includeChurned: false)', async () => {
