@@ -443,9 +443,17 @@ const _generateDugsiVCardContent = adminActionClient
         if (first.parent2Phone || first.parent2Email) {
           const p1Phone = formatPhoneForVCard(first.parentPhone) || ''
           const p2Phone = formatPhoneForVCard(first.parent2Phone) || ''
-          const parent1Key = normalizeEmail(first.parentEmail) || p1Phone || ''
-          const parent2Key = normalizeEmail(first.parent2Email) || p2Phone || ''
-          const isSameContact = parent1Key !== '' && parent1Key === parent2Key
+          const parent1Email = normalizeEmail(first.parentEmail)
+          const parent2Email = normalizeEmail(first.parent2Email)
+          const parent1Key = parent1Email || p1Phone || ''
+          const parent2Key = parent2Email || p2Phone || ''
+          const phoneOverlap = p1Phone !== '' && p1Phone === p2Phone
+          const emailOverlap =
+            parent1Email !== null && parent1Email === parent2Email
+          const isSameContact =
+            (parent1Key !== '' && parent1Key === parent2Key) ||
+            phoneOverlap ||
+            emailOverlap
           addParent(
             first.parent2FirstName,
             first.parent2LastName,
