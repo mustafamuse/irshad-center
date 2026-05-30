@@ -296,15 +296,15 @@ const _generateDugsiVCardContent = adminActionClient
         }
       )
 
-      const org = shift ? `Dugsi - ${shift}` : 'Irshad Dugsi'
+      const organization = shift ? `Dugsi - ${shift}` : 'Irshad Dugsi'
       const filename = shift
         ? `dugsi-${shift.toLowerCase()}-parent-contacts-${getDateString()}.vcf`
         : `dugsi-parent-contacts-${getDateString()}.vcf`
 
-      // contactMap and childSetsMap are always maintained with identical key sets.
+      // contactMap and childNamesByKey are always maintained with identical key sets.
       // Every add/delete must touch both; see mergeSecondary for the delete path.
       const contactMap = new Map<string, VCardContact>()
-      const childSetsMap = new Map<string, Set<string>>()
+      const childNamesByKey = new Map<string, Set<string>>()
       const phoneToKey = new Map<string, string>()
       const emailToKey = new Map<string, string>()
       let skippedNoContact = 0
@@ -352,7 +352,7 @@ const _generateDugsiVCardContent = adminActionClient
           if (contactMap.has(resolvedKey)) {
             skippedDuplicate++
             if (!isIntraFamilyDuplicate) {
-              const childSet = childSetsMap.get(resolvedKey)!
+              const childSet = childNamesByKey.get(resolvedKey)!
               memberNames.forEach((n) => childSet.add(n))
             }
 
@@ -364,9 +364,9 @@ const _generateDugsiVCardContent = adminActionClient
               if (secondaryKey === resolvedKey || !contactMap.has(secondaryKey))
                 return
               skippedDuplicate++
-              childSetsMap
+              childNamesByKey
                 .get(secondaryKey)
-                ?.forEach((n) => childSetsMap.get(resolvedKey)!.add(n))
+                ?.forEach((n) => childNamesByKey.get(resolvedKey)!.add(n))
               const primary = contactMap.get(resolvedKey)!
               const secondary = contactMap.get(secondaryKey)!
               if (!primary.phone && secondary.phone)
@@ -383,16 +383,16 @@ const _generateDugsiVCardContent = adminActionClient
               for (const [k, v] of emailToKey)
                 if (v === secondaryKey) emailToKey.set(k, resolvedKey)
               contactMap.delete(secondaryKey)
-              childSetsMap.delete(secondaryKey)
+              childNamesByKey.delete(secondaryKey)
             }
 
             if (formattedPhone) {
-              const pk = phoneToKey.get(formattedPhone)
-              if (pk !== undefined) mergeSecondary(pk)
+              const phoneKey = phoneToKey.get(formattedPhone)
+              if (phoneKey !== undefined) mergeSecondary(phoneKey)
             }
             if (normalizedEmail) {
-              const ek = emailToKey.get(normalizedEmail)
-              if (ek !== undefined) mergeSecondary(ek)
+              const emailKey = emailToKey.get(normalizedEmail)
+              if (emailKey !== undefined) mergeSecondary(emailKey)
             }
 
             const primaryContact = contactMap.get(resolvedKey)!
@@ -413,7 +413,7 @@ const _generateDugsiVCardContent = adminActionClient
             return
           }
 
-          childSetsMap.set(dedupeKey, new Set(memberNames))
+          childNamesByKey.set(dedupeKey, new Set(memberNames))
           contactMap.set(dedupeKey, {
             firstName: firstName || '',
             lastName: lastName || '',
@@ -421,7 +421,7 @@ const _generateDugsiVCardContent = adminActionClient
               [firstName, lastName].filter(Boolean).join(' ') || 'Dugsi Parent',
             phone: formattedPhone,
             email: normalizedEmail || undefined,
-            organization: org,
+            organization,
           })
           if (formattedPhone) phoneToKey.set(formattedPhone, dedupeKey)
           if (normalizedEmail) emailToKey.set(normalizedEmail, dedupeKey)
@@ -443,13 +443,13 @@ const _generateDugsiVCardContent = adminActionClient
           const phoneOverlap = p1Phone !== '' && p1Phone === p2Phone
           const emailOverlap =
             parent1Email !== null && parent1Email === parent2Email
-          const isSameContact = phoneOverlap || emailOverlap
+          const isIntraFamilyDuplicate = phoneOverlap || emailOverlap
           addParent(
             first.parent2FirstName,
             first.parent2LastName,
             first.parent2Email,
             first.parent2Phone,
-            isSameContact
+            isIntraFamilyDuplicate
           )
         } else if (first.parent2FirstName || first.parent2LastName) {
           skippedNoContact++
@@ -457,7 +457,7 @@ const _generateDugsiVCardContent = adminActionClient
       }
 
       for (const [key, contact] of contactMap.entries()) {
-        const children = childSetsMap.get(key)!
+        const children = childNamesByKey.get(key)!
         contact.note = `Children: ${[...children].join(', ')}`
       }
 

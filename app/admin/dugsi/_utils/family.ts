@@ -3,6 +3,8 @@
  * Single source of truth for family identification logic
  */
 
+import { SubscriptionStatus } from '@prisma/client'
+
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { formatFullName } from '@/lib/utils/formatters'
 
@@ -138,11 +140,14 @@ export function groupRegistrationsByFamily(
       members: sorted,
       hasPayment: sorted.some((m) => m.paymentMethodCaptured),
       hasSubscription: sorted.some(
-        (m) => m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
+        (m) =>
+          m.stripeSubscriptionIdDugsi &&
+          m.subscriptionStatus === SubscriptionStatus.active
       ),
       hasChurned: sorted.some(
         (m) =>
-          m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'canceled'
+          m.stripeSubscriptionIdDugsi &&
+          m.subscriptionStatus === SubscriptionStatus.canceled
       ),
       parentEmail: sorted[0]?.parentEmail ?? null,
       parentPhone: sorted[0]?.parentPhone ?? null,

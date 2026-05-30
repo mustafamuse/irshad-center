@@ -1,3 +1,4 @@
+import { SubscriptionStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { z } from 'zod'
 
@@ -105,7 +106,7 @@ function makeReg(
     stripeCustomerIdDugsi: 'cus_1',
     stripeSubscriptionIdDugsi: 'sub_1',
     paymentIntentIdDugsi: null,
-    subscriptionStatus: 'active',
+    subscriptionStatus: SubscriptionStatus.active,
     subscriptionAmount: 5000,
     paidUntil: null,
     currentPeriodStart: null,
@@ -121,6 +122,10 @@ function makeReg(
     familyChildCount: 1,
     ...overrides,
   }
+}
+
+function vcardCount(content: string): number {
+  return (content.match(/BEGIN:VCARD/g) ?? []).length
 }
 
 beforeEach(() => {
@@ -147,8 +152,10 @@ describe('generateDugsiVCardContent', () => {
 
     const result = await generateDugsiVCardContent({})
     expect(result?.data?.exported).toBe(1)
-    expect(result?.data?.content).toContain('Child One')
-    expect(result?.data?.content).toContain('Child Two')
+    const content = result?.data?.content ?? ''
+    expect(vcardCount(content)).toBe(result?.data?.exported)
+    expect(content).toContain('Child One')
+    expect(content).toContain('Child Two')
   })
 
   it('same parent across two families produces one vCard with merged children in NOTE', async () => {
@@ -172,6 +179,7 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.exported).toBe(1)
     expect(result?.data?.skippedDuplicate).toBe(1)
     const note = result?.data?.content ?? ''
+    expect(vcardCount(note)).toBe(result?.data?.exported)
     expect(note).toContain('Child Alpha')
     expect(note).toContain('Child Beta')
   })
@@ -191,7 +199,10 @@ describe('generateDugsiVCardContent', () => {
 
     const result = await generateDugsiVCardContent({})
     expect(result?.data?.exported).toBe(2)
-    expect(result?.data?.content).toContain('FN:Dugsi Parent')
+    const content = result?.data?.content ?? ''
+    expect(content).toContain('FN:Ahmed Hassan')
+    expect(content).toContain('FN:Dugsi Parent')
+    expect((content.match(/FN:Dugsi Parent/g) ?? []).length).toBe(1)
   })
 
   it('parent1 with no name but with contact info is exported with "Dugsi Parent" fallback', async () => {
@@ -237,7 +248,7 @@ describe('generateDugsiVCardContent', () => {
       id: 'reg-1',
       name: 'Child One',
       stripeSubscriptionIdDugsi: 'sub_1',
-      subscriptionStatus: 'canceled',
+      subscriptionStatus: SubscriptionStatus.canceled,
     })
     mockGetAllDugsiRegistrations.mockResolvedValue([reg])
 
@@ -251,7 +262,7 @@ describe('generateDugsiVCardContent', () => {
       id: 'reg-1',
       name: 'Child One',
       stripeSubscriptionIdDugsi: 'sub_1',
-      subscriptionStatus: 'canceled',
+      subscriptionStatus: SubscriptionStatus.canceled,
     })
     mockGetAllDugsiRegistrations.mockResolvedValue([reg])
 
@@ -265,14 +276,14 @@ describe('generateDugsiVCardContent', () => {
       name: 'Child One',
       familyReferenceId: 'fam-mixed',
       stripeSubscriptionIdDugsi: 'sub_canceled',
-      subscriptionStatus: 'canceled',
+      subscriptionStatus: SubscriptionStatus.canceled,
     })
     const reg2 = makeReg({
       id: 'reg-2',
       name: 'Child Two',
       familyReferenceId: 'fam-mixed',
       stripeSubscriptionIdDugsi: 'sub_active',
-      subscriptionStatus: 'active',
+      subscriptionStatus: SubscriptionStatus.active,
     })
     mockGetAllDugsiRegistrations.mockResolvedValue([reg1, reg2])
 
@@ -487,6 +498,7 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.exported).toBe(1)
     expect(result?.data?.skippedDuplicate).toBe(2)
     const note = result?.data?.content ?? ''
+    expect(vcardCount(note)).toBe(result?.data?.exported)
     expect(note).toContain('Child Alpha')
     expect(note).toContain('Child Beta')
     expect(note).toContain('Child Gamma')
