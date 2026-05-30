@@ -13,7 +13,7 @@ export interface VCardResult {
   filename: string
   exported: number
   skippedNoContact: number
-  skippedDuplicate: number // per contact attempt
+  skippedDuplicate?: number // per contact attempt
   skippedChurned?: number // per family (not per contact)
 }
 
@@ -26,7 +26,9 @@ export function formatSkipSummary(
   const { skippedNoContact, skippedDuplicate, skippedChurned } = result
   const parts = [
     skippedNoContact > 0 && `${skippedNoContact} no-contact`,
-    skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
+    skippedDuplicate !== undefined &&
+      skippedDuplicate > 0 &&
+      `${skippedDuplicate} deduped`,
     skippedChurned !== undefined &&
       skippedChurned > 0 &&
       `${skippedChurned} churned fam.`,

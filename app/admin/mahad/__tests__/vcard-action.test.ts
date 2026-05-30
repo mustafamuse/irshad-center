@@ -1,8 +1,9 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
-import { z } from 'zod'
 
 import type { MahadStudent } from '@/lib/db/queries/student'
 import { StudentStatus } from '@/lib/types/student'
+
+import { createAdminActionClientMock } from '../../_test-utils/admin-action-client-mock'
 
 const { mockGetStudents, mockGetStudentsByBatch, mockLoggerInfo } = vi.hoisted(
   () => ({
@@ -12,48 +13,9 @@ const { mockGetStudents, mockGetStudentsByBatch, mockLoggerInfo } = vi.hoisted(
   })
 )
 
-vi.mock('@/lib/safe-action', () => {
-  function makeClient() {
-    const client = {
-      metadata: () => client,
-      use: () => client,
-      schema: (schema: z.ZodType) => ({
-        action:
-          (handler: (args: { parsedInput: unknown }) => Promise<unknown>) =>
-          async (input: unknown) => {
-            const parsed = schema.safeParse(input)
-            if (!parsed.success) {
-              return { validationErrors: parsed.error.flatten().fieldErrors }
-            }
-            try {
-              const data = await handler({ parsedInput: parsed.data })
-              return { data }
-            } catch (error) {
-              const { ActionError } = await import('@/lib/errors/action-error')
-              if (error instanceof ActionError)
-                return { serverError: error.message }
-              return { serverError: 'Something went wrong' }
-            }
-          },
-      }),
-      action: (handler: () => Promise<unknown>) => async () => {
-        try {
-          const data = await handler()
-          return { data }
-        } catch (error) {
-          const { ActionError } = await import('@/lib/errors/action-error')
-          if (error instanceof ActionError)
-            return {
-              serverError: error.message,
-            }
-          return { serverError: 'Something went wrong' }
-        }
-      },
-    }
-    return client
-  }
-  return { adminActionClient: makeClient() }
-})
+vi.mock('@/lib/safe-action', () => ({
+  adminActionClient: createAdminActionClientMock(),
+}))
 
 vi.mock('@/lib/db/queries/student', async (importOriginal) => {
   const original =
@@ -111,18 +73,18 @@ beforeEach(() => {
 })
 
 describe('generateMahadVCardContent', () => {
-  it('return shape has skippedNoContact and skippedDuplicate: 0', async () => {
+  it('return shape has skippedNoContact and omits skippedDuplicate', async () => {
     const student = makeStudent({ phone: null, email: null })
     const exported = makeStudent()
     mockGetStudents.mockResolvedValue([student, exported])
 
     const result = await generateMahadVCardContent({})
     expect(result?.data?.skippedNoContact).toBe(1)
-    expect(result?.data?.skippedDuplicate).toBe(0)
+    expect(result?.data?.skippedDuplicate).toBeUndefined()
     expect(result?.data?.exported).toBe(1)
   })
 
-  it('emits logger.info with exported, skippedNoContact, skippedDuplicate, batchId', async () => {
+  it('emits logger.info with exported, skippedNoContact, batchId', async () => {
     const student = makeStudent()
     mockGetStudents.mockResolvedValue([student])
 
@@ -134,12 +96,12 @@ describe('generateMahadVCardContent', () => {
     expect(fields).toMatchObject({
       exported: expect.any(Number),
       skippedNoContact: expect.any(Number),
-      skippedDuplicate: 0,
       batchId: undefined,
     })
+    expect(fields).not.toHaveProperty('skippedDuplicate')
   })
 
-  it('uses getStudentsByBatch when batchId is provided', async () => {
+  it('uses getStudentsByBatch and slugs the batch name into the filename', async () => {
     const student = makeStudent()
     mockGetStudentsByBatch.mockResolvedValue([student])
 
@@ -150,5 +112,13 @@ describe('generateMahadVCardContent', () => {
       '550e8400-e29b-41d4-a716-446655440000'
     )
     expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.filename).toMatch(/^mahad-batch-a-contacts-/)
+  })
+
+  it('uses the default mahad-all-contacts filename when no batchId is supplied', async () => {
+    mockGetStudents.mockResolvedValue([makeStudent()])
+
+    const result = await generateMahadVCardContent({})
+    expect(result?.data?.filename).toMatch(/^mahad-all-contacts-/)
   })
 })

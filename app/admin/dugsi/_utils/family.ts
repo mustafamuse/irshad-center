@@ -48,13 +48,17 @@ type SubscriptionFields = Pick<
   'stripeSubscriptionIdDugsi' | 'subscriptionStatus'
 >
 
-export const isActiveSubscription = (m: SubscriptionFields): boolean =>
-  !!m.stripeSubscriptionIdDugsi &&
-  m.subscriptionStatus === SubscriptionStatus.active
+export const isActiveDugsiRegistration = (
+  member: SubscriptionFields
+): boolean =>
+  !!member.stripeSubscriptionIdDugsi &&
+  member.subscriptionStatus === SubscriptionStatus.active
 
-export const isChurnedSubscription = (m: SubscriptionFields): boolean =>
-  !!m.stripeSubscriptionIdDugsi &&
-  m.subscriptionStatus === SubscriptionStatus.canceled
+export const isChurnedDugsiRegistration = (
+  member: SubscriptionFields
+): boolean =>
+  !!member.stripeSubscriptionIdDugsi &&
+  member.subscriptionStatus === SubscriptionStatus.canceled
 
 /**
  * Get Prisma where clause for family-based database operations.
@@ -152,8 +156,8 @@ export function groupRegistrationsByFamily(
       familyKey: key,
       members: sorted,
       hasPayment: sorted.some((m) => m.paymentMethodCaptured),
-      hasSubscription: sorted.some(isActiveSubscription),
-      hasChurned: sorted.some(isChurnedSubscription),
+      hasSubscription: sorted.some(isActiveDugsiRegistration),
+      hasChurned: sorted.some(isChurnedDugsiRegistration),
       parentEmail: sorted[0]?.parentEmail ?? null,
       parentPhone: sorted[0]?.parentPhone ?? null,
     }

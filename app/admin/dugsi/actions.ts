@@ -64,6 +64,7 @@ import {
   normalizeEmail,
   normalizePhone,
 } from '@/lib/utils/contact-normalization'
+import { formatFullName } from '@/lib/utils/formatters'
 import { UpdateFamilyShiftSchema } from '@/lib/validations/dugsi'
 import {
   AssignTeacherToClassSchema,
@@ -87,7 +88,10 @@ import {
   previewSubscriptionInputSchema,
   consolidateSubscriptionInputSchema,
 } from './_schemas/dialog-schemas'
-import { isActiveSubscription, isChurnedSubscription } from './_utils/family'
+import {
+  isActiveDugsiRegistration,
+  isChurnedDugsiRegistration,
+} from './_utils/family'
 import {
   SubscriptionValidationData,
   PaymentStatusData,
@@ -101,12 +105,6 @@ import {
 } from './_types'
 
 const logger = createServiceLogger('dugsi-admin-actions')
-
-const buildVCardFullName = (
-  f: string | null,
-  l: string | null,
-  fallback?: string
-) => [f, l].filter(Boolean).join(' ') || (fallback ?? '')
 
 const fillVCardName = (
   target: VCardContact,
@@ -309,8 +307,8 @@ const _generateDugsiVCardContent = adminActionClient
       let skippedChurned = 0
 
       for (const members of familyMap.values()) {
-        const hasSubscription = members.some(isActiveSubscription)
-        const hasChurned = members.some(isChurnedSubscription)
+        const hasSubscription = members.some(isActiveDugsiRegistration)
+        const hasChurned = members.some(isChurnedDugsiRegistration)
         if (!includeChurned && hasChurned && !hasSubscription) {
           skippedChurned++
           continue
@@ -404,7 +402,7 @@ const _generateDugsiVCardContent = adminActionClient
               primaryContact,
               firstName,
               lastName,
-              buildVCardFullName(firstName, lastName)
+              formatFullName(firstName, lastName)
             )
 
             if (formattedPhone) phoneToKey.set(formattedPhone, resolvedKey)
@@ -416,7 +414,7 @@ const _generateDugsiVCardContent = adminActionClient
           contactMap.set(dedupeKey, {
             firstName: firstName || '',
             lastName: lastName || '',
-            fullName: buildVCardFullName(firstName, lastName, 'Dugsi Parent'),
+            fullName: formatFullName(firstName, lastName, 'Dugsi Parent'),
             phone: formattedPhone,
             email: normalizedEmail || undefined,
             organization,

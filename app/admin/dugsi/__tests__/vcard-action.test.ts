@@ -1,54 +1,16 @@
 import { SubscriptionStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
-import { z } from 'zod'
+
+import { createAdminActionClientMock } from '../../_test-utils/admin-action-client-mock'
 
 const { mockGetAllDugsiRegistrations, mockLoggerInfo } = vi.hoisted(() => ({
   mockGetAllDugsiRegistrations: vi.fn(),
   mockLoggerInfo: vi.fn(),
 }))
 
-vi.mock('@/lib/safe-action', () => {
-  function makeClient() {
-    const client = {
-      metadata: () => client,
-      use: () => client,
-      schema: (schema: z.ZodType) => ({
-        action:
-          (handler: (args: { parsedInput: unknown }) => Promise<unknown>) =>
-          async (input: unknown) => {
-            const parsed = schema.safeParse(input)
-            if (!parsed.success) {
-              return { validationErrors: parsed.error.flatten().fieldErrors }
-            }
-            try {
-              const data = await handler({ parsedInput: parsed.data })
-              return { data }
-            } catch (error) {
-              const { ActionError } = await import('@/lib/errors/action-error')
-              if (error instanceof ActionError)
-                return { serverError: error.message }
-              return { serverError: 'Something went wrong' }
-            }
-          },
-      }),
-      action: (handler: () => Promise<unknown>) => async () => {
-        try {
-          const data = await handler()
-          return { data }
-        } catch (error) {
-          const { ActionError } = await import('@/lib/errors/action-error')
-          if (error instanceof ActionError)
-            return {
-              serverError: error.message,
-            }
-          return { serverError: 'Something went wrong' }
-        }
-      },
-    }
-    return client
-  }
-  return { adminActionClient: makeClient() }
-})
+vi.mock('@/lib/safe-action', () => ({
+  adminActionClient: createAdminActionClientMock(),
+}))
 
 vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
@@ -153,7 +115,7 @@ describe('generateDugsiVCardContent', () => {
     const result = await generateDugsiVCardContent({})
     expect(result?.data?.exported).toBe(1)
     const content = result?.data?.content ?? ''
-    expect(vcardCount(content)).toBe(result?.data?.exported)
+    expect(vcardCount(content)).toBe(1)
     expect(content).toContain('Child One')
     expect(content).toContain('Child Two')
   })
@@ -179,9 +141,8 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.exported).toBe(1)
     expect(result?.data?.skippedDuplicate).toBe(1)
     const note = result?.data?.content ?? ''
-    expect(vcardCount(note)).toBe(result?.data?.exported)
-    expect(note).toContain('Child Alpha')
-    expect(note).toContain('Child Beta')
+    expect(vcardCount(note)).toBe(1)
+    expect(note).toMatch(/NOTE:Children: .*Child Alpha.*Child Beta/)
   })
 
   it('parent2 with phone but no name is exported with "Dugsi Parent" fallback', async () => {
@@ -384,8 +345,7 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.exported).toBe(1)
     expect(result?.data?.skippedDuplicate).toBe(1)
     const note = result?.data?.content ?? ''
-    expect(note).toContain('Child Alpha')
-    expect(note).toContain('Child Beta')
+    expect(note).toMatch(/NOTE:Children: .*Child Alpha.*Child Beta/)
   })
 
   it('phone-only family A, email+phone family B merges and the vCard carries both identifiers', async () => {
@@ -498,10 +458,8 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.exported).toBe(1)
     expect(result?.data?.skippedDuplicate).toBe(2)
     const note = result?.data?.content ?? ''
-    expect(vcardCount(note)).toBe(result?.data?.exported)
-    expect(note).toContain('Child Alpha')
-    expect(note).toContain('Child Beta')
-    expect(note).toContain('Child Gamma')
+    expect(vcardCount(note)).toBe(1)
+    expect(note).toMatch(/NOTE:Children: .*Child Alpha.*Child Beta.*Child Gamma/)
   })
 
   it('3-family dedup resolves correctly regardless of ordering (A→C→B)', async () => {
