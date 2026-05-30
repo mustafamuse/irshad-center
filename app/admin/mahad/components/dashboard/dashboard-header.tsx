@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { downloadVCardFile } from '@/lib/vcard-client'
+import { formatSkipSummary } from '@/lib/vcard-export'
 
 import { generateMahadVCardContent } from '../../_actions/vcard-actions'
 import { useMahadUIStore } from '../../store'
@@ -24,13 +25,7 @@ export function DashboardHeader() {
         return
       }
 
-      const {
-        content,
-        filename,
-        exported,
-        skippedNoContact,
-        skippedDuplicate,
-      } = result.data
+      const { content, filename, exported } = result.data
       if (exported === 0) {
         toast.error('No contacts with phone or email to export')
         return
@@ -42,16 +37,9 @@ export function DashboardHeader() {
         return
       }
 
-      const parts = [
-        skippedNoContact > 0 && `${skippedNoContact} no-contact`,
-        skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
-      ]
-        .filter(Boolean)
-        .join(', ')
-      const msg = parts
-        ? `Exported ${exported} contacts (${parts})`
-        : `Exported ${exported} contacts`
-      toast.success(msg)
+      toast.success(
+        `Exported ${exported} contacts${formatSkipSummary(result.data)}`
+      )
     } finally {
       setIsExporting(false)
     }

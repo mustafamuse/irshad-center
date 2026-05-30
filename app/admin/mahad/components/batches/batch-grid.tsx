@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { downloadVCardFile } from '@/lib/vcard-client'
+import { formatSkipSummary } from '@/lib/vcard-export'
 
 import { generateMahadVCardContent } from '../../_actions/vcard-actions'
 import { MahadBatch, MahadStudent } from '../../_types'
@@ -45,13 +46,7 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
         return
       }
 
-      const {
-        content,
-        filename,
-        exported,
-        skippedNoContact,
-        skippedDuplicate,
-      } = result.data
+      const { content, filename, exported } = result.data
       if (exported === 0) {
         toast.error('No contacts with phone or email to export')
         return
@@ -63,16 +58,9 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
         return
       }
 
-      const parts = [
-        skippedNoContact > 0 && `${skippedNoContact} no-contact`,
-        skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
-      ]
-        .filter(Boolean)
-        .join(', ')
-      const msg = parts
-        ? `Exported ${exported} contacts from ${batch.name} (${parts})`
-        : `Exported ${exported} contacts from ${batch.name}`
-      toast.success(msg)
+      toast.success(
+        `Exported ${exported} contacts from ${batch.name}${formatSkipSummary(result.data)}`
+      )
     } finally {
       setIsExporting(false)
     }

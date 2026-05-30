@@ -17,6 +17,25 @@ export interface VCardResult {
   skippedChurned?: number // per family (not per contact)
 }
 
+export function formatSkipSummary(
+  result: Pick<
+    VCardResult,
+    'skippedNoContact' | 'skippedDuplicate' | 'skippedChurned'
+  >
+): string {
+  const { skippedNoContact, skippedDuplicate, skippedChurned } = result
+  const parts = [
+    skippedNoContact > 0 && `${skippedNoContact} no-contact`,
+    skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
+    skippedChurned !== undefined &&
+      skippedChurned > 0 &&
+      `${skippedChurned} churned fam.`,
+  ]
+    .filter(Boolean)
+    .join(', ')
+  return parts ? ` (${parts})` : ''
+}
+
 export function escapeVCardValue(value: string): string {
   return value
     .replace(/\\/g, '\\\\')

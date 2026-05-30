@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { downloadVCardFile } from '@/lib/vcard-client'
+import { formatSkipSummary } from '@/lib/vcard-export'
 
 import { generateDugsiVCardContent } from '../../actions'
 
@@ -30,14 +31,7 @@ export function DashboardHeader({
         return
       }
 
-      const {
-        content,
-        filename,
-        exported,
-        skippedNoContact,
-        skippedDuplicate,
-        skippedChurned,
-      } = result.data
+      const { content, filename, exported } = result.data
       if (exported === 0) {
         toast.error('No parent contacts with phone or email to export')
         return
@@ -49,19 +43,9 @@ export function DashboardHeader({
         return
       }
 
-      const parts = [
-        skippedNoContact > 0 && `${skippedNoContact} no-contact`,
-        skippedDuplicate > 0 && `${skippedDuplicate} deduped`,
-        skippedChurned !== undefined &&
-          skippedChurned > 0 &&
-          `${skippedChurned} churned fam.`,
-      ]
-        .filter(Boolean)
-        .join(', ')
-      const msg = parts
-        ? `Exported ${exported} parent contacts (${parts})`
-        : `Exported ${exported} parent contacts`
-      toast.success(msg)
+      toast.success(
+        `Exported ${exported} parent contacts${formatSkipSummary(result.data)}`
+      )
     } finally {
       setIsExporting(false)
     }
