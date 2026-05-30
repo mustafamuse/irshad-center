@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { after } from 'next/server'
 
-import { GradeLevel, Prisma, Shift } from '@prisma/client'
+import { GradeLevel, Prisma, Shift, SubscriptionStatus } from '@prisma/client'
 import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -282,12 +282,13 @@ const _generateDugsiVCardContent = adminActionClient
             hasPayment: members.some((m) => m.paymentMethodCaptured),
             hasSubscription: members.some(
               (m) =>
-                m.stripeSubscriptionIdDugsi && m.subscriptionStatus === 'active'
+                m.stripeSubscriptionIdDugsi &&
+                m.subscriptionStatus === SubscriptionStatus.active
             ),
             hasChurned: members.some(
               (m) =>
                 m.stripeSubscriptionIdDugsi &&
-                m.subscriptionStatus === 'canceled'
+                m.subscriptionStatus === SubscriptionStatus.canceled
             ),
             parentEmail: members[0]?.parentEmail ?? null,
             parentPhone: members[0]?.parentPhone ?? null,
