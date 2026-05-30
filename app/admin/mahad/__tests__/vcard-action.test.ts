@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { z } from 'zod'
 
 import type { MahadStudent } from '@/lib/db/queries/student'
+import { StudentStatus } from '@/lib/types/student'
 
 const { mockGetStudents, mockGetStudentsByBatch, mockLoggerInfo } = vi.hoisted(
   () => ({
@@ -43,7 +44,7 @@ vi.mock('@/lib/safe-action', () => {
           const { ActionError } = await import('@/lib/errors/action-error')
           if (error instanceof ActionError)
             return {
-              serverError: (error as InstanceType<typeof ActionError>).message,
+              serverError: error.message,
             }
           return { serverError: 'Something went wrong' }
         }
@@ -90,7 +91,7 @@ function makeStudent(overrides: Partial<MahadStudent> = {}): MahadStudent {
     paymentFrequency: null,
     billingType: null,
     paymentNotes: null,
-    status: 'enrolled' as MahadStudent['status'],
+    status: StudentStatus.ENROLLED,
     batchId: 'batch-1',
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),

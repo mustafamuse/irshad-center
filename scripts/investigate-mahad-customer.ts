@@ -206,7 +206,7 @@ async function main() {
       console.log(`      Assignments: ${p.assignments.length}`)
       for (const a of p.assignments) {
         console.log(
-          `        $${(a.amount / 100).toFixed(2)} → sub ${a.subscription.stripeSubscriptionId} (active=${a.isActive})`
+          `        ${formatCurrency(a.amount)} → sub ${a.subscription.stripeSubscriptionId} (active=${a.isActive})`
         )
       }
     }

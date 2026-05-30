@@ -38,7 +38,7 @@ vi.mock('@/lib/safe-action', () => {
           const { ActionError } = await import('@/lib/errors/action-error')
           if (error instanceof ActionError)
             return {
-              serverError: (error as InstanceType<typeof ActionError>).message,
+              serverError: error.message,
             }
           return { serverError: 'Something went wrong' }
         }

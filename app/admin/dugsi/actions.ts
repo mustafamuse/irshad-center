@@ -461,8 +461,8 @@ const _generateDugsiVCardContent = adminActionClient
       }
 
       for (const [key, contact] of contactMap.entries()) {
-        const children = childSetsMap.get(key)
-        contact.note = children ? `Children: ${[...children].join(', ')}` : ''
+        const children = childSetsMap.get(key)!
+        contact.note = `Children: ${[...children].join(', ')}`
       }
 
       const contacts = Array.from(contactMap.values())
