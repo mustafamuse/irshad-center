@@ -102,6 +102,25 @@ import {
 
 const logger = createServiceLogger('dugsi-admin-actions')
 
+const buildVCardFullName = (
+  f: string | null,
+  l: string | null,
+  fallback?: string
+) => [f, l].filter(Boolean).join(' ') || (fallback ?? '')
+
+const fillVCardName = (
+  target: VCardContact,
+  firstName: string | null,
+  lastName: string | null,
+  fullName: string
+) => {
+  if (!target.firstName && firstName) {
+    target.firstName = firstName
+    target.lastName = lastName ?? ''
+    target.fullName = fullName
+  }
+}
+
 // ============================================================================
 // Schemas for actions that take positional string args
 // ============================================================================
@@ -307,11 +326,6 @@ const _generateDugsiVCardContent = adminActionClient
           phone: string | null,
           isIntraFamilyDuplicate: boolean
         ) => {
-          const buildFullName = (
-            f: string | null,
-            l: string | null,
-            fallback?: string
-          ) => [f, l].filter(Boolean).join(' ') || (fallback ?? '')
           const formattedPhone = formatPhoneForVCard(phone)
           const normalizedEmail = normalizeEmail(email)
           if (!formattedPhone && !normalizedEmail) {
@@ -358,11 +372,12 @@ const _generateDugsiVCardContent = adminActionClient
                 primary.phone = secondary.phone
               if (!primary.email && secondary.email)
                 primary.email = secondary.email
-              if (!primary.firstName && secondary.firstName) {
-                primary.firstName = secondary.firstName
-                primary.lastName = secondary.lastName
-                primary.fullName = secondary.fullName
-              }
+              fillVCardName(
+                primary,
+                secondary.firstName,
+                secondary.lastName,
+                secondary.fullName
+              )
               for (const [k, v] of phoneToKey)
                 if (v === secondaryKey) phoneToKey.set(k, resolvedKey)
               for (const [k, v] of emailToKey)
@@ -385,11 +400,12 @@ const _generateDugsiVCardContent = adminActionClient
               primaryContact.phone = formattedPhone
             if (normalizedEmail && !primaryContact.email)
               primaryContact.email = normalizedEmail
-            if (!primaryContact.firstName && firstName) {
-              primaryContact.firstName = firstName
-              primaryContact.lastName = lastName || ''
-              primaryContact.fullName = buildFullName(firstName, lastName)
-            }
+            fillVCardName(
+              primaryContact,
+              firstName,
+              lastName,
+              buildVCardFullName(firstName, lastName)
+            )
 
             if (formattedPhone) phoneToKey.set(formattedPhone, resolvedKey)
             if (normalizedEmail) emailToKey.set(normalizedEmail, resolvedKey)
@@ -400,7 +416,7 @@ const _generateDugsiVCardContent = adminActionClient
           contactMap.set(dedupeKey, {
             firstName: firstName || '',
             lastName: lastName || '',
-            fullName: buildFullName(firstName, lastName, 'Dugsi Parent'),
+            fullName: buildVCardFullName(firstName, lastName, 'Dugsi Parent'),
             phone: formattedPhone,
             email: normalizedEmail || undefined,
             organization,
