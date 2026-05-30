@@ -34,4 +34,17 @@ Per round:
   any refactor rename/repurpose it.
 
 ## State / progress log
-- (loop appends here as cycles complete)
+
+### Cycle 1 — complete (pushed 20afc982)
+- 8 rounds: r1-r6 green+committed, r7 dry, r8 no-change → council finale applied 10.
+- 92 agents, ~5.3M tokens, ~41 min.
+- Commits: 067828c0(r1) 76f0277a(r2) 12ed5064(r3) 6201bb30(r4) 23f42a2d(r5) fd4120d2(r6) 20afc982(council)
+- Landed: Shift/StudentStatus/SubscriptionStatus enums replacing string literals; extracted
+  formatSkipSummary; simplified isSameContact; council renames (org→organization,
+  childSetsMap→childNamesByKey, pk/ek→phoneKey/emailKey, isSameContact→isIntraFamilyDuplicate);
+  new vcard-export tests (lib/__tests__/vcard-export.test.ts), tightened assertions, vcardCount helper.
+- skippedDuplicate invariant preserved.
+- Independent verify: typecheck clean, 351 tests pass (17 files). Pushed to origin.
+- Diff now 27 files / +1,972 -190.
+
+### Cycle 2 — launching (fresh-eyes pass over post-council state)

@@ -93,7 +93,6 @@ import {
   BankVerificationData,
   SubscriptionLinkData,
   DugsiRegistration,
-  Family,
   ClassWithDetails,
   StudentForEnrollment,
   StripePaymentHistoryItem,
@@ -274,27 +273,25 @@ const _generateDugsiVCardContent = adminActionClient
         familyMap.set(key, list)
       }
 
-      const families: Family[] = Array.from(familyMap.entries()).map(
-        ([key, members]) => {
-          return {
-            familyKey: key,
-            members,
-            hasPayment: members.some((m) => m.paymentMethodCaptured),
-            hasSubscription: members.some(
-              (m) =>
-                m.stripeSubscriptionIdDugsi &&
-                m.subscriptionStatus === SubscriptionStatus.active
-            ),
-            hasChurned: members.some(
-              (m) =>
-                m.stripeSubscriptionIdDugsi &&
-                m.subscriptionStatus === SubscriptionStatus.canceled
-            ),
-            parentEmail: members[0]?.parentEmail ?? null,
-            parentPhone: members[0]?.parentPhone ?? null,
-          }
+      const families: Array<{
+        members: DugsiRegistration[]
+        hasSubscription: boolean
+        hasChurned: boolean
+      }> = Array.from(familyMap.values()).map((members) => {
+        return {
+          members,
+          hasSubscription: members.some(
+            (m) =>
+              m.stripeSubscriptionIdDugsi &&
+              m.subscriptionStatus === SubscriptionStatus.active
+          ),
+          hasChurned: members.some(
+            (m) =>
+              m.stripeSubscriptionIdDugsi &&
+              m.subscriptionStatus === SubscriptionStatus.canceled
+          ),
         }
-      )
+      })
 
       const organization = shift ? `Dugsi - ${shift}` : 'Irshad Dugsi'
       const filename = shift

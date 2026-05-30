@@ -139,7 +139,6 @@ async function main() {
       )
     }
 
-    // Charges
     console.log('\n  Recent charges (last 10):')
     const charges = await stripe.charges.list({
       customer: customer.id,
