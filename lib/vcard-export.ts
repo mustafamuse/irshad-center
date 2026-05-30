@@ -12,7 +12,7 @@ export interface VCardResult {
   content: string
   filename: string
   exported: number
-  skippedNoContact: number // per contact attempt
+  skippedNoContact: number
   skippedDuplicate: number // per contact attempt
   skippedChurned?: number // per family (not per contact)
 }

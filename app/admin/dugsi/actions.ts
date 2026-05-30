@@ -274,18 +274,6 @@ const _generateDugsiVCardContent = adminActionClient
         familyMap.set(key, list)
       }
 
-      const families: Array<{
-        members: DugsiRegistration[]
-        hasSubscription: boolean
-        hasChurned: boolean
-      }> = Array.from(familyMap.values()).map((members) => {
-        return {
-          members,
-          hasSubscription: members.some(isActiveSubscription),
-          hasChurned: members.some(isChurnedSubscription),
-        }
-      })
-
       const organization = shift ? `Dugsi - ${shift}` : 'Irshad Dugsi'
       const filename = shift
         ? `dugsi-${shift.toLowerCase()}-parent-contacts-${getDateString()}.vcf`
@@ -301,14 +289,16 @@ const _generateDugsiVCardContent = adminActionClient
       let skippedDuplicate = 0
       let skippedChurned = 0
 
-      for (const family of families) {
-        if (!includeChurned && family.hasChurned && !family.hasSubscription) {
+      for (const members of familyMap.values()) {
+        const hasSubscription = members.some(isActiveSubscription)
+        const hasChurned = members.some(isChurnedSubscription)
+        if (!includeChurned && hasChurned && !hasSubscription) {
           skippedChurned++
           continue
         }
 
-        const first = family.members[0]
-        const memberNames = family.members.map((m) => m.name)
+        const first = members[0]
+        const memberNames = members.map((m) => m.name)
 
         const addParent = (
           firstName: string | null,
@@ -317,6 +307,11 @@ const _generateDugsiVCardContent = adminActionClient
           phone: string | null,
           isIntraFamilyDuplicate: boolean
         ) => {
+          const buildFullName = (
+            f: string | null,
+            l: string | null,
+            fallback?: string
+          ) => [f, l].filter(Boolean).join(' ') || (fallback ?? '')
           const formattedPhone = formatPhoneForVCard(phone)
           const normalizedEmail = normalizeEmail(email)
           if (!formattedPhone && !normalizedEmail) {
@@ -393,9 +388,7 @@ const _generateDugsiVCardContent = adminActionClient
             if (!primaryContact.firstName && firstName) {
               primaryContact.firstName = firstName
               primaryContact.lastName = lastName || ''
-              primaryContact.fullName = [firstName, lastName]
-                .filter(Boolean)
-                .join(' ')
+              primaryContact.fullName = buildFullName(firstName, lastName)
             }
 
             if (formattedPhone) phoneToKey.set(formattedPhone, resolvedKey)
@@ -407,8 +400,7 @@ const _generateDugsiVCardContent = adminActionClient
           contactMap.set(dedupeKey, {
             firstName: firstName || '',
             lastName: lastName || '',
-            fullName:
-              [firstName, lastName].filter(Boolean).join(' ') || 'Dugsi Parent',
+            fullName: buildFullName(firstName, lastName, 'Dugsi Parent'),
             phone: formattedPhone,
             email: normalizedEmail || undefined,
             organization,
@@ -459,7 +451,7 @@ const _generateDugsiVCardContent = adminActionClient
           skippedNoContact,
           skippedDuplicate,
           skippedChurned,
-          totalFamilies: families.length,
+          totalFamilies: familyMap.size,
           includeChurned,
           shift,
         },
