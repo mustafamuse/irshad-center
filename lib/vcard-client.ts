@@ -38,7 +38,7 @@ export function handleVCardExport(
   toast.success(`${successMessage(exported)}${formatSkipSummary(result.data)}`)
 }
 
-export function downloadVCardFile(content: string, filename: string): boolean {
+function downloadVCardFile(content: string, filename: string): boolean {
   try {
     const blob = new Blob([content], { type: 'text/vcard;charset=utf-8' })
     const url = URL.createObjectURL(blob)
