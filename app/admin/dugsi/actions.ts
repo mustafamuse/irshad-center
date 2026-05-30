@@ -378,14 +378,10 @@ const _generateDugsiVCardContent = adminActionClient
                 primary.lastName = secondary.lastName
                 primary.fullName = secondary.fullName
               }
-              const phoneUpdates: Array<[string, string]> = []
               for (const [k, v] of phoneToKey)
-                if (v === secondaryKey) phoneUpdates.push([k, resolvedKey])
-              phoneUpdates.forEach(([k, v]) => phoneToKey.set(k, v))
-              const emailUpdates: Array<[string, string]> = []
+                if (v === secondaryKey) phoneToKey.set(k, resolvedKey)
               for (const [k, v] of emailToKey)
-                if (v === secondaryKey) emailUpdates.push([k, resolvedKey])
-              emailUpdates.forEach(([k, v]) => emailToKey.set(k, v))
+                if (v === secondaryKey) emailToKey.set(k, resolvedKey)
               contactMap.delete(secondaryKey)
               childSetsMap.delete(secondaryKey)
             }
@@ -399,7 +395,6 @@ const _generateDugsiVCardContent = adminActionClient
               if (ek !== undefined) mergeSecondary(ek)
             }
 
-            // Enrich the primary with any new identifier the incoming record carries
             const primaryContact = contactMap.get(resolvedKey)!
             if (formattedPhone && !primaryContact.phone)
               primaryContact.phone = formattedPhone
