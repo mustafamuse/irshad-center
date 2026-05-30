@@ -19,8 +19,6 @@ export async function runScript(
     console.error(err)
     exitCode = 1
   } finally {
-    // Run cleanup exactly once, on both paths, and never let a failing
-    // cleanup escape as an unhandled rejection or skip the exit.
     try {
       await options.cleanup?.()
     } catch (cleanupErr) {

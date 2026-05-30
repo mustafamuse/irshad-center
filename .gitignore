@@ -75,3 +75,5 @@ firebase-debug.log
 
 # Agent Orchestrator - contains model preferences and may contain secrets
 agent-orchestrator.yaml
+
+.claude/tdd-guard/
