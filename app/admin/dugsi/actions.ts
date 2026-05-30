@@ -130,7 +130,7 @@ const SubscriptionIdSchema = z.object({ subscriptionId: z.string().min(1) })
 const ParentEmailSchema = z.object({ parentEmail: z.string().email() })
 const ClassIdSchema = z.object({ classId: z.string().min(1) })
 const ShiftFilterSchema = z.object({
-  shift: z.enum(['MORNING', 'AFTERNOON']).optional(),
+  shift: z.nativeEnum(Shift).optional(),
 })
 
 const LinkSubscriptionSchema = z.object({
