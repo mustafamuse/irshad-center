@@ -249,7 +249,7 @@ const _generateDugsiVCardContent = adminActionClient
   .metadata({ actionName: 'generateDugsiVCardContent' })
   .schema(
     z.object({
-      shift: z.enum([Shift.MORNING, Shift.AFTERNOON]).optional(),
+      shift: z.nativeEnum(Shift).optional(),
       includeChurned: z.boolean().default(false),
     })
   )
@@ -426,7 +426,6 @@ const _generateDugsiVCardContent = adminActionClient
             phone: formattedPhone,
             email: normalizedEmail || undefined,
             organization: org,
-            note: '',
           })
           if (formattedPhone) phoneToKey.set(formattedPhone, dedupeKey)
           if (normalizedEmail) emailToKey.set(normalizedEmail, dedupeKey)
