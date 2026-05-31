@@ -9,9 +9,12 @@ import { runScript } from './lib/run-script'
  * have no DB record yet.
  *
  * Source of decisions: scripts/data/dugsi-reconciliation-actions.md §6 (2026-05-30).
- * Confirmed by user: register Ehsan Ismail, Abdirahim Ismail (children of teacher
- * Mohamed Hassan), and Umeyr Somane (5th Somane sibling). The three 101-Afternoon
- * names (Muneer/Malik Ismail, Anas) were dropped — "dont attend here at all".
+ * Confirmed by user: register Ehsan Ismail, Abdirahim Ismail, Abdullahi Ismail
+ * (three children of teacher Mohamed Hassan), and Umeyr Somane (5th Somane sibling).
+ * The three 101-Afternoon names (Muneer/Malik Ismail, Anas) were dropped — "dont
+ * attend here at all". Abdullahi's real name is "Abdullahi Ismail" (Mustafa
+ * 101/Morning tab); he also appears as "Abdullahi Sh Nuur" on the Islamic Studies
+ * tab — same boy.
  *
  * DRY-RUN BY DEFAULT. Pass --apply to write. Each student is created in one
  * interactive $transaction (Person -> ProgramProfile -> DugsiClassEnrollment ->
@@ -30,8 +33,10 @@ const M = Shift.MORNING
 // Existing Somane family (Ubeyd/Amaad/Emran/Aamir share this ref). Reused so
 // Umeyr attaches to his siblings rather than starting a new family group.
 const SOMANE_FAMILY_REF = '644ba1fc-2a52-4808-af59-0e87d674a785'
-// New shared family ref for the two Ismail juniors (no prior DB family row).
+// New shared family ref for the three Ismail/Hassan children (no prior DB row).
 const ISMAIL_FAMILY_REF = 'c4e8a1b2-3d6f-4a90-b8e1-2f7c9d0a5e34'
+// New shared family ref for the Yussuf children (no prior DB family row).
+const YUSSUF_FAMILY_REF = 'b7e3f1a4-2c5d-4e89-9a16-3f8d0c7b2e54'
 // Person id of teacher Mohamed Hassan — father/guardian of the Ismail juniors.
 const MOHAMED_HASSAN_PERSON_ID = '22c56cb1-c2c2-4eb2-bdcd-de8fbea448c4'
 
@@ -73,6 +78,16 @@ const REGISTRATIONS: Registration[] = [
     guardianPersonId: MOHAMED_HASSAN_PERSON_ID,
   },
   {
+    // 3rd Hassan child; "Abdullahi Sh Nuur" on the Islamic Studies tab = same boy.
+    name: 'Abdullahi Ismail',
+    dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
+    gender: Gender.MALE,
+    shift: M,
+    target: { name: '101', shift: M },
+    familyReferenceId: ISMAIL_FAMILY_REF,
+    guardianPersonId: MOHAMED_HASSAN_PERSON_ID,
+  },
+  {
     name: 'Umeyr Somane',
     dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
     gender: Gender.MALE,
@@ -80,6 +95,27 @@ const REGISTRATIONS: Registration[] = [
     target: { name: '104', shift: M },
     familyReferenceId: SOMANE_FAMILY_REF,
     // No guardian: existing Somane siblings carry no guardian link in the DB.
+  },
+  {
+    // Spelling unconfirmed: "Amira" on the 105/Morning (Ducale) tab, "Ameera" on
+    // the Islamic Studies tab — same girl. Confirm spelling at registration.
+    name: 'Amira Yussuf',
+    dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
+    gender: Gender.FEMALE,
+    shift: M,
+    target: { name: '105', shift: M },
+    familyReferenceId: YUSSUF_FAMILY_REF,
+    // No guardian on file yet.
+  },
+  {
+    // Amira's sibling; only on the Islamic Studies tab — user confirmed 101/Morning.
+    name: 'Ammaar Yussuf',
+    dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
+    gender: Gender.MALE,
+    shift: M,
+    target: { name: '101', shift: M },
+    familyReferenceId: YUSSUF_FAMILY_REF,
+    // No guardian on file yet.
   },
 ]
 

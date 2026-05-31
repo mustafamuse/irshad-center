@@ -59,6 +59,8 @@ const PLACEMENTS: Placement[] = [
   { name: 'Farhiya Mohamed', target: { name: '102', shift: A }, mode: 'place' },
   // correction: move 101/Morning → 101/Afternoon
   { name: 'Mohammad Mohammad', target: { name: '101', shift: A }, mode: 'move', fromClass: { name: '101', shift: M } },
+  // correction: "Adil" on Mohamed tab = Adil Shimoye; move 104/Morning → 103/Morning
+  { name: 'Adil Shimoye', dobHint: '2017-12-11', target: { name: '103', shift: M }, mode: 'move', fromClass: { name: '104', shift: M } },
 ]
 
 const APPLY = process.argv.includes('--apply')
