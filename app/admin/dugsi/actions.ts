@@ -3,7 +3,7 @@
 import { revalidatePath, revalidateTag } from 'next/cache'
 import { after } from 'next/server'
 
-import { GradeLevel, Prisma, Shift } from '@prisma/client'
+import { GradeLevel, Prisma, Shift, SubscriptionStatus } from '@prisma/client'
 import { z } from 'zod'
 
 import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
@@ -310,7 +310,18 @@ const _generateDugsiVCardContent = adminActionClient
       for (const members of familyMap.values()) {
         const hasSubscription = members.some(isActiveDugsiRegistration)
         const hasChurned = members.some(isChurnedDugsiRegistration)
-        if (!includeChurned && hasChurned && !hasSubscription) {
+        const hasRecoverable = members.some(
+          (m) =>
+            !!m.stripeSubscriptionIdDugsi &&
+            (m.subscriptionStatus === SubscriptionStatus.past_due ||
+              m.subscriptionStatus === SubscriptionStatus.unpaid)
+        )
+        if (
+          !includeChurned &&
+          hasChurned &&
+          !hasSubscription &&
+          !hasRecoverable
+        ) {
           skippedChurned++
           continue
         }

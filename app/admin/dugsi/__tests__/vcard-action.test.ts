@@ -266,6 +266,28 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.skippedChurned).toBe(0)
   })
 
+  it('mixed canceled + past_due family exports (past_due sibling recoverable)', async () => {
+    const regCanceled = makeReg({
+      id: 'reg-1',
+      name: 'Child One',
+      familyReferenceId: 'fam-mixed',
+      stripeSubscriptionIdDugsi: 'sub_canceled',
+      subscriptionStatus: SubscriptionStatus.canceled,
+    })
+    const regPastDue = makeReg({
+      id: 'reg-2',
+      name: 'Child Two',
+      familyReferenceId: 'fam-mixed',
+      stripeSubscriptionIdDugsi: 'sub_past_due',
+      subscriptionStatus: SubscriptionStatus.past_due,
+    })
+    mockGetAllDugsiRegistrations.mockResolvedValue([regCanceled, regPastDue])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedChurned).toBe(0)
+  })
+
   it('filename includes shift when scoped', async () => {
     mockGetAllDugsiRegistrations.mockResolvedValue([makeReg()])
 
