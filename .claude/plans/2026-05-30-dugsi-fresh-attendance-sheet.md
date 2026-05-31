@@ -24,27 +24,29 @@ in the new teacher-named classes and accurate rosters in one pass.
 - **Content:** blank attendance template — correct rosters + the same column headers as
   the current sheet, with attendance marks left empty.
 - **Timing:** run AFTER the 6 pending registrations exist (so the new students appear).
-- **Tabs:** one tab per class+shift (mirrors the DB exactly), named `<Teacher> (AM|PM)`.
+- **Tabs:** one tab per class+shift (mirrors the DB exactly), named by the teacher's
+  FIRST name + shift, e.g. `Mustafa (AM)`. (First names are unique across Dugsi teachers,
+  so the shift suffix is enough to disambiguate the two shared-teacher classes.)
+- **Islamic Studies (Hamza Hassan): SKIP** for now — not generated.
 
 ## Tabs to generate (from active DugsiClass + DugsiClassEnrollment)
 
-| Tab title | DB class / shift | Roster source |
+| Tab title | DB class (name / shift) | Roster source |
 |---|---|---|
-| Mustafa Awil (AM) | Mustafa Awil / MORNING | active enrollments |
-| Mustafa Awil (PM) | Mustafa Awil / AFTERNOON | active enrollments |
-| Mohamed Ali-Daar (AM) | Mohamed Ali-Daar / MORNING | active enrollments |
-| Mohamed Ali-Daar (PM) | Mohamed Ali-Daar / AFTERNOON | active enrollments |
-| Abdiwahab Haibah (AM) | Abdiwahab Haibah / MORNING | active enrollments |
-| Ducale Matan (AM) | Ducale Matan / MORNING | active enrollments |
-| Suraya Mohamed (PM) | Suraya Mohamed / AFTERNOON | active enrollments |
+| Mustafa (AM) | Mustafa Awil / MORNING | active enrollments |
+| Mustafa (PM) | Mustafa Awil / AFTERNOON | active enrollments |
+| Mohamed (AM) | Mohamed Ali-Daar / MORNING | active enrollments |
+| Mohamed (PM) | Mohamed Ali-Daar / AFTERNOON | active enrollments |
+| Abdiwahab (AM) | Abdiwahab Haibah / MORNING | active enrollments |
+| Ducale (AM) | Ducale Matan / MORNING | active enrollments |
+| Suraya (PM) | Suraya Mohamed / AFTERNOON | active enrollments |
 
 Counts must match the DB at run time (today: 31/7/20/18/22/23/11 = 132, plus the 6 new
-registrations once applied).
+registrations once applied). The DB class `name` stays the full teacher name; only the
+generated TAB TITLE is shortened to the first name + shift.
 
-**Islamic Studies (Hamza Hassan)** is an OPEN ITEM: it's a cross-class overlay with 0
-`DugsiClassEnrollment` rows (its attendees are enrolled in their regular class), so its
-roster is NOT derivable from the DB. Either skip this tab, or populate it from the old
-sheet's Islamic Studies list — decide before building.
+**Islamic Studies (Hamza Hassan): skipped** this round (it's a cross-class overlay with 0
+`DugsiClassEnrollment` rows, so no DB-derivable roster). Revisit later if needed.
 
 ## Approach
 
@@ -71,8 +73,8 @@ sheet's Islamic Studies list — decide before building.
 
 ## Acceptance criteria (verifiable)
 
-1. Dry-run lists the 7 class tabs (+ the Islamic Studies decision) with per-tab roster
-   names and counts that match active `DugsiClassEnrollment` per class.
+1. Dry-run lists the 7 class tabs (Islamic Studies excluded) with per-tab roster names and
+   counts that match active `DugsiClassEnrollment` per class.
 2. `--apply` creates exactly one new spreadsheet containing those tabs; prints its URL.
 3. Each tab's column A holds that class's canonical roster (matches DB count + names,
    including the 6 newly-registered students); attendance columns are blank.
@@ -94,7 +96,6 @@ GOOGLE_ACCESS_TOKEN=$(python3 $GWS_AUTH) \
 
 ## Open decisions before implementing
 
-- Islamic Studies tab: skip, or seed from the old sheet's IS list?
 - Roster sort order: alphabetical vs by age vs by shift-then-name.
 - Workbook title + whether date columns should be pre-seeded (e.g. term start) or blank.
 - Who the new sheet is shared with (owner handles, or script attempts a share?).
