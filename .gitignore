@@ -77,3 +77,4 @@ firebase-debug.log
 agent-orchestrator.yaml
 
 .claude/tdd-guard/
+.claude/plans/
