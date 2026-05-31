@@ -36,37 +36,39 @@ export const TAB_MAPPINGS: readonly TabMapping[] = [
   {
     tab: 'Mustafa [Morning]',
     teacherName: 'Mustafa Awil',
-    dbClass: { name: '101', shift: Shift.MORNING },
+    dbClass: { name: 'Mustafa Awil', shift: Shift.MORNING },
     mode: 'class',
   },
   {
     tab: 'Ducale [Morning]',
     teacherName: 'Ducale Matan',
-    dbClass: { name: '105', shift: Shift.MORNING },
+    dbClass: { name: 'Ducale Matan', shift: Shift.MORNING },
     mode: 'class',
   },
   {
     tab: 'Mohamed [Morning]',
     teacherName: 'Mohamed Ali-Daar',
-    dbClass: { name: '103', shift: Shift.MORNING },
+    dbClass: { name: 'Mohamed Ali-Daar', shift: Shift.MORNING },
     mode: 'class',
   },
   {
     tab: 'Abdiwahab [Morning]',
     teacherName: 'Abdiwahab Haibah',
-    dbClass: { name: '104', shift: Shift.MORNING },
+    dbClass: { name: 'Abdiwahab Haibah', shift: Shift.MORNING },
     mode: 'class',
   },
   {
     tab: 'Suraya [Afternoon]',
     teacherName: 'Suraya Mohamed',
-    dbClass: { name: '102', shift: Shift.AFTERNOON },
+    dbClass: { name: 'Suraya Mohamed', shift: Shift.AFTERNOON },
     mode: 'class',
   },
   {
+    // Sheet tab is still labeled "Abdirahim", but he no longer teaches; the
+    // class is now taught by (and named after) Mohamed Ali-Daar.
     tab: 'Abdirahim [Afternooon]',
-    teacherName: 'Abdirahim Haibah',
-    dbClass: { name: '103', shift: Shift.AFTERNOON },
+    teacherName: 'Mohamed Ali-Daar',
+    dbClass: { name: 'Mohamed Ali-Daar', shift: Shift.AFTERNOON },
     mode: 'class',
   },
   {
@@ -74,7 +76,7 @@ export const TAB_MAPPINGS: readonly TabMapping[] = [
     // existing 101/Afternoon class taught by Mustafa Awil (confirmed 2026-05-30).
     tab: 'Zaki [Afternoon]',
     teacherName: 'Mustafa Awil',
-    dbClass: { name: '101', shift: Shift.AFTERNOON },
+    dbClass: { name: 'Mustafa Awil', shift: Shift.AFTERNOON },
     mode: 'class',
   },
   {

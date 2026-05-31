@@ -64,7 +64,7 @@ const REGISTRATIONS: Registration[] = [
     dob: '2013-11-18',
     gender: Gender.MALE,
     shift: M,
-    target: { name: '105', shift: M },
+    target: { name: 'Ducale Matan', shift: M },
     familyReferenceId: ISMAIL_FAMILY_REF,
     guardianPersonId: MOHAMED_HASSAN_PERSON_ID,
   },
@@ -73,7 +73,7 @@ const REGISTRATIONS: Registration[] = [
     dob: '2016-10-09',
     gender: Gender.MALE,
     shift: M,
-    target: { name: '103', shift: M },
+    target: { name: 'Mohamed Ali-Daar', shift: M },
     familyReferenceId: ISMAIL_FAMILY_REF,
     guardianPersonId: MOHAMED_HASSAN_PERSON_ID,
   },
@@ -83,7 +83,7 @@ const REGISTRATIONS: Registration[] = [
     dob: '2011-03-10',
     gender: Gender.MALE,
     shift: M,
-    target: { name: '101', shift: M },
+    target: { name: 'Mustafa Awil', shift: M },
     familyReferenceId: ISMAIL_FAMILY_REF,
     guardianPersonId: MOHAMED_HASSAN_PERSON_ID,
   },
@@ -92,7 +92,7 @@ const REGISTRATIONS: Registration[] = [
     dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
     gender: Gender.MALE,
     shift: M,
-    target: { name: '104', shift: M },
+    target: { name: 'Abdiwahab Haibah', shift: M },
     familyReferenceId: SOMANE_FAMILY_REF,
     // No guardian: existing Somane siblings carry no guardian link in the DB.
   },
@@ -103,7 +103,7 @@ const REGISTRATIONS: Registration[] = [
     dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
     gender: Gender.FEMALE,
     shift: M,
-    target: { name: '105', shift: M },
+    target: { name: 'Ducale Matan', shift: M },
     familyReferenceId: YUSSUF_FAMILY_REF,
     // No guardian on file yet.
   },
@@ -113,7 +113,7 @@ const REGISTRATIONS: Registration[] = [
     dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
     gender: Gender.MALE,
     shift: M,
-    target: { name: '101', shift: M },
+    target: { name: 'Mustafa Awil', shift: M },
     familyReferenceId: YUSSUF_FAMILY_REF,
     // No guardian on file yet.
   },

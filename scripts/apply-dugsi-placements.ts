@@ -30,37 +30,37 @@ const A = Shift.AFTERNOON
 
 const PLACEMENTS: Placement[] = [
   // → 101/Morning (Mustafa Awil)
-  { name: 'Hirsi Omar', target: { name: '101', shift: M }, mode: 'move', fromClass: { name: '[A.M] Khalid/Abdirahim', shift: M } },
-  { name: 'Khalid Abdirahman', target: { name: '101', shift: M }, mode: 'place' },
-  { name: 'Abdifatah Abdirahman', target: { name: '101', shift: M }, mode: 'place' },
-  { name: 'Ibrahim Ibrahim', target: { name: '101', shift: M }, mode: 'place' },
-  { name: 'Ahmed Ali', target: { name: '101', shift: M }, mode: 'place' },
+  { name: 'Hirsi Omar', target: { name: 'Mustafa Awil', shift: M }, mode: 'move', fromClass: { name: '[A.M] Khalid/Abdirahim', shift: M } },
+  { name: 'Khalid Abdirahman', target: { name: 'Mustafa Awil', shift: M }, mode: 'place' },
+  { name: 'Abdifatah Abdirahman', target: { name: 'Mustafa Awil', shift: M }, mode: 'place' },
+  { name: 'Ibrahim Ibrahim', target: { name: 'Mustafa Awil', shift: M }, mode: 'place' },
+  { name: 'Ahmed Ali', target: { name: 'Mustafa Awil', shift: M }, mode: 'place' },
   // → 105/Morning (Ducale Matan)
-  { name: 'Adnah Ali', target: { name: '105', shift: M }, mode: 'place' },
-  { name: 'Rayan Abdi', target: { name: '105', shift: M }, mode: 'place' },
-  { name: 'Ikran Abdi', target: { name: '105', shift: M }, mode: 'place' },
-  { name: 'Zainab Hajijama', target: { name: '105', shift: M }, mode: 'place' },
-  { name: 'Sahraa Hajijama', target: { name: '105', shift: M }, mode: 'place' },
-  { name: 'Suheila Ali', target: { name: '105', shift: M }, mode: 'place' },
+  { name: 'Adnah Ali', target: { name: 'Ducale Matan', shift: M }, mode: 'place' },
+  { name: 'Rayan Abdi', target: { name: 'Ducale Matan', shift: M }, mode: 'place' },
+  { name: 'Ikran Abdi', target: { name: 'Ducale Matan', shift: M }, mode: 'place' },
+  { name: 'Zainab Hajijama', target: { name: 'Ducale Matan', shift: M }, mode: 'place' },
+  { name: 'Sahraa Hajijama', target: { name: 'Ducale Matan', shift: M }, mode: 'place' },
+  { name: 'Suheila Ali', target: { name: 'Ducale Matan', shift: M }, mode: 'place' },
   // → 103/Morning (Mohamed Ali-Daar)
-  { name: 'Bashir Bashir', target: { name: '103', shift: M }, mode: 'place' },
-  { name: 'Khalid Abdi', target: { name: '103', shift: M }, mode: 'place' },
+  { name: 'Bashir Bashir', target: { name: 'Mohamed Ali-Daar', shift: M }, mode: 'place' },
+  { name: 'Khalid Abdi', target: { name: 'Mohamed Ali-Daar', shift: M }, mode: 'place' },
   // paying-but-unplaced (not on any sheet); user: both in Mohamed's class
-  { name: 'Ayan Ibrahim', dobHint: '2018-09-15', target: { name: '103', shift: M }, mode: 'place' },
-  { name: 'Rayann Mohamed', dobHint: '2016-07-19', target: { name: '103', shift: M }, mode: 'place' },
+  { name: 'Ayan Ibrahim', dobHint: '2018-09-15', target: { name: 'Mohamed Ali-Daar', shift: M }, mode: 'place' },
+  { name: 'Rayann Mohamed', dobHint: '2016-07-19', target: { name: 'Mohamed Ali-Daar', shift: M }, mode: 'place' },
   // → 104/Morning (Abdiwahab Haibah)
-  { name: 'Bilan Abdirahman', target: { name: '104', shift: M }, mode: 'place' },
-  { name: 'Amiira Alim', target: { name: '104', shift: M }, mode: 'place' },
-  { name: 'Ismail Ibrahim', target: { name: '104', shift: M }, mode: 'place' },
-  { name: 'Khalid Ibrahim', dobHint: '2019-06-02', target: { name: '104', shift: M }, mode: 'place' },
+  { name: 'Bilan Abdirahman', target: { name: 'Abdiwahab Haibah', shift: M }, mode: 'place' },
+  { name: 'Amiira Alim', target: { name: 'Abdiwahab Haibah', shift: M }, mode: 'place' },
+  { name: 'Ismail Ibrahim', target: { name: 'Abdiwahab Haibah', shift: M }, mode: 'place' },
+  { name: 'Khalid Ibrahim', dobHint: '2019-06-02', target: { name: 'Abdiwahab Haibah', shift: M }, mode: 'place' },
   // → 102/Afternoon (Suraya Mohamed)
-  { name: 'Aisha Osman', target: { name: '102', shift: A }, mode: 'place' },
-  { name: 'Samia Aden', target: { name: '102', shift: A }, mode: 'place' },
-  { name: 'Farhiya Mohamed', target: { name: '102', shift: A }, mode: 'place' },
+  { name: 'Aisha Osman', target: { name: 'Suraya Mohamed', shift: A }, mode: 'place' },
+  { name: 'Samia Aden', target: { name: 'Suraya Mohamed', shift: A }, mode: 'place' },
+  { name: 'Farhiya Mohamed', target: { name: 'Suraya Mohamed', shift: A }, mode: 'place' },
   // correction: move 101/Morning → 101/Afternoon
-  { name: 'Mohammad Mohammad', target: { name: '101', shift: A }, mode: 'move', fromClass: { name: '101', shift: M } },
+  { name: 'Mohammad Mohammad', target: { name: 'Mustafa Awil', shift: A }, mode: 'move', fromClass: { name: 'Mustafa Awil', shift: M } },
   // correction: "Adil" on Mohamed tab = Adil Shimoye; move 104/Morning → 103/Morning
-  { name: 'Adil Shimoye', dobHint: '2017-12-11', target: { name: '103', shift: M }, mode: 'move', fromClass: { name: '104', shift: M } },
+  { name: 'Adil Shimoye', dobHint: '2017-12-11', target: { name: 'Mohamed Ali-Daar', shift: M }, mode: 'move', fromClass: { name: 'Abdiwahab Haibah', shift: M } },
 ]
 
 const APPLY = process.argv.includes('--apply')
