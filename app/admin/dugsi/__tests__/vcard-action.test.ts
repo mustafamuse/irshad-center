@@ -1,7 +1,7 @@
 import { SubscriptionStatus } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
-import { createAdminActionClientMock } from '../../_test-utils/admin-action-client-mock'
+import { createAdminActionClientMock } from '@/app/admin/_test-utils/admin-action-client-mock'
 
 const { mockGetAllDugsiRegistrations, mockLoggerInfo } = vi.hoisted(() => ({
   mockGetAllDugsiRegistrations: vi.fn(),
@@ -252,6 +252,20 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.exported).toBe(1)
   })
 
+  it('past_due families export by default (not treated as churned)', async () => {
+    const reg = makeReg({
+      id: 'reg-1',
+      name: 'Child One',
+      stripeSubscriptionIdDugsi: 'sub_1',
+      subscriptionStatus: SubscriptionStatus.past_due,
+    })
+    mockGetAllDugsiRegistrations.mockResolvedValue([reg])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedChurned).toBe(0)
+  })
+
   it('filename includes shift when scoped', async () => {
     mockGetAllDugsiRegistrations.mockResolvedValue([makeReg()])
 
@@ -459,7 +473,9 @@ describe('generateDugsiVCardContent', () => {
     expect(result?.data?.skippedDuplicate).toBe(2)
     const note = result?.data?.content ?? ''
     expect(vcardCount(note)).toBe(1)
-    expect(note).toMatch(/NOTE:Children: .*Child Alpha.*Child Beta.*Child Gamma/)
+    expect(note).toMatch(
+      /NOTE:Children: .*Child Alpha.*Child Beta.*Child Gamma/
+    )
   })
 
   it('3-family dedup resolves correctly regardless of ordering (A→C→B)', async () => {
@@ -501,6 +517,39 @@ describe('generateDugsiVCardContent', () => {
     // merged contact must carry both identifiers from the absorbed records
     expect(content).toContain('+16125559999')
     expect(content).toContain('shared@example.com')
+  })
+
+  it('bridge-first ordering (B→A→C) resolves to one contact', async () => {
+    const regB = makeReg({
+      id: 'reg-b',
+      name: 'Child Beta',
+      familyReferenceId: 'fam-B',
+      parentEmail: 'shared@example.com',
+      parentPhone: '6125559999',
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    const regA = makeReg({
+      id: 'reg-a',
+      name: 'Child Alpha',
+      familyReferenceId: 'fam-A',
+      parentEmail: null,
+      parentPhone: '6125559999',
+    })
+    const regC = makeReg({
+      id: 'reg-c',
+      name: 'Child Gamma',
+      familyReferenceId: 'fam-C',
+      parentEmail: 'shared@example.com',
+      parentPhone: null,
+      parent2Email: null,
+      parent2Phone: null,
+    })
+    mockGetAllDugsiRegistrations.mockResolvedValue([regB, regA, regC])
+
+    const result = await generateDugsiVCardContent({})
+    expect(result?.data?.exported).toBe(1)
+    expect(result?.data?.skippedDuplicate).toBe(2)
   })
 
   it('bridge merge preserves real name over Dugsi Parent fallback', async () => {

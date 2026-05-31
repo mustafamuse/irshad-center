@@ -35,6 +35,8 @@ export const isActiveDugsiRegistration = (
   !!member.stripeSubscriptionIdDugsi &&
   member.subscriptionStatus === SubscriptionStatus.active
 
+// Only canceled is treated as definitively churned. past_due/unpaid families
+// are still in Stripe's retry cycle and may recover — they always export.
 export const isChurnedDugsiRegistration = (
   member: SubscriptionFields
 ): boolean =>

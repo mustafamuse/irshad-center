@@ -1,9 +1,8 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
+import { createAdminActionClientMock } from '@/app/admin/_test-utils/admin-action-client-mock'
 import type { MahadStudent } from '@/lib/db/queries/student'
 import { StudentStatus } from '@/lib/types/student'
-
-import { createAdminActionClientMock } from '../../_test-utils/admin-action-client-mock'
 
 const { mockGetStudents, mockGetStudentsByBatch, mockLoggerInfo } = vi.hoisted(
   () => ({
