@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   escapeVCardValue,
   formatPhoneForVCard,
+  formatSkipSummary,
   generateVCard,
   generateVCardsContent,
   getDateString,
@@ -179,6 +180,68 @@ describe('generateVCardsContent', () => {
 
   it('should return empty string for empty array', () => {
     expect(generateVCardsContent([])).toBe('')
+  })
+})
+
+describe('formatSkipSummary', () => {
+  it('returns empty string when all counts are zero', () => {
+    expect(
+      formatSkipSummary({
+        skippedNoContact: 0,
+        skippedDuplicate: 0,
+        skippedChurned: 0,
+      })
+    ).toBe('')
+  })
+
+  it('renders only the no-contact bucket', () => {
+    expect(
+      formatSkipSummary({
+        skippedNoContact: 2,
+        skippedDuplicate: 0,
+        skippedChurned: 0,
+      })
+    ).toBe(' (2 no-contact)')
+  })
+
+  it('renders only the deduped bucket', () => {
+    expect(
+      formatSkipSummary({
+        skippedNoContact: 0,
+        skippedDuplicate: 3,
+        skippedChurned: 0,
+      })
+    ).toBe(' (3 deduped)')
+  })
+
+  it('renders only the churned bucket', () => {
+    expect(
+      formatSkipSummary({
+        skippedNoContact: 0,
+        skippedDuplicate: 0,
+        skippedChurned: 4,
+      })
+    ).toBe(' (4 churned fam.)')
+  })
+
+  it('joins all three buckets in order', () => {
+    expect(
+      formatSkipSummary({
+        skippedNoContact: 1,
+        skippedDuplicate: 2,
+        skippedChurned: 3,
+      })
+    ).toBe(' (1 no-contact, 2 deduped, 3 churned fam.)')
+  })
+
+  it('omits the churned segment when skippedChurned is undefined (Mahad)', () => {
+    expect(
+      formatSkipSummary({
+        skippedNoContact: 1,
+        skippedDuplicate: 1,
+        skippedChurned: undefined,
+      })
+    ).toBe(' (1 no-contact, 1 deduped)')
   })
 })
 

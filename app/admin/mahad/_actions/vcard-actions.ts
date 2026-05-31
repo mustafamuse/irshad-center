@@ -3,6 +3,7 @@
 import { z } from 'zod'
 
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
+import { createServiceLogger } from '@/lib/logger'
 import { adminActionClient } from '@/lib/safe-action'
 import {
   formatPhoneForVCard,
@@ -11,6 +12,8 @@ import {
   VCardContact,
   VCardResult,
 } from '@/lib/vcard-export'
+
+const logger = createServiceLogger('mahad-admin-actions')
 
 const _generateMahadVCardContent = adminActionClient
   .metadata({ actionName: 'generateMahadVCardContent' })
@@ -22,14 +25,14 @@ const _generateMahadVCardContent = adminActionClient
       : await getStudents()
 
     const contacts: VCardContact[] = []
-    let skipped = 0
+    let skippedNoContact = 0
 
     for (const student of students) {
       const phone = formatPhoneForVCard(student.phone)
       const email = student.email || undefined
 
       if (!phone && !email) {
-        skipped++
+        skippedNoContact++
         continue
       }
 
@@ -56,11 +59,20 @@ const _generateMahadVCardContent = adminActionClient
       filename = `mahad-all-contacts-${getDateString()}.vcf`
     }
 
+    logger.info(
+      {
+        exported: contacts.length,
+        skippedNoContact,
+        batchId,
+      },
+      'Mahad contacts exported'
+    )
+
     return {
       content: generateVCardsContent(contacts),
       filename,
       exported: contacts.length,
-      skipped,
+      skippedNoContact,
     }
   })
 

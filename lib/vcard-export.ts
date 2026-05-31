@@ -12,7 +12,30 @@ export interface VCardResult {
   content: string
   filename: string
   exported: number
-  skipped: number
+  skippedNoContact: number
+  skippedDuplicate?: number // per contact attempt
+  skippedChurned?: number // per family (not per contact)
+}
+
+export function formatSkipSummary(
+  result: Pick<
+    VCardResult,
+    'skippedNoContact' | 'skippedDuplicate' | 'skippedChurned'
+  >
+): string {
+  const { skippedNoContact, skippedDuplicate, skippedChurned } = result
+  const parts = [
+    skippedNoContact > 0 && `${skippedNoContact} no-contact`,
+    skippedDuplicate !== undefined &&
+      skippedDuplicate > 0 &&
+      `${skippedDuplicate} deduped`,
+    skippedChurned !== undefined &&
+      skippedChurned > 0 &&
+      `${skippedChurned} churned fam.`,
+  ]
+    .filter(Boolean)
+    .join(', ')
+  return parts ? ` (${parts})` : ''
 }
 
 export function escapeVCardValue(value: string): string {
