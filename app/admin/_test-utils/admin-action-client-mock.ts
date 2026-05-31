@@ -1,5 +1,7 @@
 import type { z } from 'zod'
 
+import { ActionError } from '@/lib/errors/action-error'
+
 type ActionHandler = (args: { parsedInput: unknown }) => Promise<unknown>
 type NoInputHandler = () => Promise<unknown>
 
@@ -26,8 +28,8 @@ export function createAdminActionClientMock(): AdminActionClientMock {
           const data = await handler({ parsedInput: parsed.data })
           return { data }
         } catch (error) {
-          const { ActionError } = await import('@/lib/errors/action-error')
-          if (error instanceof ActionError) return { serverError: error.message }
+          if (error instanceof ActionError)
+            return { serverError: error.message }
           return { serverError: 'Something went wrong' }
         }
       },
@@ -37,7 +39,6 @@ export function createAdminActionClientMock(): AdminActionClientMock {
         const data = await handler()
         return { data }
       } catch (error) {
-        const { ActionError } = await import('@/lib/errors/action-error')
         if (error instanceof ActionError) return { serverError: error.message }
         return { serverError: 'Something went wrong' }
       }
