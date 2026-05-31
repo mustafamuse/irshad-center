@@ -61,7 +61,7 @@ type Registration = z.infer<typeof RegistrationSchema>
 const REGISTRATIONS: Registration[] = [
   {
     name: 'Ehsan Ismail',
-    dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
+    dob: '2013-11-18',
     gender: Gender.MALE,
     shift: M,
     target: { name: '105', shift: M },
@@ -70,7 +70,7 @@ const REGISTRATIONS: Registration[] = [
   },
   {
     name: 'Abdirahim Ismail',
-    dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
+    dob: '2016-10-09',
     gender: Gender.MALE,
     shift: M,
     target: { name: '103', shift: M },
@@ -80,7 +80,7 @@ const REGISTRATIONS: Registration[] = [
   {
     // 3rd Hassan child; "Abdullahi Sh Nuur" on the Islamic Studies tab = same boy.
     name: 'Abdullahi Ismail',
-    dob: null, // TODO: fill 'YYYY-MM-DD' before --apply
+    dob: '2011-03-10',
     gender: Gender.MALE,
     shift: M,
     target: { name: '101', shift: M },
