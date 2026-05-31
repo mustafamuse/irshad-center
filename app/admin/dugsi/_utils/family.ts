@@ -11,29 +11,10 @@ import { formatFullName } from '@/lib/utils/formatters'
 import { DugsiRegistration, Family, FamilyStatus } from '../_types'
 
 /**
- * Get family key from registration - SINGLE SOURCE OF TRUTH for family identification.
- * Priority: familyReferenceId > parentEmail > id
- *
- * This function defines how families are grouped throughout the application:
- *
- * **How it works:**
- * 1. If `familyReferenceId` exists, all students with the same ID are one family
- * 2. If no `familyReferenceId`, students with the same `parentEmail` are one family
- * 3. If neither exists, each student is their own family (fallback to `id`)
- *
- * **Aligned server actions:**
- * - `getFamilyMembers()` - Uses this exact logic to fetch family members
- * - `deleteDugsiFamily()` - Uses this exact logic to determine what to delete
- * - `getDeleteFamilyPreview()` - Uses this exact logic to show delete preview
- *
- * **Why this matters:**
- * This ensures UI-database consistency. When you see a family in the UI,
- * any operation (delete, update) will affect exactly those students shown.
- * No hidden surprises, no accidental data loss.
- *
- * @see groupRegistrationsByFamily - Uses this function for UI grouping
- * @see getFamilyMembers - Server action that mirrors this logic
- * @see deleteDugsiFamily - Server action that mirrors this logic
+ * Family key for UI grouping and delete/update server actions only.
+ * Priority: familyReferenceId > parentEmail > id.
+ * The vCard export uses a superset key (adds phone fallback + email normalization).
+ * Do not replace the inline vCard key with a call here.
  */
 export function getFamilyKey(registration: DugsiRegistration): string {
   return (
