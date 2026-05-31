@@ -25,7 +25,8 @@ export function handleVCardExport(
 
   const { content, filename, exported } = result.data
   if (exported === 0) {
-    toast.error(emptyMessage)
+    const skipSummary = formatSkipSummary(result.data)
+    toast.error(skipSummary ? `No contacts exported${skipSummary}` : emptyMessage)
     return
   }
 

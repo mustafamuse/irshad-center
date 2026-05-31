@@ -89,10 +89,6 @@ import {
   consolidateSubscriptionInputSchema,
 } from './_schemas/dialog-schemas'
 import {
-  isActiveDugsiRegistration,
-  isChurnedDugsiRegistration,
-} from './_utils/family'
-import {
   SubscriptionValidationData,
   PaymentStatusData,
   BankVerificationData,
@@ -103,6 +99,10 @@ import {
   StripePaymentHistoryItem,
   UnassignedStudent,
 } from './_types'
+import {
+  isActiveDugsiRegistration,
+  isChurnedDugsiRegistration,
+} from './_utils/family'
 
 const logger = createServiceLogger('dugsi-admin-actions')
 
@@ -315,6 +315,7 @@ const _generateDugsiVCardContent = adminActionClient
         }
 
         const first = members[0]
+        if (!first) continue
         const memberNames = members.map((m) => m.name)
 
         const addParent = (
