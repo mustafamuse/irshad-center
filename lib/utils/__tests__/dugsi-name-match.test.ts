@@ -85,6 +85,44 @@ describe('compareNames', () => {
   })
 })
 
+describe('real-world reconciliation regressions (2026-05-30)', () => {
+  // These pairs were confirmed same/different by the program owner. The ones the
+  // matcher refuses are exactly why scripts/config CONFIRMED_ALIASES exists — the
+  // matcher must stay conservative and NOT learn to merge them via fuzzy logic.
+
+  it('does NOT auto-match same first name with different father name (Adan Gelle vs Adan Ogle)', () => {
+    // Same child per the owner, but only knowable by human confirmation.
+    const cmp = compareNames('Adan Gelle', 'Adan Ogle')
+    expect(isAutoMatch(cmp.confidence)).toBe(false)
+  })
+
+  it('does NOT auto-match a single-token name to a fuller name (Adil vs Adil Shimoye)', () => {
+    const cmp = compareNames('Adil', 'Adil Shimoye')
+    expect(isAutoMatch(cmp.confidence)).toBe(false)
+  })
+
+  it('keeps distinct students with a shared given name apart (Ayan Abdirazak vs Ayan Ibrahim)', () => {
+    const cmp = compareNames('Ayan Abdirazak', 'Ayan Ibrahim')
+    expect(isAutoMatch(cmp.confidence)).toBe(false)
+  })
+
+  it('keeps distinct students with a shared father name apart (Muntaha Ismail vs Ismail Ibrahim)', () => {
+    const cmp = compareNames('Muntaha Ismail', 'Ismail Ibrahim')
+    expect(isAutoMatch(cmp.confidence)).toBe(false)
+  })
+
+  it('does NOT confuse a new student with a near-named sibling (Umeyr Somane vs Ubeyd Somane)', () => {
+    const cmp = compareNames('Umeyr Somane', 'Ubeyd Somane')
+    expect(isAutoMatch(cmp.confidence)).toBe(false)
+  })
+
+  it('does NOT auto-match the Muhumed/Mohomed transliteration (too far for fuzzy)', () => {
+    // "Walid Muhumed" vs "Walid Mohomed" are the same child per the owner, but the
+    // edit distance is beyond the conservative threshold — hence a CONFIRMED_ALIAS.
+    expect(isAutoMatch(compareNames('Walid Muhumed', 'Walid Mohomed').confidence)).toBe(false)
+  })
+})
+
 describe('matchName', () => {
   const roster = ['Ismail Sheikhali', 'Ismail Hassan', 'Hamse Abdi', 'Anas']
 

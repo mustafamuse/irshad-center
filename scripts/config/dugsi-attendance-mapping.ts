@@ -85,6 +85,31 @@ export const TAB_MAPPINGS: readonly TabMapping[] = [
   },
 ] as const
 
+/**
+ * Human-confirmed same-student aliases: attendance-sheet name → canonical DB name.
+ *
+ * These were verified one-by-one with the program owner during the 2026-05-30
+ * reconciliation. They are deliberately NOT folded into the fuzzy matcher — the
+ * matcher stays conservative and (correctly) refuses to auto-merge names with
+ * different father-name tokens (e.g. "Adan Gelle" vs "Adan Ogle"). The override
+ * lives here so reconcile re-runs resolve these directly instead of re-surfacing
+ * them as "needs review" every time.
+ *
+ * Only include pairs whose DB target ALREADY EXISTS. Pending-registration names
+ * (e.g. "Abdullahi Sh Nuur" → Abdullahi Ismail) are added after they're created.
+ */
+export const CONFIRMED_ALIASES: Readonly<Record<string, string>> = {
+  'Suhayla Ali': 'Suheila Ali',
+  'Affifa Shimoyali': 'Affifa Shimoye',
+  'Walid Muhumed': 'Walid Mohomed',
+  'Warda Muhumed': 'Warda Mohomed',
+  'Mohamed-Amin': 'Mohamedamin Mohamed',
+  'Ismail Sheikhali': 'Ismail Shiekh Ali',
+  'Adan Gelle': 'Adan Ogle',
+  Adil: 'Adil Shimoye',
+  'Mohamed Mohamed': 'Mohammad Mohammad', // now enrolled in 101/Afternoon
+}
+
 /** Tabs intentionally excluded from reconciliation. */
 export const IGNORED_TABS: readonly string[] = ['Recomended For Weekday']
 

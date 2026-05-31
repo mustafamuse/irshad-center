@@ -6,10 +6,12 @@ import { prisma } from '@/lib/db'
 import {
   isAutoMatch,
   matchName,
+  normalizeName,
   type MatchConfidence,
 } from '@/lib/utils/dugsi-name-match'
 
 import {
+  CONFIRMED_ALIASES,
   RECONCILE_REPORT_PATH,
   ROSTER_SNAPSHOT_PATH,
   TAB_MAPPINGS,
@@ -123,6 +125,37 @@ function reconcileTab(
   const matchedProfileIds = new Set<string>()
 
   for (const sheetName of sheetStudents) {
+    // Human-confirmed alias: resolve directly to the canonical DB student,
+    // bypassing fuzzy matching + review. Only applies when the target exists.
+    const aliasTarget = CONFIRMED_ALIASES[sheetName]
+    if (aliasTarget) {
+      const canonical = normalizeName(aliasTarget)
+      const student = allStudents.find((s) => normalizeName(s.name) === canonical)
+      if (student) {
+        matchedProfileIds.add(student.profileId)
+        const hit: SheetMatch = {
+          sheetName,
+          dbName: student.name,
+          confidence: 'exact',
+          score: 1,
+          className: student.className,
+          classShift: student.shift,
+        }
+        const inThisClass =
+          mapping.mode === 'class' &&
+          mapping.dbClass != null &&
+          student.className === mapping.dbClass.name &&
+          student.shift === mapping.dbClass.shift
+        if (mapping.mode !== 'class' || inThisClass) {
+          report.matched.push(hit)
+        } else {
+          report.inSheetNotInClass.push(hit)
+        }
+        continue
+      }
+      // Target not found in DB → fall through so it surfaces normally.
+    }
+
     if (mapping.mode === 'class') {
       const inClass = matchName(sheetName, classRoster, (s) => s.name)
       if (inClass.match && isAutoMatch(inClass.confidence)) {
