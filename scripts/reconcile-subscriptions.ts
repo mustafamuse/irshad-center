@@ -13,6 +13,7 @@
 
 import * as fs from 'fs'
 
+import { prisma } from '@/lib/db'
 import {
   getAllOrphanedSubscriptions,
   getPotentialStudentMatches,
@@ -295,4 +296,4 @@ async function main() {
   }
 }
 
-runScript(main)
+runScript(main, { cleanup: () => prisma.$disconnect() })
