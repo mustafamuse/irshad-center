@@ -1,6 +1,8 @@
 # Plan: Correct student name spellings in the Google attendance sheet
 
-**Status:** SCOPED — not implemented. Follow-up to PR #237 (reconciliation tooling).
+**Status:** SUPERSEDED by `2026-05-30-dugsi-fresh-attendance-sheet.md`. The owner chose to
+generate a fresh workbook from the DB (a CREATE, no concurrency/clobber risk) rather than
+edit the live sheet's cells in place. Kept for context; do NOT implement the in-place writer.
 **Direction:** DB canonical name → Google Sheet (the reverse of reconciliation).
 
 ## Goal
