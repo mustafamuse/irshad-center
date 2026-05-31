@@ -45,6 +45,9 @@ const PLACEMENTS: Placement[] = [
   // → 103/Morning (Mohamed Ali-Daar)
   { name: 'Bashir Bashir', target: { name: '103', shift: M }, mode: 'place' },
   { name: 'Khalid Abdi', target: { name: '103', shift: M }, mode: 'place' },
+  // paying-but-unplaced (not on any sheet); user: both in Mohamed's class
+  { name: 'Ayan Ibrahim', dobHint: '2018-09-15', target: { name: '103', shift: M }, mode: 'place' },
+  { name: 'Rayann Mohamed', dobHint: '2016-07-19', target: { name: '103', shift: M }, mode: 'place' },
   // → 104/Morning (Abdiwahab Haibah)
   { name: 'Bilan Abdirahman', target: { name: '104', shift: M }, mode: 'place' },
   { name: 'Amiira Alim', target: { name: '104', shift: M }, mode: 'place' },
