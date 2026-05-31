@@ -7,6 +7,7 @@ import { formatSkipSummary, type VCardResult } from '@/lib/vcard-export'
 interface VCardActionResult {
   data?: VCardResult
   serverError?: string
+  validationErrors?: unknown
 }
 
 interface HandleVCardExportOptions {
@@ -26,7 +27,9 @@ export function handleVCardExport(
   const { content, filename, exported } = result.data
   if (exported === 0) {
     const skipSummary = formatSkipSummary(result.data)
-    toast.error(skipSummary ? `No contacts exported${skipSummary}` : emptyMessage)
+    toast.error(
+      skipSummary ? `No contacts exported${skipSummary}` : emptyMessage
+    )
     return
   }
 

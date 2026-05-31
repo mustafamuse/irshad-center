@@ -106,6 +106,7 @@ import {
 
 const logger = createServiceLogger('dugsi-admin-actions')
 
+// module-private
 const fillVCardName = (
   target: VCardContact,
   firstName: string | null,
@@ -363,8 +364,8 @@ const _generateDugsiVCardContent = adminActionClient
                 return
               skippedDuplicate++
               childNamesByKey
-                .get(secondaryKey)
-                ?.forEach((n) => childNamesByKey.get(resolvedKey)!.add(n))
+                .get(secondaryKey)!
+                .forEach((n) => childNamesByKey.get(resolvedKey)!.add(n))
               const primary = contactMap.get(resolvedKey)!
               const secondary = contactMap.get(secondaryKey)!
               if (!primary.phone && secondary.phone)
@@ -466,7 +467,7 @@ const _generateDugsiVCardContent = adminActionClient
           skippedNoContact,
           skippedDuplicate,
           skippedChurned,
-          totalFamilies: familyMap.size,
+          totalFamilies: familyMap.size, // vCard grouping: phone-normalized, may differ from UI family count
           includeChurned,
           shift,
         },
