@@ -49,6 +49,9 @@ transformed-data-for-seed.json
 seed-data.json
 backups/
 
+# Reconciliation snapshots & reports (generated, may contain student data)
+scripts/data/
+
 # Code backup files (app-level only, prevents accidental exclusion of data backups)
 app/**/*-OLD-BACKUP.*
 app/**/*-BACKUP.*
