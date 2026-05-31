@@ -34,8 +34,7 @@ async function main() {
   console.log('='.repeat(78))
 
   let matchableIdx = 0
-  for (let i = 0; i < orphans.length; i++) {
-    const sub = orphans[i]
+  for (const sub of orphans) {
     if (!sub.customerEmail) continue
 
     const matches = await getPotentialStudentMatches(sub.customerEmail, 'MAHAD')

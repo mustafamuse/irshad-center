@@ -147,7 +147,7 @@ async function main() {
     },
   ]
 
-  console.log('\n=== Program.DUGSI_PROGRAM ENROLLMENT FILTER COMPARISON ===\n')
+  console.log('\n=== DUGSI_PROGRAM ENROLLMENT FILTER COMPARISON ===\n')
   console.table(rows)
 
   console.log(
