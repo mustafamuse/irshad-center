@@ -1140,19 +1140,3 @@ export async function getProfileForPaymentLink(
     },
   })
 }
-
-export async function setProfileBillingDefaults(
-  profileId: string,
-  defaults: {
-    graduationStatus: GraduationStatus
-    billingType: StudentBillingType
-    paymentFrequency: PaymentFrequency
-  },
-  client: DatabaseClient = prisma
-) {
-  const { count } = await client.programProfile.updateMany({
-    where: { id: profileId },
-    data: defaults,
-  })
-  return count > 0
-}
