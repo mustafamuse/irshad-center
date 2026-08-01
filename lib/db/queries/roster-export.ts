@@ -1,4 +1,4 @@
-import { Shift } from '@prisma/client'
+import { EnrollmentStatus, Shift, SubscriptionStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -19,7 +19,7 @@ export async function getDugsiRosterByTeacher(
     include: {
       person: { select: { name: true } },
       dugsiClasses: {
-        where: { isActive: true },
+        where: { isActive: true, class: { isActive: true } },
         include: {
           class: {
             include: {
@@ -32,8 +32,9 @@ export async function getDugsiRosterByTeacher(
                       assignments: {
                         where: {
                           isActive: true,
-                          subscription: { status: 'active' },
+                          subscription: { status: SubscriptionStatus.active },
                         },
+                        orderBy: { createdAt: 'asc' },
                         take: 1,
                         include: {
                           subscription: {
@@ -87,7 +88,7 @@ export async function getDugsiRosterByTeacher(
       for (const enrollment of classTeacher.class.students) {
         const profile = enrollment.programProfile
 
-        if (profile.status === 'WITHDRAWN') continue
+        if (profile.status === EnrollmentStatus.WITHDRAWN) continue
 
         const studentName = profile.person.name
         const assignment = profile.assignments[0]

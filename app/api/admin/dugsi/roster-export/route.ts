@@ -33,10 +33,17 @@ export async function GET() {
     const csv = '﻿' + [header, ...lines].join('\n')
     const filename = `dugsi-rosters-${new Date().toISOString().slice(0, 10)}.csv`
 
+    const teacherCount = new Set(rows.map((r) => r.teacherName)).size
+    logger.info(
+      { teacherCount, rowCount: rows.length },
+      'Dugsi roster export served'
+    )
+
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
         'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
       },
     })
   } catch (error) {
