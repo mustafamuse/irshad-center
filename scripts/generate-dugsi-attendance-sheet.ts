@@ -402,7 +402,9 @@ async function findTabsWithMarks(
   const params = new URLSearchParams({ majorDimension: 'ROWS' })
   for (const p of withRoster) {
     const firstRow = FIRST_DATA_ROW + 1 // 1-based first student row
-    const lastRow = firstRow + p.roster.length - 1
+    // Scan well past the current roster: the clear wipes A1:ZZ1000, so marks in
+    // rows belonging to since-removed students must also block the rewrite.
+    const lastRow = 1000
     params.append(
       'ranges',
       `'${p.title}'!${colLetter(FIRST_DATE_COL_INDEX)}${firstRow}:${lastDateCol}${lastRow}`
