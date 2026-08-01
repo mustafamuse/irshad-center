@@ -15,7 +15,7 @@ import { mahadRegistrationSchema } from '@/lib/registration/schemas/mahad-regist
 import { emailSchema } from '@/lib/registration/schemas/registration-field-schemas'
 import { rateLimitedActionClient } from '@/lib/safe-action'
 import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
-import { createMahadStudent } from '@/lib/services/mahad/student-service'
+import { registerMahadStudent } from '@/lib/services/mahad/registration-service'
 
 const logger = createActionLogger('mahad-registration')
 
@@ -26,7 +26,7 @@ const _registerStudent = rateLimitedActionClient
     const fullName = `${data.firstName} ${data.lastName}`.trim()
 
     try {
-      const profile = await createMahadStudent({
+      const result = await registerMahadStudent({
         name: fullName,
         email: data.email,
         phone: data.phone,
@@ -44,11 +44,11 @@ const _registerStudent = rateLimitedActionClient
       })
 
       logger.info(
-        { profileId: profile.id, name: fullName },
+        { profileId: result.profileId },
         'Student registration completed'
       )
 
-      return { id: profile.id, name: fullName }
+      return { profileId: result.profileId, name: fullName }
     } catch (error) {
       if (error instanceof ActionError && error.field) {
         if (error.field === 'phone') {

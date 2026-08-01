@@ -21,9 +21,7 @@ export function useRegistration({
       if (!data) return
       toast.success('Registration complete!')
       form.reset()
-      router.push(
-        `/mahad/register/success?name=${encodeURIComponent(data.name)}`
-      )
+      router.push(`/mahad/register/success/${data.profileId}`)
     },
     onError: ({ error }) => {
       if (error.validationErrors) {

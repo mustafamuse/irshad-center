@@ -41,16 +41,23 @@ export default function RegisterPage() {
         title="Student Registration"
         description={`Join our ${getAcademicYear()} academic year at Irshād Māhad`}
         headerExtra={
-          <p className="text-sm text-gray-600">
-            Already registered?{' '}
-            <Link
-              href="/mahad/check"
-              className="font-medium text-brand underline-offset-4 hover:underline"
-            >
-              Check your registration status
-            </Link>{' '}
-            before submitting again.
-          </p>
+          <div className="mx-auto max-w-md space-y-2 text-sm text-gray-600">
+            <p>
+              Takes about 2 minutes. After submitting you&apos;ll get a
+              confirmation page — save its URL. Ustadh Mustafa will message you
+              a payment link via WhatsApp within 1 business day.
+            </p>
+            <p>
+              Already registered?{' '}
+              <Link
+                href="/mahad/check"
+                className="font-medium text-brand underline-offset-4 hover:underline"
+              >
+                Check your registration status
+              </Link>{' '}
+              before submitting again.
+            </p>
+          </div>
         }
       />
       <main>

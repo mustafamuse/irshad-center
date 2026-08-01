@@ -1,7 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 
 const {
-  mockCreateMahadStudent,
+  mockRegisterMahadStudent,
   mockIsEmailRegistered,
   mockRevalidatePath,
   mockRevalidateTag,
@@ -11,7 +11,7 @@ const {
   mockHeaders,
   mockAfter,
 } = vi.hoisted(() => ({
-  mockCreateMahadStudent: vi.fn(),
+  mockRegisterMahadStudent: vi.fn(),
   mockIsEmailRegistered: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockRevalidateTag: vi.fn(),
@@ -49,8 +49,9 @@ vi.mock('@/lib/constants/mahad', () => ({
   MAHAD_PROGRAM: 'MAHAD_PROGRAM',
 }))
 
-vi.mock('@/lib/services/mahad/student-service', () => ({
-  createMahadStudent: (...args: unknown[]) => mockCreateMahadStudent(...args),
+vi.mock('@/lib/services/mahad/registration-service', () => ({
+  registerMahadStudent: (...args: unknown[]) =>
+    mockRegisterMahadStudent(...args),
 }))
 
 vi.mock('@/lib/logger', () => ({
@@ -137,14 +138,20 @@ describe('registerStudent', () => {
     mockIsEmailRegistered.mockResolvedValue(false)
   })
 
-  it('should register a student and return success with id and name', async () => {
-    const mockProfile = { id: 'profile-123' }
-    mockCreateMahadStudent.mockResolvedValue(mockProfile)
+  it('should register a student and return success with profileId and name', async () => {
+    mockRegisterMahadStudent.mockResolvedValue({
+      profileId: 'profile-123',
+      firstName: 'Ahmed',
+      registeredAt: new Date('2026-01-01T00:00:00.000Z'),
+    })
 
     const result = await registerStudent(validInput)
 
-    expect(result?.data).toEqual({ id: 'profile-123', name: 'Ahmed Mohamed' })
-    expect(mockCreateMahadStudent).toHaveBeenCalledWith({
+    expect(result?.data).toEqual({
+      profileId: 'profile-123',
+      name: 'Ahmed Mohamed',
+    })
+    expect(mockRegisterMahadStudent).toHaveBeenCalledWith({
       name: 'Ahmed Mohamed',
       email: 'ahmed@example.com',
       phone: '612-555-1234',
@@ -159,7 +166,11 @@ describe('registerStudent', () => {
 
   it('should use after() for non-blocking revalidation', async () => {
     mockAfter.mockImplementation(() => {})
-    mockCreateMahadStudent.mockResolvedValue({ id: 'profile-123' })
+    mockRegisterMahadStudent.mockResolvedValue({
+      profileId: 'profile-123',
+      firstName: 'Ahmed',
+      registeredAt: new Date('2026-01-01T00:00:00.000Z'),
+    })
 
     await registerStudent(validInput)
 
@@ -175,7 +186,7 @@ describe('registerStudent', () => {
     const result = await registerStudent({ ...validInput, firstName: '' })
 
     expect(result?.validationErrors).toBeDefined()
-    expect(mockCreateMahadStudent).not.toHaveBeenCalled()
+    expect(mockRegisterMahadStudent).not.toHaveBeenCalled()
   })
 
   it('should return validationErrors for invalid email', async () => {
@@ -193,7 +204,7 @@ describe('registerStudent', () => {
       'Unique constraint failed',
       { code: 'P2002', clientVersion: '5.0.0', meta: { target: ['email'] } }
     )
-    mockCreateMahadStudent.mockRejectedValue(prismaError)
+    mockRegisterMahadStudent.mockRejectedValue(prismaError)
 
     const result = await registerStudent(validInput)
 
@@ -210,7 +221,7 @@ describe('registerStudent', () => {
       'Unique constraint failed',
       { code: 'P2002', clientVersion: '5.0.0', meta: { target: ['phone'] } }
     )
-    mockCreateMahadStudent.mockRejectedValue(prismaError)
+    mockRegisterMahadStudent.mockRejectedValue(prismaError)
 
     const result = await registerStudent(validInput)
 
@@ -223,7 +234,7 @@ describe('registerStudent', () => {
 
   it('should return validationErrors for ActionError with email field', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
-    mockCreateMahadStudent.mockRejectedValue(
+    mockRegisterMahadStudent.mockRejectedValue(
       new ActionError(
         'Student already registered for Mahad',
         'DUPLICATE_CONTACT',
@@ -244,7 +255,7 @@ describe('registerStudent', () => {
 
   it('should return validationErrors for ActionError with phone field', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
-    mockCreateMahadStudent.mockRejectedValue(
+    mockRegisterMahadStudent.mockRejectedValue(
       new ActionError(
         'Student already registered for Mahad',
         'DUPLICATE_CONTACT',
@@ -264,7 +275,7 @@ describe('registerStudent', () => {
 
   it('should not log ActionError as server error', async () => {
     const { ActionError } = await import('@/lib/errors/action-error')
-    mockCreateMahadStudent.mockRejectedValue(
+    mockRegisterMahadStudent.mockRejectedValue(
       new ActionError('Duplicate', 'DUPLICATE_CONTACT', 'email')
     )
 
@@ -283,11 +294,11 @@ describe('registerStudent', () => {
     const result = await registerStudent(validInput)
 
     expect(result?.serverError).toContain('Too many attempts')
-    expect(mockCreateMahadStudent).not.toHaveBeenCalled()
+    expect(mockRegisterMahadStudent).not.toHaveBeenCalled()
   })
 
   it('should return serverError for unexpected errors', async () => {
-    mockCreateMahadStudent.mockRejectedValue(
+    mockRegisterMahadStudent.mockRejectedValue(
       new Error('Database connection lost')
     )
 

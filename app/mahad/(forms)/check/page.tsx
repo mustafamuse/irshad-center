@@ -1,10 +1,10 @@
 import { Metadata } from 'next'
 
-import { StudentLookupForm } from './_components/student-lookup-form'
+import { LookupCard } from './_components/lookup-card'
 import { MahadPageHeader } from '../../_components/mahad-page-header'
 
 const description =
-  'Confirm whether you are already registered for Irshād Māhad using your first name, last name, and last 4 digits of your phone.'
+  'Confirm your Irshād Māhad registration. Look up by the email you used or by your legal name and date of birth.'
 
 export const metadata: Metadata = {
   title: 'Check Registration - Irshād Māhad',
@@ -37,7 +37,7 @@ export default function MahadCheckRegistrationPage() {
         description="See if you are already registered. If not, you can complete registration in a few minutes."
       />
       <main>
-        <StudentLookupForm />
+        <LookupCard />
       </main>
     </>
   )
