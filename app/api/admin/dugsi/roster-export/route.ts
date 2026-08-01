@@ -2,22 +2,10 @@ import { cookies } from 'next/headers'
 
 import { verifyAuthToken } from '@/lib/auth/admin-auth'
 import { getDugsiRosterByTeacher } from '@/lib/db/queries/roster-export'
+import { createServiceLogger, logError } from '@/lib/logger'
+import { csvCell } from '@/lib/utils/csv'
 
-const FORMULA_CHARS = /^[=+\-@\t\r]/
-
-function csvCell(value: string | null | undefined): string {
-  let s = value ?? ''
-  if (FORMULA_CHARS.test(s)) s = "'" + s
-  if (
-    s.includes(',') ||
-    s.includes('"') ||
-    s.includes('\n') ||
-    s.includes('\r')
-  ) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
+const logger = createServiceLogger('dugsi-roster-export')
 
 export async function GET() {
   const cookieStore = await cookies()
@@ -27,27 +15,32 @@ export async function GET() {
     return new Response('Unauthorized', { status: 401 })
   }
 
-  const rows = await getDugsiRosterByTeacher()
+  try {
+    const rows = await getDugsiRosterByTeacher()
 
-  const header = 'Teacher,Payer Name,Payer Phone,Payer Email,Children,Shift'
-  const lines = rows.map((r) =>
-    [
-      csvCell(r.teacherName),
-      csvCell(r.payerName),
-      csvCell(r.payerPhone),
-      csvCell(r.payerEmail),
-      csvCell(r.children.sort().join('; ')),
-      csvCell(r.shift === 'MORNING' ? 'Morning' : 'Afternoon'),
-    ].join(',')
-  )
+    const header = 'Teacher,Payer Name,Payer Phone,Payer Email,Children,Shift'
+    const lines = rows.map((r) =>
+      [
+        csvCell(r.teacherName),
+        csvCell(r.payerName),
+        csvCell(r.payerPhone),
+        csvCell(r.payerEmail),
+        csvCell(r.children.sort().join('; ')),
+        csvCell(r.shift === 'MORNING' ? 'Morning' : 'Afternoon'),
+      ].join(',')
+    )
 
-  const csv = [header, ...lines].join('\n')
-  const filename = `dugsi-rosters-${new Date().toISOString().slice(0, 10)}.csv`
+    const csv = '﻿' + [header, ...lines].join('\n')
+    const filename = `dugsi-rosters-${new Date().toISOString().slice(0, 10)}.csv`
 
-  return new Response(csv, {
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-  })
+    return new Response(csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+    })
+  } catch (error) {
+    logError(logger, error, 'Failed to generate Dugsi roster export')
+    return new Response('Failed to generate export', { status: 500 })
+  }
 }

@@ -160,9 +160,12 @@ export function UnassignedStudentsSection({
   }, [classes, teacherId])
 
   const handleTeacherChange = (value: string) => {
-    setTeacherId(value)
-    const matching = value
-      ? classes.filter((c) => c.teachers.some((t) => t.teacherId === value))
+    const nextTeacherId = value === 'all' ? '' : value
+    setTeacherId(nextTeacherId)
+    const matching = nextTeacherId
+      ? classes.filter((c) =>
+          c.teachers.some((t) => t.teacherId === nextTeacherId)
+        )
       : classes
     setClassId(matching.length === 1 ? matching[0].id : '')
   }
@@ -255,12 +258,15 @@ export function UnassignedStudentsSection({
             </p>
           )}
           {teachers.length > 0 && (
-            <Select value={teacherId} onValueChange={handleTeacherChange}>
+            <Select
+              value={teacherId || 'all'}
+              onValueChange={handleTeacherChange}
+            >
               <SelectTrigger aria-label="Filter by teacher">
                 <SelectValue placeholder="Filter by teacher (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All teachers</SelectItem>
+                <SelectItem value="all">All teachers</SelectItem>
                 {teachers.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}

@@ -15,22 +15,6 @@ import {
   validateAndNormalizeEmail,
 } from '@/lib/utils/contact-normalization'
 
-export const DUGSI_ACTIVE_PROFILE_WHERE = {
-  program: 'DUGSI_PROGRAM' as const,
-  status: { not: 'WITHDRAWN' as const },
-} satisfies Prisma.ProgramProfileWhereInput
-
-export const DUGSI_ACTIVE_PAYING_WHERE = {
-  program: 'DUGSI_PROGRAM' as const,
-  status: { not: 'WITHDRAWN' as const },
-  assignments: {
-    some: {
-      isActive: true,
-      subscription: { status: 'active' as const },
-    },
-  },
-} satisfies Prisma.ProgramProfileWhereInput
-
 /**
  * Get program profiles with related data
  * @param client - Optional database client (for transaction support)

@@ -30,7 +30,10 @@ export async function getDugsiRosterByTeacher(
                     include: {
                       person: { select: { name: true } },
                       assignments: {
-                        where: { isActive: true },
+                        where: {
+                          isActive: true,
+                          subscription: { status: 'active' },
+                        },
                         take: 1,
                         include: {
                           subscription: {
@@ -88,11 +91,7 @@ export async function getDugsiRosterByTeacher(
 
         const studentName = profile.person.name
         const assignment = profile.assignments[0]
-        const activeSub =
-          assignment?.subscription.status === 'active'
-            ? assignment.subscription
-            : undefined
-        const payer = activeSub?.billingAccount.person
+        const payer = assignment?.subscription.billingAccount.person
 
         const payerKey = payer
           ? `${payer.id}_${shift}`
