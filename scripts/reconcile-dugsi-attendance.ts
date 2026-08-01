@@ -1,5 +1,6 @@
-import { Program, Shift } from '@prisma/client'
-import { readFile, writeFile } from 'node:fs/promises'
+import { EnrollmentStatus, Program, Shift } from '@prisma/client'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 
 import { prisma } from '@/lib/db'
 import {
@@ -56,6 +57,13 @@ interface TabReport {
   needsReview: SheetMatch[]
 }
 
+// Normalized (case/whitespace-insensitive) lookup so 'suhayla ali' still
+// resolves the confirmed alias keyed as 'Suhayla Ali'. Keys stay as-is in
+// CONFIRMED_ALIASES; normalize only at lookup time.
+const NORMALIZED_ALIASES = new Map(
+  Object.entries(CONFIRMED_ALIASES).map(([k, v]) => [normalizeName(k), v])
+)
+
 async function loadSnapshot(path: string): Promise<AttendanceRosterSnapshot> {
   const raw = await readFile(path, 'utf8')
   return JSON.parse(raw) as AttendanceRosterSnapshot
@@ -63,7 +71,10 @@ async function loadSnapshot(path: string): Promise<AttendanceRosterSnapshot> {
 
 async function loadDugsiStudents(): Promise<DugsiStudent[]> {
   const profiles = await prisma.programProfile.findMany({
-    where: { program: Program.DUGSI_PROGRAM },
+    where: {
+      program: Program.DUGSI_PROGRAM,
+      status: { not: EnrollmentStatus.WITHDRAWN },
+    },
     select: {
       id: true,
       person: { select: { id: true, name: true } },
@@ -123,7 +134,7 @@ function reconcileTab(
   for (const sheetName of sheetStudents) {
     // Human-confirmed alias: resolve directly to the canonical DB student,
     // bypassing fuzzy matching + review. Only applies when the target exists.
-    const aliasTarget = CONFIRMED_ALIASES[sheetName]
+    const aliasTarget = NORMALIZED_ALIASES.get(normalizeName(sheetName))
     if (aliasTarget) {
       const canonical = normalizeName(aliasTarget)
       const student = allStudents.find(
@@ -311,6 +322,7 @@ async function main() {
     )
   }
 
+  await mkdir(dirname(RECONCILE_REPORT_PATH), { recursive: true })
   await writeFile(
     RECONCILE_REPORT_PATH,
     JSON.stringify(

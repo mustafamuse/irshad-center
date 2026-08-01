@@ -72,12 +72,14 @@ function tokens(value: string): string[] {
   return value.split(' ').filter(Boolean)
 }
 
+/** Multiset equality: duplicate tokens must match in count, not just presence
+ * (so "Ibrahim Ibrahim" and "Ibrahim" are NOT equal — a Set would collapse
+ * the duplicate and wrongly treat these as the same token set). */
 function setEqual(a: string[], b: string[]): boolean {
-  const sa = new Set(a)
-  const sb = new Set(b)
-  if (sa.size !== sb.size) return false
-  for (const t of sa) if (!sb.has(t)) return false
-  return true
+  if (a.length !== b.length) return false
+  const sa = [...a].sort()
+  const sb = [...b].sort()
+  return sa.every((t, i) => t === sb[i])
 }
 
 /** True if the smaller distinct token set is fully contained in the larger. */
@@ -160,7 +162,8 @@ export function compareNames(a: string, b: string): NameComparison {
 
   const fa = foldVariants(na)
   const fb = foldVariants(nb)
-  if (fa === fb) return { confidence: 'high', score: 0.95, reason: 'variant-exact' }
+  if (fa === fb)
+    return { confidence: 'high', score: 0.95, reason: 'variant-exact' }
 
   const fta = tokens(fa)
   const ftb = tokens(fb)

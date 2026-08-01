@@ -391,23 +391,35 @@ interface BatchGetResponse {
   valueRanges?: { values?: string[][] }[]
 }
 
-/** Batch-reads each tab's date-cell region and returns tabs containing any P/A/S mark. */
+/**
+ * Batch-reads each tab's date-cell region AND its teacher-editable columns
+ * (B:D — Juz Category/Lesson/Behavior) and returns tabs containing any live
+ * data. Scans every plan (not just ones with a current-roster row): a class
+ * whose DB roster dropped to zero must still block clearing a tab that has
+ * marks left over from since-removed students.
+ */
 async function findTabsWithMarks(
   plans: TabPlan[],
   lastDateCol: string
 ): Promise<string[]> {
-  const withRoster = plans.filter((p) => p.roster.length > 0)
-  if (!withRoster.length) return []
+  if (!plans.length) return []
+
+  const firstRow = FIRST_DATA_ROW + 1 // 1-based first student row
+  // Scan well past the current roster: the clear wipes A1:ZZ1000, so marks in
+  // rows belonging to since-removed students must also block the rewrite.
+  const lastRow = 1000
+  const teacherColStart = colLetter(1) // B (Juz Category)
+  const teacherColEnd = colLetter(3) // D (Behavior)
 
   const params = new URLSearchParams({ majorDimension: 'ROWS' })
-  for (const p of withRoster) {
-    const firstRow = FIRST_DATA_ROW + 1 // 1-based first student row
-    // Scan well past the current roster: the clear wipes A1:ZZ1000, so marks in
-    // rows belonging to since-removed students must also block the rewrite.
-    const lastRow = 1000
+  for (const p of plans) {
     params.append(
       'ranges',
       `'${p.title}'!${colLetter(FIRST_DATE_COL_INDEX)}${firstRow}:${lastDateCol}${lastRow}`
+    )
+    params.append(
+      'ranges',
+      `'${p.title}'!${teacherColStart}${firstRow}:${teacherColEnd}${lastRow}`
     )
   }
 
@@ -416,14 +428,25 @@ async function findTabsWithMarks(
     `/${TARGET_SPREADSHEET_ID}/values:batchGet?${params.toString()}`
   )) as BatchGetResponse
   const valueRanges = res.valueRanges ?? []
+  const expected = plans.length * 2
+  if (valueRanges.length !== expected) {
+    throw new Error(
+      `Marks guard expected ${expected} value ranges (2 per tab), got ${valueRanges.length}. ` +
+        'Refusing to treat tabs as mark-free on an incomplete read.'
+    )
+  }
 
   const affected: string[] = []
-  withRoster.forEach((p, i) => {
-    const rows = valueRanges[i]?.values ?? []
-    const hasMark = rows.some((row) =>
+  plans.forEach((p, i) => {
+    const dateRows = valueRanges[i * 2]?.values ?? []
+    const teacherRows = valueRanges[i * 2 + 1]?.values ?? []
+    const hasMark = dateRows.some((row) =>
       row.some((cell) => ATTENDANCE_OPTIONS.includes((cell ?? '').trim()))
     )
-    if (hasMark) affected.push(p.title)
+    const hasTeacherEntry = teacherRows.some((row) =>
+      row.some((cell) => (cell ?? '').trim().length > 0)
+    )
+    if (hasMark || hasTeacherEntry) affected.push(p.title)
   })
   return affected
 }
@@ -477,14 +500,19 @@ async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
         fixedCells(name, FIRST_DATA_ROW + 1 + i, lastDateCol)
       )
       const lastStudent = FIRST_DATA_ROW + p.roster.length // 1-based last student row
-      const avg = [
-        'Class average',
-        '',
-        '',
-        '',
-        `=SUM(E${FIRST_DATA_ROW + 1}:E${lastStudent})`,
-        `=IFERROR(AVERAGE(F${FIRST_DATA_ROW + 1}:F${lastStudent}),"")`,
-      ]
+      // With zero students, FIRST_DATA_ROW+1 > lastStudent, which would produce a
+      // reversed (invalid) range — use static neutral values instead.
+      const avg =
+        p.roster.length > 0
+          ? [
+              'Class average',
+              '',
+              '',
+              '',
+              `=SUM(E${FIRST_DATA_ROW + 1}:E${lastStudent})`,
+              `=IFERROR(AVERAGE(F${FIRST_DATA_ROW + 1}:F${lastStudent}),"")`,
+            ]
+          : ['Class average', '', '', '', 0, '']
       return {
         range: `'${p.title}'!A1`,
         values: [band, headerRow, ...students, avg],
@@ -713,42 +741,46 @@ async function applyTabs(plans: TabPlan[], days: WeekendDay[]) {
     )
 
     // Conditional formats: mark colors (text) + Overall bands (numeric).
-    const markRange = {
-      startRowIndex: FIRST_DATA_ROW,
-      endRowIndex: dataEnd,
-      startColumnIndex: FIRST_DATE_COL_INDEX,
-      endColumnIndex: totalCols,
-    }
-    requests.push(textEqRule(sheetId, markRange, 'P', MARK_P))
-    requests.push(textEqRule(sheetId, markRange, 'A', MARK_A))
-    requests.push(textEqRule(sheetId, markRange, 'S', MARK_S))
-    const overallRange = {
-      startRowIndex: FIRST_DATA_ROW,
-      endRowIndex: dataEnd,
-      startColumnIndex: OVERALL_COL_INDEX,
-      endColumnIndex: OVERALL_COL_INDEX + 1,
-    }
-    requests.push(
-      numberCondRule(sheetId, overallRange, 'NUMBER_LESS', '0.7', RED)
-    )
-    requests.push(
-      numberCondRule(
-        sheetId,
-        overallRange,
-        'NUMBER_GREATER_THAN_EQ',
-        '0.7',
-        YELLOW
+    // Skipped for empty rosters — the range would be degenerate (startRowIndex
+    // === endRowIndex) and the Sheets API 400s on an empty conditional-format range.
+    if (rows > 0) {
+      const markRange = {
+        startRowIndex: FIRST_DATA_ROW,
+        endRowIndex: dataEnd,
+        startColumnIndex: FIRST_DATE_COL_INDEX,
+        endColumnIndex: totalCols,
+      }
+      requests.push(textEqRule(sheetId, markRange, 'P', MARK_P))
+      requests.push(textEqRule(sheetId, markRange, 'A', MARK_A))
+      requests.push(textEqRule(sheetId, markRange, 'S', MARK_S))
+      const overallRange = {
+        startRowIndex: FIRST_DATA_ROW,
+        endRowIndex: dataEnd,
+        startColumnIndex: OVERALL_COL_INDEX,
+        endColumnIndex: OVERALL_COL_INDEX + 1,
+      }
+      requests.push(
+        numberCondRule(sheetId, overallRange, 'NUMBER_LESS', '0.7', RED)
       )
-    )
-    requests.push(
-      numberCondRule(
-        sheetId,
-        overallRange,
-        'NUMBER_GREATER_THAN_EQ',
-        '0.85',
-        GREEN
+      requests.push(
+        numberCondRule(
+          sheetId,
+          overallRange,
+          'NUMBER_GREATER_THAN_EQ',
+          '0.7',
+          YELLOW
+        )
       )
-    )
+      requests.push(
+        numberCondRule(
+          sheetId,
+          overallRange,
+          'NUMBER_GREATER_THAN_EQ',
+          '0.85',
+          GREEN
+        )
+      )
+    }
 
     // Zebra banding on student rows.
     if (rows > 0) {

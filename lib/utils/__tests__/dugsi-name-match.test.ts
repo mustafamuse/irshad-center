@@ -48,7 +48,9 @@ describe('compareNames', () => {
   })
 
   it('folds Nur vs Nuur to a match', () => {
-    expect(isAutoMatch(compareNames('Yusra Nur', 'Yusra Nuur').confidence)).toBe(true)
+    expect(
+      isAutoMatch(compareNames('Yusra Nur', 'Yusra Nuur').confidence)
+    ).toBe(true)
   })
 
   it('surfaces extra-token names as review candidates, never auto-match', () => {
@@ -69,8 +71,17 @@ describe('compareNames', () => {
     expect(isAutoMatch(cmp.confidence)).toBe(false)
   })
 
+  it('does NOT match a repeated-token name to its single-token half', () => {
+    // Regression: Set-based token comparison collapses "Ibrahim Ibrahim" to
+    // {Ibrahim}, which wrongly equals the token set of "Ibrahim".
+    const cmp = compareNames('Ibrahim Ibrahim', 'Ibrahim')
+    expect(isAutoMatch(cmp.confidence)).toBe(false)
+  })
+
   it('matches close single-edit transliterations (Mohamed vs Mohamad) via fuzzy', () => {
-    expect(isAutoMatch(compareNames('Mohamed Ali', 'Mohamad Ali').confidence)).toBe(true)
+    expect(
+      isAutoMatch(compareNames('Mohamed Ali', 'Mohamad Ali').confidence)
+    ).toBe(true)
   })
 
   it('matches across word-boundary differences (Sheikhali vs Shiekh Ali)', () => {
@@ -81,7 +92,9 @@ describe('compareNames', () => {
 
   it('never auto-matches single-token names beyond exact', () => {
     expect(compareNames('Anas', 'Anas').confidence).toBe('exact')
-    expect(isAutoMatch(compareNames('Anas', 'Anas Mohamed').confidence)).toBe(false)
+    expect(isAutoMatch(compareNames('Anas', 'Anas Mohamed').confidence)).toBe(
+      false
+    )
   })
 })
 
@@ -119,7 +132,9 @@ describe('real-world reconciliation regressions (2026-05-30)', () => {
   it('does NOT auto-match the Muhumed/Mohomed transliteration (too far for fuzzy)', () => {
     // "Walid Muhumed" vs "Walid Mohomed" are the same child per the owner, but the
     // edit distance is beyond the conservative threshold — hence a CONFIRMED_ALIAS.
-    expect(isAutoMatch(compareNames('Walid Muhumed', 'Walid Mohomed').confidence)).toBe(false)
+    expect(
+      isAutoMatch(compareNames('Walid Muhumed', 'Walid Mohomed').confidence)
+    ).toBe(false)
   })
 })
 
