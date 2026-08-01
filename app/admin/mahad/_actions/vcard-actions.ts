@@ -1,8 +1,10 @@
 'use server'
 
+import { z } from 'zod'
+
 import { getStudents, getStudentsByBatch } from '@/lib/db/queries/student'
-import { createActionLogger, logError } from '@/lib/logger'
-import { ActionResult, createErrorResult } from '@/lib/utils/action-helpers'
+import { createServiceLogger } from '@/lib/logger'
+import { adminActionClient } from '@/lib/safe-action'
 import {
   formatPhoneForVCard,
   generateVCardsContent,
@@ -11,25 +13,26 @@ import {
   VCardResult,
 } from '@/lib/vcard-export'
 
-const logger = createActionLogger('mahad-vcard')
+const logger = createServiceLogger('mahad-admin-actions')
 
-export async function generateMahadVCardContent(
-  batchId?: string
-): Promise<ActionResult<VCardResult>> {
-  try {
+const _generateMahadVCardContent = adminActionClient
+  .metadata({ actionName: 'generateMahadVCardContent' })
+  .schema(z.object({ batchId: z.string().uuid().optional() }))
+  .action(async ({ parsedInput }): Promise<VCardResult> => {
+    const { batchId } = parsedInput
     const students = batchId
       ? await getStudentsByBatch(batchId)
       : await getStudents()
 
     const contacts: VCardContact[] = []
-    let skipped = 0
+    let skippedNoContact = 0
 
     for (const student of students) {
       const phone = formatPhoneForVCard(student.phone)
       const email = student.email || undefined
 
       if (!phone && !email) {
-        skipped++
+        skippedNoContact++
         continue
       }
 
@@ -56,19 +59,25 @@ export async function generateMahadVCardContent(
       filename = `mahad-all-contacts-${getDateString()}.vcf`
     }
 
-    return {
-      success: true,
-      data: {
-        content: generateVCardsContent(contacts),
-        filename,
+    logger.info(
+      {
         exported: contacts.length,
-        skipped,
+        skippedNoContact,
+        batchId,
       },
+      'Mahad contacts exported'
+    )
+
+    return {
+      content: generateVCardsContent(contacts),
+      filename,
+      exported: contacts.length,
+      skippedNoContact,
     }
-  } catch (error) {
-    await logError(logger, error, 'Failed to generate Mahad vCard content', {
-      batchId,
-    })
-    return createErrorResult(error, 'Failed to generate vCard content')
-  }
+  })
+
+export async function generateMahadVCardContent(
+  ...args: Parameters<typeof _generateMahadVCardContent>
+) {
+  return _generateMahadVCardContent(...args)
 }

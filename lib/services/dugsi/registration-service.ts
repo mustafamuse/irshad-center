@@ -11,6 +11,8 @@
  * - Manage registration status updates
  */
 
+import { unstable_cache } from 'next/cache'
+
 import { StripeAccountType } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
@@ -22,10 +24,15 @@ import {
   getProgramProfileById,
   getProgramProfilesByFamilyId,
 } from '@/lib/db/queries/program-profile'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { createServiceLogger, logWarning } from '@/lib/logger'
 import { mapProfileToDugsiRegistration } from '@/lib/mappers/dugsi-mapper'
 import { cancelSubscription } from '@/lib/services/shared/subscription-service'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 import { DugsiRegistrationFiltersSchema } from '@/lib/validations/dugsi'
 
 const logger = createServiceLogger('dugsi-registration')
@@ -61,7 +68,7 @@ async function getFamilyChildCounts(): Promise<Map<string, number>> {
  * Fetch all Dugsi registrations with full relations.
  *
  * Returns all program profiles with:
- * - Person and contact points
+ * - Person (email, phone)
  * - Guardian relationships
  * - Enrollment data
  * - Billing assignments and subscriptions
@@ -112,6 +119,12 @@ export async function getAllDugsiRegistrations(
     }
   )
 }
+
+export const getCachedDugsiRegistrations = unstable_cache(
+  getAllDugsiRegistrations,
+  ['dugsi-registrations'],
+  { revalidate: 300, tags: ['dugsi-registrations'] }
+)
 
 /**
  * Get all family members for a given student.
@@ -198,19 +211,18 @@ export async function getDeleteFamilyPreview(studentId: string): Promise<{
   }
 
   const familyId = profile.familyReferenceId
-  let profilesToDelete = [profile]
+  let profilesToDelete: Array<{ id: string; person: { name: string } }> = [
+    profile,
+  ]
 
   // If familyReferenceId exists, get all family members
   if (familyId) {
-    const familyProfiles = await getProgramProfilesByFamilyId(familyId)
-    profilesToDelete = familyProfiles
+    profilesToDelete = await getProgramProfilesByFamilyId(familyId)
   }
 
   // Extract parent email from guardian relationships (child is dependent, parents are guardians)
   const parentEmail =
-    profile.person.dependentRelationships?.[0]?.guardian?.contactPoints?.find(
-      (cp: { type: string }) => cp.type === 'EMAIL'
-    )?.value ?? null
+    profile.person.dependentRelationships?.[0]?.guardian?.email ?? null
 
   const students = profilesToDelete.map((p) => ({
     id: p.id,
@@ -338,7 +350,7 @@ async function cancelFamilySubscriptions(
         for (const assignment of profile.assignments) {
           if (
             assignment.subscription &&
-            assignment.subscription.status === 'active'
+            LIVE_SUBSCRIPTION_STATUSES.includes(assignment.subscription.status)
           ) {
             subscriptionIds.add(assignment.subscription.stripeSubscriptionId)
           }
@@ -376,7 +388,7 @@ async function cancelFamilySubscriptions(
 /**
  * Search for a Dugsi registration by contact (email or phone).
  *
- * Searches both student and parent contact points.
+ * Searches both student and parent email/phone.
  *
  * @security Authorization must be enforced at the API route/action layer.
  *
@@ -391,43 +403,33 @@ export async function searchDugsiRegistrationsByContact(
   return Sentry.startSpan(
     { name: 'registration.searchDugsiRegistrationsByContact', op: 'db' },
     async () => {
-      const normalizedContact = contact.toLowerCase().trim()
+      const normalizedContact =
+        contactType === 'EMAIL'
+          ? normalizeEmail(contact)
+          : normalizePhone(contact)
 
-      // Get family counts for billing accuracy
+      if (!normalizedContact) return []
+
       const familyCounts = await getFamilyChildCounts()
 
-      // Search for profiles where either:
-      // 1. The student has this contact
-      // 2. The parent (guardian) has this contact
+      const contactFilter =
+        contactType === 'EMAIL'
+          ? { email: normalizedContact }
+          : { phone: normalizedContact }
+
       const profiles = await prisma.programProfile.findMany({
         where: {
           program: DUGSI_PROGRAM,
           OR: [
             {
-              // Student's own contact
-              person: {
-                contactPoints: {
-                  some: {
-                    type: contactType,
-                    value: normalizedContact,
-                  },
-                },
-              },
+              person: contactFilter,
             },
             {
-              // Parent's contact (via guardian relationship)
               person: {
                 guardianRelationships: {
                   some: {
                     isActive: true,
-                    guardian: {
-                      contactPoints: {
-                        some: {
-                          type: contactType,
-                          value: normalizedContact,
-                        },
-                      },
-                    },
+                    guardian: contactFilter,
                   },
                 },
               },

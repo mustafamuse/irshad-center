@@ -79,6 +79,27 @@ describe('student-form-utils', () => {
       expect(formData.paymentNotes).toBe(FORM_DEFAULTS.EMPTY)
       expect(formData.batchId).toBe(FORM_DEFAULTS.NONE)
     })
+
+    it('should normalize serialized dateOfBirth values to Date', () => {
+      const serializedDateStudent = createMockStudent({
+        dateOfBirth: '2000-01-01T00:00:00.000Z' as string,
+      })
+
+      const formData = getDefaultFormData(serializedDateStudent)
+
+      expect(formData.dateOfBirth).toBeInstanceOf(Date)
+      expect(formData.dateOfBirth?.toISOString()).toBe(
+        '2000-01-01T00:00:00.000Z'
+      )
+    })
+
+    it('should return null for an invalid date string', () => {
+      const student = createMockStudent({
+        dateOfBirth: 'not-a-date' as string,
+      })
+      const formData = getDefaultFormData(student)
+      expect(formData.dateOfBirth).toBeNull()
+    })
   })
 
   describe('convertFormDataToPayload', () => {
@@ -335,6 +356,30 @@ describe('student-form-utils', () => {
       const student = createMockStudent()
       const formData = getDefaultFormData(student)
       formData.billingType = StudentBillingType.PART_TIME
+
+      expect(hasFormChanges(formData, student)).toBe(true)
+    })
+
+    it('should return false when original dateOfBirth is serialized', () => {
+      const studentWithSerializedDate = createMockStudent({
+        dateOfBirth: '2000-01-01T00:00:00.000Z' as string,
+      })
+      const formData = getDefaultFormData(studentWithSerializedDate)
+
+      expect(hasFormChanges(formData, studentWithSerializedDate)).toBe(false)
+    })
+
+    it('should return false when both dateOfBirth values are null', () => {
+      const student = createMockStudent({ dateOfBirth: null })
+      const formData = getDefaultFormData(student)
+
+      expect(hasFormChanges(formData, student)).toBe(false)
+    })
+
+    it('should return true when dateOfBirth is cleared to null', () => {
+      const student = createMockStudent({ dateOfBirth: new Date('2000-01-01') })
+      const formData = getDefaultFormData(student)
+      formData.dateOfBirth = null
 
       expect(hasFormChanges(formData, student)).toBe(true)
     })

@@ -39,7 +39,7 @@ import {
 
 import {
   generatePaymentLinkWithOverrideAction,
-  type PaymentLinkWithOverrideResult,
+  type PaymentLinkWithOverrideData,
 } from '../../_actions'
 
 interface PaymentLinkDialogProps {
@@ -67,9 +67,9 @@ export function PaymentLinkDialog({
   errorActionHref,
 }: PaymentLinkDialogProps) {
   const [isPending, startTransition] = useTransition()
-  const [result, setResult] = useState<PaymentLinkWithOverrideResult | null>(
-    null
-  )
+  const [result, setResult] = useState<Awaited<
+    ReturnType<typeof generatePaymentLinkWithOverrideAction>
+  > | null>(null)
   const [copied, setCopied] = useState(false)
   const [useOverride, setUseOverride] = useState(false)
   const [overrideAmount, setOverrideAmount] = useState('')
@@ -123,12 +123,12 @@ export function PaymentLinkDialog({
         billingStartDate: billingDateISO,
       })
 
-      if (response.success && response.url) {
+      if (response?.data?.url) {
         setResult(response)
         setSelectedBillingDate(billingDateISO || null)
         toast.success('Payment link generated successfully')
       } else {
-        toast.error(response.error || 'Failed to generate payment link')
+        toast.error(response?.serverError || 'Failed to generate payment link')
       }
     })
   }
@@ -153,11 +153,11 @@ export function PaymentLinkDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {result?.error && (
+          {result?.serverError && (
             <Alert variant="destructive">
               <AlertTitle>Cannot Generate Link</AlertTitle>
               <AlertDescription>
-                {result.error}
+                {result.serverError}
                 {errorActionHref && (
                   <Button asChild variant="outline" size="sm" className="mt-3">
                     <Link href={errorActionHref}>Review billing details</Link>
@@ -167,7 +167,7 @@ export function PaymentLinkDialog({
             </Alert>
           )}
 
-          {!result?.url && !result?.error && (
+          {!result?.data?.url && !result?.serverError && (
             <>
               <OverrideAmountInput
                 useOverride={useOverride}
@@ -190,21 +190,21 @@ export function PaymentLinkDialog({
             </>
           )}
 
-          {result?.url && (
+          {result?.data?.url && (
             <>
               <div className="rounded-lg border bg-muted/50 p-4">
                 <Label className="text-xs text-muted-foreground">
-                  {result.isOverride ? 'Custom Rate' : 'Calculated Rate'}
+                  {result.data.isOverride ? 'Custom Rate' : 'Calculated Rate'}
                 </Label>
                 <p className="text-2xl font-bold text-primary">
-                  {formatCurrency(result.finalAmount || 0)}
+                  {formatCurrency(result.data.finalAmount || 0)}
                   <span className="text-sm font-normal text-muted-foreground">
-                    {result.billingPeriod}
+                    {result.data.billingPeriod}
                   </span>
                 </p>
-                {result.isOverride && result.calculatedAmount && (
+                {result.data.isOverride && result.data.calculatedAmount && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Original: {formatCurrency(result.calculatedAmount)}
+                    Original: {formatCurrency(result.data.calculatedAmount)}
                   </p>
                 )}
                 {selectedBillingDate && (
@@ -218,9 +218,9 @@ export function PaymentLinkDialog({
               </div>
 
               <PaymentLinkDisplay
-                url={result.url}
+                url={result.data.url}
                 copied={copied}
-                onCopy={() => copyPaymentLink(result.url!, setCopied)}
+                onCopy={() => copyPaymentLink(result.data!.url, setCopied)}
               />
 
               <Alert>
@@ -235,10 +235,10 @@ export function PaymentLinkDialog({
 
         <DialogFooter className="flex-col gap-2 sm:flex-row">
           <PaymentLinkActions
-            url={result?.url || ''}
-            phone={result?.studentPhone || studentPhone}
+            url={result?.data?.url || ''}
+            phone={result?.data?.studentPhone || studentPhone}
             getWhatsAppMessage={getWhatsAppPaymentMessage}
-            hasResult={!!result?.url}
+            hasResult={!!result?.data?.url}
             onClose={() => onOpenChange(false)}
           />
         </DialogFooter>

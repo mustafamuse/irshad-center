@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 
+import { unstable_cache } from 'next/cache'
 import Image from 'next/image'
 
 import { fromZonedTime, toZonedTime } from 'date-fns-tz'
@@ -13,8 +14,6 @@ import { formatCurrency, formatDate } from '@/lib/utils/formatters'
 
 import { AnimatedStat } from './_components/animated-stat'
 import { PeriodFilter, type DonationPeriod } from './_components/period-filter'
-
-export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
   title: 'Donation Campaign | Irshad Center',
@@ -76,18 +75,10 @@ function isValidPeriod(value: string | undefined): value is DonationPeriod {
   )
 }
 
-interface PageProps {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}
+const hiddenDonors = ['mustafamuse']
 
-export default async function DonationsPage({ searchParams }: PageProps) {
-  const params = await searchParams
-  const rawPeriod =
-    typeof params.period === 'string' ? params.period : undefined
-  const period: DonationPeriod = isValidPeriod(rawPeriod) ? rawPeriod : 'all'
+async function fetchDonationsData(period: DonationPeriod) {
   const dateRange = period === 'all' ? undefined : getDonationDateRange(period)
-
-  const hiddenDonors = ['mustafamuse']
 
   const activeStatuses: ('succeeded' | 'pending')[] = ['succeeded', 'pending']
 
@@ -129,8 +120,31 @@ export default async function DonationsPage({ searchParams }: PageProps) {
       )
   )
 
-  const donatorCount = donationCount
-  const totalAmountCents = amountStats._sum.amount ?? 0
+  return {
+    donations,
+    donatorCount: donationCount,
+    totalAmountCents: amountStats._sum.amount ?? 0,
+  }
+}
+
+const getCachedDonationsData = unstable_cache(
+  fetchDonationsData,
+  ['donations-page'],
+  { revalidate: 30, tags: ['donations'] }
+)
+
+interface PageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export default async function DonationsPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const rawPeriod =
+    typeof params.period === 'string' ? params.period : undefined
+  const period: DonationPeriod = isValidPeriod(rawPeriod) ? rawPeriod : 'all'
+
+  const { donations, donatorCount, totalAmountCents } =
+    await getCachedDonationsData(period)
 
   return (
     <main className="min-h-screen bg-white">

@@ -11,6 +11,8 @@
  * - Maintains backward-compatible return types for UI components
  */
 
+import { unstable_cache } from 'next/cache'
+
 import {
   GradeLevel,
   GraduationStatus,
@@ -19,14 +21,18 @@ import {
   EnrollmentStatus,
   Prisma,
   SubscriptionStatus,
-  ContactType,
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { ACTIVE_BILLING_ASSIGNMENT_WHERE } from '@/lib/db/query-builders'
 import { DatabaseClient } from '@/lib/db/types'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { normalizePhone } from '@/lib/types/person'
 import { StudentStatus } from '@/lib/types/student'
-import { isPrismaError } from '@/lib/utils/type-guards'
+import {
+  normalizeEmail,
+  validateAndNormalizeEmail,
+} from '@/lib/utils/contact-normalization'
 
 export interface MahadStudent {
   id: string
@@ -97,11 +103,7 @@ function studentStatusToEnrollmentStatus(
  */
 type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
   include: {
-    person: {
-      include: {
-        contactPoints: true
-      }
-    }
+    person: true
     enrollments: {
       include: {
         batch: true
@@ -116,26 +118,16 @@ type ProfileWithRelations = Prisma.ProgramProfileGetPayload<{
 }>
 
 function transformToStudent(profile: ProfileWithRelations): MahadStudent {
-  // Extract primary contact points
-  const emailContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )
-  const phoneContact = profile.person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
-
-  // Get the most recent active enrollment
   const enrollment = profile.enrollments?.[0]
 
-  // Get active subscription
   const activeAssignment = profile.assignments?.[0]
   const subscription = activeAssignment?.subscription
 
   return {
     id: profile.id,
     name: profile.person.name,
-    email: emailContact?.value || null,
-    phone: phoneContact?.value || null,
+    email: profile.person.email,
+    phone: profile.person.phone,
     dateOfBirth: profile.person.dateOfBirth,
     gradeLevel: profile.gradeLevel,
     schoolName: profile.schoolName,
@@ -180,11 +172,7 @@ export async function getStudents(client: DatabaseClient = prisma) {
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -230,11 +218,7 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -263,6 +247,12 @@ export async function getStudentsWithBatch(client: DatabaseClient = prisma) {
 
   return profiles.map(transformToStudent)
 }
+
+export const getCachedStudentsWithBatch = unstable_cache(
+  () => getStudentsWithBatch(),
+  ['mahad-students'],
+  { revalidate: 300, tags: ['mahad-students'] }
+)
 
 /**
  * Get students with batch info, filtering, and pagination
@@ -303,7 +293,6 @@ export async function getStudentsWithBatchFiltered(
     program: 'MAHAD_PROGRAM',
   }
 
-  // Search across person name and contact points
   if (search && search.trim()) {
     const searchTerm = search.trim()
     const normalizedPhone = normalizePhone(searchTerm)
@@ -312,25 +301,12 @@ export async function getStudentsWithBatchFiltered(
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
         {
-          contactPoints: {
-            some: {
-              OR: [
-                {
-                  type: 'EMAIL',
-                  value: { contains: searchTerm, mode: 'insensitive' },
-                },
-                ...(normalizedPhone
-                  ? [
-                      {
-                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
-                        value: normalizedPhone,
-                      },
-                    ]
-                  : []),
-              ],
-            },
+          email: {
+            contains: validateAndNormalizeEmail(searchTerm) ?? searchTerm,
+            mode: 'insensitive',
           },
         },
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     }
   }
@@ -415,11 +391,7 @@ export async function getStudentsWithBatchFiltered(
       where,
       relationLoadStrategy: 'join',
       include: {
-        person: {
-          include: {
-            contactPoints: true,
-          },
-        },
+        person: true,
         enrollments: {
           where: {
             status: { not: 'WITHDRAWN' },
@@ -474,7 +446,6 @@ export async function getStudentById(
     include: {
       person: {
         include: {
-          contactPoints: true,
           siblingRelationships1: {
             where: { isActive: true },
           },
@@ -526,25 +497,19 @@ export async function getStudentByEmail(
   email: string,
   client: DatabaseClient = prisma
 ) {
+  const normalizedEmail = normalizeEmail(email)
+  if (!normalizedEmail) return null
+
   const profile = await client.programProfile.findFirst({
     where: {
       program: 'MAHAD_PROGRAM',
       person: {
-        contactPoints: {
-          some: {
-            type: 'EMAIL',
-            value: email.toLowerCase().trim(),
-          },
-        },
+        email: normalizedEmail,
       },
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -593,11 +558,7 @@ export async function getStudentsByBatch(
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           batchId,
@@ -654,11 +615,7 @@ export async function getUnassignedStudents(client: DatabaseClient = prisma) {
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -755,29 +712,16 @@ export async function searchStudents(
  * Uses exact phone matching - the most reliable indicator of duplicates
  */
 export async function findDuplicateStudents(client: DatabaseClient = prisma) {
-  // Get all Mahad profiles with phone numbers
   const profiles = await client.programProfile.findMany({
     where: {
       program: 'MAHAD_PROGRAM',
       person: {
-        contactPoints: {
-          some: {
-            type: { in: ['PHONE', 'WHATSAPP'] },
-          },
-        },
+        phone: { not: null },
       },
     },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: {
-            where: {
-              type: { in: ['PHONE', 'WHATSAPP'] },
-            },
-          },
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -803,18 +747,15 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
     },
   })
 
-  // Group by phone number
   const phoneGroups = new Map<string, typeof profiles>()
 
   for (const profile of profiles) {
-    for (const contact of profile.person.contactPoints) {
-      if (contact.value) {
-        const phone = contact.value
-        if (!phoneGroups.has(phone)) {
-          phoneGroups.set(phone, [])
-        }
-        phoneGroups.get(phone)!.push(profile)
+    const phone = profile.person.phone
+    if (phone) {
+      if (!phoneGroups.has(phone)) {
+        phoneGroups.set(phone, [])
       }
+      phoneGroups.get(phone)!.push(profile)
     }
   }
 
@@ -858,14 +799,15 @@ export async function findDuplicateStudents(client: DatabaseClient = prisma) {
 export async function resolveDuplicateStudents(
   keepId: string,
   deleteIds: string[],
-  mergeData: boolean = false
+  mergeData: boolean = false,
+  client: typeof prisma = prisma // must be the top-level client — calls $transaction() internally
 ) {
-  await prisma.$transaction(async (tx) => {
+  await client.$transaction(async (tx) => {
     const keepProfile = await tx.programProfile.findUniqueOrThrow({
       where: { id: keepId },
       relationLoadStrategy: 'join',
       include: {
-        person: { include: { contactPoints: true } },
+        person: true,
         assignments: true,
       },
     })
@@ -874,7 +816,7 @@ export async function resolveDuplicateStudents(
       where: { id: { in: deleteIds } },
       relationLoadStrategy: 'join',
       include: {
-        person: { include: { contactPoints: true } },
+        person: true,
         assignments: true,
       },
     })
@@ -883,34 +825,39 @@ export async function resolveDuplicateStudents(
       (p) => p.program !== keepProfile.program
     )
     if (invalidPrograms.length > 0) {
-      throw new Error('Cannot merge profiles from different programs')
+      throw new ActionError(
+        'Cannot merge profiles from different programs',
+        ERROR_CODES.VALIDATION_ERROR
+      )
     }
 
     if (mergeData) {
-      const keepContacts = keepProfile.person.contactPoints
-      for (const delProfile of deleteProfiles) {
-        for (const contact of delProfile.person.contactPoints) {
-          const alreadyExists = keepContacts.some(
-            (kc) => kc.type === contact.type && kc.value === contact.value
-          )
-          if (!alreadyExists) {
-            try {
-              await tx.contactPoint.create({
-                data: {
-                  personId: keepProfile.personId,
-                  type: contact.type,
-                  value: contact.value,
-                  isPrimary: false,
-                  isActive: contact.isActive,
-                },
-              })
-            } catch (error) {
-              if (!isPrismaError(error) || error.code !== 'P2002') {
-                throw error
-              }
-            }
+      const personUpdates: Prisma.PersonUpdateInput = {}
+      if (!keepProfile.person.email) {
+        for (const delProfile of deleteProfiles) {
+          if (delProfile.person.email) {
+            personUpdates.email =
+              normalizeEmail(delProfile.person.email) ?? null
+            break
           }
         }
+      }
+      if (!keepProfile.person.phone) {
+        for (const delProfile of deleteProfiles) {
+          if (delProfile.person.phone) {
+            // Phone must be canonical (10-digit US) or null — no raw fallback.
+            // All stored phones are already canonical so this ?? null is a safety net.
+            personUpdates.phone =
+              normalizePhone(delProfile.person.phone) ?? null
+            break
+          }
+        }
+      }
+      if (Object.keys(personUpdates).length > 0) {
+        await tx.person.update({
+          where: { id: keepProfile.personId },
+          data: personUpdates,
+        })
       }
 
       const billingFields = [
@@ -1010,11 +957,7 @@ export async function getStudentCompleteness(
     where: { id },
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -1026,7 +969,7 @@ export async function getStudentCompleteness(
   })
 
   if (!profile) {
-    throw new Error('Student not found')
+    throw new ActionError('Student not found', ERROR_CODES.NOT_FOUND)
   }
 
   const requiredFields = [
@@ -1039,17 +982,10 @@ export async function getStudentCompleteness(
     'billingType',
   ]
 
-  const emailContact = profile.person.contactPoints.find(
-    (cp) => cp.type === 'EMAIL'
-  )
-  const phoneContact = profile.person.contactPoints.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
-
   const values = {
     name: profile.person.name,
-    email: emailContact?.value,
-    phone: phoneContact?.value,
+    email: profile.person.email,
+    phone: profile.person.phone,
     dateOfBirth: profile.person.dateOfBirth,
     gradeLevel: profile.gradeLevel,
     graduationStatus: profile.graduationStatus,
@@ -1093,7 +1029,7 @@ export async function getStudentDeleteWarnings(
         },
       },
       assignments: {
-        where: { isActive: true },
+        where: ACTIVE_BILLING_ASSIGNMENT_WHERE,
       },
       payments: true,
     },
@@ -1103,6 +1039,8 @@ export async function getStudentDeleteWarnings(
     return {
       hasSiblings: false,
       hasAttendanceRecords: false,
+      hasActiveSubscription: false,
+      hasPaymentHistory: false,
     }
   }
 
@@ -1177,4 +1115,44 @@ export async function exportStudents(
     subscriptionStatus: student.subscription?.status || 'none',
     createdAt: student.createdAt.toISOString(),
   }))
+}
+
+export async function getProfileForPaymentLink(
+  profileId: string,
+  client: DatabaseClient = prisma
+) {
+  return client.programProfile.findUnique({
+    where: { id: profileId },
+    relationLoadStrategy: 'join',
+    select: {
+      id: true,
+      personId: true,
+      graduationStatus: true,
+      paymentFrequency: true,
+      billingType: true,
+      person: {
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  })
+}
+
+export async function setProfileBillingDefaults(
+  profileId: string,
+  defaults: {
+    graduationStatus: GraduationStatus
+    billingType: StudentBillingType
+    paymentFrequency: PaymentFrequency
+  },
+  client: DatabaseClient = prisma
+) {
+  const { count } = await client.programProfile.updateMany({
+    where: { id: profileId },
+    data: defaults,
+  })
+  return count > 0
 }

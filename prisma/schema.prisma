@@ -57,7 +57,7 @@ model StudentPayment {
 // Teacher - Staff role linked to Person
 // A Person can be a teacher (staff member) while also being a parent, payer, or student
 // Teachers can teach in multiple programs (Dugsi, Mahad, etc.) via assignments
-// Contact information (email, phone) comes from Person.contactPoints, not stored here
+// Contact information (email, phone) comes from Person.email/Person.phone
 model Teacher {
   id        String   @id @default(uuid())
   personId  String   @unique // One Teacher record per Person
@@ -181,19 +181,6 @@ enum StripeAccountType {
   GENERAL_DONATION
 }
 
-enum ContactType {
-  EMAIL
-  PHONE
-  WHATSAPP
-  OTHER
-}
-
-enum ContactVerificationStatus {
-  UNVERIFIED
-  VERIFIED
-  INVALID
-}
-
 enum GuardianRole {
   PARENT
   GUARDIAN
@@ -217,12 +204,13 @@ enum EnrollmentStatus {
 model Person {
   id          String    @id @default(uuid())
   name        String
+  email       String?   @unique
+  phone       String?   @unique // exactly 10 digits, US only
   dateOfBirth DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // Relations
-  contactPoints          ContactPoint[]
   guardianRelationships  GuardianRelationship[] @relation("GuardianRelationships")
   dependentRelationships GuardianRelationship[] @relation("DependentRelationships")
   siblingRelationships1  SiblingRelationship[]  @relation("SiblingRelationships1")
@@ -238,34 +226,6 @@ model Person {
   // Note: Case-insensitive name matching may limit index usage, but dateOfBirth
   // filtering still benefits. Monitor query plans if performance degrades.
   @@index([name, dateOfBirth])
-}
-
-model ContactPoint {
-  id                 String                    @id @default(uuid())
-  personId           String
-  type               ContactType // EMAIL, PHONE, WHATSAPP, or OTHER
-  value              String // Email address or phone number (normalized)
-  isPrimary          Boolean                   @default(false) // Primary contact method for the person
-  verificationStatus ContactVerificationStatus @default(UNVERIFIED) // Verification status of contact
-  verifiedAt         DateTime? // Timestamp when contact was verified
-  isActive           Boolean                   @default(true) // Soft-delete: allows email/phone reuse after deactivation
-  deactivatedAt      DateTime? // When contact was deactivated (null if active)
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-
-  // Relations
-  person          Person           @relation(fields: [personId], references: [id], onDelete: Cascade)
-  billingAccounts BillingAccount[] // Billing accounts using this contact point
-
-  // Unique constraint includes isActive to allow reuse of deactivated contacts
-  // Only active contacts enforce global uniqueness per type+value
-  @@unique([type, value, isActive], name: "unique_active_contact_globally")
-  @@unique([personId, type, value], name: "unique_contact_per_person") // One contact point per person per type/value combination
-  @@index([personId])
-  @@index([personId, isPrimary]) // Find primary contact faster
-  @@index([value]) // Search by contact value (email/phone)
-  @@index([type, value]) // Search by type and value
-  @@index([isActive]) // Filter active contacts
 }
 
 model GuardianRelationship {
@@ -415,16 +375,12 @@ model BillingAccount {
   paymentMethodCaptured   Boolean   @default(false) // Whether payment method has been captured
   paymentMethodCapturedAt DateTime? // Timestamp when payment method was captured
 
-  // Primary contact preference
-  primaryContactPointId String? // Preferred contact point for billing communications
-
   notes     String? // Optional notes about the billing account
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relations
   person              Person?        @relation(fields: [personId], references: [id], onDelete: SetNull) // SetNull allows organization accounts
-  primaryContactPoint ContactPoint?  @relation(fields: [primaryContactPointId], references: [id], onDelete: SetNull)
   subscriptions       Subscription[] // All subscriptions for this billing account
 
   @@index([accountType]) // Filter by account type
@@ -557,7 +513,7 @@ model DugsiClassTeacher {
 
   @@unique([classId, teacherId])
   @@index([classId])
-  @@index([teacherId])
+  @@index([teacherId, isActive])
 }
 
 model DugsiClassEnrollment {

@@ -152,11 +152,6 @@ export async function createDugsiCheckoutSession(
             include: {
               guardian: {
                 include: {
-                  contactPoints: {
-                    where: { type: 'EMAIL', isActive: true },
-                    orderBy: { isPrimary: 'desc' },
-                    take: 1,
-                  },
                   billingAccounts: {
                     select: { stripeCustomerIdDugsi: true },
                     take: 1,
@@ -212,7 +207,7 @@ export async function createDugsiCheckoutSession(
   }
 
   // Validate guardian email exists
-  const guardianEmail = primaryGuardian.contactPoints[0]?.value
+  const guardianEmail = primaryGuardian.email
   if (!guardianEmail) {
     throw new ActionError(
       'Guardian must have an email address on file to receive payment link',

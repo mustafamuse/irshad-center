@@ -78,10 +78,10 @@ export function EditCheckinDialog({
         notes: notes || null,
       })
 
-      if (result.success) {
+      if (result?.data) {
         onSuccess?.()
       } else {
-        setError(result.error || 'Failed to update check-in')
+        setError(result?.serverError || 'Failed to update check-in')
       }
     })
   }

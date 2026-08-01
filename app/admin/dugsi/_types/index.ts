@@ -31,7 +31,7 @@ export interface DugsiRegistration {
   healthInfo: string | null
   createdAt: Date
 
-  // Parent 1 info (from GuardianRelationship -> Person -> ContactPoints)
+  // Parent 1 info (from GuardianRelationship -> Person)
   parentFirstName: string | null
   parentLastName: string | null
   parentEmail: string | null
@@ -142,9 +142,6 @@ export interface UnassignedStudent {
   shift: Shift | null
   siblings: { name: string; teacherName: string; classShift: Shift }[]
 }
-
-// Re-export ActionResult from canonical location
-export type { ActionResult } from '@/lib/utils/action-helpers'
 
 // Action data payload types
 export interface SubscriptionValidationData {

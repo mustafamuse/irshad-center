@@ -36,6 +36,7 @@ import {
   getBatchStudents,
   getBatchWithEnrollments,
   getUnassignedStudents,
+  getBatchDropdownOptions,
 } from '../batch'
 
 describe('getBatchStudents', () => {
@@ -89,5 +90,55 @@ describe('getUnassignedStudents', () => {
         relationLoadStrategy: 'join',
       })
     )
+  })
+})
+
+describe('getBatchDropdownOptions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should select only id and name', async () => {
+    mockBatchFindMany.mockResolvedValue([])
+
+    await getBatchDropdownOptions()
+
+    expect(mockBatchFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: { id: true, name: true },
+      })
+    )
+  })
+
+  it('should exclude Test batch', async () => {
+    mockBatchFindMany.mockResolvedValue([])
+
+    await getBatchDropdownOptions()
+
+    expect(mockBatchFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { name: { not: 'Test' } },
+      })
+    )
+  })
+
+  it('should order by name ascending', async () => {
+    mockBatchFindMany.mockResolvedValue([])
+
+    await getBatchDropdownOptions()
+
+    expect(mockBatchFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { name: 'asc' },
+      })
+    )
+  })
+
+  it('should return empty array when no batches', async () => {
+    mockBatchFindMany.mockResolvedValue([])
+
+    const result = await getBatchDropdownOptions()
+
+    expect(result).toEqual([])
   })
 })

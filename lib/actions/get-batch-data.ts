@@ -14,14 +14,11 @@ import {
   StudentBillingType,
 } from '@prisma/client'
 
+import { assertAdmin } from '@/lib/auth'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { createActionLogger, logError } from '@/lib/logger'
-import {
-  mahadEnrollmentInclude,
-  extractStudentEmail,
-  extractStudentPhone,
-} from '@/lib/mappers/mahad-mapper'
+import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
 
 const logger = createActionLogger('batch-data')
 
@@ -62,7 +59,7 @@ export interface BatchStudentData {
 }
 
 export interface DuplicateStudentGroup {
-  email: string
+  email: string | null
   count: number
   students: Array<{
     id: string
@@ -84,6 +81,7 @@ export interface DuplicateStudentGroup {
  * Used for batch management and reporting.
  */
 export async function getBatchData(): Promise<BatchStudentData[]> {
+  await assertAdmin()
   // Single query with nested sibling relationships (optimized from 2 queries)
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -100,7 +98,6 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
         include: {
           person: {
             include: {
-              contactPoints: true,
               // Include both directions of sibling relationships
               siblingRelationships1: {
                 where: { isActive: true },
@@ -276,9 +273,8 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
     const profile = enrollment.programProfile
     const person = profile.person
 
-    // Use shared contact helpers
-    const email = extractStudentEmail({ person })
-    const phone = extractStudentPhone({ person })
+    const email = person.email
+    const phone = person.phone
 
     // Find sibling group using O(1) lookup
     const siblingGroup = profileToGroupMap.get(profile.id) ?? null
@@ -313,83 +309,43 @@ export async function getBatchData(): Promise<BatchStudentData[]> {
 }
 
 /**
- * Find potential duplicate students by email
+ * Find persons with multiple active Mahad program profiles (duplicate enrollments)
  */
 export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
-  // Find emails with multiple persons
-  const duplicateEmails = await prisma.contactPoint.groupBy({
-    by: ['value'],
+  await assertAdmin()
+  const people = await prisma.person.findMany({
     where: {
-      type: 'EMAIL',
+      programProfiles: {
+        some: { program: MAHAD_PROGRAM, status: { not: 'WITHDRAWN' } },
+      },
     },
-    _count: {
-      value: true,
-    },
-    having: {
-      value: {
-        _count: {
-          gt: 1,
+    include: {
+      programProfiles: {
+        where: { program: MAHAD_PROGRAM, status: { not: 'WITHDRAWN' } },
+        include: {
+          enrollments: {
+            where: { status: { not: 'WITHDRAWN' }, endDate: null },
+            take: 1,
+          },
         },
       },
     },
   })
 
   const duplicateGroups: DuplicateStudentGroup[] = []
-
-  for (const dup of duplicateEmails) {
-    // Get all persons with this email
-    const contactPoints = await prisma.contactPoint.findMany({
-      where: {
-        type: 'EMAIL',
-        value: dup.value,
-      },
-      relationLoadStrategy: 'join',
-      include: {
-        person: {
-          include: {
-            contactPoints: true,
-            programProfiles: {
-              where: {
-                program: MAHAD_PROGRAM,
-              },
-              include: {
-                enrollments: {
-                  where: {
-                    status: { not: 'WITHDRAWN' },
-                    endDate: null,
-                  },
-                  take: 1,
-                },
-              },
-            },
-          },
-        },
-      },
-    })
-
-    const students = contactPoints
-      .filter((cp) => cp.person.programProfiles.length > 0)
-      .map((cp) => {
-        const profile = cp.person.programProfiles[0]
-        const phoneContact = cp.person.contactPoints.find(
-          (c) => c.type === 'PHONE' || c.type === 'WHATSAPP'
-        )
-
-        return {
+  for (const person of people) {
+    if (person.programProfiles.length > 1) {
+      duplicateGroups.push({
+        email: person.email,
+        count: person.programProfiles.length,
+        students: person.programProfiles.map((profile) => ({
           id: profile.id,
-          name: cp.person.name,
-          email: dup.value,
-          phone: phoneContact?.value ?? null,
+          name: person.name,
+          email: person.email,
+          phone: person.phone,
           status: profile.enrollments[0]?.status || 'REGISTERED',
           createdAt: profile.createdAt,
-        }
-      })
-
-    if (students.length > 1) {
-      duplicateGroups.push({
-        email: dup.value,
-        count: students.length,
-        students,
+        })),
       })
     }
   }
@@ -403,6 +359,7 @@ export async function getDuplicateStudents(): Promise<DuplicateStudentGroup[]> {
 export async function deleteDuplicateRecords(
   profileIds: string[]
 ): Promise<{ success: boolean; deleted: number; error?: string }> {
+  await assertAdmin()
   try {
     if (profileIds.length === 0) {
       return { success: true, deleted: 0 }

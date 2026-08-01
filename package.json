@@ -18,7 +18,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "prepare": "husky install",
+    "prepare": "sh -c 'if [ -z \"$VERCEL\" ] && [ -z \"$CI\" ]; then husky install; fi'",
     "cleanup": "bun run format && bun run lint -- --fix && bun run type-check",
     "cleanup-stripe": "tsx scripts/cleanup-stripe.ts",
     "see-active": "ts-node scripts/see-active.ts",
@@ -33,7 +33,8 @@
     "setup-hooks": "bash .github/scripts/setup-hooks.sh",
     "db:safety-check": "tsx scripts/db-safety-check.ts",
     "db:reset-safe": "tsx scripts/safe-migrate-reset.ts",
-    "merge:duplicates": "tsx scripts/merge-duplicate-persons.ts"
+    "merge:duplicates": "tsx scripts/merge-duplicate-persons.ts",
+    "analyze:checkins": "tsx scripts/analyze-checkins.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -100,6 +101,7 @@
     "next": "^15.3.6",
     "next-axiom": "^1.10.0",
     "next-intl": "^4.3.12",
+    "next-safe-action": "8",
     "next-themes": "^0.2.1",
     "nuqs": "^2.4.3",
     "pg": "^8.13.1",

@@ -9,7 +9,6 @@ import {
   Prisma,
   Program,
   EnrollmentStatus,
-  ContactType,
   GuardianRole,
   Gender,
   GradeLevel,
@@ -22,11 +21,19 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/db'
 import { createEnrollment } from '@/lib/db/queries/enrollment'
-import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
+import {
+  throwIfP2002,
+  ActionError,
+  ERROR_CODES,
+} from '@/lib/errors/action-error'
 import { createServiceLogger, logError } from '@/lib/logger'
 import { validateEnrollment } from '@/lib/services/validation-service'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('registration')
 
@@ -91,7 +98,7 @@ function generateErrorRef(uuid: string): string {
  *       primarily serves a US-based community. International phone
  *       support may be added in the future if needed.
  *
- * @see normalizePhone() in utils/contact-normalization.ts for E.164 conversion
+ * @see normalizePhone() in utils/contact-normalization.ts
  */
 const phoneRegex = /^(\+?1[-.\s]?)?(\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}$/
 
@@ -135,12 +142,11 @@ const personDataSchema = z.object({
     .string()
     .regex(phoneRegex, 'Phone must be in format XXX-XXX-XXXX')
     .refine((phone) => !phone || normalizePhone(phone) !== null, {
-      message: 'Invalid phone number - cannot be normalized',
+      message:
+        'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
     })
     .nullable()
     .optional(),
-  isPrimaryEmail: z.boolean().optional(),
-  isPrimaryPhone: z.boolean().optional(),
 })
 
 /**
@@ -277,7 +283,7 @@ const familyRegistrationSchema = z.object({
 })
 
 /**
- * Create a Person with contact points
+ * Create a Person with email and phone
  * @param data - Person data including name, dateOfBirth, email, phone
  * @param tx - Optional Prisma transaction client for atomic operations
  */
@@ -285,17 +291,9 @@ export async function createPersonWithContact(
   data: unknown,
   tx?: Prisma.TransactionClient
 ) {
-  // Validate at service boundary
   const validated = personDataSchema.parse(data)
 
-  const {
-    name,
-    dateOfBirth,
-    email,
-    phone,
-    isPrimaryEmail = true,
-    isPrimaryPhone = true,
-  } = validated
+  const { name, dateOfBirth, email, phone } = validated
 
   logger.info(
     {
@@ -304,71 +302,129 @@ export async function createPersonWithContact(
       hasPhone: !!phone,
       usingTransactionClient: !!tx,
     },
-    'Creating person with contact points'
+    'Creating person'
   )
 
-  // Use transaction client if provided, otherwise use prisma
   const client = tx || prisma
 
-  const person = await client.person.create({
-    data: {
-      name,
-      dateOfBirth,
-      contactPoints: {
-        create: [
-          ...(email
-            ? [
-                {
-                  type: 'EMAIL' as ContactType,
-                  value: email.toLowerCase().trim(),
-                  isPrimary: isPrimaryEmail,
-                },
-              ]
-            : []),
-          ...(phone
-            ? [
-                {
-                  type: 'PHONE' as ContactType,
-                  value: (() => {
-                    const normalized = normalizePhone(phone)
-                    if (!normalized) {
-                      const digits = phone.replace(/\D/g, '')
-                      // Log detailed error for debugging (server-side only)
-                      logger.error(
-                        {
-                          name,
-                          phone,
-                          digitCount: digits.length,
-                          expectedDigits: '10-15',
-                        },
-                        'Phone normalization failed during person creation'
-                      )
-                      // Throw sanitized error message (safe for client)
-                      throw new Error(
-                        `Invalid phone number format (${digits.length} digits found, expected 10-15 for E.164 format)`
-                      )
-                    }
-                    return normalized
-                  })(),
-                  isPrimary: isPrimaryPhone,
-                },
-              ]
-            : []),
-        ],
+  const normalizedEmail = normalizeEmail(email)
+  const normalizedPhone = phone ? normalizePhone(phone) : null
+  if (phone && !normalizedPhone) {
+    const digits = phone.replace(/\D/g, '')
+    logger.error(
+      {
+        name,
+        phone,
+        digitCount: digits.length,
+        expectedDigits: '10',
       },
-    },
-    include: {
-      contactPoints: true,
-    },
-  })
+      'Phone normalization failed during person creation'
+    )
+    throw new ActionError(
+      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`,
+      ERROR_CODES.VALIDATION_ERROR
+    )
+  }
+
+  // When called inside a transaction, let P2002 propagate naturally — no catch.
+  // PostgreSQL aborts the tx on constraint violations, so recovery code would be dead.
+  if (tx) {
+    // return await (not bare return) preserves this frame in rejection stack traces.
+    return await client.person.create({
+      data: {
+        name,
+        dateOfBirth,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+      },
+    })
+  }
+
+  let person
+  try {
+    person = await client.person.create({
+      data: {
+        name,
+        dateOfBirth,
+        email: normalizedEmail,
+        phone: normalizedPhone,
+      },
+    })
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      logger.info(
+        { hasEmail: !!email, hasPhone: !!normalizedPhone },
+        'P2002 on person.create — looking up existing person by contact'
+      )
+
+      // Note: findPersonByActiveContact uses an OR query (email OR phone). In the
+      // rare split-contact race — email belongs to Person A, phone to Person B —
+      // findFirst returns whichever the DB finds first. The update for the other
+      // contact then hits a second P2002 (handled below). The function returns a
+      // valid real person but without the conflicting contact: conservative merge
+      // correctly refuses to overwrite a contact owned by a different person.
+      //
+      // Also includes programProfiles/enrollments (not needed here); acceptable
+      // cost on this exceptional path.
+      const existingPerson = await findPersonByActiveContact(
+        normalizedEmail,
+        normalizedPhone,
+        client
+      )
+
+      if (existingPerson) {
+        logger.info({ personId: existingPerson.id }, 'Found existing Person')
+        // Conservative merge: fill null contact fields only (registration policy)
+        const updates: Prisma.PersonUpdateInput = {}
+        if (!existingPerson.email && normalizedEmail)
+          updates.email = normalizedEmail
+        if (!existingPerson.phone && normalizedPhone)
+          updates.phone = normalizedPhone
+        if (Object.keys(updates).length > 0) {
+          try {
+            return await client.person.update({
+              where: { id: existingPerson.id },
+              data: updates,
+            })
+          } catch (updateError) {
+            if (
+              updateError instanceof Prisma.PrismaClientKnownRequestError &&
+              updateError.code === 'P2002'
+            ) {
+              // Concurrent request already set the field — fetch latest state
+              return await client.person.findUniqueOrThrow({
+                where: { id: existingPerson.id },
+              })
+            }
+            throw updateError
+          }
+        }
+        return existingPerson
+      }
+      // findPersonByActiveContact returned null: the conflicting person was deleted
+      // in the race between our create and this findFirst. The DUPLICATE_CONTACT error
+      // below is technically misleading (person is gone), but a retry would likely succeed.
+      logger.warn(
+        { hasEmail: !!email, hasPhone: !!normalizedPhone },
+        'P2002 recovery: conflicting person not found (concurrent delete race)'
+      )
+      throwIfP2002(error)
+    }
+
+    throw error
+  }
 
   logger.info(
     {
       personId: person.id,
       name: person.name,
-      contactPointCount: person.contactPoints.length,
+      hasEmail: !!person.email,
+      hasPhone: !!person.phone,
     },
-    'Person created successfully with contact points'
+    'Person created successfully'
   )
 
   return person
@@ -472,9 +528,10 @@ export async function createProgramProfileWithEnrollment(
         },
         'Person already has an active enrollment for this program'
       )
-      throw new Error(
+      throw new ActionError(
         `This person already has an active ${program} enrollment. ` +
-          'Withdraw the existing enrollment first before re-registering.'
+          'Withdraw the existing enrollment first before re-registering.',
+        ERROR_CODES.VALIDATION_ERROR
       )
     }
 
@@ -551,7 +608,7 @@ export async function createProgramProfileWithEnrollment(
 /**
  * Create a family registration (Dugsi multi-child registration)
  *
- * Creates Person + ContactPoint for parents and links via GuardianRelationship.
+ * Creates Person for parents and links via GuardianRelationship.
  * Creates or reuses BillingAccount for primary parent.
  * Also creates sibling relationships between children.
  *
@@ -587,7 +644,7 @@ export async function createProgramProfileWithEnrollment(
  *   parent1LastName: 'Ali',
  *   familyReferenceId: crypto.randomUUID(),
  * })
- * // Returns: { profiles: [...], billingAccount: { id, primaryContactPointId } }
+ * // Returns: { profiles: [...], billingAccount: { id } }
  * ```
  *
  * @throws {ZodError} If data validation fails
@@ -595,7 +652,7 @@ export async function createProgramProfileWithEnrollment(
  */
 export async function createFamilyRegistration(data: unknown): Promise<{
   profiles: Array<{ id: string; name: string; personId: string }>
-  billingAccount: { id: string; primaryContactPointId: string | null }
+  billingAccount: { id: string }
 }> {
   // Validate at service boundary
   const validated = familyRegistrationSchema.parse(data)
@@ -649,25 +706,18 @@ export async function createFamilyRegistration(data: unknown): Promise<{
         name: parent1FullName,
         email: parent1Email,
         phone: parent1Phone,
-        isPrimaryEmail: true,
-        isPrimaryPhone: true,
       }),
       hasParent2
         ? findOrCreatePersonWithContact({
             name: `${parent2FirstName} ${parent2LastName}`,
             email: parent2Email!,
             phone: parent2Phone!,
-            isPrimaryEmail: true,
-            isPrimaryPhone: true,
           })
         : Promise.resolve(null),
     ])
 
     // Phase 2: Create or get billing account (idempotent find-or-create)
     currentPhase = 'billing'
-    const primaryEmailContact = parent1Person.contactPoints.find(
-      (cp) => cp.type === 'EMAIL' && cp.isPrimary
-    )
 
     const existingBillingAccount = await prisma.billingAccount.findFirst({
       where: {
@@ -676,30 +726,14 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       },
     })
 
-    let billingAccount
-    if (existingBillingAccount) {
-      // Update primary contact if changed
-      if (
-        primaryEmailContact &&
-        existingBillingAccount.primaryContactPointId !== primaryEmailContact.id
-      ) {
-        billingAccount = await prisma.billingAccount.update({
-          where: { id: existingBillingAccount.id },
-          data: { primaryContactPointId: primaryEmailContact.id },
+    const billingAccount = existingBillingAccount
+      ? existingBillingAccount
+      : await prisma.billingAccount.create({
+          data: {
+            personId: parent1Person.id,
+            accountType: 'DUGSI',
+          },
         })
-      } else {
-        billingAccount = existingBillingAccount
-      }
-    } else {
-      // Create new billing account
-      billingAccount = await prisma.billingAccount.create({
-        data: {
-          personId: parent1Person.id,
-          accountType: 'DUGSI',
-          primaryContactPointId: primaryEmailContact?.id || null,
-        },
-      })
-    }
 
     // Phase 3: Create children sequentially with batch lookups
     // OPTIMIZATION: Batch lookups reduce N queries to 1 query each
@@ -765,9 +799,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                   errorRef: generateErrorRef(familyReferenceId),
                 }
               )
-              throw new Error(
+              throw new ActionError(
                 `Registration temporarily unavailable for ${childFullName}. ` +
-                  `Please retry. If the problem persists, contact support with reference: ${generateErrorRef(familyReferenceId)}`
+                  `Please retry. If the problem persists, contact support with reference: ${generateErrorRef(familyReferenceId)}`,
+                ERROR_CODES.SERVER_ERROR
               )
             }
           } else {
@@ -818,9 +853,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
           existingProfile.familyReferenceId &&
           existingProfile.familyReferenceId !== familyReferenceId
         ) {
-          throw new Error(
+          throw new ActionError(
             `Child ${childFullName} is already registered under a different family. ` +
-              `Contact support to update family relationships.`
+              `Contact support to update family relationships.`,
+            ERROR_CODES.VALIDATION_ERROR
           )
         }
 
@@ -894,9 +930,10 @@ export async function createFamilyRegistration(data: unknown): Promise<{
                   errorRef: generateErrorRef(familyReferenceId),
                 }
               )
-              throw new Error(
+              throw new ActionError(
                 `Unable to register ${childFullName}. This may indicate a data conflict. ` +
-                  `Please contact support with reference: ${generateErrorRef(familyReferenceId)}`
+                  `Please contact support with reference: ${generateErrorRef(familyReferenceId)}`,
+                ERROR_CODES.SERVER_ERROR
               )
             }
           } else {
@@ -1121,7 +1158,6 @@ export async function createFamilyRegistration(data: unknown): Promise<{
       profiles: createdProfiles,
       billingAccount: {
         id: billingAccount.id,
-        primaryContactPointId: billingAccount.primaryContactPointId,
       },
     }
   } catch (error) {
@@ -1168,7 +1204,7 @@ function isNameMoreComplete(oldName: string, newName: string): boolean {
 }
 
 /**
- * Find or create a Person with contact points
+ * Find or create a Person with email and phone
  * Reuses existing Person if found by email/phone, otherwise creates new one
  */
 export async function findOrCreatePersonWithContact(
@@ -1177,46 +1213,50 @@ export async function findOrCreatePersonWithContact(
     dateOfBirth?: Date | null
     email?: string | null
     phone?: string | null
-    isPrimaryEmail?: boolean
-    isPrimaryPhone?: boolean
   },
   tx?: Prisma.TransactionClient
 ): Promise<{
   id: string
   name: string
-  contactPoints: Array<{
-    id: string
-    type: ContactType
-    value: string
-    isPrimary: boolean
-  }>
+  email: string | null
+  phone: string | null
 }> {
-  const {
-    name,
-    dateOfBirth,
-    email,
-    phone,
-    isPrimaryEmail = true,
-    isPrimaryPhone = true,
-  } = data
+  const { name, dateOfBirth, email, phone } = data
   const client = tx || prisma
 
-  // Try to find existing person by contact
-  if (email || phone) {
-    const existingPerson = await findPersonByContact(
-      email?.toLowerCase().trim() || null,
-      phone ? normalizePhone(phone) || null : null,
-      client // Pass transaction client for consistency
+  const normalizedEmailVal = normalizeEmail(email)
+  const normalizedPhoneVal = phone ? normalizePhone(phone) : null
+
+  if (phone && !normalizedPhoneVal) {
+    const digits = phone.replace(/\D/g, '')
+    logger.error(
+      {
+        name,
+        phone,
+        digitCount: digits.length,
+        expectedDigits: '10',
+      },
+      'Phone normalization failed during findOrCreate'
+    )
+    throw new ActionError(
+      `Invalid phone number format (${digits.length} digits found, expected a 10-digit US number)`,
+      ERROR_CODES.VALIDATION_ERROR
+    )
+  }
+
+  if (normalizedEmailVal || normalizedPhoneVal) {
+    const existingPerson = await findPersonByActiveContact(
+      normalizedEmailVal,
+      normalizedPhoneVal,
+      client
     )
 
     if (existingPerson) {
-      // Found existing person - update name if more complete and add missing contact points
       const shouldUpdateName = isNameMoreComplete(existingPerson.name, name)
+
+      const updateData: Prisma.PersonUpdateInput = {}
       if (shouldUpdateName) {
-        await client.person.update({
-          where: { id: existingPerson.id },
-          data: { name },
-        })
+        updateData.name = name
         logger.info(
           {
             personId: existingPerson.id,
@@ -1227,173 +1267,75 @@ export async function findOrCreatePersonWithContact(
         )
       }
 
-      const contactPointsToCreate: Prisma.ContactPointCreateManyInput[] = []
-      const existingEmails = existingPerson.contactPoints
-        .filter((cp) => cp.type === 'EMAIL')
-        .map((cp) => cp.value.toLowerCase())
-      const existingPhones = existingPerson.contactPoints
-        .filter((cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP')
-        .map((cp) => normalizePhone(cp.value))
+      if (normalizedEmailVal && !existingPerson.email) {
+        updateData.email = normalizedEmailVal
+      }
+      if (normalizedPhoneVal && !existingPerson.phone) {
+        updateData.phone = normalizedPhoneVal
+      }
 
-      if (email && !existingEmails.includes(email.toLowerCase().trim())) {
-        contactPointsToCreate.push({
-          personId: existingPerson.id,
-          type: 'EMAIL',
-          value: email.toLowerCase().trim(),
-          isPrimary: isPrimaryEmail,
+      if (Object.keys(updateData).length > 0) {
+        const updated = await client.person.update({
+          where: { id: existingPerson.id },
+          data: updateData,
+          select: { id: true, name: true, email: true, phone: true },
         })
+        return updated
       }
 
-      if (phone) {
-        const normalizedPhone = normalizePhone(phone) || phone
-        if (!existingPhones.includes(normalizedPhone)) {
-          contactPointsToCreate.push({
-            personId: existingPerson.id,
-            type: 'PHONE',
-            value: normalizedPhone,
-            isPrimary: isPrimaryPhone,
-          })
-        }
+      return {
+        id: existingPerson.id,
+        name: existingPerson.name,
+        email: existingPerson.email ?? null,
+        phone: existingPerson.phone ?? null,
       }
-
-      if (contactPointsToCreate.length > 0) {
-        // Clear existing primary flags for types we're adding as primary
-        // This ensures only one contact point per type is marked as primary
-        const primaryEmailBeingAdded = contactPointsToCreate.some(
-          (cp) => cp.type === 'EMAIL' && cp.isPrimary
-        )
-        const primaryPhoneBeingAdded = contactPointsToCreate.some(
-          (cp) => cp.type === 'PHONE' && cp.isPrimary
-        )
-
-        if (primaryEmailBeingAdded) {
-          await client.contactPoint.updateMany({
-            where: {
-              personId: existingPerson.id,
-              type: 'EMAIL',
-              isPrimary: true,
-            },
-            data: { isPrimary: false },
-          })
-        }
-        if (primaryPhoneBeingAdded) {
-          await client.contactPoint.updateMany({
-            where: {
-              personId: existingPerson.id,
-              type: 'PHONE',
-              isPrimary: true,
-            },
-            data: { isPrimary: false },
-          })
-        }
-
-        await client.contactPoint.createMany({
-          data: contactPointsToCreate,
-          skipDuplicates: true,
-        })
-      }
-
-      // Return updated person with contact points
-      const updatedPerson = await client.person.findUnique({
-        relationLoadStrategy: 'join',
-        where: { id: existingPerson.id },
-        include: { contactPoints: true },
-      })
-
-      if (!updatedPerson) {
-        throw new Error('Failed to update person with contact points')
-      }
-
-      return updatedPerson
     }
   }
 
-  // Create new person
-  // Wrap in try-catch to handle race condition with unique constraint
   try {
     return await client.person.create({
       data: {
         name,
         dateOfBirth,
-        contactPoints: {
-          create: [
-            ...(email
-              ? [
-                  {
-                    type: 'EMAIL' as ContactType,
-                    value: email.toLowerCase().trim(),
-                    isPrimary: isPrimaryEmail,
-                  },
-                ]
-              : []),
-            ...(phone
-              ? [
-                  {
-                    type: 'PHONE' as ContactType,
-                    value: (() => {
-                      const normalized = normalizePhone(phone)
-                      if (!normalized) {
-                        const digits = phone.replace(/\D/g, '')
-                        // Log detailed error for debugging (server-side only)
-                        logger.error(
-                          {
-                            name,
-                            phone,
-                            digitCount: digits.length,
-                            expectedDigits: '10-15',
-                          },
-                          'Phone normalization failed during findOrCreate'
-                        )
-                        // Throw sanitized error message (safe for client)
-                        throw new Error(
-                          `Invalid phone number format (${digits.length} digits found, expected 10-15 for E.164 format)`
-                        )
-                      }
-                      return normalized
-                    })(),
-                    isPrimary: isPrimaryPhone,
-                  },
-                ]
-              : []),
-          ],
-        },
+        email: normalizedEmailVal,
+        phone: normalizedPhoneVal,
       },
-      include: {
-        contactPoints: true,
-      },
+      select: { id: true, name: true, email: true, phone: true },
     })
   } catch (error) {
-    // If unique constraint violation on contact (race condition), retry find
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002' &&
-      error.meta?.target &&
-      Array.isArray(error.meta.target) &&
-      (error.meta.target.includes('type') ||
-        error.meta.target.includes('value'))
+      error.code === 'P2002'
     ) {
+      if (tx) {
+        throw error
+      }
+
       logger.info(
         {
-          email: email?.toLowerCase().trim() || null,
-          phone: phone ? normalizePhone(phone) || null : null,
+          email: normalizedEmailVal,
+          phone: normalizedPhoneVal,
         },
         'Unique constraint violation caught - Person with this contact already exists, fetching'
       )
 
-      // Another process created the person, find and return it
-      const existingPerson = await findPersonByContact(
-        email?.toLowerCase().trim() || null,
-        phone ? normalizePhone(phone) || null : null,
-        client // Pass transaction client for consistency
+      const existingPerson = await findPersonByActiveContact(
+        normalizedEmailVal,
+        normalizedPhoneVal,
+        client
       )
 
       if (existingPerson) {
         logger.info({ personId: existingPerson.id }, 'Found existing Person')
-        return existingPerson
+        return {
+          id: existingPerson.id,
+          name: existingPerson.name,
+          email: existingPerson.email ?? null,
+          phone: existingPerson.phone ?? null,
+        }
       }
     }
 
-    // Re-throw if not a unique constraint error or person not found
     throw error
   }
 }
@@ -1506,9 +1448,10 @@ async function validateFamilyConflicts(
     const childFullName = `${child.firstName} ${child.lastName}`
     const lookupKey = getChildLookupKey(childFullName, child.dateOfBirth)
     if (seenChildren.has(lookupKey)) {
-      throw new Error(
+      throw new ActionError(
         `Duplicate child in submission: ${child.firstName} ${child.lastName}. ` +
-          `Each child can only be registered once per submission.`
+          `Each child can only be registered once per submission.`,
+        ERROR_CODES.VALIDATION_ERROR
       )
     }
     seenChildren.add(lookupKey)
@@ -1544,9 +1487,10 @@ async function validateFamilyConflicts(
         profile?.familyReferenceId &&
         profile.familyReferenceId !== familyReferenceId
       ) {
-        throw new Error(
+        throw new ActionError(
           `Child ${child.firstName} ${child.lastName} is already registered ` +
-            `under a different family. Contact support to update family relationships.`
+            `under a different family. Contact support to update family relationships.`,
+          ERROR_CODES.VALIDATION_ERROR
         )
       }
     }

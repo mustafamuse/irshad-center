@@ -46,6 +46,10 @@ const {
 // Mocks
 // ============================================================================
 
+vi.mock('next/cache', () => ({
+  revalidateTag: vi.fn(),
+}))
+
 vi.mock('@/lib/utils/mahad-tuition', () => ({
   calculateMahadRate: (...args: unknown[]) => mockCalculateMahadRate(...args),
 }))

@@ -53,7 +53,8 @@ interface FamilyPayerData {
   primaryPayer: {
     id: string
     name: string
-    contactPoints?: Array<{ type: string; value: string }>
+    email?: string | null
+    phone?: string | null
   }
   payerEmail: string | null
   payerPhone: string | null
@@ -119,12 +120,8 @@ async function fetchFamilyPayerData(
   }
 
   const primaryPayer = primaryPayerRelation.guardian
-  const payerEmail =
-    primaryPayer.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value || null
-  const payerPhone =
-    primaryPayer.contactPoints?.find(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )?.value || null
+  const payerEmail = primaryPayer.email ?? null
+  const payerPhone = primaryPayer.phone ?? null
 
   return { familyProfiles, primaryPayer, payerEmail, payerPhone }
 }
@@ -470,6 +467,7 @@ export async function consolidateStripeSubscription(
       } catch (error) {
         await logError(logger, error, 'Failed to update Stripe metadata', {
           subscriptionId: subscription.id,
+          familyId,
         })
       }
 

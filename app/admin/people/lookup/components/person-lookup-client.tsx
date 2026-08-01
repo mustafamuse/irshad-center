@@ -37,15 +37,15 @@ export function PersonLookupClient() {
     setError(null)
     setResult(null)
 
-    const response = await lookupPersonAction(query)
+    const response = await lookupPersonAction({ query })
 
-    if (response.success) {
-      setResult(response.data ?? null)
-      if (!response.data) {
+    if (response?.serverError) {
+      setError(response.serverError)
+    } else {
+      setResult(response?.data ?? null)
+      if (!response?.data) {
         setError('No person found matching your search')
       }
-    } else {
-      setError(response.error ?? 'Search failed')
     }
 
     setLoading(false)
@@ -61,15 +61,15 @@ export function PersonLookupClient() {
     if (!result) return
 
     setDeleting(true)
-    const response = await deletePersonAction(result.id)
+    const response = await deletePersonAction({ personId: result.id })
 
-    if (response.success) {
+    if (response?.serverError) {
+      setError(response.serverError)
+    } else {
       setResult(null)
       setQuery('')
       setShowDeleteDialog(false)
       router.refresh()
-    } else {
-      setError(response.error ?? 'Delete failed')
     }
 
     setDeleting(false)
@@ -133,22 +133,29 @@ export function PersonLookupClient() {
               </div>
 
               <div>
-                <Label className="text-muted-foreground">Contact Points</Label>
+                <Label className="text-muted-foreground">Contact</Label>
                 <div className="mt-2 space-y-2">
-                  {result.contactPoints.map((cp) => (
-                    <div
-                      key={cp.id}
-                      className="flex items-center justify-between rounded-md border p-3"
-                    >
+                  {result.email && (
+                    <div className="flex items-center justify-between rounded-md border p-3">
                       <div className="flex items-center gap-3">
-                        <Badge variant="outline">{cp.type}</Badge>
-                        <span className="font-mono">{cp.value}</span>
+                        <Badge variant="outline">EMAIL</Badge>
+                        <span className="font-mono">{result.email}</span>
                       </div>
-                      {cp.isPrimary && (
-                        <Badge variant="secondary">Primary</Badge>
-                      )}
                     </div>
-                  ))}
+                  )}
+                  {result.phone && (
+                    <div className="flex items-center justify-between rounded-md border p-3">
+                      <div className="flex items-center gap-3">
+                        <Badge variant="outline">PHONE</Badge>
+                        <span className="font-mono">{result.phone}</span>
+                      </div>
+                    </div>
+                  )}
+                  {!result.email && !result.phone && (
+                    <p className="text-sm text-muted-foreground">
+                      No contact information
+                    </p>
+                  )}
                 </div>
               </div>
 

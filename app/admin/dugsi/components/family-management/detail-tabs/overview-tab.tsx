@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Separator } from '@/components/ui/separator'
 
-import { useActionHandler } from '../../../_hooks/use-action-handler'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { Family, DugsiRegistration } from '../../../_types'
 import { getOrderedParentData } from '../../../_utils/format'
 import { setPrimaryPayer } from '../../../actions'

@@ -84,11 +84,11 @@ export function CreateTeacherDialog({ children, onSuccess }: Props) {
 
     setIsSubmitting(false)
 
-    if (result.success) {
+    if (result?.data) {
       handleSuccess()
     } else {
       form.setError('root', {
-        message: result.error || 'Failed to create teacher',
+        message: result?.serverError || 'Failed to create teacher',
       })
     }
   }

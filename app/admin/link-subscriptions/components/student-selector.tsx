@@ -74,8 +74,10 @@ export function StudentSelector({
     const timer = setTimeout(async () => {
       setIsSearching(true)
       try {
-        const results = await searchStudents(searchQuery, program)
-        setSearchResults(results)
+        const result = await searchStudents({ query: searchQuery, program })
+        if (result?.data) {
+          setSearchResults(result.data)
+        }
       } catch (error) {
         logger.error('Search error:', error)
       } finally {
@@ -89,8 +91,12 @@ export function StudentSelector({
   // Load potential matches on mount if we have an email
   useEffect(() => {
     if (customerEmail && potentialMatches.length === 0) {
-      getPotentialMatches(customerEmail, program)
-        .then(setSearchResults)
+      getPotentialMatches({ email: customerEmail, program })
+        .then((result) => {
+          if (result?.data) {
+            setSearchResults(result.data)
+          }
+        })
         .catch((error) =>
           logger.error('Failed to load potential matches:', error)
         )

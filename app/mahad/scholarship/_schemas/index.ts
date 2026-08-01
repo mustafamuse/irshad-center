@@ -1,12 +1,20 @@
 import { z } from 'zod'
 
+import { normalizePhone } from '@/lib/types/person'
+
 // Applicant Details Step Schema
 export const applicantDetailsSchema = z
   .object({
     studentName: z.string().min(1, 'Please select your name'),
     className: z.string().min(1, 'Class is required'),
     email: z.string().email('Invalid email address'),
-    phone: z.string().min(10, 'Phone number must be at least 10 digits'),
+    phone: z
+      .string()
+      .min(1, 'Phone number is required')
+      .refine(
+        (val) => normalizePhone(val) !== null,
+        'Invalid phone number. Expected a 10-digit US number'
+      ),
     payer: z.enum(['self', 'relative'], {
       required_error: 'Please select who will be paying',
       invalid_type_error: 'Please select who will be paying',
@@ -208,7 +216,13 @@ export const scholarshipApplicationSchema = z.object({
   studentName: z.string().min(1, 'Please select your name'),
   className: z.string().min(1, 'Class is required'),
   email: z.string().email('Invalid email address'),
-  phone: z.string().min(10, 'Phone number must be at least 10 digits'),
+  phone: z
+    .string()
+    .min(1, 'Phone number is required')
+    .refine(
+      (val) => normalizePhone(val) !== null,
+      'Invalid phone number. Expected a 10-digit US number'
+    ),
   payer: z.enum(['self', 'relative']),
   payerRelation: z.string().optional(),
   payerName: z.string().optional(),

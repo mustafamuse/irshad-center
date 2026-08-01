@@ -1,3 +1,5 @@
+import { unstable_cache } from 'next/cache'
+
 import {
   Users,
   CreditCard,
@@ -7,89 +9,13 @@ import {
 } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
-import { prisma } from '@/lib/db'
+import { getMahadPaymentStats } from '@/lib/db/queries/mahad-payments'
 
-/**
- * Get payment stats from ProgramProfile/Enrollment model
- * TODO: Add revenue stats when StudentPayment migration is complete
- */
-async function getStats() {
-  // Count Mahad program profiles (excluding Test batch)
-  const [
-    totalStudents,
-    enrolledStudents,
-    registeredStudents,
-    activeSubscriptions,
-    totalRevenue,
-  ] = await Promise.all([
-    // Total non-withdrawn students
-    prisma.enrollment.count({
-      where: {
-        status: { not: 'WITHDRAWN' },
-        programProfile: {
-          program: MAHAD_PROGRAM,
-        },
-        batch: {
-          name: { not: 'Test' },
-        },
-      },
-    }),
-    // Enrolled students
-    prisma.enrollment.count({
-      where: {
-        status: 'ENROLLED',
-        programProfile: {
-          program: MAHAD_PROGRAM,
-        },
-        batch: {
-          name: { not: 'Test' },
-        },
-      },
-    }),
-    // Registered students
-    prisma.enrollment.count({
-      where: {
-        status: 'REGISTERED',
-        programProfile: {
-          program: MAHAD_PROGRAM,
-        },
-        batch: {
-          name: { not: 'Test' },
-        },
-      },
-    }),
-    // Active subscriptions
-    prisma.billingAssignment.count({
-      where: {
-        isActive: true,
-        subscription: {
-          status: 'active',
-        },
-        programProfile: {
-          program: MAHAD_PROGRAM,
-        },
-      },
-    }),
-    // Total revenue from StudentPayment (still uses old model structure)
-    prisma.studentPayment.aggregate({
-      _sum: { amountPaid: true },
-      where: {
-        ProgramProfile: {
-          program: MAHAD_PROGRAM,
-        },
-      },
-    }),
-  ])
-
-  return {
-    totalStudents,
-    activeSubscriptions,
-    registeredStudents,
-    totalRevenue: totalRevenue._sum.amountPaid || 0,
-    enrolledStudents,
-  }
-}
+const getCachedStats = unstable_cache(
+  async () => getMahadPaymentStats(),
+  ['mahad-payment-stats'],
+  { revalidate: 60, tags: ['mahad-stats'] }
+)
 
 export async function StatsCards() {
   const {
@@ -98,7 +24,7 @@ export async function StatsCards() {
     registeredStudents,
     totalRevenue,
     enrolledStudents,
-  } = await getStats()
+  } = await getCachedStats()
 
   const enrollmentRate =
     totalStudents > 0 ? (enrolledStudents / totalStudents) * 100 : 0

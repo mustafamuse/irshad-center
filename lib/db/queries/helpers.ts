@@ -288,66 +288,6 @@ export async function getPersonProgramProfiles(
 }
 
 /**
- * Validate and create person with contact points
- */
-export async function validateAndCreatePerson(
-  data: {
-    name: string
-    dateOfBirth?: Date | null
-    contactPoints?: Array<{
-      type: 'EMAIL' | 'PHONE' | 'WHATSAPP' | 'OTHER'
-      value: string
-      isPrimary?: boolean
-    }>
-  },
-  client: DatabaseClient = prisma
-) {
-  // Basic validation
-  if (!data.name || data.name.trim().length === 0) {
-    throw new Error('Person name is required')
-  }
-
-  // Validate contact points
-  if (data.contactPoints) {
-    const emails = data.contactPoints.filter((cp) => cp.type === 'EMAIL')
-    const phones = data.contactPoints.filter(
-      (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-    )
-
-    // Check for duplicate emails
-    const emailValues = emails.map((cp) => cp.value.toLowerCase().trim())
-    if (new Set(emailValues).size !== emailValues.length) {
-      throw new Error('Duplicate email addresses')
-    }
-
-    // Check for duplicate phones
-    const phoneValues = phones.map((cp) => cp.value.replace(/\D/g, ''))
-    if (new Set(phoneValues).size !== phoneValues.length) {
-      throw new Error('Duplicate phone numbers')
-    }
-  }
-
-  return client.person.create({
-    data: {
-      name: data.name.trim(),
-      dateOfBirth: data.dateOfBirth,
-      contactPoints: data.contactPoints
-        ? {
-            create: data.contactPoints.map((cp) => ({
-              type: cp.type,
-              value: cp.value.trim(),
-              isPrimary: cp.isPrimary || false,
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      contactPoints: true,
-    },
-  })
-}
-
-/**
  * Get enrollment history for a program profile
  */
 export async function getEnrollmentHistory(

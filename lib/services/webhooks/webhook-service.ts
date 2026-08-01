@@ -13,6 +13,8 @@
  * Uses shared services for DRY implementation.
  */
 
+import { revalidateTag } from 'next/cache'
+
 import { StripeAccountType, SubscriptionStatus } from '@prisma/client'
 import type {
   GraduationStatus,
@@ -23,19 +25,20 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
-import type { DatabaseClient } from '@/lib/db/types'
 import {
   getBillingAccountByStripeCustomerId,
   getSubscriptionByStripeId,
   getBillingAssignmentsBySubscription,
   updateSubscriptionStatus as updateSubscriptionStatusQuery,
 } from '@/lib/db/queries/billing'
+import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
   linkSubscriptionToProfiles,
   unlinkSubscription,
 } from '@/lib/services/shared/billing-service'
+import { handleSubscriptionCancellationEnrollments } from '@/lib/services/shared/enrollment-service'
 import { createSubscriptionFromStripe } from '@/lib/services/shared/subscription-service'
 import { calculateDugsiRate } from '@/lib/utils/dugsi-tuition'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
@@ -389,6 +392,12 @@ export async function handleSubscriptionCreated(
     )
   }
 
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
+  }
+
   return {
     subscriptionId: dbSubscription.id,
     status: dbSubscription.status,
@@ -406,7 +415,8 @@ export async function handleSubscriptionCreated(
  * @returns Subscription event result
  */
 export async function handleSubscriptionUpdated(
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
+  accountType: StripeAccountType
 ): Promise<SubscriptionEventResult> {
   const stripeSubscriptionId = subscription.id
 
@@ -441,6 +451,12 @@ export async function handleSubscriptionUpdated(
     paidUntil: periodDates.periodEnd,
   })
 
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
+  }
+
   return {
     subscriptionId: dbSubscription.id,
     status,
@@ -458,7 +474,8 @@ export async function handleSubscriptionUpdated(
  * @returns Subscription event result
  */
 export async function handleSubscriptionDeleted(
-  subscription: Stripe.Subscription
+  subscription: Stripe.Subscription,
+  accountType: StripeAccountType
 ): Promise<SubscriptionEventResult> {
   const stripeSubscriptionId = subscription.id
 
@@ -477,7 +494,9 @@ export async function handleSubscriptionDeleted(
     }
   }
 
-  // Update subscription to canceled and unlink from all profiles atomically
+  // Update subscription to canceled, cascade enrollment/profile WITHDRAWN,
+  // and unlink assignments. Order matters: the cascade reads still-active
+  // assignments, so it MUST run before unlinkSubscription deactivates them.
   await prisma.$transaction(async (tx) => {
     await updateSubscriptionStatusQuery(
       dbSubscription.id,
@@ -485,8 +504,19 @@ export async function handleSubscriptionDeleted(
       undefined,
       tx
     )
+    await handleSubscriptionCancellationEnrollments(
+      stripeSubscriptionId,
+      'Stripe subscription canceled',
+      tx
+    )
     await unlinkSubscription(dbSubscription.id, tx)
   })
+
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
+  }
 
   return {
     subscriptionId: dbSubscription.id,
@@ -505,7 +535,8 @@ export async function handleSubscriptionDeleted(
  * @returns Updated subscription or null
  */
 export async function handleInvoiceFinalized(
-  invoice: Stripe.Invoice
+  invoice: Stripe.Invoice,
+  accountType: StripeAccountType
 ): Promise<{ subscriptionId: string; paidUntil: Date | null } | null> {
   // Extract subscription ID (may be expanded object or just the ID string)
   // Type assertion needed because Stripe's Invoice type doesn't include expanded subscription
@@ -545,6 +576,12 @@ export async function handleInvoiceFinalized(
       paidUntil,
     }
   )
+
+  if (accountType === 'MAHAD') {
+    revalidateTag('mahad-students')
+  } else if (accountType === 'DUGSI') {
+    revalidateTag('dugsi-registrations')
+  }
 
   return {
     subscriptionId: dbSubscription.id,

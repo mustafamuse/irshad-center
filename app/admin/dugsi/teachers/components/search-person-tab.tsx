@@ -112,12 +112,12 @@ export function SearchPersonTab({ onSuccess }: Props) {
 
       setIsSearching(true)
       setError(null)
-      const result = await searchPeopleAction(query)
+      const result = await searchPeopleAction({ query })
 
-      if (result.success && result.data) {
+      if (result?.data) {
         setResults(result.data)
-      } else if (!result.success) {
-        setError(result.error || 'Search failed')
+      } else if (result?.serverError) {
+        setError(result.serverError || 'Search failed')
       }
       setIsSearching(false)
     }, 300)
@@ -133,10 +133,10 @@ export function SearchPersonTab({ onSuccess }: Props) {
 
     setPromotingId(null)
 
-    if (result.success) {
+    if (result?.data) {
       onSuccess?.()
     } else {
-      setError(result.error || 'Failed to promote to teacher')
+      setError(result?.serverError || 'Failed to promote to teacher')
     }
   }
 

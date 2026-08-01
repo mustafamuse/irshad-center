@@ -2,8 +2,11 @@
 
 import React from 'react'
 
+import { headers } from 'next/headers'
+
 import { render } from '@react-email/components'
 
+import { checkRateLimit } from '@/lib/auth/rate-limit'
 import {
   sendEmail,
   sendConfirmationEmail,
@@ -46,6 +49,23 @@ export async function submitScholarshipApplication(
   formData: unknown
 ): Promise<SubmitScholarshipResult> {
   try {
+    try {
+      const headerStore = await headers()
+      const ip = headerStore.get('x-forwarded-for')?.split(',')[0]?.trim()
+      if (ip) {
+        const rateResult = await checkRateLimit(`scholarship-submit:${ip}`, 5)
+        if (!rateResult.success) {
+          return {
+            success: false,
+            error: 'Too many attempts. Please try again later.',
+            code: ERROR_CODES.RATE_LIMIT_EXCEEDED,
+          }
+        }
+      }
+    } catch {
+      // Fail open if headers/rate-limit unavailable
+    }
+
     // 1. Validate data server-side (never trust client - accept unknown, validate runtime)
     const validation = scholarshipApplicationSchema.safeParse(formData)
 

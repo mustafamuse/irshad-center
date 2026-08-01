@@ -32,6 +32,18 @@ paths:
 - External HTTP calls (Sentry, Axiom) — mock at the transport level
 - `revalidatePath` / `revalidateTag` — mock to verify they're called with correct paths
 
+### Mock Data Must Match Runtime Shape
+
+When mocking Prisma records (e.g., `person`), include all fields the code accesses. Common miss: omitting `email` or `phone` on Person mocks causes null access errors.
+
+```typescript
+// Bad: missing email/phone — code that reads person.email will get undefined
+{ id: 'p-1', name: 'Test Person' }
+
+// Good: include all fields the code accesses
+{ id: 'p-1', name: 'Test Person', email: 'test@example.com', phone: '6125551234' }
+```
+
 ### Test Structure
 
 ```typescript

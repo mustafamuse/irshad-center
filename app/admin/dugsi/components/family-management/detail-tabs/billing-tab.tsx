@@ -33,7 +33,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-import { useActionHandler } from '../../../_hooks/use-action-handler'
+import { useActionHandler } from '@/hooks/use-action-handler'
 import { Family, StripePaymentHistoryItem } from '../../../_types'
 import { getBillingStatus } from '../../../_utils/billing'
 import {
@@ -67,14 +67,14 @@ export function BillingTab({ family }: BillingTabProps) {
       setError(null)
 
       try {
-        const result = await getFamilyPaymentHistory(customerId)
+        const result = await getFamilyPaymentHistory({ customerId })
 
         if (cancelled) return
 
-        if (result.success && result.data) {
+        if (result?.data) {
           setPaymentHistory(result.data)
         } else {
-          setError(result.error ?? 'Failed to fetch payment history')
+          setError(result?.serverError ?? 'Failed to fetch payment history')
         }
       } catch (error) {
         if (cancelled) return

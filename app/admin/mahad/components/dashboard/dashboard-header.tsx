@@ -3,10 +3,9 @@
 import { useState } from 'react'
 
 import { Download, Plus, UserPlus } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { downloadVCardFile } from '@/lib/vcard-client'
+import { handleVCardExport } from '@/lib/vcard-client'
 
 import { generateMahadVCardContent } from '../../_actions/vcard-actions'
 import { useMahadUIStore } from '../../store'
@@ -18,29 +17,11 @@ export function DashboardHeader() {
   const handleExportAll = async () => {
     setIsExporting(true)
     try {
-      const result = await generateMahadVCardContent()
-      if (!result.success || !result.data) {
-        toast.error(result.error || 'Failed to generate contacts')
-        return
-      }
-
-      const { content, filename, exported, skipped } = result.data
-      if (exported === 0) {
-        toast.error('No contacts with phone or email to export')
-        return
-      }
-
-      const downloaded = downloadVCardFile(content, filename)
-      if (!downloaded) {
-        toast.error('Failed to download file')
-        return
-      }
-
-      const msg =
-        skipped > 0
-          ? `Exported ${exported} contacts (${skipped} skipped)`
-          : `Exported ${exported} contacts`
-      toast.success(msg)
+      const result = await generateMahadVCardContent({})
+      handleVCardExport(result, {
+        emptyMessage: 'No contacts with phone or email to export',
+        successMessage: (exported) => `Exported ${exported} contacts`,
+      })
     } finally {
       setIsExporting(false)
     }

@@ -18,7 +18,8 @@ import type { Stripe } from 'stripe'
 
 import { STRIPE_CUSTOM_FIELDS } from '@/lib/constants/stripe'
 import { prisma } from '@/lib/db'
-import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger } from '@/lib/logger'
 import { normalizePhone } from '@/lib/utils/contact-normalization'
 import {
@@ -138,7 +139,7 @@ export class UnifiedMatcher {
           email: validatedEmail,
         },
       },
-      async () => await findPersonByContact(validatedEmail, null)
+      async () => await findPersonByActiveContact(validatedEmail, null)
     )
     if (!person) {
       return {
@@ -170,11 +171,7 @@ export class UnifiedMatcher {
             program,
           },
           include: {
-            person: {
-              include: {
-                contactPoints: true,
-              },
-            },
+            person: true,
             assignments: {
               where: { isActive: true },
               include: {
@@ -188,10 +185,8 @@ export class UnifiedMatcher {
     // Filter to only unlinked profiles (no active subscriptions) - in memory
     const unlinkedProfiles = profiles.filter(
       (profile) =>
-        !profile.assignments.some(
-          (a) =>
-            a.subscription.status === 'active' ||
-            a.subscription.status === 'trialing'
+        !profile.assignments.some((a) =>
+          LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
         )
     )
 
@@ -283,7 +278,7 @@ export class UnifiedMatcher {
     }
 
     // Find person by phone
-    const person = await findPersonByContact(null, validatedPhone)
+    const person = await findPersonByActiveContact(null, validatedPhone)
     if (!person) {
       return {
         billingAccount: null,
@@ -304,11 +299,7 @@ export class UnifiedMatcher {
         program,
       },
       include: {
-        person: {
-          include: {
-            contactPoints: true,
-          },
-        },
+        person: true,
         assignments: {
           where: { isActive: true },
           include: {
@@ -318,13 +309,10 @@ export class UnifiedMatcher {
       },
     })
 
-    // Filter to only unlinked profiles (no active subscriptions) - now in memory
     const unlinkedProfiles = profiles.filter(
       (profile) =>
-        !profile.assignments.some(
-          (a) =>
-            a.subscription.status === 'active' ||
-            a.subscription.status === 'trialing'
+        !profile.assignments.some((a) =>
+          LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
         )
     )
 
@@ -411,7 +399,7 @@ export class UnifiedMatcher {
     }
 
     // Find person by email (could be student or guardian)
-    const person = await findPersonByContact(validatedEmail, null)
+    const person = await findPersonByActiveContact(validatedEmail, null)
     if (!person) {
       return {
         billingAccount: null,
@@ -425,17 +413,9 @@ export class UnifiedMatcher {
 
     // Try to find billing account first (guardian payer)
     const billingAccount = await prisma.billingAccount.findFirst({
-      relationLoadStrategy: 'join',
       where: {
         personId: person.id,
         accountType,
-      },
-      include: {
-        person: {
-          include: {
-            contactPoints: true,
-          },
-        },
       },
     })
 
@@ -477,13 +457,10 @@ export class UnifiedMatcher {
       },
     })
 
-    // Filter to only unlinked profiles - now in memory
     const unlinkedProfiles = profiles.filter(
       (profile) =>
-        !profile.assignments.some(
-          (a) =>
-            a.subscription.status === 'active' ||
-            a.subscription.status === 'trialing'
+        !profile.assignments.some((a) =>
+          LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
         )
     )
 

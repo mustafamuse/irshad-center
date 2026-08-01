@@ -84,11 +84,11 @@ export function LateReport() {
       }
 
       const result = await getLateArrivalsAction(queryFilters)
-      if (result.success && result.data) {
+      if (result?.data) {
         setRecords(result.data)
         setError(null)
       } else {
-        setError(result.error || 'Failed to load late arrivals')
+        setError(result?.serverError || 'Failed to load late arrivals')
       }
     })
   }, [filters.dateRange, filters.shiftFilter, filters.teacherFilter])

@@ -4,6 +4,8 @@ import type {
   Program,
 } from '@prisma/client'
 
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
+
 /**
  * BillingAccount - Represents a payer entity
  */
@@ -22,9 +24,6 @@ export interface BillingAccount {
   paymentIntentIdDugsi: string | null
   paymentMethodCaptured: boolean
   paymentMethodCapturedAt: Date | null
-
-  // Primary contact preference
-  primaryContactPointId: string | null
 
   notes: string | null
   createdAt: Date
@@ -146,11 +145,8 @@ export function getStripeCustomerId(
   }
 }
 
-/**
- * Helper to check if subscription is active
- */
 export function isActiveSubscription(subscription: Subscription): boolean {
-  return subscription.status === 'active' || subscription.status === 'trialing'
+  return LIVE_SUBSCRIPTION_STATUSES.includes(subscription.status)
 }
 
 /**

@@ -122,13 +122,15 @@ export function UnassignedStudentsSection({
         programProfileIds: Array.from(selected),
       })
 
-      if (result.success) {
-        toast.success(result.message || `Assigned ${selected.size} students`)
+      if (result?.data) {
+        toast.success(
+          result.data.message || `Assigned ${selected.size} students`
+        )
         setSelected(new Set())
         setClassId('')
         router.refresh()
       } else {
-        toast.error(result.error)
+        toast.error(result?.serverError)
       }
     } catch {
       toast.error('Something went wrong assigning students. Please try again.')

@@ -23,6 +23,7 @@ import {
   getProgramProfiles,
   searchProgramProfilesByNameOrContact,
 } from '@/lib/db/queries/program-profile'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { createServiceLogger, logError } from '@/lib/logger'
 import {
   createOrUpdateBillingAccount,
@@ -77,17 +78,11 @@ export interface SubscriptionLinkResult {
   error?: string
 }
 
-/**
- * Filter subscriptions to only active, trialing, or past_due statuses.
- */
 function filterActiveSubscriptions(
   subscriptions: Stripe.Subscription[]
 ): Stripe.Subscription[] {
-  return subscriptions.filter(
-    (sub) =>
-      sub.status === 'active' ||
-      sub.status === 'trialing' ||
-      sub.status === 'past_due'
+  return subscriptions.filter((sub) =>
+    (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(sub.status)
   )
 }
 
@@ -311,26 +306,15 @@ export async function searchStudentsForLinking(
   const matches: StudentMatch[] = []
   for (const profile of profiles) {
     const assignments = assignmentsByProfile.get(profile.id) || []
-    const hasSubscription = assignments.some(
-      (a) =>
-        a.subscription.status === 'active' ||
-        a.subscription.status === 'trialing' ||
-        a.subscription.status === 'past_due'
+    const hasSubscription = assignments.some((a) =>
+      LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
-
-    const email =
-      profile.person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
-      ''
-    const phone =
-      profile.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-      )?.value || null
 
     matches.push({
       id: profile.id,
       name: profile.person.name,
-      email,
-      phone,
+      email: profile.person.email || '',
+      phone: profile.person.phone ?? null,
       status: profile.status,
       hasSubscription,
       program: profile.program as 'MAHAD_PROGRAM' | 'DUGSI_PROGRAM',
@@ -385,26 +369,15 @@ export async function getPotentialStudentMatches(
   const matches: StudentMatch[] = []
   for (const profile of profiles) {
     const assignments = assignmentsByProfile.get(profile.id) || []
-    const hasSubscription = assignments.some(
-      (a) =>
-        a.subscription.status === 'active' ||
-        a.subscription.status === 'trialing' ||
-        a.subscription.status === 'past_due'
+    const hasSubscription = assignments.some((a) =>
+      LIVE_SUBSCRIPTION_STATUSES.includes(a.subscription.status)
     )
-
-    const profileEmail =
-      profile.person.contactPoints.find((cp) => cp.type === 'EMAIL')?.value ||
-      ''
-    const phone =
-      profile.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-      )?.value || null
 
     matches.push({
       id: profile.id,
       name: profile.person.name,
-      email: profileEmail,
-      phone,
+      email: profile.person.email || '',
+      phone: profile.person.phone ?? null,
       status: profile.status,
       hasSubscription,
       program: prismaProgram,
@@ -495,7 +468,11 @@ export async function linkSubscriptionToProfile(
 
     return { success: true }
   } catch (error) {
-    await logError(logger, error, 'Error linking subscription')
+    await logError(logger, error, 'Error linking subscription', {
+      subscriptionId,
+      profileId,
+      program,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -538,7 +515,10 @@ export async function ignoreSubscription(
 
     return { success: true }
   } catch (error) {
-    await logError(logger, error, 'Error ignoring subscription')
+    await logError(logger, error, 'Error ignoring subscription', {
+      subscriptionId,
+      program,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -574,7 +554,10 @@ export async function unignoreSubscription(
 
     return { success: true }
   } catch (error) {
-    await logError(logger, error, 'Error unignoring subscription')
+    await logError(logger, error, 'Error unignoring subscription', {
+      subscriptionId,
+      program,
+    })
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',

@@ -75,14 +75,18 @@ export function StudentDetailsContent({
     }
 
     startTransition(async () => {
-      const result = await updateStudentAction(student.id, toPayload())
+      const payload = toPayload() as Record<string, unknown>
+      const result = await updateStudentAction({
+        id: student.id,
+        ...payload,
+      } as Parameters<typeof updateStudentAction>[0])
 
-      if (result.success) {
+      if (result?.data !== undefined) {
         toast.success('Student updated successfully')
         router.refresh()
         onModeChange?.('view')
       } else {
-        toast.error(result.error || 'Failed to update student')
+        toast.error(result?.serverError || 'Failed to update student')
       }
     })
   }

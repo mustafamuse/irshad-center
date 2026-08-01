@@ -61,6 +61,10 @@ vi.mock('@/lib/logger', () => ({
   logError: (...args: unknown[]) => mockLogError(...args),
 }))
 
+vi.mock('next/cache', () => ({
+  revalidateTag: vi.fn(),
+}))
+
 vi.mock('@/lib/utils/type-guards', () => ({
   extractCustomerId: (customer: unknown) => {
     if (typeof customer === 'string') return customer

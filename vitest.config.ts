@@ -1,4 +1,5 @@
 import path from 'path'
+import { VitestReporter } from 'tdd-guard-vitest'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
@@ -6,6 +7,7 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    reporters: ['default', new VitestReporter(path.resolve(__dirname))],
   },
   resolve: {
     alias: {

@@ -5,17 +5,15 @@
  * These functions work alongside legacy Student queries during migration.
  */
 
-import {
-  Prisma,
-  Program,
-  EnrollmentStatus,
-  ContactType,
-  GradeLevel,
-} from '@prisma/client'
+import { Prisma, Program, EnrollmentStatus } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
-import { normalizePhone } from '@/lib/types/person'
+import {
+  normalizeEmail,
+  normalizePhone,
+  validateAndNormalizeEmail,
+} from '@/lib/utils/contact-normalization'
 
 /**
  * Get program profiles with related data
@@ -55,28 +53,19 @@ export async function getProgramProfiles(
     where.status = status
   }
 
-  // Search across person name and contact points
   if (search && search.trim()) {
     const searchTerm = search.trim()
+    const normalizedPhone = normalizePhone(searchTerm)
     where.person = {
       OR: [
         { name: { contains: searchTerm, mode: 'insensitive' } },
         {
-          contactPoints: {
-            some: {
-              OR: [
-                {
-                  type: 'EMAIL',
-                  value: { contains: searchTerm, mode: 'insensitive' },
-                },
-                {
-                  type: 'PHONE',
-                  value: { contains: normalizePhone(searchTerm) || '' },
-                },
-              ],
-            },
+          email: {
+            contains: validateAndNormalizeEmail(searchTerm) ?? searchTerm,
+            mode: 'insensitive',
           },
         },
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     }
   }
@@ -101,11 +90,7 @@ export async function getProgramProfiles(
       where,
       relationLoadStrategy: 'join',
       include: {
-        person: {
-          include: {
-            contactPoints: true,
-          },
-        },
+        person: true,
         enrollments: {
           where: {
             status: { not: 'WITHDRAWN' },
@@ -171,15 +156,10 @@ export async function getProgramProfileById(
     include: {
       person: {
         include: {
-          contactPoints: true,
           dependentRelationships: {
             where: { isActive: true },
             include: {
-              guardian: {
-                include: {
-                  contactPoints: true,
-                },
-              },
+              guardian: true,
             },
           },
         },
@@ -211,11 +191,7 @@ export async function getProgramProfileById(
                 include: {
                   teacher: {
                     include: {
-                      person: {
-                        include: {
-                          contactPoints: true,
-                        },
-                      },
+                      person: true,
                     },
                   },
                 },
@@ -263,53 +239,25 @@ export async function getProgramProfilesByPersonId(
 }
 
 /**
- * Find person by email or phone
- *
- * @param email - Email address to search for
- * @param phone - Phone number to search for
- * @param client - Optional database client (for transaction support)
+ * Find person by active email or phone (excludes soft-deleted contacts)
  */
-export async function findPersonByContact(
+export async function findPersonByActiveContact(
   email?: string | null,
   phone?: string | null,
   client: DatabaseClient = prisma
 ) {
-  if (!email && !phone) return null
+  const normalizedEmail = email ? normalizeEmail(email) : null
+  const normalizedPhone = phone ? normalizePhone(phone) : null
+  if (!normalizedEmail && !normalizedPhone) return null
 
-  const where: Prisma.PersonWhereInput = {
-    OR: [],
-  }
-
-  if (email) {
-    where.OR!.push({
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: email.toLowerCase().trim(),
-        },
-      },
-    })
-  }
-
-  if (phone) {
-    const normalizedPhone = normalizePhone(phone)
-    if (normalizedPhone) {
-      where.OR!.push({
-        contactPoints: {
-          some: {
-            type: { in: ['PHONE', 'WHATSAPP'] },
-            value: normalizedPhone,
-          },
-        },
-      })
-    }
-  }
+  const orConditions: Prisma.PersonWhereInput[] = []
+  if (normalizedEmail) orConditions.push({ email: normalizedEmail })
+  if (normalizedPhone) orConditions.push({ phone: normalizedPhone })
 
   return client.person.findFirst({
-    where,
+    where: { OR: orConditions },
     relationLoadStrategy: 'join',
     include: {
-      contactPoints: true,
       programProfiles: {
         include: {
           enrollments: {
@@ -320,41 +268,6 @@ export async function findPersonByContact(
           },
         },
       },
-    },
-  })
-}
-
-/**
- * Create a new program profile
- * @param client - Optional database client (for transaction support)
- */
-export async function createProgramProfile(
-  data: {
-    personId: string
-    program: Program
-    status?: EnrollmentStatus
-    gradeLevel?: GradeLevel | null
-    schoolName?: string | null
-    familyReferenceId?: string | null
-  },
-  client: DatabaseClient = prisma
-) {
-  return client.programProfile.create({
-    data: {
-      personId: data.personId,
-      program: data.program,
-      status: data.status || 'REGISTERED',
-      gradeLevel: data.gradeLevel,
-      schoolName: data.schoolName,
-      familyReferenceId: data.familyReferenceId,
-    },
-    include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
-      enrollments: true,
     },
   })
 }
@@ -376,14 +289,9 @@ export async function getProgramProfilesByFamilyId(
     include: {
       person: {
         include: {
-          contactPoints: true,
           dependentRelationships: {
             include: {
-              guardian: {
-                include: {
-                  contactPoints: true,
-                },
-              },
+              guardian: true,
             },
           },
         },
@@ -405,8 +313,10 @@ export async function getProgramProfilesByFamilyId(
         where: { isActive: true },
         include: {
           subscription: {
-            include: {
-              billingAccount: true,
+            select: {
+              id: true,
+              stripeSubscriptionId: true,
+              status: true,
             },
           },
         },
@@ -420,11 +330,7 @@ export async function getProgramProfilesByFamilyId(
                 include: {
                   teacher: {
                     include: {
-                      person: {
-                        include: {
-                          contactPoints: true,
-                        },
-                      },
+                      person: true,
                     },
                   },
                 },
@@ -558,11 +464,7 @@ export async function getProgramProfilesWithBilling(
     where,
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -583,11 +485,7 @@ export async function getProgramProfilesWithBilling(
             include: {
               billingAccount: {
                 include: {
-                  person: {
-                    include: {
-                      contactPoints: true,
-                    },
-                  },
+                  person: true,
                 },
               },
             },
@@ -696,26 +594,8 @@ export async function searchProgramProfilesByNameOrContact(
     person: {
       OR: [
         { name: { contains: normalizedSearch, mode: 'insensitive' } },
-        {
-          contactPoints: {
-            some: {
-              OR: [
-                {
-                  type: 'EMAIL',
-                  value: { contains: normalizedSearch, mode: 'insensitive' },
-                },
-                ...(normalizedPhone
-                  ? [
-                      {
-                        type: { in: ['PHONE', 'WHATSAPP'] as ContactType[] },
-                        value: normalizedPhone,
-                      },
-                    ]
-                  : []),
-              ],
-            },
-          },
-        },
+        { email: { contains: normalizedSearch, mode: 'insensitive' } },
+        ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
       ],
     },
   }
@@ -728,11 +608,7 @@ export async function searchProgramProfilesByNameOrContact(
     where,
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status: { not: 'WITHDRAWN' },
@@ -747,7 +623,7 @@ export async function searchProgramProfilesByNameOrContact(
         take: 1,
       },
     },
-    take: 50, // Limit results
+    take: 50,
   })
 }
 
@@ -799,11 +675,7 @@ export async function getProgramProfilesByStatus(
     where,
     relationLoadStrategy: 'join',
     include: {
-      person: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      person: true,
       enrollments: {
         where: {
           status,
@@ -834,5 +706,16 @@ export async function getProgramProfilesByStatus(
     orderBy: {
       createdAt: 'desc',
     },
+  })
+}
+
+export async function updateProgramProfileStatus(
+  profileId: string,
+  status: EnrollmentStatus,
+  client: DatabaseClient = prisma
+): Promise<void> {
+  await client.programProfile.update({
+    where: { id: profileId },
+    data: { status },
   })
 }

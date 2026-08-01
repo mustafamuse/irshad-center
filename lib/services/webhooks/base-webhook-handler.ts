@@ -26,7 +26,6 @@ import * as Sentry from '@sentry/nextjs'
 import type Stripe from 'stripe'
 
 import { prisma } from '@/lib/db'
-import { DuplicateError } from '@/lib/errors'
 import { createWebhookLogger, logError, logInfo } from '@/lib/logger'
 
 /**
@@ -76,6 +75,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
 
   return async function POST(req: Request): Promise<NextResponse> {
     let eventId: string | undefined
+    let eventRecordCreated = false
 
     try {
       // 1. Read raw body once for signature verification
@@ -208,6 +208,7 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
             },
           })
       )
+      eventRecordCreated = true
 
       // 9. Route to appropriate event handler
       const handler = eventHandlers[event.type]
@@ -243,8 +244,8 @@ export function createWebhookHandler(config: WebhookHandlerConfig) {
       })
 
       // 10. Cleanup webhook event record on error (allows retry)
-      // Don't delete if error is about duplicate processing
-      if (eventId && !(err instanceof DuplicateError)) {
+      // Only delete if WE created it — guards against deleting another concurrent request's record
+      if (eventId && eventRecordCreated) {
         try {
           await prisma.webhookEvent.delete({
             where: {

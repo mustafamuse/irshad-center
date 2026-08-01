@@ -26,7 +26,7 @@ A modern Next.js application for managing student attendance, payments, and admi
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22+ (Node 18 is end-of-life; Vercel default is now Node 24 LTS)
 - PostgreSQL
 - Stripe Account
 

@@ -3,10 +3,9 @@
 import { useState } from 'react'
 
 import { Download } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
-import { downloadVCardFile } from '@/lib/vcard-client'
+import { handleVCardExport } from '@/lib/vcard-client'
 
 import { generateDugsiVCardContent } from '../../actions'
 
@@ -24,29 +23,11 @@ export function DashboardHeader({
   const handleExportContacts = async () => {
     setIsExporting(true)
     try {
-      const result = await generateDugsiVCardContent()
-      if (!result.success || !result.data) {
-        toast.error(result.error || 'Failed to generate contacts')
-        return
-      }
-
-      const { content, filename, exported, skipped } = result.data
-      if (exported === 0) {
-        toast.error('No parent contacts with phone or email to export')
-        return
-      }
-
-      const downloaded = downloadVCardFile(content, filename)
-      if (!downloaded) {
-        toast.error('Failed to download file')
-        return
-      }
-
-      const msg =
-        skipped > 0
-          ? `Exported ${exported} parent contacts (${skipped} skipped)`
-          : `Exported ${exported} parent contacts`
-      toast.success(msg)
+      const result = await generateDugsiVCardContent({})
+      handleVCardExport(result, {
+        emptyMessage: 'No parent contacts with phone or email to export',
+        successMessage: (exported) => `Exported ${exported} parent contacts`,
+      })
     } finally {
       setIsExporting(false)
     }

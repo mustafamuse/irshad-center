@@ -4,11 +4,10 @@ import { useMemo, useState } from 'react'
 
 import { format } from 'date-fns'
 import { Calendar, Users, Layers, Pencil, Download } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { downloadVCardFile } from '@/lib/vcard-client'
+import { handleVCardExport } from '@/lib/vcard-client'
 
 import { generateMahadVCardContent } from '../../_actions/vcard-actions'
 import { MahadBatch, MahadStudent } from '../../_types'
@@ -39,29 +38,12 @@ function BatchCard({ batch }: { batch: MahadBatch }) {
     e.stopPropagation()
     setIsExporting(true)
     try {
-      const result = await generateMahadVCardContent(batch.id)
-      if (!result.success || !result.data) {
-        toast.error(result.error || 'Failed to generate contacts')
-        return
-      }
-
-      const { content, filename, exported, skipped } = result.data
-      if (exported === 0) {
-        toast.error('No contacts with phone or email to export')
-        return
-      }
-
-      const downloaded = downloadVCardFile(content, filename)
-      if (!downloaded) {
-        toast.error('Failed to download file')
-        return
-      }
-
-      const msg =
-        skipped > 0
-          ? `Exported ${exported} contacts from ${batch.name} (${skipped} skipped)`
-          : `Exported ${exported} contacts from ${batch.name}`
-      toast.success(msg)
+      const result = await generateMahadVCardContent({ batchId: batch.id })
+      handleVCardExport(result, {
+        emptyMessage: 'No contacts with phone or email to export',
+        successMessage: (exported) =>
+          `Exported ${exported} contacts from ${batch.name}`,
+      })
     } finally {
       setIsExporting(false)
     }

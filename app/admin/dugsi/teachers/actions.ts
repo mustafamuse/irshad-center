@@ -1,11 +1,25 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 
-import { Prisma, Program, Shift } from '@prisma/client'
+import { Program, Shift } from '@prisma/client'
 import { z } from 'zod'
 
-import { prisma } from '@/lib/db'
+import {
+  countActiveClassesForTeacher,
+  getActiveClassesForTeacher,
+  getClassCountsByTeacherIds,
+} from '@/lib/db/queries/dugsi-class'
+import {
+  type PersonContactFields,
+  updatePersonContact,
+} from '@/lib/db/queries/person'
+import {
+  getTeacherById,
+  getTeacherDugsiProgram,
+  updateTeacherProgramShifts,
+} from '@/lib/db/queries/teacher'
 import {
   getAllDugsiTeachersWithTodayStatus,
   getCheckinHistory,
@@ -14,17 +28,22 @@ import {
   getDugsiTeachersForDropdown,
   TeacherCheckinWithRelations,
 } from '@/lib/db/queries/teacher-checkin'
-import { createServiceLogger, logError } from '@/lib/logger'
+import { searchPeopleWithRoles } from '@/lib/db/queries/teacher-management'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createServiceLogger } from '@/lib/logger'
 import {
   mapPersonToSearchResult,
   PersonSearchResult,
 } from '@/lib/mappers/person-mapper'
+import { adminActionClient } from '@/lib/safe-action'
 import {
   updateCheckin,
   deleteCheckin,
 } from '@/lib/services/dugsi/teacher-checkin-service'
 import {
-  createTeacher,
+  createTeacherAndAssignDugsi,
+  createPersonTeacherAndAssignDugsi,
+  deactivateTeacherFromDugsi,
   deleteTeacher,
   assignTeacherToProgram,
   removeTeacherFromProgram,
@@ -33,9 +52,11 @@ import {
   getTeacherPrograms,
 } from '@/lib/services/shared/teacher-service'
 import { ValidationError } from '@/lib/services/validation-service'
-import { normalizePhone } from '@/lib/types/person'
-import { ActionResult } from '@/lib/utils/action-helpers'
-import { extractContactInfo } from '@/lib/utils/contact-helpers'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
+import { isPrismaError } from '@/lib/utils/type-guards'
 import {
   UpdateCheckinSchema,
   DeleteCheckinSchema,
@@ -81,12 +102,6 @@ export interface CreateTeacherInput {
   personId: string
 }
 
-export interface CreateTeacherWithPersonInput {
-  name: string
-  email?: string
-  phone?: string
-}
-
 export interface ProgramAssignmentInput {
   teacherId: string
   program: Program
@@ -119,6 +134,18 @@ const createTeacherSchema = z.object({
   personId: uuidSchema,
 })
 
+const createTeacherWithPersonSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z
+    .string()
+    .refine(
+      (val) => !val || normalizePhone(val) !== null,
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)'
+    )
+    .optional(),
+})
+
 const deleteTeacherSchema = z.object({
   teacherId: uuidSchema,
 })
@@ -131,7 +158,13 @@ const updateTeacherDetailsSchema = z.object({
   teacherId: uuidSchema,
   name: z.string().min(1, 'Name is required').max(100),
   email: z.string().email().optional().or(z.literal('')),
-  phone: z.string().optional(),
+  phone: z
+    .string()
+    .refine(
+      (val) => !val || normalizePhone(val) !== null,
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)'
+    )
+    .optional(),
 })
 
 const updateTeacherShiftsSchema = z.object({
@@ -139,24 +172,38 @@ const updateTeacherShiftsSchema = z.object({
   shifts: z.array(z.enum(['MORNING', 'AFTERNOON'])),
 })
 
+const getTeachersSchema = z.object({
+  program: z.nativeEnum(Program).optional(),
+})
+
+const programAssignmentSchema = z.object({
+  teacherId: z.string().uuid(),
+  program: z.nativeEnum(Program),
+})
+
+const bulkProgramAssignmentSchema = z.object({
+  teacherId: z.string().uuid(),
+  programs: z.array(z.nativeEnum(Program)),
+})
+
+const checkinHistoryInputSchema = z.object({
+  teacherId: z.string().uuid(),
+  page: z.number().int().min(1).default(1),
+})
+
 // ============================================================================
 // Teacher CRUD Actions
 // ============================================================================
 
-/**
- * Get all Dugsi teachers with their details and today's check-in status.
- * When filtering by DUGSI_PROGRAM, includes check-in data.
- */
-export async function getTeachers(
-  program?: Program
-): Promise<ActionResult<TeacherWithDetails[]>> {
-  try {
+const _getTeachers = adminActionClient
+  .metadata({ actionName: 'getTeachers' })
+  .schema(getTeachersSchema)
+  .action(async ({ parsedInput }) => {
+    const { program } = parsedInput
     if (program === 'DUGSI_PROGRAM') {
-      // Get ALL teachers enrolled in Dugsi (not just those with class assignments)
       const teachers = await getAllTeachers('DUGSI_PROGRAM')
       const teacherIds = teachers.map((t) => t.id)
 
-      // Get check-in status for teachers with class assignments
       const teachersWithStatus = await getAllDugsiTeachersWithTodayStatus()
       const statusMap = new Map(
         teachersWithStatus.map((t) => [
@@ -169,28 +216,14 @@ export async function getTeachers(
         ])
       )
 
-      // Get class counts
-      const classCounts = await prisma.dugsiClassTeacher.groupBy({
-        by: ['teacherId'],
-        where: {
-          teacherId: { in: teacherIds },
-          isActive: true,
-        },
-        _count: { id: true },
-      })
-
-      const classCountMap = new Map<string, number>(
-        classCounts.map((cc) => [cc.teacherId, cc._count.id])
-      )
+      const classCountMap = await getClassCountsByTeacherIds(teacherIds)
 
       const teachersWithDetails: TeacherWithDetails[] = teachers.map(
         (teacher) => {
-          const { email, phone } = extractContactInfo(
-            teacher.person.contactPoints || []
-          )
+          const email = teacher.person.email
+          const phone = teacher.person.phone
           const status = statusMap.get(teacher.id)
 
-          // Get shifts from TeacherProgram.shifts (directly assigned)
           const dugsiProgram = teacher.programs.find(
             (p) => p.program === 'DUGSI_PROGRAM' && p.isActive
           )
@@ -226,786 +259,339 @@ export async function getTeachers(
         }
       )
 
-      return { success: true, data: teachersWithDetails }
+      return teachersWithDetails
     }
 
     const teachers = await getAllTeachers(program)
     const teacherIds = teachers.map((t) => t.id)
 
-    const classCounts = await prisma.dugsiClassTeacher.groupBy({
-      by: ['teacherId'],
-      where: {
-        teacherId: { in: teacherIds },
-        isActive: true,
-      },
-      _count: { id: true },
-    })
+    const countMap = await getClassCountsByTeacherIds(teacherIds)
 
-    const countMap = new Map(
-      classCounts.map((cc) => [cc.teacherId, cc._count.id])
-    )
+    return teachers.map((teacher) => ({
+      id: teacher.id,
+      personId: teacher.personId,
+      name: teacher.person.name,
+      email: teacher.person.email,
+      phone: teacher.person.phone,
+      programs: teacher.programs
+        .filter((p) => p.isActive)
+        .map((p) => p.program),
+      classCount: countMap.get(teacher.id) ?? 0,
+      shifts: [] as Shift[],
+      morningCheckin: null,
+      afternoonCheckin: null,
+      createdAt: teacher.createdAt,
+    }))
+  })
 
-    const teachersWithDetails = teachers.map((teacher) => {
-      const { email, phone } = extractContactInfo(
-        teacher.person.contactPoints || []
-      )
+const _createTeacherAction = adminActionClient
+  .metadata({ actionName: 'createTeacherAction' })
+  .schema(createTeacherSchema)
+  .action(async ({ parsedInput }) => {
+    const { personId } = parsedInput
+    try {
+      const teacher = await createTeacherAndAssignDugsi(personId)
 
-      return {
-        id: teacher.id,
-        personId: teacher.personId,
-        name: teacher.person.name,
-        email,
-        phone,
-        programs: teacher.programs
-          .filter((p) => p.isActive)
-          .map((p) => p.program),
-        classCount: countMap.get(teacher.id) ?? 0,
-        shifts: [] as Shift[],
-        morningCheckin: null,
-        afternoonCheckin: null,
-        createdAt: teacher.createdAt,
+      after(() => revalidatePath('/admin/dugsi/teachers'))
+
+      return { teacherId: teacher.id }
+    } catch (error) {
+      if (
+        error instanceof ValidationError &&
+        error.code === 'TEACHER_ALREADY_EXISTS'
+      ) {
+        throw new ActionError(
+          'This person is already a teacher',
+          ERROR_CODES.VALIDATION_ERROR
+        )
       }
-    })
-
-    return { success: true, data: teachersWithDetails }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get teachers')
-    return {
-      success: false,
-      error: 'Failed to load teachers',
+      throw error
     }
-  }
-}
+  })
 
-/**
- * Create a new teacher from an existing person.
- */
-export async function createTeacherAction(
-  rawInput: unknown
-): Promise<ActionResult<{ teacherId: string }>> {
-  const parsed = createTeacherSchema.safeParse(rawInput)
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const input = parsed.data
-
-  try {
-    // Use transaction to create teacher and enroll in Dugsi atomically
-    const teacher = await prisma.$transaction(async (tx) => {
-      const newTeacher = await createTeacher(input.personId, tx)
-
-      // Auto-enroll in Dugsi since this is the Dugsi teachers page
-      await tx.teacherProgram.create({
-        data: {
-          teacherId: newTeacher.id,
-          program: 'DUGSI_PROGRAM',
-        },
+const _createTeacherWithPersonAction = adminActionClient
+  .metadata({ actionName: 'createTeacherWithPersonAction' })
+  .schema(createTeacherWithPersonSchema)
+  .action(async ({ parsedInput }) => {
+    const { name, email, phone } = parsedInput
+    try {
+      const teacher = await createPersonTeacherAndAssignDugsi({
+        name,
+        email: normalizeEmail(email),
+        phone: phone ? normalizePhone(phone) : null,
       })
 
-      return newTeacher
-    })
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
-    revalidatePath('/admin/dugsi/teachers')
-
-    logger.info(
-      {
-        teacherId: teacher.id,
-        personId: input.personId,
-        name: teacher.person.name,
-      },
-      'Teacher created and enrolled in Dugsi'
-    )
-
-    return {
-      success: true,
-      data: { teacherId: teacher.id },
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to create teacher', {
-      personId: input.personId,
-    })
-
-    if (
-      error instanceof ValidationError &&
-      error.code === 'TEACHER_ALREADY_EXISTS'
-    ) {
-      return {
-        success: false,
-        error: 'This person is already a teacher',
+      return { teacherId: teacher.id }
+    } catch (error) {
+      if (
+        error instanceof ValidationError &&
+        error.code === 'TEACHER_ALREADY_EXISTS'
+      ) {
+        throw new ActionError(
+          'This person is already a teacher',
+          ERROR_CODES.VALIDATION_ERROR
+        )
       }
+      throw error
     }
+  })
 
-    return {
-      success: false,
-      error: 'Failed to create teacher',
-    }
-  }
-}
-
-/**
- * Create a new teacher by first creating a person.
- */
-export async function createTeacherWithPersonAction(
-  input: CreateTeacherWithPersonInput
-): Promise<ActionResult<{ teacherId: string }>> {
-  try {
-    const contactPoints: Array<{
-      type: 'EMAIL' | 'PHONE'
-      value: string
-      isPrimary: boolean
-    }> = []
-
-    if (input.email) {
-      contactPoints.push({
-        type: 'EMAIL',
-        value: input.email,
-        isPrimary: true,
-      })
-    }
-
-    if (input.phone) {
-      const normalizedPhone = normalizePhone(input.phone)
-      if (normalizedPhone) {
-        contactPoints.push({
-          type: 'PHONE',
-          value: normalizedPhone,
-          isPrimary: !input.email,
-        })
-      }
-    }
-
-    // Use transaction to ensure atomicity (prevents orphaned Person on failure)
-    const teacher = await prisma.$transaction(async (tx) => {
-      const person = await tx.person.create({
-        data: {
-          name: input.name,
-          contactPoints: {
-            create: contactPoints,
-          },
-        },
-      })
-
-      const newTeacher = await createTeacher(person.id, tx)
-
-      // Auto-enroll in Dugsi since this is the Dugsi teachers page
-      await tx.teacherProgram.create({
-        data: {
-          teacherId: newTeacher.id,
-          program: 'DUGSI_PROGRAM',
-        },
-      })
-
-      return newTeacher
-    })
-
-    revalidatePath('/admin/dugsi/teachers')
-
-    logger.info(
-      {
-        teacherId: teacher.id,
-        personId: teacher.personId,
-        name: teacher.person.name,
-      },
-      'Teacher created with new person'
-    )
-
-    return {
-      success: true,
-      data: { teacherId: teacher.id },
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to create teacher with person', {
-      ...input,
-    })
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        const target = error.meta?.target as string[] | undefined
-        if (target?.includes('type') && target?.includes('value')) {
-          return {
-            success: false,
-            error: 'A person with this email or phone already exists',
-          }
-        }
-      }
-    }
-
-    if (
-      error instanceof ValidationError &&
-      error.code === 'TEACHER_ALREADY_EXISTS'
-    ) {
-      return {
-        success: false,
-        error: 'This person is already a teacher',
-      }
-    }
-
-    return {
-      success: false,
-      error: 'Failed to create teacher',
-    }
-  }
-}
-
-/**
- * Delete a teacher (soft delete).
- */
-export async function deleteTeacherAction(
-  rawInput: unknown
-): Promise<ActionResult<void>> {
-  const parsed = deleteTeacherSchema.safeParse({ teacherId: rawInput })
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { teacherId } = parsed.data
-
-  try {
+const _deleteTeacherAction = adminActionClient
+  .metadata({ actionName: 'deleteTeacherAction' })
+  .schema(deleteTeacherSchema)
+  .action(async ({ parsedInput }) => {
+    const { teacherId } = parsedInput
     await deleteTeacher(teacherId)
 
-    revalidatePath('/admin/teachers')
+    after(() => revalidatePath('/admin/teachers'))
 
     logger.info({ teacherId }, 'Teacher deleted')
+  })
 
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to delete teacher', { teacherId })
-    return {
-      success: false,
-      error: 'Failed to delete teacher',
-    }
-  }
-}
+const _updateTeacherDetailsAction = adminActionClient
+  .metadata({ actionName: 'updateTeacherDetailsAction' })
+  .schema(updateTeacherDetailsSchema)
+  .action(async ({ parsedInput }) => {
+    const { teacherId, name, email, phone } = parsedInput
+    try {
+      const teacher = await getTeacherById(teacherId)
 
-/**
- * Update teacher details (name, email, phone).
- * Updates the underlying Person record and ContactPoints.
- */
-export async function updateTeacherDetailsAction(
-  input: UpdateTeacherDetailsInput
-): Promise<ActionResult<TeacherWithDetails>> {
-  const parsed = updateTeacherDetailsSchema.safeParse(input)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
+      if (!teacher) {
+        throw new ActionError('Teacher not found', ERROR_CODES.NOT_FOUND)
+      }
 
-  const { teacherId, name, email, phone } = parsed.data
+      const normalizedPhone = phone ? normalizePhone(phone) : null
 
-  try {
-    const teacher = await prisma.teacher.findUnique({
-      where: { id: teacherId },
-      relationLoadStrategy: 'join',
-      include: { person: { include: { contactPoints: true } } },
-    })
+      const personData: PersonContactFields = { name }
+      if (email !== undefined) personData.email = normalizeEmail(email)
+      if (phone !== undefined) personData.phone = normalizedPhone
 
-    if (!teacher) {
-      return { success: false, error: 'Teacher not found' }
-    }
+      await updatePersonContact(teacher.personId, personData)
 
-    const normalizedPhone = phone ? normalizePhone(phone) : null
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
-    await prisma.$transaction(async (tx) => {
-      await tx.person.update({
-        where: { id: teacher.personId },
-        data: { name },
-      })
+      logger.info({ teacherId, name }, 'Teacher details updated')
 
-      const existingEmail = teacher.person.contactPoints.find(
-        (cp) => cp.type === 'EMAIL' && cp.isActive
-      )
-      const existingPhone = teacher.person.contactPoints.find(
-        (cp) => cp.type === 'PHONE' && cp.isActive
+      const teachers = await getAllTeachers('DUGSI_PROGRAM')
+      const teacherIds = teachers.map((t) => t.id)
+      const classCountMap = await getClassCountsByTeacherIds(teacherIds)
+      const updated = teachers.find((t) => t.id === teacherId)
+
+      if (!updated) {
+        throw new ActionError(
+          'Failed to fetch updated teacher',
+          ERROR_CODES.NOT_FOUND
+        )
+      }
+
+      const dugsiProgram = updated.programs.find(
+        (p) => p.program === 'DUGSI_PROGRAM' && p.isActive
       )
 
-      if (email && email.trim()) {
-        if (existingEmail) {
-          await tx.contactPoint.update({
-            where: { id: existingEmail.id },
-            data: { value: email.trim().toLowerCase() },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: teacher.personId,
-              type: 'EMAIL',
-              value: email.trim().toLowerCase(),
-              isPrimary: true,
-            },
-          })
-        }
-      } else if (existingEmail) {
-        await tx.contactPoint.update({
-          where: { id: existingEmail.id },
-          data: { isActive: false },
-        })
+      return {
+        id: updated.id,
+        personId: updated.personId,
+        name: updated.person.name,
+        email: updated.person.email,
+        phone: updated.person.phone,
+        programs: updated.programs
+          .filter((p) => p.isActive)
+          .map((p) => p.program),
+        classCount: classCountMap.get(updated.id) ?? 0,
+        shifts: dugsiProgram?.shifts ?? [],
+        morningCheckin: null,
+        afternoonCheckin: null,
+        createdAt: updated.createdAt,
+      } satisfies TeacherWithDetails
+    } catch (error) {
+      if (error instanceof ActionError) throw error
+      if (isPrismaError(error) && error.code === 'P2002') {
+        logger.warn({ teacherId }, 'Duplicate contact on teacher update')
+        throw new ActionError(
+          'This email or phone is already in use',
+          ERROR_CODES.VALIDATION_ERROR
+        )
       }
-
-      if (normalizedPhone) {
-        if (existingPhone) {
-          await tx.contactPoint.update({
-            where: { id: existingPhone.id },
-            data: { value: normalizedPhone },
-          })
-        } else {
-          await tx.contactPoint.create({
-            data: {
-              personId: teacher.personId,
-              type: 'PHONE',
-              value: normalizedPhone,
-              isPrimary: !email,
-            },
-          })
-        }
-      } else if (existingPhone) {
-        await tx.contactPoint.update({
-          where: { id: existingPhone.id },
-          data: { isActive: false },
-        })
-      }
-    })
-
-    revalidatePath('/admin/dugsi/teachers')
-
-    logger.info({ teacherId, name }, 'Teacher details updated')
-
-    const result = await getTeachers('DUGSI_PROGRAM')
-    if (result.success && result.data) {
-      const updated = result.data.find((t) => t.id === teacherId)
-      if (updated) {
-        return { success: true, data: updated }
-      }
+      throw error
     }
+  })
 
-    return { success: false, error: 'Failed to fetch updated teacher' }
-  } catch (error) {
-    await logError(logger, error, 'Failed to update teacher details', {
-      teacherId,
-    })
-
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2002') {
-        return {
-          success: false,
-          error: 'This email or phone is already in use',
-        }
-      }
-    }
-
-    return {
-      success: false,
-      error: 'Failed to update teacher details',
-    }
-  }
-}
-
-/**
- * Update teacher shift assignments.
- * Updates TeacherProgram.shifts for DUGSI_PROGRAM.
- */
-export async function updateTeacherShiftsAction(
-  input: UpdateTeacherShiftsInput
-): Promise<ActionResult<Shift[]>> {
-  const parsed = updateTeacherShiftsSchema.safeParse(input)
-  if (!parsed.success) {
-    return {
-      success: false,
-      error: parsed.error.errors[0]?.message || 'Invalid input',
-    }
-  }
-
-  const { teacherId, shifts } = parsed.data
-
-  try {
-    const teacherProgram = await prisma.teacherProgram.findFirst({
-      where: {
-        teacherId,
-        program: 'DUGSI_PROGRAM',
-        isActive: true,
-      },
-    })
+const _updateTeacherShiftsAction = adminActionClient
+  .metadata({ actionName: 'updateTeacherShiftsAction' })
+  .schema(updateTeacherShiftsSchema)
+  .action(async ({ parsedInput }) => {
+    const { teacherId, shifts } = parsedInput
+    const teacherProgram = await getTeacherDugsiProgram(teacherId)
 
     if (!teacherProgram) {
-      return { success: false, error: 'Teacher is not enrolled in Dugsi' }
+      throw new ActionError(
+        'Teacher is not enrolled in Dugsi',
+        ERROR_CODES.NOT_FOUND
+      )
     }
 
-    await prisma.teacherProgram.update({
-      where: { id: teacherProgram.id },
-      data: { shifts },
-    })
+    await updateTeacherProgramShifts(teacherProgram.id, shifts)
 
-    revalidatePath('/admin/dugsi/teachers')
+    after(() => revalidatePath('/admin/dugsi/teachers'))
 
     logger.info({ teacherId, shifts }, 'Teacher shifts updated')
 
-    return { success: true, data: shifts as Shift[] }
-  } catch (error) {
-    await logError(logger, error, 'Failed to update teacher shifts', {
-      teacherId,
-    })
-    return {
-      success: false,
-      error: 'Failed to update teacher shifts',
-    }
-  }
-}
+    return shifts
+  })
 
-/**
- * Get teacher's assigned shifts for Dugsi.
- */
-export async function getTeacherShiftsAction(
-  teacherId: string
-): Promise<ActionResult<Shift[]>> {
-  try {
-    const teacherProgram = await prisma.teacherProgram.findFirst({
-      where: {
-        teacherId,
-        program: 'DUGSI_PROGRAM',
-        isActive: true,
-      },
-      select: { shifts: true },
-    })
+const _getTeacherShiftsAction = adminActionClient
+  .metadata({ actionName: 'getTeacherShiftsAction' })
+  .schema(z.object({ teacherId: uuidSchema }))
+  .action(async ({ parsedInput }) => {
+    const { teacherId } = parsedInput
+    const teacherProgram = await getTeacherDugsiProgram(teacherId)
+    return teacherProgram?.shifts ?? []
+  })
 
-    return { success: true, data: teacherProgram?.shifts ?? [] }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get teacher shifts', { teacherId })
-    return {
-      success: false,
-      error: 'Failed to load shifts',
-    }
-  }
-}
-
-/**
- * Deactivate a teacher from Dugsi.
- * Requires all class assignments to be removed first.
- */
-export async function deactivateTeacherAction(
-  teacherId: string
-): Promise<ActionResult<void>> {
-  try {
-    // Check for active class assignments
-    const activeClasses = await prisma.dugsiClassTeacher.findMany({
-      where: {
-        teacherId,
-        isActive: true,
-      },
-      relationLoadStrategy: 'join',
-      include: {
-        class: {
-          select: { name: true, shift: true },
-        },
-      },
-    })
+const _deactivateTeacherAction = adminActionClient
+  .metadata({ actionName: 'deactivateTeacherAction' })
+  .schema(z.object({ teacherId: z.string().uuid() }))
+  .action(async ({ parsedInput }) => {
+    const { teacherId } = parsedInput
+    const activeClasses = await getActiveClassesForTeacher(teacherId)
 
     if (activeClasses.length > 0) {
       const classNames = activeClasses
         .map((c) => `${c.class.name} (${c.class.shift})`)
         .join(', ')
-      return {
-        success: false,
-        error: `Cannot deactivate. Teacher is still assigned to: ${classNames}. Please reassign these classes first.`,
-      }
+      throw new ActionError(
+        `Cannot deactivate. Teacher is still assigned to: ${classNames}. Please reassign these classes first.`,
+        ERROR_CODES.VALIDATION_ERROR
+      )
     }
 
-    // Deactivate: clear shifts and mark program enrollment inactive
-    await prisma.$transaction(async (tx) => {
-      await tx.teacherProgram.updateMany({
-        where: {
-          teacherId,
-          program: 'DUGSI_PROGRAM',
-          isActive: true,
-        },
-        data: {
-          shifts: [],
-          isActive: false,
-        },
-      })
-    })
+    await deactivateTeacherFromDugsi(teacherId)
 
-    revalidatePath('/admin/dugsi/teachers')
-
-    logger.info({ teacherId }, 'Teacher deactivated from Dugsi')
-
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to deactivate teacher', { teacherId })
-    return {
-      success: false,
-      error: 'Failed to deactivate teacher',
-    }
-  }
-}
+    after(() => revalidatePath('/admin/dugsi/teachers'))
+  })
 
 // ============================================================================
 // Program Enrollment Actions
 // ============================================================================
 
-/**
- * Assign a teacher to a program.
- */
-export async function assignTeacherToProgramAction(
-  input: ProgramAssignmentInput
-): Promise<ActionResult<void>> {
-  try {
-    await assignTeacherToProgram(input)
+const _assignTeacherToProgramAction = adminActionClient
+  .metadata({ actionName: 'assignTeacherToProgramAction' })
+  .schema(programAssignmentSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      await assignTeacherToProgram(parsedInput)
 
-    revalidatePath('/admin/teachers')
-    revalidatePath(
-      `/admin/${input.program.toLowerCase().replace('_program', '')}`
-    )
-
-    logger.info(
-      { teacherId: input.teacherId, program: input.program },
-      'Teacher assigned to program'
-    )
-
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to assign teacher to program', {
-      ...input,
-    })
-
-    if (
-      error instanceof ValidationError &&
-      error.code === 'DUPLICATE_PROGRAM_ENROLLMENT'
-    ) {
-      return {
-        success: false,
-        error: 'Teacher is already enrolled in this program',
-      }
-    }
-
-    return {
-      success: false,
-      error: 'Failed to assign teacher to program',
-    }
-  }
-}
-
-/**
- * Remove a teacher from a program.
- */
-export async function removeTeacherFromProgramAction(
-  input: ProgramAssignmentInput
-): Promise<ActionResult<void>> {
-  try {
-    // For Dugsi, check for active class assignments
-    if (input.program === 'DUGSI_PROGRAM') {
-      const activeClasses = await prisma.dugsiClassTeacher.count({
-        where: {
-          teacherId: input.teacherId,
-          isActive: true,
-        },
+      after(() => {
+        revalidatePath('/admin/teachers')
+        revalidatePath(
+          `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
+        )
       })
 
+      logger.info(
+        { teacherId: parsedInput.teacherId, program: parsedInput.program },
+        'Teacher assigned to program'
+      )
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        if (error.code === 'DUPLICATE_PROGRAM_ENROLLMENT')
+          throw new ActionError(
+            'Teacher is already enrolled in this program',
+            ERROR_CODES.VALIDATION_ERROR
+          )
+        if (error.code === 'TEACHER_NOT_FOUND')
+          throw new ActionError('Teacher not found', ERROR_CODES.NOT_FOUND)
+      }
+      throw error
+    }
+  })
+
+const _removeTeacherFromProgramAction = adminActionClient
+  .metadata({ actionName: 'removeTeacherFromProgramAction' })
+  .schema(programAssignmentSchema)
+  .action(async ({ parsedInput }) => {
+    if (parsedInput.program === 'DUGSI_PROGRAM') {
+      const activeClasses = await countActiveClassesForTeacher(
+        parsedInput.teacherId
+      )
+
       if (activeClasses > 0) {
-        return {
-          success: false,
-          error: `Cannot remove teacher from ${input.program}. They are assigned to ${activeClasses} class(es). Please remove class assignments first.`,
-        }
+        throw new ActionError(
+          `Cannot remove teacher from ${parsedInput.program}. They are assigned to ${activeClasses} class(es). Please remove class assignments first.`,
+          ERROR_CODES.VALIDATION_ERROR
+        )
       }
     }
 
-    await removeTeacherFromProgram(input)
+    await removeTeacherFromProgram(parsedInput)
 
-    revalidatePath('/admin/teachers')
-    revalidatePath(
-      `/admin/${input.program.toLowerCase().replace('_program', '')}`
-    )
+    after(() => {
+      revalidatePath('/admin/teachers')
+      revalidatePath(
+        `/admin/${parsedInput.program.toLowerCase().replace('_program', '')}`
+      )
+    })
 
     logger.info(
-      { teacherId: input.teacherId, program: input.program },
+      { teacherId: parsedInput.teacherId, program: parsedInput.program },
       'Teacher removed from program'
     )
+  })
 
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to remove teacher from program', {
-      ...input,
-    })
-    return {
-      success: false,
-      error: 'Failed to remove teacher from program',
+const _bulkAssignProgramsAction = adminActionClient
+  .metadata({ actionName: 'bulkAssignProgramsAction' })
+  .schema(bulkProgramAssignmentSchema)
+  .action(async ({ parsedInput }) => {
+    const { teacherId, programs } = parsedInput
+    try {
+      await bulkAssignPrograms(teacherId, programs)
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        if (error.code === 'TEACHER_NOT_FOUND')
+          throw new ActionError(error.message, ERROR_CODES.NOT_FOUND)
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      }
+      throw error
     }
-  }
-}
 
-/**
- * Bulk assign programs to a teacher.
- */
-export async function bulkAssignProgramsAction(
-  input: BulkProgramAssignmentInput
-): Promise<ActionResult<void>> {
-  try {
-    await bulkAssignPrograms(input.teacherId, input.programs)
-
-    revalidatePath('/admin/teachers')
-    input.programs.forEach((program) => {
-      revalidatePath(`/admin/${program.toLowerCase().replace('_program', '')}`)
+    after(() => {
+      revalidatePath('/admin/teachers')
+      programs.forEach((program) => {
+        revalidatePath(
+          `/admin/${program.toLowerCase().replace('_program', '')}`
+        )
+      })
     })
 
     logger.info(
-      {
-        teacherId: input.teacherId,
-        programs: input.programs,
-        count: input.programs.length,
-      },
+      { teacherId, programs, count: programs.length },
       'Programs bulk assigned to teacher'
     )
+  })
 
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to bulk assign programs', {
-      ...input,
-    })
-    return {
-      success: false,
-      error: 'Failed to assign programs to teacher',
-    }
-  }
-}
-
-/**
- * Get programs a teacher is enrolled in.
- */
-export async function getTeacherProgramsAction(
-  rawInput: unknown
-): Promise<ActionResult<Program[]>> {
-  const parsed = getTeacherProgramsSchema.safeParse({ teacherId: rawInput })
-  if (!parsed.success) {
-    return { success: false, error: 'Invalid input: ' + parsed.error.message }
-  }
-  const { teacherId } = parsed.data
-
-  try {
+const _getTeacherProgramsAction = adminActionClient
+  .metadata({ actionName: 'getTeacherProgramsAction' })
+  .schema(getTeacherProgramsSchema)
+  .action(async ({ parsedInput }) => {
+    const { teacherId } = parsedInput
     const programs = await getTeacherPrograms(teacherId)
+    return programs.map((p) => p.program)
+  })
 
-    return {
-      success: true,
-      data: programs.map((p) => p.program),
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get teacher programs', {
-      teacherId,
-    })
-    return {
-      success: false,
-      error: 'Failed to load teacher programs',
-    }
-  }
-}
-
-/**
- * Search for people by name, email, or phone.
- */
-export async function searchPeopleAction(
-  query: string
-): Promise<ActionResult<PersonSearchResult[]>> {
-  try {
+const _searchPeopleAction = adminActionClient
+  .metadata({ actionName: 'searchPeopleAction' })
+  .schema(z.object({ query: z.string() }))
+  .action(async ({ parsedInput }) => {
+    const { query } = parsedInput
     if (!query || query.trim().length < SEARCH_MIN_LENGTH) {
-      return { success: true, data: [] }
+      return [] as PersonSearchResult[]
     }
 
-    const searchTerm = query.trim().toLowerCase()
-    const normalizedSearchTerm = normalizePhone(query.trim())
-
-    const people = await prisma.person.findMany({
-      where: {
-        OR: [
-          { name: { contains: searchTerm, mode: 'insensitive' } },
-          {
-            contactPoints: {
-              some: {
-                OR: [
-                  {
-                    type: 'EMAIL',
-                    value: { contains: searchTerm, mode: 'insensitive' },
-                  },
-                  ...(normalizedSearchTerm
-                    ? [
-                        {
-                          type: {
-                            in: ['PHONE', 'WHATSAPP'] as (
-                              | 'PHONE'
-                              | 'WHATSAPP'
-                            )[],
-                          },
-                          value: normalizedSearchTerm,
-                        },
-                      ]
-                    : []),
-                ],
-              },
-            },
-          },
-        ],
-      },
-      relationLoadStrategy: 'join',
-      include: {
-        contactPoints: {
-          where: { isActive: true },
-        },
-        teacher: {
-          include: {
-            programs: {
-              where: { isActive: true },
-            },
-          },
-        },
-        guardianRelationships: {
-          where: { isActive: true },
-          include: {
-            dependent: {
-              include: {
-                programProfiles: {
-                  select: { program: true },
-                },
-              },
-            },
-          },
-        },
-        programProfiles: {
-          where: {
-            enrollments: {
-              some: {
-                status: { in: ['REGISTERED', 'ENROLLED'] },
-                endDate: null,
-              },
-            },
-          },
-          include: {
-            enrollments: {
-              where: {
-                status: { in: ['REGISTERED', 'ENROLLED'] },
-                endDate: null,
-              },
-              select: {
-                status: true,
-              },
-              take: 1,
-            },
-          },
-        },
-      },
-      take: SEARCH_MAX_RESULTS,
-      orderBy: { name: 'asc' },
-    })
-
-    const results: PersonSearchResult[] = people.map((person) =>
-      mapPersonToSearchResult(person)
-    )
-
-    return { success: true, data: results }
-  } catch (error) {
-    await logError(logger, error, 'Failed to search people', { query })
-    return {
-      success: false,
-      error: 'Failed to search people',
-    }
-  }
-}
+    const people = await searchPeopleWithRoles(query, SEARCH_MAX_RESULTS)
+    return people.map((person) => mapPersonToSearchResult(person))
+  })
 
 // ============================================================================
 // Check-in History Actions
@@ -1028,22 +614,16 @@ export interface CheckinHistoryResult {
   totalPages: number
 }
 
-/**
- * Get check-in history for a teacher (last 30 days by default).
- */
-export async function getTeacherCheckinHistoryAction(
-  teacherId: string,
-  page: number = 1
-): Promise<ActionResult<CheckinHistoryResult>> {
-  try {
+const _getTeacherCheckinHistoryAction = adminActionClient
+  .metadata({ actionName: 'getTeacherCheckinHistoryAction' })
+  .schema(checkinHistoryInputSchema)
+  .action(async ({ parsedInput }) => {
+    const { teacherId, page } = parsedInput
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
     const result = await getCheckinHistory(
-      {
-        teacherId,
-        dateFrom: thirtyDaysAgo,
-      },
+      { teacherId, dateFrom: thirtyDaysAgo },
       { page, limit: 10 }
     )
 
@@ -1058,24 +638,12 @@ export async function getTeacherCheckinHistoryAction(
     }))
 
     return {
-      success: true,
-      data: {
-        data: items,
-        total: result.total,
-        page: result.page,
-        totalPages: result.totalPages,
-      },
-    }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get check-in history', {
-      teacherId,
-    })
-    return {
-      success: false,
-      error: 'Failed to load check-in history',
-    }
-  }
-}
+      data: items,
+      total: result.total,
+      page: result.page,
+      totalPages: result.totalPages,
+    } satisfies CheckinHistoryResult
+  })
 
 // ============================================================================
 // Check-in Admin Actions (Edit/Delete)
@@ -1116,194 +684,188 @@ function mapCheckinToRecord(
   }
 }
 
-/**
- * Get check-ins for a specific date with optional filters.
- */
-export async function getCheckinsForDateAction(filters: {
-  date?: Date
-  shift?: Shift
-  teacherId?: string
-}): Promise<ActionResult<CheckinRecord[]>> {
-  try {
-    const parsed = DateCheckinFiltersSchema.safeParse(filters)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid filters',
-      }
-    }
+const _getCheckinsForDateAction = adminActionClient
+  .metadata({ actionName: 'getCheckinsForDateAction' })
+  .schema(DateCheckinFiltersSchema)
+  .action(async ({ parsedInput }) => {
+    const checkins = await getCheckinsForDate(parsedInput)
+    return checkins.map(mapCheckinToRecord)
+  })
 
-    const checkins = await getCheckinsForDate(parsed.data)
-    const records = checkins.map(mapCheckinToRecord)
-
-    return { success: true, data: records }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get check-ins for date')
-    return { success: false, error: 'Failed to load check-ins' }
-  }
-}
-
-/**
- * Get check-in history with filters and pagination.
- */
-export async function getCheckinHistoryWithFiltersAction(filters: {
-  dateFrom?: Date
-  dateTo?: Date
-  shift?: Shift
-  teacherId?: string
-  isLate?: boolean
-  clockInValid?: boolean
-  page?: number
-  limit?: number
-}): Promise<
-  ActionResult<{
-    data: CheckinRecord[]
-    total: number
-    page: number
-    totalPages: number
-  }>
-> {
-  try {
-    const parsed = CheckinHistoryFiltersSchema.safeParse(filters)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid filters',
-      }
-    }
-
-    const { page, limit, ...queryFilters } = parsed.data
+const _getCheckinHistoryWithFiltersAction = adminActionClient
+  .metadata({ actionName: 'getCheckinHistoryWithFiltersAction' })
+  .schema(CheckinHistoryFiltersSchema)
+  .action(async ({ parsedInput }) => {
+    const { page, limit, ...queryFilters } = parsedInput
     const result = await getCheckinHistory(queryFilters, { page, limit })
     const records = result.data.map(mapCheckinToRecord)
 
     return {
-      success: true,
-      data: {
-        data: records,
-        total: result.total,
-        page: result.page,
-        totalPages: result.totalPages,
-      },
+      data: records,
+      total: result.total,
+      page: result.page,
+      totalPages: result.totalPages,
     }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get check-in history')
-    return { success: false, error: 'Failed to load check-in history' }
-  }
-}
+  })
 
-/**
- * Get late arrivals report.
- */
-export async function getLateArrivalsAction(filters: {
-  dateFrom: Date
-  dateTo: Date
-  shift?: Shift
-  teacherId?: string
-}): Promise<ActionResult<CheckinRecord[]>> {
-  try {
-    const parsed = LateReportFiltersSchema.safeParse(filters)
-    if (!parsed.success) {
-      return {
-        success: false,
-        error: parsed.error.errors[0]?.message || 'Invalid filters',
-      }
-    }
+const _getLateArrivalsAction = adminActionClient
+  .metadata({ actionName: 'getLateArrivalsAction' })
+  .schema(LateReportFiltersSchema)
+  .action(async ({ parsedInput }) => {
+    const checkins = await getLateArrivals(parsedInput)
+    return checkins.map(mapCheckinToRecord)
+  })
 
-    const checkins = await getLateArrivals(parsed.data)
-    const records = checkins.map(mapCheckinToRecord)
-
-    return { success: true, data: records }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get late arrivals')
-    return { success: false, error: 'Failed to load late arrivals report' }
-  }
-}
-
-/**
- * Get teachers for dropdown filter.
- */
-export async function getTeachersForDropdownAction(): Promise<
-  ActionResult<TeacherOption[]>
-> {
-  try {
+const _getTeachersForDropdownAction = adminActionClient
+  .metadata({ actionName: 'getTeachersForDropdownAction' })
+  .action(async () => {
     const teachers = await getDugsiTeachersForDropdown()
-    const options: TeacherOption[] = teachers.map((t) => ({
+    return teachers.map((t) => ({
       id: t.id,
       name: t.name,
-    }))
+    })) satisfies TeacherOption[]
+  })
 
-    return { success: true, data: options }
-  } catch (error) {
-    await logError(logger, error, 'Failed to get teachers for dropdown')
-    return { success: false, error: 'Failed to load teachers' }
-  }
-}
+const _updateCheckinAction = adminActionClient
+  .metadata({ actionName: 'updateCheckinAction' })
+  .schema(UpdateCheckinSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      const updated = await updateCheckin(parsedInput)
+      const record = mapCheckinToRecord(updated)
 
-/**
- * Update a check-in record (admin).
- */
-export async function updateCheckinAction(input: {
-  checkInId: string
-  clockInTime?: Date
-  clockOutTime?: Date | null
-  isLate?: boolean
-  clockInValid?: boolean
-  notes?: string | null
-}): Promise<ActionResult<CheckinRecord>> {
-  try {
-    const parsed = UpdateCheckinSchema.safeParse(input)
-    if (!parsed.success) {
-      const firstError = parsed.error.errors[0]
-      return { success: false, error: firstError?.message || 'Invalid input' }
+      after(() => revalidatePath('/admin/dugsi/teachers'))
+
+      logger.info(
+        { checkInId: parsedInput.checkInId },
+        'Check-in updated by admin'
+      )
+
+      return record
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      }
+      throw error
     }
+  })
 
-    const updated = await updateCheckin(parsed.data)
-    const record = mapCheckinToRecord(updated)
+const _deleteCheckinAction = adminActionClient
+  .metadata({ actionName: 'deleteCheckinAction' })
+  .schema(DeleteCheckinSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      await deleteCheckin(parsedInput.checkInId)
 
-    revalidatePath('/admin/dugsi/teachers')
+      after(() => revalidatePath('/admin/dugsi/teachers'))
 
-    logger.info({ checkInId: input.checkInId }, 'Check-in updated by admin')
-
-    return { success: true, data: record }
-  } catch (error) {
-    await logError(logger, error, 'Failed to update check-in', {
-      checkInId: input.checkInId,
-    })
-
-    if (error instanceof ValidationError) {
-      return { success: false, error: error.message }
+      logger.info(
+        { checkInId: parsedInput.checkInId },
+        'Check-in deleted by admin'
+      )
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        throw new ActionError(error.message, ERROR_CODES.VALIDATION_ERROR)
+      }
+      throw error
     }
+  })
 
-    return { success: false, error: 'Failed to update check-in' }
-  }
+export async function getTeachers(...args: Parameters<typeof _getTeachers>) {
+  return _getTeachers(...args)
 }
-
-/**
- * Delete a check-in record (admin).
- */
+export async function createTeacherAction(
+  ...args: Parameters<typeof _createTeacherAction>
+) {
+  return _createTeacherAction(...args)
+}
+export async function createTeacherWithPersonAction(
+  ...args: Parameters<typeof _createTeacherWithPersonAction>
+) {
+  return _createTeacherWithPersonAction(...args)
+}
+export async function deleteTeacherAction(
+  ...args: Parameters<typeof _deleteTeacherAction>
+) {
+  return _deleteTeacherAction(...args)
+}
+export async function updateTeacherDetailsAction(
+  ...args: Parameters<typeof _updateTeacherDetailsAction>
+) {
+  return _updateTeacherDetailsAction(...args)
+}
+export async function updateTeacherShiftsAction(
+  ...args: Parameters<typeof _updateTeacherShiftsAction>
+) {
+  return _updateTeacherShiftsAction(...args)
+}
+export async function getTeacherShiftsAction(
+  ...args: Parameters<typeof _getTeacherShiftsAction>
+) {
+  return _getTeacherShiftsAction(...args)
+}
+export async function deactivateTeacherAction(
+  ...args: Parameters<typeof _deactivateTeacherAction>
+) {
+  return _deactivateTeacherAction(...args)
+}
+export async function assignTeacherToProgramAction(
+  ...args: Parameters<typeof _assignTeacherToProgramAction>
+) {
+  return _assignTeacherToProgramAction(...args)
+}
+export async function removeTeacherFromProgramAction(
+  ...args: Parameters<typeof _removeTeacherFromProgramAction>
+) {
+  return _removeTeacherFromProgramAction(...args)
+}
+export async function bulkAssignProgramsAction(
+  ...args: Parameters<typeof _bulkAssignProgramsAction>
+) {
+  return _bulkAssignProgramsAction(...args)
+}
+export async function getTeacherProgramsAction(
+  ...args: Parameters<typeof _getTeacherProgramsAction>
+) {
+  return _getTeacherProgramsAction(...args)
+}
+export async function searchPeopleAction(
+  ...args: Parameters<typeof _searchPeopleAction>
+) {
+  return _searchPeopleAction(...args)
+}
+export async function getTeacherCheckinHistoryAction(
+  ...args: Parameters<typeof _getTeacherCheckinHistoryAction>
+) {
+  return _getTeacherCheckinHistoryAction(...args)
+}
+export async function getCheckinsForDateAction(
+  ...args: Parameters<typeof _getCheckinsForDateAction>
+) {
+  return _getCheckinsForDateAction(...args)
+}
+export async function getCheckinHistoryWithFiltersAction(
+  ...args: Parameters<typeof _getCheckinHistoryWithFiltersAction>
+) {
+  return _getCheckinHistoryWithFiltersAction(...args)
+}
+export async function getLateArrivalsAction(
+  ...args: Parameters<typeof _getLateArrivalsAction>
+) {
+  return _getLateArrivalsAction(...args)
+}
+export async function getTeachersForDropdownAction(
+  ...args: Parameters<typeof _getTeachersForDropdownAction>
+) {
+  return _getTeachersForDropdownAction(...args)
+}
+export async function updateCheckinAction(
+  ...args: Parameters<typeof _updateCheckinAction>
+) {
+  return _updateCheckinAction(...args)
+}
 export async function deleteCheckinAction(
-  checkInId: string
-): Promise<ActionResult<void>> {
-  try {
-    const parsed = DeleteCheckinSchema.safeParse({ checkInId })
-    if (!parsed.success) {
-      return { success: false, error: 'Invalid check-in ID' }
-    }
-
-    await deleteCheckin(parsed.data.checkInId)
-
-    revalidatePath('/admin/dugsi/teachers')
-
-    logger.info({ checkInId }, 'Check-in deleted by admin')
-
-    return { success: true, data: undefined }
-  } catch (error) {
-    await logError(logger, error, 'Failed to delete check-in', { checkInId })
-
-    if (error instanceof ValidationError) {
-      return { success: false, error: error.message }
-    }
-
-    return { success: false, error: 'Failed to delete check-in' }
-  }
+  ...args: Parameters<typeof _deleteCheckinAction>
+) {
+  return _deleteCheckinAction(...args)
 }

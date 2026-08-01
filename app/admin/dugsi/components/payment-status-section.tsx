@@ -83,19 +83,17 @@ export function PaymentStatusSection({
     }
 
     startTransition(async () => {
-      const result = await getDugsiPaymentStatus(parentEmail)
-      if (result.success && result.data) {
-        // Use type guard for runtime validation
+      const result = await getDugsiPaymentStatus({ parentEmail })
+      if (result?.data) {
         if (isPaymentStatusData(result.data)) {
           setPaymentStatus(result.data)
           toast.success('Payment status refreshed')
-          // Use Next.js router for better UX
           router.refresh()
         } else {
           toast.error('Invalid payment status data received')
         }
       } else {
-        toast.error(result.error || 'Failed to refresh status')
+        toast.error(result?.serverError || 'Failed to refresh status')
       }
     })
   }

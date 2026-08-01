@@ -14,8 +14,8 @@
  * 2. Perform both operations within the same database transaction
  * 3. Rely on database unique constraints as the ultimate safeguard
  *
- * The database has unique constraints on ContactPoint(type, value) which will
- * reject duplicate contact points even if a race condition occurs.
+ * The database has unique constraints on Person(email) and Person(phone) which will
+ * reject duplicate email/phone values even if a race condition occurs.
  *
  * @example
  * ```typescript
@@ -38,11 +38,14 @@
 import { Program } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
-import { findPersonByContact } from '@/lib/db/queries/program-profile'
+import { findPersonByActiveContact } from '@/lib/db/queries/program-profile'
 import type { DatabaseClient } from '@/lib/db/types'
 import { createServiceLogger, logError } from '@/lib/logger'
 import type { DuplicateField } from '@/lib/types/registration-errors'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 const logger = createServiceLogger('duplicate-detection')
 
@@ -57,7 +60,7 @@ export interface DuplicateCheckResult {
   duplicateField: DuplicateField | null
 
   /** The existing person found (null if no duplicate) */
-  existingPerson: Awaited<ReturnType<typeof findPersonByContact>>
+  existingPerson: Awaited<ReturnType<typeof findPersonByActiveContact>>
 
   /** Whether the person has an active profile for the specified program */
   hasActiveProfile: boolean
@@ -126,18 +129,19 @@ export class DuplicateDetectionService {
       }
     }
 
-    logger.info(
-      { email, phone, program },
-      'Checking for duplicate registration'
-    )
+    logger.info({ program }, 'Checking for duplicate registration')
 
     try {
       // Find person by email or phone
-      const existingPerson = await findPersonByContact(email, phone, client)
+      const existingPerson = await findPersonByActiveContact(
+        email,
+        phone,
+        client
+      )
 
       // No person found - not a duplicate
       if (!existingPerson) {
-        logger.info({ email, phone }, 'No existing person found')
+        logger.info('No existing person found')
         return {
           isDuplicate: false,
           duplicateField: null,
@@ -146,10 +150,7 @@ export class DuplicateDetectionService {
         }
       }
 
-      logger.info(
-        { personId: existingPerson.id, email, phone },
-        'Found existing person'
-      )
+      logger.info({ personId: existingPerson.id }, 'Found existing person')
 
       // Check if person has an active profile for the specified program
       const activeProfile = existingPerson.programProfiles.find(
@@ -192,8 +193,6 @@ export class DuplicateDetectionService {
       }
     } catch (error) {
       await logError(logger, error, 'Duplicate check failed', {
-        email,
-        phone,
         program,
       })
       throw error
@@ -210,37 +209,24 @@ export class DuplicateDetectionService {
    * @returns Which field caused the duplicate
    */
   private static determineDuplicateField(
-    person: NonNullable<Awaited<ReturnType<typeof findPersonByContact>>>,
+    person: NonNullable<Awaited<ReturnType<typeof findPersonByActiveContact>>>,
     submittedEmail?: string | null,
     submittedPhone?: string | null
   ): DuplicateField {
-    const contactPoints = person.contactPoints
+    const emailMatches =
+      submittedEmail && person.email
+        ? person.email === normalizeEmail(submittedEmail)
+        : false
 
-    // Check if submitted email matches any email contact point
-    const emailMatches = submittedEmail
-      ? contactPoints.some(
-          (cp) =>
-            cp.type === 'EMAIL' &&
-            cp.value.toLowerCase() === submittedEmail.toLowerCase().trim()
-        )
-      : false
+    const phoneMatches =
+      submittedPhone && person.phone
+        ? person.phone === normalizePhone(submittedPhone)
+        : false
 
-    // Check if submitted phone matches any phone/whatsapp contact point
-    // Note: Phone numbers are stored normalized (digits only) in the database
-    const phoneMatches = submittedPhone
-      ? contactPoints.some(
-          (cp) =>
-            (cp.type === 'PHONE' || cp.type === 'WHATSAPP') &&
-            cp.value === normalizePhone(submittedPhone)
-        )
-      : false
-
-    // If both match, return 'both'
     if (emailMatches && phoneMatches) {
       return 'both'
     }
 
-    // If only phone matches, return 'phone' (this was the bug - it was returning 'email')
     if (phoneMatches) {
       return 'phone'
     }

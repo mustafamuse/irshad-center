@@ -1,0 +1,66 @@
+import type { Shift } from '@prisma/client'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
+
+import { SCHOOL_TIMEZONE, SHIFT_START_TIMES } from '@/lib/constants/shift-times'
+
+export interface ShiftDeadline {
+  schoolDate: string
+  shift: Shift
+  deadlineUtc: Date
+}
+
+export interface CheckInEvaluation {
+  isLate: boolean
+  /** Floored to whole minutes. May be 0 when isLate is true (< 60 s late). Always use isLate for lateness checks. */
+  minutesLate: number
+  deadlineUtc: Date
+}
+
+export function resolveShiftDeadline(params: {
+  schoolDate: string
+  shift: Shift
+  timezone?: string
+}): ShiftDeadline {
+  const { schoolDate, shift, timezone = SCHOOL_TIMEZONE } = params
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(schoolDate)) {
+    throw new Error(
+      `resolveShiftDeadline: invalid schoolDate format "${schoolDate}", expected YYYY-MM-DD`
+    )
+  }
+
+  const { hour, minute } = SHIFT_START_TIMES[shift]
+
+  const localDateTimeStr = `${schoolDate}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+  const deadlineUtc = fromZonedTime(localDateTimeStr, timezone)
+
+  if (isNaN(deadlineUtc.getTime())) {
+    throw new Error(
+      `resolveShiftDeadline: produced Invalid Date for "${localDateTimeStr}" in timezone "${timezone}"`
+    )
+  }
+
+  return { schoolDate, shift, deadlineUtc }
+}
+
+export function evaluateCheckIn(params: {
+  clockInTimeUtc: Date
+  shift: Shift
+  timezone?: string
+  schoolDate?: string
+}): CheckInEvaluation {
+  const { clockInTimeUtc, shift, timezone = SCHOOL_TIMEZONE } = params
+
+  // No schoolDate provided: derive from clockInTimeUtc projected into CT. A UTC timestamp
+  // crossing midnight CT belongs to the next calendar school day.
+  const schoolDate =
+    params.schoolDate ??
+    formatInTimeZone(clockInTimeUtc, timezone, 'yyyy-MM-dd')
+  const { deadlineUtc } = resolveShiftDeadline({ schoolDate, shift, timezone })
+
+  const diffMs = clockInTimeUtc.getTime() - deadlineUtc.getTime()
+  const isLate = diffMs > 0
+  const minutesLate = isLate ? Math.floor(diffMs / 60_000) : 0
+
+  return { isLate, minutesLate, deadlineUtc }
+}

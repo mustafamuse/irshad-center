@@ -157,13 +157,13 @@ export function ClassManagement({
         teacherId: selectedTeacherId,
       })
 
-      if (result.success) {
-        toast.success(result.message || 'Teacher assigned')
+      if (result?.data) {
+        toast.success(result.data.message || 'Teacher assigned')
         setSelectedTeacherId('')
         setIsDetailDialogOpen(false)
         router.refresh()
       } else {
-        toast.error(result.error)
+        toast.error(result?.serverError)
       }
     } finally {
       setIsLoading(false)
@@ -180,12 +180,12 @@ export function ClassManagement({
         teacherId,
       })
 
-      if (result.success) {
-        toast.success(result.message || 'Teacher removed')
+      if (result?.data) {
+        toast.success(result.data.message || 'Teacher removed')
         setIsDetailDialogOpen(false)
         router.refresh()
       } else {
-        toast.error(result.error)
+        toast.error(result?.serverError)
       }
     } finally {
       setIsLoading(false)

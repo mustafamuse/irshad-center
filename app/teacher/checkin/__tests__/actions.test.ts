@@ -1,10 +1,60 @@
 import { Shift } from '@prisma/client'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import { z } from 'zod'
 
 import { CHECKIN_ERROR_CODES } from '@/lib/constants/teacher-checkin'
+import { ActionError } from '@/lib/errors/action-error'
 import { ValidationError } from '@/lib/services/validation-service'
 
+// Mock the safe-action module so safe action chains work in unit tests.
+// The mock client validates with the provided Zod schema and returns
+// { data } on success, { validationErrors } on schema failure, or
+// { serverError } when an ActionError is thrown.
+vi.mock('@/lib/safe-action', () => {
+  function makeClient() {
+    const client = {
+      metadata: () => client,
+      use: () => client,
+      schema: (schema: z.ZodType) => ({
+        action:
+          (handler: (args: { parsedInput: unknown }) => Promise<unknown>) =>
+          async (input: unknown) => {
+            const parsed = schema.safeParse(input)
+            if (!parsed.success) {
+              return { validationErrors: parsed.error.flatten().fieldErrors }
+            }
+            try {
+              const data = await handler({ parsedInput: parsed.data })
+              return { data }
+            } catch (error) {
+              if (error instanceof ActionError)
+                return { serverError: error.message }
+              return { serverError: 'Something went wrong' }
+            }
+          },
+      }),
+      action: (handler: () => Promise<unknown>) => async () => {
+        try {
+          const data = await handler()
+          return { data }
+        } catch (error) {
+          if (error instanceof ActionError)
+            return { serverError: (error as ActionError).message }
+          return { serverError: 'Something went wrong' }
+        }
+      },
+    }
+    return client
+  }
+  return {
+    actionClient: makeClient(),
+    adminActionClient: makeClient(),
+    rateLimitedActionClient: makeClient(),
+  }
+})
+
 const {
+  mockAfter,
   mockRevalidatePath,
   mockGetTeachersForDropdown,
   mockGetTeacherCheckin,
@@ -13,6 +63,7 @@ const {
   mockCalculateDistance,
   mockIsWithinGeofence,
 } = vi.hoisted(() => ({
+  mockAfter: vi.fn(),
   mockRevalidatePath: vi.fn(),
   mockGetTeachersForDropdown: vi.fn(),
   mockGetTeacherCheckin: vi.fn(),
@@ -24,6 +75,10 @@ const {
 
 vi.mock('next/cache', () => ({
   revalidatePath: (...args: unknown[]) => mockRevalidatePath(...args),
+}))
+
+vi.mock('next/server', () => ({
+  after: (fn: () => void) => mockAfter(fn),
 }))
 
 vi.mock('@/lib/db/queries/teacher-checkin', () => ({
@@ -171,6 +226,7 @@ describe('getTeacherCurrentStatus', () => {
 describe('teacherClockInAction', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAfter.mockImplementation((fn: () => void) => fn())
     mockClockIn.mockResolvedValue({ checkIn: mockCheckin })
     mockGetTeacherCheckin.mockResolvedValue(null)
   })
@@ -185,9 +241,8 @@ describe('teacherClockInAction', () => {
 
     const result = await teacherClockInAction(input)
 
-    expect(result.success).toBe(true)
-    expect(result.data?.checkInId).toBe('checkin-1')
-    expect(result.data?.status).toBeDefined()
+    expect(result?.data?.checkInId).toBe('checkin-1')
+    expect(result?.data?.status).toBeDefined()
   })
 
   it('should call revalidatePath on success', async () => {
@@ -206,7 +261,7 @@ describe('teacherClockInAction', () => {
     )
   })
 
-  it('should return success message with late indicator when late', async () => {
+  it('should return late message when late', async () => {
     mockClockIn.mockResolvedValue({
       checkIn: { ...mockCheckin, isLate: true },
     })
@@ -220,11 +275,10 @@ describe('teacherClockInAction', () => {
 
     const result = await teacherClockInAction(input)
 
-    expect(result.success).toBe(true)
-    expect(result.message).toContain('Late')
+    expect(result?.data?.message).toContain('Late')
   })
 
-  it('should return error for invalid UUID format', async () => {
+  it('should return validationErrors for invalid UUID format', async () => {
     const input = {
       teacherId: 'not-a-uuid',
       shift: Shift.MORNING,
@@ -234,42 +288,39 @@ describe('teacherClockInAction', () => {
 
     const result = await teacherClockInAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBeDefined()
+    expect(result?.validationErrors).toBeDefined()
     expect(mockClockIn).not.toHaveBeenCalled()
   })
 
-  it('should return error for coordinates out of range', async () => {
+  it('should return validationErrors for coordinates out of range', async () => {
     const input = {
       teacherId: '550e8400-e29b-41d4-a716-446655440001',
       shift: Shift.MORNING,
-      latitude: 100, // Invalid: must be between -90 and 90
+      latitude: 100,
       longitude: -93.265,
     }
 
     const result = await teacherClockInAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBeDefined()
+    expect(result?.validationErrors).toBeDefined()
     expect(mockClockIn).not.toHaveBeenCalled()
   })
 
-  it('should return error for invalid longitude', async () => {
+  it('should return validationErrors for invalid longitude', async () => {
     const input = {
       teacherId: '550e8400-e29b-41d4-a716-446655440001',
       shift: Shift.MORNING,
       latitude: 44.9778,
-      longitude: 200, // Invalid: must be between -180 and 180
+      longitude: 200,
     }
 
     const result = await teacherClockInAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBeDefined()
+    expect(result?.validationErrors).toBeDefined()
     expect(mockClockIn).not.toHaveBeenCalled()
   })
 
-  it('should return error when ValidationError is thrown', async () => {
+  it('should return serverError when ValidationError is thrown', async () => {
     mockClockIn.mockRejectedValue(
       new ValidationError(
         'Not enrolled in Dugsi',
@@ -286,11 +337,10 @@ describe('teacherClockInAction', () => {
 
     const result = await teacherClockInAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Not enrolled in Dugsi')
+    expect(result?.serverError).toBe('Not enrolled in Dugsi')
   })
 
-  it('should return generic error for unexpected errors', async () => {
+  it('should return serverError for unexpected errors', async () => {
     mockClockIn.mockRejectedValue(new Error('Database connection failed'))
 
     const input = {
@@ -302,8 +352,7 @@ describe('teacherClockInAction', () => {
 
     const result = await teacherClockInAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Failed to clock in. Please try again.')
+    expect(result?.serverError).toBe('Failed to clock in. Please try again.')
   })
 })
 
@@ -315,6 +364,7 @@ describe('teacherClockOutAction', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockAfter.mockImplementation((fn: () => void) => fn())
     mockClockOut.mockResolvedValue({ checkIn: clockedOutCheckin })
     mockGetTeacherCheckin.mockResolvedValue(clockedOutCheckin)
   })
@@ -329,9 +379,8 @@ describe('teacherClockOutAction', () => {
 
     const result = await teacherClockOutAction(input)
 
-    expect(result.success).toBe(true)
-    expect(result.data?.status).toBeDefined()
-    expect(result.message).toBe('Clocked out successfully')
+    expect(result?.data?.status).toBeDefined()
+    expect(result?.data?.message).toBe('Clocked out successfully')
   })
 
   it('should call revalidatePath on success', async () => {
@@ -350,7 +399,7 @@ describe('teacherClockOutAction', () => {
     )
   })
 
-  it('should return error for invalid checkInId UUID format', async () => {
+  it('should return validationErrors for invalid checkInId UUID format', async () => {
     const input = {
       checkInId: 'not-a-uuid',
       teacherId: '550e8400-e29b-41d4-a716-446655440002',
@@ -360,12 +409,11 @@ describe('teacherClockOutAction', () => {
 
     const result = await teacherClockOutAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBeDefined()
+    expect(result?.validationErrors).toBeDefined()
     expect(mockClockOut).not.toHaveBeenCalled()
   })
 
-  it('should return error when ValidationError is thrown', async () => {
+  it('should return serverError when ValidationError is thrown', async () => {
     mockClockOut.mockRejectedValue(
       new ValidationError(
         'Already clocked out',
@@ -382,11 +430,10 @@ describe('teacherClockOutAction', () => {
 
     const result = await teacherClockOutAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Already clocked out')
+    expect(result?.serverError).toBe('Already clocked out')
   })
 
-  it('should return generic error for unexpected errors', async () => {
+  it('should return serverError for unexpected errors', async () => {
     mockClockOut.mockRejectedValue(new Error('Database connection failed'))
 
     const input = {
@@ -398,15 +445,14 @@ describe('teacherClockOutAction', () => {
 
     const result = await teacherClockOutAction(input)
 
-    expect(result.success).toBe(false)
-    expect(result.error).toBe('Failed to clock out. Please try again.')
+    expect(result?.serverError).toBe('Failed to clock out. Please try again.')
   })
 })
 
 describe('checkGeofence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCalculateDistance.mockReturnValue(25) // 25 meters
+    mockCalculateDistance.mockReturnValue(25)
     mockIsWithinGeofence.mockReturnValue(true)
   })
 

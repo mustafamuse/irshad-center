@@ -1,11 +1,3 @@
-'use server'
-
-/**
- * Get Students Actions
- *
- * Query functions for Mahad students. Uses existing services and mappers.
- */
-
 import type {
   GraduationStatus,
   PaymentFrequency,
@@ -16,6 +8,7 @@ import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
 import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { mahadEnrollmentInclude } from '@/lib/mappers/mahad-mapper'
 import { calculateMahadRate } from '@/lib/utils/mahad-tuition'
 
@@ -118,7 +111,7 @@ export async function getEligibleStudentsForAutopay(): Promise<StudentDTO[]> {
           none: {
             isActive: true,
             subscription: {
-              status: 'active',
+              status: { in: LIVE_SUBSCRIPTION_STATUSES },
             },
           },
         },
@@ -206,7 +199,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
     billingType: StudentBillingType | null
     person: {
       name: string
-      contactPoints?: Array<{ type: string; value: string }>
+      email: string | null
+      phone: string | null
     }
     assignments: Array<{
       subscription: {
@@ -224,14 +218,15 @@ function mapEnrollmentToStudentDTO(enrollment: {
   const assignment = profile.assignments[0]
   const subscription = assignment?.subscription
 
-  // Extract contact points (inline to match local narrow type)
-  const emailContact = person.contactPoints?.find((cp) => cp.type === 'EMAIL')
-  const phoneContact = person.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
+  const email = person.email
+  const phone = person.phone
 
   // Determine subscription status
-  const hasActiveSubscription = subscription?.status === 'active'
+  const hasActiveSubscription =
+    !!subscription?.status &&
+    (LIVE_SUBSCRIPTION_STATUSES as readonly string[]).includes(
+      subscription.status
+    )
   const isEligibleForAutopay = !hasActiveSubscription
 
   // Calculate rate using the formula-based rate system
@@ -252,8 +247,8 @@ function mapEnrollmentToStudentDTO(enrollment: {
     siblingGroupId: null, // Intentionally null - use getSiblings() for sibling data
     batchId: enrollment.batch?.id ?? null,
     batchName: enrollment.batch?.name ?? null,
-    email: emailContact?.value ?? null,
-    phone: phoneContact?.value ?? null,
+    email,
+    phone,
     stripeCustomerId: subscription?.stripeCustomerId ?? null,
     stripeSubscriptionId: subscription?.stripeSubscriptionId ?? null,
     subscriptionStatus: subscription?.status ?? null,

@@ -2,7 +2,12 @@ import type { Person } from '@prisma/client'
 import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import { ValidationError } from '@/lib/services/validation-service'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 export type DetectionMethod =
   | 'MANUAL'
@@ -27,13 +32,14 @@ export async function detectPotentialSiblings(
     relationLoadStrategy: 'join',
     where: { id: personId },
     include: {
-      contactPoints: true,
       guardianRelationships: {
+        where: { isActive: true },
         include: {
           guardian: true,
         },
       },
       dependentRelationships: {
+        where: { isActive: true },
         include: {
           dependent: true,
         },
@@ -70,9 +76,9 @@ export async function detectPotentialSiblings(
   // Find other dependents of the same guardians
   // Note: Uses batch query with `in: guardianIds` and `include` to prevent N+1
   if (person.guardianRelationships.length > 0) {
-    const guardianIds = person.guardianRelationships
-      .filter((rel) => rel.isActive)
-      .map((rel) => rel.guardianId)
+    const guardianIds = person.guardianRelationships.map(
+      (rel) => rel.guardianId
+    )
 
     if (guardianIds.length > 0) {
       const siblingsViaGuardians = await prisma.guardianRelationship.findMany({
@@ -147,40 +153,45 @@ export async function detectPotentialSiblings(
   }
 
   // Method 3: Contact Match
-  // Match by shared contact points (phone, email)
-  if (person.contactPoints.length > 0) {
-    const contactValues = person.contactPoints.map((cp) =>
-      cp.value.toLowerCase()
-    )
+  // Match by shared email or phone on Person
+  const contactOrConditions: Prisma.PersonWhereInput[] = []
+  if (person.email) {
+    const normalizedEmail = normalizeEmail(person.email)
+    if (normalizedEmail) {
+      contactOrConditions.push({ email: normalizedEmail })
+    }
+  }
+  if (person.phone) {
+    const normalizedPhone = normalizePhone(person.phone)
+    if (normalizedPhone) {
+      contactOrConditions.push({ phone: normalizedPhone })
+    }
+  }
 
-    const contactMatches = await prisma.contactPoint.findMany({
-      relationLoadStrategy: 'join',
+  if (contactOrConditions.length > 0) {
+    const contactMatches = await prisma.person.findMany({
       where: {
-        value: {
-          in: contactValues,
-          mode: 'insensitive',
-        },
-        personId: { not: personId },
-      },
-      include: {
-        person: true,
+        id: { not: personId },
+        OR: contactOrConditions,
       },
     })
 
     for (const match of contactMatches) {
-      // Check if relationship already exists using the Set
-      if (!existingSiblingIds.has(match.personId)) {
-        // Check if this person is already in potentialSiblings
+      if (!existingSiblingIds.has(match.id)) {
         const alreadyAdded = potentialSiblings.some(
-          (ps) => ps.person.id === match.personId
+          (ps) => ps.person.id === match.id
         )
 
         if (!alreadyAdded) {
+          const sharedField =
+            person.email && match.email === person.email ? 'email' : 'phone'
+          const sharedValue =
+            (sharedField === 'email' ? match.email : match.phone) ?? 'unknown'
           potentialSiblings.push({
-            person: match.person,
+            person: match,
             method: 'CONTACT_MATCH',
             confidence: 0.8,
-            reasons: [`Shared ${match.type.toLowerCase()}: ${match.value}`],
+            reasons: [`Shared ${sharedField}: ${sharedValue}`],
           })
         }
       }
@@ -255,7 +266,10 @@ export async function createSiblingRelationship(
   }
 ) {
   if (person1Id === person2Id) {
-    throw new Error('Cannot create sibling relationship with self')
+    throw new ActionError(
+      'Cannot create sibling relationship with self',
+      ERROR_CODES.VALIDATION_ERROR
+    )
   }
 
   // Ensure person1Id < person2Id for consistency (or use a different ordering)

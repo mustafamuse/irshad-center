@@ -4,7 +4,7 @@
  * Query functions for Teacher model linked to Person.
  */
 
-import { Prisma } from '@prisma/client'
+import { Prisma, Program, Shift, TeacherProgram } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import { DatabaseClient } from '@/lib/db/types'
@@ -48,7 +48,7 @@ export async function getTeacherByPersonId(
 }
 
 /**
- * Get teacher with full Person relations (contact points, etc.)
+ * Get teacher with full Person relations (email, phone, etc.)
  * @param client - Optional database client (for transaction support)
  */
 export async function getTeacherWithPersonRelations(
@@ -61,7 +61,6 @@ export async function getTeacherWithPersonRelations(
     include: {
       person: {
         include: {
-          contactPoints: true,
           guardianRelationships: true,
           dependentRelationships: true,
         },
@@ -110,6 +109,26 @@ export async function getAllTeachers(
         name: 'asc',
       },
     },
+  })
+}
+
+export async function getTeacherDugsiProgram(
+  teacherId: string,
+  client: DatabaseClient = prisma
+): Promise<TeacherProgram | null> {
+  return client.teacherProgram.findFirst({
+    where: { teacherId, program: Program.DUGSI_PROGRAM, isActive: true },
+  })
+}
+
+export async function updateTeacherProgramShifts(
+  teacherProgramId: string,
+  shifts: Shift[],
+  client: DatabaseClient = prisma
+): Promise<void> {
+  await client.teacherProgram.update({
+    where: { id: teacherProgramId },
+    data: { shifts },
   })
 }
 

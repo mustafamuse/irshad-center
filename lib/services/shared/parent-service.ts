@@ -2,7 +2,6 @@
  * Shared Parent/Guardian Service
  *
  * Cross-program guardian/parent management operations.
- * Handles Person and ContactPoint updates for guardians.
  *
  * Works with the GuardianRelationship model to manage
  * parent-child relationships across all programs.
@@ -14,12 +13,20 @@
  * - Get guardian's dependents
  */
 
-import { ContactType, GuardianRole, Prisma } from '@prisma/client'
+import { GuardianRole, Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
 import type { DatabaseClient } from '@/lib/db/types'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
 import { ValidationError } from '@/lib/services/validation-service'
-import { normalizePhone } from '@/lib/utils/contact-normalization'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 /**
  * Guardian update input
@@ -43,12 +50,7 @@ export interface GuardianCreateInput {
 }
 
 /**
- * Update guardian information (Person + ContactPoints).
- *
- * Updates:
- * - Person name
- * - Email ContactPoint (if provided)
- * - Phone ContactPoint (if provided)
+ * Update guardian information (Person record).
  *
  * @param guardianId - Person ID of the guardian
  * @param input - Guardian update data
@@ -59,124 +61,41 @@ export async function updateGuardianInfo(
   input: GuardianUpdateInput,
   client: DatabaseClient = prisma
 ) {
-  async function performUpdate(tx: DatabaseClient) {
-    const fullName = `${input.firstName} ${input.lastName}`.trim()
+  const fullName = `${input.firstName} ${input.lastName}`.trim()
 
-    await tx.person.update({
+  if (input.phone && !normalizePhone(input.phone)) {
+    throw new ActionError(
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
+      ERROR_CODES.VALIDATION_ERROR,
+      'phone',
+      400
+    )
+  }
+
+  const email =
+    input.email !== undefined ? normalizeEmail(input.email) : undefined
+  const phone =
+    input.phone !== undefined
+      ? (normalizePhone(input.phone) ?? null)
+      : undefined
+
+  try {
+    return await client.person.update({
       where: { id: guardianId },
-      data: { name: fullName },
+      data: { name: fullName, email, phone },
     })
-
-    const guardian = await tx.person.findUnique({
-      relationLoadStrategy: 'join',
-      where: { id: guardianId },
-      include: { contactPoints: true },
-    })
-
-    if (!guardian) {
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2025'
+    ) {
       throw new ValidationError('Guardian not found', 'GUARDIAN_NOT_FOUND', {
         guardianId,
       })
     }
-
-    if (input.email) {
-      const normalizedEmail = input.email.toLowerCase().trim()
-      const existingEmail = guardian.contactPoints.find(
-        (cp) => cp.type === 'EMAIL'
-      )
-
-      if (existingEmail) {
-        await tx.contactPoint.update({
-          where: { id: existingEmail.id },
-          data: { value: normalizedEmail },
-        })
-      } else {
-        try {
-          await tx.contactPoint.create({
-            data: {
-              personId: guardianId,
-              type: 'EMAIL',
-              value: normalizedEmail,
-              isPrimary: true,
-            },
-          })
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            const existing = await tx.contactPoint.findFirst({
-              where: { personId: guardianId, type: 'EMAIL' },
-            })
-            if (existing) {
-              await tx.contactPoint.update({
-                where: { id: existing.id },
-                data: { value: normalizedEmail, isPrimary: true },
-              })
-            }
-          } else {
-            throw error
-          }
-        }
-      }
-    }
-
-    if (input.phone) {
-      const normalizedPhone = normalizePhone(input.phone)
-
-      if (normalizedPhone !== null) {
-        const existingPhone = guardian.contactPoints.find(
-          (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-        )
-
-        if (existingPhone) {
-          await tx.contactPoint.update({
-            where: { id: existingPhone.id },
-            data: { value: normalizedPhone },
-          })
-        } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: guardianId,
-                type: 'PHONE',
-                value: normalizedPhone,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: guardianId, type: 'PHONE' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedPhone },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
-        }
-      }
-    }
-
-    return await tx.person.findUnique({
-      relationLoadStrategy: 'join',
-      where: { id: guardianId },
-      include: { contactPoints: true },
-    })
+    throwIfP2002(error)
+    throw error
   }
-
-  if (client !== prisma) {
-    return performUpdate(client)
-  }
-
-  return prisma.$transaction(performUpdate)
 }
 
 /**
@@ -193,52 +112,44 @@ export async function addGuardianRelationship(
   input: GuardianCreateInput
 ) {
   const fullName = `${input.firstName} ${input.lastName}`.trim()
-  const normalizedEmail = input.email.toLowerCase().trim()
+  const normalizedEmail = normalizeEmail(input.email)
   const normalizedPhone = normalizePhone(input.phone)
 
-  // Check if guardian Person already exists by email
+  if (!normalizedEmail) {
+    throw new ActionError(
+      'Guardian email is required',
+      ERROR_CODES.VALIDATION_ERROR,
+      'email',
+      400
+    )
+  }
+
   let guardianPerson = await prisma.person.findFirst({
-    where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: normalizedEmail,
-        },
-      },
-    },
+    where: { email: normalizedEmail },
   })
 
-  // Create guardian Person if doesn't exist
   if (!guardianPerson) {
-    const contactPointsToCreate: Array<{
-      type: ContactType
-      value: string
-      isPrimary?: boolean
-    }> = [
-      {
-        type: 'EMAIL',
-        value: normalizedEmail,
-        isPrimary: true,
-      },
-    ]
-
-    // Only add phone if it's valid
-    if (normalizedPhone) {
-      contactPointsToCreate.push({
-        type: 'PHONE' as ContactType,
-        value: normalizedPhone,
-        isPrimary: false,
-      })
-    }
-
-    guardianPerson = await prisma.person.create({
-      data: {
-        name: fullName,
-        contactPoints: {
-          create: contactPointsToCreate,
+    try {
+      guardianPerson = await prisma.person.create({
+        data: {
+          name: fullName,
+          email: normalizedEmail,
+          phone: normalizedPhone,
         },
-      },
-    })
+      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        guardianPerson = await prisma.person.findUnique({
+          where: { email: normalizedEmail },
+        })
+        if (!guardianPerson) throwIfP2002(error)
+      } else {
+        throw error
+      }
+    }
   }
 
   // Check if relationship already exists
@@ -341,7 +252,6 @@ export async function getGuardianDependents(
     include: {
       dependent: {
         include: {
-          contactPoints: true,
           programProfiles: {
             include: {
               enrollments: {
@@ -382,11 +292,7 @@ export async function getDependentGuardians(
     relationLoadStrategy: 'join',
     where: whereClause,
     include: {
-      guardian: {
-        include: {
-          contactPoints: true,
-        },
-      },
+      guardian: true,
     },
     orderBy: {
       createdAt: 'asc',
@@ -404,20 +310,13 @@ export async function getDependentGuardians(
  * @returns Existing person with this email, or null
  */
 export async function validateGuardianEmail(email: string) {
-  const normalizedEmail = email.toLowerCase().trim()
+  const normalized = normalizeEmail(email)
+  if (!normalized) return null
 
   return await prisma.person.findFirst({
     relationLoadStrategy: 'join',
-    where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: normalizedEmail,
-        },
-      },
-    },
+    where: { email: normalized },
     include: {
-      contactPoints: true,
       programProfiles: true,
     },
   })
@@ -430,20 +329,13 @@ export async function validateGuardianEmail(email: string) {
  * @returns Person record or null
  */
 export async function findGuardianByEmail(email: string) {
-  const normalizedEmail = email.toLowerCase().trim()
+  const normalized = normalizeEmail(email)
+  if (!normalized) return null
 
   return await prisma.person.findFirst({
     relationLoadStrategy: 'join',
-    where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: normalizedEmail,
-        },
-      },
-    },
+    where: { email: normalized },
     include: {
-      contactPoints: true,
       dependentRelationships: {
         where: { isActive: true },
         include: {

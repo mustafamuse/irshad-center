@@ -1,10 +1,7 @@
 'use server'
 
-/**
- * Update Student Action
- *
- * Wraps the existing updateMahadStudent service for action-based updates.
- */
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { after } from 'next/server'
 
 import {
   GradeLevel,
@@ -12,69 +9,34 @@ import {
   PaymentFrequency,
   StudentBillingType,
 } from '@prisma/client'
+import { z } from 'zod'
 
-import { createActionLogger, logError } from '@/lib/logger'
-import {
-  updateMahadStudent,
-  StudentUpdateInput,
-} from '@/lib/services/mahad/student-service'
+import { adminActionClient } from '@/lib/safe-action'
+import { updateMahadStudent } from '@/lib/services/mahad/student-service'
 
-const logger = createActionLogger('update-student')
+const updateStudentSchema = z.object({
+  studentId: z.string().uuid(),
+  name: z.string().optional(),
+  email: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  dateOfBirth: z.coerce.date().nullable().optional(),
+  gradeLevel: z.nativeEnum(GradeLevel).nullable().optional(),
+  schoolName: z.string().nullable().optional(),
+  graduationStatus: z.nativeEnum(GraduationStatus).nullable().optional(),
+  paymentFrequency: z.nativeEnum(PaymentFrequency).nullable().optional(),
+  billingType: z.nativeEnum(StudentBillingType).nullable().optional(),
+  paymentNotes: z.string().nullable().optional(),
+})
 
-// ============================================================================
-// TYPE DEFINITIONS
-// ============================================================================
-
-interface UpdateStudentData {
-  name?: string
-  email?: string | null
-  phone?: string | null
-  dateOfBirth?: Date | null
-  gradeLevel?: GradeLevel | null
-  schoolName?: string | null
-  // Mahad billing fields
-  graduationStatus?: GraduationStatus | null
-  paymentFrequency?: PaymentFrequency | null
-  billingType?: StudentBillingType | null
-  paymentNotes?: string | null
-}
-
-interface UpdateStudentResult {
-  success: boolean
-  error?: string
-}
-
-// ============================================================================
-// MAIN ACTION
-// ============================================================================
-
-/**
- * Update a Mahad student's information
- *
- * Uses the existing updateMahadStudent service which handles:
- * - Person name and dateOfBirth updates
- * - ContactPoint updates (email, phone) with P2002 handling
- * - ProgramProfile field updates
- */
-export async function updateStudent(
-  studentId: string,
-  data: UpdateStudentData
-): Promise<UpdateStudentResult> {
-  try {
-    // Filter out undefined values and pass directly to service
-    const updateInput: StudentUpdateInput = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
-    ) as StudentUpdateInput
-
-    await updateMahadStudent(studentId, updateInput)
-
-    return { success: true }
-  } catch (error) {
-    await logError(logger, error, 'Failed to update student', { studentId })
-    return {
-      success: false,
-      error:
-        error instanceof Error ? error.message : 'Failed to update student',
-    }
-  }
-}
+export const updateStudent = adminActionClient
+  .metadata({ actionName: 'updateStudent' })
+  .schema(updateStudentSchema)
+  .action(async ({ parsedInput }) => {
+    const { studentId, ...data } = parsedInput
+    await updateMahadStudent(studentId, data)
+    after(() => {
+      revalidateTag('mahad-students')
+      revalidateTag('mahad-stats')
+      revalidatePath('/admin/mahad')
+    })
+  })

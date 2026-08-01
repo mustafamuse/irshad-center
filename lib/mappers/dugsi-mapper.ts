@@ -48,12 +48,8 @@ export function mapProfileToDugsiRegistration(
 
   // Primary parent (first guardian)
   const parent1 = guardians[0]
-  const parent1Email = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent1Phone = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent1Email = parent1?.email ?? null
+  const parent1Phone = parent1?.phone ?? null
   const parent1Name = parent1?.name
   const parent1NameParts = parent1Name ? parent1Name.split(' ') : []
   const parent1FirstName = parent1NameParts[0] || null
@@ -61,12 +57,8 @@ export function mapProfileToDugsiRegistration(
 
   // Second parent (second guardian)
   const parent2 = guardians[1]
-  const parent2Email = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent2Phone = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent2Email = parent2?.email ?? null
+  const parent2Phone = parent2?.phone ?? null
   const parent2Name = parent2?.name
   const parent2NameParts = parent2Name ? parent2Name.split(' ') : []
   const parent2FirstName = parent2NameParts[0] || null
@@ -90,12 +82,8 @@ export function mapProfileToDugsiRegistration(
   const classTeachers = dugsiClass?.teachers || []
   const primaryClassTeacher = classTeachers[0]?.teacher
   const primaryTeacher = primaryClassTeacher?.person
-  const primaryTeacherEmail = primaryTeacher?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const primaryTeacherPhone = primaryTeacher?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const primaryTeacherEmail = primaryTeacher?.email ?? null
+  const primaryTeacherPhone = primaryTeacher?.phone ?? null
 
   // Set shift-specific teacher based on class shift
   const classShift = dugsiClass?.shift
@@ -203,12 +191,8 @@ export function mapProfileToSimpleDugsiRegistration(
 
   // Primary parent
   const parent1 = guardians[0]
-  const parent1Email = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent1Phone = parent1?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent1Email = parent1?.email ?? null
+  const parent1Phone = parent1?.phone ?? null
   const parent1Name = parent1?.name
   const parent1NameParts = parent1Name ? parent1Name.split(' ') : []
   const parent1FirstName = parent1NameParts[0] || null
@@ -216,12 +200,8 @@ export function mapProfileToSimpleDugsiRegistration(
 
   // Second parent
   const parent2 = guardians[1]
-  const parent2Email = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'EMAIL'
-  )?.value
-  const parent2Phone = parent2?.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )?.value
+  const parent2Email = parent2?.email ?? null
+  const parent2Phone = parent2?.phone ?? null
   const parent2Name = parent2?.name
   const parent2NameParts = parent2Name ? parent2Name.split(' ') : []
   const parent2FirstName = parent2NameParts[0] || null
@@ -269,7 +249,5 @@ export function extractParentEmail(
   profile: ProgramProfileWithGuardians
 ): string | null {
   const guardian = profile.person.dependentRelationships?.[0]?.guardian
-  return (
-    guardian?.contactPoints?.find((cp) => cp.type === 'EMAIL')?.value ?? null
-  )
+  return guardian?.email ?? null
 }

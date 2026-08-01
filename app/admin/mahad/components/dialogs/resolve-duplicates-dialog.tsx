@@ -53,20 +53,20 @@ export function ResolveDuplicatesDialog({
 
     startTransition(async () => {
       const deleteIds = group.duplicateRecords.map((r) => r.id)
-      const result = await resolveDuplicatesAction(
-        group.keepRecord.id,
+      const result = await resolveDuplicatesAction({
+        keepId: group.keepRecord.id,
         deleteIds,
-        mergeData
-      )
+        mergeData,
+      })
 
-      if (result.success) {
+      if (result?.data !== undefined) {
         toast.success(
           `Resolved ${deleteIds.length} duplicate${deleteIds.length !== 1 ? 's' : ''}`
         )
         handleOpenChange(false)
         router.refresh()
       } else {
-        toast.error(result.error || 'Failed to resolve duplicates')
+        toast.error(result?.serverError || 'Failed to resolve duplicates')
       }
     })
   }

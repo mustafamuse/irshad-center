@@ -55,11 +55,11 @@ export function TeacherDetailsTab({ teacher, onUpdate, onDeactivate }: Props) {
         phone: phone || undefined,
       })
 
-      if (result.success && result.data) {
+      if (result?.data) {
         setIsEditing(false)
         onUpdate?.(result.data)
       } else {
-        setError(result.error || 'Failed to update')
+        setError(result?.serverError || 'Failed to update')
       }
     })
   }
@@ -67,11 +67,11 @@ export function TeacherDetailsTab({ teacher, onUpdate, onDeactivate }: Props) {
   function handleDeactivate() {
     setDeactivateError(null)
     startDeactivating(async () => {
-      const result = await deactivateTeacherAction(teacher.id)
-      if (result.success) {
+      const result = await deactivateTeacherAction({ teacherId: teacher.id })
+      if (!result?.serverError) {
         onDeactivate?.()
       } else {
-        setDeactivateError(result.error || 'Failed to deactivate')
+        setDeactivateError(result.serverError || 'Failed to deactivate')
       }
     })
   }

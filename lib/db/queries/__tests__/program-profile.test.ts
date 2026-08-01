@@ -29,7 +29,7 @@ import {
   getProgramProfiles,
   getProgramProfileById,
   getProgramProfilesByPersonId,
-  findPersonByContact,
+  findPersonByActiveContact,
   getProgramProfilesByFamilyId,
   getProgramProfilesWithBilling,
   searchProgramProfilesByNameOrContact,
@@ -83,16 +83,71 @@ describe('getProgramProfilesByPersonId', () => {
   })
 })
 
-describe('findPersonByContact', () => {
+describe('findPersonByActiveContact', () => {
+  it('should query by email on Person', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact('test@example.com')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.where.OR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: 'test@example.com' }),
+      ])
+    )
+  })
+
+  it('should query by phone on Person', async () => {
+    mockPersonFindFirst.mockResolvedValue(null)
+
+    await findPersonByActiveContact(null, '6125551234')
+
+    const call = mockPersonFindFirst.mock.calls[0][0]
+    expect(call.where.OR).toEqual(
+      expect.arrayContaining([expect.objectContaining({ phone: '6125551234' })])
+    )
+  })
+
+  it('should return null when no email or phone provided', async () => {
+    const result = await findPersonByActiveContact(null, null)
+
+    expect(result).toBeNull()
+    expect(mockPersonFindFirst).not.toHaveBeenCalled()
+  })
+
+  it('should return null when phone is invalid and no email', async () => {
+    const result = await findPersonByActiveContact(null, '123')
+
+    expect(result).toBeNull()
+    expect(mockPersonFindFirst).not.toHaveBeenCalled()
+  })
+
   it('should use relationLoadStrategy join', async () => {
     mockPersonFindFirst.mockResolvedValue(null)
 
-    await findPersonByContact('test@example.com')
+    await findPersonByActiveContact('test@example.com')
 
     expect(mockPersonFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         relationLoadStrategy: 'join',
       })
+    )
+  })
+})
+
+describe('getProgramProfiles - contact search', () => {
+  it('should search by email/phone on Person', async () => {
+    mockProfileFindMany.mockResolvedValue([])
+    mockProfileCount.mockResolvedValue(0)
+
+    await getProgramProfiles({ search: 'test@example.com' })
+
+    const call = mockProfileFindMany.mock.calls[0][0]
+    const personOR = call.where.person.OR
+    expect(personOR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: expect.any(Object) }),
+      ])
     )
   })
 })
@@ -135,6 +190,20 @@ describe('searchProgramProfilesByNameOrContact', () => {
       expect.objectContaining({
         relationLoadStrategy: 'join',
       })
+    )
+  })
+
+  it('should search by email/phone on Person', async () => {
+    mockProfileFindMany.mockResolvedValue([])
+
+    await searchProgramProfilesByNameOrContact('test@example.com')
+
+    const call = mockProfileFindMany.mock.calls[0][0]
+    const personOR = call.where.person.OR
+    expect(personOR).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ email: expect.any(Object) }),
+      ])
     )
   })
 })

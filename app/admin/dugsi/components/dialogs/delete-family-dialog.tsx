@@ -49,9 +49,9 @@ export function DeleteFamilyDialog({
   useEffect(() => {
     if (open && !preview) {
       setIsLoadingPreview(true)
-      getDeleteFamilyPreview(studentId)
+      getDeleteFamilyPreview({ studentId })
         .then((result) => {
-          if (result.success && result.data) {
+          if (result?.data) {
             setPreview(result.data)
           } else {
             setPreview({ count: 1, students: [] })
@@ -74,13 +74,13 @@ export function DeleteFamilyDialog({
 
   const handleDelete = async () => {
     startTransition(async () => {
-      const result = await deleteDugsiFamily(studentId)
-      if (result.success) {
-        toast.success(result.message || 'Family deleted successfully')
+      const result = await deleteDugsiFamily({ studentId })
+      if (result?.data) {
+        toast.success(result.data.message || 'Family deleted successfully')
         onOpenChange(false)
         onSuccess?.()
       } else {
-        toast.error(result.error || 'Failed to delete family')
+        toast.error(result?.serverError || 'Failed to delete family')
       }
     })
   }

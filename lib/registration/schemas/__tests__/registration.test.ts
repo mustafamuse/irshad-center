@@ -339,6 +339,18 @@ describe('dugsiRegistrationSchema', () => {
         expect(result.data.useCustomShift).toBe(false)
       }
     })
+
+    it('accepts Arabic school names', () => {
+      expect(
+        childInfoSchema.safeParse({ ...validChildData, schoolName: 'مدرسة الإسلامية' }).success
+      ).toBe(true)
+    })
+
+    it('accepts Arabic-Indic digits in school names', () => {
+      expect(
+        childInfoSchema.safeParse({ ...validChildData, schoolName: 'مدرسة ١٢٣' }).success
+      ).toBe(true)
+    })
   })
 
   describe('nameSchema', () => {
@@ -370,6 +382,24 @@ describe('dugsiRegistrationSchema', () => {
     it('rejects empty or too short names', () => {
       expect(nameSchema.safeParse('').success).toBe(false)
       expect(nameSchema.safeParse('A').success).toBe(false)
+    })
+
+    it('accepts Arabic names', () => {
+      expect(nameSchema.safeParse('محمد').success).toBe(true)
+      expect(nameSchema.safeParse('محمد علي').success).toBe(true)
+      expect(nameSchema.safeParse('فاطمة').success).toBe(true)
+    })
+
+    it('accepts accented Latin names', () => {
+      expect(nameSchema.safeParse('José').success).toBe(true)
+      expect(nameSchema.safeParse('François').success).toBe(true)
+      expect(nameSchema.safeParse('Müller').success).toBe(true)
+    })
+
+    it('rejects emoji and non-letter symbols', () => {
+      expect(nameSchema.safeParse('John😀').success).toBe(false)
+      expect(nameSchema.safeParse('Ali★').success).toBe(false)
+      expect(nameSchema.safeParse('محمد123').success).toBe(false)
     })
   })
 })

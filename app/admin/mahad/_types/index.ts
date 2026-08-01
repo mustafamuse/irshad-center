@@ -51,8 +51,17 @@ export type DialogType =
   | 'resolveDuplicates'
   | null
 
-// Re-export ActionResult from canonical location
-export type { ActionResult } from '@/lib/utils/action-helpers'
+export interface BulkDeleteResult {
+  deletedCount: number
+  blockedIds: string[]
+}
+
+export interface DeleteWarnings {
+  hasSiblings: boolean
+  hasAttendanceRecords: boolean
+  hasActiveSubscription: boolean
+  hasPaymentHistory: boolean
+}
 
 /**
  * Duplicate group for duplicate detection

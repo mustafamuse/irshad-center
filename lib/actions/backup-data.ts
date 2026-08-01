@@ -7,13 +7,11 @@
  * Produces JSON format suitable for data restoration or migration.
  */
 
+import { assertAdmin } from '@/lib/auth'
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
+import { ActionError } from '@/lib/errors/action-error'
 import { createActionLogger, logError } from '@/lib/logger'
-import {
-  extractStudentEmail,
-  extractStudentPhone,
-} from '@/lib/mappers/mahad-mapper'
 
 const logger = createActionLogger('backup-data')
 
@@ -85,6 +83,7 @@ interface BackupResult {
  */
 export async function backupData(): Promise<BackupResult> {
   try {
+    await assertAdmin('backupData')
     // Get all Mahad profiles with full relations
     const profiles = await prisma.programProfile.findMany({
       where: {
@@ -92,11 +91,7 @@ export async function backupData(): Promise<BackupResult> {
       },
       relationLoadStrategy: 'join',
       include: {
-        person: {
-          include: {
-            contactPoints: true,
-          },
-        },
+        person: true,
         enrollments: {
           where: {
             status: { not: 'WITHDRAWN' },
@@ -201,9 +196,8 @@ export async function backupData(): Promise<BackupResult> {
       const assignment = profile.assignments[0]
       const subscription = assignment?.subscription
 
-      // Use shared contact helpers
-      const email = extractStudentEmail({ person })
-      const phone = extractStudentPhone({ person })
+      const email = person.email
+      const phone = person.phone
 
       return {
         id: profile.id,
@@ -254,6 +248,8 @@ export async function backupData(): Promise<BackupResult> {
       },
     }
   } catch (error) {
+    if (error instanceof ActionError)
+      return { success: false, error: error.message }
     await logError(logger, error, 'Failed to export backup data')
     return {
       success: false,

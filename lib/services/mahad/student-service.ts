@@ -1,16 +1,3 @@
-/**
- * Mahad Student Service
- *
- * Business logic for Mahad student management operations.
- * Handles student profile creation, updates, and retrieval.
- *
- * Responsibilities:
- * - Create student program profiles
- * - Update student information
- * - Get student details
- * - Manage student contact information
- */
-
 import {
   GradeLevel,
   GraduationStatus,
@@ -21,13 +8,19 @@ import {
 
 import { MAHAD_PROGRAM } from '@/lib/constants/mahad'
 import { prisma } from '@/lib/db'
-import {
-  getProgramProfileById,
-  createProgramProfile,
-} from '@/lib/db/queries/program-profile'
+import { getProgramProfileById } from '@/lib/db/queries/program-profile'
 import { getPersonSiblings } from '@/lib/db/queries/siblings'
 import type { DatabaseClient } from '@/lib/db/types'
-import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
+import { DuplicateDetectionService } from '@/lib/services/duplicate-detection-service'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
 /**
  * Student creation input
@@ -68,122 +61,106 @@ export interface StudentUpdateInput {
  * Create a new Mahad student.
  *
  * Creates:
- * 1. Person record
- * 2. ContactPoints for email/phone
- * 3. ProgramProfile for MAHAD_PROGRAM
- * 4. Enrollment record (with optional batch assignment)
+ * 1. Person record (with email/phone)
+ * 2. ProgramProfile for MAHAD_PROGRAM
+ * 3. Enrollment record (with optional batch assignment)
  *
  * @param input - Student creation data
  * @returns Created program profile
  */
 export async function createMahadStudent(input: StudentCreateInput) {
-  const normalizedEmail = input.email?.toLowerCase().trim() ?? null
-  const normalizedPhone = input.phone?.trim() ?? null
+  const normalizedEmail = normalizeEmail(input.email)
+  const normalizedPhone = input.phone
+    ? (normalizePhone(input.phone) ?? null)
+    : null
 
-  return prisma.$transaction(async (tx) => {
-    let person
-    if (normalizedEmail) {
-      person = await tx.person.findFirst({
-        where: {
-          contactPoints: {
-            some: {
-              type: 'EMAIL',
-              value: normalizedEmail,
-            },
-          },
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const dupResult = await DuplicateDetectionService.checkDuplicate(
+        {
+          email: normalizedEmail,
+          phone: normalizedPhone,
+          program: MAHAD_PROGRAM,
         },
-      })
-    }
+        tx
+      )
 
-    if (person) {
-      const existingProfile = await tx.programProfile.findFirst({
-        where: { personId: person.id, program: MAHAD_PROGRAM },
-      })
-      if (existingProfile) {
+      if (dupResult.isDuplicate && dupResult.hasActiveProfile) {
         throw new ActionError(
           'Student already registered for Mahad',
-          ERROR_CODES.DUPLICATE_EMAIL,
-          undefined,
+          ERROR_CODES.DUPLICATE_CONTACT,
+          dupResult.duplicateField === 'both'
+            ? 'email'
+            : (dupResult.duplicateField ?? 'email'),
           409
         )
       }
-    }
 
-    if (!person) {
-      const contactPoints = []
+      let personId: string
 
-      if (normalizedEmail) {
-        contactPoints.push({
-          type: 'EMAIL' as const,
-          value: normalizedEmail,
-          isPrimary: true,
-        })
-      }
+      if (dupResult.existingPerson) {
+        personId = dupResult.existingPerson.id
 
-      if (normalizedPhone) {
-        contactPoints.push({
-          type: 'PHONE' as const,
-          value: normalizedPhone,
-        })
-      }
+        const contactUpdates: Prisma.PersonUpdateInput = {}
+        if (normalizedEmail !== null && !dupResult.existingPerson.email)
+          contactUpdates.email = normalizedEmail
+        if (normalizedPhone !== null && !dupResult.existingPerson.phone)
+          contactUpdates.phone = normalizedPhone
 
-      person = await tx.person.create({
-        data: {
-          name: input.name,
-          dateOfBirth: input.dateOfBirth ?? null,
-          contactPoints: {
-            create: contactPoints,
+        if (Object.keys(contactUpdates).length > 0) {
+          await tx.person.update({
+            where: { id: personId },
+            data: contactUpdates,
+          })
+        }
+      } else {
+        const newPerson = await tx.person.create({
+          data: {
+            name: input.name,
+            dateOfBirth: input.dateOfBirth ?? null,
+            email: normalizedEmail,
+            phone: normalizedPhone,
           },
-        },
-      })
-    }
+        })
+        personId = newPerson.id
+      }
 
-    const profile = await createProgramProfile(
-      {
-        personId: person.id,
-        program: MAHAD_PROGRAM,
-        gradeLevel: input.gradeLevel ?? null,
-        schoolName: input.schoolName ?? null,
-      },
-      tx
-    )
-
-    if (
-      input.graduationStatus !== undefined ||
-      input.paymentFrequency !== undefined ||
-      input.billingType !== undefined ||
-      input.paymentNotes !== undefined
-    ) {
-      await tx.programProfile.update({
-        where: { id: profile.id },
+      const profile = await tx.programProfile.create({
         data: {
+          personId,
+          program: MAHAD_PROGRAM,
+          gradeLevel: input.gradeLevel ?? null,
+          schoolName: input.schoolName ?? null,
           graduationStatus: input.graduationStatus ?? null,
           paymentFrequency: input.paymentFrequency ?? null,
           billingType: input.billingType ?? null,
           paymentNotes: input.paymentNotes ?? null,
         },
       })
-    }
 
-    await tx.enrollment.create({
-      data: {
-        programProfileId: profile.id,
-        batchId: input.batchId ?? null,
-        status: 'REGISTERED',
-        startDate: new Date(),
-      },
+      await tx.enrollment.create({
+        data: {
+          programProfileId: profile.id,
+          batchId: input.batchId ?? null,
+          status: 'REGISTERED',
+          startDate: new Date(),
+        },
+      })
+
+      return profile
     })
-
-    return profile
-  })
+  } catch (error) {
+    if (error instanceof ActionError) throw error
+    throwIfP2002(error)
+    throw error
+  }
 }
 
 /**
  * Update Mahad student information.
  *
  * Updates:
- * - Person name and dateOfBirth
- * - ContactPoints (email/phone)
+ * - Person (name, dateOfBirth, email, phone)
  * - ProgramProfile fields
  *
  * @param studentId - Program profile ID
@@ -209,109 +186,30 @@ export async function updateMahadStudent(
 
     const { personId } = profile
 
-    if (input.name !== undefined || input.dateOfBirth !== undefined) {
+    const personData: Prisma.PersonUpdateInput = {}
+    if (input.name !== undefined) personData.name = input.name
+    if (input.dateOfBirth !== undefined)
+      personData.dateOfBirth = input.dateOfBirth
+    if (input.email !== undefined)
+      personData.email = normalizeEmail(input.email)
+    if (input.phone !== undefined) {
+      const normalizedPhone = input.phone ? normalizePhone(input.phone) : null
+      if (input.phone && !normalizedPhone) {
+        throw new ActionError(
+          'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
+          ERROR_CODES.VALIDATION_ERROR,
+          'phone',
+          400
+        )
+      }
+      personData.phone = normalizedPhone
+    }
+
+    if (Object.keys(personData).length > 0) {
       await tx.person.update({
         where: { id: personId },
-        data: {
-          name: input.name,
-          dateOfBirth: input.dateOfBirth,
-        },
+        data: personData,
       })
-    }
-
-    if (input.email !== undefined) {
-      const normalizedEmail = input.email?.toLowerCase().trim() ?? null
-
-      if (normalizedEmail) {
-        const existingEmail = await tx.contactPoint.findFirst({
-          where: {
-            personId: personId,
-            type: 'EMAIL',
-          },
-        })
-
-        if (existingEmail) {
-          await tx.contactPoint.update({
-            where: { id: existingEmail.id },
-            data: { value: normalizedEmail },
-          })
-        } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: personId,
-                type: 'EMAIL',
-                value: normalizedEmail,
-                isPrimary: true,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: personId, type: 'EMAIL' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedEmail },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
-        }
-      }
-    }
-
-    if (input.phone !== undefined) {
-      const normalizedPhone = input.phone?.trim() ?? null
-
-      if (normalizedPhone) {
-        const existingPhone = await tx.contactPoint.findFirst({
-          where: {
-            personId: personId,
-            type: 'PHONE',
-          },
-        })
-
-        if (existingPhone) {
-          await tx.contactPoint.update({
-            where: { id: existingPhone.id },
-            data: { value: normalizedPhone },
-          })
-        } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: personId,
-                type: 'PHONE',
-                value: normalizedPhone,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: personId, type: 'PHONE' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: normalizedPhone },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
-        }
-      }
     }
 
     return await tx.programProfile.update({
@@ -327,11 +225,16 @@ export async function updateMahadStudent(
     })
   }
 
-  if (client !== prisma) {
-    return performUpdate(client)
+  try {
+    if (client !== prisma) {
+      return await performUpdate(client)
+    }
+    return await prisma.$transaction(performUpdate)
+  } catch (error) {
+    if (error instanceof ActionError) throw error
+    throwIfP2002(error)
+    throw error
   }
-
-  return prisma.$transaction(performUpdate)
 }
 
 /**
@@ -366,23 +269,23 @@ export async function getMahadStudentSiblings(studentId: string) {
  * @returns Deleted profile
  */
 export async function deleteMahadStudent(studentId: string) {
-  // Withdraw from active enrollments
-  await prisma.enrollment.updateMany({
-    where: {
-      programProfileId: studentId,
-      status: { not: 'WITHDRAWN' },
-    },
-    data: {
-      status: 'WITHDRAWN',
-      endDate: new Date(),
-    },
-  })
+  return await prisma.$transaction(async (tx) => {
+    await tx.enrollment.updateMany({
+      where: {
+        programProfileId: studentId,
+        status: { not: 'WITHDRAWN' },
+      },
+      data: {
+        status: 'WITHDRAWN',
+        endDate: new Date(),
+      },
+    })
 
-  // Mark program profile as withdrawn
-  return await prisma.programProfile.update({
-    where: { id: studentId },
-    data: {
-      status: 'WITHDRAWN',
-    },
+    return tx.programProfile.update({
+      where: { id: studentId },
+      data: {
+        status: 'WITHDRAWN',
+      },
+    })
   })
 }

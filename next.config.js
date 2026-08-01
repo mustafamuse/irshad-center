@@ -29,6 +29,7 @@ const nextConfig = {
               "worker-src 'self' blob:",
               "child-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
               "frame-src 'self' blob: https://js.stripe.com https://hooks.stripe.com https://checkout.stripe.com https://merchant-ui-api.stripe.com https://www.google.com https://maps.google.com",
+              "frame-ancestors 'none'",
               "media-src 'self' blob: data:",
             ].join('; '),
           },

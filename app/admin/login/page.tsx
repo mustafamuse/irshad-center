@@ -17,9 +17,9 @@ function LoginForm() {
 
   const submitPin = (fullPin: string) => {
     startTransition(async () => {
-      const result = await validateAdminPin(fullPin, redirectTo)
-      if (!result.success) {
-        setError(result.error || 'Invalid PIN')
+      const result = await validateAdminPin({ pin: fullPin, redirectTo })
+      if (result?.serverError) {
+        setError(result.serverError || 'Invalid PIN')
         setPin(['', '', '', ''])
         inputRefs.current[0]?.focus()
       }

@@ -1,16 +1,3 @@
-/**
- * Dugsi Family Service
- *
- * Business logic for Dugsi family management operations.
- * Handles parent/guardian updates and child management.
- *
- * Responsibilities:
- * - Update parent information
- * - Add second parent
- * - Update child information
- * - Add child to family
- */
-
 import { GradeLevel, Prisma, Shift } from '@prisma/client'
 import * as Sentry from '@sentry/nextjs'
 
@@ -18,32 +5,19 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import {
   getProgramProfileById,
-  findPersonByContact,
+  findPersonByActiveContact,
   updateFamilyShift as updateFamilyShiftQuery,
 } from '@/lib/db/queries/program-profile'
-import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import {
+  ActionError,
+  ERROR_CODES,
+  throwIfP2002,
+} from '@/lib/errors/action-error'
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@/lib/utils/contact-normalization'
 
-/** Phone format: XXX-XXX-XXXX */
-const PHONE_REGEX = /^\d{3}-\d{3}-\d{4}$/
-
-/**
- * Validates phone number format.
- * Service-layer validation ensures data integrity even when called directly.
- */
-function validatePhoneFormat(phone: string): void {
-  if (!phone || !PHONE_REGEX.test(phone)) {
-    throw new ActionError(
-      'Invalid phone format. Expected XXX-XXX-XXXX',
-      ERROR_CODES.VALIDATION_ERROR,
-      'phone',
-      400
-    )
-  }
-}
-
-/**
- * Parent update input
- */
 export interface ParentUpdateInput {
   /** ID of any student in the family (used to look up family) */
   studentId: string
@@ -53,13 +27,10 @@ export interface ParentUpdateInput {
   firstName: string
   /** Parent's last name (2-50 chars, letters/spaces/hyphens) */
   lastName: string
-  /** Phone in XXX-XXX-XXXX format */
+  /** Phone number (10-digit US number, normalized before storage) */
   phone: string
 }
 
-/**
- * Second parent input
- */
 export interface SecondParentInput {
   /** ID of any student in the family */
   studentId: string
@@ -69,13 +40,10 @@ export interface SecondParentInput {
   lastName: string
   /** Second parent's email (will be lowercase normalized) */
   email: string
-  /** Second parent's phone in XXX-XXX-XXXX format */
+  /** Phone number (10-digit US number, normalized before storage) */
   phone: string
 }
 
-/**
- * Child update input - at least one optional field must be provided
- */
 export interface ChildUpdateInput {
   /** ProgramProfile ID of the student to update */
   studentId: string
@@ -95,9 +63,6 @@ export interface ChildUpdateInput {
   healthInfo?: string | null
 }
 
-/**
- * New child input - used to add a sibling to an existing family
- */
 export interface NewChildInput {
   /** ProgramProfile ID of an existing sibling (to copy family/guardian relationships) */
   existingStudentId: string
@@ -118,24 +83,22 @@ export interface NewChildInput {
 }
 
 /**
- * Update parent information for entire family (Dugsi program).
- *
- * DESIGN NOTE: Parent emails are immutable for Dugsi families to maintain
- * authentication integrity. Only name and phone can be updated.
- * See parent-service.ts for cross-program guardian updates.
- *
- * @security Authorization must be enforced at the API route/action layer.
- *           This service does not verify the caller has permission to modify.
- *
- * @param input - Parent update data
- * @returns Number of updated records
- * @throws Error if student or parent not found
+ * Parent emails are immutable for Dugsi families (authentication integrity).
+ * Only name and phone can be updated here. See parent-service.ts for cross-program updates.
+ * @security Authorization must be enforced at the action layer. This service does not verify caller permissions.
  */
 export async function updateParentInfo(
   input: ParentUpdateInput
 ): Promise<{ updated: number }> {
-  // Validate phone format before proceeding
-  validatePhoneFormat(input.phone)
+  const normalizedPhone = normalizePhone(input.phone)
+  if (!normalizedPhone) {
+    throw new ActionError(
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
+      ERROR_CODES.VALIDATION_ERROR,
+      'phone',
+      400
+    )
+  }
 
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
@@ -147,16 +110,11 @@ export async function updateParentInfo(
     )
   }
 
-  // Get guardian relationships for the profile (child is dependent, parents are guardians)
-  const person = profile.person
-  const dependentRelationships = person.dependentRelationships || []
-  const guardians = dependentRelationships
+  const guardians = (profile.person.dependentRelationships || [])
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
-  // Get the guardian to update (parent1 or parent2)
-  const guardianIndex = input.parentNumber - 1
-  const guardian = guardians[guardianIndex]
+  const guardian = guardians[input.parentNumber - 1]
 
   if (!guardian) {
     throw new ActionError(
@@ -167,58 +125,19 @@ export async function updateParentInfo(
     )
   }
 
-  // Update guardian name and phone in a transaction
   const fullName = `${input.firstName} ${input.lastName}`.trim()
-  const existingPhone = guardian.contactPoints?.find(
-    (cp) => cp.type === 'PHONE' || cp.type === 'WHATSAPP'
-  )
-
   await Sentry.startSpan(
-    { name: 'family.updateParentInfo', op: 'db.transaction' },
+    { name: 'family.updateParentInfo', op: 'db' },
     async () => {
-      await prisma.$transaction(async (tx) => {
-        // Update guardian name
-        await tx.person.update({
+      try {
+        await prisma.person.update({
           where: { id: guardian.id },
-          data: { name: fullName },
+          data: { name: fullName, phone: normalizedPhone },
         })
-
-        // Update or create phone contact point with P2002 race condition handling
-        if (existingPhone) {
-          await tx.contactPoint.update({
-            where: { id: existingPhone.id },
-            data: { value: input.phone },
-          })
-        } else {
-          try {
-            await tx.contactPoint.create({
-              data: {
-                personId: guardian.id,
-                type: 'PHONE',
-                value: input.phone,
-              },
-            })
-          } catch (error) {
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              // Race condition - contact point was created by another transaction
-              const existing = await tx.contactPoint.findFirst({
-                where: { personId: guardian.id, type: 'PHONE' },
-              })
-              if (existing) {
-                await tx.contactPoint.update({
-                  where: { id: existing.id },
-                  data: { value: input.phone },
-                })
-              }
-            } else {
-              throw error
-            }
-          }
-        }
-      })
+      } catch (error) {
+        throwIfP2002(error)
+        throw error
+      }
     }
   )
 
@@ -226,23 +145,20 @@ export async function updateParentInfo(
 }
 
 /**
- * Add a second parent to a family.
- *
- * Creates a new Person record and guardian relationship.
- * Only adds if second parent doesn't already exist.
- *
- * @security Authorization must be enforced at the API route/action layer.
- *           This service does not verify the caller has permission to modify.
- *
- * @param input - Second parent data
- * @returns Number of updated records
- * @throws Error if student not found or second parent already exists
+ * @security Authorization must be enforced at the action layer. This service does not verify caller permissions.
  */
 export async function addSecondParent(
   input: SecondParentInput
 ): Promise<{ updated: number }> {
-  // Validate phone format before proceeding
-  validatePhoneFormat(input.phone)
+  const normalizedPhone = normalizePhone(input.phone)
+  if (!normalizedPhone) {
+    throw new ActionError(
+      'Invalid phone number. Expected a 10-digit US number (e.g. 612-555-1234)',
+      ERROR_CODES.VALIDATION_ERROR,
+      'phone',
+      400
+    )
+  }
 
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
@@ -254,10 +170,7 @@ export async function addSecondParent(
     )
   }
 
-  // Check if second parent already exists
-  const person = profile.person
-  const dependentRelationships = person.dependentRelationships || []
-  const guardians = dependentRelationships
+  const guardians = (profile.person.dependentRelationships || [])
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -270,100 +183,79 @@ export async function addSecondParent(
     )
   }
 
-  // Create person and guardian relationship in a transaction with race condition handling
-  await Sentry.startSpan(
-    { name: 'family.addSecondParent', op: 'db.transaction' },
-    async () => {
-      await prisma.$transaction(async (tx) => {
-        let parentPersonId: string
-        const normalizedEmail = input.email.toLowerCase().trim()
+  const normalizedEmail = normalizeEmail(input.email)
 
-        // Check if person with this email already exists (using tx for true TOCTOU safety)
-        const existingPerson = await findPersonByContact(input.email, null, tx)
+  try {
+    await Sentry.startSpan(
+      { name: 'family.addSecondParent', op: 'db.transaction' },
+      async () => {
+        await prisma.$transaction(async (tx) => {
+          let parentPersonId: string
 
-        if (existingPerson) {
-          parentPersonId = existingPerson.id
-        } else {
-          // Create new person for second parent with race condition handling
-          const fullName = `${input.firstName} ${input.lastName}`.trim()
-          try {
+          const existingPerson = await findPersonByActiveContact(
+            normalizedEmail,
+            normalizedPhone,
+            tx
+          )
+
+          if (existingPerson) {
+            parentPersonId = existingPerson.id
+            const updates: Prisma.PersonUpdateInput = {}
+            if (existingPerson.phone !== normalizedPhone)
+              updates.phone = normalizedPhone
+            if (!existingPerson.email && normalizedEmail)
+              updates.email = normalizedEmail
+            if (Object.keys(updates).length > 0) {
+              await tx.person.update({
+                where: { id: existingPerson.id },
+                data: updates,
+              })
+            }
+          } else {
+            const fullName = `${input.firstName} ${input.lastName}`.trim()
             const newPerson = await tx.person.create({
               data: {
                 name: fullName,
-                contactPoints: {
-                  create: [
-                    { type: 'EMAIL', value: normalizedEmail },
-                    { type: 'PHONE', value: input.phone },
-                  ],
-                },
+                email: normalizedEmail,
+                phone: normalizedPhone,
               },
             })
             parentPersonId = newPerson.id
-          } catch (error) {
-            // Handle P2002 unique constraint violation (race condition)
-            if (
-              error instanceof Prisma.PrismaClientKnownRequestError &&
-              error.code === 'P2002'
-            ) {
-              // Another transaction created this person - look them up (using tx)
-              const racedPerson = await findPersonByContact(
-                input.email,
-                null,
-                tx
-              )
-              if (!racedPerson) {
-                throw new ActionError(
-                  'Failed to create or find person',
-                  ERROR_CODES.SERVER_ERROR,
-                  undefined,
-                  500
-                )
-              }
-              parentPersonId = racedPerson.id
-            } else {
-              throw error
-            }
           }
-        }
 
-        // Create guardian relationship with race condition handling
-        try {
-          await tx.guardianRelationship.create({
-            data: {
+          const existingRelationship = await tx.guardianRelationship.findFirst({
+            where: {
               guardianId: parentPersonId,
-              dependentId: person.id,
-              isActive: true,
+              dependentId: profile.person.id,
             },
           })
-        } catch (error) {
-          // Handle P2002 if relationship already exists (race condition)
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === 'P2002'
-          ) {
-            // Relationship already exists - this is fine, operation is idempotent
-            return
+          if (existingRelationship) {
+            if (!existingRelationship.isActive) {
+              await tx.guardianRelationship.update({
+                where: { id: existingRelationship.id },
+                data: { isActive: true, endDate: null },
+              })
+            }
+          } else {
+            await tx.guardianRelationship.create({
+              data: {
+                guardianId: parentPersonId,
+                dependentId: profile.person.id,
+                isActive: true,
+              },
+            })
           }
-          throw error
-        }
-      })
-    }
-  )
+        })
+      }
+    )
+  } catch (error) {
+    throwIfP2002(error)
+    throw error
+  }
 
   return { updated: 1 }
 }
 
-/**
- * Update child information for a specific student.
- *
- * Updates both Person record (name, DOB) and ProgramProfile (education details).
- *
- * @security Authorization must be enforced at the API route/action layer.
- *           This service does not verify the caller has permission to modify.
- *
- * @param input - Child update data
- * @throws Error if student not found
- */
 export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   const profile = await getProgramProfileById(input.studentId)
   if (!profile || profile.program !== DUGSI_PROGRAM) {
@@ -378,8 +270,7 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   await Sentry.startSpan(
     { name: 'family.updateChildInfo', op: 'db.transaction' },
     async () => {
-      // Build Person update data (consolidated into single query)
-      const personUpdateData: { name?: string; dateOfBirth?: Date } = {}
+      const personUpdateData: Prisma.PersonUpdateInput = {}
 
       if (input.firstName || input.lastName) {
         const currentName = profile.person.name.split(' ')
@@ -392,7 +283,6 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
         personUpdateData.dateOfBirth = input.dateOfBirth
       }
 
-      // Update person record (single query for name and DOB)
       if (Object.keys(personUpdateData).length > 0) {
         await prisma.person.update({
           where: { id: profile.personId },
@@ -400,7 +290,6 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
         })
       }
 
-      // Update program profile fields
       const profileUpdates: Partial<{
         gender: 'MALE' | 'FEMALE'
         gradeLevel: GradeLevel
@@ -426,20 +315,6 @@ export async function updateChildInfo(input: ChildUpdateInput): Promise<void> {
   )
 }
 
-/**
- * Add a new child to an existing family.
- *
- * Copies guardian relationships from an existing sibling.
- * Inherits shift assignment from the existing sibling if available.
- * Creates Person, ProgramProfile, and Enrollment records.
- *
- * @security Authorization must be enforced at the API route/action layer.
- *           This service does not verify the caller has permission to modify.
- *
- * @param input - New child data
- * @returns Created child's ProgramProfile ID
- * @throws Error if existing student or family not found
- */
 export async function addChildToFamily(
   input: NewChildInput
 ): Promise<{ childId: string }> {
@@ -463,10 +338,7 @@ export async function addChildToFamily(
     )
   }
 
-  // Get guardian relationships from existing profile (child is dependent, parents are guardians)
-  const person = existingProfile.person
-  const dependentRelationships = person.dependentRelationships || []
-  const guardians = dependentRelationships
+  const guardians = (existingProfile.person.dependentRelationships || [])
     .map((rel) => rel.guardian)
     .filter(Boolean)
 
@@ -479,14 +351,12 @@ export async function addChildToFamily(
     )
   }
 
-  // Create new child with all related records in a transaction
   const fullName = `${input.firstName} ${input.lastName}`.trim()
 
   const newProfile = await Sentry.startSpan(
     { name: 'family.addChildToFamily', op: 'db.transaction' },
     async () => {
       return prisma.$transaction(async (tx) => {
-        // Create new person for child
         const newPerson = await tx.person.create({
           data: {
             name: fullName,
@@ -494,7 +364,6 @@ export async function addChildToFamily(
           },
         })
 
-        // Create guardian relationships for all guardians (batch insert)
         await tx.guardianRelationship.createMany({
           data: guardians.map((guardian) => ({
             guardianId: guardian.id,
@@ -503,7 +372,6 @@ export async function addChildToFamily(
           })),
         })
 
-        // Create program profile
         const profile = await tx.programProfile.create({
           data: {
             personId: newPerson.id,
@@ -518,7 +386,6 @@ export async function addChildToFamily(
           },
         })
 
-        // Create enrollment
         await tx.enrollment.create({
           data: {
             programProfileId: profile.id,
@@ -535,9 +402,6 @@ export async function addChildToFamily(
   return { childId: newProfile.id }
 }
 
-/**
- * Set primary payer input
- */
 export interface SetPrimaryPayerInput {
   /** ID of any student in the family */
   studentId: string
@@ -545,16 +409,6 @@ export interface SetPrimaryPayerInput {
   parentNumber: 1 | 2
 }
 
-/**
- * Set which parent is the primary payer for a family.
- *
- * Updates GuardianRelationship.isPrimaryPayer for all children in the family.
- * Ensures only one guardian has isPrimaryPayer=true per child.
- *
- * @param input - Primary payer selection
- * @returns Number of relationships updated
- * @throws ActionError if student/parent not found
- */
 export async function setPrimaryPayer(
   input: SetPrimaryPayerInput
 ): Promise<{ updated: number }> {
@@ -578,12 +432,11 @@ export async function setPrimaryPayer(
     )
   }
 
-  // Get guardian relationships for the profile
-  const dependentRelationships = profile.person.dependentRelationships || []
-  const guardians = dependentRelationships.map((rel) => rel.guardian)
+  const guardians = (profile.person.dependentRelationships || []).map(
+    (rel) => rel.guardian
+  )
 
-  const guardianIndex = input.parentNumber - 1
-  const selectedGuardian = guardians[guardianIndex]
+  const selectedGuardian = guardians[input.parentNumber - 1]
 
   if (!selectedGuardian) {
     throw new ActionError(
@@ -594,7 +447,6 @@ export async function setPrimaryPayer(
     )
   }
 
-  // Get all children in the family
   const familyProfiles = await prisma.programProfile.findMany({
     where: {
       familyReferenceId: familyId,
@@ -605,12 +457,10 @@ export async function setPrimaryPayer(
 
   const childPersonIds = familyProfiles.map((p) => p.personId)
 
-  // Update in transaction: clear all isPrimaryPayer, then set selected guardian
   const result = await Sentry.startSpan(
     { name: 'family.setPrimaryPayer', op: 'db.transaction' },
     async () => {
       return prisma.$transaction(async (tx) => {
-        // Clear isPrimaryPayer for all guardians of these children
         await tx.guardianRelationship.updateMany({
           where: {
             dependentId: { in: childPersonIds },
@@ -619,7 +469,6 @@ export async function setPrimaryPayer(
           data: { isPrimaryPayer: false },
         })
 
-        // Set isPrimaryPayer for selected guardian
         const updated = await tx.guardianRelationship.updateMany({
           where: {
             guardianId: selectedGuardian.id,
@@ -637,21 +486,11 @@ export async function setPrimaryPayer(
   return { updated: result }
 }
 
-/**
- * Update shift input
- */
 export interface UpdateShiftInput {
   familyReferenceId: string
   shift: Shift
 }
 
-/**
- * Update shift for all children in a family.
- *
- * @param input - Shift update data
- * @returns Count of updated profiles
- * @throws ActionError if family not found
- */
 export async function updateFamilyShift(
   input: UpdateShiftInput
 ): Promise<{ updated: number }> {

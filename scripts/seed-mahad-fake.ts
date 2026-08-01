@@ -18,6 +18,10 @@ import {
 } from '@prisma/client'
 
 import { prisma } from '@/lib/db'
+import { normalizePhone } from '@/lib/types/person'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
+
+import { runScript } from './lib/run-script'
 
 const FAKE_DATA_MARKER = { isFakeData: true, seedVersion: 'v1' }
 
@@ -135,7 +139,7 @@ interface FakeStudent {
   gender: Gender
   dateOfBirth: Date
   email: string
-  phone: string
+  phone: string | null
   graduationStatus: GraduationStatus
   gradeLevel: GradeLevel | null
   billingType: StudentBillingType
@@ -173,7 +177,9 @@ function generateFakeStudent(index: number): FakeStudent {
       : randomDate(20, 28)
 
   const emailBase = `${firstName.toLowerCase()}.${lastName.toLowerCase()}${index}`
-  const email = `${emailBase}@test.irshad.edu`
+  const email =
+    normalizeEmail(`${emailBase}@test.irshad.edu`) ??
+    `${emailBase}@test.irshad.edu`
 
   return {
     firstName,
@@ -182,7 +188,7 @@ function generateFakeStudent(index: number): FakeStudent {
     gender,
     dateOfBirth,
     email,
-    phone: generateFakePhone(),
+    phone: normalizePhone(generateFakePhone()) ?? null,
     graduationStatus,
     gradeLevel,
     billingType: randomFrom(BILLING_TYPES),
@@ -209,24 +215,9 @@ async function seedFakeStudents(count: number): Promise<void> {
           data: {
             name: student.fullName,
             dateOfBirth: student.dateOfBirth,
+            email: student.email,
+            phone: student.phone,
           },
-        })
-
-        await tx.contactPoint.createMany({
-          data: [
-            {
-              personId: person.id,
-              type: 'EMAIL',
-              value: student.email,
-              isPrimary: true,
-            },
-            {
-              personId: person.id,
-              type: 'PHONE',
-              value: student.phone,
-              isPrimary: false,
-            },
-          ],
         })
 
         const profile = await tx.programProfile.create({
@@ -308,10 +299,6 @@ async function cleanFakeStudents(): Promise<void> {
       where: { id: { in: profileIds } },
     })
 
-    await tx.contactPoint.deleteMany({
-      where: { personId: { in: personIds } },
-    })
-
     await tx.person.deleteMany({
       where: { id: { in: personIds } },
     })
@@ -363,11 +350,4 @@ async function main(): Promise<void> {
   }
 }
 
-main()
-  .catch((err) => {
-    console.error('Error:', err)
-    process.exit(1)
-  })
-  .finally(async () => {
-    await prisma.$disconnect()
-  })
+runScript(main, { cleanup: () => prisma.$disconnect() })

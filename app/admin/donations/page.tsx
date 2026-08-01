@@ -1,7 +1,7 @@
 import { type Metadata } from 'next'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getDonations, getDonationStats } from '@/lib/db/queries/donation'
+import { getCachedDonationStats, getDonations } from '@/lib/db/queries/donation'
 import { formatCurrency, formatDate } from '@/lib/utils/formatters'
 
 export const dynamic = 'force-dynamic'
@@ -37,7 +37,7 @@ function pluralize(count: number, singular: string): string {
 
 export default async function DonationsPage() {
   const [stats, { donations }] = await Promise.all([
-    getDonationStats(),
+    getCachedDonationStats(),
     getDonations({ pageSize: 50 }),
   ])
 

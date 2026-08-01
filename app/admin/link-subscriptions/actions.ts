@@ -1,8 +1,12 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, revalidateTag, unstable_cache } from 'next/cache'
 
-import { createActionLogger, logError, logInfo } from '@/lib/logger'
+import { z } from 'zod'
+
+import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
+import { createActionLogger, logInfo } from '@/lib/logger'
+import { adminActionClient } from '@/lib/safe-action'
 import {
   getAllOrphanedSubscriptions,
   searchStudentsForLinking,
@@ -16,121 +20,185 @@ import {
 
 export type { OrphanedSubscription, StudentMatch }
 
-const logger = createActionLogger('link-subscriptions')
-
-/**
- * Result type for orphaned subscriptions with error handling
- */
 export interface OrphanedSubscriptionsResult {
   data: OrphanedSubscription[]
   error?: string
 }
 
-/**
- * Get all orphaned subscriptions (subscriptions in Stripe not linked to any student).
- * Combines results from both Mahad and Dugsi programs.
- * Returns an error message if Stripe is not configured.
- */
-export async function getOrphanedSubscriptions(): Promise<OrphanedSubscriptionsResult> {
-  try {
-    const data = await getAllOrphanedSubscriptions()
-    return { data }
-  } catch (error) {
-    await logError(logger, error, 'Failed to fetch orphaned subscriptions')
-    const message = error instanceof Error ? error.message : 'Unknown error'
-    return { data: [], error: message }
-  }
-}
+const logger = createActionLogger('link-subscriptions')
 
-/**
- * Search for students by name, email, or ID.
- */
-export async function searchStudents(
-  query: string,
-  program?: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  return await searchStudentsForLinking(query, program)
-}
+const programSchema = z.enum(['MAHAD', 'DUGSI'])
 
-/**
- * Get potential student matches for a subscription based on email.
- */
-export async function getPotentialMatches(
-  email: string | null,
-  program: 'MAHAD' | 'DUGSI'
-): Promise<StudentMatch[]> {
-  return await getPotentialStudentMatches(email, program)
-}
+const getCachedOrphanedSubscriptions = unstable_cache(
+  async () => getAllOrphanedSubscriptions(),
+  ['orphaned-subscriptions'],
+  { revalidate: 300, tags: ['link-subscriptions'] }
+)
 
-/**
- * Link a subscription to a student.
- */
-export async function linkSubscriptionToStudent(
-  subscriptionId: string,
-  studentId: string,
-  program: 'MAHAD' | 'DUGSI'
-): Promise<{ success: boolean; error?: string }> {
-  const result = await linkSubscriptionToProfile(
-    subscriptionId,
-    studentId,
-    program
-  )
+const _getOrphanedSubscriptions = adminActionClient
+  .metadata({ actionName: 'getOrphanedSubscriptions' })
+  .action(async () => {
+    const raw = await getCachedOrphanedSubscriptions()
+    return raw.map((sub) => ({
+      ...sub,
+      created: new Date(sub.created),
+      currentPeriodStart: sub.currentPeriodStart
+        ? new Date(sub.currentPeriodStart)
+        : null,
+      currentPeriodEnd: sub.currentPeriodEnd
+        ? new Date(sub.currentPeriodEnd)
+        : null,
+    }))
+  })
 
-  if (result.success) {
+const searchStudentsSchema = z.object({
+  query: z.string(),
+  program: programSchema.optional(),
+})
+
+const _searchStudents = adminActionClient
+  .metadata({ actionName: 'searchStudents' })
+  .schema(searchStudentsSchema)
+  .action(async ({ parsedInput }) => {
+    return await searchStudentsForLinking(
+      parsedInput.query,
+      parsedInput.program
+    )
+  })
+
+const getPotentialMatchesSchema = z.object({
+  email: z.string().nullable(),
+  program: programSchema,
+})
+
+const _getPotentialMatches = adminActionClient
+  .metadata({ actionName: 'getPotentialMatches' })
+  .schema(getPotentialMatchesSchema)
+  .action(async ({ parsedInput }) => {
+    return await getPotentialStudentMatches(
+      parsedInput.email,
+      parsedInput.program
+    )
+  })
+
+const linkSubscriptionToStudentSchema = z.object({
+  subscriptionId: z.string(),
+  studentId: z.string(),
+  program: programSchema,
+})
+
+const _linkSubscriptionToStudent = adminActionClient
+  .metadata({ actionName: 'linkSubscriptionToStudent' })
+  .schema(linkSubscriptionToStudentSchema)
+  .action(async ({ parsedInput }) => {
+    const { subscriptionId, studentId, program } = parsedInput
+    const result = await linkSubscriptionToProfile(
+      subscriptionId,
+      studentId,
+      program
+    )
+
+    if (!result.success) {
+      throw new ActionError(
+        result.error || 'Failed to link subscription',
+        ERROR_CODES.SERVER_ERROR
+      )
+    }
+
     await logInfo(logger, 'Subscription linked to student', {
       subscriptionId,
       studentId,
       program,
     })
+    revalidateTag('link-subscriptions')
     revalidatePath('/admin/link-subscriptions')
-  }
+    return { linked: true }
+  })
 
-  return result
-}
+const ignoreSubscriptionSchema = z.object({
+  subscriptionId: z.string(),
+  program: programSchema,
+  reason: z.string().optional(),
+})
 
-/**
- * Mark a subscription as ignored.
- * Ignored subscriptions won't appear in the orphaned list.
- */
-export async function ignoreSubscription(
-  subscriptionId: string,
-  program: 'MAHAD' | 'DUGSI',
-  reason?: string
-): Promise<{ success: boolean; error?: string }> {
-  const result = await ignoreSubscriptionService(
-    subscriptionId,
-    program,
-    reason
-  )
+const _ignoreSubscription = adminActionClient
+  .metadata({ actionName: 'ignoreSubscription' })
+  .schema(ignoreSubscriptionSchema)
+  .action(async ({ parsedInput }) => {
+    const { subscriptionId, program, reason } = parsedInput
+    const result = await ignoreSubscriptionService(
+      subscriptionId,
+      program,
+      reason
+    )
 
-  if (result.success) {
+    if (!result.success) {
+      throw new ActionError(
+        result.error || 'Failed to ignore subscription',
+        ERROR_CODES.SERVER_ERROR
+      )
+    }
+
     await logInfo(logger, 'Subscription ignored', {
       subscriptionId,
       program,
       reason,
     })
+    revalidateTag('link-subscriptions')
     revalidatePath('/admin/link-subscriptions')
-  }
+  })
 
-  return result
+const unignoreSubscriptionSchema = z.object({
+  subscriptionId: z.string(),
+  program: programSchema,
+})
+
+const _unignoreSubscription = adminActionClient
+  .metadata({ actionName: 'unignoreSubscription' })
+  .schema(unignoreSubscriptionSchema)
+  .action(async ({ parsedInput }) => {
+    const { subscriptionId, program } = parsedInput
+    const result = await unignoreSubscriptionService(subscriptionId, program)
+
+    if (!result.success) {
+      throw new ActionError(
+        result.error || 'Failed to unignore subscription',
+        ERROR_CODES.SERVER_ERROR
+      )
+    }
+
+    await logInfo(logger, 'Subscription unignored', { subscriptionId, program })
+    revalidateTag('link-subscriptions')
+    revalidatePath('/admin/link-subscriptions')
+  })
+
+export async function getOrphanedSubscriptions(
+  ...args: Parameters<typeof _getOrphanedSubscriptions>
+) {
+  return _getOrphanedSubscriptions(...args)
 }
-
-/**
- * Unignore a subscription, making it appear in the orphaned list again.
- */
+export async function searchStudents(
+  ...args: Parameters<typeof _searchStudents>
+) {
+  return _searchStudents(...args)
+}
+export async function getPotentialMatches(
+  ...args: Parameters<typeof _getPotentialMatches>
+) {
+  return _getPotentialMatches(...args)
+}
+export async function linkSubscriptionToStudent(
+  ...args: Parameters<typeof _linkSubscriptionToStudent>
+) {
+  return _linkSubscriptionToStudent(...args)
+}
+export async function ignoreSubscription(
+  ...args: Parameters<typeof _ignoreSubscription>
+) {
+  return _ignoreSubscription(...args)
+}
 export async function unignoreSubscription(
-  subscriptionId: string,
-  program: 'MAHAD' | 'DUGSI'
-): Promise<{ success: boolean; error?: string }> {
-  const result = await unignoreSubscriptionService(subscriptionId, program)
-
-  if (result.success) {
-    await logInfo(logger, 'Subscription unignored', {
-      subscriptionId,
-      program,
-    })
-    revalidatePath('/admin/link-subscriptions')
-  }
-
-  return result
+  ...args: Parameters<typeof _unignoreSubscription>
+) {
+  return _unignoreSubscription(...args)
 }

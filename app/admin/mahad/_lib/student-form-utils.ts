@@ -15,10 +15,6 @@ import {
   type UpdateStudentPayload,
 } from '../_types'
 
-/**
- * Get default form data from student record
- * Converts null/undefined to appropriate form defaults
- */
 export function getDefaultFormData(
   student: BatchStudentData | StudentDetailData
 ): StudentFormData {
@@ -26,7 +22,7 @@ export function getDefaultFormData(
     name: student.name,
     email: student.email || FORM_DEFAULTS.EMPTY,
     phone: student.phone || FORM_DEFAULTS.EMPTY,
-    dateOfBirth: student.dateOfBirth ?? null,
+    dateOfBirth: normalizeDateValue(student.dateOfBirth),
     gradeLevel: student.gradeLevel || FORM_DEFAULTS.NONE,
     schoolName: student.schoolName || FORM_DEFAULTS.EMPTY,
     graduationStatus: student.graduationStatus || FORM_DEFAULTS.NONE,
@@ -37,10 +33,21 @@ export function getDefaultFormData(
   }
 }
 
-/**
- * Convert form data to API payload
- * Handles 'none' placeholder conversion to null
- */
+// Next.js RSC serializes Date to ISO string across the server→client boundary
+function normalizeDateValue(
+  value: Date | string | null | undefined
+): Date | null {
+  if (!value) return null
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed
+}
+
 export function convertFormDataToPayload(
   formData: StudentFormData
 ): UpdateStudentPayload {
@@ -105,7 +112,8 @@ export function hasFormChanges(
     formData.name !== originalData.name ||
     formData.email !== originalData.email ||
     formData.phone !== originalData.phone ||
-    formData.dateOfBirth?.getTime() !== originalData.dateOfBirth?.getTime() ||
+    (formData.dateOfBirth?.getTime() ?? null) !==
+      (originalData.dateOfBirth?.getTime() ?? null) ||
     formData.gradeLevel !== originalData.gradeLevel ||
     formData.schoolName !== originalData.schoolName ||
     formData.graduationStatus !== originalData.graduationStatus ||

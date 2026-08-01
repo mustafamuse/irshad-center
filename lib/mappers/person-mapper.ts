@@ -1,6 +1,5 @@
 import {
   Person,
-  ContactPoint,
   Teacher,
   TeacherProgram,
   GuardianRelationship,
@@ -11,7 +10,6 @@ import {
 } from '@prisma/client'
 
 import { PROGRAM_LABELS } from '@/lib/constants/program-ui'
-import { extractContactInfo } from '@/lib/utils/contact-helpers'
 
 /**
  * Search result for person lookup.
@@ -24,7 +22,7 @@ export interface PersonSearchResult {
   name: string
   /** Primary email address, null if none */
   email: string | null
-  /** Primary phone number (PHONE or WHATSAPP), null if none */
+  /** Primary phone number, null if none */
   phone: string | null
   /** Whether person has active teacher record */
   isTeacher: boolean
@@ -54,7 +52,6 @@ export interface PersonSearchResult {
 }
 
 type PersonWithRelations = Person & {
-  contactPoints: ContactPoint[]
   teacher?:
     | (Teacher & {
         programs: TeacherProgram[]
@@ -79,13 +76,14 @@ type PersonWithRelations = Person & {
  * Pure transformation function with no database calls or business logic.
  * Extracts role information (teacher, student, parent) and formats for display.
  *
- * @param person - Person record with contactPoints, teacher, guardianRelationships, and programProfiles
+ * @param person - Person record with teacher, guardianRelationships, and programProfiles
  * @returns Formatted search result with role details
  */
 export function mapPersonToSearchResult(
   person: PersonWithRelations
 ): PersonSearchResult {
-  const { email, phone } = extractContactInfo(person.contactPoints)
+  const email = person.email
+  const phone = person.phone
 
   const roles: string[] = []
   const roleDetails: PersonSearchResult['roleDetails'] = {}

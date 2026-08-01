@@ -30,6 +30,25 @@
 
 ---
 
+## High-risk paths (require human review)
+
+Per Erik Schluntz's leaf-node restriction pattern. Claude may edit these only with explicit user direction; auto-modes should treat them as read-only.
+
+- `lib/services/shared/billing.ts` — cross-program billing logic
+- `lib/services/webhooks/**` — Stripe webhook dispatchers
+- `lib/stripe/**` — Stripe client configuration
+- `prisma/schema.prisma` — schema source of truth
+- `prisma/migrations/**` — applied migrations (also covered by `prisma-migration-safety` skill)
+- `lib/safe-action.ts` — auth and rate-limit base
+- `app/api/webhook/**` — webhook route handlers
+- `middleware.ts` — auth middleware
+
+When work touches these, invoke the appropriate specialty agent:
+
+- `security-reviewer` for auth/webhook/admin-action changes
+- `migration-reviewer` for any `prisma/migrations/**` or `prisma/schema.prisma` edit
+- `verify-app` after the change to confirm behavior
+
 ## Critical Rules (Strict Enforcement)
 
 Claude should refuse to write code violating these rules.
@@ -39,7 +58,7 @@ Claude should refuse to write code violating these rules.
 3. **Minimize client components** - extract interactive parts into small client components, keep data fetching server-side
 4. **Never reset production database** - forbidden: `prisma migrate reset`, `DROP TABLE`, `TRUNCATE`
 5. **Use transactions for multi-table operations** - `prisma.$transaction()`
-6. **Handle P2002 race conditions** - use upsert or catch P2002, never check-then-create without transaction
+6. **Explicit pre-validation over constraint-catching** - use a `findFirst` check before writes for user-facing uniqueness validation (email, phone, name). Database constraints (P2002) are safety nets for bugs and race conditions, not primary error reporters. Never try to recover or run additional queries after catching a constraint error inside `$transaction()` — PostgreSQL aborts the transaction on violations. For truly concurrent public flows, use `upsert` (`INSERT ... ON CONFLICT`) instead of check-then-insert.
 7. **Never use `any` type** - always use specific types
 8. **Validate ALL external input with Zod** before database operations
 9. **Always create new files as `.ts`/`.tsx`**, never `.js`/`.jsx`
@@ -58,56 +77,17 @@ Claude should refuse to write code violating these rules.
 
 ## Workflow Patterns
 
-### Autonomous PR Pipeline
+### Workflow skills (loaded on demand, not always-on)
 
-When asked to implement a feature end-to-end, follow this sequence without stopping between steps:
+- `/autopr` — autonomous PR pipeline (implement → typecheck → test → commit → push → `/create-pr`)
+- `/swarm` — parallel agent fan-out for refactors touching 3+ independent files
+- `/feature-gan` — three-agent harness (Planner/Generator/Evaluator) for non-trivial features
+- `/notes` — bootstrap NOTES.md to externalize state for long tasks
+- `/babysit` — handle PR review comments, rebase on main, shepherd toward merge
 
-1. Implement the feature
-2. Run `tsc --noEmit` and fix type errors
-3. Run relevant tests and fix failures
-4. Commit with a descriptive message
-5. Push and create PR with the required format below
-6. Report back with a summary
+### PR Creation
 
-Do not pause for confirmation between steps unless a step fails more than twice.
-
-### PR Description Format (Required)
-
-Every PR description MUST use this format. Fill in each section thoroughly — no empty sections or placeholder text.
-
-```
-## Summary
-<2-4 bullet points: what this PR does and why>
-
-## Changes
-<Group by layer. List each file and what it does. Example:>
-**Service layer:**
-- `file.ts` - Description of what this file does
-
-**UI:**
-- `component.tsx` - Description
-
-**Tests:**
-- `file.test.ts` - What is tested (N tests covering X, Y, Z)
-
-## Test plan
-<Concrete verification steps as a checklist>
-- [ ] Step 1
-- [ ] Step 2
-```
-
-For bug fixes, add a `## Root cause` section after Summary.
-For database migrations, add a `## Safety` checklist after Changes.
-For hotfixes, add `## Severity` and `## Root cause` sections after Summary.
-
-### Parallel Agent Swarm for Refactors
-
-When a refactor touches 3+ files independently, use the Task tool to spawn parallel agents:
-
-- One agent per file or module
-- Each agent reads the file, applies the pattern, and reports back
-- Merge results sequentially after all agents complete
-- Use this for: renames across files, pattern migrations, bulk type updates
+All PRs use the `/create-pr` command. Do not use any other PR format.
 
 ### Self-Healing Test Loop
 
@@ -117,6 +97,35 @@ When tests fail after implementation, automatically fix and re-run:
 2. If failures: analyze error output, apply fix, re-run
 3. Repeat up to 3 cycles
 4. If still failing after 3 cycles, stop and report what was tried
+
+### Babysit Loop (continuous PR handling)
+
+For long-running PR shepherding, use the `/babysit` skill on a loop:
+
+```
+/loop 5m /babysit
+```
+
+It auto-rebases on main, addresses safe bot review comments per the policy in `babysit/SKILL.md`, and reports human-review items without auto-addressing them. Never auto-merges.
+
+---
+
+## Domain Invariants
+
+- **vCard export `skippedDuplicate` is contact-level, not family-level.** It counts each record that resolves to an already-seen contact (a bridge merge of 3 families into 1 contact yields `skippedDuplicate = 2`). Mahad omits `skippedDuplicate` entirely (the field is `undefined`, not `0`) because it has no cross-contact dedup. Do not rename this field to `skippedFamilies` or repurpose it for family-level counts.
+- **vCard export family-key is a superset of `getFamilyKey()`.** The inline grouping in `_generateDugsiVCardContent` adds phone as a tertiary fallback and normalizes email. Do not replace it with a call to `getFamilyKey()` — they have intentionally different semantics. Phone-only families would silently break.
+
+---
+
+## Context Management
+
+See `~/.claude/CLAUDE.md` "Context management (anti-rot protocol)" for the canonical NOTES.md → reset → re-read pattern. Applies to this codebase the same way.
+
+For irshad-center specifically, when a task spans multiple Stripe + Prisma + UI areas, **always** write a `NOTES.md` at task start with:
+
+- Decisions about which Stripe client (Mahad vs Dugsi)
+- Whether a migration is needed (and the destructive/safe classification)
+- Which path-attached skills apply (`stripe-dual-client`, `prisma-migration-safety`, `webhook-handler`)
 
 ---
 

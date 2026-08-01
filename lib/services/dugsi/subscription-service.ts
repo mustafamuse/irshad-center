@@ -15,11 +15,13 @@ import { DUGSI_PROGRAM } from '@/lib/constants/dugsi'
 import { prisma } from '@/lib/db'
 import { getSubscriptionByStripeId } from '@/lib/db/queries/billing'
 import { getProgramProfilesByFamilyId } from '@/lib/db/queries/program-profile'
+import { LIVE_SUBSCRIPTION_STATUSES } from '@/lib/db/query-builders'
 import { ActionError, ERROR_CODES } from '@/lib/errors/action-error'
 import {
   validateStripeSubscription,
   linkSubscriptionToProfiles,
 } from '@/lib/services/shared'
+import { normalizeEmail } from '@/lib/utils/contact-normalization'
 
 /**
  * Result type for subscription validation
@@ -95,16 +97,21 @@ export async function linkDugsiSubscription(
     )
   }
 
+  const normalizedParentEmail = normalizeEmail(parentEmail)
+  if (!normalizedParentEmail) {
+    throw new ActionError(
+      'Invalid or missing parent email',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
   // Find person by email (parent)
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: parentEmail.toLowerCase().trim(),
-        },
-      },
+      email: normalizedParentEmail,
     },
     include: {
       programProfiles: {
@@ -176,16 +183,21 @@ export async function linkDugsiSubscription(
 export async function getDugsiPaymentStatus(
   parentEmail: string
 ): Promise<PaymentStatusResult> {
+  const normalizedEmail = normalizeEmail(parentEmail)
+  if (!normalizedEmail) {
+    throw new ActionError(
+      'Invalid or missing parent email',
+      ERROR_CODES.PARENT_NOT_FOUND,
+      undefined,
+      404
+    )
+  }
+
   // Find person by email
   const person = await prisma.person.findFirst({
     relationLoadStrategy: 'join',
     where: {
-      contactPoints: {
-        some: {
-          type: 'EMAIL',
-          value: parentEmail.toLowerCase().trim(),
-        },
-      },
+      email: normalizedEmail,
     },
     include: {
       billingAccounts: {
@@ -195,9 +207,7 @@ export async function getDugsiPaymentStatus(
         include: {
           subscriptions: {
             where: {
-              status: {
-                in: ['active', 'trialing'],
-              },
+              status: { in: LIVE_SUBSCRIPTION_STATUSES },
             },
             orderBy: {
               createdAt: 'desc',

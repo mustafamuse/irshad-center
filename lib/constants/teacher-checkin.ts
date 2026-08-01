@@ -5,19 +5,12 @@
  * shift times, geofencing, and status display.
  */
 
-import { Shift } from '@prisma/client'
-import { toZonedTime } from 'date-fns-tz'
-
 import { createClientLogger } from '@/lib/logger-client'
 import { calculateDistance } from '@/lib/services/geolocation-service'
 
+export { SCHOOL_TIMEZONE, SHIFT_START_TIMES, SHIFT_TIME_LABELS } from '@/lib/constants/shift-times'
+
 const logger = createClientLogger('teacher-checkin')
-
-// ============================================================================
-// TIMEZONE CONFIGURATION
-// ============================================================================
-
-export const SCHOOL_TIMEZONE = 'America/Chicago'
 
 // ============================================================================
 // GEOFENCE CONFIGURATION
@@ -37,29 +30,6 @@ export const IRSHAD_CENTER_LOCATION = {
  * 15 meters (~50ft) = must be at the building entrance.
  */
 export const GEOFENCE_RADIUS_METERS = 15
-
-// ============================================================================
-// SHIFT TIMING CONFIGURATION
-// ============================================================================
-
-/**
- * Shift start times. Teachers checking in after these times are marked late.
- */
-export const SHIFT_START_TIMES: Record<
-  Shift,
-  { hour: number; minute: number }
-> = {
-  MORNING: { hour: 8, minute: 30 },
-  AFTERNOON: { hour: 14, minute: 15 },
-} as const
-
-/**
- * Human-readable shift time labels for display.
- */
-export const SHIFT_TIME_LABELS: Record<Shift, string> = {
-  MORNING: '8:30 AM',
-  AFTERNOON: '2:15 PM',
-} as const
 
 // ============================================================================
 // STATUS BADGES
@@ -106,26 +76,6 @@ export const LOCATION_STATUS_BADGES = {
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
-
-/**
- * Determines if a check-in time is late for a given shift.
- * Uses school timezone (America/Chicago) for consistent evaluation.
- *
- * @param clockInTime - The time the teacher clocked in
- * @param shift - The shift being checked into
- * @returns true if the teacher is late, false otherwise
- */
-export function isLateForShift(clockInTime: Date, shift: Shift): boolean {
-  const shiftStart = SHIFT_START_TIMES[shift]
-  const zonedTime = toZonedTime(clockInTime, SCHOOL_TIMEZONE)
-  const clockInHour = zonedTime.getHours()
-  const clockInMinute = zonedTime.getMinutes()
-
-  if (clockInHour > shiftStart.hour) return true
-  if (clockInHour === shiftStart.hour && clockInMinute > shiftStart.minute)
-    return true
-  return false
-}
 
 /**
  * Checks if a location is within the geofence radius of Irshad Center.

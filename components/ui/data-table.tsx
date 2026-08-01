@@ -49,7 +49,7 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     enableRowSelection: true,
-    getRowId: (row, index) => (row as any).id ?? String(index),
+    getRowId: (row, index) => (row as { id?: string }).id ?? String(index),
     onRowSelectionChange: (updaterOrValue) => {
       const newValue =
         typeof updaterOrValue === 'function'
@@ -71,7 +71,8 @@ export function DataTable<TData, TValue>({
           .map((rowId) => {
             // Find the row by ID (not index)
             return data.find((row) => {
-              const id = (row as any).id ?? String(data.indexOf(row))
+              const id =
+                (row as { id?: string }).id ?? String(data.indexOf(row))
               return id === rowId
             })
           })
